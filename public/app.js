@@ -890,12 +890,16 @@ async function loadActiveSessions() {
   } catch (error) {
     const message = `Now-playing payload parsing exception: ${error?.message || "invalid JSON response"}`;
     logDebug(message, { bodyPreview: bodyText.slice(0, 1200) });
-    throw new Error(message);
+    state.activeSessions = [];
+    renderActiveSessions();
+    return [];
   }
   if (!response.ok) {
     const message = `Now playing failed with HTTP ${response.status}`;
     logDebug(message, body);
-    throw new Error(message);
+    state.activeSessions = [];
+    renderActiveSessions();
+    return [];
   }
 
   const refreshToken = response.headers.get("X-Now-Playing-Refresh") || "";
@@ -2800,9 +2804,8 @@ function initialize() {
         .then(() => loadSavedConfig())
         .then(() => startHistoryPolling())
         .catch((error) => {
-          setUnlocked(false);
           renderDbStatus(false);
-          setMessage(error.message, "error");
+          setMessage(`${error.message} Signed in, but dashboard APIs are not responding yet.`, "error");
         });
     } else if (!user) {
       setUnlocked(false);

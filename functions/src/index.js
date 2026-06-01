@@ -30,7 +30,7 @@ import {
 } from "./utils/firestoreRepo.js";
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 
-const region = process.env.FUNCTION_REGION || "europe-west2";
+const region = process.env.FUNCTIONS_REGION || "europe-west2";
 setGlobalOptions({ region, maxInstances: 10 });
 
 function routePath(req) {

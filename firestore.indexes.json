@@ -23,13 +23,6 @@
         { "fieldPath": "completedAt", "order": "ASCENDING" },
         { "fieldPath": "updatedAt", "order": "DESCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "playbackProgress",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "updatedAt", "order": "DESCENDING" }
-      ]
     }
   ],
   "fieldOverrides": [

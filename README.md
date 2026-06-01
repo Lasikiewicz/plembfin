@@ -1,5 +1,12 @@
 # Plembfin Firebase
 
+firebase deploy --only hosting
+git add .
+git commit -m "Fix dashboard auth and deploy config"
+git push origin main
+
+firebase deploy
+
 Fresh Firebase implementation of Plembfin. The original Cloudflare repo remains untouched as the rollback path.
 
 ## Stack
@@ -20,7 +27,7 @@ Fresh Firebase implementation of Plembfin. The original Cloudflare repo remains 
 
 ```text
 ADMIN_EMAILS=your-admin@example.com
-FUNCTION_REGION=europe-west2
+FUNCTIONS_REGION=europe-west2
 ```
 
 `ADMIN_UIDS` is optional. If neither `ADMIN_EMAILS` nor `ADMIN_UIDS` is set, dashboard APIs reject requests.
