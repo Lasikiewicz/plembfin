@@ -1,0 +1,49 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "watchHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "watchedAt", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "watchHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "mediaType", "order": "ASCENDING" },
+        { "fieldPath": "watchedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "liveTrackingCache",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "completedAt", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "playbackProgress",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "loopKeys",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "liveTrackingCache",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    }
+  ]
+}

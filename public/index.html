@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Plembfin</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-chassis">
+      <header class="topbar">
+        <div class="brand-block">
+          <h1>Plembfin</h1>
+          <span id="statusPill" class="session-dot locked" aria-label="Locked session" title="Locked"></span>
+        </div>
+
+        <nav class="topnav" aria-label="Primary navigation">
+          <button class="nav-tab active" type="button" data-view="dashboard">Dashboard</button>
+          <button class="nav-tab" type="button" data-view="stats">Stats</button>
+          <button class="nav-tab" type="button" data-view="explorer">History Explorer</button>
+          <button class="nav-tab" type="button" data-view="settings">Settings</button>
+          <button class="nav-tab" type="button" data-view="help">Help</button>
+          <button class="nav-tab" type="button" data-view="logs">Logs</button>
+        </nav>
+
+        <button id="lockButton" class="button-ghost hidden" type="button">Lock</button>
+      </header>
+
+      <main class="page-shell">
+      <section id="authPanel" class="auth-panel glass-panel">
+        <div>
+          <p class="eyebrow">Admin access</p>
+          <h2>Unlock your archive</h2>
+          <p class="muted-copy">Sign in with your Firebase admin account to query Firestore, import Trakt history, and review webhook appends.</p>
+        </div>
+        <form id="authForm" class="auth-form" method="post">
+          <label class="field-label" for="adminEmail">
+            Admin email
+            <input id="adminEmail" name="adminEmail" type="email" autocomplete="username" class="field" />
+          </label>
+          <label class="field-label" for="adminToken">
+            Password
+            <input id="adminToken" name="adminToken" type="password" autocomplete="current-password" class="field" />
+          </label>
+          <button class="button-primary" type="submit">Sign In</button>
+        </form>
+        <p id="message" class="message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section id="appShell" class="app-shell hidden">
+        <section id="timeline-view" class="view-panel" data-view-panel="dashboard">
+          <section class="glass-panel p-section live-panel">
+            <div class="section-heading">
+              <div>
+                <p>Now Playing</p>
+                <span>Live playback sessions across Plex, Emby, and Jellyfin</span>
+              </div>
+              <span id="nowPlayingStatus" class="status-pill status-ready">Smart polling</span>
+            </div>
+            <div id="nowPlayingGrid" class="now-playing-grid" aria-live="polite"></div>
+          </section>
+
+          <section class="glass-panel p-section history-timeline-panel">
+            <div class="section-heading">
+              <div>
+                <p>Watch history</p>
+                <span>Latest 6 watched items</span>
+              </div>
+            </div>
+            <div id="historyTable" class="history-table" aria-live="polite"></div>
+          </section>
+        </section>
+
+        <section id="stats-view" class="view-panel hidden" data-view-panel="stats">
+          <section class="stats-grid" aria-label="Watch statistics">
+            <article class="stat-card glass-panel">
+              <span>Total Watches</span>
+              <b id="totalWatches">0</b>
+            </article>
+            <article class="stat-card glass-panel">
+              <span>Unique Movies Logged</span>
+              <b id="totalMovies">0</b>
+            </article>
+            <article class="stat-card glass-panel">
+              <span>Total TV Episodes Tracked</span>
+              <b id="totalEpisodes">0</b>
+            </article>
+            <article class="stat-card glass-panel">
+              <span>Most Used Platform</span>
+              <b id="topPlatform">None</b>
+            </article>
+            <article class="stat-card glass-panel">
+              <span>Database Size</span>
+              <b id="dbSize">0 Bytes</b>
+            </article>
+            <article class="stat-card glass-panel">
+              <span>Tracking Span</span>
+              <b id="trackingSpan">N/A</b>
+            </article>
+          </section>
+
+          <section class="insight-grid">
+            <article class="glass-panel p-section">
+              <div class="section-heading">
+                <div>
+                  <p>Most Active Playback Platforms</p>
+                  <span>Ranked by stored watch events</span>
+                </div>
+              </div>
+              <div id="sourceRanking" class="insight-list"></div>
+            </article>
+
+            <article class="glass-panel p-section">
+              <div class="section-heading">
+                <div>
+                  <p>Top 5 Most Watched TV Series</p>
+                  <span>Top 5 by distinct logged episodes</span>
+                </div>
+              </div>
+              <div id="topShows" class="insight-list"></div>
+            </article>
+
+            <article class="glass-panel p-section wide-insight">
+              <div class="section-heading">
+                <div>
+                  <p>Watch Activity</p>
+                  <span>Monthly archive volume</span>
+                </div>
+              </div>
+              <div id="monthChart" class="month-chart"></div>
+            </article>
+          </section>
+        </section>
+
+        <section class="view-panel hidden" data-view-panel="explorer">
+          <section class="glass-panel p-section">
+            <div class="section-heading">
+              <div>
+                <p>History Explorer</p>
+                <span>Folder-style archive drill-down</span>
+              </div>
+              <div class="explorer-controls">
+                <label class="compact-field">
+                  <span>Sort</span>
+                  <select id="explorerSort" class="field">
+                    <option value="watched_desc">Watched newest</option>
+                    <option value="watched_asc">Watched oldest</option>
+                    <option value="title_asc">Title A-Z</option>
+                    <option value="title_desc">Title Z-A</option>
+                  </select>
+                </label>
+                <label class="search-box explorer-search-box">
+                  <span>Search</span>
+                  <input id="explorerSearchInput" class="field" type="search" placeholder="Movie, show, IMDb, TMDB, TVDB..." />
+                </label>
+                <div class="segmented-control" aria-label="Explorer mode">
+                  <button class="segment-button active" type="button" data-explorer-mode="movies">Movies</button>
+                  <button class="segment-button" type="button" data-explorer-mode="shows">TV Shows</button>
+                </div>
+              </div>
+            </div>
+            <div id="explorerPanel" class="explorer-panel"></div>
+          </section>
+        </section>
+
+        <section id="settings-view" class="view-panel hidden" data-view-panel="settings">
+          <section class="settings-hub">
+            <aside class="settings-sidebar glass-panel" aria-label="Settings sections">
+              <div class="settings-sidebar-head">
+                <h2>Settings</h2>
+              </div>
+              <nav class="settings-menu">
+                <button class="settings-tab active" type="button" data-settings-tab="general">General</button>
+                <button class="settings-tab" type="button" data-settings-tab="apps">Apps</button>
+                <button class="settings-tab" type="button" data-settings-tab="importer">Importer</button>
+                <button class="settings-tab" type="button" data-settings-tab="complete-check">Complete Check</button>
+                <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
+              </nav>
+            </aside>
+
+            <div class="settings-content">
+              <section class="settings-pane" data-settings-panel="general">
+                <article class="glass-panel p-section settings-card">
+                  <div class="section-heading">
+                    <div>
+                      <p>Firebase Auth</p>
+                      <span>Email/password session managed by Firebase Auth</span>
+                    </div>
+                  </div>
+                  <label class="field-label">
+                    Current admin email
+                    <input id="settingsToken" class="field" type="email" autocomplete="username" readonly />
+                  </label>
+                  <div class="settings-actions">
+                    <button id="updateTokenButton" class="button-ghost" type="button">Check Session</button>
+                  </div>
+                </article>
+
+                <article class="glass-panel p-section settings-card">
+                  <div class="section-heading">
+                    <p>Runtime Variables</p>
+                    <span>Firebase services used by the portal</span>
+                  </div>
+                  <div class="endpoint-box compact-endpoint">
+                    <code>ADMIN_EMAILS</code>
+                    <p>Comma-separated Firebase Auth admin emails allowed to call dashboard APIs.</p>
+                    <code>ADMIN_UIDS</code>
+                    <p>Optional comma-separated Firebase Auth UIDs allowed to call dashboard APIs.</p>
+                    <code>Cloud Firestore</code>
+                    <p>Stores canonical watch history, live cache rows, progress, settings, sync logs, and loop keys.</p>
+                  </div>
+                </article>
+
+                <article class="glass-panel p-section settings-card">
+                  <div class="section-heading">
+                    <p>Webhook Listener</p>
+                    <span>Append new watches automatically</span>
+                  </div>
+                  <div class="endpoint-box">
+                    <code id="webhookUrl">/api/webhook</code>
+                    <p>Point Plex, Emby, and Jellyfin played/scrobble webhooks at this endpoint. Valid watched events are inserted into Firestore.</p>
+                    <p>The listener logs the event first, then coordinates sync to the other platforms while blocking echo loops.</p>
+                  </div>
+                </article>
+
+                <article class="glass-panel p-section settings-card">
+                  <div class="section-heading">
+                    <p>Scheduled Worker</p>
+                    <span>Runs every minute through Firebase Cloud Scheduler</span>
+                  </div>
+                  <div class="endpoint-box">
+                    <code id="cronSyncUrl">/api/cron-sync</code>
+                    <p>The deployed <code>scheduledSync</code> function runs the background worker every minute even when the dashboard is closed.</p>
+                    <p>This endpoint remains available as an authenticated manual trigger for diagnostics.</p>
+                  </div>
+                </article>
+
+                <article class="glass-panel p-section settings-card">
+                  <div class="section-heading">
+                    <p>Database Status</p>
+                    <span>Cloud Firestore backend</span>
+                  </div>
+                  <div id="dbStatus" class="db-status"></div>
+                </article>
+
+                
+              </section>
+
+              <section class="settings-pane hidden" data-settings-panel="apps">
+                <form id="settingsForm" class="settings-config-grid">
+                  <article class="glass-panel p-section settings-card">
+                    <div class="section-heading">
+                      <p>Plex Setup</p>
+                      <span>Server URL, token, and username</span>
+                    </div>
+                    <label class="field-label">
+                      Plex Server URL
+                      <input id="plexServerUrl" class="field" type="url" placeholder="http://127.0.0.1:32400" />
+                    </label>
+                    <label class="field-label">
+                      Plex Token
+                      <input id="plexToken" class="field" type="password" autocomplete="off" />
+                    </label>
+                    <label class="field-label">
+                      Plex Username
+                      <input id="plexUsername" class="field" type="text" autocomplete="off" />
+                    </label>
+                    <div class="connection-test-row">
+                      <button class="button-ghost test-connection-button" type="button" data-test-connection="plex">Test Connection</button>
+                      <p class="connection-test-status" data-test-status="plex" aria-live="polite"></p>
+                    </div>
+                  </article>
+
+                  <article class="glass-panel p-section settings-card">
+                    <div class="section-heading">
+                      <p>Emby Setup</p>
+                      <span>API key, URL, and user ID</span>
+                    </div>
+                    <label class="field-label">
+                      Emby Server URL
+                      <input id="embyServerUrl" class="field" type="url" placeholder="http://127.0.0.1:8096" />
+                    </label>
+                    <label class="field-label">
+                      Emby API Key
+                      <input id="embyApiKey" class="field" type="password" autocomplete="off" />
+                    </label>
+                    <label class="field-label">
+                      Emby User ID
+                      <input id="embyUserId" class="field" type="text" autocomplete="off" />
+                    </label>
+                    <div class="connection-test-row">
+                      <button class="button-ghost test-connection-button" type="button" data-test-connection="emby">Test Connection</button>
+                      <p class="connection-test-status" data-test-status="emby" aria-live="polite"></p>
+                    </div>
+                  </article>
+
+                  <article class="glass-panel p-section settings-card">
+                    <div class="section-heading">
+                      <p>Jellyfin Setup</p>
+                      <span>API key, URL, and user ID</span>
+                    </div>
+                    <label class="field-label">
+                      Jellyfin Server URL
+                      <input id="jellyfinServerUrl" class="field" type="url" placeholder="http://127.0.0.1:8096" />
+                    </label>
+                    <label class="field-label">
+                      Jellyfin API Key
+                      <input id="jellyfinApiKey" class="field" type="password" autocomplete="off" />
+                    </label>
+                    <label class="field-label">
+                      Jellyfin User ID
+                      <input id="jellyfinUserId" class="field" type="text" autocomplete="off" />
+                    </label>
+                    <div class="connection-test-row">
+                      <button class="button-ghost test-connection-button" type="button" data-test-connection="jellyfin">Test Connection</button>
+                      <p class="connection-test-status" data-test-status="jellyfin" aria-live="polite"></p>
+                    </div>
+                  </article>
+
+                  <article class="glass-panel p-section settings-card">
+                    <div class="section-heading">
+                      <p>TMDB</p>
+                      <span>Optional: API key used to backfill posters from TMDB for Trakt imports</span>
+                    </div>
+                    <label class="field-label">
+                      TMDB API Key
+                      <input id="tmdbApiKey" class="field" type="password" autocomplete="off" />
+                    </label>
+                  </article>
+
+                  <article class="glass-panel p-section settings-card settings-wide-card">
+                    <div class="section-heading">
+                      <p>Save Configuration</p>
+                      <span>Commits server fields to the server-only Firestore settings document</span>
+                    </div>
+                    <div class="settings-actions settings-actions-spread">
+                      <p id="settingsStatus" class="muted-copy">Configuration not loaded yet.</p>
+                      <button id="saveConfigButton" class="button-primary" type="submit">Save Configuration</button>
+                    </div>
+                  </article>
+                </form>
+              </section>
+
+              <section class="settings-pane hidden" data-settings-panel="importer">
+                <article class="glass-panel p-section settings-card">
+                  <div class="section-heading">
+                    <div>
+                      <p>Trakt History Importer</p>
+                      <span>Upload unzipped CSV or JSON export files</span>
+                    </div>
+                    <span id="importProgress" class="status-pill status-muted">Idle</span>
+                  </div>
+
+                  <label id="dropZone" class="drop-zone" for="importFile">
+                    <input id="importFile" type="file" accept=".csv,.json,application/json,text/csv" multiple />
+                    <b>Choose Trakt export files</b>
+                    <span>Records are parsed locally, then sent to <code>/api/import</code> in chunks of 100.</span>
+                  </label>
+
+                  <div class="import-actions">
+                    <button id="startImportButton" class="button-primary" type="button" disabled>Start Import</button>
+                    <button id="clearImportButton" class="button-ghost" type="button">Clear</button>
+                  </div>
+
+                  <section class="import-activity" aria-label="Import progress">
+                    <div class="import-progress-row">
+                      <div class="import-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <span id="importProgressFill"></span>
+                      </div>
+                      <span id="importProgressPercent">0%</span>
+                    </div>
+                    <pre id="importTerminal" class="import-terminal" aria-live="polite">[idle] Waiting for files.</pre>
+                  </section>
+
+                  <div id="importPreview" class="import-preview"></div>
+                </article>
+              </section>
+ 
+              <section class="settings-pane hidden" data-settings-panel="complete-check">
+                <article class="glass-panel p-section settings-card">
+                  <div class="section-heading">
+                    <div>
+                      <p>System Integrity Check</p>
+                      <span>Probes Firestore, Firebase Functions, and each configured media server</span>
+                    </div>
+                  </div>
+                  <p class="muted-copy">Use this when you want a quick health pass over the dashboard's backend dependencies before making a change.</p>
+                  <div class="settings-actions">
+                    <button id="runCompleteCheckButton" class="button-primary" type="button" title="Checks Firestore, Functions, and configured Plex/Emby/Jellyfin connections">Run System Diagnostic</button>
+                  </div>
+                  <div id="completeCheckResults" class="complete-check-results hidden" style="margin-top: var(--space-3); display: grid; gap: var(--space-2);">
+                  </div>
+                </article>
+              </section>
+
+              <section class="settings-pane hidden" data-settings-panel="tools">
+                <article class="glass-panel p-section settings-card">
+                  <div class="section-heading">
+                    <p>Repair History Rows</p>
+                    <span>Re-type mislabeled TV rows, then backfill any missing poster URLs</span>
+                  </div>
+                  <p class="muted-copy">Runs the database repair pass that asks TMDB what the row actually is, updates the stored media type, and then refreshes poster URLs where possible.</p>
+                  <div class="settings-actions">
+                    <button id="runRepairButton" class="button-primary" type="button" title="Correct mislabeled history rows and backfill poster URLs">Repair History Now</button>
+                    <p id="repairStatus" class="muted-copy">Idle</p>
+                  </div>
+                  <div style="margin-top: var(--space-3);">
+                    <div id="repairLog" class="import-terminal" style="max-height: 220px; overflow:auto; padding: 8px; background: var(--panel-3); border: 1px solid var(--line);">Repair log will appear here.</div>
+                  </div>
+                </article>
+                
+                <article class="glass-panel p-section settings-card">
+                  <div class="section-heading">
+                    <p>Backfill Trakt Imports</p>
+                    <span>Fetch poster URLs for `trakt_import` rows using TMDB lookups</span>
+                  </div>
+                  <p class="muted-copy">Use this after a Trakt import if rows are missing artwork. It only touches imported rows and leaves live webhook history alone.</p>
+                  <div style="display:grid; gap:8px;">
+                    <label class="field-label">
+                      Batch size (rows per run)
+                      <input id="traktBackfillLimit" class="field" type="number" min="1" max="2000" value="500" />
+                    </label>
+                    <label class="field-label">
+                      Rate limit ms (delay between API calls)
+                      <input id="traktBackfillRate" class="field" type="number" min="50" max="5000" value="300" />
+                    </label>
+                    <div class="settings-actions">
+                      <button id="traktBackfillButton" class="button-primary" type="button" title="Backfill posters for imported Trakt rows">Backfill Trakt Imports</button>
+                      <p id="traktBackfillStatus" class="muted-copy">Idle</p>
+                    </div>
+                    <div>
+                      <div id="traktBackfillLog" class="import-terminal" style="max-height: 240px; overflow:auto; padding: 8px; background: var(--panel-3); border: 1px solid var(--line);">Trakt backfill log will appear here.</div>
+                    </div>
+                  </div>
+                </article>
+              </section>
+            </div>
+          </section>
+        </section>
+
+        <section class="view-panel hidden" data-view-panel="help">
+          <section class="help-layout">
+            <aside class="help-sidebar glass-panel">
+              <div class="help-sidebar-head">
+                <h2>Help</h2>
+              </div>
+              <nav id="helpMenu" class="help-menu" aria-label="Help topics"></nav>
+            </aside>
+            <article id="helpCanvas" class="help-canvas glass-panel" aria-live="polite"></article>
+          </section>
+        </section>
+
+        <section id="logs-view" class="view-panel hidden" data-view-panel="logs">
+          <section class="glass-panel p-section logs-panel">
+            <div class="section-heading">
+              <div>
+                <p>Debug Logs</p>
+                <span>Local diagnostic stream for connection tests and now-playing polling</span>
+              </div>
+              <div class="logs-actions">
+                <button id="clearLogsButton" class="button-ghost" type="button">Clear Local Logs</button>
+                <button id="copyLogsButton" class="button-primary" type="button">Copy Logs</button>
+              </div>
+            </div>
+            <pre id="logsTerminal" class="logs-terminal" aria-live="polite"></pre>
+          </section>
+        </section>
+      </section>
+      </main>
+    </div>
+
+    <div id="debugModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="debugModalTitle">
+      <article class="modal-panel glass-panel">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Sync diagnostic audit</p>
+            <h2 id="debugModalTitle">History row</h2>
+          </div>
+          <button id="closeModalButton" class="button-ghost" type="button">Close</button>
+        </div>
+        <div id="modalBody" class="modal-body"></div>
+      </article>
+    </div>
+
+    <div id="copyToast" class="copy-toast hidden" role="status" aria-live="polite">Copied!</div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

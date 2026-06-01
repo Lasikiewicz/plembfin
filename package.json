@@ -1,0 +1,14 @@
+{
+  "name": "plembfinfire",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "firebase deploy",
+    "deploy:hosting": "firebase deploy --only hosting",
+    "deploy:functions": "firebase deploy --only functions"
+  },
+  "devDependencies": {
+    "firebase-tools": "^14.0.0"
+  }
+}
