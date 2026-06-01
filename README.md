@@ -1,11 +1,8 @@
 # Plembfin Firebase
 
-firebase deploy --only hosting
-git add .
-git commit -m "Fix dashboard auth and deploy config"
-git push origin main
+# Local test
 
-firebase deploy
+npx firebase emulators:start --only functions,hosting
 
 Fresh Firebase implementation of Plembfin. The original Cloudflare repo remains untouched as the rollback path.
 

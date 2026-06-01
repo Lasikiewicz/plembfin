@@ -29,6 +29,8 @@ import {
   upsertPlaybackProgress,
 } from "./utils/firestoreRepo.js";
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
+import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
+import { db, FieldValue } from "./firebase.js";
 
 const region = process.env.FUNCTIONS_REGION || "europe-west2";
 setGlobalOptions({ region, maxInstances: 10 });
@@ -384,6 +386,88 @@ async function handlePoster(req, res) {
   return sendJson(res, { url: null });
 }
 
+async function handleBackfillStatus(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (!(await requireAdmin(req, res))) return;
+  if (req.method !== "GET") return methodNotAllowed(res);
+
+  try {
+    const snapshot = await db.collection("watchHistory")
+      .where("source", "==", "trakt_import")
+      .where("posterUrl", "==", null)
+      .count()
+      .get();
+    const count = snapshot.data().count;
+    return sendJson(res, { remaining: count, missing: count });
+  } catch (error) {
+    console.error("Failed to get backfill status", error);
+    return sendJson(res, { error: "Failed to get backfill status", details: error.message }, 500);
+  }
+}
+
+async function handleBackfillTrakt(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (!(await requireAdmin(req, res))) return;
+  if (req.method !== "POST") return methodNotAllowed(res);
+
+  try {
+    const config = await loadMediaConfig();
+    const tmdbApiKey = config.tmdb?.apiKey;
+    if (!tmdbApiKey) {
+      return sendJson(res, { error: "TMDB API Key is not configured in Settings" }, 400);
+    }
+
+    const body = await readJson(req).catch(() => ({}));
+    const limit = Math.min(Math.max(Number(body.limit || 50), 1), 100);
+
+    const snapshot = await db.collection("watchHistory")
+      .where("source", "==", "trakt_import")
+      .where("posterUrl", "==", null)
+      .limit(limit)
+      .get();
+
+    if (snapshot.empty) {
+      return sendJson(res, { ok: true, tried: 0, backfilled: 0, msg: "No missing poster rows remaining." });
+    }
+
+    let tried = 0;
+    let backfilled = 0;
+
+    for (const doc of snapshot.docs) {
+      tried++;
+      const data = doc.data() || {};
+      const rowMapped = {
+        title: data.title,
+        media_type: data.mediaType,
+        imdb_id: data.ids?.imdb,
+        tmdb_id: data.ids?.tmdb,
+        tvdb_id: data.ids?.tvdb,
+        season: data.season,
+        episode: data.episode,
+      };
+
+      const posterUrl = await fetchPosterFromTmdb(rowMapped, tmdbApiKey);
+      if (posterUrl) {
+        await doc.ref.update({
+          posterUrl: posterUrl,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        backfilled++;
+      } else {
+        await doc.ref.update({
+          posterUrl: "none",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    return sendJson(res, { ok: true, tried, backfilled });
+  } catch (error) {
+    console.error("Trakt backfill execution failed", error);
+    return sendJson(res, { error: "Trakt backfill execution failed", details: error.message }, 500);
+  }
+}
+
 async function handleMaintenanceStub(req, res, name) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!(await requireAdmin(req, res))) return;
@@ -413,7 +497,9 @@ async function dispatch(req, res) {
     if (path === "webhook") return handleWebhook(req, res);
     if (path === "test-connection") return handleTestConnection(req, res);
     if (path === "poster") return handlePoster(req, res);
-    if (["admin-fix-history", "admin-backfill-trakt", "admin-backfill-status", "admin-ensure-columns", "admin-clear-mock"].includes(path)) {
+    if (path === "admin-backfill-status") return handleBackfillStatus(req, res);
+    if (path === "admin-backfill-trakt") return handleBackfillTrakt(req, res);
+    if (["admin-fix-history", "admin-ensure-columns", "admin-clear-mock"].includes(path)) {
       return handleMaintenanceStub(req, res, path);
     }
     return notFound(res);

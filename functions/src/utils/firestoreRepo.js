@@ -1,4 +1,6 @@
 import { db, FieldValue, Timestamp } from "../firebase.js";
+import { loadMediaConfig } from "./configStore.js";
+import { fetchPosterFromTmdb } from "./tmdbClient.js";
 
 const MAX_HISTORY_LIMIT = 25000;
 
@@ -222,6 +224,9 @@ export async function batchInsertWatchRecords(_unusedDb, records) {
   const rejected = [];
   const batch = db.batch();
 
+  const config = await loadMediaConfig().catch(() => ({}));
+  const tmdbApiKey = config.tmdb?.apiKey;
+
   for (const [index, record] of records.entries()) {
     const normalized = normalizeWatchRecord(record, "trakt_import");
     const errors = validateWatchRecord(normalized);
@@ -239,6 +244,10 @@ export async function batchInsertWatchRecords(_unusedDb, records) {
     if (!existing.empty) {
       skipped += 1;
       continue;
+    }
+
+    if (tmdbApiKey && !normalized.poster_url) {
+      normalized.poster_url = await fetchPosterFromTmdb(normalized, tmdbApiKey);
     }
 
     const ref = db.collection("watchHistory").doc();
@@ -449,15 +458,34 @@ function matchesSearch(row, search) {
 }
 
 function dedupeHistory(rows) {
-  const seen = new Set();
-  const result = [];
+  const map = new Map();
   for (const row of rows) {
     const key = row.media_type === "episode"
       ? `episode|${row.imdb_id || row.tmdb_id || row.tvdb_id || row.title}|${row.season ?? -1}|${row.episode ?? -1}`
       : `movie|${row.imdb_id || row.tmdb_id || row.tvdb_id || row.title}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(row);
+    
+    if (map.has(key)) {
+      const existing = map.get(key);
+      if (!existing.playHistory) {
+        existing.playHistory = [existing.watched_at];
+      }
+      existing.playHistory.push(row.watched_at);
+      if (row.watched_at < existing.watched_at) {
+        existing.watched_at = row.watched_at;
+      }
+    } else {
+      map.set(key, {
+        ...row,
+        playHistory: [row.watched_at]
+      });
+    }
+  }
+
+  const result = [...map.values()];
+  for (const row of result) {
+    if (row.playHistory) {
+      row.playHistory.sort((a, b) => a.localeCompare(b));
+    }
   }
   return result;
 }
@@ -513,7 +541,18 @@ export async function getWatchStats() {
 
 export async function getWatchRecordById(id) {
   const doc = await db.collection("watchHistory").doc(String(id)).get();
-  return doc.exists ? fromFirestoreWatch(doc) : null;
+  if (!doc.exists) return null;
+  const row = fromFirestoreWatch(doc);
+  if (row.media_key) {
+    const snapshot = await db.collection("watchHistory")
+      .where("mediaKey", "==", row.media_key)
+      .orderBy("watchedAt", "asc")
+      .get();
+    row.playHistory = snapshot.docs.map(d => d.data().watchedAt).filter(Boolean);
+  } else {
+    row.playHistory = [row.watched_at];
+  }
+  return row;
 }
 
 export async function deleteWatchRecordById(id) {
