@@ -406,6 +406,7 @@ export async function updateWatchTelemetry(_unusedDb, id, telemetry) {
     },
     { merge: true },
   );
+  await invalidateHistoryDerivedCaches();
 }
 
 export function normalizePlaybackProgressRecord(record = {}, fallbackSource = "webhook") {

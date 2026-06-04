@@ -430,7 +430,25 @@ async function handleCronSync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
-  return sendJson(res, { ok: true, result: await runScheduledSync() });
+
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+
+  const logger = (msg) => {
+    res.write(`${msg}\n`);
+    console.log(msg);
+  };
+
+  try {
+    const result = await runScheduledSync(logger);
+    res.write(`RESULT: ${JSON.stringify(result)}\n`);
+    res.end();
+  } catch (error) {
+    logger(`ERROR: Cron Sync failed: ${error.message}`);
+    res.end();
+  }
 }
 
 async function handleForceSync(req, res) {

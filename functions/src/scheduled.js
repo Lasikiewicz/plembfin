@@ -375,7 +375,183 @@ async function syncRecentlyWatchedFromPlex(config, loopStore) {
   return syncedCount;
 }
 
-async function syncRecentlyWatchedFromEmby(config, loopStore) {
+async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.log) {
+  if (!config.plex?.baseUrl || !config.plex?.token) return 0;
+
+  const baseUrl = config.plex.baseUrl.replace(/\/+$/, "");
+  const token = config.plex.token;
+  const username = config.plex.username || "";
+  let syncedCount = 0;
+
+  let targetAccountId = 1;
+  if (username && username.toLowerCase() !== "admin" && username.toLowerCase() !== "owner") {
+    try {
+      const accountsUrl = new URL(`${baseUrl}/accounts`);
+      accountsUrl.searchParams.set("X-Plex-Token", token);
+      const accountsRes = await fetch(accountsUrl, { headers: { Accept: "application/json" } });
+      if (accountsRes.ok) {
+        const accountsData = await accountsRes.json();
+        const accounts = accountsData?.MediaContainer?.Account || [];
+        const matchedAccount = accounts.find(
+          (acc) => acc.name && acc.name.toLowerCase() === username.toLowerCase()
+        );
+        if (matchedAccount) {
+          targetAccountId = Number(matchedAccount.id);
+        }
+      }
+    } catch (err) {
+      logger(`Plex account mapping failed: ${err.message}`);
+    }
+  }
+
+  try {
+    const historyUrl = new URL(`${baseUrl}/status/sessions/history/all`);
+    historyUrl.searchParams.set("X-Plex-Token", token);
+    historyUrl.searchParams.set("X-Plex-Container-Start", "0");
+    historyUrl.searchParams.set("X-Plex-Container-Size", "20");
+
+    const historyRes = await fetch(historyUrl, { headers: { Accept: "application/json" } });
+    let items = [];
+    if (historyRes.ok) {
+      const historyData = await historyRes.json();
+      items = historyData?.MediaContainer?.Metadata || [];
+    } else {
+      logger(`Plex history fetch failed: HTTP ${historyRes.status}`);
+    }
+
+    let recentlyViewedItems = [];
+    try {
+      const sectionsUrl = new URL(`${baseUrl}/library/sections`);
+      sectionsUrl.searchParams.set("X-Plex-Token", token);
+      const sectionsRes = await fetch(sectionsUrl, { headers: { Accept: "application/json" } });
+      if (sectionsRes.ok) {
+        const sectionsData = await sectionsRes.json();
+        const directories = sectionsData?.MediaContainer?.Directory || [];
+        for (const dir of directories) {
+          const sectionId = dir.key;
+          const type = dir.type;
+          if (type !== "movie" && type !== "show") continue;
+
+          const sectionAllUrl = new URL(`${baseUrl}/library/sections/${sectionId}/all`);
+          sectionAllUrl.searchParams.set("X-Plex-Token", token);
+          sectionAllUrl.searchParams.set("sort", "viewedAt:desc");
+          sectionAllUrl.searchParams.set("X-Plex-Container-Start", "0");
+          sectionAllUrl.searchParams.set("X-Plex-Container-Size", "20");
+          if (type === "movie") {
+            sectionAllUrl.searchParams.set("type", "1");
+          } else {
+            sectionAllUrl.searchParams.set("type", "4"); // Episode
+          }
+
+          const sectionRes = await fetch(sectionAllUrl, { headers: { Accept: "application/json" } });
+          if (sectionRes.ok) {
+            const sectionData = await sectionRes.json();
+            const metadata = sectionData?.MediaContainer?.Metadata || [];
+            recentlyViewedItems.push(...metadata);
+          }
+        }
+      } else {
+        logger(`Plex sections fetch failed: HTTP ${sectionsRes.status}`);
+      }
+    } catch (err) {
+      logger(`Plex sections check failed: ${err.message}`);
+    }
+
+    // Combine and deduplicate
+    const allItems = [...items, ...recentlyViewedItems];
+    const seenKeys = new Set();
+    const uniqueItems = [];
+
+    for (const item of allItems) {
+      if (item.accountID && Number(item.accountID) !== targetAccountId) continue;
+      if (item.type !== "movie" && item.type !== "episode") continue;
+
+      const viewedAtTime = item.viewedAt || item.lastViewedAt;
+      if (!viewedAtTime) continue;
+
+      const dedupeKey = `${item.ratingKey || item.key}-${viewedAtTime}`;
+      if (seenKeys.has(dedupeKey)) continue;
+      seenKeys.add(dedupeKey);
+
+      uniqueItems.push({ item, viewedAtTime });
+    }
+
+    for (const { item, viewedAtTime } of uniqueItems) {
+      const media = {
+        title: item.title,
+        type: item.type,
+        source: "plex",
+        ids: {},
+      };
+
+      const guids = [item.guid, ...(item.Guid || []).map((g) => g.id || g)].filter(Boolean);
+      for (const guid of guids) {
+        const guidStr = String(guid);
+        const value = guidStr.split(/:\/\/|\//).pop();
+        if (guidStr.includes("imdb")) media.ids.imdb = value;
+        if (guidStr.includes("tmdb") || guidStr.includes("themoviedb")) media.ids.tmdb = value;
+        if (guidStr.includes("tvdb") || guidStr.includes("thetvdb")) media.ids.tvdb = value;
+      }
+
+      if (item.type === "episode") {
+        media.season = Number(item.parentIndex);
+        media.episode = Number(item.index);
+        media.title = `${item.grandparentTitle} - S${String(media.season || "?").padStart(2, "0")}E${String(media.episode || "?").padStart(2, "0")}`;
+      }
+
+      const key = mediaKeyFor(media);
+      const watchedAt = new Date(Number(viewedAtTime) * 1000).toISOString();
+
+      const existing = await db
+        .collection("watchHistory")
+        .where("mediaKey", "==", key)
+        .where("watchedAt", "==", watchedAt)
+        .limit(1)
+        .get();
+
+      if (existing.empty) {
+        logger(`Plex: detected new watched item: ${media.title} (watched at ${watchedAt})`);
+        const watchRecord = mediaToWatchRecord(media, "plex");
+        watchRecord.watched_at = watchedAt;
+        watchRecord.sync_action = "watched";
+        watchRecord.sync_dispatch_telemetry = [
+          `Origin: plex`,
+          `Loop-check: Passed`,
+          `Dispatch status: pending`,
+          `Details: Watch event fetched from Plex library history; queueing sync.`,
+        ].join("\n");
+
+        const result = await insertWatchRecord(requireDb(), watchRecord);
+        const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
+          skipped: false,
+          status: "error",
+          details: `Outbound sync failed: ${error.message || String(error)}`,
+          targetStates: [],
+        }));
+
+        const telemetry = [
+          `Origin: plex`,
+          `Loop-check: Passed`,
+          `Dispatch status: ${summary.status}`,
+          `Details: Watch event fetched from Plex library history; sync completed.`,
+          ...summary.targetStates.map(
+            (t) => `Target ${t.target} status: ${t.status}${t.detail ? ` - ${t.detail}` : ""}`
+          ),
+        ].join("\n");
+
+        await updateWatchTelemetry(requireDb(), result.id, telemetry);
+        await recordSyncHistory(media, summary, "watched");
+        syncedCount++;
+      }
+    }
+  } catch (error) {
+    logger(`Plex sync recently watched failed: ${error.message}`);
+  }
+
+  return syncedCount;
+}
+
+async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.log) {
   if (!config.emby?.baseUrl || !config.emby?.apiKey || !config.emby?.userId) return 0;
   let syncedCount = 0;
   try {
@@ -399,17 +575,18 @@ async function syncRecentlyWatchedFromEmby(config, loopStore) {
       };
 
       const key = mediaKeyFor(media);
-      const watchedAt = item.UserData?.LastPlayedDate ? new Date(item.UserData.LastPlayedDate).toISOString() : new Date().toISOString();
+      const hasLastPlayed = Boolean(item.UserData?.LastPlayedDate);
+      const watchedAt = hasLastPlayed ? new Date(item.UserData.LastPlayedDate).toISOString() : new Date().toISOString();
 
-      const existing = await db
-        .collection("watchHistory")
-        .where("mediaKey", "==", key)
-        .where("watchedAt", "==", watchedAt)
-        .limit(1)
-        .get();
+      let query = db.collection("watchHistory").where("mediaKey", "==", key);
+      if (hasLastPlayed) {
+        query = query.where("watchedAt", "==", watchedAt);
+      }
+
+      const existing = await query.limit(1).get();
 
       if (existing.empty) {
-        console.log(`Cron detected new Emby watch event: ${media.title} watched at ${watchedAt}`);
+        logger(`Emby: detected new watched item: ${media.title} (played date: ${hasLastPlayed ? watchedAt : "manually marked"})`);
         const watchRecord = mediaToWatchRecord(media, "emby");
         watchRecord.watched_at = watchedAt;
         watchRecord.sync_action = "watched";
@@ -444,12 +621,12 @@ async function syncRecentlyWatchedFromEmby(config, loopStore) {
       }
     }
   } catch (error) {
-    console.error("Error in syncRecentlyWatchedFromEmby", error);
+    logger(`Emby sync recently watched failed: ${error.message}`);
   }
   return syncedCount;
 }
 
-async function syncRecentlyWatchedFromJellyfin(config, loopStore) {
+async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = console.log) {
   if (!config.jellyfin?.baseUrl || !config.jellyfin?.apiKey || !config.jellyfin?.userId) return 0;
   let syncedCount = 0;
   try {
@@ -473,17 +650,18 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore) {
       };
 
       const key = mediaKeyFor(media);
-      const watchedAt = item.UserData?.LastPlayedDate ? new Date(item.UserData.LastPlayedDate).toISOString() : new Date().toISOString();
+      const hasLastPlayed = Boolean(item.UserData?.LastPlayedDate);
+      const watchedAt = hasLastPlayed ? new Date(item.UserData.LastPlayedDate).toISOString() : new Date().toISOString();
 
-      const existing = await db
-        .collection("watchHistory")
-        .where("mediaKey", "==", key)
-        .where("watchedAt", "==", watchedAt)
-        .limit(1)
-        .get();
+      let query = db.collection("watchHistory").where("mediaKey", "==", key);
+      if (hasLastPlayed) {
+        query = query.where("watchedAt", "==", watchedAt);
+      }
+
+      const existing = await query.limit(1).get();
 
       if (existing.empty) {
-        console.log(`Cron detected new Jellyfin watch event: ${media.title} watched at ${watchedAt}`);
+        logger(`Jellyfin: detected new watched item: ${media.title} (played date: ${hasLastPlayed ? watchedAt : "manually marked"})`);
         const watchRecord = mediaToWatchRecord(media, "jellyfin");
         watchRecord.watched_at = watchedAt;
         watchRecord.sync_action = "watched";
@@ -518,12 +696,12 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore) {
       }
     }
   } catch (error) {
-    console.error("Error in syncRecentlyWatchedFromJellyfin", error);
+    logger(`Jellyfin sync recently watched failed: ${error.message}`);
   }
   return syncedCount;
 }
 
-async function syncPendingManualDispatches(config, loopStore) {
+async function syncPendingManualDispatches(config, loopStore, logger = console.log) {
   let syncedCount = 0;
   try {
     const snapshot = await db
@@ -552,7 +730,7 @@ async function syncPendingManualDispatches(config, loopStore) {
         episode: data.episode == null ? undefined : Number(data.episode),
       };
 
-      console.log(`Cron detected pending manual sync dispatch: ${media.title}`);
+      logger(`Pending Queue: dispatching sync for ${media.title}...`);
       const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
         skipped: false,
         status: "error",
@@ -575,12 +753,13 @@ async function syncPendingManualDispatches(config, loopStore) {
       syncedCount++;
     }
   } catch (error) {
-    console.error("Error in syncPendingManualDispatches", error);
+    logger(`Pending Queue dispatcher failed: ${error.message}`);
   }
   return syncedCount;
 }
 
-export async function runScheduledSync() {
+export async function runScheduledSync(logger = console.log) {
+  logger("Scheduled Sync: starting background sync workflow...");
   await setRuntimeState({ lastCronExecution: Date.now() }).catch(() => null);
   const config = await loadMediaConfig();
   const loopStore = createLoopStore();
@@ -592,13 +771,14 @@ export async function runScheduledSync() {
   const hasConfiguredSources = plexActive || embyActive || jellyfinActive;
 
   if (!hasConfiguredSources) {
-    console.log("Scheduled live tracking sync skipped; no active configured media servers were found.");
+    logger("Scheduled Sync: skipped; no active configured media servers were found.");
     return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true };
   }
 
   if (plexActive) {
+    logger("Scheduled Sync: checking Plex unwatched status...");
     await checkPlexUnwatchedStatus(config, loopStore).catch((error) => {
-      console.error("Failed to run checkPlexUnwatchedStatus", error);
+      logger(`Scheduled Sync ERROR: checkPlexUnwatchedStatus failed: ${error.message}`);
     });
   }
 
@@ -609,34 +789,39 @@ export async function runScheduledSync() {
 
   if (plexActive) {
     try {
-      plexSynced = await syncRecentlyWatchedFromPlex(config, loopStore);
+      logger("Scheduled Sync: checking Plex recently watched...");
+      plexSynced = await syncRecentlyWatchedFromPlex(config, loopStore, logger);
     } catch (error) {
-      console.error("Failed to run syncRecentlyWatchedFromPlex", error);
+      logger(`Scheduled Sync ERROR: Plex sync failed: ${error.message}`);
     }
   }
 
   if (embyActive) {
     try {
-      embySynced = await syncRecentlyWatchedFromEmby(config, loopStore);
+      logger("Scheduled Sync: checking Emby recently watched...");
+      embySynced = await syncRecentlyWatchedFromEmby(config, loopStore, logger);
     } catch (error) {
-      console.error("Failed to run syncRecentlyWatchedFromEmby", error);
+      logger(`Scheduled Sync ERROR: Emby sync failed: ${error.message}`);
     }
   }
 
   if (jellyfinActive) {
     try {
-      jellyfinSynced = await syncRecentlyWatchedFromJellyfin(config, loopStore);
+      logger("Scheduled Sync: checking Jellyfin recently watched...");
+      jellyfinSynced = await syncRecentlyWatchedFromJellyfin(config, loopStore, logger);
     } catch (error) {
-      console.error("Failed to run syncRecentlyWatchedFromJellyfin", error);
+      logger(`Scheduled Sync ERROR: Jellyfin sync failed: ${error.message}`);
     }
   }
 
   try {
-    manualSynced = await syncPendingManualDispatches(config, loopStore);
+    logger("Scheduled Sync: processing pending manual dispatches...");
+    manualSynced = await syncPendingManualDispatches(config, loopStore, logger);
   } catch (error) {
-    console.error("Failed to run syncPendingManualDispatches", error);
+    logger(`Scheduled Sync ERROR: Manual queue sync failed: ${error.message}`);
   }
 
+  logger("Scheduled Sync: scanning active sessions for live tracking...");
   const currentSessions = await fetchLiveSessions(config);
   const currentRows = currentSessions.map(buildCacheRow);
   const currentIds = new Set(currentRows.map((row) => row.session_id));
@@ -646,6 +831,7 @@ export async function runScheduledSync() {
   const progressUpdates = [];
   const staleIds = [];
 
+  logger(`Scheduled Sync: live sessions: ${currentRows.length}, cached sessions in tracking: ${cachedRows.length}`);
   await upsertLiveTrackingCache(requireDb(), currentRows);
 
   for (const row of cachedRows) {
@@ -653,8 +839,9 @@ export async function runScheduledSync() {
     if (row.completed_at) continue;
 
     if (Number(row.last_progress || 0) >= 90) {
+      logger(`Scheduled Sync: session completed playback: ${row.title} (${row.session_id})`);
       const completion = await processCompletedSession(row, config, loopStore).catch((error) => {
-        console.error("Live tracking completion failed", { sessionId: row.session_id, error });
+        logger(`Scheduled Sync ERROR: processCompletedSession failed for ${row.title}: ${error.message}`);
         return null;
       });
       if (completion) completions.push(completion);
@@ -662,8 +849,9 @@ export async function runScheduledSync() {
       continue;
     }
 
+    logger(`Scheduled Sync: session stopped/paused playback: ${row.title} (${row.session_id})`);
     const progressUpdate = await processStoppedSessionProgress(row, config, loopStore).catch((error) => {
-      console.error("Live tracking resume progress failed", { sessionId: row.session_id, error });
+      logger(`Scheduled Sync ERROR: processStoppedSessionProgress failed for ${row.title}: ${error.message}`);
       return null;
     });
     if (progressUpdate) progressUpdates.push(progressUpdate);
@@ -677,6 +865,7 @@ export async function runScheduledSync() {
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
   }
 
+  logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Manual: ${manualSynced}`);
   return {
     sessions: currentRows.length,
     completions: completions.length,

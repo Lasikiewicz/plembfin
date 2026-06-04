@@ -4431,28 +4431,97 @@ async function runFullSyncWatchstates() {
 
 async function triggerCronSync() {
   const button = elements.runCronSyncButton;
+  const terminal = elements.forceSyncTerminal;
   if (!button) return;
+
+  if (terminal) {
+    terminal.classList.remove("hidden");
+    terminal.textContent = "Cron Sync started...\n";
+  }
+
   const originalText = button.textContent;
   button.disabled = true;
   button.textContent = "Syncing...";
+
   try {
     const response = await fetch("/api/cron-sync", {
       method: "POST",
       headers: authHeaders()
     });
-    const body = await response.json().catch(() => ({}));
+
     if (!response.ok) {
-      throw new Error(body.error || `Cron sync failed with HTTP ${response.status}`);
+      throw new Error(`Cron sync failed with HTTP ${response.status}`);
     }
-    const result = body.result || {};
-    const detail = `Cron run complete! Sessions: ${result.sessions ?? 0}, completions: ${result.completions ?? 0}, cached: ${result.cached ?? 0}`;
-    showToast(detail);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    let finalResult = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        if (trimmed.startsWith("RESULT: ")) {
+          try {
+            finalResult = JSON.parse(trimmed.substring(8));
+          } catch (e) {
+            console.error("Failed to parse final result JSON", e);
+          }
+        } else {
+          if (terminal) {
+            terminal.textContent += `${trimmed}\n`;
+            terminal.scrollTop = terminal.scrollHeight;
+          }
+        }
+      }
+    }
+
+    if (buffer.trim()) {
+      const trimmed = buffer.trim();
+      if (trimmed.startsWith("RESULT: ")) {
+        try {
+          finalResult = JSON.parse(trimmed.substring(8));
+        } catch (e) {
+          console.error("Failed to parse final result JSON", e);
+        }
+      } else {
+        if (terminal) {
+          terminal.textContent += `${trimmed}\n`;
+          terminal.scrollTop = terminal.scrollHeight;
+        }
+      }
+    }
+
+    if (finalResult) {
+      const detail = `Cron run complete! Sessions: ${finalResult.sessions ?? 0}, completions: ${finalResult.completions ?? 0}, cached: ${finalResult.cached ?? 0}`;
+      showToast(detail);
+      if (terminal) {
+        terminal.textContent += `\nSUCCESS: ${detail}\n`;
+        terminal.scrollTop = terminal.scrollHeight;
+      }
+    } else {
+      throw new Error("No final result returned from server");
+    }
+
     await Promise.all([
       loadSyncJobs({ force: true }),
       loadSyncHistory({ force: true })
     ]);
   } catch (error) {
     showToast(`Error: ${error.message}`);
+    if (terminal) {
+      terminal.textContent += `\nERROR: ${error.message}\n`;
+      terminal.scrollTop = terminal.scrollHeight;
+    }
   } finally {
     button.disabled = false;
     button.textContent = originalText;
