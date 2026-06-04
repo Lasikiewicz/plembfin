@@ -1,8 +1,12 @@
 # Plembfin Firebase
 
-# Local test
+## Local Site
 
+To run the site locally, use:
+
+```bash
 npx firebase emulators:start --only functions,hosting
+```
 
 Fresh Firebase implementation of Plembfin. The original Cloudflare repo remains untouched as the rollback path.
 
