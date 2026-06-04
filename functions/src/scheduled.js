@@ -1,8 +1,9 @@
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { findPlexItem } from "./utils/plexClient.js";
 import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/liveSessions.js";
-import { loadMediaConfig, setRuntimeState } from "./utils/configStore.js";
+import { appendSyncHistory, loadMediaConfig, setRuntimeState } from "./utils/configStore.js";
 import { createLoopStore } from "./utils/loopStore.js";
+import { db } from "./firebase.js";
 import {
   deleteLiveTrackingCacheRows,
   deletePlaybackProgress,
@@ -10,6 +11,7 @@ import {
   insertWatchRecord,
   loadLiveTrackingCache,
   markLiveTrackingComplete,
+  mediaKeyFor,
   mediaToPlaybackProgressRecord,
   mediaToWatchRecord,
   purgeCompletedLiveTrackingCache,
@@ -56,6 +58,26 @@ function cachedRowToMedia(row) {
   };
 }
 
+async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
+  await appendSyncHistory({
+    mediaType: media.type || media.mediaType || "unknown",
+    title: media.title || "Unknown media",
+    source: media.source || "unknown",
+    status: summary.status || "unknown",
+    details: summary.details || "",
+    action,
+    targetStates: summary.targetStates || [],
+    rawPayloadDebug: {
+      sessionId: media.sessionId || media.id || "",
+      ids: media.ids || {},
+      season: media.season ?? null,
+      episode: media.episode ?? null,
+      progress: media.progress ?? null,
+      offsetMs: media.offsetMs ?? media.positionMs ?? null,
+    },
+  }).catch((error) => console.error("Failed to append scheduled sync history", error));
+}
+
 async function checkPlexUnwatchedStatus(config, loopStore) {
   if (!config.plex?.baseUrl || !config.plex?.token) return;
 
@@ -86,7 +108,8 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
         if (!isWatched) {
           console.log("Cron detected Plex item marked unwatched: deleting watch history and syncing", { title: record.title });
           await deleteWatchRecordById(record.id);
-          await syncMediaUnplayedPlaystate({ ...media, isValid: true, source: "plex" }, config, loopStore);
+          const summary = await syncMediaUnplayedPlaystate({ ...media, isValid: true, source: "plex" }, config, loopStore);
+          await recordSyncHistory({ ...media, isValid: true, source: "plex" }, summary, "unwatched");
         }
       }
     } catch (error) {
@@ -129,6 +152,7 @@ async function processCompletedSession(row, config, loopStore) {
   }
   const telemetry = buildTelemetry(media, syncSummary);
   await updateWatchTelemetry(requireDb(), inserted.id, telemetry);
+  await recordSyncHistory(media, syncSummary, "watched");
   await deletePlaybackProgress(requireDb(), media).catch((error) => {
     console.error("Failed to clear completed resume progress", { sessionId: row.session_id, error });
   });
@@ -170,8 +194,188 @@ async function processStoppedSessionProgress(row, config, loopStore) {
   await updatePlaybackProgressTelemetry(requireDb(), progressRecord, telemetry).catch((error) => {
     console.error("Failed to update stopped session resume telemetry", { sessionId: row.session_id, error });
   });
+  await recordSyncHistory(media, syncSummary, "progress");
 
   return { media, telemetry, status: syncSummary.status };
+}
+
+async function syncRecentlyWatchedFromPlex(config, loopStore) {
+  if (!config.plex?.baseUrl || !config.plex?.token) return 0;
+
+  const baseUrl = config.plex.baseUrl.replace(/\/+$/, "");
+  const token = config.plex.token;
+  const username = config.plex.username || "";
+  let syncedCount = 0;
+
+  let targetAccountId = 1;
+  if (username && username.toLowerCase() !== "admin" && username.toLowerCase() !== "owner") {
+    try {
+      const accountsUrl = new URL(`${baseUrl}/accounts`);
+      accountsUrl.searchParams.set("X-Plex-Token", token);
+      const accountsRes = await fetch(accountsUrl, { headers: { Accept: "application/json" } });
+      if (accountsRes.ok) {
+        const accountsData = await accountsRes.json();
+        const accounts = accountsData?.MediaContainer?.Account || [];
+        const matchedAccount = accounts.find(
+          (acc) => acc.name && acc.name.toLowerCase() === username.toLowerCase()
+        );
+        if (matchedAccount) {
+          targetAccountId = Number(matchedAccount.id);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to map Plex username to account ID", err);
+    }
+  }
+
+  try {
+    const historyUrl = new URL(`${baseUrl}/status/sessions/history/all`);
+    historyUrl.searchParams.set("X-Plex-Token", token);
+    historyUrl.searchParams.set("X-Plex-Container-Start", "0");
+    historyUrl.searchParams.set("X-Plex-Container-Size", "20");
+
+    const historyRes = await fetch(historyUrl, { headers: { Accept: "application/json" } });
+    if (!historyRes.ok) {
+      console.error("Failed to fetch Plex history in cron", historyRes.status);
+      return 0;
+    }
+
+    const historyData = await historyRes.json();
+    const items = historyData?.MediaContainer?.Metadata || [];
+
+    for (const item of items) {
+      if (Number(item.accountID) !== targetAccountId) continue;
+      if (item.type !== "movie" && item.type !== "episode") continue;
+
+      const media = {
+        title: item.title,
+        type: item.type,
+        source: "plex",
+        ids: {},
+      };
+
+      const guids = [item.guid, ...(item.Guid || []).map((g) => g.id || g)].filter(Boolean);
+      for (const guid of guids) {
+        const guidStr = String(guid);
+        const value = guidStr.split(/:\/\/|\//).pop();
+        if (guidStr.includes("imdb")) media.ids.imdb = value;
+        if (guidStr.includes("tmdb") || guidStr.includes("themoviedb")) media.ids.tmdb = value;
+        if (guidStr.includes("tvdb") || guidStr.includes("thetvdb")) media.ids.tvdb = value;
+      }
+
+      if (item.type === "episode") {
+        media.season = Number(item.parentIndex);
+        media.episode = Number(item.index);
+        media.title = `${item.grandparentTitle} - S${String(media.season || "?").padStart(2, "0")}E${String(media.episode || "?").padStart(2, "0")}`;
+      }
+
+      const key = mediaKeyFor(media);
+      const watchedAt = new Date(Number(item.viewedAt) * 1000).toISOString();
+
+      const existing = await db
+        .collection("watchHistory")
+        .where("mediaKey", "==", key)
+        .where("watchedAt", "==", watchedAt)
+        .limit(1)
+        .get();
+
+      if (existing.empty) {
+        console.log(`Cron detected new Plex watch event in history: ${media.title} watched at ${watchedAt}`);
+        const watchRecord = mediaToWatchRecord(media, "plex");
+        watchRecord.watched_at = watchedAt;
+        watchRecord.sync_action = "watched";
+        watchRecord.sync_dispatch_telemetry = [
+          `Origin: plex`,
+          `Loop-check: Passed`,
+          `Dispatch status: pending`,
+          `Details: Watch event fetched from Plex library history; queueing sync.`,
+        ].join("\n");
+
+        const result = await insertWatchRecord(requireDb(), watchRecord);
+        const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
+          skipped: false,
+          status: "error",
+          details: `Outbound sync failed: ${error.message || String(error)}`,
+          targetStates: [],
+        }));
+
+        const telemetry = [
+          `Origin: plex`,
+          `Loop-check: Passed`,
+          `Dispatch status: ${summary.status}`,
+          `Details: Watch event fetched from Plex library history; sync completed.`,
+          ...summary.targetStates.map(
+            (t) => `Target ${t.target} status: ${t.status}${t.detail ? ` - ${t.detail}` : ""}`
+          ),
+        ].join("\n");
+
+        await updateWatchTelemetry(requireDb(), result.id, telemetry);
+        await recordSyncHistory(media, summary, "watched");
+        syncedCount++;
+      }
+    }
+  } catch (error) {
+    console.error("Error in syncRecentlyWatchedFromPlex", error);
+  }
+
+  return syncedCount;
+}
+
+async function syncPendingManualDispatches(config, loopStore) {
+  let syncedCount = 0;
+  try {
+    const snapshot = await db
+      .collection("watchHistory")
+      .where("syncAction", "==", "watched")
+      .get();
+    
+    const pendingDocs = snapshot.docs.filter((doc) => {
+      const data = doc.data() || {};
+      const telemetry = data.syncDispatchTelemetry || "";
+      return telemetry.includes("Dispatch status: pending");
+    });
+
+    for (const doc of pendingDocs) {
+      const data = doc.data();
+      const media = {
+        title: data.title,
+        type: data.mediaType,
+        source: data.source,
+        ids: {
+          imdb: data.ids?.imdb || undefined,
+          tmdb: data.ids?.tmdb || undefined,
+          tvdb: data.ids?.tvdb || undefined,
+        },
+        season: data.season == null ? undefined : Number(data.season),
+        episode: data.episode == null ? undefined : Number(data.episode),
+      };
+
+      console.log(`Cron detected pending manual sync dispatch: ${media.title}`);
+      const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
+        skipped: false,
+        status: "error",
+        details: `Outbound sync failed: ${error.message || String(error)}`,
+        targetStates: [],
+      }));
+
+      const telemetry = [
+        `Origin: ${media.source}`,
+        `Loop-check: Passed`,
+        `Dispatch status: ${summary.status}`,
+        `Details: Manual watch state propagated; sync completed.`,
+        ...summary.targetStates.map(
+          (t) => `Target ${t.target} status: ${t.status}${t.detail ? ` - ${t.detail}` : ""}`
+        ),
+      ].join("\n");
+
+      await updateWatchTelemetry(requireDb(), doc.id, telemetry);
+      await recordSyncHistory(media, summary, "watched");
+      syncedCount++;
+    }
+  } catch (error) {
+    console.error("Error in syncPendingManualDispatches", error);
+  }
+  return syncedCount;
 }
 
 export async function runScheduledSync() {
@@ -188,6 +392,20 @@ export async function runScheduledSync() {
   await checkPlexUnwatchedStatus(config, loopStore).catch((error) => {
     console.error("Failed to run checkPlexUnwatchedStatus", error);
   });
+
+  let plexSynced = 0;
+  let manualSynced = 0;
+  try {
+    plexSynced = await syncRecentlyWatchedFromPlex(config, loopStore);
+  } catch (error) {
+    console.error("Failed to run syncRecentlyWatchedFromPlex", error);
+  }
+
+  try {
+    manualSynced = await syncPendingManualDispatches(config, loopStore);
+  } catch (error) {
+    console.error("Failed to run syncPendingManualDispatches", error);
+  }
 
   const currentSessions = await fetchLiveSessions(config);
   const currentRows = currentSessions.map(buildCacheRow);
@@ -225,7 +443,7 @@ export async function runScheduledSync() {
   await deleteLiveTrackingCacheRows(requireDb(), staleIds);
   await purgeCompletedLiveTrackingCache(requireDb());
 
-  if (currentRows.length || completions.length || progressUpdates.length || staleIds.length) {
+  if (currentRows.length || completions.length || progressUpdates.length || staleIds.length || plexSynced || manualSynced) {
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
   }
 
@@ -235,5 +453,7 @@ export async function runScheduledSync() {
     progressUpdates: progressUpdates.length,
     removed: staleIds.length,
     cached: cachedById.size,
+    plexHistorySynced: plexSynced,
+    manualDispatchesSynced: manualSynced,
   };
 }

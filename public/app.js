@@ -35,6 +35,9 @@ const state = {
   syncJobs: [],
   syncJobsLoaded: false,
   syncJobsLoading: false,
+  syncHistory: [],
+  syncHistoryLoaded: false,
+  syncHistoryLoading: false,
   savedConfig: {},
   stats: {
     totalWatches: 0,
@@ -130,6 +133,7 @@ function bindElements() {
     nowPlayingGrid: document.querySelector("#nowPlayingGrid"),
     nowPlayingStatus: document.querySelector("#nowPlayingStatus"),
     refreshSyncButton: document.querySelector("#refreshSyncButton"),
+    runCronSyncButton: document.querySelector("#runCronSyncButton"),
     plexServerUrl: document.querySelector("#plexServerUrl"),
     plexToken: document.querySelector("#plexToken"),
     plexUsername: document.querySelector("#plexUsername"),
@@ -171,6 +175,8 @@ function bindElements() {
     completeCheckResults: document.querySelector("#completeCheckResults"),
     testConnectionButtons: [...document.querySelectorAll("[data-test-connection]")],
     testConnectionStatuses: [...document.querySelectorAll("[data-test-status]")],
+    syncHistoryPanel: document.querySelector("#syncHistoryPanel"),
+    syncHistorySummary: document.querySelector("#syncHistorySummary"),
     syncJobsPanel: document.querySelector("#syncJobsPanel"),
     syncSummary: document.querySelector("#syncSummary"),
     tabButtons: [...document.querySelectorAll("[data-view]")],
@@ -515,6 +521,34 @@ function renderTargetPills(job = {}) {
     .join("");
 }
 
+function syncHistoryTone(entry = {}) {
+  const status = String(entry.status || "").toLowerCase();
+  const targets = Array.isArray(entry.targetStates) ? entry.targetStates : [];
+  if (status === "error" || targets.some((target) => String(target.status || "").toLowerCase() === "error")) return "error";
+  if (["pending", "queued", "in_progress", "partial"].includes(status)) return "pending";
+  return "success";
+}
+
+function syncHistoryActionLabel(entry = {}) {
+  const action = String(entry.action || "").toLowerCase();
+  if (action === "progress") return "Resume Progress";
+  if (action === "unwatched" || action === "unplayed") return "Marked Unwatched";
+  return "Marked Watched";
+}
+
+function syncHistoryTargetPills(entry = {}) {
+  const targets = Array.isArray(entry.targetStates) ? entry.targetStates : [];
+  if (!targets.length) return `<span class="target-pill" data-status="pending">No target detail</span>`;
+  return targets
+    .map((target) => {
+      const status = String(target.status || "unknown").toLowerCase();
+      const tone = status === "success" ? "success" : status === "error" ? "error" : "pending";
+      const detail = target.detail ? ` - ${target.detail}` : "";
+      return `<span class="target-pill" data-status="${tone}" title="${escapeAttribute(`${platformBadge(target.target)} ${status}${detail}`)}">${escapeHtml(platformBadge(target.target))}: ${escapeHtml(status)}</span>`;
+    })
+    .join("");
+}
+
 function renderSyncJobs() {
   if (!elements.syncJobsPanel) return;
 
@@ -567,6 +601,56 @@ function renderSyncJobs() {
     .join("");
 }
 
+function renderSyncHistory() {
+  if (!elements.syncHistoryPanel) return;
+
+  if (state.syncHistoryLoading) {
+    elements.syncHistoryPanel.innerHTML = `<div class="empty-log"><b>Loading sync history</b><span>Fetching recent propagation attempts.</span></div>`;
+    if (elements.syncHistorySummary) elements.syncHistorySummary.textContent = "Loading";
+    return;
+  }
+
+  const history = [...state.syncHistory].sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+  const errorCount = history.filter((entry) => syncHistoryTone(entry) === "error").length;
+
+  if (elements.syncHistorySummary) {
+    elements.syncHistorySummary.textContent = history.length ? `${history.length} recent / ${errorCount} failed` : "No history";
+    elements.syncHistorySummary.className = `status-pill ${errorCount ? "status-error" : history.length ? "status-ready" : "status-muted"}`;
+  }
+
+  if (!history.length) {
+    elements.syncHistoryPanel.innerHTML = `<div class="empty-log"><b>No sync history yet</b><span>New webhook, cron, and resume propagation attempts will appear here.</span></div>`;
+    return;
+  }
+
+  elements.syncHistoryPanel.innerHTML = history
+    .map((entry) => {
+      const tone = syncHistoryTone(entry);
+      const debug = entry.rawPayloadDebug && Object.keys(entry.rawPayloadDebug).length ? JSON.stringify(entry.rawPayloadDebug, null, 2) : "";
+      return `
+        <article class="sync-history-card">
+          <div class="sync-job-main">
+            <span class="sync-status-dot sync-status-dot--${tone}" aria-hidden="true"></span>
+            <div class="sync-job-title">
+              <b>${escapeHtml(entry.title || "Unknown media")}</b>
+              <span>${escapeHtml(platformBadge(entry.source))} - ${escapeHtml(syncHistoryActionLabel(entry))} - ${escapeHtml(formatDate(entry.timestamp))}</span>
+            </div>
+            <span class="status-pill ${tone === "error" ? "status-error" : tone === "pending" ? "status-warning" : "status-ready"}">${escapeHtml(entry.status || "unknown")}</span>
+          </div>
+          <div class="sync-job-meta">
+            <div><span>Action</span><b>${escapeHtml(syncHistoryActionLabel(entry))}</b></div>
+            <div><span>Media</span><b>${escapeHtml(entry.mediaType || "unknown")}</b></div>
+            <div><span>Source</span><b>${escapeHtml(platformBadge(entry.source))}</b></div>
+            <div><span>Details</span><b>${escapeHtml(entry.details || "No details")}</b></div>
+          </div>
+          <div class="sync-target-row">${syncHistoryTargetPills(entry)}</div>
+          ${debug ? `<pre class="sync-telemetry">${escapeHtml(debug)}</pre>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
 async function loadSyncJobs({ force = false } = {}) {
   if (!state.token || (state.syncJobsLoading && !force)) return state.syncJobs;
   state.syncJobsLoading = true;
@@ -584,6 +668,25 @@ async function loadSyncJobs({ force = false } = {}) {
   } finally {
     state.syncJobsLoading = false;
     renderSyncJobs();
+  }
+}
+
+async function loadSyncHistory({ force = false } = {}) {
+  if (!state.token || (state.syncHistoryLoading && !force)) return state.syncHistory;
+  state.syncHistoryLoading = true;
+  renderSyncHistory();
+  try {
+    const url = new URL("/api/sync-history", window.location.origin);
+    url.searchParams.set("limit", "100");
+    const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Sync history load failed with ${response.status}`);
+    state.syncHistory = Array.isArray(body.history) ? body.history : [];
+    state.syncHistoryLoaded = true;
+    return state.syncHistory;
+  } finally {
+    state.syncHistoryLoading = false;
+    renderSyncHistory();
   }
 }
 
@@ -1009,7 +1112,9 @@ function selectView(view) {
   if (state.activeView === "explorer") renderExplorer();
   if (state.activeView === "sync") {
     renderSyncJobs();
+    renderSyncHistory();
     loadSyncJobs().catch((error) => setMessage(error.message, "error"));
+    loadSyncHistory().catch((error) => setMessage(error.message, "error"));
   }
   if (state.activeView !== "explorer") {
     state.explorerLoadObserver?.disconnect();
@@ -1088,6 +1193,8 @@ async function loadSavedConfig() {
   state.savedConfig = body.config || {};
   state.lastCron = body.lastCron;
   state.lastWebhook = body.lastWebhook;
+  state.syncHistory = Array.isArray(body.history) ? body.history : state.syncHistory;
+  state.syncHistoryLoaded = Array.isArray(body.history);
   populateConfigForm(body.config || {});
   state.configLoaded = true;
   state.posterLookupCache.clear();
@@ -1095,6 +1202,7 @@ async function loadSavedConfig() {
   renderSettingsStatus("Configuration loaded from Firestore.", "success");
   renderDashboard();
   renderActiveSessions();
+  renderSyncHistory();
   refreshHelpIfVisible();
   return body.config || {};
 }
@@ -1138,7 +1246,10 @@ async function loadHistory() {
   renderStats();
   if (state.activeView === "stats") loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
   if (state.activeView === "explorer") renderExplorer();
-  if (state.activeView === "sync") loadSyncJobs({ force: true }).catch((error) => setMessage(error.message, "error"));
+  if (state.activeView === "sync") {
+    loadSyncJobs({ force: true }).catch((error) => setMessage(error.message, "error"));
+    loadSyncHistory({ force: true }).catch((error) => setMessage(error.message, "error"));
+  }
   renderDbStatus(true);
 }
 
@@ -2971,7 +3082,7 @@ function watchRecordFromEpisode(episode, watchedAt) {
     media_type: "episode",
     title: `${episode.showTitle} - ${episodeCode(episode.seasonNumber, episode.episodeNumber)} - ${episode.title}`,
     watched_at: watchedAt,
-    source: "manual_import",
+    source: "manual",
     tmdb_id: episode.showTmdbId || null,
     season: episode.seasonNumber,
     episode_number: episode.episodeNumber,
@@ -2985,7 +3096,7 @@ function localWatchRowFromEpisode(episode, watchedAt) {
     media_type: "episode",
     title: `${episode.showTitle} - ${episodeCode(episode.seasonNumber, episode.episodeNumber)} - ${episode.title}`,
     watched_at: watchedAt,
-    source: "manual_import",
+    source: "manual",
     tmdb_id: episode.showTmdbId || null,
     season: episode.seasonNumber,
     episode: episode.episodeNumber,
@@ -3433,6 +3544,8 @@ async function lockDashboard() {
   state.activeSessions = [];
   state.syncJobs = [];
   state.syncJobsLoaded = false;
+  state.syncHistory = [];
+  state.syncHistoryLoaded = false;
   state.importRecords = [];
   state.importFileNames = [];
   state.importLogs = ["[idle] Waiting for files."];
@@ -3450,6 +3563,7 @@ async function lockDashboard() {
   populateConfigForm({});
   renderDashboard();
   renderActiveSessions();
+  renderSyncHistory();
   renderStats();
   renderImportPreview();
   renderDbStatus(false);
@@ -4273,6 +4387,36 @@ async function runFullSyncWatchstates() {
   }
 }
 
+async function triggerCronSync() {
+  const button = elements.runCronSyncButton;
+  if (!button) return;
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Syncing...";
+  try {
+    const response = await fetch("/api/cron-sync", {
+      method: "POST",
+      headers: authHeaders()
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.error || `Cron sync failed with HTTP ${response.status}`);
+    }
+    const result = body.result || {};
+    const detail = `Cron run complete! Sessions: ${result.sessions ?? 0}, completions: ${result.completions ?? 0}, cached: ${result.cached ?? 0}`;
+    showToast(detail);
+    await Promise.all([
+      loadSyncJobs({ force: true }),
+      loadSyncHistory({ force: true })
+    ]);
+  } catch (error) {
+    showToast(`Error: ${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
 function attachEvents() {
   elements.authForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -4533,9 +4677,16 @@ function attachEvents() {
     });
   }
 
+  if (elements.runCronSyncButton) {
+    elements.runCronSyncButton.addEventListener("click", () => {
+      triggerCronSync().catch(() => {});
+    });
+  }
+
   if (elements.refreshSyncButton) {
     elements.refreshSyncButton.addEventListener("click", () => {
       loadSyncJobs({ force: true }).catch((error) => setMessage(error.message, "error"));
+      loadSyncHistory({ force: true }).catch((error) => setMessage(error.message, "error"));
     });
   }
 
@@ -4622,6 +4773,17 @@ async function copyToClipboard(value) {
     textArea.remove();
     showCopyToast();
   }
+}
+
+function showToast(text) {
+  if (!elements.copyToast) return;
+  elements.copyToast.textContent = text;
+  elements.copyToast.classList.remove("hidden");
+  window.clearTimeout(showToast.timer);
+  showToast.timer = window.setTimeout(() => {
+    elements.copyToast.classList.add("hidden");
+    elements.copyToast.textContent = "Copied!";
+  }, 3500);
 }
 
 function showCopyToast() {

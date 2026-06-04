@@ -76,7 +76,7 @@ function showTitleFrom(title = "") {
   return text.split(" - ")[0].trim() || "Unknown Show";
 }
 
-function mediaKeyFor(record = {}) {
+export function mediaKeyFor(record = {}) {
   const type = normalizeMediaType(record.media_type || record.mediaType || record.type);
   const coordinates = [normalizeKeyPart(type), normalizeKeyPart(record.season), normalizeKeyPart(record.episode)].join(":");
   if (record.imdb_id || record.imdb) return `${coordinates}:imdb:${normalizeKeyPart(record.imdb_id || record.imdb)}`;

@@ -737,12 +737,14 @@ h2 {
   align-items: center;
 }
 
-.sync-jobs-panel {
+.sync-jobs-panel,
+.sync-history-panel {
   display: grid;
   gap: var(--space-3);
 }
 
-.sync-job-card {
+.sync-job-card,
+.sync-history-card {
   display: grid;
   gap: var(--space-3);
   border: 1px solid var(--line);

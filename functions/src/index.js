@@ -8,7 +8,7 @@ import { markJellyfinPlayed, setJellyfinProgress } from "./utils/jellyfinClient.
 import { requireAdmin } from "./utils/auth.js";
 import { readFormData, readJson } from "./utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed, notFound } from "./utils/http.js";
-import { loadMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState } from "./utils/configStore.js";
+import { appendSyncHistory, loadMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState } from "./utils/configStore.js";
 import { createLoopStore } from "./utils/loopStore.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "./utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "./utils/liveSessions.js";
@@ -164,6 +164,27 @@ function formatProgressTelemetry(summary, media) {
   return lines.join("\n");
 }
 
+async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
+  await appendSyncHistory({
+    mediaType: media.type || media.mediaType || "unknown",
+    title: media.title || "Unknown media",
+    source: media.source || "unknown",
+    status: summary.status || "unknown",
+    details: summary.details || "",
+    action,
+    targetStates: summary.targetStates || [],
+    rawPayloadDebug: {
+      event: media.event || "",
+      phase: media.phase || "",
+      ids: media.ids || {},
+      season: media.season ?? null,
+      episode: media.episode ?? null,
+      progress: media.progress ?? null,
+      offsetMs: media.offsetMs ?? media.positionMs ?? null,
+    },
+  }).catch((error) => console.error("Failed to append sync history", error));
+}
+
 function platformLabel(value) {
   const text = String(value || "unknown");
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -249,6 +270,14 @@ async function handleSyncJobs(req, res) {
     status: req.query.status || "outstanding",
   });
   return sendJson(res, { jobs }, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
+}
+
+async function handleSyncHistory(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const history = await getSyncHistory(req.query.limit || 100);
+  return sendJson(res, { history }, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
 }
 
 async function handleMovies(req, res) {
@@ -475,6 +504,7 @@ async function handleWebhook(req, res) {
         targetStates: [],
       }));
       await updatePlaybackProgressTelemetry(requireDb(), progressRecord, formatProgressTelemetry(progressSummary, media)).catch(() => null);
+      await recordSyncHistory(media, progressSummary, "progress");
     }
     return sendJson(res, {
       ok: true,
@@ -506,6 +536,7 @@ async function handleWebhook(req, res) {
       targetStates: [],
     }));
     await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "unwatched"));
+    await recordSyncHistory(media, summary, "unwatched");
     return sendJson(res, { ok: true, deleted: wasDeleted, unplayed: true, inserted: true, id: result.id, ...(wasDeleted ? {} : { reason: "No previous watched record found to delete" }) });
   }
 
@@ -523,6 +554,7 @@ async function handleWebhook(req, res) {
       targetStates: [],
     }));
     await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "watched"));
+    await recordSyncHistory(media, summary, "watched");
     await deletePlaybackProgress(requireDb(), media).catch(() => null);
     return sendJson(res, { ok: true, inserted: true, id: result.id, record: result.record });
   } catch (error) {
@@ -730,6 +762,7 @@ async function dispatch(req, res) {
     if (path === "config") return handleConfig(req, res);
     if (path === "history") return handleHistory(req, res);
     if (path === "sync-jobs") return handleSyncJobs(req, res);
+    if (path === "sync-history") return handleSyncHistory(req, res);
     if (path === "movies") return handleMovies(req, res);
     if (path === "shows") return handleShows(req, res);
     if (path === "full-sync-watchstates") return handleFullSyncWatchstates(req, res);

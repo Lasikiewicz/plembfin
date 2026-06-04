@@ -77,6 +77,7 @@ export async function appendSyncHistory(record) {
     source: record.source || "unknown",
     status: record.status || "unknown",
     details: record.details || "",
+    action: record.action || "watched",
     targetStates: Array.isArray(record.targetStates) ? record.targetStates : [],
     rawPayloadDebug: record.rawPayloadDebug || {},
     createdAt: FieldValue.serverTimestamp(),
@@ -84,6 +85,7 @@ export async function appendSyncHistory(record) {
 }
 
 export async function getSyncHistory(limit = 50) {
-  const snapshot = await HISTORY_COLLECTION.orderBy("timestamp", "desc").limit(limit).get();
-  return snapshot.docs.map((doc) => doc.data());
+  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+  const snapshot = await HISTORY_COLLECTION.orderBy("timestamp", "desc").limit(safeLimit).get();
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 }
