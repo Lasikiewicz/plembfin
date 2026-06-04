@@ -436,6 +436,9 @@ async function handleCronSync(req, res) {
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
 
+  // Write first byte immediately so Cloud Run doesn't 502 during the slow startup phase.
+  res.write("Cron Sync started...\n");
+
   const logger = (msg) => {
     res.write(`${msg}\n`);
     console.log(msg);
@@ -460,6 +463,9 @@ async function handleForceSync(req, res) {
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
+
+  // Write first byte immediately so Cloud Run doesn't 502 during the slow library-fetch phase.
+  res.write("Force Sync started...\n");
 
   const logger = (msg) => {
     res.write(`${msg}\n`);
