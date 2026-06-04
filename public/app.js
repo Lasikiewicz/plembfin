@@ -142,13 +142,16 @@ function bindElements() {
     forceSyncButton: document.querySelector("#forceSyncButton"),
     stopSyncButton: document.querySelector("#stopSyncButton"),
     forceSyncTerminal: document.querySelector("#forceSyncTerminal"),
+    plexEnabled: document.querySelector("#plexEnabled"),
     plexServerUrl: document.querySelector("#plexServerUrl"),
     plexToken: document.querySelector("#plexToken"),
     plexUsername: document.querySelector("#plexUsername"),
     tmdbApiKey: document.querySelector("#tmdbApiKey"),
+    embyEnabled: document.querySelector("#embyEnabled"),
     embyServerUrl: document.querySelector("#embyServerUrl"),
     embyApiKey: document.querySelector("#embyApiKey"),
     embyUserId: document.querySelector("#embyUserId"),
+    jellyfinEnabled: document.querySelector("#jellyfinEnabled"),
     jellyfinServerUrl: document.querySelector("#jellyfinServerUrl"),
     jellyfinApiKey: document.querySelector("#jellyfinApiKey"),
     jellyfinUserId: document.querySelector("#jellyfinUserId"),
@@ -1160,6 +1163,7 @@ function configFromInputs() {
       baseUrl: elements.plexServerUrl.value.trim(),
       token: elements.plexToken.value.trim(),
       username: elements.plexUsername.value.trim(),
+      disabled: !elements.plexEnabled.checked,
     },
     tmdb: {
       apiKey: elements.tmdbApiKey?.value.trim() || "",
@@ -1168,26 +1172,53 @@ function configFromInputs() {
       baseUrl: elements.embyServerUrl.value.trim(),
       apiKey: elements.embyApiKey.value.trim(),
       userId: elements.embyUserId.value.trim(),
+      disabled: !elements.embyEnabled.checked,
     },
     jellyfin: {
       baseUrl: elements.jellyfinServerUrl.value.trim(),
       apiKey: elements.jellyfinApiKey.value.trim(),
       userId: elements.jellyfinUserId.value.trim(),
+      disabled: !elements.jellyfinEnabled.checked,
     },
   };
 }
 
+function syncSettingsInputsDisabledState() {
+  const plexActive = elements.plexEnabled.checked;
+  elements.plexServerUrl.disabled = !plexActive;
+  elements.plexToken.disabled = !plexActive;
+  elements.plexUsername.disabled = !plexActive;
+
+  const embyActive = elements.embyEnabled.checked;
+  elements.embyServerUrl.disabled = !embyActive;
+  elements.embyApiKey.disabled = !embyActive;
+  elements.embyUserId.disabled = !embyActive;
+
+  const jellyfinActive = elements.jellyfinEnabled.checked;
+  elements.jellyfinServerUrl.disabled = !jellyfinActive;
+  elements.jellyfinApiKey.disabled = !jellyfinActive;
+  elements.jellyfinUserId.disabled = !jellyfinActive;
+}
+
 function populateConfigForm(config = {}) {
+  elements.plexEnabled.checked = !config.plex?.disabled;
   elements.plexServerUrl.value = config.plex?.baseUrl || config.plex?.url || "";
   elements.plexToken.value = config.plex?.token || config.plex?.apiKey || "";
   elements.plexUsername.value = config.plex?.username || "";
+
+  elements.embyEnabled.checked = !config.emby?.disabled;
   elements.embyServerUrl.value = config.emby?.baseUrl || config.emby?.url || "";
   elements.embyApiKey.value = config.emby?.apiKey || config.emby?.api_key || "";
   elements.embyUserId.value = config.emby?.userId || "";
+
+  elements.jellyfinEnabled.checked = !config.jellyfin?.disabled;
   elements.jellyfinServerUrl.value = config.jellyfin?.baseUrl || config.jellyfin?.url || "";
-  elements.tmdbApiKey.value = config.tmdb?.apiKey || "";
   elements.jellyfinApiKey.value = config.jellyfin?.apiKey || config.jellyfin?.api_key || "";
   elements.jellyfinUserId.value = config.jellyfin?.userId || "";
+
+  elements.tmdbApiKey.value = config.tmdb?.apiKey || "";
+  
+  syncSettingsInputsDisabledState();
 }
 
 function renderSettingsStatus(text, tone = "muted") {
@@ -4800,6 +4831,10 @@ function attachEvents() {
       setMessage(error.message, "error");
     });
   });
+
+  elements.plexEnabled?.addEventListener("change", syncSettingsInputsDisabledState);
+  elements.embyEnabled?.addEventListener("change", syncSettingsInputsDisabledState);
+  elements.jellyfinEnabled?.addEventListener("change", syncSettingsInputsDisabledState);
 
   elements.explorerSearchInput?.addEventListener("input", () => {
     window.clearTimeout(state.explorerSearchTimer);

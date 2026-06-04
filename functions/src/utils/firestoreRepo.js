@@ -9,6 +9,42 @@ const HISTORY_CACHE_DOC = db.collection(DERIVED_CACHE_COLLECTION).doc("history")
 const STATS_CACHE_DOC = db.collection(DERIVED_CACHE_COLLECTION).doc("stats");
 const SHOWS_CACHE_META_DOC = db.collection(DERIVED_CACHE_COLLECTION).doc("showSummaries");
 
+let historyCache = {
+  version: null,
+  rows: [],
+};
+
+let showCache = {
+  version: null,
+  shows: [],
+};
+
+async function getCachedHistory() {
+  const marker = await HISTORY_CACHE_DOC.get().catch(() => null);
+  const version = marker?.data()?.version || 0;
+  if (historyCache.version === version && historyCache.rows.length > 0) {
+    return historyCache.rows;
+  }
+  const snapshot = await db.collection("watchHistory")
+    .orderBy("watchedAt", "desc")
+    .limit(MAX_HISTORY_LIMIT)
+    .get();
+  const rows = snapshot.docs.map(fromFirestoreWatch);
+  historyCache = { version, rows };
+  return rows;
+}
+
+async function getCachedShows() {
+  const version = await ensureShowSummaryCache();
+  if (showCache.version === version && showCache.shows.length > 0) {
+    return showCache.shows;
+  }
+  const snapshot = await SHOW_SUMMARY_CACHE.get();
+  const shows = snapshot.docs.map(showSummaryFromCache);
+  showCache = { version, shows };
+  return shows;
+}
+
 function cleanString(value) {
   return String(value || "").trim();
 }
@@ -543,22 +579,22 @@ export async function purgeCompletedLiveTrackingCache(_unusedDb, olderThan = Dat
 async function loadHistoryRows({ limit = 50, offset = 0 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), MAX_HISTORY_LIMIT);
   const safeOffset = Math.max(Number(offset) || 0, 0);
-  const snapshot = await db.collection("watchHistory").orderBy("watchedAt", "desc").offset(safeOffset).limit(safeLimit).get();
-  return snapshot.docs.map(fromFirestoreWatch);
+  const allRows = await getCachedHistory();
+  return allRows.slice(safeOffset, safeOffset + safeLimit);
 }
 
 async function loadHistoryRowsByType({ mediaType, limit = 50, offset = 0, sort = "watched_desc" } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), MAX_HISTORY_LIMIT);
   const safeOffset = Math.max(Number(offset) || 0, 0);
-  const direction = sort === "watched_asc" ? "asc" : "desc";
-  const snapshot = await db
-    .collection("watchHistory")
-    .where("mediaType", "==", mediaType)
-    .orderBy("watchedAt", direction)
-    .offset(safeOffset)
-    .limit(safeLimit)
-    .get();
-  return snapshot.docs.map(fromFirestoreWatch).filter(isWatchedAction);
+  const allRows = await getCachedHistory();
+  const filtered = allRows.filter((row) => row.media_type === mediaType && isWatchedAction(row));
+  const sorted = [...filtered];
+  if (sort === "watched_asc") {
+    sorted.sort((a, b) => a.watched_at.localeCompare(b.watched_at));
+  } else {
+    sorted.sort((a, b) => b.watched_at.localeCompare(a.watched_at));
+  }
+  return sorted.slice(safeOffset, safeOffset + safeLimit);
 }
 
 function matchesSearch(row, search) {
@@ -635,7 +671,9 @@ export async function queryWatchHistory(_unusedDb, { search = "", limit = 50, of
 }
 
 function dispatchStatusFromTelemetry(value = "") {
-  const line = String(value || "").split(/\r?\n/).find((item) => item.toLowerCase().startsWith("dispatch status:"));
+  const text = String(value || "");
+  if (text.includes("Force Sync resolved status to")) return "success";
+  const line = text.split(/\r?\n/).find((item) => item.toLowerCase().startsWith("dispatch status:"));
   return line ? line.slice("dispatch status:".length).trim().toLowerCase() : "";
 }
 
@@ -730,16 +768,21 @@ export async function getWatchStats() {
   return stats;
 }
 
+export async function getWatchRecordByIdLight(id) {
+  const doc = await db.collection("watchHistory").doc(String(id)).get();
+  if (!doc.exists) return null;
+  return fromFirestoreWatch(doc);
+}
+
 export async function getWatchRecordById(id) {
   const doc = await db.collection("watchHistory").doc(String(id)).get();
   if (!doc.exists) return null;
   const row = fromFirestoreWatch(doc);
   if (row.media_key) {
-    const snapshot = await db.collection("watchHistory")
-      .where("mediaKey", "==", row.media_key)
-      .orderBy("watchedAt", "asc")
-      .get();
-    row.playHistory = snapshot.docs.map(d => d.data().watchedAt).filter(Boolean);
+    const allRows = await getCachedHistory();
+    const matches = allRows.filter(r => r.media_key === row.media_key);
+    row.playHistory = matches.map(r => r.watched_at).filter(Boolean);
+    row.playHistory.sort((a, b) => a.localeCompare(b));
   } else {
     row.playHistory = [row.watched_at];
   }
@@ -779,18 +822,14 @@ export function requireDb() {
 export async function queryMovies({ search = "", sort = "watched_desc", limit = 100, offset = 0 } = {}) {
   const safeLimit = Math.min(Number(limit) || 100, 5000);
   const safeOffset = Number(offset) || 0;
-  if (!search && ["watched_desc", "watched_asc"].includes(sort)) {
-    const rows = await loadHistoryRowsByType({
-      mediaType: "movie",
-      sort,
-      offset: safeOffset,
-      limit: Math.min(Math.max(safeLimit * 4, safeLimit), MAX_HISTORY_LIMIT),
-    });
-    return dedupeHistory(rows).slice(0, safeLimit);
-  }
-  const rows = (await loadHistoryRowsByType({ mediaType: "movie", limit: MAX_HISTORY_LIMIT })).filter((row) => matchesSearch(row, search));
-  const deduped = dedupeHistory(rows);
-  return sortRows(deduped, sort).slice(safeOffset, safeOffset + safeLimit);
+  
+  const allRows = await getCachedHistory();
+  const movies = allRows.filter((row) => row.media_type === "movie" && isWatchedAction(row));
+  
+  const filtered = movies.filter((row) => matchesSearch(row, search));
+  const deduped = dedupeHistory(filtered);
+  const sorted = sortRows(deduped, sort);
+  return sorted.slice(safeOffset, safeOffset + safeLimit);
 }
 
 async function buildShowGroups(search = "") {
@@ -883,16 +922,21 @@ function showSummaryFromCache(doc) {
 export async function queryShows({ search = "", sort = "watched_desc", limit = 6, offset = 0 } = {}) {
   const safeLimit = Math.min(Number(limit) || 6, 60);
   const safeOffset = Number(offset) || 0;
-  if (search || !["watched_desc", "watched_asc"].includes(sort)) {
-    const sorted = sortShowRows(await buildShowGroups(search), sort);
-    return sorted.slice(safeOffset, safeOffset + safeLimit);
-  }
-
-  await ensureShowSummaryCache();
-  const direction = sort === "watched_asc" ? "asc" : "desc";
-  const field = sort === "watched_asc" ? "earliestWatchedAt" : "latestWatchedAt";
-  const snapshot = await SHOW_SUMMARY_CACHE.orderBy(field, direction).offset(safeOffset).limit(safeLimit).get();
-  return snapshot.docs.map(showSummaryFromCache);
+  
+  const allShows = await getCachedShows();
+  const needle = cleanString(search).toLowerCase();
+  
+  const filtered = allShows.filter((show) => {
+    if (!needle) return true;
+    if (show.title.toLowerCase().includes(needle)) return true;
+    return show.episodes.some((ep) => {
+      const haystack = [ep.title, ep.source, ep.imdb_id, ep.tmdb_id, ep.tvdb_id, ep.sync_dispatch_telemetry].join(" ").toLowerCase();
+      return haystack.includes(needle);
+    });
+  });
+  
+  const sorted = sortShowRows(filtered, sort);
+  return sorted.slice(safeOffset, safeOffset + safeLimit);
 }
 
 export async function listWatchRowsForReplay({ limit = 25, offset = 0 } = {}) {

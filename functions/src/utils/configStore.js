@@ -14,16 +14,19 @@ export function normalizeStoredConfig(stored = {}) {
       baseUrl: trimTrailingSlash(stored.plex?.baseUrl || stored.plex?.url || ""),
       token: String(stored.plex?.token || stored.plex?.apiKey || "").trim(),
       username: String(stored.plex?.username || "").trim(),
+      disabled: Boolean(stored.plex?.disabled),
     },
     emby: {
       baseUrl: trimTrailingSlash(stored.emby?.baseUrl || stored.emby?.url || ""),
       apiKey: String(stored.emby?.apiKey || stored.emby?.api_key || "").trim(),
       userId: String(stored.emby?.userId || "").trim(),
+      disabled: Boolean(stored.emby?.disabled),
     },
     jellyfin: {
       baseUrl: trimTrailingSlash(stored.jellyfin?.baseUrl || stored.jellyfin?.url || ""),
       apiKey: String(stored.jellyfin?.apiKey || stored.jellyfin?.api_key || "").trim(),
       userId: String(stored.jellyfin?.userId || "").trim(),
+      disabled: Boolean(stored.jellyfin?.disabled),
     },
     tmdb: {
       apiKey: String(stored.tmdb?.apiKey || stored.tmdbApiKey || "").trim(),
@@ -48,15 +51,37 @@ export async function saveMediaConfig(config) {
 
 export function validateConfig(config = {}) {
   const errors = [];
-  for (const platform of ["plex", "emby", "jellyfin"]) {
-    if (!config?.[platform]?.baseUrl) errors.push(`${platform}.baseUrl is required`);
+  let enabledCount = 0;
+  
+  const plexEnabled = !config?.plex?.disabled;
+  const embyEnabled = !config?.emby?.disabled;
+  const jellyfinEnabled = !config?.jellyfin?.disabled;
+  
+  if (plexEnabled) {
+    enabledCount++;
+    if (!config?.plex?.baseUrl) errors.push("plex.baseUrl is required when Plex is enabled");
+    if (!config?.plex?.token) errors.push("plex.token is required when Plex is enabled");
+    if (!config?.plex?.username) errors.push("plex.username is required when Plex is enabled");
   }
-  if (!config?.plex?.token) errors.push("plex.token is required");
-  if (!config?.plex?.username) errors.push("plex.username is required");
-  if (!config?.emby?.apiKey) errors.push("emby.apiKey is required");
-  if (!config?.emby?.userId) errors.push("emby.userId is required");
-  if (!config?.jellyfin?.apiKey) errors.push("jellyfin.apiKey is required");
-  if (!config?.jellyfin?.userId) errors.push("jellyfin.userId is required");
+  
+  if (embyEnabled) {
+    enabledCount++;
+    if (!config?.emby?.baseUrl) errors.push("emby.baseUrl is required when Emby is enabled");
+    if (!config?.emby?.apiKey) errors.push("emby.apiKey is required when Emby is enabled");
+    if (!config?.emby?.userId) errors.push("emby.userId is required when Emby is enabled");
+  }
+  
+  if (jellyfinEnabled) {
+    enabledCount++;
+    if (!config?.jellyfin?.baseUrl) errors.push("jellyfin.baseUrl is required when Jellyfin is enabled");
+    if (!config?.jellyfin?.apiKey) errors.push("jellyfin.apiKey is required when Jellyfin is enabled");
+    if (!config?.jellyfin?.userId) errors.push("jellyfin.userId is required when Jellyfin is enabled");
+  }
+  
+  if (enabledCount < 2) {
+    errors.push("At least two media platforms must be enabled to sync watch states.");
+  }
+  
   return errors;
 }
 

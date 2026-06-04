@@ -233,7 +233,7 @@ export async function syncMediaPlaystate(media, config, kv) {
     };
   }
 
-  const targets = TARGETS_BY_SOURCE[media.source] || [];
+  const targets = (TARGETS_BY_SOURCE[media.source] || []).filter((t) => !config[t]?.disabled);
   await primeTargetCache(media, targets, kv);
 
   console.log("Sync dispatch started", {
@@ -278,7 +278,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
     };
   }
 
-  const targets = TARGETS_BY_SOURCE[media.source] || [];
+  const targets = (TARGETS_BY_SOURCE[media.source] || []).filter((t) => !config[t]?.disabled);
   await primeTargetCache(media, targets, kv, "unplayed_loop");
 
   console.log("Sync unplayed dispatch started", {
@@ -323,7 +323,7 @@ export async function syncMediaProgress(media, config, kv) {
     };
   }
 
-  const targets = TARGETS_BY_SOURCE[media.source] || [];
+  const targets = (TARGETS_BY_SOURCE[media.source] || []).filter((t) => !config[t]?.disabled);
   await primeTargetCache(media, targets, kv, "progress_loop");
 
   console.log("Sync progress dispatch started", {

@@ -20,6 +20,7 @@ import {
   deletePlaybackProgress,
   deleteWatchRecord,
   getWatchRecordById,
+  getWatchRecordByIdLight,
   getWatchStats,
   invalidateHistoryDerivedCaches,
   insertWatchRecord,
@@ -511,6 +512,9 @@ async function handleWebhook(req, res) {
   media.posterUrl = posterPathFromMedia(media);
 
   if (config) {
+    if (config[media.source]?.disabled) {
+      return sendJson(res, { ok: true, ignored: true, reason: "Source platform is disabled" });
+    }
     if (media.source === "plex" && shouldIgnoreWebhookUser(media.user, config.plex?.username, { strictName: true })) {
       return sendJson(res, { ok: true, ignored: true, reason: "User mismatch" });
     }
@@ -744,7 +748,7 @@ async function handlePoster(req, res) {
   const cacheHeaders = { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400" };
 
   try {
-    const row = await getWatchRecordById(String(req.query.id || ""));
+    const row = await getWatchRecordByIdLight(String(req.query.id || ""));
     if (!row) return sendJson(res, { error: "not found" }, 404);
 
     const fallbackRequested = ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase());

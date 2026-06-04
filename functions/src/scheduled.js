@@ -375,6 +375,154 @@ async function syncRecentlyWatchedFromPlex(config, loopStore) {
   return syncedCount;
 }
 
+async function syncRecentlyWatchedFromEmby(config, loopStore) {
+  if (!config.emby?.baseUrl || !config.emby?.apiKey || !config.emby?.userId) return 0;
+  let syncedCount = 0;
+  try {
+    const { fetchEmbyWatchedItems } = await import("./utils/embyClient.js");
+    const { normalizeProviderIds } = await import("./utils/parsers.js");
+    const raw = await fetchEmbyWatchedItems(config.emby);
+    
+    for (const item of raw) {
+      const ids = normalizeProviderIds(item.ProviderIds);
+      const media = {
+        title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
+        type: item.Type === "Episode" ? "episode" : "movie",
+        season: item.ParentIndexNumber != null ? Number(item.ParentIndexNumber) : null,
+        episode: item.IndexNumber != null ? Number(item.IndexNumber) : null,
+        ids: {
+          imdb: ids.imdb || undefined,
+          tmdb: ids.tmdb || undefined,
+          tvdb: ids.tvdb || undefined,
+        },
+        source: "emby",
+      };
+
+      const key = mediaKeyFor(media);
+      const watchedAt = item.UserData?.LastPlayedDate ? new Date(item.UserData.LastPlayedDate).toISOString() : new Date().toISOString();
+
+      const existing = await db
+        .collection("watchHistory")
+        .where("mediaKey", "==", key)
+        .where("watchedAt", "==", watchedAt)
+        .limit(1)
+        .get();
+
+      if (existing.empty) {
+        console.log(`Cron detected new Emby watch event: ${media.title} watched at ${watchedAt}`);
+        const watchRecord = mediaToWatchRecord(media, "emby");
+        watchRecord.watched_at = watchedAt;
+        watchRecord.sync_action = "watched";
+        watchRecord.sync_dispatch_telemetry = [
+          `Origin: emby`,
+          `Loop-check: Passed`,
+          `Dispatch status: pending`,
+          `Details: Watch event fetched from Emby library history; queueing sync.`,
+        ].join("\n");
+
+        const result = await insertWatchRecord(requireDb(), watchRecord);
+        const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
+          skipped: false,
+          status: "error",
+          details: `Outbound sync failed: ${error.message || String(error)}`,
+          targetStates: [],
+        }));
+
+        const telemetry = [
+          `Origin: emby`,
+          `Loop-check: Passed`,
+          `Dispatch status: ${summary.status}`,
+          `Details: Watch event fetched from Emby library history; sync completed.`,
+          ...summary.targetStates.map(
+            (t) => `Target ${t.target} status: ${t.status}${t.detail ? ` - ${t.detail}` : ""}`
+          ),
+        ].join("\n");
+
+        await updateWatchTelemetry(requireDb(), result.id, telemetry);
+        await recordSyncHistory(media, summary, "watched");
+        syncedCount++;
+      }
+    }
+  } catch (error) {
+    console.error("Error in syncRecentlyWatchedFromEmby", error);
+  }
+  return syncedCount;
+}
+
+async function syncRecentlyWatchedFromJellyfin(config, loopStore) {
+  if (!config.jellyfin?.baseUrl || !config.jellyfin?.apiKey || !config.jellyfin?.userId) return 0;
+  let syncedCount = 0;
+  try {
+    const { fetchJellyfinWatchedItems } = await import("./utils/jellyfinClient.js");
+    const { normalizeProviderIds } = await import("./utils/parsers.js");
+    const raw = await fetchJellyfinWatchedItems(config.jellyfin);
+    
+    for (const item of raw) {
+      const ids = normalizeProviderIds(item.ProviderIds);
+      const media = {
+        title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
+        type: item.Type === "Episode" ? "episode" : "movie",
+        season: item.ParentIndexNumber != null ? Number(item.ParentIndexNumber) : null,
+        episode: item.IndexNumber != null ? Number(item.IndexNumber) : null,
+        ids: {
+          imdb: ids.imdb || undefined,
+          tmdb: ids.tmdb || undefined,
+          tvdb: ids.tvdb || undefined,
+        },
+        source: "jellyfin",
+      };
+
+      const key = mediaKeyFor(media);
+      const watchedAt = item.UserData?.LastPlayedDate ? new Date(item.UserData.LastPlayedDate).toISOString() : new Date().toISOString();
+
+      const existing = await db
+        .collection("watchHistory")
+        .where("mediaKey", "==", key)
+        .where("watchedAt", "==", watchedAt)
+        .limit(1)
+        .get();
+
+      if (existing.empty) {
+        console.log(`Cron detected new Jellyfin watch event: ${media.title} watched at ${watchedAt}`);
+        const watchRecord = mediaToWatchRecord(media, "jellyfin");
+        watchRecord.watched_at = watchedAt;
+        watchRecord.sync_action = "watched";
+        watchRecord.sync_dispatch_telemetry = [
+          `Origin: jellyfin`,
+          `Loop-check: Passed`,
+          `Dispatch status: pending`,
+          `Details: Watch event fetched from Jellyfin library history; queueing sync.`,
+        ].join("\n");
+
+        const result = await insertWatchRecord(requireDb(), watchRecord);
+        const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
+          skipped: false,
+          status: "error",
+          details: `Outbound sync failed: ${error.message || String(error)}`,
+          targetStates: [],
+        }));
+
+        const telemetry = [
+          `Origin: jellyfin`,
+          `Loop-check: Passed`,
+          `Dispatch status: ${summary.status}`,
+          `Details: Watch event fetched from Jellyfin library history; sync completed.`,
+          ...summary.targetStates.map(
+            (t) => `Target ${t.target} status: ${t.status}${t.detail ? ` - ${t.detail}` : ""}`
+          ),
+        ].join("\n");
+
+        await updateWatchTelemetry(requireDb(), result.id, telemetry);
+        await recordSyncHistory(media, summary, "watched");
+        syncedCount++;
+      }
+    }
+  } catch (error) {
+    console.error("Error in syncRecentlyWatchedFromJellyfin", error);
+  }
+  return syncedCount;
+}
+
 async function syncPendingManualDispatches(config, loopStore) {
   let syncedCount = 0;
   try {
@@ -436,23 +584,51 @@ export async function runScheduledSync() {
   await setRuntimeState({ lastCronExecution: Date.now() }).catch(() => null);
   const config = await loadMediaConfig();
   const loopStore = createLoopStore();
-  const hasConfiguredSources = Boolean(config?.plex?.baseUrl && config?.plex?.token) || Boolean(config?.emby?.baseUrl && config?.emby?.apiKey) || Boolean(config?.jellyfin?.baseUrl && config?.jellyfin?.apiKey);
+  
+  const plexActive = !config?.plex?.disabled && Boolean(config?.plex?.baseUrl && config?.plex?.token);
+  const embyActive = !config?.emby?.disabled && Boolean(config?.emby?.baseUrl && config?.emby?.apiKey && config?.emby?.userId);
+  const jellyfinActive = !config?.jellyfin?.disabled && Boolean(config?.jellyfin?.baseUrl && config?.jellyfin?.apiKey && config?.jellyfin?.userId);
+  
+  const hasConfiguredSources = plexActive || embyActive || jellyfinActive;
 
   if (!hasConfiguredSources) {
-    console.log("Scheduled live tracking sync skipped; no configured media servers were found.");
+    console.log("Scheduled live tracking sync skipped; no active configured media servers were found.");
     return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true };
   }
 
-  await checkPlexUnwatchedStatus(config, loopStore).catch((error) => {
-    console.error("Failed to run checkPlexUnwatchedStatus", error);
-  });
+  if (plexActive) {
+    await checkPlexUnwatchedStatus(config, loopStore).catch((error) => {
+      console.error("Failed to run checkPlexUnwatchedStatus", error);
+    });
+  }
 
   let plexSynced = 0;
+  let embySynced = 0;
+  let jellyfinSynced = 0;
   let manualSynced = 0;
-  try {
-    plexSynced = await syncRecentlyWatchedFromPlex(config, loopStore);
-  } catch (error) {
-    console.error("Failed to run syncRecentlyWatchedFromPlex", error);
+
+  if (plexActive) {
+    try {
+      plexSynced = await syncRecentlyWatchedFromPlex(config, loopStore);
+    } catch (error) {
+      console.error("Failed to run syncRecentlyWatchedFromPlex", error);
+    }
+  }
+
+  if (embyActive) {
+    try {
+      embySynced = await syncRecentlyWatchedFromEmby(config, loopStore);
+    } catch (error) {
+      console.error("Failed to run syncRecentlyWatchedFromEmby", error);
+    }
+  }
+
+  if (jellyfinActive) {
+    try {
+      jellyfinSynced = await syncRecentlyWatchedFromJellyfin(config, loopStore);
+    } catch (error) {
+      console.error("Failed to run syncRecentlyWatchedFromJellyfin", error);
+    }
   }
 
   try {
@@ -497,7 +673,7 @@ export async function runScheduledSync() {
   await deleteLiveTrackingCacheRows(requireDb(), staleIds);
   await purgeCompletedLiveTrackingCache(requireDb());
 
-  if (currentRows.length || completions.length || progressUpdates.length || staleIds.length || plexSynced || manualSynced) {
+  if (currentRows.length || completions.length || progressUpdates.length || staleIds.length || plexSynced || embySynced || jellyfinSynced || manualSynced) {
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
   }
 
@@ -508,6 +684,8 @@ export async function runScheduledSync() {
     removed: staleIds.length,
     cached: cachedById.size,
     plexHistorySynced: plexSynced,
+    embyHistorySynced: embySynced,
+    jellyfinHistorySynced: jellyfinSynced,
     manualDispatchesSynced: manualSynced,
   };
 }
@@ -529,9 +707,9 @@ export async function runForceSync(logger = console.log) {
     const config = await loadMediaConfig();
     const loopStore = createLoopStore();
 
-  const hasPlex = Boolean(config.plex?.baseUrl && config.plex?.token);
-  const hasEmby = Boolean(config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId);
-  const hasJellyfin = Boolean(config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId);
+  const hasPlex = !config.plex?.disabled && Boolean(config.plex?.baseUrl && config.plex?.token);
+  const hasEmby = !config.emby?.disabled && Boolean(config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId);
+  const hasJellyfin = !config.jellyfin?.disabled && Boolean(config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId);
 
   const activeTargets = [];
   if (hasPlex) activeTargets.push("plex");
@@ -539,7 +717,7 @@ export async function runForceSync(logger = console.log) {
   if (hasJellyfin) activeTargets.push("jellyfin");
 
   if (activeTargets.length === 0) {
-    logger("Force Sync: no active media servers are configured. Aborting.");
+    logger("Force Sync: no active media servers are configured or enabled. Aborting.");
     return { success: true, activeTargets, stats: { totalWatchedFoundAcrossServers: 0, addedToHistory: 0, deletedFromHistory: 0, propagatedUpdates: 0 } };
   }
 
