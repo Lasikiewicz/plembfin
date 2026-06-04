@@ -206,6 +206,12 @@ h2 {
   background: #111820;
 }
 
+.button-danger {
+  border-color: rgba(244, 63, 94, 0.55);
+  background: rgba(244, 63, 94, 0.14);
+  color: #fecdd3;
+}
+
 .icon-button {
   display: inline-grid;
   width: 2.1rem;
@@ -216,6 +222,7 @@ h2 {
 
 .button-primary:hover,
 .button-ghost:hover,
+.button-danger:hover,
 .nav-tab:hover,
 .settings-tab:hover,
 .segment-button:hover,

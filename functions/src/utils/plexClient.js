@@ -319,3 +319,49 @@ export async function setPlexProgress(config, media) {
     throw error;
   }
 }
+
+export async function fetchPlexWatchedItems(config) {
+  requirePlexConfig(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+
+  const sectionsUrl = new URL(`${baseUrl}/library/sections`);
+  sectionsUrl.searchParams.set("X-Plex-Token", config.token);
+  const sectionsRes = await fetch(sectionsUrl, { headers: { Accept: "application/json" } });
+  if (!sectionsRes.ok) {
+    throw new Error(`Plex failed to fetch library sections: ${sectionsRes.status}`);
+  }
+  const sectionsData = await sectionsRes.json();
+  const directories = sectionsData?.MediaContainer?.Directory || [];
+
+  const watchedItems = [];
+
+  for (const dir of directories) {
+    const sectionId = dir.key;
+    const type = dir.type;
+    if (type !== "movie" && type !== "show") continue;
+
+    const allUrl = new URL(`${baseUrl}/library/sections/${sectionId}/all`);
+    allUrl.searchParams.set("X-Plex-Token", config.token);
+    allUrl.searchParams.set("unwatched", "0");
+
+    if (type === "movie") {
+      allUrl.searchParams.set("type", "1");
+    } else {
+      allUrl.searchParams.set("type", "4");
+    }
+
+    try {
+      const allRes = await fetch(allUrl, { headers: { Accept: "application/json" } });
+      if (allRes.ok) {
+        const allData = await allRes.json();
+        const metadata = allData?.MediaContainer?.Metadata || [];
+        watchedItems.push(...metadata);
+      }
+    } catch (err) {
+      console.error(`Plex failed to fetch watched items for section ${sectionId}`, err);
+    }
+  }
+
+  return watchedItems;
+}
+

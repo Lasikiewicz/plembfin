@@ -104,6 +104,11 @@ function bindElements() {
     adminEmail: document.querySelector("#adminEmail"),
     clearImportButton: document.querySelector("#clearImportButton"),
     closeModalButton: document.querySelector("#closeModalButton"),
+    confirmModal: document.querySelector("#confirmModal"),
+    confirmModalMessage: document.querySelector("#confirmModalMessage"),
+    approveConfirmButton: document.querySelector("#approveConfirmButton"),
+    cancelConfirmButton: document.querySelector("#cancelConfirmButton"),
+    closeConfirmModalButton: document.querySelector("#closeConfirmModalButton"),
     copyToast: document.querySelector("#copyToast"),
     clearLogsButton: document.querySelector("#clearLogsButton"),
     copyLogsButton: document.querySelector("#copyLogsButton"),
@@ -134,6 +139,9 @@ function bindElements() {
     nowPlayingStatus: document.querySelector("#nowPlayingStatus"),
     refreshSyncButton: document.querySelector("#refreshSyncButton"),
     runCronSyncButton: document.querySelector("#runCronSyncButton"),
+    forceSyncButton: document.querySelector("#forceSyncButton"),
+    stopSyncButton: document.querySelector("#stopSyncButton"),
+    forceSyncTerminal: document.querySelector("#forceSyncTerminal"),
     plexServerUrl: document.querySelector("#plexServerUrl"),
     plexToken: document.querySelector("#plexToken"),
     plexUsername: document.querySelector("#plexUsername"),
@@ -4417,6 +4425,169 @@ async function triggerCronSync() {
   }
 }
 
+function showConfirmModal(message, onApprove) {
+  if (!elements.confirmModal || !elements.confirmModalMessage) return;
+  elements.confirmModalMessage.textContent = message;
+  elements.confirmModal.classList.remove("hidden");
+
+  // Remove existing listeners to avoid multiple triggers
+  const newApproveButton = elements.approveConfirmButton.cloneNode(true);
+  elements.approveConfirmButton.parentNode.replaceChild(newApproveButton, elements.approveConfirmButton);
+  elements.approveConfirmButton = newApproveButton;
+
+  elements.approveConfirmButton.addEventListener("click", () => {
+    elements.confirmModal.classList.add("hidden");
+    onApprove();
+  });
+}
+
+async function triggerStopSync() {
+  const button = elements.stopSyncButton;
+  if (!button) return;
+
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Stopping...";
+
+  try {
+    const response = await fetch("/api/stop-force-sync", {
+      method: "POST",
+      headers: authHeaders()
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.error || `Stop sync failed with HTTP ${response.status}`);
+    }
+    showToast("Stop sync request sent.");
+  } catch (error) {
+    showToast(`Error stopping sync: ${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
+async function triggerForceSync() {
+  const button = elements.forceSyncButton;
+  const stopButton = elements.stopSyncButton;
+  const terminal = elements.forceSyncTerminal;
+  if (!button) return;
+
+  showConfirmModal(
+    "Are you sure you want to run Force Sync?\n\nThis will check all configured media servers (Plex, Emby, Jellyfin) and resolve their watched/unwatched states based on the newest timestamp. It may take some time.",
+    async () => {
+      if (terminal) {
+        terminal.classList.remove("hidden");
+        terminal.textContent = "Force Sync started...\n";
+      }
+
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = "Syncing...";
+
+      button.classList.add("hidden");
+      if (stopButton) {
+        stopButton.classList.remove("hidden");
+      }
+
+      try {
+        const response = await fetch("/api/force-sync", {
+          method: "POST",
+          headers: authHeaders()
+        });
+
+        if (!response.ok) {
+          throw new Error(`Force sync failed with HTTP ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let finalResult = null;
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop(); // save incomplete line
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            if (trimmed.startsWith("RESULT: ")) {
+              try {
+                finalResult = JSON.parse(trimmed.substring(8));
+              } catch (e) {
+                console.error("Failed to parse final result JSON", e);
+              }
+            } else {
+              if (terminal) {
+                terminal.textContent += `${trimmed}\n`;
+                terminal.scrollTop = terminal.scrollHeight;
+              }
+            }
+          }
+        }
+
+        // Flush any remaining buffer
+        if (buffer.trim()) {
+          const trimmed = buffer.trim();
+          if (trimmed.startsWith("RESULT: ")) {
+            try {
+              finalResult = JSON.parse(trimmed.substring(8));
+            } catch (e) {
+              console.error("Failed to parse final result JSON", e);
+            }
+          } else {
+            if (terminal) {
+              terminal.textContent += `${trimmed}\n`;
+              terminal.scrollTop = terminal.scrollHeight;
+            }
+          }
+        }
+
+        if (finalResult && finalResult.success) {
+          const stats = finalResult.stats || {};
+          let detail = "";
+          if (finalResult.aborted) {
+            detail = `Force Sync stopped/aborted! Total watched found: ${stats.totalWatchedFoundAcrossServers ?? 0}, added to history: ${stats.addedToHistory ?? 0}, deleted: ${stats.deletedFromHistory ?? 0}, propagated: ${stats.propagatedUpdates ?? 0}`;
+          } else {
+            detail = `Force Sync complete! Active targets: ${(finalResult.activeTargets || []).join(", ") || "none"}. Total watched found: ${stats.totalWatchedFoundAcrossServers ?? 0}, added to history: ${stats.addedToHistory ?? 0}, deleted: ${stats.deletedFromHistory ?? 0}, propagated: ${stats.propagatedUpdates ?? 0}`;
+          }
+          showToast(detail);
+          if (terminal) {
+            terminal.textContent += `\n${finalResult.aborted ? "ABORTED" : "SUCCESS"}: ${detail}\n`;
+            terminal.scrollTop = terminal.scrollHeight;
+          }
+        } else {
+          throw new Error("No final success result returned from server");
+        }
+
+        await Promise.all([
+          loadSyncJobs({ force: true }),
+          loadSyncHistory({ force: true })
+        ]);
+      } catch (error) {
+        showToast(`Error: ${error.message}`);
+        if (terminal) {
+          terminal.textContent += `\nERROR: ${error.message}\n`;
+          terminal.scrollTop = terminal.scrollHeight;
+        }
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+        button.classList.remove("hidden");
+        if (stopButton) {
+          stopButton.classList.add("hidden");
+        }
+      }
+    }
+  );
+}
+
 function attachEvents() {
   elements.authForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -4491,8 +4662,26 @@ function attachEvents() {
     if (event.target === elements.debugModal) closeDebugModal();
   });
 
+  const closeConfirmModal = () => {
+    if (elements.confirmModal) elements.confirmModal.classList.add("hidden");
+  };
+  if (elements.closeConfirmModalButton) {
+    elements.closeConfirmModalButton.addEventListener("click", closeConfirmModal);
+  }
+  if (elements.cancelConfirmButton) {
+    elements.cancelConfirmButton.addEventListener("click", closeConfirmModal);
+  }
+  if (elements.confirmModal) {
+    elements.confirmModal.addEventListener("click", (event) => {
+      if (event.target === elements.confirmModal) closeConfirmModal();
+    });
+  }
+
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeDebugModal();
+    if (event.key === "Escape") {
+      closeDebugModal();
+      closeConfirmModal();
+    }
   });
 
   document.addEventListener("click", (event) => {
@@ -4687,6 +4876,18 @@ function attachEvents() {
     elements.refreshSyncButton.addEventListener("click", () => {
       loadSyncJobs({ force: true }).catch((error) => setMessage(error.message, "error"));
       loadSyncHistory({ force: true }).catch((error) => setMessage(error.message, "error"));
+    });
+  }
+
+  if (elements.forceSyncButton) {
+    elements.forceSyncButton.addEventListener("click", () => {
+      triggerForceSync().catch(() => {});
+    });
+  }
+
+  if (elements.stopSyncButton) {
+    elements.stopSyncButton.addEventListener("click", () => {
+      triggerStopSync().catch(() => {});
     });
   }
 

@@ -8,10 +8,12 @@ function normalizeType(value) {
   const type = String(value || "").toLowerCase();
   if (type === "movie") return "movie";
   if (type === "episode" || type === "tvchannel") return "episode";
+  if (type === "season") return "season";
+  if (type === "series" || type === "show") return "series";
   return undefined;
 }
 
-function normalizeProviderIds(providerIds = {}) {
+export function normalizeProviderIds(providerIds = {}) {
   const ids = { ...EMPTY_IDS };
   for (const [key, value] of Object.entries(providerIds || {})) {
     const normalizedKey = key.toLowerCase();
@@ -229,6 +231,7 @@ function buildPayload({
   user,
   posterUrl,
   poster,
+  itemId,
   rawPayloadDebug = {},
 }) {
   const isActionable = ["active", "completed", "ended", "unplayed"].includes(phase);
@@ -247,6 +250,7 @@ function buildPayload({
     user,
     posterUrl,
     poster,
+    itemId,
     rawPayloadDebug,
     isValid: Boolean(isActionable && type && source && title),
   };
@@ -302,6 +306,7 @@ export async function parsePlexWebhook(formData) {
         offsetMs,
         durationMs,
         user,
+        itemId: metadata.ratingKey,
         poster: plexPosterInfo(metadata, type),
         rawPayloadDebug,
       });
@@ -320,6 +325,7 @@ export async function parsePlexWebhook(formData) {
       offsetMs,
       durationMs,
       user,
+      itemId: metadata.ratingKey,
       poster: plexPosterInfo(metadata, type),
       rawPayloadDebug,
     });
@@ -361,6 +367,7 @@ export function parseJellyfinWebhook(json) {
         offsetMs,
         durationMs,
         user,
+        itemId: item.Id,
         poster: embyLikePosterInfo(item, type),
         rawPayloadDebug: {
           payloadKeys: Object.keys(json || {}),
@@ -383,6 +390,7 @@ export function parseJellyfinWebhook(json) {
       offsetMs,
       durationMs,
       user,
+      itemId: item.Id,
       poster: embyLikePosterInfo(item, type),
       rawPayloadDebug: {
         payloadKeys: Object.keys(json || {}),
@@ -429,6 +437,7 @@ export function parseEmbyWebhook(json) {
         offsetMs,
         durationMs,
         user,
+        itemId: item.Id,
         poster: embyLikePosterInfo(item, type),
         rawPayloadDebug: {
           payloadKeys: Object.keys(json || {}),
@@ -451,6 +460,7 @@ export function parseEmbyWebhook(json) {
       offsetMs,
       durationMs,
       user,
+      itemId: item.Id,
       poster: embyLikePosterInfo(item, type),
       rawPayloadDebug: {
         payloadKeys: Object.keys(json || {}),

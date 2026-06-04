@@ -281,3 +281,33 @@ export async function setEmbyProgress(config, media) {
     throw error;
   }
 }
+
+export async function fetchEmbyEpisodes(config, parentId) {
+  requireEmbyConfig(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
+  url.searchParams.set("ParentId", parentId);
+  url.searchParams.set("Recursive", "true");
+  url.searchParams.set("IncludeItemTypes", "Episode");
+  url.searchParams.set("Fields", "ProviderIds,UserData");
+  url.searchParams.set("api_key", config.apiKey);
+
+  const data = await fetchJson(url, config);
+  return data?.Items || [];
+}
+
+export async function fetchEmbyWatchedItems(config) {
+  requireEmbyConfig(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
+  url.searchParams.set("Recursive", "true");
+  url.searchParams.set("Filters", "IsPlayed");
+  url.searchParams.set("IncludeItemTypes", "Movie,Episode");
+  url.searchParams.set("Fields", "ProviderIds,UserData");
+  url.searchParams.set("api_key", config.apiKey);
+
+  const data = await fetchJson(url, config);
+  return data?.Items || [];
+}
+
+

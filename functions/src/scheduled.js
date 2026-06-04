@@ -1,7 +1,7 @@
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { findPlexItem } from "./utils/plexClient.js";
 import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/liveSessions.js";
-import { appendSyncHistory, loadMediaConfig, setRuntimeState } from "./utils/configStore.js";
+import { appendSyncHistory, loadMediaConfig, loadRuntimeState, setRuntimeState } from "./utils/configStore.js";
 import { createLoopStore } from "./utils/loopStore.js";
 import { db } from "./firebase.js";
 import {
@@ -235,18 +235,48 @@ async function syncRecentlyWatchedFromPlex(config, loopStore) {
     historyUrl.searchParams.set("X-Plex-Container-Size", "20");
 
     const historyRes = await fetch(historyUrl, { headers: { Accept: "application/json" } });
-    if (!historyRes.ok) {
+    let items = [];
+    if (historyRes.ok) {
+      const historyData = await historyRes.json();
+      items = historyData?.MediaContainer?.Metadata || [];
+    } else {
       console.error("Failed to fetch Plex history in cron", historyRes.status);
-      return 0;
     }
 
-    const historyData = await historyRes.json();
-    const items = historyData?.MediaContainer?.Metadata || [];
+    const recentlyViewedUrl = new URL(`${baseUrl}/library/recentlyViewed`);
+    recentlyViewedUrl.searchParams.set("X-Plex-Token", token);
+    recentlyViewedUrl.searchParams.set("X-Plex-Container-Start", "0");
+    recentlyViewedUrl.searchParams.set("X-Plex-Container-Size", "20");
 
-    for (const item of items) {
-      if (Number(item.accountID) !== targetAccountId) continue;
+    const recentlyViewedRes = await fetch(recentlyViewedUrl, { headers: { Accept: "application/json" } });
+    let recentlyViewedItems = [];
+    if (recentlyViewedRes.ok) {
+      const recentlyViewedData = await recentlyViewedRes.json();
+      recentlyViewedItems = recentlyViewedData?.MediaContainer?.Metadata || [];
+    } else {
+      console.error("Failed to fetch Plex recently viewed in cron", recentlyViewedRes.status);
+    }
+
+    // Combine and deduplicate
+    const allItems = [...items, ...recentlyViewedItems];
+    const seenKeys = new Set();
+    const uniqueItems = [];
+
+    for (const item of allItems) {
+      if (item.accountID && Number(item.accountID) !== targetAccountId) continue;
       if (item.type !== "movie" && item.type !== "episode") continue;
 
+      const viewedAtTime = item.viewedAt || item.lastViewedAt;
+      if (!viewedAtTime) continue;
+
+      const dedupeKey = `${item.ratingKey || item.key}-${viewedAtTime}`;
+      if (seenKeys.has(dedupeKey)) continue;
+      seenKeys.add(dedupeKey);
+
+      uniqueItems.push({ item, viewedAtTime });
+    }
+
+    for (const { item, viewedAtTime } of uniqueItems) {
       const media = {
         title: item.title,
         type: item.type,
@@ -270,7 +300,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore) {
       }
 
       const key = mediaKeyFor(media);
-      const watchedAt = new Date(Number(item.viewedAt) * 1000).toISOString();
+      const watchedAt = new Date(Number(viewedAtTime) * 1000).toISOString();
 
       const existing = await db
         .collection("watchHistory")
@@ -280,7 +310,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore) {
         .get();
 
       if (existing.empty) {
-        console.log(`Cron detected new Plex watch event in history: ${media.title} watched at ${watchedAt}`);
+        console.log(`Cron detected new Plex watch event in history/recentlyViewed: ${media.title} watched at ${watchedAt}`);
         const watchRecord = mediaToWatchRecord(media, "plex");
         watchRecord.watched_at = watchedAt;
         watchRecord.sync_action = "watched";
@@ -457,3 +487,406 @@ export async function runScheduledSync() {
     manualDispatchesSynced: manualSynced,
   };
 }
+
+export async function runForceSync(logger = console.log) {
+  logger("Force Sync: checking if another sync job is already running...");
+  const runtime = await loadRuntimeState();
+  const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+
+  if (runtime.forceSyncActive === true && runtime.forceSyncStartedAt && runtime.forceSyncStartedAt > tenMinutesAgo) {
+    logger("Force Sync ERROR: Another force sync job is already running.");
+    throw new Error("Another force sync job is already running.");
+  }
+
+  await setRuntimeState({ forceSyncActive: true, forceSyncStartedAt: Date.now(), forceSyncCancelRequested: false });
+
+  try {
+    logger("Force Sync: loading media configuration...");
+    const config = await loadMediaConfig();
+    const loopStore = createLoopStore();
+
+  const hasPlex = Boolean(config.plex?.baseUrl && config.plex?.token);
+  const hasEmby = Boolean(config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId);
+  const hasJellyfin = Boolean(config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId);
+
+  const activeTargets = [];
+  if (hasPlex) activeTargets.push("plex");
+  if (hasEmby) activeTargets.push("emby");
+  if (hasJellyfin) activeTargets.push("jellyfin");
+
+  if (activeTargets.length === 0) {
+    logger("Force Sync: no active media servers are configured. Aborting.");
+    return { success: true, activeTargets, stats: { totalWatchedFoundAcrossServers: 0, addedToHistory: 0, deletedFromHistory: 0, propagatedUpdates: 0 } };
+  }
+
+  logger(`Force Sync: active media targets resolved: ${activeTargets.join(", ")}`);
+
+  // 1. Fetch watched items in parallel
+  logger("Force Sync: querying watched libraries from servers...");
+  const fetchPromises = [];
+  if (hasPlex) {
+    fetchPromises.push(
+      (async () => {
+        logger("Plex: scanning library sections...");
+        const { fetchPlexWatchedItems } = await import("./utils/plexClient.js");
+        const raw = await fetchPlexWatchedItems(config.plex);
+        logger(`Plex: fetched ${raw.length} watched library items.`);
+        return raw.map((item) => {
+          const media = {
+            title: item.title,
+            type: item.type,
+            season: item.parentIndex != null ? Number(item.parentIndex) : null,
+            episode: item.index != null ? Number(item.index) : null,
+            imdb: null,
+            tmdb: null,
+            tvdb: null,
+            source: "plex",
+            timestamp: item.lastViewedAt ? new Date(Number(item.lastViewedAt) * 1000) : null,
+          };
+          const guids = [item.guid, ...(item.Guid || []).map((g) => g.id || g)].filter(Boolean);
+          for (const guid of guids) {
+            const guidStr = String(guid);
+            const value = guidStr.split(/:\/\/|\//).pop();
+            if (guidStr.includes("imdb")) media.imdb = value;
+            if (guidStr.includes("tmdb") || guidStr.includes("themoviedb")) media.tmdb = value;
+            if (guidStr.includes("tvdb") || guidStr.includes("thetvdb")) media.tvdb = value;
+          }
+          if (item.type === "episode") {
+            media.title = `${item.grandparentTitle} - S${String(media.season || "?").padStart(2, "0")}E${String(media.episode || "?").padStart(2, "0")}`;
+          }
+          return media;
+        });
+      })().catch((err) => {
+        logger(`Plex ERROR: failed to fetch watched items: ${err.message}`);
+        return [];
+      })
+    );
+  } else {
+    fetchPromises.push(Promise.resolve([]));
+  }
+
+  if (hasEmby) {
+    fetchPromises.push(
+      (async () => {
+        logger("Emby: querying played items...");
+        const { fetchEmbyWatchedItems } = await import("./utils/embyClient.js");
+        const { normalizeProviderIds } = await import("./utils/parsers.js");
+        const raw = await fetchEmbyWatchedItems(config.emby);
+        logger(`Emby: fetched ${raw.length} played library items.`);
+        return raw.map((item) => {
+          const ids = normalizeProviderIds(item.ProviderIds);
+          return {
+            title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
+            type: item.Type === "Episode" ? "episode" : "movie",
+            season: item.ParentIndexNumber != null ? Number(item.ParentIndexNumber) : null,
+            episode: item.IndexNumber != null ? Number(item.IndexNumber) : null,
+            imdb: ids.imdb || null,
+            tmdb: ids.tmdb || null,
+            tvdb: ids.tvdb || null,
+            source: "emby",
+            timestamp: item.UserData?.LastPlayedDate ? new Date(item.UserData.LastPlayedDate) : null,
+          };
+        });
+      })().catch((err) => {
+        logger(`Emby ERROR: failed to fetch watched items: ${err.message}`);
+        return [];
+      })
+    );
+  } else {
+    fetchPromises.push(Promise.resolve([]));
+  }
+
+  if (hasJellyfin) {
+    fetchPromises.push(
+      (async () => {
+        logger("Jellyfin: querying played items...");
+        const { fetchJellyfinWatchedItems } = await import("./utils/jellyfinClient.js");
+        const { normalizeProviderIds } = await import("./utils/parsers.js");
+        const raw = await fetchJellyfinWatchedItems(config.jellyfin);
+        logger(`Jellyfin: fetched ${raw.length} played library items.`);
+        return raw.map((item) => {
+          const ids = normalizeProviderIds(item.ProviderIds);
+          return {
+            title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
+            type: item.Type === "Episode" ? "episode" : "movie",
+            season: item.ParentIndexNumber != null ? Number(item.ParentIndexNumber) : null,
+            episode: item.IndexNumber != null ? Number(item.IndexNumber) : null,
+            imdb: ids.imdb || null,
+            tmdb: ids.tmdb || null,
+            tvdb: ids.tvdb || null,
+            source: "jellyfin",
+            timestamp: item.UserData?.LastPlayedDate ? new Date(item.UserData.LastPlayedDate) : null,
+          };
+        });
+      })().catch((err) => {
+        logger(`Jellyfin ERROR: failed to fetch watched items: ${err.message}`);
+        return [];
+      })
+    );
+  } else {
+    fetchPromises.push(Promise.resolve([]));
+  }
+
+  const [plexResults, embyResults, jellyfinResults] = await Promise.all(fetchPromises);
+  const allWatchedItems = [...plexResults, ...embyResults, ...jellyfinResults];
+  logger(`Force Sync: collected ${allWatchedItems.length} total watched items across all platforms.`);
+
+  // 2. Fetch Plembfin watchHistory to resolve conflicts
+  logger("Firestore: loading Plembfin watchHistory records...");
+  const watchHistorySnapshot = await db.collection("watchHistory").get();
+  const historyMap = new Map();
+  for (const doc of watchHistorySnapshot.docs) {
+    const data = doc.data();
+    const mKey = data.mediaKey;
+    if (!historyMap.has(mKey)) historyMap.set(mKey, []);
+    historyMap.get(mKey).push({
+      id: doc.id,
+      ref: doc.ref,
+      syncAction: data.syncAction || "watched",
+      watchedAt: data.watchedAt || data.watched_at || new Date().toISOString()
+    });
+  }
+  for (const [mKey, records] of historyMap.entries()) {
+    records.sort((a, b) => new Date(b.watchedAt) - new Date(a.watchedAt));
+  }
+  logger(`Firestore: loaded ${watchHistorySnapshot.size} historical sync records.`);
+
+  function findLooseMatch(media, groups) {
+    for (const group of groups) {
+      if (media.type !== group.type) continue;
+      if (media.imdb && group.imdb && media.imdb === group.imdb) return group;
+      if (media.tmdb && group.tmdb && media.tmdb === group.tmdb) return group;
+      if (media.tvdb && group.tvdb && media.tvdb === group.tvdb) return group;
+      
+      const cleanTitle = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (media.type === "episode") {
+        const getShowName = (t) => t.split(" - ")[0].trim();
+        const mediaShow = getShowName(media.title);
+        const groupShow = getShowName(group.title);
+        if (cleanTitle(mediaShow) === cleanTitle(groupShow) && 
+            Number(media.season) === Number(group.season) && 
+            Number(media.episode) === Number(group.episode)) {
+          return group;
+        }
+      } else {
+        if (cleanTitle(media.title) === cleanTitle(group.title)) {
+          return group;
+        }
+      }
+    }
+    return null;
+  }
+
+  // 3. Group watched items loose-matched
+  logger("Force Sync: grouping and matching items across servers...");
+  const groups = [];
+  for (const media of allWatchedItems) {
+    const group = findLooseMatch(media, groups);
+    if (group) {
+      group.watchedOn.add(media.source);
+      if (media.timestamp && (!group.timestamp || media.timestamp > group.timestamp)) {
+        group.timestamp = media.timestamp;
+      }
+      if (!group.imdb && media.imdb) group.imdb = media.imdb;
+      if (!group.tmdb && media.tmdb) group.tmdb = media.tmdb;
+      if (!group.tvdb && media.tvdb) group.tvdb = media.tvdb;
+    } else {
+      groups.push({
+        title: media.title,
+        type: media.type,
+        season: media.season,
+        episode: media.episode,
+        imdb: media.imdb,
+        tmdb: media.tmdb,
+        tvdb: media.tvdb,
+        timestamp: media.timestamp,
+        watchedOn: new Set([media.source])
+      });
+    }
+  }
+
+  // 4. Compute canonical media keys and watched state entries
+  const watchedMap = new Map();
+  for (const group of groups) {
+    const mediaObj = {
+      title: group.title,
+      type: group.type,
+      season: group.season,
+      episode: group.episode,
+      ids: {
+        imdb: group.imdb || undefined,
+        tmdb: group.tmdb || undefined,
+        tvdb: group.tvdb || undefined
+      }
+    };
+    const key = mediaKeyFor(mediaObj);
+    watchedMap.set(key, { media: mediaObj, group });
+  }
+
+  // 5. Build union of all items to consider
+  const allConsideredKeys = new Set([...watchedMap.keys(), ...historyMap.keys()]);
+  logger(`Force Sync: resolving watched state for ${allConsideredKeys.size} distinct items...`);
+
+  let propagatedCount = 0;
+  let addedToHistoryCount = 0;
+  let deletedFromHistoryCount = 0;
+
+  let loopIndex = 0;
+  for (const key of allConsideredKeys) {
+    loopIndex++;
+    if (loopIndex % 5 === 0) {
+      const currentRuntime = await loadRuntimeState();
+      if (currentRuntime.forceSyncCancelRequested === true) {
+        logger("Force Sync: stop request detected in Firestore. Aborting sync...");
+        return {
+          success: true,
+          activeTargets,
+          aborted: true,
+          stats: {
+            totalWatchedFoundAcrossServers: watchedMap.size,
+            addedToHistory: addedToHistoryCount,
+            deletedFromHistory: deletedFromHistoryCount,
+            propagatedUpdates: propagatedCount
+          }
+        };
+      }
+    }
+
+    const serverWatchedEntry = watchedMap.get(key);
+    const historyRecords = historyMap.get(key) || [];
+    const lastHistoryRecord = historyRecords[0];
+
+    let newestState = "unwatched";
+    let newestTime = 0;
+
+    if (lastHistoryRecord) {
+      newestState = lastHistoryRecord.syncAction === "unwatched" ? "unwatched" : "watched";
+      newestTime = new Date(lastHistoryRecord.watchedAt).getTime();
+    }
+
+    let serverWatchedOn = new Set();
+    let serverWatchedTime = 0;
+    let mediaObj = serverWatchedEntry ? serverWatchedEntry.media : null;
+
+    if (serverWatchedEntry) {
+      serverWatchedOn = serverWatchedEntry.group.watchedOn;
+      serverWatchedTime = serverWatchedEntry.group.timestamp ? new Date(serverWatchedEntry.group.timestamp).getTime() : 0;
+      if (serverWatchedTime > newestTime) {
+        newestTime = serverWatchedTime;
+        newestState = "watched";
+      }
+    }
+
+    if (!mediaObj && lastHistoryRecord) {
+      const docData = watchHistorySnapshot.docs.find(d => d.id === lastHistoryRecord.id)?.data() || {};
+      mediaObj = {
+        title: docData.title,
+        type: docData.mediaType,
+        season: docData.season != null ? Number(docData.season) : null,
+        episode: docData.episode != null ? Number(docData.episode) : null,
+        ids: {
+          imdb: docData.ids?.imdb || undefined,
+          tmdb: docData.ids?.tmdb || undefined,
+          tvdb: docData.ids?.tvdb || undefined
+        }
+      };
+    }
+
+    if (!mediaObj) continue;
+
+    if (newestState === "watched") {
+      const inHistory = historyRecords.some(r => r.syncAction === "watched");
+      if (!inHistory) {
+        logger(`Firestore: adding watched record for "${mediaObj.title}"`);
+        const watchRecord = mediaToWatchRecord(mediaObj, [...serverWatchedOn][0] || "force_sync");
+        watchRecord.sync_action = "watched";
+        watchRecord.sync_dispatch_telemetry = `Force Sync resolved status to watched. Newest timestamp: ${new Date(newestTime).toISOString()}`;
+        if (newestTime > 0) watchRecord.watched_at = new Date(newestTime).toISOString();
+        await insertWatchRecord(requireDb(), watchRecord);
+        addedToHistoryCount++;
+      } else if (lastHistoryRecord && lastHistoryRecord.syncAction === "unwatched") {
+        logger(`Firestore: deleting outdated unwatched record for "${mediaObj.title}"`);
+        const unwatchedDocs = historyRecords.filter(r => r.syncAction === "unwatched");
+        for (const docRec of unwatchedDocs) {
+          await docRec.ref.delete();
+        }
+      }
+
+      for (const target of activeTargets) {
+        if (!serverWatchedOn.has(target)) {
+          logger(`Propagating: marking played "${mediaObj.title}" on ${target}`);
+          try {
+            if (target === "plex") {
+              const { markPlexPlayed } = await import("./utils/plexClient.js");
+              await markPlexPlayed(config.plex, mediaObj);
+            } else if (target === "emby") {
+              const { markEmbyPlayed } = await import("./utils/embyClient.js");
+              await markEmbyPlayed(config.emby, mediaObj);
+            } else if (target === "jellyfin") {
+              const { markJellyfinPlayed } = await import("./utils/jellyfinClient.js");
+              await markJellyfinPlayed(config.jellyfin, mediaObj);
+            }
+            propagatedCount++;
+          } catch (err) {
+            logger(`Error: failed to mark played for "${mediaObj.title}" on ${target}: ${err.message}`);
+          }
+        }
+      }
+    } else {
+      const hasWatchedRecord = historyRecords.some(r => r.syncAction === "watched");
+      if (hasWatchedRecord) {
+        logger(`Firestore: deleting watched records and marking unwatched for "${mediaObj.title}"`);
+        for (const docRec of historyRecords) {
+          await docRec.ref.delete();
+          deletedFromHistoryCount++;
+        }
+        const unwatchedRecord = mediaToWatchRecord(mediaObj, "force_sync");
+        unwatchedRecord.sync_action = "unwatched";
+        unwatchedRecord.sync_dispatch_telemetry = `Force Sync resolved status to unwatched. Newest timestamp: ${new Date(newestTime).toISOString()}`;
+        if (newestTime > 0) unwatchedRecord.watched_at = new Date(newestTime).toISOString();
+        await insertWatchRecord(requireDb(), unwatchedRecord);
+      }
+
+      for (const target of activeTargets) {
+        if (serverWatchedOn.has(target)) {
+          logger(`Propagating: marking unplayed "${mediaObj.title}" on ${target}`);
+          try {
+            if (target === "plex") {
+              const { markPlexUnplayed } = await import("./utils/plexClient.js");
+              await markPlexUnplayed(config.plex, mediaObj);
+            } else if (target === "emby") {
+              const { markEmbyUnplayed } = await import("./utils/embyClient.js");
+              await markEmbyUnplayed(config.emby, mediaObj);
+            } else if (target === "jellyfin") {
+              const { markJellyfinUnplayed } = await import("./utils/jellyfinClient.js");
+              await markJellyfinUnplayed(config.jellyfin, mediaObj);
+            }
+            propagatedCount++;
+          } catch (err) {
+            logger(`Error: failed to mark unwatched for "${mediaObj.title}" on ${target}: ${err.message}`);
+          }
+        }
+      }
+    }
+  }
+
+  logger("Firestore: invalidating database watch history caches...");
+  const { invalidateHistoryDerivedCaches } = await import("./utils/firestoreRepo.js");
+  await invalidateHistoryDerivedCaches().catch(() => null);
+
+  logger("Force Sync: process complete.");
+  return {
+    success: true,
+    activeTargets,
+    stats: {
+      totalWatchedFoundAcrossServers: watchedMap.size,
+      addedToHistory: addedToHistoryCount,
+      deletedFromHistory: deletedFromHistoryCount,
+      propagatedUpdates: propagatedCount
+    }
+  };
+  } finally {
+    await setRuntimeState({ forceSyncActive: false, forceSyncCancelRequested: false }).catch(() => null);
+  }
+}
+

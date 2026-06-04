@@ -1,7 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { setGlobalOptions } from "firebase-functions/v2";
-import { parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "./utils/parsers.js";
+import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "./utils/parsers.js";
 import { findPlexItem, markPlexPlayed, setPlexProgress } from "./utils/plexClient.js";
 import { markEmbyPlayed, setEmbyProgress } from "./utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress } from "./utils/jellyfinClient.js";
@@ -12,7 +12,7 @@ import { appendSyncHistory, loadMediaConfig, saveMediaConfig, validateConfig, ge
 import { createLoopStore } from "./utils/loopStore.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "./utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "./utils/liveSessions.js";
-import { runScheduledSync } from "./scheduled.js";
+import { runForceSync, runScheduledSync } from "./scheduled.js";
 import {
   batchInsertWatchRecords,
   countPlaybackProgressRows,
@@ -432,6 +432,47 @@ async function handleCronSync(req, res) {
   return sendJson(res, { ok: true, result: await runScheduledSync() });
 }
 
+async function handleForceSync(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+
+  const logger = (msg) => {
+    res.write(`${msg}\n`);
+    console.log(msg);
+  };
+
+  try {
+    const result = await runForceSync(logger);
+    res.write(`RESULT: ${JSON.stringify(result)}\n`);
+    res.end();
+  } catch (error) {
+    logger(`ERROR: Force Sync failed: ${error.message}`);
+    res.end();
+  }
+}
+
+async function handleStopForceSync(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  try {
+    await setRuntimeState({ forceSyncCancelRequested: true });
+    return sendJson(res, { ok: true, message: "Cancellation request received." });
+  } catch (error) {
+    return sendJson(res, { ok: false, error: error.message }, 500);
+  }
+}
+
+
+
+
 async function handleWebhook(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -479,6 +520,109 @@ async function handleWebhook(req, res) {
     if (media.source === "jellyfin" && shouldIgnoreWebhookUser(media.user, config.jellyfin?.userId)) {
       return sendJson(res, { ok: true, ignored: true, reason: "User mismatch" });
     }
+  }
+
+  if (media.type === "season" || media.type === "series") {
+    console.log(`Processing ${media.type} webhook sync from ${media.source}`, {
+      title: media.title,
+      itemId: media.itemId,
+      phase: media.phase,
+    });
+
+    let episodes = [];
+    try {
+      if (media.source === "jellyfin") {
+        const { fetchJellyfinEpisodes } = await import("./utils/jellyfinClient.js");
+        episodes = await fetchJellyfinEpisodes(config.jellyfin, media.itemId);
+      } else if (media.source === "emby") {
+        const { fetchEmbyEpisodes } = await import("./utils/embyClient.js");
+        episodes = await fetchEmbyEpisodes(config.emby, media.itemId);
+      }
+    } catch (error) {
+      console.error(`Failed to fetch child episodes for ${media.type} ${media.itemId}`, error);
+      return sendJson(res, { error: `Failed to fetch episodes for ${media.type}`, details: error.message }, 500);
+    }
+
+    console.log(`Found ${episodes.length} episodes under ${media.type} ${media.itemId}`);
+
+    const results = [];
+    const targetPlayed = media.phase === "completed";
+
+    const filteredEpisodes = episodes.filter((ep) => {
+      const isPlayed = ep.UserData?.Played === true;
+      return targetPlayed ? isPlayed : !isPlayed;
+    });
+
+    console.log(`Syncing ${filteredEpisodes.length} episodes with target played state: ${targetPlayed}`);
+
+    await Promise.all(
+      filteredEpisodes.map(async (ep) => {
+        try {
+          const episodeMedia = {
+            title: `${ep.SeriesName || media.title || "Unknown Show"} - S${String(ep.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(ep.IndexNumber ?? "?").padStart(2, "0")}`,
+            type: "episode",
+            source: media.source,
+            ids: normalizeProviderIds(ep.ProviderIds),
+            season: ep.ParentIndexNumber,
+            episode: ep.IndexNumber,
+            event: media.event,
+            phase: media.phase,
+            user: media.user,
+            isValid: true,
+          };
+          episodeMedia.posterUrl = posterPathFromMedia(episodeMedia);
+
+          if (media.phase === "unplayed") {
+            await deleteActiveSession(null, episodeMedia).catch(() => null);
+            const wasDeleted = await deleteWatchRecord(requireDb(), episodeMedia).catch((error) => {
+              console.error("Failed to delete watch record from Firestore", error);
+              return false;
+            });
+            await deletePlaybackProgress(requireDb(), episodeMedia).catch(() => null);
+            const pendingSummary = { skipped: false, status: "pending", details: "Unwatched propagation queued", targetStates: [] };
+            const unplayedRecord = mediaToWatchRecord({ ...episodeMedia, syncAction: "unwatched" }, episodeMedia.source);
+            unplayedRecord.sync_action = "unwatched";
+            unplayedRecord.sync_dispatch_telemetry = formatDispatchTelemetry(pendingSummary, episodeMedia, "unwatched");
+            const dbResult = await insertWatchRecord(requireDb(), unplayedRecord);
+            const summary = await syncMediaUnplayedPlaystate(episodeMedia, config, loopStore).catch((error) => ({
+              skipped: false,
+              status: "error",
+              details: `Unwatched propagation failed: ${error.message || String(error)}`,
+              targetStates: [],
+            }));
+            await updateWatchTelemetry(requireDb(), dbResult.id, formatDispatchTelemetry(summary, episodeMedia, "unwatched"));
+            await recordSyncHistory(episodeMedia, summary, "unwatched");
+            results.push({ episodeId: ep.Id, title: episodeMedia.title, success: summary.status === "success" || summary.status === "partial" });
+          } else {
+            await deleteActiveSession(null, episodeMedia).catch(() => null);
+            const watchRecord = mediaToWatchRecord(episodeMedia, episodeMedia.source);
+            watchRecord.sync_action = "watched";
+            watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, episodeMedia, "watched");
+            const dbResult = await insertWatchRecord(requireDb(), watchRecord);
+            const summary = await syncMediaPlaystate(episodeMedia, config, loopStore).catch((error) => ({
+              skipped: false,
+              status: "error",
+              details: `Propagation failed: ${error.message || String(error)}`,
+              targetStates: [],
+            }));
+            await updateWatchTelemetry(requireDb(), dbResult.id, formatDispatchTelemetry(summary, episodeMedia, "watched"));
+            await recordSyncHistory(episodeMedia, summary, "watched");
+            await deletePlaybackProgress(requireDb(), episodeMedia).catch(() => null);
+            results.push({ episodeId: ep.Id, title: episodeMedia.title, success: summary.status === "success" || summary.status === "partial" });
+          }
+        } catch (err) {
+          console.error(`Failed to sync episode ${ep.Id} / ${ep.Name}`, err);
+          results.push({ episodeId: ep.Id, success: false, error: err.message });
+        }
+      })
+    );
+
+    return sendJson(res, {
+      ok: true,
+      batch: true,
+      total: filteredEpisodes.length,
+      results,
+    });
   }
 
   if (media.phase === "active") {
@@ -770,6 +914,8 @@ async function dispatch(req, res) {
     if (path === "now-playing") return handleNowPlaying(req, res);
     if (path === "active-sessions") return handleActiveSessions(req, res);
     if (path === "cron-sync") return handleCronSync(req, res);
+    if (path === "force-sync") return handleForceSync(req, res);
+    if (path === "stop-force-sync") return handleStopForceSync(req, res);
     if (path === "webhook") return handleWebhook(req, res);
     if (path === "test-connection") return handleTestConnection(req, res);
     if (path === "poster") return handlePoster(req, res);

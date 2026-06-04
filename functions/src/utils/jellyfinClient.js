@@ -296,3 +296,35 @@ export async function setJellyfinProgress(config, media) {
     throw error;
   }
 }
+
+export async function fetchJellyfinEpisodes(config, parentId) {
+  requireJellyfinConfig(config);
+  const apiKey = jellyfinApiKey(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
+  url.searchParams.set("ParentId", parentId);
+  url.searchParams.set("Recursive", "true");
+  url.searchParams.set("IncludeItemTypes", "Episode");
+  url.searchParams.set("Fields", "ProviderIds,UserData");
+  url.searchParams.set("api_key", apiKey);
+
+  const data = await fetchJson(url, config);
+  return data?.Items || [];
+}
+
+export async function fetchJellyfinWatchedItems(config) {
+  requireJellyfinConfig(config);
+  const apiKey = jellyfinApiKey(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
+  url.searchParams.set("Recursive", "true");
+  url.searchParams.set("Filters", "IsPlayed");
+  url.searchParams.set("IncludeItemTypes", "Movie,Episode");
+  url.searchParams.set("Fields", "ProviderIds,UserData");
+  url.searchParams.set("api_key", apiKey);
+
+  const data = await fetchJson(url, config);
+  return data?.Items || [];
+}
+
+

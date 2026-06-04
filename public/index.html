@@ -179,10 +179,13 @@
               <div class="logs-actions">
                 <span id="syncSummary" class="status-pill status-muted">Not loaded</span>
                 <button id="runCronSyncButton" class="button-primary" type="button">Run Cron Sync</button>
+                <button id="forceSyncButton" class="button-primary" type="button">Force Sync</button>
+                <button id="stopSyncButton" class="button-danger hidden" type="button">Stop Sync</button>
                 <button id="refreshSyncButton" class="button-ghost" type="button">Refresh</button>
               </div>
             </div>
             <div id="syncJobsPanel" class="sync-jobs-panel" aria-live="polite"></div>
+            <pre id="forceSyncTerminal" class="import-terminal compact-terminal hidden" style="margin-top: 1rem;" aria-live="polite">[idle] Waiting for force sync.</pre>
           </section>
 
           <section class="glass-panel p-section sync-panel">
@@ -528,6 +531,25 @@
           <button id="closeModalButton" class="button-ghost" type="button">Close</button>
         </div>
         <div id="modalBody" class="modal-body"></div>
+      </article>
+    </div>
+
+    <div id="confirmModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+      <article class="modal-panel glass-panel" style="max-width: 450px;">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Action confirmation</p>
+            <h2 id="confirmModalTitle">Confirm Sync</h2>
+          </div>
+          <button id="closeConfirmModalButton" class="button-ghost" type="button">Close</button>
+        </div>
+        <div class="modal-body">
+          <p id="confirmModalMessage" class="muted-copy" style="margin-bottom: 1.5rem;"></p>
+          <div class="modal-actions" style="display: flex; gap: 1rem; justify-content: flex-end;">
+            <button id="cancelConfirmButton" class="button-ghost" type="button">Cancel</button>
+            <button id="approveConfirmButton" class="button-primary" type="button">Proceed</button>
+          </div>
+        </div>
       </article>
     </div>
 
