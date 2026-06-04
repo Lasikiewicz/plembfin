@@ -230,6 +230,7 @@ function safeImageUrl(value) {
   try {
     const url = new URL(raw, window.location.origin);
     if (!["http:", "https:"].includes(url.protocol)) return "";
+    if (window.location.protocol === "https:" && url.protocol === "http:") return "";
     return /^https?:\/\//i.test(raw) ? url.toString() : "";
   } catch (error) {
     return "";
@@ -282,6 +283,7 @@ function configuredImageUrl(path, item = {}) {
     if ((server.source === "emby" || server.source === "jellyfin") && (server.apiKey || server.api_key)) {
       url.searchParams.set("api_key", server.apiKey || server.api_key);
     }
+    if (window.location.protocol === "https:" && url.protocol === "http:") return "";
     return url.toString();
   } catch (error) {
     return "";
@@ -335,7 +337,8 @@ async function lookupPosterUrl(posterId, { fallback = false } = {}) {
   }
 
   const posterUrl = await lookup;
-  state.posterLookupCache.set(posterId, posterUrl || null);
+  if (posterUrl) state.posterLookupCache.set(posterId, posterUrl);
+  else state.posterLookupCache.delete(posterId);
   return posterUrl || "";
 }
 
@@ -383,6 +386,7 @@ function hydratePosterImages(container = document.body) {
     image.addEventListener("error", async () => {
       const posterId = image.dataset.posterId;
       if (!posterId || image.dataset.posterFallbackAttempted === "1") {
+        if (posterId) state.posterLookupCache.delete(posterId);
         image.replaceWith(posterFallbackElement(image.className, posterId));
         return;
       }
@@ -395,6 +399,7 @@ function hydratePosterImages(container = document.body) {
         return;
       }
 
+      state.posterLookupCache.delete(posterId);
       if (image.isConnected) image.replaceWith(posterFallbackElement(image.className, posterId));
     });
   }
@@ -1932,6 +1937,44 @@ function showTitleFrom(title = "") {
   return text.split(" - ")[0].trim() || "Unknown Show";
 }
 
+function mergeShowWithLoadedHistory(show = {}) {
+  if (!show?.title) return show;
+  const showKey = slug(show.title || "");
+
+  const byEpisode = new Map();
+  for (const episode of show.episodes || []) {
+    if (episode.season == null || episode.episode == null) continue;
+    byEpisode.set(showEpisodeKey(episode.season, episode.episode), episode);
+  }
+
+  for (const row of state.history || []) {
+    if (row.media_type !== "episode") continue;
+    if (row.season == null || row.episode == null) continue;
+    const rowShowTitle = row.show_title || showTitleFrom(row.title);
+    if (slug(rowShowTitle) !== showKey) continue;
+
+    const key = showEpisodeKey(row.season, row.episode);
+    const existing = byEpisode.get(key);
+    if (!existing || String(row.watched_at || "") >= String(existing.watched_at || "")) {
+      byEpisode.set(key, { ...row, show_title: rowShowTitle });
+    }
+  }
+
+  const episodes = [...byEpisode.values()].sort((a, b) => Number(a.season || 0) - Number(b.season || 0) || Number(a.episode || 0) - Number(b.episode || 0));
+  if (!episodes.length) return show;
+
+  const seasonCount = new Set(episodes.map((episode) => episode.season).filter((season) => season != null)).size;
+  const watchedDates = episodes.map((episode) => episode.watched_at).filter(Boolean).sort();
+  return {
+    ...show,
+    episode_count: Math.max(Number(show.episode_count || 0), episodes.length),
+    season_count: Math.max(Number(show.season_count || 0), seasonCount),
+    latest_watched_at: watchedDates.at(-1) || show.latest_watched_at,
+    earliest_watched_at: watchedDates[0] || show.earliest_watched_at,
+    episodes,
+  };
+}
+
 async function openShowImmersiveModalByTitleLegacy(showTitle) {
   const showKey = slug(showTitle);
   let show = state.showsRaw.find((s) => slug(s.title) === showKey);
@@ -2493,6 +2536,7 @@ function renderShowModalContent(show, {
   seasonDetailsByNumber = new Map(),
   loading = false,
 } = {}) {
+  show = mergeShowWithLoadedHistory(show);
   const seasonsMap = seasonsFromShowRecord(show);
   const showTitle = show.title;
   const hasTmdbKey = Boolean(state.savedConfig.tmdb?.apiKey);
@@ -2625,7 +2669,7 @@ function renderShowModalContent(show, {
 }
 
 async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken) {
-  const show = state.showsRaw.find((s) => slug(s.title) === showKey);
+  const show = mergeShowWithLoadedHistory(state.showsRaw.find((s) => slug(s.title) === showKey));
   if (!show) return;
 
   const tmdbData = await fetchTmdbDetails("tv", show.tmdb_id, show.title);

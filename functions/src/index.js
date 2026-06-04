@@ -100,6 +100,14 @@ function configuredPosterUrl(path = "", source = "", config = {}) {
   }
 }
 
+function isHttpsUrl(value = "") {
+  return /^https:\/\//i.test(String(value || "").trim());
+}
+
+function isHttpUrl(value = "") {
+  return /^http:\/\//i.test(String(value || "").trim());
+}
+
 async function normalizeWebhook(req) {
   const contentType = req.get("content-type") || "";
   if (contentType.includes("multipart/form-data") || contentType.includes("application/x-www-form-urlencoded")) {
@@ -519,6 +527,15 @@ async function handlePoster(req, res) {
   const config = await loadMediaConfig();
   const cacheHeaders = { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400" };
 
+  if (row.poster_url && !fallbackRequested && isHttpsUrl(row.poster_url)) {
+    return sendJson(res, { url: row.poster_url }, 200, cacheHeaders);
+  }
+
+  if (config.tmdb?.apiKey && (fallbackRequested || !row.poster_url || isHttpUrl(row.poster_url) || !/^https?:\/\//i.test(row.poster_url))) {
+    const tmdbPoster = await fetchPosterFromTmdb(row, config.tmdb.apiKey).catch(() => null);
+    if (tmdbPoster) return sendJson(res, { url: tmdbPoster }, 200, cacheHeaders);
+  }
+
   if (row.poster_url && !fallbackRequested) {
     if (/^https?:\/\//i.test(row.poster_url)) return sendJson(res, { url: row.poster_url }, 200, cacheHeaders);
     const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
@@ -533,7 +550,9 @@ async function handlePoster(req, res) {
       season: row.season || null,
       episode: row.episode || null,
     }).catch(() => null);
-    const path = item?.thumb || item?.parentThumb || item?.grandparentThumb || item?.art || item?.parentArt || item?.grandparentArt || "";
+    const path = row.media_type === "episode"
+      ? item?.grandparentThumb || item?.parentThumb || item?.thumb || item?.grandparentArt || item?.parentArt || item?.art || ""
+      : item?.thumb || item?.parentThumb || item?.grandparentThumb || item?.art || item?.parentArt || item?.grandparentArt || "";
     if (path) {
       const base = config.plex.baseUrl.replace(/\/+$/, "");
       const joined = path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
@@ -545,11 +564,6 @@ async function handlePoster(req, res) {
   if (row.poster_url) {
     const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
     if (configuredUrl && !fallbackRequested) return sendJson(res, { url: configuredUrl }, 200, cacheHeaders);
-  }
-
-  if (config.tmdb?.apiKey) {
-    const tmdbPoster = await fetchPosterFromTmdb(row, config.tmdb.apiKey).catch(() => null);
-    if (tmdbPoster) return sendJson(res, { url: tmdbPoster }, 200, cacheHeaders);
   }
 
   return sendJson(res, { url: null });
