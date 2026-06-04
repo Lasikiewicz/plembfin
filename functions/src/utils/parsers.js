@@ -184,26 +184,28 @@ function phaseFromPlexEvent(event, metadata) {
 function phaseFromEmbyEvent(event, json, item) {
   const progress = progressPercentFrom({ ...json, ...item });
   const eventKey = String(event || "").toLowerCase();
+  const compactEventKey = eventKey.replace(/[^a-z0-9]/g, "");
   const played = readPlayedState(json, item);
-  if (eventKey === "item.markplayed") return "completed";
-  if (eventKey === "item.markunplayed") return "unplayed";
-  if (["userdata.saved", "userdatasaved", "user data saved", "user.data.saved"].includes(eventKey) && played === true) return "completed";
-  if (["userdata.saved", "userdatasaved", "user data saved", "user.data.saved"].includes(eventKey) && played === false) return "unplayed";
-  if (eventKey === "playback.pause") return progress >= 90 ? "completed" : "ended";
-  if (eventKey === "playback.stop") return progress >= 90 ? "completed" : "ended";
-  if (EMBY_ACTIVE_EVENTS.includes(eventKey)) return "active";
+  if (["itemmarkplayed", "itemmarkedplayed", "itemmarkedasplayed", "itemplayed"].includes(compactEventKey)) return "completed";
+  if (["itemmarkunplayed", "itemmarkedunplayed", "itemmarkedasunplayed", "itemunplayed"].includes(compactEventKey)) return "unplayed";
+  if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === true) return "completed";
+  if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === false) return "unplayed";
+  if (compactEventKey === "playbackpause") return progress >= 90 ? "completed" : "ended";
+  if (compactEventKey === "playbackstop") return progress >= 90 ? "completed" : "ended";
+  if (EMBY_ACTIVE_EVENTS.map((activeEvent) => activeEvent.replace(/[^a-z0-9]/g, "")).includes(compactEventKey)) return "active";
   return "ignored";
 }
 
 function phaseFromJellyfinEvent(event, json, item) {
   const progress = progressPercentFrom({ ...json, ...item });
   const eventKey = String(event || "").toLowerCase();
+  const compactEventKey = eventKey.replace(/[^a-z0-9]/g, "");
   const played = readPlayedState(json, item);
-  if (eventKey === "itemmarkedasplayed") return "completed";
-  if (eventKey === "itemmarkedasunplayed") return "unplayed";
-  if (["userdata.saved", "userdatasaved", "user data saved", "user.data.saved"].includes(eventKey) && played === true) return "completed";
-  if (["userdata.saved", "userdatasaved", "user data saved", "user.data.saved"].includes(eventKey) && played === false) return "unplayed";
-  if (eventKey === "playbackstop") return progress >= 90 ? "completed" : "ended";
+  if (["itemmarkplayed", "itemmarkedplayed", "itemmarkedasplayed", "itemplayed"].includes(compactEventKey)) return "completed";
+  if (["itemmarkunplayed", "itemmarkedunplayed", "itemmarkedasunplayed", "itemunplayed"].includes(compactEventKey)) return "unplayed";
+  if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === true) return "completed";
+  if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === false) return "unplayed";
+  if (compactEventKey === "playbackstop") return progress >= 90 ? "completed" : "ended";
   if (JELLYFIN_ACTIVE_EVENTS.map((activeEvent) => activeEvent.toLowerCase()).includes(eventKey)) return "active";
   return "ignored";
 }

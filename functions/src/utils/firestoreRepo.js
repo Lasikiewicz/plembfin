@@ -634,6 +634,49 @@ export async function queryWatchHistory(_unusedDb, { search = "", limit = 50, of
   return dedupeHistory(filtered).slice(0, safeLimit);
 }
 
+function dispatchStatusFromTelemetry(value = "") {
+  const line = String(value || "").split(/\r?\n/).find((item) => item.toLowerCase().startsWith("dispatch status:"));
+  return line ? line.slice("dispatch status:".length).trim().toLowerCase() : "";
+}
+
+function telemetryLineValue(value = "", label = "") {
+  const prefix = `${label}:`;
+  const line = String(value || "").split(/\r?\n/).find((item) => item.toLowerCase().startsWith(prefix.toLowerCase()));
+  return line ? line.slice(prefix.length).trim() : "";
+}
+
+function telemetryHasTargetStatus(value = "") {
+  return String(value || "")
+    .split(/\r?\n/)
+    .some((line) => /^(plex|emby|jellyfin)\s+(?:progress\s+)?status:/i.test(line.trim()));
+}
+
+function isLegacyInitialSyncPlaceholder(row = {}) {
+  const telemetry = row.sync_dispatch_telemetry || "";
+  const origin = telemetryLineValue(telemetry, "Origin").toLowerCase();
+  const details = telemetryLineValue(telemetry, "Details").toLowerCase();
+  return origin.endsWith("_initial_sync") && !telemetryHasTargetStatus(telemetry) && details.includes("awaiting outbound sync telemetry");
+}
+
+export async function querySyncJobs({ limit = 100, offset = 0, status = "outstanding" } = {}) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
+  const safeOffset = Math.max(Number(offset) || 0, 0);
+  const rows = await loadHistoryRows({
+    limit: Math.min(Math.max(safeLimit * 5, safeLimit), MAX_HISTORY_LIMIT),
+    offset: safeOffset,
+  });
+
+  const filtered = rows.filter((row) => {
+    const dispatchStatus = dispatchStatusFromTelemetry(row.sync_dispatch_telemetry);
+    if (status === "all") return true;
+    if (status === "success") return dispatchStatus === "success";
+    if (isLegacyInitialSyncPlaceholder(row)) return false;
+    return dispatchStatus !== "success" && dispatchStatus !== "skipped";
+  });
+
+  return filtered.slice(0, safeLimit);
+}
+
 export async function getWatchStats() {
   const marker = await HISTORY_CACHE_DOC.get().catch(() => null);
   const version = marker?.data()?.version || 0;

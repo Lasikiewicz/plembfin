@@ -18,7 +18,7 @@ const HISTORY_PREVIEW_LIMIT = 72;
 const DASHBOARD_HISTORY_ROWS = 3;
 const EXPLORER_PAGE_SIZE = 18;
 const EXPLORER_CACHE_TTL_MS = 2 * 60 * 1000;
-const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "logs"];
+const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "sync", "settings", "help", "logs"];
 const SETTINGS_TABS = ["general", "apps", "importer", "complete-check", "tools"];
 
 const state = {
@@ -32,6 +32,9 @@ const state = {
   dashboardHistoryFilter: "all",
   dashboardHistoryResizeTimer: undefined,
   activeSessions: [],
+  syncJobs: [],
+  syncJobsLoaded: false,
+  syncJobsLoading: false,
   savedConfig: {},
   stats: {
     totalWatches: 0,
@@ -126,6 +129,7 @@ function bindElements() {
     monthChart: document.querySelector("#monthChart"),
     nowPlayingGrid: document.querySelector("#nowPlayingGrid"),
     nowPlayingStatus: document.querySelector("#nowPlayingStatus"),
+    refreshSyncButton: document.querySelector("#refreshSyncButton"),
     plexServerUrl: document.querySelector("#plexServerUrl"),
     plexToken: document.querySelector("#plexToken"),
     plexUsername: document.querySelector("#plexUsername"),
@@ -167,6 +171,8 @@ function bindElements() {
     completeCheckResults: document.querySelector("#completeCheckResults"),
     testConnectionButtons: [...document.querySelectorAll("[data-test-connection]")],
     testConnectionStatuses: [...document.querySelectorAll("[data-test-status]")],
+    syncJobsPanel: document.querySelector("#syncJobsPanel"),
+    syncSummary: document.querySelector("#syncSummary"),
     tabButtons: [...document.querySelectorAll("[data-view]")],
     explorerButtons: [...document.querySelectorAll("[data-explorer-mode]")],
     viewPanels: [...document.querySelectorAll("[data-view-panel]")],
@@ -291,8 +297,9 @@ function configuredImageUrl(path, item = {}) {
 }
 
 function posterUrlFor(item = {}) {
-  const cachedUrl = item.id != null ? state.posterLookupCache.get(String(item.id)) : "";
-  if (cachedUrl) return cachedUrl;
+  if (item.id != null && state.posterLookupCache.has(String(item.id))) {
+    return state.posterLookupCache.get(String(item.id)) || "";
+  }
   const raw = item.poster_url || item.posterUrl || item.imageUrl || item.thumb || "";
   return compactPosterUrl(raw) || configuredImageUrl(raw, item);
 }
@@ -329,7 +336,9 @@ async function lookupPosterUrl(posterId, { fallback = false } = {}) {
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
         if (!response.ok || !body.url) return "";
-        return compactPosterUrl(body.url);
+        const usableUrl = compactPosterUrl(body.url);
+        if (usableUrl || fallback) return usableUrl;
+        return lookupPosterUrl(posterId, { fallback: true });
       })
       .catch(() => "")
       .finally(() => state.posterLookupInflight.delete(cacheKey));
@@ -338,7 +347,7 @@ async function lookupPosterUrl(posterId, { fallback = false } = {}) {
 
   const posterUrl = await lookup;
   if (posterUrl) state.posterLookupCache.set(posterId, posterUrl);
-  else state.posterLookupCache.delete(posterId);
+  else state.posterLookupCache.set(posterId, "");
   return posterUrl || "";
 }
 
@@ -386,7 +395,7 @@ function hydratePosterImages(container = document.body) {
     image.addEventListener("error", async () => {
       const posterId = image.dataset.posterId;
       if (!posterId || image.dataset.posterFallbackAttempted === "1") {
-        if (posterId) state.posterLookupCache.delete(posterId);
+        if (posterId) state.posterLookupCache.set(posterId, "");
         image.replaceWith(posterFallbackElement(image.className, posterId));
         return;
       }
@@ -399,7 +408,7 @@ function hydratePosterImages(container = document.body) {
         return;
       }
 
-      state.posterLookupCache.delete(posterId);
+      state.posterLookupCache.set(posterId, "");
       if (image.isConnected) image.replaceWith(posterFallbackElement(image.className, posterId));
     });
   }
@@ -445,13 +454,22 @@ function isWatchedHistoryAction(entry = {}) {
 function syncStatus(entry = {}) {
   const telemetry = String(entry.sync_dispatch_telemetry || "");
   const status = telemetryLineValue(telemetry, "Dispatch status").toLowerCase();
+  const origin = telemetryLineValue(telemetry, "Origin").toLowerCase();
+  const details = telemetryLineValue(telemetry, "Details").toLowerCase();
+  const hasTargetTelemetry = telemetryTargetStates(telemetry).length > 0;
+  if (origin.endsWith("_initial_sync") && !hasTargetTelemetry && details.includes("awaiting outbound sync telemetry")) {
+    return { tone: "success", label: "Sync skipped intentionally", detail: "This row came from an initial history import and has no active outbound sync job." };
+  }
   if (status === "success") {
     return { tone: "success", label: "Full sync complete", detail: "All configured target apps accepted this watched-state change." };
   }
-  if (["pending", "queued", "in_progress", "in progress", "unknown"].includes(status) || !status) {
+  if (["pending", "queued", "in_progress", "in progress"].includes(status)) {
     return { tone: "pending", label: "Sync in progress", detail: "Propagation is queued or waiting for target app responses." };
   }
-  return { tone: "error", label: "Sync needs attention", detail: "One or more target apps did not confirm this watched-state change." };
+  if (status === "skipped") {
+    return { tone: "success", label: "Sync skipped intentionally", detail: "No outbound sync was required for this history row." };
+  }
+  return { tone: "error", label: "Sync needs attention", detail: status ? "One or more target apps did not confirm this watched-state change." : "No dispatch telemetry was recorded for this history row." };
 }
 
 function historySyncPill(entry = {}) {
@@ -462,6 +480,111 @@ function historySyncPill(entry = {}) {
       <span class="sync-status-dot sync-status-dot--${status.tone}" data-sync-status-dot="true" role="button" tabindex="0" title="${escapeAttribute(`${status.label}. ${status.detail}`)}" aria-label="${escapeAttribute(`${status.label}. Click for sync details.`)}"></span>
     </span>
   `;
+}
+
+function telemetryTargetStates(telemetry = "") {
+  const rows = [];
+  for (const line of String(telemetry || "").split(/\r?\n/)) {
+    const match = line.match(/^(Plex|Emby|Jellyfin)\s+(?:progress\s+)?status:\s*([^-]+)(?:\s+-\s*(.*))?$/i);
+    if (!match) continue;
+    rows.push({
+      target: match[1].toLowerCase(),
+      status: match[2].trim().toLowerCase(),
+      detail: (match[3] || "").trim(),
+    });
+  }
+  return rows;
+}
+
+function syncJobSortWeight(job = {}) {
+  const status = syncStatus(job).tone;
+  if (status === "pending") return 0;
+  if (status === "error") return 1;
+  return 2;
+}
+
+function renderTargetPills(job = {}) {
+  const targets = telemetryTargetStates(job.sync_dispatch_telemetry);
+  if (!targets.length) return `<span class="target-pill" data-status="error">No target telemetry</span>`;
+  return targets
+    .map((target) => {
+      const status = target.status === "success" ? "success" : target.status === "pending" ? "pending" : "error";
+      const detail = target.detail ? ` - ${target.detail}` : "";
+      return `<span class="target-pill" data-status="${status}" title="${escapeAttribute(`${platformBadge(target.target)} ${target.status}${detail}`)}">${escapeHtml(platformBadge(target.target))}: ${escapeHtml(target.status)}</span>`;
+    })
+    .join("");
+}
+
+function renderSyncJobs() {
+  if (!elements.syncJobsPanel) return;
+
+  if (state.syncJobsLoading) {
+    elements.syncJobsPanel.innerHTML = `<div class="empty-log"><b>Loading sync jobs</b><span>Fetching current watched-state dispatch rows.</span></div>`;
+    if (elements.syncSummary) elements.syncSummary.textContent = "Loading";
+    return;
+  }
+
+  const jobs = [...state.syncJobs].sort((a, b) => syncJobSortWeight(a) - syncJobSortWeight(b) || String(b.watched_at || "").localeCompare(String(a.watched_at || "")));
+  const pendingCount = jobs.filter((job) => syncStatus(job).tone === "pending").length;
+  const errorCount = jobs.filter((job) => syncStatus(job).tone === "error").length;
+
+  if (elements.syncSummary) {
+    elements.syncSummary.textContent = jobs.length ? `${jobs.length} outstanding / ${pendingCount} pending / ${errorCount} needs attention` : "All clear";
+    elements.syncSummary.className = `status-pill ${errorCount ? "status-error" : pendingCount ? "status-warning" : "status-ready"}`;
+  }
+
+  if (!jobs.length) {
+    elements.syncJobsPanel.innerHTML = `<div class="empty-log"><b>No outstanding sync jobs</b><span>Recent watched-state dispatches have completed or were intentionally skipped.</span></div>`;
+    return;
+  }
+
+  elements.syncJobsPanel.innerHTML = jobs
+    .map((job) => {
+      const status = syncStatus(job);
+      const dispatchStatus = telemetryLineValue(job.sync_dispatch_telemetry, "Dispatch status") || "missing";
+      const details = telemetryLineValue(job.sync_dispatch_telemetry, "Details") || status.detail;
+      return `
+        <article class="sync-job-card" data-history-id="${escapeAttribute(job.id)}">
+          <div class="sync-job-main">
+            <span class="sync-status-dot sync-status-dot--${status.tone}" aria-hidden="true"></span>
+            <div class="sync-job-title">
+              <b>${escapeHtml(job.title || "Unknown media")}</b>
+              <span>${escapeHtml(platformBadge(job.source))} - ${escapeHtml(historyAction(job))} - ${escapeHtml(formatDate(job.watched_at))}</span>
+            </div>
+            <span class="status-pill ${status.tone === "pending" ? "status-warning" : "status-error"}">${escapeHtml(status.label)}</span>
+          </div>
+          <div class="sync-job-meta">
+            <div><span>Dispatch</span><b>${escapeHtml(dispatchStatus)}</b></div>
+            <div><span>Media</span><b>${escapeHtml(job.media_type || "unknown")}</b></div>
+            <div><span>IDs</span><b>${escapeHtml(idLine(job) || "No provider IDs")}</b></div>
+            <div><span>Details</span><b>${escapeHtml(details)}</b></div>
+          </div>
+          <div class="sync-target-row">${renderTargetPills(job)}</div>
+          <pre class="sync-telemetry">${escapeHtml(job.sync_dispatch_telemetry || "No sync telemetry recorded.")}</pre>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+async function loadSyncJobs({ force = false } = {}) {
+  if (!state.token || (state.syncJobsLoading && !force)) return state.syncJobs;
+  state.syncJobsLoading = true;
+  renderSyncJobs();
+  try {
+    const url = new URL("/api/sync-jobs", window.location.origin);
+    url.searchParams.set("status", "outstanding");
+    url.searchParams.set("limit", "150");
+    const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Sync jobs load failed with ${response.status}`);
+    state.syncJobs = Array.isArray(body.jobs) ? body.jobs : [];
+    state.syncJobsLoaded = true;
+    return state.syncJobs;
+  } finally {
+    state.syncJobsLoading = false;
+    renderSyncJobs();
+  }
 }
 
 function activeSessionsKey(sessions = []) {
@@ -884,6 +1007,10 @@ function selectView(view) {
     loadStats().catch((error) => setMessage(error.message, "error"));
   }
   if (state.activeView === "explorer") renderExplorer();
+  if (state.activeView === "sync") {
+    renderSyncJobs();
+    loadSyncJobs().catch((error) => setMessage(error.message, "error"));
+  }
   if (state.activeView !== "explorer") {
     state.explorerLoadObserver?.disconnect();
     state.explorerLoadObserver = undefined;
@@ -963,6 +1090,8 @@ async function loadSavedConfig() {
   state.lastWebhook = body.lastWebhook;
   populateConfigForm(body.config || {});
   state.configLoaded = true;
+  state.posterLookupCache.clear();
+  state.posterLookupInflight.clear();
   renderSettingsStatus("Configuration loaded from Firestore.", "success");
   renderDashboard();
   renderActiveSessions();
@@ -1009,11 +1138,13 @@ async function loadHistory() {
   renderStats();
   if (state.activeView === "stats") loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
   if (state.activeView === "explorer") renderExplorer();
+  if (state.activeView === "sync") loadSyncJobs({ force: true }).catch((error) => setMessage(error.message, "error"));
   renderDbStatus(true);
 }
 
 function clearDerivedUiCaches({ resetExplorer = true } = {}) {
   state.explorerPageCache.clear();
+  state.posterLookupCache.clear();
   state.posterLookupInflight.clear();
   state.statsLoaded = false;
   if (resetExplorer) {
@@ -3300,6 +3431,8 @@ async function lockDashboard() {
   state.firebaseUser = undefined;
   state.history = [];
   state.activeSessions = [];
+  state.syncJobs = [];
+  state.syncJobsLoaded = false;
   state.importRecords = [];
   state.importFileNames = [];
   state.importLogs = ["[idle] Waiting for files."];
@@ -4400,6 +4533,12 @@ function attachEvents() {
     });
   }
 
+  if (elements.refreshSyncButton) {
+    elements.refreshSyncButton.addEventListener("click", () => {
+      loadSyncJobs({ force: true }).catch((error) => setMessage(error.message, "error"));
+    });
+  }
+
   window.addEventListener("error", (event) => {
     logDebug("Global browser error captured.", {
       message: event.message,
@@ -4455,8 +4594,8 @@ function initialize() {
       localStorage.setItem("firebaseAdminEmail", user.email || "");
       setUnlocked(true);
       selectView(state.activeView);
-      loadHistory()
-        .then(() => loadSavedConfig())
+      loadSavedConfig()
+        .then(() => loadHistory())
         .then(() => startHistoryPolling())
         .catch((error) => {
           renderDbStatus(false);

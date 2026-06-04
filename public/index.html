@@ -19,6 +19,7 @@
           <button class="nav-tab active" type="button" data-view="dashboard">Dashboard</button>
           <button class="nav-tab" type="button" data-view="stats">Stats</button>
           <button class="nav-tab" type="button" data-view="explorer">History Explorer</button>
+          <button class="nav-tab" type="button" data-view="sync">Sync</button>
           <button class="nav-tab" type="button" data-view="settings">Settings</button>
           <button class="nav-tab" type="button" data-view="help">Help</button>
           <button class="nav-tab" type="button" data-view="logs">Logs</button>
@@ -165,6 +166,22 @@
               </div>
             </div>
             <div id="explorerPanel" class="explorer-panel"></div>
+          </section>
+        </section>
+
+        <section id="sync-view" class="view-panel hidden" data-view-panel="sync">
+          <section class="glass-panel p-section sync-panel">
+            <div class="section-heading sync-heading">
+              <div>
+                <p>Sync</p>
+                <span>Outstanding watched-state sync jobs and target diagnostics</span>
+              </div>
+              <div class="logs-actions">
+                <span id="syncSummary" class="status-pill status-muted">Not loaded</span>
+                <button id="refreshSyncButton" class="button-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+            <div id="syncJobsPanel" class="sync-jobs-panel" aria-live="polite"></div>
           </section>
         </section>
 

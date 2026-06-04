@@ -28,6 +28,7 @@ import {
   mediaToPlaybackProgressRecord,
   mediaToWatchRecord,
   progressRowToMedia,
+  querySyncJobs,
   queryMovies,
   queryShows,
   queryWatchHistory,
@@ -168,6 +169,24 @@ function platformLabel(value) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+function normalizedIdentity(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function looksLikeServerUserId(value = "") {
+  const text = normalizedIdentity(value);
+  return /^[0-9a-f-]{16,}$/i.test(text) || /^[a-z0-9_-]{20,}$/i.test(text);
+}
+
+function shouldIgnoreWebhookUser(mediaUser = "", configuredUser = "", { strictName = false } = {}) {
+  const incoming = normalizedIdentity(mediaUser);
+  const configured = normalizedIdentity(configuredUser);
+  if (!configured || !incoming) return false;
+  if (incoming === configured) return false;
+  if (strictName) return true;
+  return looksLikeServerUserId(incoming);
+}
+
 async function handleConfig(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!(await requireAdmin(req, res))) return;
@@ -218,6 +237,18 @@ async function handleHistory(req, res) {
     getWatchStats(requireDb()),
   ]);
   return sendJson(res, { history, stats });
+}
+
+async function handleSyncJobs(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const jobs = await querySyncJobs({
+    limit: req.query.limit || 100,
+    offset: req.query.offset || 0,
+    status: req.query.status || "outstanding",
+  });
+  return sendJson(res, { jobs }, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
 }
 
 async function handleMovies(req, res) {
@@ -410,13 +441,13 @@ async function handleWebhook(req, res) {
   media.posterUrl = posterPathFromMedia(media);
 
   if (config) {
-    if (media.source === "plex" && config.plex?.username && String(media.user || "").toLowerCase() !== String(config.plex.username).toLowerCase()) {
+    if (media.source === "plex" && shouldIgnoreWebhookUser(media.user, config.plex?.username, { strictName: true })) {
       return sendJson(res, { ok: true, ignored: true, reason: "User mismatch" });
     }
-    if (media.source === "emby" && config.emby?.userId && String(media.user || "").toLowerCase() !== String(config.emby.userId).toLowerCase()) {
+    if (media.source === "emby" && shouldIgnoreWebhookUser(media.user, config.emby?.userId)) {
       return sendJson(res, { ok: true, ignored: true, reason: "User mismatch" });
     }
-    if (media.source === "jellyfin" && config.jellyfin?.userId && String(media.user || "").toLowerCase() !== String(config.jellyfin.userId).toLowerCase()) {
+    if (media.source === "jellyfin" && shouldIgnoreWebhookUser(media.user, config.jellyfin?.userId)) {
       return sendJson(res, { ok: true, ignored: true, reason: "User mismatch" });
     }
   }
@@ -534,53 +565,65 @@ async function handlePoster(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
-  const row = await getWatchRecordById(String(req.query.id || ""));
-  if (!row) return sendJson(res, { error: "not found" }, 404);
-
-  const fallbackRequested = ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase());
-  const config = await loadMediaConfig();
   const cacheHeaders = { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400" };
 
-  if (row.poster_url && !fallbackRequested && isHttpsUrl(row.poster_url)) {
-    return sendJson(res, { url: row.poster_url }, 200, cacheHeaders);
-  }
+  try {
+    const row = await getWatchRecordById(String(req.query.id || ""));
+    if (!row) return sendJson(res, { error: "not found" }, 404);
 
-  if (config.tmdb?.apiKey && (fallbackRequested || !row.poster_url || isHttpUrl(row.poster_url) || !/^https?:\/\//i.test(row.poster_url))) {
-    const tmdbPoster = await fetchPosterFromTmdb(row, config.tmdb.apiKey).catch(() => null);
-    if (tmdbPoster) return sendJson(res, { url: tmdbPoster }, 200, cacheHeaders);
-  }
+    const fallbackRequested = ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase());
+    const config = await loadMediaConfig().catch(() => ({}));
 
-  if (row.poster_url && !fallbackRequested) {
-    if (/^https?:\/\//i.test(row.poster_url)) return sendJson(res, { url: row.poster_url }, 200, cacheHeaders);
-    const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
-    if (configuredUrl) return sendJson(res, { url: configuredUrl }, 200, cacheHeaders);
-  }
-
-  if (String(row.source || "").toLowerCase().includes("plex") && config.plex?.baseUrl && config.plex?.token) {
-    const item = await findPlexItem(config.plex, {
-      title: row.title,
-      type: row.media_type,
-      ids: { imdb: row.imdb_id || null, tmdb: row.tmdb_id || null, tvdb: row.tvdb_id || null },
-      season: row.season || null,
-      episode: row.episode || null,
-    }).catch(() => null);
-    const path = row.media_type === "episode"
-      ? item?.grandparentThumb || item?.parentThumb || item?.thumb || item?.grandparentArt || item?.parentArt || item?.art || ""
-      : item?.thumb || item?.parentThumb || item?.grandparentThumb || item?.art || item?.parentArt || item?.grandparentArt || "";
-    if (path) {
-      const base = config.plex.baseUrl.replace(/\/+$/, "");
-      const joined = path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
-      const sep = joined.includes("?") ? "&" : "?";
-      return sendJson(res, { url: `${joined}${sep}X-Plex-Token=${encodeURIComponent(config.plex.token)}` }, 200, cacheHeaders);
+    if (row.poster_url && !fallbackRequested && isHttpsUrl(row.poster_url)) {
+      return sendJson(res, { url: row.poster_url }, 200, cacheHeaders);
     }
-  }
 
-  if (row.poster_url) {
-    const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
-    if (configuredUrl && !fallbackRequested) return sendJson(res, { url: configuredUrl }, 200, cacheHeaders);
-  }
+    if (config.tmdb?.apiKey && (fallbackRequested || !row.poster_url || isHttpUrl(row.poster_url) || !/^https?:\/\//i.test(row.poster_url))) {
+      const tmdbPoster = await fetchPosterFromTmdb(row, config.tmdb.apiKey).catch((error) => {
+        console.error("Poster TMDB fallback failed", { id: row.id, title: row.title, error: error.message || String(error) });
+        return null;
+      });
+      if (tmdbPoster) return sendJson(res, { url: tmdbPoster }, 200, cacheHeaders);
+    }
 
-  return sendJson(res, { url: null });
+    if (row.poster_url && !fallbackRequested) {
+      if (/^https?:\/\//i.test(row.poster_url)) return sendJson(res, { url: row.poster_url }, 200, cacheHeaders);
+      const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
+      if (configuredUrl) return sendJson(res, { url: configuredUrl }, 200, cacheHeaders);
+    }
+
+    if (String(row.source || "").toLowerCase().includes("plex") && config.plex?.baseUrl && config.plex?.token) {
+      const item = await findPlexItem(config.plex, {
+        title: row.title,
+        type: row.media_type,
+        ids: { imdb: row.imdb_id || null, tmdb: row.tmdb_id || null, tvdb: row.tvdb_id || null },
+        season: row.season || null,
+        episode: row.episode || null,
+      }).catch((error) => {
+        console.error("Poster Plex lookup failed", { id: row.id, title: row.title, error: error.message || String(error) });
+        return null;
+      });
+      const path = row.media_type === "episode"
+        ? item?.grandparentThumb || item?.parentThumb || item?.thumb || item?.grandparentArt || item?.parentArt || item?.art || ""
+        : item?.thumb || item?.parentThumb || item?.grandparentThumb || item?.art || item?.parentArt || item?.grandparentArt || "";
+      if (path) {
+        const base = String(config.plex.baseUrl || "").replace(/\/+$/, "");
+        const joined = path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
+        const sep = joined.includes("?") ? "&" : "?";
+        return sendJson(res, { url: `${joined}${sep}X-Plex-Token=${encodeURIComponent(config.plex.token)}` }, 200, cacheHeaders);
+      }
+    }
+
+    if (row.poster_url) {
+      const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
+      if (configuredUrl && !fallbackRequested) return sendJson(res, { url: configuredUrl }, 200, cacheHeaders);
+    }
+
+    return sendJson(res, { url: null }, 200, cacheHeaders);
+  } catch (error) {
+    console.error("Poster lookup failed", { id: String(req.query.id || ""), error: error.message || String(error) });
+    return sendJson(res, { url: null }, 200, cacheHeaders);
+  }
 }
 
 async function handleBackfillStatus(req, res) {
@@ -686,6 +729,7 @@ async function dispatch(req, res) {
     const path = routePath(req);
     if (path === "config") return handleConfig(req, res);
     if (path === "history") return handleHistory(req, res);
+    if (path === "sync-jobs") return handleSyncJobs(req, res);
     if (path === "movies") return handleMovies(req, res);
     if (path === "shows") return handleShows(req, res);
     if (path === "full-sync-watchstates") return handleFullSyncWatchstates(req, res);
