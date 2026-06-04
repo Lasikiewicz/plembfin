@@ -17,6 +17,14 @@
       ]
     },
     {
+      "collectionGroup": "watchHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "mediaType", "order": "ASCENDING" },
+        { "fieldPath": "watchedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "liveTrackingCache",
       "queryScope": "COLLECTION",
       "fields": [

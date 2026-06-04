@@ -2,7 +2,9 @@ import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "./utils/parsers.js";
-import { findPlexItem } from "./utils/plexClient.js";
+import { findPlexItem, markPlexPlayed, setPlexProgress } from "./utils/plexClient.js";
+import { markEmbyPlayed, setEmbyProgress } from "./utils/embyClient.js";
+import { markJellyfinPlayed, setJellyfinProgress } from "./utils/jellyfinClient.js";
 import { requireAdmin } from "./utils/auth.js";
 import { readFormData, readJson } from "./utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed, notFound } from "./utils/http.js";
@@ -13,13 +15,19 @@ import { hydrateCachedSession, loadLiveTrackingCache } from "./utils/liveSession
 import { runScheduledSync } from "./scheduled.js";
 import {
   batchInsertWatchRecords,
+  countPlaybackProgressRows,
+  countWatchHistoryRows,
   deletePlaybackProgress,
   deleteWatchRecord,
   getWatchRecordById,
   getWatchStats,
+  invalidateHistoryDerivedCaches,
   insertWatchRecord,
+  listPlaybackProgressRowsForReplay,
+  listWatchRowsForReplay,
   mediaToPlaybackProgressRecord,
   mediaToWatchRecord,
+  progressRowToMedia,
   queryMovies,
   queryShows,
   queryWatchHistory,
@@ -27,6 +35,7 @@ import {
   updatePlaybackProgressTelemetry,
   updateWatchTelemetry,
   upsertPlaybackProgress,
+  watchRowToMedia,
 } from "./utils/firestoreRepo.js";
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
@@ -187,6 +196,107 @@ async function handleShows(req, res) {
   if (!(await requireAdmin(req, res))) return;
   const shows = await queryShows({ search: req.query.search || "", sort: req.query.sort || "watched_desc", limit: req.query.limit || 6, offset: req.query.offset || 0 });
   return sendJson(res, { shows }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=300", Vary: "Authorization" });
+}
+
+function configuredRestoreTargets(config = {}) {
+  const targets = [];
+  if (config.plex?.baseUrl && config.plex?.token) targets.push("plex");
+  if (config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId) targets.push("emby");
+  if (config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId) targets.push("jellyfin");
+  return targets;
+}
+
+function emptyRestoreSummary(targets = []) {
+  const summary = {};
+  for (const target of targets) {
+    summary[target] = { success: 0, skipped: 0, notFound: 0, error: 0 };
+  }
+  return summary;
+}
+
+function restoreClientFor(target, phase, config, media) {
+  if (phase === "progress") {
+    if (target === "plex") return () => setPlexProgress(config.plex, media);
+    if (target === "emby") return () => setEmbyProgress(config.emby, media);
+    if (target === "jellyfin") return () => setJellyfinProgress(config.jellyfin, media);
+  }
+  if (target === "plex") return () => markPlexPlayed(config.plex, media);
+  if (target === "emby") return () => markEmbyPlayed(config.emby, media);
+  if (target === "jellyfin") return () => markJellyfinPlayed(config.jellyfin, media);
+  throw new Error(`Unknown restore target: ${target}`);
+}
+
+function applyRestoreResult(summary, target, result) {
+  if (!summary[target]) summary[target] = { success: 0, skipped: 0, notFound: 0, error: 0 };
+  if (result?.status === "not_found") {
+    summary[target].notFound += 1;
+  } else if (result?.status === "skipped") {
+    summary[target].skipped += 1;
+  } else {
+    summary[target].success += 1;
+  }
+}
+
+async function handleFullSyncWatchstates(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req).catch(() => ({}));
+  const phase = String(body.phase || "watched") === "progress" ? "progress" : "watched";
+  const offset = Math.max(Number(body.offset || 0), 0);
+  const limit = Math.min(Math.max(Number(body.limit || 25), 1), 100);
+  const config = await loadMediaConfig();
+  const targets = configuredRestoreTargets(config);
+  const summary = emptyRestoreSummary(targets);
+  const errors = [];
+
+  if (!targets.length) {
+    return sendJson(res, { ok: true, phase, offset, limit, processed: 0, nextOffset: offset, hasMore: false, targets, summary, errors, note: "No configured restore targets." });
+  }
+
+  const total = phase === "progress" ? await countPlaybackProgressRows() : await countWatchHistoryRows();
+  const rows = phase === "progress"
+    ? await listPlaybackProgressRowsForReplay({ limit, offset })
+    : await listWatchRowsForReplay({ limit, offset });
+
+  for (const row of rows) {
+    for (const target of targets) {
+      const media = phase === "progress" ? progressRowToMedia(row, target) : watchRowToMedia(row, target);
+      if (!media.isValid) {
+        summary[target].skipped += 1;
+        continue;
+      }
+      try {
+        const result = await restoreClientFor(target, phase, config, media)();
+        applyRestoreResult(summary, target, result);
+      } catch (error) {
+        summary[target].error += 1;
+        errors.push({
+          target,
+          rowId: row.id || row.media_key || "",
+          title: row.title || "",
+          detail: error?.message || String(error),
+        });
+      }
+    }
+  }
+
+  const nextOffset = offset + rows.length;
+  return sendJson(res, {
+    ok: true,
+    phase,
+    offset,
+    limit,
+    total,
+    processed: rows.length,
+    nextOffset,
+    hasMore: nextOffset < total,
+    targets,
+    summary,
+    errors,
+    note: total ? "" : "No Plembfin archive rows are available to restore.",
+  });
 }
 
 async function handleImport(req, res) {
@@ -473,6 +583,7 @@ async function handleBackfillTrakt(req, res) {
       }
     }
 
+    if (tried) await invalidateHistoryDerivedCaches().catch(() => null);
     return sendJson(res, { ok: true, tried, backfilled });
   } catch (error) {
     console.error("Trakt backfill execution failed", error);
@@ -502,6 +613,7 @@ async function dispatch(req, res) {
     if (path === "history") return handleHistory(req, res);
     if (path === "movies") return handleMovies(req, res);
     if (path === "shows") return handleShows(req, res);
+    if (path === "full-sync-watchstates") return handleFullSyncWatchstates(req, res);
     if (path === "import") return handleImport(req, res);
     if (path === "now-playing") return handleNowPlaying(req, res);
     if (path === "active-sessions") return handleActiveSessions(req, res);

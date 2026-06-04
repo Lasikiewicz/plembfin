@@ -62,10 +62,14 @@
           </section>
 
           <section class="glass-panel p-section history-timeline-panel">
-            <div class="section-heading">
-              <div>
+            <div class="section-heading dashboard-history-heading">
+              <div class="dashboard-history-title">
                 <p>Watch history</p>
-                <span>Latest 8 watched items</span>
+              </div>
+              <div class="segmented-control dashboard-history-filter" aria-label="Watch history filter">
+                <button class="segment-button active" type="button" data-dashboard-history-filter="all">All</button>
+                <button class="segment-button" type="button" data-dashboard-history-filter="tv">TV</button>
+                <button class="segment-button" type="button" data-dashboard-history-filter="movies">Movies</button>
               </div>
             </div>
             <div id="historyTable" class="history-table" aria-live="polite"></div>
@@ -135,10 +139,14 @@
 
         <section class="view-panel hidden" data-view-panel="explorer">
           <section class="glass-panel p-section">
-            <div class="section-heading">
-              <div>
+            <div class="section-heading explorer-heading">
+              <div class="explorer-heading-title">
                 <p>History Explorer</p>
                 <span>Folder-style archive drill-down</span>
+              </div>
+              <div class="segmented-control explorer-mode-control" aria-label="Explorer mode">
+                <button class="segment-button active" type="button" data-explorer-mode="movies">Movies</button>
+                <button class="segment-button" type="button" data-explorer-mode="shows">TV Shows</button>
               </div>
               <div class="explorer-controls">
                 <label class="compact-field">
@@ -154,10 +162,6 @@
                   <span>Search</span>
                   <input id="explorerSearchInput" class="field" type="search" placeholder="Movie, show, IMDb, TMDB, TVDB..." />
                 </label>
-                <div class="segmented-control" aria-label="Explorer mode">
-                  <button class="segment-button active" type="button" data-explorer-mode="movies">Movies</button>
-                  <button class="segment-button" type="button" data-explorer-mode="shows">TV Shows</button>
-                </div>
               </div>
             </div>
             <div id="explorerPanel" class="explorer-panel"></div>
@@ -338,6 +342,21 @@
                       <p id="settingsStatus" class="muted-copy">Configuration not loaded yet.</p>
                       <button id="saveConfigButton" class="button-primary" type="button">Save Configuration</button>
                     </div>
+                  </article>
+
+                  <article class="glass-panel p-section settings-card settings-wide-card">
+                    <div class="section-heading">
+                      <div>
+                        <p>Full Sync Watchstates</p>
+                        <span>Replay Plembfin's Firestore archive to every configured media server</span>
+                      </div>
+                      <span id="fullSyncStatus" class="status-pill status-muted">Idle</span>
+                    </div>
+                    <div class="settings-actions settings-actions-spread">
+                      <p class="muted-copy">Use after rebuilding Plex, Emby, Jellyfin, or adding a clean server.</p>
+                      <button id="fullSyncButton" class="button-primary" type="button">Full Sync Watchstates</button>
+                    </div>
+                    <pre id="fullSyncLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for restore request.</pre>
                   </article>
                 </div>
               </section>

@@ -14,8 +14,9 @@ const IMPORT_RETRY_BASE_MS = 1500;
 const NOW_PLAYING_POLL_MS = 5000;
 const POSTER_LOOKUP_CONCURRENCY = 4;
 const TMDB_POSTER_SIZE = "w342";
-const HISTORY_PREVIEW_LIMIT = 8;
-const EXPLORER_PAGE_SIZE = 6;
+const HISTORY_PREVIEW_LIMIT = 72;
+const DASHBOARD_HISTORY_ROWS = 3;
+const EXPLORER_PAGE_SIZE = 18;
 const EXPLORER_CACHE_TTL_MS = 2 * 60 * 1000;
 const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "logs"];
 const SETTINGS_TABS = ["general", "apps", "importer", "complete-check", "tools"];
@@ -28,6 +29,8 @@ const state = {
   activeSettingsTab: localStorage.getItem(ACTIVE_SETTINGS_TAB_KEY) || "general",
   historyWeekStart: startOfWeek(new Date()),
   history: [],
+  dashboardHistoryFilter: "all",
+  dashboardHistoryResizeTimer: undefined,
   activeSessions: [],
   savedConfig: {},
   stats: {
@@ -80,6 +83,7 @@ const state = {
   nowPlayingRequestActive: false,
   nowPlayingRefreshToken: "",
   configLoaded: false,
+  fullSyncActive: false,
 };
 
 const elements = {};
@@ -101,8 +105,12 @@ function bindElements() {
     explorerPanel: document.querySelector("#explorerPanel"),
     explorerSearchInput: document.querySelector("#explorerSearchInput"),
     explorerSort: document.querySelector("#explorerSort"),
+    fullSyncButton: document.querySelector("#fullSyncButton"),
+    fullSyncLog: document.querySelector("#fullSyncLog"),
+    fullSyncStatus: document.querySelector("#fullSyncStatus"),
     helpCanvas: document.querySelector("#helpCanvas"),
     helpMenu: document.querySelector("#helpMenu"),
+    dashboardHistoryButtons: [...document.querySelectorAll("[data-dashboard-history-filter]")],
     historyTable: document.querySelector("#historyTable"),
     importFile: document.querySelector("#importFile"),
     importPreview: document.querySelector("#importPreview"),
@@ -847,11 +855,12 @@ async function saveSavedConfig() {
 
   state.savedConfig = config;
   state.configLoaded = true;
-  renderSettingsStatus("Configuration saved.", "success");
+  clearDerivedUiCaches();
+  renderSettingsStatus("Configuration saved. Run Full Sync Watchstates if a media server was rebuilt or newly added.", "success");
   renderDashboard();
   renderActiveSessions();
   refreshHelpIfVisible();
-  setMessage("Configuration saved.", "success");
+  setMessage("Configuration saved. Full sync is recommended for rebuilt or newly added servers.", "success");
   return body;
 }
 
@@ -874,6 +883,16 @@ async function loadHistory() {
   if (state.activeView === "stats") loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
   if (state.activeView === "explorer") renderExplorer();
   renderDbStatus(true);
+}
+
+function clearDerivedUiCaches({ resetExplorer = true } = {}) {
+  state.explorerPageCache.clear();
+  state.posterLookupInflight.clear();
+  state.statsLoaded = false;
+  if (resetExplorer) {
+    resetMovieExplorer();
+    resetShowExplorer();
+  }
 }
 
 async function loadStats({ force = false } = {}) {
@@ -1002,6 +1021,10 @@ function syncNowPlayingPolling() {
 }
 
 function renderDashboard() {
+  for (const button of elements.dashboardHistoryButtons || []) {
+    button.classList.toggle("active", button.dataset.dashboardHistoryFilter === state.dashboardHistoryFilter);
+  }
+
   if (!state.history.length) {
     elements.historyTable.innerHTML = `
       <div class="empty-log">
@@ -1012,7 +1035,22 @@ function renderDashboard() {
     return;
   }
 
-  const recent = state.history.slice(0, HISTORY_PREVIEW_LIMIT);
+  const filtered = state.history.filter((entry) => {
+    if (state.dashboardHistoryFilter === "movies") return entry.media_type === "movie";
+    if (state.dashboardHistoryFilter === "tv") return entry.media_type === "episode";
+    return true;
+  });
+  const recent = filtered.slice(0, dashboardHistoryDisplayLimit());
+  if (!recent.length) {
+    elements.historyTable.innerHTML = `
+      <div class="empty-log">
+        <b>No ${state.dashboardHistoryFilter === "movies" ? "movie" : "TV"} history in this preview</b>
+        <span>New matching watched items will appear here when they are logged.</span>
+      </div>
+    `;
+    return;
+  }
+
   elements.historyTable.innerHTML = `
     <div class="movie-grid dashboard-history-grid">
       ${recent
@@ -1021,6 +1059,7 @@ function renderDashboard() {
             <button class="movie-card" type="button" data-history-id="${entry.id}">
               ${posterMarkup(entry, "movie-poster")}
               <div class="movie-card-body">
+                <span class="source-badge ${sourceClass(entry.source)}">${escapeHtml(platformBadge(entry.source))}</span>
                 <b>${escapeHtml(entry.title)}</b>
                 <span>${formatDate(entry.watched_at)}</span>
                 <small>${escapeHtml(idLine(entry))}</small>
@@ -1032,6 +1071,13 @@ function renderDashboard() {
     </div>
   `;
   hydratePosterFallbacks(elements.historyTable).catch(() => {});
+}
+
+function dashboardHistoryDisplayLimit() {
+  const width = window.innerWidth || 1600;
+  if (width <= 900) return DASHBOARD_HISTORY_ROWS * 2;
+  if (width <= 1300) return DASHBOARD_HISTORY_ROWS * 4;
+  return DASHBOARD_HISTORY_ROWS * 8;
 }
 
 function renderActiveSessions() {
@@ -1091,8 +1137,8 @@ function renderStats() {
   if (elements.totalEpisodes) elements.totalEpisodes.textContent = formatNumber(state.stats.totalTvEpisodesTracked || 0);
 
   if (elements.topPlatform) {
-    const platform = state.stats.topSource || "None";
-    elements.topPlatform.textContent = platformName(platform);
+    const platform = state.stats.topSource;
+    elements.topPlatform.textContent = platform && platform !== "none" ? platformName(platform) : "None";
   }
 
   if (elements.dbSize) {
@@ -1284,7 +1330,7 @@ async function loadExplorerMovies() {
     const cacheKey = url.toString();
     let body = cachedExplorerPage(cacheKey);
     if (!body) {
-      const res = await fetch(url, { headers: authHeaders(), cache: "force-cache" });
+      const res = await fetch(url, { headers: authHeaders() });
       body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Movies load failed ${res.status}`);
       rememberExplorerPage(cacheKey, body);
@@ -1335,7 +1381,7 @@ async function loadExplorerShows() {
     const cacheKey = url.toString();
     let body = cachedExplorerPage(cacheKey);
     if (!body) {
-      const res = await fetch(url, { headers: authHeaders(), cache: "force-cache" });
+      const res = await fetch(url, { headers: authHeaders() });
       body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Shows load failed ${res.status}`);
       rememberExplorerPage(cacheKey, body);
@@ -1706,17 +1752,24 @@ function formatDate(value) {
 }
 
 function platformName(value) {
-  const text = String(value || "unknown").replace(/_/g, " ");
+  const normalized = normalizePlatformSource(value);
+  const text = normalized.replace(/_/g, " ");
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+function normalizePlatformSource(value) {
+  const source = String(value || "").trim().toLowerCase();
+  if (source.startsWith("emby")) return "emby";
+  if (source.startsWith("jellyfin")) return "jellyfin";
+  return "plex";
+}
+
 function platformBadge(value) {
-  const platform = String(value || "unknown").toLowerCase();
-  return platformName(platform);
+  return platformName(value);
 }
 
 function sourceClass(value) {
-  return `source-${String(value || "unknown").toLowerCase()}`;
+  return `source-${normalizePlatformSource(value)}`;
 }
 
 function computeProgress(offsetMs = 0, durationMs = 0) {
@@ -2400,6 +2453,8 @@ function renderShowModalContent(show, {
   const selectedSeasonRecord = seasonsList.find((season) => Number(season.season_number) === Number(selectedSeason)) || seasonsList[0] || { season_number: selectedSeason };
   const selectedSeasonNumber = Number(selectedSeasonRecord.season_number) || Number(selectedSeason) || 1;
   const selectedSeasonEpisodes = episodeRows.filter((episode) => episode.seasonNumber === selectedSeasonNumber);
+  const selectedSeasonUnwatched = selectedSeasonEpisodes.filter((episode) => !episode.watched);
+  const unwatchedRows = episodeRows.filter((episode) => !episode.watched);
   const selectedSeasonSummary = showSeasonSummary(selectedSeasonNumber, selectedSeasonEpisodes, selectedSeasonRecord);
   const selectedSeasonEpisodesHtml = `
     <section class="show-season-block" id="showSeason${selectedSeasonNumber}">
@@ -2408,7 +2463,7 @@ function renderShowModalContent(show, {
           <h4>${escapeHtml(selectedSeasonRecord.name || seasonLabel(selectedSeasonNumber))}</h4>
           <span>${selectedSeasonSummary.watchedInSeason} of ${selectedSeasonSummary.seasonTotal || "?"} episodes watched</span>
         </div>
-        <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${selectedSeasonNumber}" ${selectedSeasonEpisodes.length ? "" : "disabled"}>Mark season watched</button>
+        <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${selectedSeasonNumber}" ${selectedSeasonUnwatched.length ? "" : "disabled"}>Mark season watched</button>
       </div>
       <div class="show-episode-list">
         ${selectedSeasonEpisodes.length ? selectedSeasonEpisodes.map((episode) => `
@@ -2417,6 +2472,7 @@ function renderShowModalContent(show, {
             <div class="immersive-episode-copy">
               <div class="immersive-episode-title-row">
                 <b>${escapeHtml(episodeCode(episode.seasonNumber, episode.episodeNumber))} ${escapeHtml(episode.title)}</b>
+                ${episode.watched ? `<span class="source-badge ${sourceClass(episode.watched.source)}">${escapeHtml(platformBadge(episode.watched.source))}</span>` : ""}
                 <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
               </div>
               <p>${escapeHtml(episode.overview)}</p>
@@ -2451,7 +2507,7 @@ function renderShowModalContent(show, {
 
           <p class="immersive-overview">${escapeHtml(overview)}</p>
           <div class="actions-row">
-            <button class="action-pill" type="button" data-watch-scope="show" ${episodeRows.length ? "" : "disabled"}>Mark whole show watched</button>
+            <button class="action-pill" type="button" data-watch-scope="show" ${unwatchedRows.length ? "" : "disabled"}>Mark whole show watched</button>
           </div>
         </div>
       </header>
@@ -2619,6 +2675,55 @@ function watchRecordFromEpisode(episode, watchedAt) {
   };
 }
 
+function localWatchRowFromEpisode(episode, watchedAt) {
+  return {
+    id: `local-${episode.key}-${Date.now()}`,
+    media_type: "episode",
+    title: `${episode.showTitle} - ${episodeCode(episode.seasonNumber, episode.episodeNumber)} - ${episode.title}`,
+    watched_at: watchedAt,
+    source: "manual_import",
+    tmdb_id: episode.showTmdbId || null,
+    season: episode.seasonNumber,
+    episode: episode.episodeNumber,
+    poster_url: episode.posterUrl || episode.stillUrl || null,
+    show_title: episode.showTitle,
+  };
+}
+
+function cloneShowRecord(show) {
+  return show ? JSON.parse(JSON.stringify(show)) : null;
+}
+
+function applyOptimisticWatchedEpisodes(action, watchedRows) {
+  const showKey = slug(action.showTitle);
+  const index = state.showsRaw.findIndex((show) => slug(show.title) === showKey);
+  if (index < 0) return null;
+
+  const previousShow = cloneShowRecord(state.showsRaw[index]);
+  const show = cloneShowRecord(state.showsRaw[index]);
+  const watchedByKey = new Map(watchedRows.map((row) => [showEpisodeKey(row.season, row.episode), row]));
+  const existing = (show.episodes || []).filter((row) => !watchedByKey.has(showEpisodeKey(row.season, row.episode)));
+  show.episodes = [...existing, ...watchedRows].sort((a, b) => Number(a.season || 0) - Number(b.season || 0) || Number(a.episode || 0) - Number(b.episode || 0));
+  show.episode_count = show.episodes.length;
+  show.season_count = new Set(show.episodes.map((episode) => Number(episode.season || 0)).filter(Boolean)).size;
+  show.latest_watched_at = show.episodes.reduce((latest, episode) => episode.watched_at > latest ? episode.watched_at : latest, show.latest_watched_at || "");
+  show.earliest_watched_at = show.episodes.reduce((earliest, episode) => !earliest || episode.watched_at < earliest ? episode.watched_at : earliest, show.earliest_watched_at || "");
+  state.showsRaw[index] = show;
+
+  for (const modalEpisode of state.showModalEpisodes) {
+    const watched = watchedByKey.get(showEpisodeKey(modalEpisode.seasonNumber, modalEpisode.episodeNumber));
+    if (watched) modalEpisode.watched = watched;
+  }
+  state.showModalEpisodeIndex = new Map(state.showModalEpisodes.map((episode) => [episode.key, episode]));
+  return { showKey, previousShow };
+}
+
+function rollbackOptimisticWatchedEpisodes(rollback) {
+  if (!rollback?.previousShow) return;
+  const index = state.showsRaw.findIndex((show) => slug(show.title) === rollback.showKey);
+  if (index >= 0) state.showsRaw[index] = rollback.previousShow;
+}
+
 async function postManualWatchRecords(records) {
   let inserted = 0;
   let skipped = 0;
@@ -2642,7 +2747,6 @@ async function postManualWatchRecords(records) {
 }
 
 async function refreshShowAfterManualWatch(showTitle) {
-  await loadHistory().catch(() => {});
   const url = new URL("/api/shows", window.location.origin);
   url.searchParams.set("limit", "1");
   url.searchParams.set("search", showTitle);
@@ -2662,18 +2766,34 @@ async function applyWatchDateChoice(choice) {
   if (!action?.episodes?.length) return;
 
   const customDate = elements.modalBody.querySelector("#watchDateCustomInput")?.value || "";
-  const records = action.episodes.map((episode) => watchRecordFromEpisode(episode, watchedAtForChoice(choice, episode, customDate)));
+  const watchedRows = action.episodes.map((episode) => localWatchRowFromEpisode(episode, watchedAtForChoice(choice, episode, customDate)));
+  const records = action.episodes.map((episode, index) => watchRecordFromEpisode(episode, watchedRows[index].watched_at));
   const buttons = [...elements.modalBody.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]")];
   buttons.forEach((button) => {
     button.disabled = true;
   });
 
-  const result = await postManualWatchRecords(records);
   closeWatchDatePrompt();
-  setMessage(`Marked ${result.inserted} episode${result.inserted === 1 ? "" : "s"} watched${result.skipped ? `, ${result.skipped} skipped` : ""}.`, result.rejected ? "error" : "success");
-  await refreshShowAfterManualWatch(action.showTitle).catch((error) => setMessage(error.message, "error"));
+  const rollback = applyOptimisticWatchedEpisodes(action, watchedRows);
   if (state.activeShowModalKey) {
     renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+  }
+
+  try {
+    const result = await postManualWatchRecords(records);
+    clearDerivedUiCaches({ resetExplorer: false });
+    setMessage(`Marked ${result.inserted} episode${result.inserted === 1 ? "" : "s"} watched${result.skipped ? `, ${result.skipped} skipped` : ""}.`, result.rejected ? "error" : "success");
+    await refreshShowAfterManualWatch(action.showTitle).catch((error) => setMessage(error.message, "error"));
+    if (state.activeShowModalKey) {
+      renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+    }
+  } catch (error) {
+    rollbackOptimisticWatchedEpisodes(rollback);
+    if (state.activeShowModalKey) {
+      renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+    }
+    setMessage(`Manual watch update failed: ${error.message}`, "error");
+    throw error;
   }
 }
 
@@ -3353,6 +3473,7 @@ async function startImport() {
     elements.importProgress.textContent = `${formatNumber(inserted)} inserted / ${formatNumber(updated)} updated`;
     appendImportLog(`Import complete: ${inserted} inserted, ${updated} updated, ${skipped} skipped, ${rejected} rejected.`);
     setMessage(`Import complete. Inserted ${inserted}, updated ${updated}, skipped ${skipped}, rejected ${rejected}.`, "success");
+    clearDerivedUiCaches();
     await loadHistory();
   } catch (error) {
     appendImportLog(`Import failed: ${error.message}`);
@@ -3671,6 +3792,7 @@ async function runRepairWorkflow() {
   button.disabled = false;
   button.textContent = "Repair History Now";
   // refresh history / settings view
+  clearDerivedUiCaches();
   await loadHistory().catch(() => {});
   return { converted: totalConverted, backfilled: totalBackfilled };
 }
@@ -3754,6 +3876,93 @@ async function runTraktBackfill() {
   }
 }
 
+function appendFullSyncLog(message) {
+  if (!elements.fullSyncLog) return;
+  const timestamp = new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date());
+  elements.fullSyncLog.textContent = `[${timestamp}] ${message}\n${elements.fullSyncLog.textContent || ""}`.trim();
+  elements.fullSyncLog.scrollTop = 0;
+}
+
+function summarizeFullSyncPhase(summary = {}) {
+  return Object.entries(summary)
+    .map(([target, counts]) => {
+      const success = Number(counts.success || 0);
+      const notFound = Number(counts.notFound || 0);
+      const skipped = Number(counts.skipped || 0);
+      const error = Number(counts.error || 0);
+      return `${platformName(target)} ${success} ok, ${notFound} not found, ${skipped} skipped, ${error} errors`;
+    })
+    .join(" | ");
+}
+
+async function runFullSyncWatchstates() {
+  if (state.fullSyncActive) return;
+  const button = elements.fullSyncButton;
+  const status = elements.fullSyncStatus;
+  if (!button || !status) return;
+
+  state.fullSyncActive = true;
+  button.disabled = true;
+  button.textContent = "Syncing...";
+  status.textContent = "Running";
+  status.className = "status-pill status-ready";
+  if (elements.fullSyncLog) elements.fullSyncLog.textContent = "";
+
+  const limit = 25;
+  const phases = ["watched", "progress"];
+  const totals = {
+    watched: { processed: 0 },
+    progress: { processed: 0 },
+  };
+
+  try {
+    for (const phase of phases) {
+      let offset = 0;
+      let batch = 1;
+      let hasMore = true;
+      appendFullSyncLog(`Starting ${phase} restore.`);
+      while (hasMore) {
+        const response = await fetch("/api/full-sync-watchstates", {
+          method: "POST",
+          headers: { ...authHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ phase, offset, limit }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || `Full sync failed with ${response.status}`);
+
+        totals[phase].processed += Number(body.processed || 0);
+        appendFullSyncLog(`${phase} batch ${batch}: processed ${Number(body.processed || 0)} of ${Number(body.total || 0)}. ${summarizeFullSyncPhase(body.summary || {})}`);
+        if (Array.isArray(body.errors) && body.errors.length) {
+          appendFullSyncLog(`${phase} batch ${batch}: ${body.errors.length} platform errors captured.`);
+        }
+
+        offset = Number(body.nextOffset || offset + Number(body.processed || 0));
+        hasMore = Boolean(body.hasMore) && Number(body.processed || 0) > 0;
+        batch += 1;
+      }
+    }
+
+    clearDerivedUiCaches();
+    status.textContent = "Complete";
+    status.className = "status-pill status-ready";
+    setMessage(`Full sync complete. Watched rows: ${totals.watched.processed}. Progress rows: ${totals.progress.processed}.`, "success");
+  } catch (error) {
+    status.textContent = "Error";
+    status.className = "status-pill status-error";
+    appendFullSyncLog(`ERROR: ${error.message}`);
+    setMessage(`Full sync failed: ${error.message}`, "error");
+    throw error;
+  } finally {
+    state.fullSyncActive = false;
+    button.disabled = false;
+    button.textContent = "Full Sync Watchstates";
+  }
+}
+
 function attachEvents() {
   elements.authForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -3768,6 +3977,13 @@ function attachEvents() {
 
   elements.tabButtons.forEach((button) => {
     button.addEventListener("click", () => selectView(button.dataset.view));
+  });
+
+  elements.dashboardHistoryButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      state.dashboardHistoryFilter = button.dataset.dashboardHistoryFilter || "all";
+      renderDashboard();
+    });
   });
 
   elements.testConnectionButtons.forEach((button) => {
@@ -3987,6 +4203,12 @@ function attachEvents() {
     });
   }
 
+  if (elements.fullSyncButton) {
+    elements.fullSyncButton.addEventListener("click", () => {
+      runFullSyncWatchstates().catch(() => {});
+    });
+  }
+
   window.addEventListener("error", (event) => {
     logDebug("Global browser error captured.", {
       message: event.message,
@@ -4000,6 +4222,13 @@ function attachEvents() {
     logDebug("Global unhandled promise rejection captured.", {
       reason: event.reason?.message || String(event.reason || "unknown"),
     });
+  });
+
+  window.addEventListener("resize", () => {
+    window.clearTimeout(state.dashboardHistoryResizeTimer);
+    state.dashboardHistoryResizeTimer = window.setTimeout(() => {
+      if (state.activeView === "dashboard") renderDashboard();
+    }, 120);
   });
 }
 
