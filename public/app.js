@@ -467,6 +467,9 @@ function isWatchedHistoryAction(entry = {}) {
 
 function syncStatus(entry = {}) {
   const telemetry = String(entry.sync_dispatch_telemetry || "");
+  if (telemetry.includes("Force Sync resolved status to")) {
+    return { tone: "success", label: "Full sync complete", detail: telemetry };
+  }
   const status = telemetryLineValue(telemetry, "Dispatch status").toLowerCase();
   const origin = telemetryLineValue(telemetry, "Origin").toLowerCase();
   const details = telemetryLineValue(telemetry, "Details").toLowerCase();

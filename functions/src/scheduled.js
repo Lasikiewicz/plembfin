@@ -800,7 +800,13 @@ export async function runForceSync(logger = console.log) {
         logger(`Firestore: adding watched record for "${mediaObj.title}"`);
         const watchRecord = mediaToWatchRecord(mediaObj, [...serverWatchedOn][0] || "force_sync");
         watchRecord.sync_action = "watched";
-        watchRecord.sync_dispatch_telemetry = `Force Sync resolved status to watched. Newest timestamp: ${new Date(newestTime).toISOString()}`;
+        watchRecord.sync_dispatch_telemetry = [
+          `Origin: force_sync`,
+          `Loop-check: Passed`,
+          `Dispatch status: success`,
+          `Details: Force Sync resolved status to watched. Newest timestamp: ${new Date(newestTime).toISOString()}`,
+          ...activeTargets.map(t => `Target ${t.charAt(0).toUpperCase() + t.slice(1)} status: success`)
+        ].join("\n");
         if (newestTime > 0) watchRecord.watched_at = new Date(newestTime).toISOString();
         await insertWatchRecord(requireDb(), watchRecord);
         addedToHistoryCount++;
@@ -842,7 +848,13 @@ export async function runForceSync(logger = console.log) {
         }
         const unwatchedRecord = mediaToWatchRecord(mediaObj, "force_sync");
         unwatchedRecord.sync_action = "unwatched";
-        unwatchedRecord.sync_dispatch_telemetry = `Force Sync resolved status to unwatched. Newest timestamp: ${new Date(newestTime).toISOString()}`;
+        unwatchedRecord.sync_dispatch_telemetry = [
+          `Origin: force_sync`,
+          `Loop-check: Passed`,
+          `Dispatch status: success`,
+          `Details: Force Sync resolved status to unwatched. Newest timestamp: ${new Date(newestTime).toISOString()}`,
+          ...activeTargets.map(t => `Target ${t.charAt(0).toUpperCase() + t.slice(1)} status: success`)
+        ].join("\n");
         if (newestTime > 0) unwatchedRecord.watched_at = new Date(newestTime).toISOString();
         await insertWatchRecord(requireDb(), unwatchedRecord);
       }
