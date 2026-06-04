@@ -51,6 +51,41 @@ function routePath(req) {
   return path.replace(/^\/api\/?/, "").replace(/^\/+/, "") || "";
 }
 
+// Streaming-safe auth check: headers have already been sent, so failures are
+// communicated via the response body rather than HTTP status codes.
+async function requireAdminStreaming(req, res) {
+  const header = req.get("authorization") || req.get("Authorization") || "";
+  const token = header.replace(/^Bearer\s+/i, "").trim() || String(req.query?.token || req.query?.admin_token || "").trim();
+  if (!token) {
+    res.write("ERROR: Unauthorized\n");
+    res.end();
+    return null;
+  }
+  try {
+    const { auth } = await import("./firebase.js");
+    const decoded = await auth.verifyIdToken(token);
+    const allowedEmails = String(process.env.ADMIN_EMAILS || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+    const allowedUids = String(process.env.ADMIN_UIDS || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+    const email = String(decoded.email || "").toLowerCase();
+    const uid = String(decoded.uid || "").toLowerCase();
+    if (!allowedEmails.length && !allowedUids.length) {
+      res.write("ERROR: Admin allowlist not configured\n");
+      res.end();
+      return null;
+    }
+    if ((allowedEmails.length && allowedEmails.includes(email)) || (allowedUids.length && allowedUids.includes(uid))) {
+      return decoded;
+    }
+    res.write("ERROR: Forbidden\n");
+    res.end();
+    return null;
+  } catch (error) {
+    res.write("ERROR: Invalid token\n");
+    res.end();
+    return null;
+  }
+}
+
 function imagePath(path, params = {}) {
   const cleanPath = String(path || "").trim();
   if (!cleanPath) return "";
@@ -429,15 +464,15 @@ async function handleActiveSessions(req, res) {
 async function handleCronSync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
-  if (!(await requireAdmin(req, res))) return;
 
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
-
-  // Write first byte immediately so Cloud Run doesn't 502 during the slow startup phase.
   res.write("Cron Sync started...\n");
+
+  const admin = await requireAdminStreaming(req, res);
+  if (!admin) return;
 
   const logger = (msg) => {
     res.write(`${msg}\n`);
@@ -457,15 +492,15 @@ async function handleCronSync(req, res) {
 async function handleForceSync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
-  if (!(await requireAdmin(req, res))) return;
 
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
-
-  // Write first byte immediately so Cloud Run doesn't 502 during the slow library-fetch phase.
   res.write("Force Sync started...\n");
+
+  const admin = await requireAdminStreaming(req, res);
+  if (!admin) return;
 
   const logger = (msg) => {
     res.write(`${msg}\n`);
