@@ -14,7 +14,7 @@ const IMPORT_RETRY_BASE_MS = 1500;
 const NOW_PLAYING_POLL_MS = 5000;
 const POSTER_LOOKUP_CONCURRENCY = 4;
 const TMDB_POSTER_SIZE = "w342";
-const HISTORY_PREVIEW_LIMIT = 6;
+const HISTORY_PREVIEW_LIMIT = 8;
 const EXPLORER_PAGE_SIZE = 6;
 const EXPLORER_CACHE_TTL_MS = 2 * 60 * 1000;
 const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "logs"];
@@ -38,6 +38,8 @@ const state = {
     topShows: [],
     monthlyActivity: [],
   },
+  statsLoaded: false,
+  statsLoading: false,
   explorerMode: "movies",
   explorerSearch: "",
   explorerSearchTimer: undefined,
@@ -54,12 +56,18 @@ const state = {
   explorerSort: "watched_desc",
   posterLookupCache: new Map(),
   posterLookupInflight: new Map(),
+  tmdbDetailsCache: new Map(),
+  tmdbSeasonCache: new Map(),
   explorerPageCache: new Map(),
   explorerLoadObserver: undefined,
   expandedShows: new Set(),
   expandedSeasons: new Set(),
   activeShowModalKey: null,
   activeShowModalSeason: null,
+  showModalRequestToken: 0,
+  showModalEpisodes: [],
+  showModalEpisodeIndex: new Map(),
+  pendingWatchAction: null,
   activeMovieModalId: null,
   activeHelpTopic: "settings",
   importRecords: [],
@@ -736,7 +744,10 @@ function selectView(view) {
   }
 
   if (state.activeView === "help") renderHelp();
-  if (state.activeView === "stats") renderStats();
+  if (state.activeView === "stats") {
+    renderStats();
+    loadStats().catch((error) => setMessage(error.message, "error"));
+  }
   if (state.activeView === "explorer") renderExplorer();
   if (state.activeView !== "explorer") {
     state.explorerLoadObserver?.disconnect();
@@ -847,17 +858,42 @@ async function saveSavedConfig() {
 async function loadHistory() {
   const url = new URL("/api/history", window.location.origin);
   url.searchParams.set("limit", String(HISTORY_PREVIEW_LIMIT));
+  url.searchParams.set("stats", "0");
 
   const response = await fetch(url, { headers: authHeaders() });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `History load failed with ${response.status}`);
 
   state.history = Array.isArray(body.history) ? body.history : [];
-  state.stats = body.stats || state.stats;
+  if (body.stats) {
+    state.stats = body.stats;
+    state.statsLoaded = true;
+  }
   renderDashboard();
   renderStats();
+  if (state.activeView === "stats") loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
   if (state.activeView === "explorer") renderExplorer();
   renderDbStatus(true);
+}
+
+async function loadStats({ force = false } = {}) {
+  if (!state.token || state.statsLoading || (state.statsLoaded && !force)) return state.stats;
+  state.statsLoading = true;
+
+  try {
+    const url = new URL("/api/history", window.location.origin);
+    url.searchParams.set("stats", "only");
+    const response = await fetch(url, { headers: authHeaders() });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Stats load failed with ${response.status}`);
+
+    state.stats = body.stats || state.stats;
+    state.statsLoaded = true;
+    renderStats();
+    return state.stats;
+  } finally {
+    state.statsLoading = false;
+  }
 }
 
 async function loadActiveSessions() {
@@ -978,7 +1014,7 @@ function renderDashboard() {
 
   const recent = state.history.slice(0, HISTORY_PREVIEW_LIMIT);
   elements.historyTable.innerHTML = `
-    <div class="movie-grid">
+    <div class="movie-grid dashboard-history-grid">
       ${recent
         .map(
           (entry) => `
@@ -1764,7 +1800,7 @@ function showTitleFrom(title = "") {
   return text.split(" - ")[0].trim() || "Unknown Show";
 }
 
-async function openShowImmersiveModalByTitle(showTitle) {
+async function openShowImmersiveModalByTitleLegacy(showTitle) {
   const showKey = slug(showTitle);
   let show = state.showsRaw.find((s) => slug(s.title) === showKey);
   
@@ -1805,6 +1841,72 @@ async function openShowImmersiveModalByTitle(showTitle) {
     elements.modalBody.innerHTML = `
       <div class="immersive-container">
         <button class="immersive-back-button" type="button">← Back</button>
+        <div style="display: flex; justify-content: center; align-items: center; min-height: 200px; flex-direction: column; gap: var(--space-2);">
+          <span style="color: var(--danger); font-size: 1.1rem; font-weight: bold;">Show not found</span>
+          <span style="color: var(--muted); font-size: 0.9rem;">Could not locate this TV series in the archive.</span>
+        </div>
+      </div>
+    `;
+  }
+}
+
+async function openShowImmersiveModalByTitle(showTitle, seedEpisode = null) {
+  const showKey = slug(showTitle);
+  state.activeShowModalKey = showKey;
+  const requestedSeason = seedEpisode?.season != null ? Number(seedEpisode.season) : null;
+  let show = state.showsRaw.find((item) => slug(item.title) === showKey);
+
+  if (!show && seedEpisode) {
+    show = {
+      title: showTitle,
+      episode_count: 1,
+      season_count: seedEpisode.season != null ? 1 : 0,
+      latest_watched_at: seedEpisode.watched_at,
+      earliest_watched_at: seedEpisode.watched_at,
+      tmdb_id: seedEpisode.tmdb_id || null,
+      episodes: [{ ...seedEpisode, show_title: showTitle }],
+    };
+    state.showsRaw.push(show);
+    renderImmersiveShowModal(slug(show.title), requestedSeason);
+  } else if (!show) {
+    elements.debugModal.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+    const modalPanel = elements.debugModal.querySelector(".modal-panel");
+    if (modalPanel) {
+      modalPanel.classList.add("modal-panel--immersive");
+    }
+    elements.modalBody.innerHTML = `
+      <div class="immersive-container">
+        <button class="immersive-back-button" type="button">&larr; Back</button>
+        <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
+          <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading show details...</span>
+        </div>
+      </div>
+    `;
+  }
+
+  try {
+    const response = await fetch(`/api/shows?search=${encodeURIComponent(showTitle)}`, { headers: authHeaders() });
+    const body = await response.json().catch(() => ({}));
+    if (response.ok && Array.isArray(body.shows)) {
+      const found = body.shows.find((item) => slug(item.title) === showKey) || body.shows[0];
+      if (found) {
+        const existingIndex = state.showsRaw.findIndex((item) => slug(item.title) === showKey);
+        if (existingIndex >= 0) state.showsRaw[existingIndex] = found;
+        else state.showsRaw.push(found);
+        show = found;
+      }
+    }
+  } catch (error) {
+    console.error("Failed to fetch show details by title", error);
+  }
+
+  if (show && state.activeShowModalKey === showKey && !elements.debugModal.classList.contains("hidden")) {
+    await renderImmersiveShowModal(slug(show.title), requestedSeason || state.activeShowModalSeason);
+  } else if (!show && state.activeShowModalKey === showKey && !elements.debugModal.classList.contains("hidden")) {
+    elements.modalBody.innerHTML = `
+      <div class="immersive-container">
+        <button class="immersive-back-button" type="button">&larr; Back</button>
         <div style="display: flex; justify-content: center; align-items: center; min-height: 200px; flex-direction: column; gap: var(--space-2);">
           <span style="color: var(--danger); font-size: 1.1rem; font-weight: bold;">Show not found</span>
           <span style="color: var(--muted); font-size: 0.9rem;">Could not locate this TV series in the archive.</span>
@@ -1858,7 +1960,7 @@ async function openImmersiveModal(id) {
 
   if (entry.media_type === "episode") {
     const showTitle = entry.show_title || showTitleFrom(entry.title);
-    await openShowImmersiveModalByTitle(showTitle);
+    await openShowImmersiveModalByTitle(showTitle, entry);
   } else {
     await renderMovieImmersiveModalContent(entry);
   }
@@ -1874,6 +1976,9 @@ async function openHistoryDebugModal(id) {
 async function fetchTmdbDetails(mediaType, tmdbId, title) {
   const apiKey = state.savedConfig.tmdb?.apiKey;
   if (!apiKey) return null;
+
+  const cacheKey = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}`;
+  if (state.tmdbDetailsCache.has(cacheKey)) return state.tmdbDetailsCache.get(cacheKey);
 
   try {
     let resolvedTmdbId = tmdbId;
@@ -1891,12 +1996,53 @@ async function fetchTmdbDetails(mediaType, tmdbId, title) {
     const detailsType = mediaType === "movie" ? "movie" : "tv";
     const res = await fetch(`https://api.themoviedb.org/3/${detailsType}/${resolvedTmdbId}?api_key=${apiKey}`);
     if (res.ok) {
-      return await res.json();
+      const body = await res.json();
+      state.tmdbDetailsCache.set(cacheKey, body);
+      return body;
     }
   } catch (error) {
     console.error("Failed to fetch TMDB details client-side", error);
   }
+  state.tmdbDetailsCache.set(cacheKey, null);
   return null;
+}
+
+async function fetchTmdbSeasonDetails(tmdbId, seasonNumber) {
+  const apiKey = state.savedConfig.tmdb?.apiKey;
+  if (!apiKey || !tmdbId || seasonNumber == null) return null;
+
+  const cacheKey = `${tmdbId}|${seasonNumber}`;
+  if (state.tmdbSeasonCache.has(cacheKey)) return state.tmdbSeasonCache.get(cacheKey);
+
+  try {
+    const res = await fetch(`https://api.themoviedb.org/3/tv/${encodeURIComponent(tmdbId)}/season/${encodeURIComponent(seasonNumber)}?api_key=${apiKey}`);
+    if (res.ok) {
+      const body = await res.json();
+      state.tmdbSeasonCache.set(cacheKey, body);
+      return body;
+    }
+  } catch (error) {
+    console.error("Failed to fetch TMDB season details client-side", error);
+  }
+  state.tmdbSeasonCache.set(cacheKey, null);
+  return null;
+}
+
+async function fetchTmdbSeasons(tmdbId, seasons = []) {
+  const seasonNumbers = seasons.map((season) => Number(season.season_number)).filter((seasonNumber) => seasonNumber > 0);
+  const results = new Map();
+  const concurrency = 3;
+
+  const workers = Array.from({ length: Math.min(concurrency, seasonNumbers.length) }, async (_, workerIndex) => {
+    for (let index = workerIndex; index < seasonNumbers.length; index += concurrency) {
+      const seasonNumber = seasonNumbers[index];
+      const details = await fetchTmdbSeasonDetails(tmdbId, seasonNumber);
+      if (details) results.set(seasonNumber, details);
+    }
+  });
+
+  await Promise.allSettled(workers);
+  return results;
 }
 
 function formatTmdbDate(dateStr) {
@@ -1908,7 +2054,7 @@ function formatTmdbDate(dateStr) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date);
 }
 
-async function renderImmersiveShowModal(showKey, activeSeasonNum = null) {
+async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
   state.activeShowModalKey = showKey;
   elements.debugModal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
@@ -2074,6 +2220,461 @@ async function renderImmersiveShowModal(showKey, activeSeasonNum = null) {
     </div>
   `;
   hydratePosterFallbacks(elements.modalBody).catch(() => {});
+}
+
+function showEpisodeKey(seasonNumber, episodeNumber) {
+  return `${Number(seasonNumber) || 0}|${Number(episodeNumber) || 0}`;
+}
+
+function seasonLabel(seasonNumber) {
+  return `Season ${Number(seasonNumber) || 0}`;
+}
+
+function episodeCode(seasonNumber, episodeNumber) {
+  return `S${String(Number(seasonNumber) || 0).padStart(2, "0")}E${String(Number(episodeNumber) || 0).padStart(2, "0")}`;
+}
+
+function tmdbImage(path, size = "w300") {
+  return path ? `https://image.tmdb.org/t/p/${size}${path}` : "";
+}
+
+function watchedEpisodesByKey(show = {}) {
+  const map = new Map();
+  for (const episode of show.episodes || []) {
+    map.set(showEpisodeKey(episode.season, episode.episode), episode);
+  }
+  return map;
+}
+
+function fallbackSeasonList(seasonsMap) {
+  return [...seasonsMap.keys()].sort((a, b) => a - b).map((seasonNumber) => ({
+    season_number: seasonNumber,
+    name: seasonLabel(seasonNumber),
+    episode_count: seasonsMap.get(seasonNumber)?.length || 0,
+    poster_path: null,
+  }));
+}
+
+function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolvedTmdbId = "") {
+  const watchedMap = watchedEpisodesByKey(show);
+  const localSeasons = seasonsFromShowRecord(show);
+  const rows = [];
+
+  for (const season of seasonsList.filter((item) => Number(item.season_number) > 0)) {
+    const seasonNumber = Number(season.season_number);
+    const tmdbSeason = seasonDetailsByNumber.get(seasonNumber);
+    const tmdbEpisodes = Array.isArray(tmdbSeason?.episodes) ? tmdbSeason.episodes : [];
+
+    if (tmdbEpisodes.length) {
+      for (const episode of tmdbEpisodes) {
+        const episodeNumber = Number(episode.episode_number);
+        const watched = watchedMap.get(showEpisodeKey(seasonNumber, episodeNumber));
+        rows.push({
+          key: showEpisodeKey(seasonNumber, episodeNumber),
+          showTitle: show.title,
+          showTmdbId: resolvedTmdbId || show.tmdb_id || "",
+          seasonNumber,
+          episodeNumber,
+          title: episode.name || episodeTitle(watched?.title, episodeNumber),
+          overview: episode.overview || "No synopsis available.",
+          airDate: episode.air_date || "",
+          stillUrl: tmdbImage(episode.still_path, "w300"),
+          posterUrl: tmdbImage(season.poster_path, "w154") || posterUrlFor(watched || representativeEpisode(localSeasons)),
+          watched,
+        });
+      }
+      continue;
+    }
+
+    for (const watched of localSeasons.get(seasonNumber) || []) {
+      const episodeNumber = Number(watched.episode);
+      rows.push({
+        key: showEpisodeKey(seasonNumber, episodeNumber),
+        showTitle: show.title,
+        showTmdbId: resolvedTmdbId || show.tmdb_id || "",
+        seasonNumber,
+        episodeNumber,
+        title: episodeTitle(watched.title, episodeNumber),
+        overview: "TMDB metadata is still loading.",
+        airDate: "",
+        stillUrl: posterUrlFor(watched),
+        posterUrl: posterUrlFor(watched),
+        watched,
+      });
+    }
+  }
+
+  return rows.sort((a, b) => a.seasonNumber - b.seasonNumber || a.episodeNumber - b.episodeNumber);
+}
+
+function episodeThumbMarkup(episode) {
+  const url = safeImageUrl(episode.stillUrl) || safeImageUrl(episode.posterUrl);
+  if (!url) return `<span class="episode-thumb poster-fallback" aria-hidden="true"></span>`;
+  return `<img class="episode-thumb" src="${escapeAttribute(url)}" alt="${escapeAttribute(episode.title)} thumbnail" loading="lazy" decoding="async" referrerpolicy="no-referrer" />`;
+}
+
+function episodeReleaseLabel(airDate) {
+  return airDate ? `Released ${formatTmdbDate(airDate)}` : "Release date unknown";
+}
+
+function showModalStatus(loading, hasTmdbKey, hasTmdbData) {
+  if (loading) return `<span class="show-load-pill">Loading episode metadata...</span>`;
+  if (!hasTmdbKey) return `<span class="show-load-pill muted">Add a TMDB API key to load all seasons and episode synopses.</span>`;
+  if (!hasTmdbData) return `<span class="show-load-pill muted">TMDB episode metadata was unavailable.</span>`;
+  return "";
+}
+
+function renderWatchDatePrompt(action) {
+  if (!action) return "";
+  const customValue = new Date().toISOString().slice(0, 10);
+  return `
+    <div class="watch-date-overlay" role="dialog" aria-modal="true" aria-label="Choose watched date">
+      <div class="watch-date-dialog">
+        <h3>${escapeHtml(action.label)}</h3>
+        <p>Choose the watched date for ${escapeHtml(action.countLabel)}.</p>
+        <div class="watch-date-options">
+          <button class="action-pill" type="button" data-watch-date-choice="release">Day of release</button>
+          <button class="action-pill" type="button" data-watch-date-choice="now">Now</button>
+        </div>
+        <label class="watch-date-custom">
+          <span>Custom date</span>
+          <input id="watchDateCustomInput" type="date" value="${escapeAttribute(customValue)}" />
+        </label>
+        <div class="watch-date-actions">
+          <button class="action-pill" type="button" data-watch-date-choice="custom">Use custom</button>
+          <button class="action-pill" type="button" data-watch-date-cancel="true">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function showSeasonSummary(seasonNumber, seasonEpisodes, season) {
+  const watchedInSeason = seasonEpisodes.filter((episode) => episode.watched).length;
+  const seasonTotal = seasonEpisodes.length || Number(season.episode_count || 0);
+  return { watchedInSeason, seasonTotal };
+}
+
+function renderShowModalContent(show, {
+  activeSeasonNum,
+  tmdbData = null,
+  seasonDetailsByNumber = new Map(),
+  loading = false,
+} = {}) {
+  const seasonsMap = seasonsFromShowRecord(show);
+  const showTitle = show.title;
+  const hasTmdbKey = Boolean(state.savedConfig.tmdb?.apiKey);
+  const seasonsList = (tmdbData?.seasons?.length ? tmdbData.seasons : fallbackSeasonList(seasonsMap)).filter((season) => Number(season.season_number) > 0);
+  const selectedSeason = activeSeasonNum || seasonsList[0]?.season_number || [...seasonsMap.keys()].sort((a, b) => b - a)[0] || 1;
+  const episodeRows = buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, tmdbData?.id || show.tmdb_id || "");
+  const watchedRows = episodeRows.filter((episode) => episode.watched);
+  const totalCount = episodeRows.length || seasonsList.reduce((total, season) => total + Number(season.episode_count || 0), 0) || watchedRows.length || 1;
+  const watchedCount = watchedRows.length || [...watchedEpisodesByKey(show).keys()].length;
+  const progressPercent = Math.max(0, Math.min(100, Math.round((watchedCount / totalCount) * 100)));
+  const representative = representativeEpisode(seasonsMap);
+  const backdropUrl = tmdbImage(tmdbData?.backdrop_path, "original");
+  const posterUrl = tmdbImage(tmdbData?.poster_path, "w500") || posterUrlFor(representative);
+  const overview = tmdbData?.overview || "No synopsis available.";
+  const premiered = tmdbData?.first_air_date ? `Premiered ${formatTmdbDate(tmdbData.first_air_date)}` : "Release date unknown";
+  const rating = tmdbData?.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "";
+  const uniqueSources = [...new Set((show.episodes || []).map((episode) => episode.source || "unknown"))].filter((source) => source !== "unknown");
+
+  state.showModalEpisodes = episodeRows;
+  state.showModalEpisodeIndex = new Map(episodeRows.map((episode) => [episode.key, episode]));
+
+  const seasonsHtml = seasonsList.map((season) => {
+    const seasonNumber = Number(season.season_number);
+    const seasonEpisodes = episodeRows.filter((episode) => episode.seasonNumber === seasonNumber);
+    const { watchedInSeason, seasonTotal } = showSeasonSummary(seasonNumber, seasonEpisodes, season);
+    const isActive = seasonNumber === selectedSeason;
+    const seasonPoster = tmdbImage(season.poster_path, "w154") || posterUrl;
+    return `
+      <button class="season-poster-card ${isActive ? "active" : ""}" type="button" data-immersive-season-num="${seasonNumber}">
+        <img class="season-poster-img" src="${escapeAttribute(seasonPoster || "/favicon.svg")}" alt="${escapeAttribute(season.name || seasonLabel(seasonNumber))}" onerror="this.src='/favicon.svg';" />
+        <span class="season-poster-name">${escapeHtml(season.name || seasonLabel(seasonNumber))}</span>
+        <small>${watchedInSeason}/${seasonTotal || "?"} watched</small>
+      </button>
+    `;
+  }).join("");
+
+  const selectedSeasonRecord = seasonsList.find((season) => Number(season.season_number) === Number(selectedSeason)) || seasonsList[0] || { season_number: selectedSeason };
+  const selectedSeasonNumber = Number(selectedSeasonRecord.season_number) || Number(selectedSeason) || 1;
+  const selectedSeasonEpisodes = episodeRows.filter((episode) => episode.seasonNumber === selectedSeasonNumber);
+  const selectedSeasonSummary = showSeasonSummary(selectedSeasonNumber, selectedSeasonEpisodes, selectedSeasonRecord);
+  const selectedSeasonEpisodesHtml = `
+    <section class="show-season-block" id="showSeason${selectedSeasonNumber}">
+      <div class="show-season-head">
+        <div>
+          <h4>${escapeHtml(selectedSeasonRecord.name || seasonLabel(selectedSeasonNumber))}</h4>
+          <span>${selectedSeasonSummary.watchedInSeason} of ${selectedSeasonSummary.seasonTotal || "?"} episodes watched</span>
+        </div>
+        <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${selectedSeasonNumber}" ${selectedSeasonEpisodes.length ? "" : "disabled"}>Mark season watched</button>
+      </div>
+      <div class="show-episode-list">
+        ${selectedSeasonEpisodes.length ? selectedSeasonEpisodes.map((episode) => `
+          <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""}">
+            ${episodeThumbMarkup(episode)}
+            <div class="immersive-episode-copy">
+              <div class="immersive-episode-title-row">
+                <b>${escapeHtml(episodeCode(episode.seasonNumber, episode.episodeNumber))} ${escapeHtml(episode.title)}</b>
+                <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
+              </div>
+              <p>${escapeHtml(episode.overview)}</p>
+            </div>
+            <div class="immersive-episode-actions">
+              ${episode.watched ? `<span class="watched-pill">Watched ${escapeHtml(formatDate(episode.watched.watched_at))}</span>` : ""}
+              <button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}" ${episode.watched ? "disabled" : ""}>${episode.watched ? "Watched" : "Mark watched"}</button>
+            </div>
+          </article>
+        `).join("") : `<div class="empty-log"><b>No episode rows yet</b><span>${loading ? "Episode metadata is loading." : "No local or TMDB episodes were found for this season."}</span></div>`}
+      </div>
+    </section>
+  `;
+
+  elements.modalBody.innerHTML = `
+    <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || "")}');"></div>
+    <div class="immersive-container">
+      <button class="immersive-back-button" type="button">&larr; Back</button>
+
+      <header class="immersive-header">
+        <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" onerror="this.src='/favicon.svg';" />
+        <div class="immersive-meta">
+          <span class="format-badge">TV Series</span>
+          <h2 class="immersive-title">${escapeHtml(showTitle)}</h2>
+          <p class="immersive-subtitle">${escapeHtml(premiered)}</p>
+
+          <div class="ratings-row">
+            ${rating ? `<div class="rating-pill"><span>TMDB</span><span>${escapeHtml(rating)}</span></div>` : ""}
+            ${uniqueSources.map((source) => `<span class="source-badge ${sourceClass(source)}">${escapeHtml(platformBadge(source))}</span>`).join("")}
+            ${showModalStatus(loading, hasTmdbKey, Boolean(tmdbData))}
+          </div>
+
+          <p class="immersive-overview">${escapeHtml(overview)}</p>
+          <div class="actions-row">
+            <button class="action-pill" type="button" data-watch-scope="show" ${episodeRows.length ? "" : "disabled"}>Mark whole show watched</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="progress-section">
+        <h3>Progress</h3>
+        <div class="progress-label-row">
+          <span>${watchedCount} of ${totalCount} episodes watched</span>
+          <span>${progressPercent}% complete</span>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" style="width: ${progressPercent}%;"></div>
+        </div>
+      </section>
+
+      <section class="seasons-section">
+        <div class="show-section-title">
+          <h3>Seasons</h3>
+          <span>${seasonsList.length} seasons</span>
+        </div>
+        <div class="horizontal-scroll-row">
+          ${seasonsHtml}
+        </div>
+      </section>
+
+      <section class="episodes-section">
+        <div class="show-section-title">
+          <h3>${escapeHtml(selectedSeasonRecord.name || seasonLabel(selectedSeasonNumber))} Episodes</h3>
+          <span>${selectedSeasonEpisodes.length || selectedSeasonSummary.seasonTotal || 0} shown</span>
+        </div>
+        ${selectedSeasonEpisodesHtml}
+      </section>
+    </div>
+    ${renderWatchDatePrompt(state.pendingWatchAction)}
+  `;
+}
+
+async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken) {
+  const show = state.showsRaw.find((s) => slug(s.title) === showKey);
+  if (!show) return;
+
+  const tmdbData = await fetchTmdbDetails("tv", show.tmdb_id, show.title);
+  if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
+
+  const seasonsList = (tmdbData?.seasons?.length ? tmdbData.seasons : fallbackSeasonList(seasonsFromShowRecord(show))).filter((season) => Number(season.season_number) > 0);
+  renderShowModalContent(show, { activeSeasonNum, tmdbData, seasonDetailsByNumber: new Map(), loading: true });
+
+  const seasonDetailsByNumber = tmdbData?.id ? await fetchTmdbSeasons(tmdbData.id, seasonsList) : new Map();
+  if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
+
+  renderShowModalContent(show, {
+    activeSeasonNum,
+    tmdbData,
+    seasonDetailsByNumber,
+    loading: false,
+  });
+}
+
+async function renderImmersiveShowModal(showKey, activeSeasonNum = null) {
+  state.activeShowModalKey = showKey;
+  state.pendingWatchAction = null;
+  elements.debugModal.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  const modalPanel = elements.debugModal.querySelector(".modal-panel");
+  if (modalPanel) {
+    modalPanel.classList.add("modal-panel--immersive");
+  }
+
+  const show = state.showsRaw.find((s) => slug(s.title) === showKey);
+  if (!show) return;
+
+  const seasonsMap = seasonsFromShowRecord(show);
+  if (activeSeasonNum === null) {
+    const sortedSeasonNums = [...seasonsMap.keys()].sort((a, b) => b - a);
+    activeSeasonNum = sortedSeasonNums[0] || 1;
+  }
+  state.activeShowModalSeason = activeSeasonNum;
+  const requestToken = ++state.showModalRequestToken;
+
+  renderShowModalContent(show, {
+    activeSeasonNum,
+    tmdbData: null,
+    seasonDetailsByNumber: new Map(),
+    loading: Boolean(state.savedConfig.tmdb?.apiKey),
+  });
+  hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken).catch((error) => {
+    console.error("Failed to hydrate show modal", error);
+    if (requestToken === state.showModalRequestToken && state.activeShowModalKey === showKey) {
+      renderShowModalContent(show, { activeSeasonNum, tmdbData: null, seasonDetailsByNumber: new Map(), loading: false });
+    }
+  });
+  hydratePosterFallbacks(elements.modalBody).catch(() => {});
+}
+
+function watchActionFromButton(button) {
+  const scope = button?.dataset.watchScope;
+  if (!scope) return null;
+
+  let episodes = [];
+  if (scope === "episode") {
+    const episode = state.showModalEpisodeIndex.get(button.dataset.episodeKey);
+    if (episode && !episode.watched) episodes = [episode];
+  } else if (scope === "season") {
+    const seasonNumber = Number(button.dataset.seasonNumber);
+    episodes = state.showModalEpisodes.filter((episode) => episode.seasonNumber === seasonNumber && !episode.watched);
+  } else if (scope === "show") {
+    episodes = state.showModalEpisodes.filter((episode) => !episode.watched);
+  }
+
+  if (!episodes.length) return null;
+
+  const showTitle = episodes[0]?.showTitle || "Show";
+  const label = scope === "episode"
+    ? `Mark ${episodeCode(episodes[0].seasonNumber, episodes[0].episodeNumber)} watched`
+    : scope === "season"
+      ? `Mark ${showTitle} ${seasonLabel(episodes[0].seasonNumber)} watched`
+      : `Mark ${showTitle} watched`;
+
+  return {
+    scope,
+    showTitle,
+    episodes,
+    label,
+    countLabel: `${episodes.length} episode${episodes.length === 1 ? "" : "s"}`,
+  };
+}
+
+function openWatchDatePrompt(action) {
+  if (!action) {
+    setMessage("There are no unwatched episodes in that selection.");
+    return;
+  }
+  state.pendingWatchAction = action;
+  elements.modalBody.querySelector(".watch-date-overlay")?.remove();
+  elements.modalBody.insertAdjacentHTML("beforeend", renderWatchDatePrompt(action));
+}
+
+function closeWatchDatePrompt() {
+  state.pendingWatchAction = null;
+  elements.modalBody.querySelector(".watch-date-overlay")?.remove();
+}
+
+function dateAtMiddayIso(dateString) {
+  if (!dateString) return new Date().toISOString();
+  const date = new Date(`${dateString}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+}
+
+function watchedAtForChoice(choice, episode, customDate) {
+  if (choice === "release") return dateAtMiddayIso(episode.airDate);
+  if (choice === "custom") return dateAtMiddayIso(customDate);
+  return new Date().toISOString();
+}
+
+function watchRecordFromEpisode(episode, watchedAt) {
+  return {
+    media_type: "episode",
+    title: `${episode.showTitle} - ${episodeCode(episode.seasonNumber, episode.episodeNumber)} - ${episode.title}`,
+    watched_at: watchedAt,
+    source: "manual_import",
+    tmdb_id: episode.showTmdbId || null,
+    season: episode.seasonNumber,
+    episode_number: episode.episodeNumber,
+    poster_url: episode.posterUrl || episode.stillUrl || null,
+  };
+}
+
+async function postManualWatchRecords(records) {
+  let inserted = 0;
+  let skipped = 0;
+  let rejected = 0;
+
+  for (let index = 0; index < records.length; index += IMPORT_BATCH_SIZE) {
+    const batch = records.slice(index, index + IMPORT_BATCH_SIZE);
+    const response = await fetch("/api/import", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ records: batch }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Manual watch update failed with ${response.status}`);
+    inserted += Number(body.inserted || 0);
+    skipped += Number(body.skipped || 0);
+    rejected += Array.isArray(body.rejected) ? body.rejected.length : Number(body.rejected || 0);
+  }
+
+  return { inserted, skipped, rejected };
+}
+
+async function refreshShowAfterManualWatch(showTitle) {
+  await loadHistory().catch(() => {});
+  const url = new URL("/api/shows", window.location.origin);
+  url.searchParams.set("limit", "1");
+  url.searchParams.set("search", showTitle);
+  const response = await fetch(url, { headers: authHeaders() });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !Array.isArray(body.shows) || !body.shows.length) return;
+
+  const showKey = slug(showTitle);
+  const updated = body.shows.find((show) => slug(show.title) === showKey) || body.shows[0];
+  const index = state.showsRaw.findIndex((show) => slug(show.title) === showKey);
+  if (index >= 0) state.showsRaw[index] = updated;
+  else state.showsRaw.push(updated);
+}
+
+async function applyWatchDateChoice(choice) {
+  const action = state.pendingWatchAction;
+  if (!action?.episodes?.length) return;
+
+  const customDate = elements.modalBody.querySelector("#watchDateCustomInput")?.value || "";
+  const records = action.episodes.map((episode) => watchRecordFromEpisode(episode, watchedAtForChoice(choice, episode, customDate)));
+  const buttons = [...elements.modalBody.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]")];
+  buttons.forEach((button) => {
+    button.disabled = true;
+  });
+
+  const result = await postManualWatchRecords(records);
+  closeWatchDatePrompt();
+  setMessage(`Marked ${result.inserted} episode${result.inserted === 1 ? "" : "s"} watched${result.skipped ? `, ${result.skipped} skipped` : ""}.`, result.rejected ? "error" : "success");
+  await refreshShowAfterManualWatch(action.showTitle).catch((error) => setMessage(error.message, "error"));
+  if (state.activeShowModalKey) {
+    renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+  }
 }
 
 async function openMovieImmersiveModal(id) {
@@ -2351,6 +2952,10 @@ function closeDebugModal() {
   }
   state.activeShowModalKey = null;
   state.activeShowModalSeason = null;
+  state.showModalRequestToken += 1;
+  state.showModalEpisodes = [];
+  state.showModalEpisodeIndex = new Map();
+  state.pendingWatchAction = null;
   state.activeMovieModalId = null;
   const eyebrowEl = elements.debugModal.querySelector(".eyebrow");
   if (eyebrowEl) {
@@ -3230,6 +3835,24 @@ function attachEvents() {
     const copyButton = event.target.closest("[data-copy]");
     if (copyButton) {
       copyToClipboard(copyButton.dataset.copy);
+      return;
+    }
+
+    const watchDateCancel = event.target.closest("[data-watch-date-cancel]");
+    if (watchDateCancel) {
+      closeWatchDatePrompt();
+      return;
+    }
+
+    const watchDateChoice = event.target.closest("[data-watch-date-choice]");
+    if (watchDateChoice) {
+      applyWatchDateChoice(watchDateChoice.dataset.watchDateChoice).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
+    const watchButton = event.target.closest("[data-watch-scope]");
+    if (watchButton) {
+      openWatchDatePrompt(watchActionFromButton(watchButton));
       return;
     }
 

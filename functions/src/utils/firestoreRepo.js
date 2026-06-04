@@ -36,8 +36,27 @@ function normalizeKeyPart(value) {
   return String(value ?? "none").trim().toLowerCase().replace(/[^a-z0-9._:-]+/g, "-");
 }
 
+function decodeBasicHtmlEntities(value) {
+  return String(value ?? "")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    .replace(/&apos;/gi, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/&amp;/gi, "&");
+}
+
+function canonicalTitleKey(value) {
+  return decodeBasicHtmlEntities(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function showTitleFrom(title = "") {
-  const text = cleanString(title) || "Unknown Show";
+  const text = cleanString(decodeBasicHtmlEntities(title)) || "Unknown Show";
   const seasonMatch = text.match(/^(.*?)(?:\s+-\s+S\d{1,2}E\d{1,2})(?:\s+-\s+.*)?$/i);
   if (seasonMatch?.[1]) return seasonMatch[1].trim() || "Unknown Show";
   const alternateMatch = text.match(/^(.*?)(?:\s+-\s+Season\s+\d+.*)$/i);
@@ -72,7 +91,7 @@ function normalizeImportedTitle(record = {}, mediaType = "") {
     }
   }
 
-  return cleanString(
+  return cleanString(decodeBasicHtmlEntities(
     record.title ||
       record.name ||
       record.movie_title ||
@@ -84,7 +103,7 @@ function normalizeImportedTitle(record = {}, mediaType = "") {
       (typeof record.movie === "string" ? record.movie : "") ||
       record.Title ||
       "",
-  );
+  ));
 }
 
 export function normalizeWatchRecord(record = {}, fallbackSource = "trakt_import") {
@@ -173,7 +192,7 @@ function fromFirestoreWatch(doc) {
   const data = doc.data() || {};
   return {
     id: doc.id,
-    title: data.title || "",
+    title: decodeBasicHtmlEntities(data.title || ""),
     media_type: data.mediaType || "",
     watched_at: data.watchedAt || "",
     source: data.source || "",
@@ -185,7 +204,7 @@ function fromFirestoreWatch(doc) {
     poster_url: data.posterUrl || null,
     sync_dispatch_telemetry: data.syncDispatchTelemetry || null,
     media_key: data.mediaKey || null,
-    show_title: data.showTitle || null,
+    show_title: data.showTitle ? decodeBasicHtmlEntities(data.showTitle) : null,
   };
 }
 
@@ -460,9 +479,7 @@ function matchesSearch(row, search) {
 function dedupeHistory(rows) {
   const map = new Map();
   for (const row of rows) {
-    const key = row.media_type === "episode"
-      ? `episode|${row.imdb_id || row.tmdb_id || row.tvdb_id || row.title}|${row.season ?? -1}|${row.episode ?? -1}`
-      : `movie|${row.imdb_id || row.tmdb_id || row.tvdb_id || row.title}`;
+    const key = historyDedupeKey(row);
     
     if (map.has(key)) {
       const existing = map.get(key);
@@ -470,8 +487,10 @@ function dedupeHistory(rows) {
         existing.playHistory = [existing.watched_at];
       }
       existing.playHistory.push(row.watched_at);
-      if (row.watched_at < existing.watched_at) {
-        existing.watched_at = row.watched_at;
+      if (!existing.poster_url && row.poster_url) existing.poster_url = row.poster_url;
+      if (row.watched_at > existing.watched_at) {
+        const playHistory = existing.playHistory;
+        map.set(key, { ...row, playHistory });
       }
     } else {
       map.set(key, {
@@ -490,10 +509,38 @@ function dedupeHistory(rows) {
   return result;
 }
 
+function historyDedupeKey(row = {}) {
+  const mediaType = normalizeMediaType(row.media_type);
+  const imdb = cleanString(row.imdb_id);
+  const tmdb = cleanString(row.tmdb_id);
+  const tvdb = cleanString(row.tvdb_id);
+
+  if (mediaType === "episode") {
+    const season = row.season ?? "unknown";
+    const episode = row.episode ?? "unknown";
+    const showTitle = canonicalTitleKey(row.show_title || showTitleFrom(row.title));
+    if (showTitle && season !== "unknown" && episode !== "unknown") {
+      return `episode|show:${showTitle}|s:${season}|e:${episode}`;
+    }
+    return `episode|id:${imdb || tmdb || tvdb || canonicalTitleKey(row.title)}|s:${season}|e:${episode}`;
+  }
+
+  if (mediaType === "movie") {
+    const title = canonicalTitleKey(row.title);
+    return `movie|${title ? `title:${title}` : imdb ? `imdb:${imdb}` : tmdb ? `tmdb:${tmdb}` : `tvdb:${tvdb}`}`;
+  }
+
+  return `${mediaType || "unknown"}|${canonicalTitleKey(row.title)}|${row.watched_at || ""}`;
+}
+
 export async function queryWatchHistory(_unusedDb, { search = "", limit = 50, offset = 0 } = {}) {
-  const rows = await loadHistoryRows({ limit: search ? MAX_HISTORY_LIMIT : limit, offset: search ? 0 : offset });
+  const safeLimit = Math.min(Number(limit) || 50, MAX_HISTORY_LIMIT);
+  const rows = await loadHistoryRows({
+    limit: search ? MAX_HISTORY_LIMIT : Math.min(Math.max(safeLimit * 4, safeLimit), MAX_HISTORY_LIMIT),
+    offset: search ? 0 : offset,
+  });
   const filtered = rows.filter((row) => matchesSearch(row, cleanString(search)));
-  return dedupeHistory(filtered).slice(0, Math.min(Number(limit) || 50, MAX_HISTORY_LIMIT));
+  return dedupeHistory(filtered).slice(0, safeLimit);
 }
 
 export async function getWatchStats() {
@@ -590,7 +637,7 @@ export async function queryMovies({ search = "", sort = "watched_desc", limit = 
 }
 
 export async function queryShows({ search = "", sort = "watched_desc", limit = 6, offset = 0 } = {}) {
-  const rows = (await loadHistoryRows({ limit: MAX_HISTORY_LIMIT })).filter((row) => row.media_type === "episode" && matchesSearch(row, search));
+  const rows = dedupeHistory((await loadHistoryRows({ limit: MAX_HISTORY_LIMIT })).filter((row) => row.media_type === "episode" && matchesSearch(row, search)));
   const groups = new Map();
   rows.forEach((row) => {
     const title = showTitleFrom(row.title);

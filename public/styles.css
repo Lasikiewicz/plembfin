@@ -1185,6 +1185,10 @@ h2 {
   gap: var(--space-3);
 }
 
+.dashboard-history-grid {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+
 .movie-card,
 .folder-trigger,
 .season-trigger,
@@ -1347,16 +1351,28 @@ h2 {
   .movie-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
+
+  .dashboard-history-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 1300px) {
   .movie-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  .dashboard-history-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
   .movie-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-history-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1777,8 +1793,9 @@ h2 {
 }
 
 .modal-panel--immersive {
-  width: min(1400px, 95vw) !important;
-  max-height: min(920px, 95vh) !important;
+  width: min(1900px, calc(100vw - 32px)) !important;
+  height: min(1120px, calc(100vh - 32px)) !important;
+  max-height: calc(100vh - 32px) !important;
   background: #090c0f !important;
   padding: 0 !important;
   position: relative;
@@ -1823,7 +1840,7 @@ h2 {
   flex-direction: column;
   height: 100%;
   overflow-y: auto;
-  padding: var(--space-4) 2rem 2rem;
+  padding: var(--space-4) clamp(1.25rem, 2.4vw, 3rem) 2rem;
   gap: 1.5rem;
 }
 
@@ -1959,6 +1976,11 @@ h2 {
   color: var(--text);
 }
 
+.action-pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .immersive-overview {
   color: var(--soft);
   font-size: 0.9rem;
@@ -2017,6 +2039,38 @@ h2 {
   margin: 0;
 }
 
+.show-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.show-section-title h3 {
+  margin: 0;
+}
+
+.show-section-title span,
+.show-load-pill,
+.season-poster-card small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.show-load-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #101820;
+  padding: 0.25rem 0.6rem;
+}
+
+.show-load-pill.muted {
+  color: var(--soft);
+}
+
 .episodes-accordion-btn {
   background: #141b22;
   border: 1px solid var(--line);
@@ -2029,6 +2083,119 @@ h2 {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.show-season-block {
+  display: grid;
+  gap: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(12, 18, 23, 0.76);
+  padding: var(--space-3);
+}
+
+.show-season-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.show-season-head h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.show-season-head span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.show-episode-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.immersive-episode-row {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #0b1116;
+  padding: var(--space-2);
+}
+
+.immersive-episode-row.is-watched {
+  background: #0e1716;
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.episode-thumb {
+  display: block;
+  width: 8rem;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #070b0e;
+}
+
+.immersive-episode-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.45rem;
+}
+
+.immersive-episode-title-row {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.immersive-episode-title-row b {
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+
+.immersive-episode-title-row time {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.immersive-episode-copy p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--soft);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.immersive-episode-actions {
+  display: grid;
+  min-width: 8rem;
+  justify-items: end;
+  gap: var(--space-2);
+}
+
+.watched-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(16, 185, 129, 0.34);
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.11);
+  color: #a7f3d0;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 850;
+  white-space: nowrap;
 }
 
 .seasons-section {
@@ -2072,7 +2239,11 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
   cursor: pointer;
+  padding: 0;
 }
 
 .season-poster-img {
@@ -2105,4 +2276,81 @@ h2 {
 
 .season-poster-card.active .season-poster-img {
   border-color: #f59e0b;
+}
+
+.watch-date-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  background: rgba(2, 6, 9, 0.72);
+  padding: var(--space-4);
+}
+
+.watch-date-dialog {
+  display: grid;
+  width: min(420px, 100%);
+  gap: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: #0b1116;
+  padding: var(--space-4);
+}
+
+.watch-date-dialog h3,
+.watch-date-dialog p {
+  margin: 0;
+}
+
+.watch-date-dialog p {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.watch-date-options,
+.watch-date-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.watch-date-custom {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.watch-date-custom span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.watch-date-custom input {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #080d11;
+  color: var(--text);
+  padding: 0.55rem 0.65rem;
+}
+
+@media (max-width: 760px) {
+  .immersive-episode-row {
+    grid-template-columns: 1fr;
+  }
+
+  .episode-thumb {
+    width: 100%;
+  }
+
+  .immersive-episode-actions,
+  .show-season-head {
+    justify-items: stretch;
+    align-items: stretch;
+  }
+
+  .show-season-head {
+    flex-direction: column;
+  }
 }

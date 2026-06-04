@@ -154,8 +154,20 @@ async function handleHistory(req, res) {
   const id = String(req.query.id || "");
   if (id) return sendJson(res, { row: await getWatchRecordById(id) });
 
+  const statsMode = String(req.query.stats || "").toLowerCase();
+  if (statsMode === "only") {
+    return sendJson(res, { stats: await getWatchStats(requireDb()) });
+  }
+
+  const includeStats = !["0", "false", "no"].includes(statsMode);
+  const historyPromise = queryWatchHistory(requireDb(), { search: req.query.search || "", limit: req.query.limit || 50, offset: req.query.offset || 0 });
+
+  if (!includeStats) {
+    return sendJson(res, { history: await historyPromise });
+  }
+
   const [history, stats] = await Promise.all([
-    queryWatchHistory(requireDb(), { search: req.query.search || "", limit: req.query.limit || 50, offset: req.query.offset || 0 }),
+    historyPromise,
     getWatchStats(requireDb()),
   ]);
   return sendJson(res, { history, stats });
