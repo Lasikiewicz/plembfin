@@ -928,6 +928,78 @@ async function handleMaintenanceStub(req, res, name) {
   });
 }
 
+async function handleDedupHistory(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.write("Dedup started...\n");
+
+  const log = (msg) => { res.write(`${msg}\n`); console.log(msg); };
+
+  try {
+    log("Loading all watchHistory records...");
+    const snapshot = await db.collection("watchHistory").get();
+    log(`Loaded ${snapshot.size} total records.`);
+
+    // Group docs by mediaKey
+    const groups = new Map();
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const key = data.mediaKey || doc.id;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({ id: doc.id, ref: doc.ref, watchedAt: data.watchedAt || data.watched_at || "" });
+    }
+
+    log(`Found ${groups.size} unique media keys.`);
+
+    let deleted = 0;
+    let checked = 0;
+    const batch_size = 400;
+    let batch = db.batch();
+    let batchCount = 0;
+
+    for (const [key, docs] of groups.entries()) {
+      if (docs.length <= 1) continue;
+
+      // Sort newest first
+      docs.sort((a, b) => (b.watchedAt > a.watchedAt ? 1 : b.watchedAt < a.watchedAt ? -1 : 0));
+      const [keep, ...remove] = docs;
+
+      for (const dup of remove) {
+        batch.delete(dup.ref);
+        batchCount++;
+        deleted++;
+
+        if (batchCount >= batch_size) {
+          await batch.commit();
+          batch = db.batch();
+          batchCount = 0;
+        }
+      }
+
+      checked++;
+      if (checked % 50 === 0) {
+        log(`Processed ${checked} duplicate groups, ${deleted} deletions queued so far...`);
+      }
+    }
+
+    if (batchCount > 0) await batch.commit();
+
+    const summary = { scanned: snapshot.size, uniqueKeys: groups.size, deleted };
+    log(`Done! Scanned ${summary.scanned} records, found ${summary.uniqueKeys} unique items, deleted ${summary.deleted} duplicates.`);
+    res.write(`RESULT: ${JSON.stringify(summary)}\n`);
+    res.end();
+  } catch (error) {
+    log(`ERROR: Dedup failed: ${error.message}`);
+    res.end();
+  }
+}
+
 async function dispatch(req, res) {
   try {
     const path = routePath(req);
@@ -944,6 +1016,7 @@ async function dispatch(req, res) {
     if (path === "cron-sync") return handleCronSync(req, res);
     if (path === "force-sync") return handleForceSync(req, res);
     if (path === "stop-force-sync") return handleStopForceSync(req, res);
+    if (path === "dedup-history") return handleDedupHistory(req, res);
     if (path === "webhook") return handleWebhook(req, res);
     if (path === "test-connection") return handleTestConnection(req, res);
     if (path === "poster") return handlePoster(req, res);

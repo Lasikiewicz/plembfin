@@ -164,6 +164,9 @@ function bindElements() {
     traktBackfillRate: document.querySelector("#traktBackfillRate"),
     traktBackfillStatus: document.querySelector("#traktBackfillStatus"),
     traktBackfillLog: document.querySelector("#traktBackfillLog"),
+    dedupHistoryButton: document.querySelector("#dedupHistoryButton"),
+    dedupHistoryStatus: document.querySelector("#dedupHistoryStatus"),
+    dedupHistoryLog: document.querySelector("#dedupHistoryLog"),
     settingsToken: document.querySelector("#settingsToken"),
     settingsForm: document.querySelector("#settingsForm"),
     settingsStatus: document.querySelector("#settingsStatus"),
@@ -4263,6 +4266,65 @@ async function runRepairWorkflow() {
   return { converted: totalConverted, backfilled: totalBackfilled };
 }
 
+async function runDedupHistory() {
+  const button = elements.dedupHistoryButton;
+  const status = elements.dedupHistoryStatus;
+  const logEl = elements.dedupHistoryLog;
+  if (!button) return;
+
+  button.disabled = true;
+  button.textContent = "Running...";
+  if (status) status.textContent = "Running deduplication...";
+  if (logEl) logEl.textContent = "";
+
+  try {
+    const response = await fetch("/api/dedup-history", {
+      method: "POST",
+      headers: authHeaders(),
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    let finalResult = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.startsWith("RESULT: ")) {
+          try { finalResult = JSON.parse(trimmed.substring(8)); } catch (_) {}
+        } else {
+          if (logEl) logEl.textContent += trimmed + "\n";
+        }
+      }
+      if (logEl) logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    if (finalResult) {
+      const msg = `Complete — deleted ${finalResult.deleted} duplicate(s) from ${finalResult.scanned} records.`;
+      if (status) status.textContent = msg;
+      if (logEl) logEl.textContent += msg + "\n";
+    } else {
+      if (status) status.textContent = "Complete.";
+    }
+  } catch (error) {
+    const msg = `Error: ${error.message}`;
+    if (status) status.textContent = msg;
+    if (logEl) logEl.textContent += msg + "\n";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Clean Duplicates";
+  }
+}
+
 async function runTraktBackfill() {
   const button = elements.traktBackfillButton;
   const status = elements.traktBackfillStatus;
@@ -4963,6 +5025,14 @@ function attachEvents() {
     elements.traktBackfillButton.addEventListener("click", () => {
       runTraktBackfill().catch((error) => {
         elements.traktBackfillStatus.textContent = `Error: ${error?.message || String(error)}`;
+      });
+    });
+  }
+
+  if (elements.dedupHistoryButton) {
+    elements.dedupHistoryButton.addEventListener("click", () => {
+      runDedupHistory().catch((error) => {
+        if (elements.dedupHistoryStatus) elements.dedupHistoryStatus.textContent = `Error: ${error?.message || String(error)}`;
       });
     });
   }

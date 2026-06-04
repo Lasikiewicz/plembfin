@@ -497,6 +497,21 @@
                     </div>
                   </div>
                 </article>
+
+                <article class="glass-panel p-section settings-card">
+                  <div class="section-heading">
+                    <p>Clean Duplicate History Rows</p>
+                    <span>Remove duplicate <code>watchHistory</code> entries, keeping the newest per item</span>
+                  </div>
+                  <p class="muted-copy">Scans every watch history record, groups them by media key, and deletes all but the most recently logged entry for each unique item. Safe to run at any time.</p>
+                  <div class="settings-actions">
+                    <button id="dedupHistoryButton" class="button-primary" type="button" title="Remove duplicate watch history rows">Clean Duplicates</button>
+                    <p id="dedupHistoryStatus" class="muted-copy">Idle</p>
+                  </div>
+                  <div style="margin-top: var(--space-3);">
+                    <div id="dedupHistoryLog" class="import-terminal" style="max-height: 220px; overflow:auto; padding: 8px; background: var(--panel-3); border: 1px solid var(--line);">Dedup log will appear here.</div>
+                  </div>
+                </article>
               </section>
             </div>
           </section>
