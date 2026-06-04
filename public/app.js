@@ -11,7 +11,7 @@ const ACTIVE_SETTINGS_TAB_KEY = "history_active_settings_tab";
 const IMPORT_BATCH_SIZE = 100;
 const IMPORT_MAX_ATTEMPTS = 4;
 const IMPORT_RETRY_BASE_MS = 1500;
-const NOW_PLAYING_POLL_MS = 5000;
+const NOW_PLAYING_POLL_MS = 30000;
 const POSTER_LOOKUP_CONCURRENCY = 4;
 const TMDB_POSTER_SIZE = "w342";
 const HISTORY_PREVIEW_LIMIT = 72;
@@ -82,6 +82,7 @@ const state = {
   nowPlayingInterval: undefined,
   nowPlayingRequestActive: false,
   nowPlayingRefreshToken: "",
+  nowPlayingSessionKey: "",
   configLoaded: false,
   fullSyncActive: false,
 };
@@ -302,6 +303,42 @@ function posterMarkup(item = {}, className = "media-poster") {
   return `<img class="${className}"${posterId} src="${escapeAttribute(url)}" alt="${escapeAttribute(label)} poster" loading="lazy" decoding="async" referrerpolicy="no-referrer" />`;
 }
 
+function posterFallbackElement(className = "media-poster", posterId = "") {
+  const fallback = document.createElement("span");
+  fallback.className = `${className} poster-fallback`.trim();
+  fallback.setAttribute("aria-hidden", "true");
+  if (posterId) fallback.dataset.posterId = posterId;
+  return fallback;
+}
+
+async function lookupPosterUrl(posterId, { fallback = false } = {}) {
+  if (!posterId) return "";
+  if (!fallback && state.posterLookupCache.has(posterId)) {
+    return state.posterLookupCache.get(posterId) || "";
+  }
+
+  const cacheKey = fallback ? `${posterId}:fallback` : posterId;
+  let lookup = state.posterLookupInflight.get(cacheKey);
+  if (!lookup) {
+    const url = new URL("/api/poster", window.location.origin);
+    url.searchParams.set("id", posterId);
+    if (fallback) url.searchParams.set("fallback", "1");
+    lookup = fetch(url, { headers: authHeaders() })
+      .then(async (response) => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || !body.url) return "";
+        return compactPosterUrl(body.url);
+      })
+      .catch(() => "")
+      .finally(() => state.posterLookupInflight.delete(cacheKey));
+    state.posterLookupInflight.set(cacheKey, lookup);
+  }
+
+  const posterUrl = await lookup;
+  state.posterLookupCache.set(posterId, posterUrl || null);
+  return posterUrl || "";
+}
+
 async function hydratePosterFallbacks(container = document.body) {
   if (!container) return;
   const fallbacks = [...container.querySelectorAll("[data-poster-id].poster-fallback")].filter((fallback) => {
@@ -314,21 +351,7 @@ async function hydratePosterFallbacks(container = document.body) {
     const posterId = fallback.dataset.posterId;
     if (!posterId || state.posterLookupCache.has(posterId)) return;
 
-    let lookup = state.posterLookupInflight.get(posterId);
-    if (!lookup) {
-      lookup = fetch(`/api/poster?id=${encodeURIComponent(posterId)}`, { headers: authHeaders() })
-        .then(async (response) => {
-          const body = await response.json().catch(() => ({}));
-          if (!response.ok || !body.url) return "";
-          return compactPosterUrl(body.url);
-        })
-        .catch(() => "")
-        .finally(() => state.posterLookupInflight.delete(posterId));
-      state.posterLookupInflight.set(posterId, lookup);
-    }
-
-    const posterUrl = await lookup;
-    state.posterLookupCache.set(posterId, posterUrl || null);
+    const posterUrl = await lookupPosterUrl(posterId);
     if (!posterUrl || !fallback.isConnected || !fallback.classList.contains("poster-fallback")) return;
 
     const image = document.createElement("img");
@@ -340,6 +363,7 @@ async function hydratePosterFallbacks(container = document.body) {
     image.referrerPolicy = "no-referrer";
     image.dataset.posterId = posterId;
     fallback.replaceWith(image);
+    hydratePosterImages(container);
   };
 
   const workers = Array.from({ length: Math.min(POSTER_LOOKUP_CONCURRENCY, fallbacks.length) }, async (_, workerIndex) => {
@@ -349,6 +373,36 @@ async function hydratePosterFallbacks(container = document.body) {
   });
 
   await Promise.allSettled(workers);
+}
+
+function hydratePosterImages(container = document.body) {
+  if (!container) return;
+  for (const image of container.querySelectorAll("img[data-poster-id]")) {
+    if (image.dataset.posterErrorBound) continue;
+    image.dataset.posterErrorBound = "1";
+    image.addEventListener("error", async () => {
+      const posterId = image.dataset.posterId;
+      if (!posterId || image.dataset.posterFallbackAttempted === "1") {
+        image.replaceWith(posterFallbackElement(image.className, posterId));
+        return;
+      }
+
+      image.dataset.posterFallbackAttempted = "1";
+      const brokenUrl = image.currentSrc || image.src;
+      const fallbackUrl = await lookupPosterUrl(posterId, { fallback: true });
+      if (fallbackUrl && fallbackUrl !== brokenUrl && image.isConnected) {
+        image.src = fallbackUrl;
+        return;
+      }
+
+      if (image.isConnected) image.replaceWith(posterFallbackElement(image.className, posterId));
+    });
+  }
+}
+
+function hydratePosters(container = document.body) {
+  hydratePosterImages(container);
+  hydratePosterFallbacks(container).catch(() => {});
 }
 
 function snippet(code, language = "text") {
@@ -363,6 +417,34 @@ function snippet(code, language = "text") {
 
 function terminalOutput(text) {
   return `<pre class="terminal-output"><code>${escapeHtml(text)}</code></pre>`;
+}
+
+function activeSessionsKey(sessions = []) {
+  if (!sessions.length) return "empty";
+  return sessions
+    .map((session) => {
+      const progress = Math.round(Number(session.progress ?? computeProgress(session.offsetMs, session.durationMs) ?? 0));
+      return [
+        session.source || "",
+        session.sessionId || session.id || "",
+        session.mediaType || session.media_type || "",
+        session.title || "",
+        session.season ?? "",
+        session.episode ?? "",
+        progress,
+      ].join("|");
+    })
+    .sort()
+    .join("::");
+}
+
+function setActiveSessions(sessions = [], { force = false } = {}) {
+  const nextKey = activeSessionsKey(sessions);
+  if (!force && nextKey === state.nowPlayingSessionKey) return false;
+  state.activeSessions = sessions;
+  state.nowPlayingSessionKey = nextKey;
+  renderActiveSessions();
+  return true;
 }
 
 function adminTokenGuide() {
@@ -948,15 +1030,13 @@ async function loadActiveSessions() {
   } catch (error) {
     const message = `Now-playing payload parsing exception: ${error?.message || "invalid JSON response"}`;
     logDebug(message, { bodyPreview: bodyText.slice(0, 1200) });
-    state.activeSessions = [];
-    renderActiveSessions();
+    setActiveSessions([]);
     return [];
   }
   if (!response.ok) {
     const message = `Now playing failed with HTTP ${response.status}`;
     logDebug(message, body);
-    state.activeSessions = [];
-    renderActiveSessions();
+    setActiveSessions([]);
     return [];
   }
 
@@ -977,9 +1057,8 @@ async function loadActiveSessions() {
 
   const refreshChanged = Boolean(refreshToken && refreshToken !== state.nowPlayingRefreshToken);
 
-  state.activeSessions = sessions;
   state.nowPlayingRefreshToken = refreshToken || state.nowPlayingRefreshToken;
-  renderActiveSessions();
+  setActiveSessions(sessions);
 
   if (refreshChanged) {
     loadHistory().catch((error) => setMessage(error.message, "error"));
@@ -992,7 +1071,7 @@ function startHistoryPolling() {
   stopHistoryPolling();
   if (!state.token || state.activeView !== "dashboard") return;
 
-  logDebug(`Starting Now Playing background polling loop at ${Math.round(NOW_PLAYING_POLL_MS / 1000)} second cadence.`);
+  logDebug(`Starting Now Playing background refresh loop at ${Math.round(NOW_PLAYING_POLL_MS / 1000)} second cadence.`);
   loadActiveSessions().catch((error) => setMessage(error.message, "error"));
   state.nowPlayingInterval = window.setInterval(() => {
     if (state.activeView !== "dashboard" || !state.token) {
@@ -1008,7 +1087,7 @@ function stopHistoryPolling() {
   if (!state.nowPlayingInterval) return;
   window.clearInterval(state.nowPlayingInterval);
   state.nowPlayingInterval = undefined;
-  logDebug("Stopped Now Playing background polling loop.");
+  logDebug("Stopped Now Playing background refresh loop.");
 }
 
 function syncNowPlayingPolling() {
@@ -1070,7 +1149,7 @@ function renderDashboard() {
         .join("")}
     </div>
   `;
-  hydratePosterFallbacks(elements.historyTable).catch(() => {});
+  hydratePosters(elements.historyTable);
 }
 
 function dashboardHistoryDisplayLimit() {
@@ -1089,7 +1168,7 @@ function renderActiveSessions() {
         <b>Entire media ecosystem is idle.</b>
       </div>
     `;
-    if (elements.nowPlayingStatus) elements.nowPlayingStatus.textContent = `${Math.round(NOW_PLAYING_POLL_MS / 1000)}s polling`;
+    if (elements.nowPlayingStatus) elements.nowPlayingStatus.textContent = "Live cache";
     return;
   }
 
@@ -1115,7 +1194,7 @@ function renderActiveSessions() {
     .join("");
 
   if (elements.nowPlayingStatus) {
-    elements.nowPlayingStatus.textContent = `${Math.round(NOW_PLAYING_POLL_MS / 1000)}s polling`;
+    elements.nowPlayingStatus.textContent = "Live cache";
   }
 }
 
@@ -1311,7 +1390,7 @@ function renderMovieExplorer() {
   elements.explorerPanel.innerHTML = state.moviesRaw.length
     ? `<div class="movie-grid">${state.moviesRaw.map(renderMovieCard).join("")}</div>${renderExplorerSentinel("movies", state.moviesHasMore, state.moviesLoading)}`
     : emptyExplorer("No movies logged yet");
-  hydratePosterFallbacks(elements.explorerPanel).catch(() => {});
+  hydratePosters(elements.explorerPanel);
   observeExplorerSentinel("movies");
 }
 
@@ -1362,7 +1441,7 @@ function renderShowExplorer() {
   elements.explorerPanel.innerHTML = state.showsRaw.length
     ? `<div class="movie-grid explorer-show-grid">${state.showsRaw.map(renderShowRecord).join("")}</div>${renderExplorerSentinel("shows", state.showsHasMore, state.showsLoading)}`
     : emptyExplorer("No TV episodes logged yet");
-  hydratePosterFallbacks(elements.explorerPanel).catch(() => {});
+  hydratePosters(elements.explorerPanel);
   observeExplorerSentinel("shows");
 }
 
@@ -2272,7 +2351,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
       </section>
     </div>
   `;
-  hydratePosterFallbacks(elements.modalBody).catch(() => {});
+  hydratePosters(elements.modalBody);
 }
 
 function showEpisodeKey(seasonNumber, episodeNumber) {
@@ -2599,7 +2678,7 @@ async function renderImmersiveShowModal(showKey, activeSeasonNum = null) {
       renderShowModalContent(show, { activeSeasonNum, tmdbData: null, seasonDetailsByNumber: new Map(), loading: false });
     }
   });
-  hydratePosterFallbacks(elements.modalBody).catch(() => {});
+  hydratePosters(elements.modalBody);
 }
 
 function watchActionFromButton(button) {
@@ -2922,7 +3001,7 @@ async function renderMovieImmersiveModalContent(movie) {
       ` : ""}
     </div>
   `;
-  hydratePosterFallbacks(elements.modalBody).catch(() => {});
+  hydratePosters(elements.modalBody);
 }
 
 async function openMovieImmersiveModalByTmdbId(tmdbId) {
@@ -3035,7 +3114,7 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
       ` : ""}
     </div>
   `;
-  hydratePosterFallbacks(elements.modalBody).catch(() => {});
+  hydratePosters(elements.modalBody);
 }
 
 function openDebugModal(entry) {
@@ -3129,6 +3208,7 @@ async function lockDashboard() {
   state.importLogs = ["[idle] Waiting for files."];
   state.importProgressValue = 0;
   state.nowPlayingRefreshToken = "";
+  state.nowPlayingSessionKey = "";
   state.configLoaded = false;
   state.savedConfig = {};
   localStorage.removeItem(TOKEN_KEY);

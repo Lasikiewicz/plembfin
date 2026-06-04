@@ -72,6 +72,34 @@ function posterPathFromMedia(media = {}) {
   return "";
 }
 
+function configForPosterSource(config = {}, source = "") {
+  const key = String(source || "").toLowerCase();
+  if (key.includes("plex")) return { ...config.plex, source: "plex" };
+  if (key.includes("emby")) return { ...config.emby, source: "emby" };
+  if (key.includes("jellyfin")) return { ...config.jellyfin, source: "jellyfin" };
+  return {};
+}
+
+function configuredPosterUrl(path = "", source = "", config = {}) {
+  const raw = String(path || "").trim();
+  const server = configForPosterSource(config, source);
+  const baseUrl = String(server.baseUrl || server.url || "").trim().replace(/\/+$/, "");
+  if (!raw || !baseUrl) return "";
+
+  try {
+    const url = new URL(raw, `${baseUrl}/`);
+    if (server.source === "plex" && (server.token || server.apiKey)) {
+      url.searchParams.set("X-Plex-Token", server.token || server.apiKey);
+    }
+    if ((server.source === "emby" || server.source === "jellyfin") && (server.apiKey || server.api_key)) {
+      url.searchParams.set("api_key", server.apiKey || server.api_key);
+    }
+    return url.toString();
+  } catch (error) {
+    return "";
+  }
+}
+
 async function normalizeWebhook(req) {
   const contentType = req.get("content-type") || "";
   if (contentType.includes("multipart/form-data") || contentType.includes("application/x-www-form-urlencoded")) {
@@ -486,9 +514,17 @@ async function handlePoster(req, res) {
   if (!(await requireAdmin(req, res))) return;
   const row = await getWatchRecordById(String(req.query.id || ""));
   if (!row) return sendJson(res, { error: "not found" }, 404);
-  if (row.poster_url && /^https?:\/\//i.test(row.poster_url)) return sendJson(res, { url: row.poster_url }, 200, { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400" });
 
+  const fallbackRequested = ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase());
   const config = await loadMediaConfig();
+  const cacheHeaders = { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400" };
+
+  if (row.poster_url && !fallbackRequested) {
+    if (/^https?:\/\//i.test(row.poster_url)) return sendJson(res, { url: row.poster_url }, 200, cacheHeaders);
+    const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
+    if (configuredUrl) return sendJson(res, { url: configuredUrl }, 200, cacheHeaders);
+  }
+
   if (String(row.source || "").toLowerCase().includes("plex") && config.plex?.baseUrl && config.plex?.token) {
     const item = await findPlexItem(config.plex, {
       title: row.title,
@@ -502,9 +538,20 @@ async function handlePoster(req, res) {
       const base = config.plex.baseUrl.replace(/\/+$/, "");
       const joined = path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
       const sep = joined.includes("?") ? "&" : "?";
-      return sendJson(res, { url: `${joined}${sep}X-Plex-Token=${encodeURIComponent(config.plex.token)}` });
+      return sendJson(res, { url: `${joined}${sep}X-Plex-Token=${encodeURIComponent(config.plex.token)}` }, 200, cacheHeaders);
     }
   }
+
+  if (row.poster_url) {
+    const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
+    if (configuredUrl && !fallbackRequested) return sendJson(res, { url: configuredUrl }, 200, cacheHeaders);
+  }
+
+  if (config.tmdb?.apiKey) {
+    const tmdbPoster = await fetchPosterFromTmdb(row, config.tmdb.apiKey).catch(() => null);
+    if (tmdbPoster) return sendJson(res, { url: tmdbPoster }, 200, cacheHeaders);
+  }
+
   return sendJson(res, { url: null });
 }
 
