@@ -130,9 +130,11 @@ async function normalizeWebhook(req) {
   };
 }
 
-function formatDispatchTelemetry(summary, media) {
+function formatDispatchTelemetry(summary, media, action = "watched") {
+  const actionLabel = action === "unwatched" || action === "unplayed" ? "Marked Unwatched" : "Marked Watched";
   const lines = [
     `Origin: ${media.source || "unknown"}`,
+    `Action: ${actionLabel}`,
     `Media: ${media.title || "unknown"}`,
     `Loop-check: ${summary.skipped ? "Skipped propagation" : "Passed"}`,
     `Dispatch status: ${summary.status || "unknown"}`,
@@ -461,14 +463,26 @@ async function handleWebhook(req, res) {
     });
     await deletePlaybackProgress(requireDb(), media).catch(() => null);
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
-    if (wasDeleted) await syncMediaUnplayedPlaystate(media, config, loopStore).catch((error) => console.error("Webhook unplayed propagation failed", error));
-    return sendJson(res, { ok: true, deleted: wasDeleted, unplayed: true, ...(wasDeleted ? {} : { reason: "No watch record found to delete" }) });
+    const pendingSummary = { skipped: false, status: "pending", details: "Unwatched propagation queued", targetStates: [] };
+    const unplayedRecord = mediaToWatchRecord({ ...media, syncAction: "unwatched" }, media.source);
+    unplayedRecord.sync_action = "unwatched";
+    unplayedRecord.sync_dispatch_telemetry = formatDispatchTelemetry(pendingSummary, media, "unwatched");
+    const result = await insertWatchRecord(requireDb(), unplayedRecord);
+    const summary = await syncMediaUnplayedPlaystate(media, config, loopStore).catch((error) => ({
+      skipped: false,
+      status: "error",
+      details: `Unwatched propagation failed: ${error.message || String(error)}`,
+      targetStates: [],
+    }));
+    await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "unwatched"));
+    return sendJson(res, { ok: true, deleted: wasDeleted, unplayed: true, inserted: true, id: result.id, ...(wasDeleted ? {} : { reason: "No previous watched record found to delete" }) });
   }
 
   try {
     await deleteActiveSession(null, media);
     const watchRecord = mediaToWatchRecord(media, media.source);
-    watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, media);
+    watchRecord.sync_action = "watched";
+    watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, media, "watched");
     const result = await insertWatchRecord(requireDb(), watchRecord);
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
     const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
@@ -477,7 +491,7 @@ async function handleWebhook(req, res) {
       details: `Propagation failed: ${error.message || String(error)}`,
       targetStates: [],
     }));
-    await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media));
+    await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "watched"));
     await deletePlaybackProgress(requireDb(), media).catch(() => null);
     return sendJson(res, { ok: true, inserted: true, id: result.id, record: result.record });
   } catch (error) {

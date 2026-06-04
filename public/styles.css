@@ -425,6 +425,7 @@ h2 {
 
 .status-pill,
 .source-badge,
+.history-action-pill,
 .target-pill,
 .debug-badge,
 .help-badge,
@@ -440,6 +441,45 @@ h2 {
   font-size: 0.68rem;
   font-weight: 850;
   white-space: nowrap;
+}
+
+.history-sync-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.history-action-pill {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sync-status-dot {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.04);
+  cursor: help;
+}
+
+.sync-status-dot--success {
+  color: #34d399;
+  background: #34d399;
+}
+
+.sync-status-dot--pending {
+  color: #f59e0b;
+  background: #f59e0b;
+}
+
+.sync-status-dot--error {
+  color: #fb7185;
+  background: #fb7185;
 }
 
 .status-ready,

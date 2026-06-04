@@ -114,6 +114,29 @@ function progressPercentFrom(values = {}) {
   return 0;
 }
 
+function readPlayedState(...values) {
+  for (const value of values) {
+    if (!value || typeof value !== "object") continue;
+    const candidates = [
+      value.Played,
+      value.IsPlayed,
+      value.played,
+      value.isPlayed,
+      value.UserData?.Played,
+      value.UserData?.IsPlayed,
+      value.Item?.UserData?.Played,
+      value.Item?.UserData?.IsPlayed,
+      value.NowPlayingItem?.UserData?.Played,
+      value.NowPlayingItem?.UserData?.IsPlayed,
+    ];
+    for (const candidate of candidates) {
+      if (candidate === true || candidate === "true" || candidate === 1 || candidate === "1") return true;
+      if (candidate === false || candidate === "false" || candidate === 0 || candidate === "0") return false;
+    }
+  }
+  return undefined;
+}
+
 function ticksToMilliseconds(value) {
   const ticks = Number(value || 0);
   return Number.isFinite(ticks) && ticks > 0 ? Math.round(ticks / 10000) : 0;
@@ -160,20 +183,28 @@ function phaseFromPlexEvent(event, metadata) {
 
 function phaseFromEmbyEvent(event, json, item) {
   const progress = progressPercentFrom({ ...json, ...item });
-  if (event === "item.markplayed") return "completed";
-  if (event === "item.markunplayed") return "unplayed";
-  if (event === "playback.pause") return progress >= 90 ? "completed" : "ended";
-  if (event === "playback.stop") return progress >= 90 ? "completed" : "ended";
-  if (EMBY_ACTIVE_EVENTS.includes(event)) return "active";
+  const eventKey = String(event || "").toLowerCase();
+  const played = readPlayedState(json, item);
+  if (eventKey === "item.markplayed") return "completed";
+  if (eventKey === "item.markunplayed") return "unplayed";
+  if (["userdata.saved", "userdatasaved", "user data saved", "user.data.saved"].includes(eventKey) && played === true) return "completed";
+  if (["userdata.saved", "userdatasaved", "user data saved", "user.data.saved"].includes(eventKey) && played === false) return "unplayed";
+  if (eventKey === "playback.pause") return progress >= 90 ? "completed" : "ended";
+  if (eventKey === "playback.stop") return progress >= 90 ? "completed" : "ended";
+  if (EMBY_ACTIVE_EVENTS.includes(eventKey)) return "active";
   return "ignored";
 }
 
 function phaseFromJellyfinEvent(event, json, item) {
   const progress = progressPercentFrom({ ...json, ...item });
-  if (event === "ItemMarkedAsPlayed") return "completed";
-  if (event === "ItemMarkedAsUnplayed") return "unplayed";
-  if (event === "PlaybackStop") return progress >= 90 ? "completed" : "ended";
-  if (JELLYFIN_ACTIVE_EVENTS.includes(event)) return "active";
+  const eventKey = String(event || "").toLowerCase();
+  const played = readPlayedState(json, item);
+  if (eventKey === "itemmarkedasplayed") return "completed";
+  if (eventKey === "itemmarkedasunplayed") return "unplayed";
+  if (["userdata.saved", "userdatasaved", "user data saved", "user.data.saved"].includes(eventKey) && played === true) return "completed";
+  if (["userdata.saved", "userdatasaved", "user data saved", "user.data.saved"].includes(eventKey) && played === false) return "unplayed";
+  if (eventKey === "playbackstop") return progress >= 90 ? "completed" : "ended";
+  if (JELLYFIN_ACTIVE_EVENTS.map((activeEvent) => activeEvent.toLowerCase()).includes(eventKey)) return "active";
   return "ignored";
 }
 

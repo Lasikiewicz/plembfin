@@ -142,6 +142,7 @@ export function normalizeWatchRecord(record = {}, fallbackSource = "trakt_import
     season: numberOrNull(record.season || record.episode?.season),
     episode: numberOrNull(record.episode_number || record.episode?.number || (typeof record.episode === "object" ? "" : record.episode)),
     poster_url: emptyToNull(record.poster_url || record.posterUrl),
+    sync_action: cleanString(record.sync_action || record.syncAction || record.action) || "watched",
     sync_dispatch_telemetry: emptyToNull(record.sync_dispatch_telemetry || record.syncDispatchTelemetry),
   };
   return normalized;
@@ -160,6 +161,7 @@ export function mediaToWatchRecord(media, source = media?.source || "webhook") {
       season: media?.season,
       episode: media?.episode,
       poster_url: media?.posterUrl || media?.poster_url,
+      sync_action: media?.syncAction || media?.sync_action || "watched",
       sync_dispatch_telemetry: media?.syncDispatchTelemetry,
     },
     source,
@@ -192,6 +194,7 @@ function toFirestoreWatch(record) {
     season: record.season,
     episode: record.episode,
     posterUrl: record.poster_url || null,
+    syncAction: record.sync_action || "watched",
     syncDispatchTelemetry: record.sync_dispatch_telemetry || null,
     mediaKey,
     showTitle,
@@ -214,10 +217,15 @@ function fromFirestoreWatch(doc) {
     season: data.season ?? null,
     episode: data.episode ?? null,
     poster_url: data.posterUrl || null,
+    sync_action: data.syncAction || "watched",
     sync_dispatch_telemetry: data.syncDispatchTelemetry || null,
     media_key: data.mediaKey || null,
     show_title: data.showTitle ? decodeBasicHtmlEntities(data.showTitle) : null,
   };
+}
+
+function isWatchedAction(row = {}) {
+  return !["unwatched", "unplayed"].includes(String(row.sync_action || row.syncAction || "watched").toLowerCase());
 }
 
 function playbackProgressFromFirestore(doc) {
@@ -550,7 +558,7 @@ async function loadHistoryRowsByType({ mediaType, limit = 50, offset = 0, sort =
     .offset(safeOffset)
     .limit(safeLimit)
     .get();
-  return snapshot.docs.map(fromFirestoreWatch);
+  return snapshot.docs.map(fromFirestoreWatch).filter(isWatchedAction);
 }
 
 function matchesSearch(row, search) {
@@ -634,7 +642,7 @@ export async function getWatchStats() {
     return cached.data().stats;
   }
 
-  const rows = await loadHistoryRows({ limit: MAX_HISTORY_LIMIT, offset: 0 });
+  const rows = (await loadHistoryRows({ limit: MAX_HISTORY_LIMIT, offset: 0 })).filter(isWatchedAction);
   const movieKeys = new Set();
   let episodes = 0;
   const bySource = new Map();

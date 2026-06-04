@@ -424,6 +424,46 @@ function terminalOutput(text) {
   return `<pre class="terminal-output"><code>${escapeHtml(text)}</code></pre>`;
 }
 
+function telemetryLineValue(telemetry = "", label = "") {
+  const prefix = `${label}:`;
+  const line = String(telemetry || "").split(/\r?\n/).find((item) => item.toLowerCase().startsWith(prefix.toLowerCase()));
+  return line ? line.slice(prefix.length).trim() : "";
+}
+
+function historyAction(entry = {}) {
+  const action = String(entry.sync_action || "").toLowerCase();
+  if (["unwatched", "unplayed"].includes(action)) return "Marked Unwatched";
+  const telemetryAction = telemetryLineValue(entry.sync_dispatch_telemetry, "Action");
+  if (/unwatched|unplayed/i.test(telemetryAction)) return "Marked Unwatched";
+  return "Marked Watched";
+}
+
+function isWatchedHistoryAction(entry = {}) {
+  return historyAction(entry) !== "Marked Unwatched";
+}
+
+function syncStatus(entry = {}) {
+  const telemetry = String(entry.sync_dispatch_telemetry || "");
+  const status = telemetryLineValue(telemetry, "Dispatch status").toLowerCase();
+  if (status === "success") {
+    return { tone: "success", label: "Full sync complete", detail: "All configured target apps accepted this watched-state change." };
+  }
+  if (["pending", "queued", "in_progress", "in progress", "unknown"].includes(status) || !status) {
+    return { tone: "pending", label: "Sync in progress", detail: "Propagation is queued or waiting for target app responses." };
+  }
+  return { tone: "error", label: "Sync needs attention", detail: "One or more target apps did not confirm this watched-state change." };
+}
+
+function historySyncPill(entry = {}) {
+  const status = syncStatus(entry);
+  return `
+    <span class="history-sync-row">
+      <span class="history-action-pill ${sourceClass(entry.source)}">${escapeHtml(platformBadge(entry.source))} - ${escapeHtml(historyAction(entry))}</span>
+      <span class="sync-status-dot sync-status-dot--${status.tone}" data-sync-status-dot="true" role="button" tabindex="0" title="${escapeAttribute(`${status.label}. ${status.detail}`)}" aria-label="${escapeAttribute(`${status.label}. Click for sync details.`)}"></span>
+    </span>
+  `;
+}
+
 function activeSessionsKey(sessions = []) {
   if (!sessions.length) return "empty";
   return sessions
@@ -1143,7 +1183,7 @@ function renderDashboard() {
             <button class="movie-card" type="button" data-history-id="${entry.id}">
               ${posterMarkup(entry, "movie-poster")}
               <div class="movie-card-body">
-                <span class="source-badge ${sourceClass(entry.source)}">${escapeHtml(platformBadge(entry.source))}</span>
+                ${historySyncPill(entry)}
                 <b>${escapeHtml(entry.title)}</b>
                 <span>${formatDate(entry.watched_at)}</span>
                 <small>${escapeHtml(idLine(entry))}</small>
@@ -1544,6 +1584,7 @@ function representativeEpisode(seasons) {
 function groupShows(episodes) {
   const shows = new Map();
   for (const episode of episodes) {
+    if (!isWatchedHistoryAction(episode)) continue;
     const title = showName(episode.title);
     if (!shows.has(title)) shows.set(title, new Map());
     const seasons = shows.get(title);
@@ -1557,6 +1598,7 @@ function groupShows(episodes) {
 function seasonsFromShowRecord(show = {}) {
   const seasons = new Map();
   for (const episode of show.episodes || []) {
+    if (!isWatchedHistoryAction(episode)) continue;
     const season = Number(episode.season) || 0;
     if (!seasons.has(season)) seasons.set(season, []);
     seasons.get(season).push(episode);
@@ -1943,11 +1985,13 @@ function mergeShowWithLoadedHistory(show = {}) {
 
   const byEpisode = new Map();
   for (const episode of show.episodes || []) {
+    if (!isWatchedHistoryAction(episode)) continue;
     if (episode.season == null || episode.episode == null) continue;
     byEpisode.set(showEpisodeKey(episode.season, episode.episode), episode);
   }
 
   for (const row of state.history || []) {
+    if (!isWatchedHistoryAction(row)) continue;
     if (row.media_type !== "episode") continue;
     if (row.season == null || row.episode == null) continue;
     const rowShowTitle = row.show_title || showTitleFrom(row.title);
@@ -2130,6 +2174,11 @@ async function openImmersiveModal(id) {
         </div>
       </div>
     `;
+    return;
+  }
+
+  if (!isWatchedHistoryAction(entry)) {
+    openDebugModal(entry);
     return;
   }
 
@@ -2416,6 +2465,7 @@ function tmdbImage(path, size = "w300") {
 function watchedEpisodesByKey(show = {}) {
   const map = new Map();
   for (const episode of show.episodes || []) {
+    if (!isWatchedHistoryAction(episode)) continue;
     map.set(showEpisodeKey(episode.season, episode.episode), episode);
   }
   return map;
@@ -3163,6 +3213,7 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
 
 function openDebugModal(entry) {
   if (!entry) return;
+  const status = syncStatus(entry);
   elements.debugModal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
   document.querySelector("#debugModalTitle").textContent = entry.title || "History row";
@@ -3174,6 +3225,8 @@ function openDebugModal(entry) {
       <div><span>TMDB</span><b>${escapeHtml(entry.tmdb_id || "None")}</b></div>
       <div><span>TVDB</span><b>${escapeHtml(entry.tvdb_id || "None")}</b></div>
       <div><span>Source</span><b>${escapeHtml(platformName(entry.source))}</b></div>
+      <div><span>Action</span><b>${escapeHtml(historyAction(entry))}</b></div>
+      <div><span>Sync state</span><b>${escapeHtml(status.label)}</b></div>
       <div><span>Season</span><b>${escapeHtml(entry.season ?? "None")}</b></div>
       <div><span>Episode</span><b>${escapeHtml(entry.episode ?? "None")}</b></div>
       <div><span>Watched at (oldest)</span><b>${escapeHtml(formatDate(entry.watched_at))}</b></div>
@@ -4226,6 +4279,10 @@ function attachEvents() {
 
     const historyRow = event.target.closest("[data-history-id]");
     if (historyRow) {
+      if (event.target.closest("[data-sync-status-dot]")) {
+        openHistoryDebugModal(historyRow.dataset.historyId).catch((error) => setMessage(error.message, "error"));
+        return;
+      }
       const isMovieCard = event.target.closest(".movie-card");
       if (isMovieCard) {
         openImmersiveModal(historyRow.dataset.historyId).catch((error) => setMessage(error.message, "error"));
@@ -4251,6 +4308,16 @@ function attachEvents() {
       }
       return;
     }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (!["Enter", " "].includes(event.key)) return;
+    const statusDot = event.target.closest?.("[data-sync-status-dot]");
+    if (!statusDot) return;
+    const historyRow = statusDot.closest("[data-history-id]");
+    if (!historyRow) return;
+    event.preventDefault();
+    openHistoryDebugModal(historyRow.dataset.historyId).catch((error) => setMessage(error.message, "error"));
   });
 
   elements.updateTokenButton.addEventListener("click", async () => {
