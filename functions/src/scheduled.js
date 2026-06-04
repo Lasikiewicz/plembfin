@@ -243,18 +243,42 @@ async function syncRecentlyWatchedFromPlex(config, loopStore) {
       console.error("Failed to fetch Plex history in cron", historyRes.status);
     }
 
-    const recentlyViewedUrl = new URL(`${baseUrl}/library/recentlyViewed`);
-    recentlyViewedUrl.searchParams.set("X-Plex-Token", token);
-    recentlyViewedUrl.searchParams.set("X-Plex-Container-Start", "0");
-    recentlyViewedUrl.searchParams.set("X-Plex-Container-Size", "20");
-
-    const recentlyViewedRes = await fetch(recentlyViewedUrl, { headers: { Accept: "application/json" } });
     let recentlyViewedItems = [];
-    if (recentlyViewedRes.ok) {
-      const recentlyViewedData = await recentlyViewedRes.json();
-      recentlyViewedItems = recentlyViewedData?.MediaContainer?.Metadata || [];
-    } else {
-      console.error("Failed to fetch Plex recently viewed in cron", recentlyViewedRes.status);
+    try {
+      const sectionsUrl = new URL(`${baseUrl}/library/sections`);
+      sectionsUrl.searchParams.set("X-Plex-Token", token);
+      const sectionsRes = await fetch(sectionsUrl, { headers: { Accept: "application/json" } });
+      if (sectionsRes.ok) {
+        const sectionsData = await sectionsRes.json();
+        const directories = sectionsData?.MediaContainer?.Directory || [];
+        for (const dir of directories) {
+          const sectionId = dir.key;
+          const type = dir.type;
+          if (type !== "movie" && type !== "show") continue;
+
+          const sectionAllUrl = new URL(`${baseUrl}/library/sections/${sectionId}/all`);
+          sectionAllUrl.searchParams.set("X-Plex-Token", token);
+          sectionAllUrl.searchParams.set("sort", "viewedAt:desc");
+          sectionAllUrl.searchParams.set("X-Plex-Container-Start", "0");
+          sectionAllUrl.searchParams.set("X-Plex-Container-Size", "20");
+          if (type === "movie") {
+            sectionAllUrl.searchParams.set("type", "1");
+          } else {
+            sectionAllUrl.searchParams.set("type", "4"); // Episode
+          }
+
+          const sectionRes = await fetch(sectionAllUrl, { headers: { Accept: "application/json" } });
+          if (sectionRes.ok) {
+            const sectionData = await sectionRes.json();
+            const metadata = sectionData?.MediaContainer?.Metadata || [];
+            recentlyViewedItems.push(...metadata);
+          }
+        }
+      } else {
+        console.error("Failed to fetch Plex sections in cron", sectionsRes.status);
+      }
+    } catch (err) {
+      console.error("Error fetching Plex recently viewed items in cron", err);
     }
 
     // Combine and deduplicate
