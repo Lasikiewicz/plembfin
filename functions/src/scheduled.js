@@ -305,6 +305,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
         title: item.title,
         type: item.type,
         source: "plex",
+        isValid: true,
         ids: {},
       };
 
@@ -396,12 +397,18 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
           tvdb: ids.tvdb || undefined,
         },
         source: "emby",
+        isValid: true,
       };
 
       const key = mediaKeyFor(media);
       const hasLastPlayed = Boolean(item.UserData?.LastPlayedDate);
-      const watchedAt = hasLastPlayed ? new Date(item.UserData.LastPlayedDate).toISOString() : new Date().toISOString();
+      // For items without a precise timestamp use a stable synthetic date (midnight UTC)
+      // so repeated cron runs produce the same watchedAt and the dedup query succeeds.
+      const watchedAt = hasLastPlayed
+        ? new Date(item.UserData.LastPlayedDate).toISOString()
+        : new Date(new Date().toISOString().slice(0, 10) + "T00:00:00.000Z").toISOString();
 
+      // Always dedup by mediaKey; add watchedAt filter only when we have a precise timestamp.
       let query = db.collection("watchHistory").where("mediaKey", "==", key);
       if (hasLastPlayed) {
         query = query.where("watchedAt", "==", watchedAt);
@@ -434,7 +441,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
           `Loop-check: Passed`,
           `Dispatch status: ${summary.status}`,
           `Details: Watch event fetched from Emby library history; sync completed.`,
-          ...summary.targetStates.map(
+          ...(summary.targetStates || []).map(
             (t) => `Target ${t.target} status: ${t.status}${t.detail ? ` - ${t.detail}` : ""}`
           ),
         ].join("\n");
@@ -471,12 +478,18 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
           tvdb: ids.tvdb || undefined,
         },
         source: "jellyfin",
+        isValid: true,
       };
 
       const key = mediaKeyFor(media);
       const hasLastPlayed = Boolean(item.UserData?.LastPlayedDate);
-      const watchedAt = hasLastPlayed ? new Date(item.UserData.LastPlayedDate).toISOString() : new Date().toISOString();
+      // For items without a precise timestamp use a stable synthetic date (midnight UTC)
+      // so repeated cron runs produce the same watchedAt and the dedup query succeeds.
+      const watchedAt = hasLastPlayed
+        ? new Date(item.UserData.LastPlayedDate).toISOString()
+        : new Date(new Date().toISOString().slice(0, 10) + "T00:00:00.000Z").toISOString();
 
+      // Always dedup by mediaKey; add watchedAt filter only when we have a precise timestamp.
       let query = db.collection("watchHistory").where("mediaKey", "==", key);
       if (hasLastPlayed) {
         query = query.where("watchedAt", "==", watchedAt);
@@ -509,7 +522,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
           `Loop-check: Passed`,
           `Dispatch status: ${summary.status}`,
           `Details: Watch event fetched from Jellyfin library history; sync completed.`,
-          ...summary.targetStates.map(
+          ...(summary.targetStates || []).map(
             (t) => `Target ${t.target} status: ${t.status}${t.detail ? ` - ${t.detail}` : ""}`
           ),
         ].join("\n");
@@ -545,6 +558,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         title: data.title,
         type: data.mediaType,
         source: data.source,
+        isValid: true,
         ids: {
           imdb: data.ids?.imdb || undefined,
           tmdb: data.ids?.tmdb || undefined,
@@ -567,7 +581,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         `Loop-check: Passed`,
         `Dispatch status: ${summary.status}`,
         `Details: Manual watch state propagated; sync completed.`,
-        ...summary.targetStates.map(
+        ...(summary.targetStates || []).map(
           (t) => `Target ${t.target} status: ${t.status}${t.detail ? ` - ${t.detail}` : ""}`
         ),
       ].join("\n");
