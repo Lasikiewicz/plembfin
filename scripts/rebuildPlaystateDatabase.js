@@ -943,6 +943,7 @@ async function main() {
     const canonicalMap = new Map();
     traktCurrent.forEach((record) => addCanonical(canonicalMap, record, "trakt_current", mediaKeyFor));
     plexCurrent.forEach((record) => addCanonical(canonicalMap, record, "plex_current", mediaKeyFor));
+    plexHistory.forEach((record) => addCanonical(canonicalMap, record, "plex_history", mediaKeyFor));
 
     const history = dedupeHistory([...traktHistory, ...plexHistory], mediaKeyFor);
     console.log(`Canonical watched rows: ${canonicalMap.size}`);
