@@ -8,6 +8,60 @@ function requirePlexConfig(config = {}) {
   }
 }
 
+function normalizePlexIdentity(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isOwnerPlexUsername(username = "") {
+  return username === "admin" || username === "owner";
+}
+
+function accountMatchesUsername(account = {}, username = "") {
+  return [
+    account.name,
+    account.title,
+    account.username,
+    account.accountName,
+  ]
+    .map(normalizePlexIdentity)
+    .some((value) => value === username);
+}
+
+async function resolvePlexAccountId(config = {}) {
+  const username = normalizePlexIdentity(config.username);
+  if (!username) return null;
+  if (isOwnerPlexUsername(username)) return 1;
+
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const accountsUrl = new URL(`${baseUrl}/accounts`);
+  accountsUrl.searchParams.set("X-Plex-Token", config.token);
+
+  const response = await fetch(accountsUrl, { headers: { Accept: "application/json" } });
+  if (!response.ok) {
+    console.warn(`Plex account mapping failed with HTTP ${response.status}`);
+    return null;
+  }
+
+  const body = await response.json();
+  const accounts = body?.MediaContainer?.Account || [];
+  const matchedAccount = accounts.find((account) => accountMatchesUsername(account, username));
+  const accountId = Number(matchedAccount?.id);
+  if (!Number.isFinite(accountId)) {
+    console.warn(`Plex account mapping did not find configured username "${config.username}"`);
+    return null;
+  }
+
+  return accountId;
+}
+
+async function addConfiguredPlexAccountId(url, config = {}) {
+  const accountId = await resolvePlexAccountId(config);
+  if (accountId != null) {
+    url.searchParams.set("accountID", String(accountId));
+  }
+  return accountId;
+}
+
 function plexGuidCandidates(media) {
   const candidates = [];
 
@@ -243,6 +297,7 @@ export async function markPlexPlayed(config, media) {
     url.searchParams.set("key", item.ratingKey);
     url.searchParams.set("identifier", "com.plexapp.plugins.library");
     url.searchParams.set("X-Plex-Token", config.token);
+    await addConfiguredPlexAccountId(url, config);
 
     const response = await fetch(url, { headers: { Accept: "application/json" } });
     if (!response.ok) {
@@ -271,6 +326,7 @@ export async function markPlexUnplayed(config, media) {
     url.searchParams.set("key", item.ratingKey);
     url.searchParams.set("identifier", "com.plexapp.plugins.library");
     url.searchParams.set("X-Plex-Token", config.token);
+    await addConfiguredPlexAccountId(url, config);
 
     const response = await fetch(url, { headers: { Accept: "application/json" } });
     if (!response.ok) {
@@ -306,6 +362,7 @@ export async function setPlexProgress(config, media) {
     url.searchParams.set("time", String(positionMs));
     url.searchParams.set("state", "stopped");
     url.searchParams.set("X-Plex-Token", config.token);
+    await addConfiguredPlexAccountId(url, config);
 
     const response = await fetch(url, { headers: { Accept: "application/json" } });
     if (!response.ok) {
@@ -323,6 +380,7 @@ export async function setPlexProgress(config, media) {
 export async function fetchPlexWatchedItems(config) {
   requirePlexConfig(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
+  const accountId = await resolvePlexAccountId(config);
 
   const sectionsUrl = new URL(`${baseUrl}/library/sections`);
   sectionsUrl.searchParams.set("X-Plex-Token", config.token);
@@ -343,6 +401,9 @@ export async function fetchPlexWatchedItems(config) {
     const allUrl = new URL(`${baseUrl}/library/sections/${sectionId}/all`);
     allUrl.searchParams.set("X-Plex-Token", config.token);
     allUrl.searchParams.set("unwatched", "0");
+    if (accountId != null) {
+      allUrl.searchParams.set("accountID", String(accountId));
+    }
 
     if (type === "movie") {
       allUrl.searchParams.set("type", "1");
@@ -364,4 +425,3 @@ export async function fetchPlexWatchedItems(config) {
 
   return watchedItems;
 }
-

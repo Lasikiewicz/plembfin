@@ -1,6 +1,7 @@
 import { markPlexPlayed, markPlexUnplayed, setPlexProgress } from "./plexClient.js";
 import { markEmbyPlayed, markEmbyUnplayed, setEmbyProgress } from "./embyClient.js";
 import { markJellyfinPlayed, markJellyfinUnplayed, setJellyfinProgress } from "./jellyfinClient.js";
+import { watchedPlayedSyncEnabled } from "./syncFlags.js";
 
 const LOOP_CACHE_TTL_SECONDS = 60;
 const LOOP_WINDOW_MS = 15_000;
@@ -218,6 +219,10 @@ function formatTargets(targets) {
 }
 
 export async function syncMediaPlaystate(media, config, kv) {
+  if (!watchedPlayedSyncEnabled()) {
+    return { skipped: true, status: "skipped", details: "Watched/played syncing is disabled.", targetStates: [], results: [] };
+  }
+
   if (!media?.isValid) {
     console.log("Sync skipped; invalid normalized media payload", media);
     return { skipped: true, status: "skipped", details: "Invalid normalized media payload", results: [] };
@@ -263,6 +268,10 @@ export async function syncMediaPlaystate(media, config, kv) {
 }
 
 export async function syncMediaUnplayedPlaystate(media, config, kv) {
+  if (!watchedPlayedSyncEnabled()) {
+    return { skipped: true, status: "skipped", details: "Watched/played syncing is disabled.", targetStates: [], results: [] };
+  }
+
   if (!media?.isValid) {
     console.log("Sync unplayed skipped; invalid normalized media payload", media);
     return { skipped: true, status: "skipped", details: "Invalid normalized media payload", results: [] };

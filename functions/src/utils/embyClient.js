@@ -289,25 +289,26 @@ export async function fetchEmbyEpisodes(config, parentId) {
   url.searchParams.set("ParentId", parentId);
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("IncludeItemTypes", "Episode");
-  url.searchParams.set("Fields", "ProviderIds,UserData");
+  url.searchParams.set("Fields", "ProviderIds,UserData,PremiereDate,ProductionYear");
   url.searchParams.set("api_key", config.apiKey);
 
   const data = await fetchJson(url, config);
   return data?.Items || [];
 }
 
-export async function fetchEmbyWatchedItems(config) {
+export async function fetchEmbyWatchedItems(config, { limit = 0 } = {}) {
   requireEmbyConfig(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("Filters", "IsPlayed");
   url.searchParams.set("IncludeItemTypes", "Movie,Episode");
-  url.searchParams.set("Fields", "ProviderIds,UserData");
+  url.searchParams.set("Fields", "ProviderIds,UserData,PremiereDate,ProductionYear");
+  url.searchParams.set("SortBy", "DatePlayed");
+  url.searchParams.set("SortOrder", "Descending");
+  if (Number(limit) > 0) url.searchParams.set("Limit", String(Math.max(1, Math.round(Number(limit)))));
   url.searchParams.set("api_key", config.apiKey);
 
   const data = await fetchJson(url, config);
   return data?.Items || [];
 }
-
-

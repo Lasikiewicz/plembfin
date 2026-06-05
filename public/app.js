@@ -929,7 +929,37 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
   `;
 }
 
-
+      function rebuildPlaystateGuide() {
+        return `
+          <p><b>scripts/rebuildPlaystateDatabase.js</b> is the one-time database reset tool for rebuilding Plembfin from a Trakt export and the latest live Plex state. It preserves saved server/admin settings, clears media history and sync state, imports Trakt and Plex history, writes canonical playstate rows, then converges Plex, Emby, and Jellyfin.</p>
+          <p>Run the dry run first. It reads the Trakt export folder and configured media server APIs, but does not write because <code>--write</code> is omitted. Only run the write command after the convergence plan looks safe.</p>
+          <section class="guide-callout">
+            <b>What the write pass changes</b>
+            <ol>
+              <li>Clears <code>watchHistory</code>, <code>playstate</code>, <code>playbackProgress</code>, sync logs, active-session cache, live-tracking cache, and derived history caches.</li>
+              <li>Preserves saved Plex, Emby, Jellyfin, TMDB, and admin configuration.</li>
+              <li>Imports Trakt <code>watched-history-*.json</code> and current watched movie/show exports.</li>
+              <li>Pulls Plex full play history, current Plex watched state, and target-library availability from the live Plex API.</li>
+              <li>Skips items unavailable in a target library instead of issuing thousands of failed mark-watched requests.</li>
+            </ol>
+          </section>
+          <section class="guide-callout">
+            <b>Dry run</b>
+            <div class="copy-block">
+              <button class="copy-button" type="button" data-copy="node scripts/rebuildPlaystateDatabase.js --trakt-dir &quot;C:\\Users\\lasik\\Downloads\\trakt-export-lasikie&quot;" aria-label="Copy dry-run command">Copy</button>
+              <pre><code>node scripts/rebuildPlaystateDatabase.js --trakt-dir "C:\\Users\\lasik\\Downloads\\trakt-export-lasikie"</code></pre>
+            </div>
+          </section>
+          <section class="guide-callout">
+            <b>Write pass</b>
+            <p>This clears and rebuilds Plembfin media data, then applies the convergence plan to all configured media servers.</p>
+            <div class="copy-block">
+              <button class="copy-button" type="button" data-copy="node scripts/rebuildPlaystateDatabase.js --trakt-dir &quot;C:\\Users\\lasik\\Downloads\\trakt-export-lasikie&quot; --write" aria-label="Copy write command">Copy</button>
+              <pre><code>node scripts/rebuildPlaystateDatabase.js --trakt-dir "C:\\Users\\lasik\\Downloads\\trakt-export-lasikie" --write</code></pre>
+            </div>
+          </section>
+        `;
+      }
 
       function exportPlexHistoryGuide() {
         return `
@@ -1056,11 +1086,11 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
           },
         },
         {
-          id: "export-plex-history",
+          id: "rebuild-playstate",
           category: "Local Utilities",
-          title: "scripts/exportPlexHistory.js",
-          badges: ["PLEX_URL", "PLEX_TOKEN", "FIREBASE_AUTH"],
-          body: () => exportPlexHistoryGuide(),
+          title: "Rebuild Playstate Database",
+          badges: ["FIREBASE_AUTH", "PLEX_TOKEN", "EMBY_API_KEY", "JELLYFIN_API_KEY"],
+          body: () => rebuildPlaystateGuide(),
         },
         {
           id: "force-push-history",

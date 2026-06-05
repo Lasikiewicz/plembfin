@@ -16,7 +16,7 @@ import { runForceSync, runScheduledSync } from "./scheduled.js";
 import {
   batchInsertWatchRecords,
   countPlaybackProgressRows,
-  countWatchHistoryRows,
+  countWatchedPlaystateRows,
   deletePlaybackProgress,
   deleteWatchRecord,
   getWatchRecordById,
@@ -25,7 +25,7 @@ import {
   invalidateHistoryDerivedCaches,
   insertWatchRecord,
   listPlaybackProgressRowsForReplay,
-  listWatchRowsForReplay,
+  listWatchedPlaystateRowsForReplay,
   mediaToPlaybackProgressRecord,
   mediaToWatchRecord,
   progressRowToMedia,
@@ -37,9 +37,11 @@ import {
   updatePlaybackProgressTelemetry,
   updateWatchTelemetry,
   upsertPlaybackProgress,
+  upsertPlaystateForMedia,
   watchRowToMedia,
 } from "./utils/firestoreRepo.js";
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
+import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
 import { db, FieldValue } from "./firebase.js";
 
@@ -334,9 +336,9 @@ async function handleShows(req, res) {
 
 function configuredRestoreTargets(config = {}) {
   const targets = [];
-  if (config.plex?.baseUrl && config.plex?.token) targets.push("plex");
-  if (config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId) targets.push("emby");
-  if (config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId) targets.push("jellyfin");
+  if (!config.plex?.disabled && config.plex?.baseUrl && config.plex?.token) targets.push("plex");
+  if (!config.emby?.disabled && config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId) targets.push("emby");
+  if (!config.jellyfin?.disabled && config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId) targets.push("jellyfin");
   return targets;
 }
 
@@ -378,6 +380,16 @@ async function handleFullSyncWatchstates(req, res) {
 
   const body = await readJson(req).catch(() => ({}));
   const phase = String(body.phase || "watched") === "progress" ? "progress" : "watched";
+  if (phase === "watched" && !watchedPlayedSyncEnabled()) {
+    return sendJson(res, {
+      ok: true,
+      skipped: true,
+      phase,
+      processed: 0,
+      hasMore: false,
+      note: "Watched/played syncing is disabled.",
+    });
+  }
   const offset = Math.max(Number(body.offset || 0), 0);
   const limit = Math.min(Math.max(Number(body.limit || 25), 1), 100);
   const config = await loadMediaConfig();
@@ -389,10 +401,10 @@ async function handleFullSyncWatchstates(req, res) {
     return sendJson(res, { ok: true, phase, offset, limit, processed: 0, nextOffset: offset, hasMore: false, targets, summary, errors, note: "No configured restore targets." });
   }
 
-  const total = phase === "progress" ? await countPlaybackProgressRows() : await countWatchHistoryRows();
+  const total = phase === "progress" ? await countPlaybackProgressRows() : await countWatchedPlaystateRows();
   const rows = phase === "progress"
     ? await listPlaybackProgressRowsForReplay({ limit, offset })
-    : await listWatchRowsForReplay({ limit, offset });
+    : await listWatchedPlaystateRowsForReplay({ limit, offset });
 
   for (const row of rows) {
     for (const target of targets) {
@@ -647,6 +659,7 @@ async function handleWebhook(req, res) {
             unplayedRecord.sync_action = "unwatched";
             unplayedRecord.sync_dispatch_telemetry = formatDispatchTelemetry(pendingSummary, episodeMedia, "unwatched");
             const dbResult = await insertWatchRecord(requireDb(), unplayedRecord);
+            await upsertPlaystateForMedia(requireDb(), episodeMedia, "unwatched", dbResult.record.watched_at);
             const summary = await syncMediaUnplayedPlaystate(episodeMedia, config, loopStore).catch((error) => ({
               skipped: false,
               status: "error",
@@ -662,6 +675,7 @@ async function handleWebhook(req, res) {
             watchRecord.sync_action = "watched";
             watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, episodeMedia, "watched");
             const dbResult = await insertWatchRecord(requireDb(), watchRecord);
+            await upsertPlaystateForMedia(requireDb(), episodeMedia, "watched", dbResult.record.watched_at);
             const summary = await syncMediaPlaystate(episodeMedia, config, loopStore).catch((error) => ({
               skipped: false,
               status: "error",
@@ -736,6 +750,7 @@ async function handleWebhook(req, res) {
     unplayedRecord.sync_action = "unwatched";
     unplayedRecord.sync_dispatch_telemetry = formatDispatchTelemetry(pendingSummary, media, "unwatched");
     const result = await insertWatchRecord(requireDb(), unplayedRecord);
+    await upsertPlaystateForMedia(requireDb(), media, "unwatched", result.record.watched_at);
     const summary = await syncMediaUnplayedPlaystate(media, config, loopStore).catch((error) => ({
       skipped: false,
       status: "error",
@@ -753,6 +768,7 @@ async function handleWebhook(req, res) {
     watchRecord.sync_action = "watched";
     watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, media, "watched");
     const result = await insertWatchRecord(requireDb(), watchRecord);
+    await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at);
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
     const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
       skipped: false,
@@ -1069,6 +1085,6 @@ async function dispatch(req, res) {
 
 export const api = onRequest({ region, cors: true, timeoutSeconds: 540, memory: "512MiB" }, dispatch);
 
-export const scheduledSync = onSchedule({ schedule: "every 1 minutes", region, timeoutSeconds: 540, memory: "512MiB" }, async () => {
+export const scheduledSync = onSchedule({ schedule: "every 60 minutes", region, timeoutSeconds: 540, memory: "512MiB" }, async () => {
   await runScheduledSync();
 });

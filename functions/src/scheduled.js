@@ -3,6 +3,7 @@ import { findPlexItem } from "./utils/plexClient.js";
 import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/liveSessions.js";
 import { appendSyncHistory, loadMediaConfig, loadRuntimeState, setRuntimeState } from "./utils/configStore.js";
 import { createLoopStore } from "./utils/loopStore.js";
+import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { db } from "./firebase.js";
 import {
   deleteLiveTrackingCacheRows,
@@ -21,7 +22,10 @@ import {
   updateWatchTelemetry,
   upsertLiveTrackingCache,
   upsertPlaybackProgress,
+  upsertPlaystateForMedia,
 } from "./utils/firestoreRepo.js";
+
+const SCHEDULED_RECENT_WATCH_LIMIT = 50;
 
 function buildTelemetry(media, summary) {
   const targetStates = summary?.targetStates || [];
@@ -58,6 +62,118 @@ function cachedRowToMedia(row) {
   };
 }
 
+function dateOnlyIso(value = "") {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`).toISOString();
+}
+
+function releaseDateForItem(item = {}) {
+  return dateOnlyIso(
+    item.PremiereDate ||
+      item.OriginalReleaseDate ||
+      item.originallyAvailableAt ||
+      (item.ProductionYear ? `${item.ProductionYear}-01-01T00:00:00.000Z` : ""),
+  );
+}
+
+function releaseDateForPlexItem(item = {}) {
+  return dateOnlyIso(
+    item.originallyAvailableAt ||
+      item.OriginallyAvailableAt ||
+      (item.year ? `${item.year}-01-01T00:00:00.000Z` : ""),
+  );
+}
+
+function normalizePlexIdentity(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function configuredPlexUsername(config = {}) {
+  return normalizePlexIdentity(config.plex?.username);
+}
+
+function isOwnerPlexUsername(username = "") {
+  return username === "admin" || username === "owner";
+}
+
+function plexAccountIdFromItem(item = {}) {
+  const value = item.accountID ?? item.accountId ?? item.account_id ?? item.userID ?? item.userId;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function plexUsernamesFromItem(item = {}) {
+  const user = item.User || item.user || {};
+  const account = item.Account || item.account || {};
+  return [
+    item.username,
+    item.user,
+    item.userName,
+    item.account,
+    item.accountName,
+    item.accountTitle,
+    user.title,
+    user.name,
+    account.title,
+    account.name,
+  ]
+    .map(normalizePlexIdentity)
+    .filter(Boolean);
+}
+
+function accountMatchesUsername(account = {}, username = "") {
+  return [
+    account.name,
+    account.title,
+    account.username,
+    account.accountName,
+  ]
+    .map(normalizePlexIdentity)
+    .some((value) => value === username);
+}
+
+async function resolvePlexTargetAccountId(baseUrl, token, username, logger = console.log) {
+  if (!username) return null;
+  if (isOwnerPlexUsername(username)) return 1;
+
+  try {
+    const accountsUrl = new URL(`${baseUrl}/accounts`);
+    accountsUrl.searchParams.set("X-Plex-Token", token);
+    const accountsRes = await fetch(accountsUrl, { headers: { Accept: "application/json" } });
+    if (!accountsRes.ok) {
+      logger(`Plex account mapping failed: HTTP ${accountsRes.status}`);
+      return null;
+    }
+
+    const accountsData = await accountsRes.json();
+    const accounts = accountsData?.MediaContainer?.Account || [];
+    const matchedAccount = accounts.find((account) => accountMatchesUsername(account, username));
+    const accountId = Number(matchedAccount?.id);
+    return Number.isFinite(accountId) ? accountId : null;
+  } catch (error) {
+    logger(`Plex account mapping failed: ${error.message}`);
+    return null;
+  }
+}
+
+function plexHistoryItemMatchesConfiguredUser(item = {}, { username = "", accountId = null } = {}) {
+  if (!username) return true;
+
+  const itemAccountId = plexAccountIdFromItem(item);
+  if (itemAccountId != null && accountId != null) {
+    return itemAccountId === accountId;
+  }
+
+  const itemUsernames = plexUsernamesFromItem(item);
+  if (itemUsernames.length) {
+    return itemUsernames.includes(username);
+  }
+
+  return false;
+}
+
 async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
   await appendSyncHistory({
     mediaType: media.type || media.mediaType || "unknown",
@@ -79,6 +195,7 @@ async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
 }
 
 async function checkPlexUnwatchedStatus(config, loopStore) {
+  if (!watchedPlayedSyncEnabled()) return;
   if (!config.plex?.baseUrl || !config.plex?.token) return;
 
   const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
@@ -108,8 +225,20 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
         if (!isWatched) {
           console.log("Cron detected Plex item marked unwatched: deleting watch history and syncing", { title: record.title });
           await deleteWatchRecordById(record.id);
-          const summary = await syncMediaUnplayedPlaystate({ ...media, isValid: true, source: "plex" }, config, loopStore);
-          await recordSyncHistory({ ...media, isValid: true, source: "plex" }, summary, "unwatched");
+          const unplayedMedia = { ...media, isValid: true, source: "plex" };
+          const unplayedRecord = mediaToWatchRecord({ ...unplayedMedia, syncAction: "unwatched" }, "plex");
+          unplayedRecord.sync_action = "unwatched";
+          unplayedRecord.sync_dispatch_telemetry = buildTelemetry(unplayedMedia, {
+            skipped: false,
+            status: "pending",
+            details: "Plex unwatched propagation queued",
+            targetStates: [],
+          });
+          const inserted = await insertWatchRecord(requireDb(), unplayedRecord);
+          await upsertPlaystateForMedia(requireDb(), unplayedMedia, "unwatched", inserted.record.watched_at);
+          const summary = await syncMediaUnplayedPlaystate(unplayedMedia, config, loopStore);
+          await updateWatchTelemetry(requireDb(), inserted.id, buildTelemetry(unplayedMedia, summary));
+          await recordSyncHistory(unplayedMedia, summary, "unwatched");
         }
       }
     } catch (error) {
@@ -138,6 +267,7 @@ async function processCompletedSession(row, config, loopStore) {
   );
 
   const inserted = await insertWatchRecord(requireDb(), watchRecord);
+  await upsertPlaystateForMedia(requireDb(), media, "watched", inserted.record.watched_at);
   let syncSummary;
   try {
     syncSummary = await syncMediaPlaystate(media, config, loopStore);
@@ -200,32 +330,20 @@ async function processStoppedSessionProgress(row, config, loopStore) {
 }
 
 async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.log) {
+  if (!watchedPlayedSyncEnabled()) {
+    logger("Plex watched library sync is disabled.");
+    return 0;
+  }
   if (!config.plex?.baseUrl || !config.plex?.token) return 0;
 
   const baseUrl = config.plex.baseUrl.replace(/\/+$/, "");
   const token = config.plex.token;
-  const username = config.plex.username || "";
+  const username = configuredPlexUsername(config);
   let syncedCount = 0;
 
-  let targetAccountId = 1;
-  if (username && username.toLowerCase() !== "admin" && username.toLowerCase() !== "owner") {
-    try {
-      const accountsUrl = new URL(`${baseUrl}/accounts`);
-      accountsUrl.searchParams.set("X-Plex-Token", token);
-      const accountsRes = await fetch(accountsUrl, { headers: { Accept: "application/json" } });
-      if (accountsRes.ok) {
-        const accountsData = await accountsRes.json();
-        const accounts = accountsData?.MediaContainer?.Account || [];
-        const matchedAccount = accounts.find(
-          (acc) => acc.name && acc.name.toLowerCase() === username.toLowerCase()
-        );
-        if (matchedAccount) {
-          targetAccountId = Number(matchedAccount.id);
-        }
-      }
-    } catch (err) {
-      logger(`Plex account mapping failed: ${err.message}`);
-    }
+  const targetAccountId = await resolvePlexTargetAccountId(baseUrl, token, username, logger);
+  if (username && targetAccountId == null) {
+    logger(`Plex: configured user "${config.plex.username}" was not resolved to an account id; rows without a matching username will be skipped.`);
   }
 
   try {
@@ -233,6 +351,9 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
     historyUrl.searchParams.set("X-Plex-Token", token);
     historyUrl.searchParams.set("X-Plex-Container-Start", "0");
     historyUrl.searchParams.set("X-Plex-Container-Size", "20");
+    if (targetAccountId != null) {
+      historyUrl.searchParams.set("accountID", String(targetAccountId));
+    }
 
     const historyRes = await fetch(historyUrl, { headers: { Accept: "application/json" } });
     let items = [];
@@ -287,20 +408,25 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
     const uniqueItems = [];
 
     for (const item of allItems) {
-      if (item.accountID && Number(item.accountID) !== targetAccountId) continue;
+      if (!plexHistoryItemMatchesConfiguredUser(item, { username, accountId: targetAccountId })) continue;
       if (item.type !== "movie" && item.type !== "episode") continue;
 
-      const viewedAtTime = item.viewedAt || item.lastViewedAt;
-      if (!viewedAtTime) continue;
+      const watchedAt = item.viewedAt || item.lastViewedAt
+        ? new Date(Number(item.viewedAt || item.lastViewedAt) * 1000).toISOString()
+        : releaseDateForPlexItem(item);
+      if (!watchedAt) {
+        logger(`Plex: skipped watched item without played or release date: ${item.title || item.grandparentTitle || "unknown"}`);
+        continue;
+      }
 
-      const dedupeKey = `${item.ratingKey || item.key}-${viewedAtTime}`;
+      const dedupeKey = `${item.ratingKey || item.key}-${watchedAt}`;
       if (seenKeys.has(dedupeKey)) continue;
       seenKeys.add(dedupeKey);
 
-      uniqueItems.push({ item, viewedAtTime });
+      uniqueItems.push({ item, watchedAt });
     }
 
-    for (const { item, viewedAtTime } of uniqueItems) {
+    for (const { item, watchedAt } of uniqueItems) {
       const media = {
         title: item.title,
         type: item.type,
@@ -325,8 +451,6 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       }
 
       const key = mediaKeyFor(media);
-      const watchedAt = new Date(Number(viewedAtTime) * 1000).toISOString();
-
       const existing = await db
         .collection("watchHistory")
         .where("mediaKey", "==", key)
@@ -347,6 +471,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
         ].join("\n");
 
         const result = await insertWatchRecord(requireDb(), watchRecord);
+        await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at);
         const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
           skipped: false,
           status: "error",
@@ -377,12 +502,16 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
 }
 
 async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.log) {
+  if (!watchedPlayedSyncEnabled()) {
+    logger("Emby watched library sync is disabled.");
+    return 0;
+  }
   if (!config.emby?.baseUrl || !config.emby?.apiKey || !config.emby?.userId) return 0;
   let syncedCount = 0;
   try {
     const { fetchEmbyWatchedItems } = await import("./utils/embyClient.js");
     const { normalizeProviderIds } = await import("./utils/parsers.js");
-    const raw = await fetchEmbyWatchedItems(config.emby);
+    const raw = await fetchEmbyWatchedItems(config.emby, { limit: SCHEDULED_RECENT_WATCH_LIMIT });
     
     for (const item of raw) {
       const ids = normalizeProviderIds(item.ProviderIds);
@@ -402,11 +531,15 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
 
       const key = mediaKeyFor(media);
       const hasLastPlayed = Boolean(item.UserData?.LastPlayedDate);
-      // For items without a precise timestamp use a stable synthetic date (midnight UTC)
-      // so repeated cron runs produce the same watchedAt and the dedup query succeeds.
+      const releaseDate = releaseDateForItem(item);
       const watchedAt = hasLastPlayed
         ? new Date(item.UserData.LastPlayedDate).toISOString()
-        : new Date(new Date().toISOString().slice(0, 10) + "T00:00:00.000Z").toISOString();
+        : releaseDate;
+
+      if (!watchedAt) {
+        logger(`Emby: skipped watched item without played or release date: ${media.title}`);
+        continue;
+      }
 
       // Always dedup by mediaKey; add watchedAt filter only when we have a precise timestamp.
       let query = db.collection("watchHistory").where("mediaKey", "==", key);
@@ -417,7 +550,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
       const existing = await query.limit(1).get();
 
       if (existing.empty) {
-        logger(`Emby: detected new watched item: ${media.title} (played date: ${hasLastPlayed ? watchedAt : "manually marked"})`);
+        logger(`Emby: detected new watched item: ${media.title} (${hasLastPlayed ? `played at ${watchedAt}` : `release date ${watchedAt}`})`);
         const watchRecord = mediaToWatchRecord(media, "emby");
         watchRecord.watched_at = watchedAt;
         watchRecord.sync_action = "watched";
@@ -429,6 +562,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
         ].join("\n");
 
         const result = await insertWatchRecord(requireDb(), watchRecord);
+        await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at);
         const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
           skipped: false,
           status: "error",
@@ -458,12 +592,16 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
 }
 
 async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = console.log) {
+  if (!watchedPlayedSyncEnabled()) {
+    logger("Jellyfin watched library sync is disabled.");
+    return 0;
+  }
   if (!config.jellyfin?.baseUrl || !config.jellyfin?.apiKey || !config.jellyfin?.userId) return 0;
   let syncedCount = 0;
   try {
     const { fetchJellyfinWatchedItems } = await import("./utils/jellyfinClient.js");
     const { normalizeProviderIds } = await import("./utils/parsers.js");
-    const raw = await fetchJellyfinWatchedItems(config.jellyfin);
+    const raw = await fetchJellyfinWatchedItems(config.jellyfin, { limit: SCHEDULED_RECENT_WATCH_LIMIT });
     
     for (const item of raw) {
       const ids = normalizeProviderIds(item.ProviderIds);
@@ -483,11 +621,15 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
 
       const key = mediaKeyFor(media);
       const hasLastPlayed = Boolean(item.UserData?.LastPlayedDate);
-      // For items without a precise timestamp use a stable synthetic date (midnight UTC)
-      // so repeated cron runs produce the same watchedAt and the dedup query succeeds.
+      const releaseDate = releaseDateForItem(item);
       const watchedAt = hasLastPlayed
         ? new Date(item.UserData.LastPlayedDate).toISOString()
-        : new Date(new Date().toISOString().slice(0, 10) + "T00:00:00.000Z").toISOString();
+        : releaseDate;
+
+      if (!watchedAt) {
+        logger(`Jellyfin: skipped watched item without played or release date: ${media.title}`);
+        continue;
+      }
 
       // Always dedup by mediaKey; add watchedAt filter only when we have a precise timestamp.
       let query = db.collection("watchHistory").where("mediaKey", "==", key);
@@ -498,7 +640,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       const existing = await query.limit(1).get();
 
       if (existing.empty) {
-        logger(`Jellyfin: detected new watched item: ${media.title} (played date: ${hasLastPlayed ? watchedAt : "manually marked"})`);
+        logger(`Jellyfin: detected new watched item: ${media.title} (${hasLastPlayed ? `played at ${watchedAt}` : `release date ${watchedAt}`})`);
         const watchRecord = mediaToWatchRecord(media, "jellyfin");
         watchRecord.watched_at = watchedAt;
         watchRecord.sync_action = "watched";
@@ -510,6 +652,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
         ].join("\n");
 
         const result = await insertWatchRecord(requireDb(), watchRecord);
+        await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at);
         const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
           skipped: false,
           status: "error",
@@ -539,6 +682,10 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
 }
 
 async function syncPendingManualDispatches(config, loopStore, logger = console.log) {
+  if (!watchedPlayedSyncEnabled()) {
+    logger("Pending watched dispatch sync is disabled.");
+    return 0;
+  }
   let syncedCount = 0;
   try {
     const snapshot = await db
@@ -569,6 +716,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
       };
 
       logger(`Pending Queue: dispatching sync for ${media.title}...`);
+      await upsertPlaystateForMedia(requireDb(), media, "watched", data.watchedAt || data.watched_at);
       const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
         skipped: false,
         status: "error",
@@ -718,6 +866,17 @@ export async function runScheduledSync(logger = console.log) {
 }
 
 export async function runForceSync(logger = console.log) {
+  if (!watchedPlayedSyncEnabled()) {
+    logger("Force Sync skipped because watched/played syncing is disabled.");
+    return {
+      success: true,
+      skipped: true,
+      reason: "Watched/played syncing is disabled.",
+      activeTargets: [],
+      stats: { totalWatchedFoundAcrossServers: 0, addedToHistory: 0, deletedFromHistory: 0, propagatedUpdates: 0 },
+    };
+  }
+
   logger("Force Sync: checking if another sync job is already running...");
   const runtime = await loadRuntimeState();
   const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
@@ -770,7 +929,9 @@ export async function runForceSync(logger = console.log) {
             tmdb: null,
             tvdb: null,
             source: "plex",
-            timestamp: item.lastViewedAt ? new Date(Number(item.lastViewedAt) * 1000) : null,
+            timestamp: item.lastViewedAt
+              ? new Date(Number(item.lastViewedAt) * 1000)
+              : releaseDateForPlexItem(item) ? new Date(releaseDateForPlexItem(item)) : null,
           };
           const guids = [item.guid, ...(item.Guid || []).map((g) => g.id || g)].filter(Boolean);
           for (const guid of guids) {
@@ -813,7 +974,9 @@ export async function runForceSync(logger = console.log) {
             tmdb: ids.tmdb || null,
             tvdb: ids.tvdb || null,
             source: "emby",
-            timestamp: item.UserData?.LastPlayedDate ? new Date(item.UserData.LastPlayedDate) : null,
+            timestamp: item.UserData?.LastPlayedDate
+              ? new Date(item.UserData.LastPlayedDate)
+              : releaseDateForItem(item) ? new Date(releaseDateForItem(item)) : null,
           };
         });
       })().catch((err) => {
@@ -844,7 +1007,9 @@ export async function runForceSync(logger = console.log) {
             tmdb: ids.tmdb || null,
             tvdb: ids.tvdb || null,
             source: "jellyfin",
-            timestamp: item.UserData?.LastPlayedDate ? new Date(item.UserData.LastPlayedDate) : null,
+            timestamp: item.UserData?.LastPlayedDate
+              ? new Date(item.UserData.LastPlayedDate)
+              : releaseDateForItem(item) ? new Date(releaseDateForItem(item)) : null,
           };
         });
       })().catch((err) => {
@@ -1037,7 +1202,8 @@ export async function runForceSync(logger = console.log) {
           ...activeTargets.map(t => `Target ${t.charAt(0).toUpperCase() + t.slice(1)} status: success`)
         ].join("\n");
         if (newestTime > 0) watchRecord.watched_at = new Date(newestTime).toISOString();
-        await insertWatchRecord(requireDb(), watchRecord);
+        const inserted = await insertWatchRecord(requireDb(), watchRecord);
+        await upsertPlaystateForMedia(requireDb(), { ...mediaObj, source: watchRecord.source || "force_sync", isValid: true }, "watched", inserted.record.watched_at);
         addedToHistoryCount++;
       } else if (lastHistoryRecord && lastHistoryRecord.syncAction === "unwatched") {
         logger(`Firestore: deleting outdated unwatched record for "${mediaObj.title}"`);
@@ -1085,7 +1251,8 @@ export async function runForceSync(logger = console.log) {
           ...activeTargets.map(t => `Target ${t.charAt(0).toUpperCase() + t.slice(1)} status: success`)
         ].join("\n");
         if (newestTime > 0) unwatchedRecord.watched_at = new Date(newestTime).toISOString();
-        await insertWatchRecord(requireDb(), unwatchedRecord);
+        const inserted = await insertWatchRecord(requireDb(), unwatchedRecord);
+        await upsertPlaystateForMedia(requireDb(), { ...mediaObj, source: "force_sync", isValid: true }, "unwatched", inserted.record.watched_at);
       }
 
       for (const target of activeTargets) {
@@ -1130,4 +1297,3 @@ export async function runForceSync(logger = console.log) {
     await setRuntimeState({ forceSyncActive: false, forceSyncCancelRequested: false }).catch(() => null);
   }
 }
-
