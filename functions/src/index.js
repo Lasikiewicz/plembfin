@@ -28,6 +28,7 @@ import {
   listWatchedPlaystateRowsForReplay,
   mediaToPlaybackProgressRecord,
   mediaToWatchRecord,
+  mediaKeyFor,
   progressRowToMedia,
   querySyncJobs,
   queryMovies,
@@ -38,6 +39,7 @@ import {
   updateWatchTelemetry,
   upsertPlaybackProgress,
   upsertPlaystateForMedia,
+  watchRecordToFirestoreData,
   watchRowToMedia,
 } from "./utils/firestoreRepo.js";
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
@@ -454,6 +456,89 @@ async function handleImport(req, res) {
   if (!Array.isArray(records)) return sendJson(res, { error: "Expected an array of records" }, 400);
   if (records.length > 100) return sendJson(res, { error: "Batch size must be 100 records or fewer" }, 413);
   return sendJson(res, { ok: true, ...(await batchInsertWatchRecords(requireDb(), records)) });
+}
+
+function manualWatchMediaFromRecord(record = {}) {
+  return {
+    title: record.title,
+    type: record.media_type,
+    source: "manual",
+    ids: {
+      imdb: record.imdb_id || undefined,
+      tmdb: record.tmdb_id || undefined,
+      tvdb: record.tvdb_id || undefined,
+    },
+    season: record.season == null ? undefined : Number(record.season),
+    episode: record.episode == null ? undefined : Number(record.episode),
+    posterUrl: record.poster_url || undefined,
+    isValid: Boolean(record.title && ["movie", "episode"].includes(record.media_type)),
+  };
+}
+
+async function handleManualWatch(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const records = Array.isArray(body) ? body : body.records;
+  if (!Array.isArray(records)) return sendJson(res, { error: "Expected an array of records" }, 400);
+  if (records.length > 100) return sendJson(res, { error: "Batch size must be 100 records or fewer" }, 413);
+
+  const config = await loadMediaConfig();
+  const loopStore = createLoopStore();
+  const results = [];
+  let inserted = 0;
+  let skipped = 0;
+  let rejected = 0;
+  let propagated = 0;
+
+  for (const [index, rawRecord] of records.entries()) {
+    try {
+      const pending = {
+        ...rawRecord,
+        source: rawRecord.source || "manual",
+        sync_action: "watched",
+        sync_dispatch_telemetry: "Origin: manual\nLoop-check: Passed\nDispatch status: pending\nDetails: Manual watch propagation queued.",
+      };
+      const { data, record } = watchRecordToFirestoreData(pending, "manual");
+      const existing = await db
+        .collection("watchHistory")
+        .where("mediaKey", "==", data.mediaKey || mediaKeyFor(record))
+        .where("watchedAt", "==", data.watchedAt)
+        .limit(1)
+        .get();
+
+      const media = manualWatchMediaFromRecord(record);
+      let id = "";
+      if (existing.empty) {
+        const insertResult = await insertWatchRecord(requireDb(), record);
+        id = insertResult.id;
+        inserted += 1;
+      } else {
+        id = existing.docs[0].id;
+        skipped += 1;
+      }
+
+      await upsertPlaystateForMedia(requireDb(), media, "watched", record.watched_at);
+      const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
+        skipped: false,
+        status: "error",
+        details: `Manual watch propagation failed: ${error.message || String(error)}`,
+        targetStates: [],
+      }));
+
+      await updateWatchTelemetry(requireDb(), id, formatDispatchTelemetry(summary, media, "watched"));
+      await recordSyncHistory(media, summary, "watched");
+      if (summary.status === "success" || summary.status === "partial") propagated += 1;
+      results.push({ index, id, title: record.title, inserted: existing.empty, status: summary.status, targetStates: summary.targetStates || [] });
+    } catch (error) {
+      rejected += 1;
+      results.push({ index, rejected: true, error: error.message || String(error) });
+    }
+  }
+
+  return sendJson(res, { ok: true, inserted, skipped, rejected, propagated, results });
 }
 
 async function handleNowPlaying(req, res) {
@@ -1062,6 +1147,7 @@ async function dispatch(req, res) {
     if (path === "shows") return handleShows(req, res);
     if (path === "full-sync-watchstates") return handleFullSyncWatchstates(req, res);
     if (path === "import") return handleImport(req, res);
+    if (path === "manual-watch") return handleManualWatch(req, res);
     if (path === "now-playing") return handleNowPlaying(req, res);
     if (path === "active-sessions") return handleActiveSessions(req, res);
     if (path === "cron-sync") return handleCronSync(req, res);

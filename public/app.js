@@ -3218,10 +3218,11 @@ async function postManualWatchRecords(records) {
   let inserted = 0;
   let skipped = 0;
   let rejected = 0;
+  let propagated = 0;
 
   for (let index = 0; index < records.length; index += IMPORT_BATCH_SIZE) {
     const batch = records.slice(index, index + IMPORT_BATCH_SIZE);
-    const response = await fetch("/api/import", {
+    const response = await fetch("/api/manual-watch", {
       method: "POST",
       headers: { ...authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ records: batch }),
@@ -3231,9 +3232,10 @@ async function postManualWatchRecords(records) {
     inserted += Number(body.inserted || 0);
     skipped += Number(body.skipped || 0);
     rejected += Array.isArray(body.rejected) ? body.rejected.length : Number(body.rejected || 0);
+    propagated += Number(body.propagated || 0);
   }
 
-  return { inserted, skipped, rejected };
+  return { inserted, skipped, rejected, propagated };
 }
 
 async function refreshShowAfterManualWatch(showTitle) {
@@ -3272,7 +3274,11 @@ async function applyWatchDateChoice(choice) {
   try {
     const result = await postManualWatchRecords(records);
     clearDerivedUiCaches({ resetExplorer: false });
-    setMessage(`Marked ${result.inserted} episode${result.inserted === 1 ? "" : "s"} watched${result.skipped ? `, ${result.skipped} skipped` : ""}.`, result.rejected ? "error" : "success");
+    const totalMarked = result.inserted + result.skipped;
+    setMessage(
+      `Marked ${totalMarked} episode${totalMarked === 1 ? "" : "s"} watched; pushed ${result.propagated} to media apps${result.skipped ? `, ${result.skipped} already logged` : ""}.`,
+      result.rejected ? "error" : "success",
+    );
     await refreshShowAfterManualWatch(action.showTitle).catch((error) => setMessage(error.message, "error"));
     if (state.activeShowModalKey) {
       renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);

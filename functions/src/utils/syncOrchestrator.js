@@ -12,6 +12,7 @@ const TARGETS_BY_SOURCE = {
   plex: ["emby", "jellyfin"],
   emby: ["plex", "jellyfin"],
   jellyfin: ["plex", "emby"],
+  manual: ["plex", "emby", "jellyfin"],
 };
 
 function clientFor(target, config, media) {
