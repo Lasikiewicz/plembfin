@@ -1,6 +1,6 @@
 import { db, Timestamp } from "../firebase.js";
 
-const ACTIVE_SESSION_TTL_MS = 10_000;
+const ACTIVE_SESSION_TTL_MS = 300_000; // 5 minutes
 
 function normalizePart(value) {
   return String(value ?? "none").trim().toLowerCase().replace(/[^a-z0-9._:-]+/g, "-");
@@ -31,11 +31,14 @@ function fromDoc(doc) {
     mediaType: data.mediaType || "unknown",
     source: data.source || "unknown",
     progress: Number(data.progress || 0),
+    offsetMs: Number(data.offsetMs || 0),
+    durationMs: Number(data.durationMs || 0),
     season: data.season ?? null,
     episode: data.episode ?? null,
     posterUrl: data.posterUrl || "",
     ids: data.ids || {},
     event: data.event || "",
+    client: data.client || { userName: "", deviceName: "" },
     updatedAt: Number(data.updatedAt || 0),
   };
 }
@@ -66,13 +69,19 @@ export async function upsertActiveSession(_unusedKv, media) {
     mediaType: media.type || "unknown",
     source: media.source || "unknown",
     progress: Number.isFinite(Number(media.progress)) ? Math.max(0, Math.min(100, Number(media.progress))) : 0,
+    offsetMs: Number(media.offsetMs) || 0,
+    durationMs: Number(media.durationMs) || 0,
     season: media.season ?? null,
     episode: media.episode ?? null,
     posterUrl: media.posterUrl || "",
     ids: media.ids || {},
     event: media.event || "",
+    client: {
+      userName: media.user || "",
+      deviceName: media.device || media.deviceName || "",
+    },
     updatedAt: now,
-    expireAt: Timestamp.fromMillis(now + 60_000),
+    expireAt: Timestamp.fromMillis(now + ACTIVE_SESSION_TTL_MS),
   });
   return listActiveSessions();
 }

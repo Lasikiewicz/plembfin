@@ -550,10 +550,48 @@ async function handleNowPlaying(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
-  const rows = await loadLiveTrackingCache(requireDb(), { includeCompleted: false }).catch(() => []);
+
+  const [cacheRows, activeRows] = await Promise.all([
+    loadLiveTrackingCache(requireDb(), { includeCompleted: false }).catch(() => []),
+    listActiveSessions().catch(() => []),
+  ]);
+
   const runtime = await loadRuntimeState();
-  const sessions = rows.map(hydrateCachedSession).filter((session) => !session.completedAt);
-  return sendJson(res, sessions, 200, runtime.nowPlayingRefresh ? { "X-Now-Playing-Refresh": String(runtime.nowPlayingRefresh) } : {});
+  const sessions = cacheRows.map(hydrateCachedSession).filter((session) => !session.completedAt);
+
+  const merged = [...sessions];
+  for (const active of activeRows) {
+    const isDuplicate = merged.some(
+      (s) =>
+        s.source === active.source &&
+        s.title === active.title &&
+        s.season === active.season &&
+        s.episode === active.episode
+    );
+    if (!isDuplicate) {
+      merged.push({
+        sessionId: active.key,
+        source: active.source,
+        title: active.title,
+        mediaType: active.mediaType,
+        progress: active.progress,
+        offsetMs: active.offsetMs || 0,
+        durationMs: active.durationMs || 0,
+        season: active.season,
+        episode: active.episode,
+        posterUrl: active.posterUrl,
+        ids: active.ids,
+        client: active.client,
+        updatedAt: active.updatedAt,
+        completedAt: null,
+      });
+    }
+  }
+
+  // Sort by updatedAt desc to show most recently updated sessions first
+  merged.sort((a, b) => b.updatedAt - a.updatedAt);
+
+  return sendJson(res, merged, 200, runtime.nowPlayingRefresh ? { "X-Now-Playing-Refresh": String(runtime.nowPlayingRefresh) } : {});
 }
 
 async function handleActiveSessions(req, res) {
@@ -1185,6 +1223,6 @@ async function dispatch(req, res) {
 
 export const api = onRequest({ region, cors: true, timeoutSeconds: 540, memory: "512MiB" }, dispatch);
 
-export const scheduledSync = onSchedule({ schedule: "every 60 minutes", region, timeoutSeconds: 540, memory: "512MiB" }, async () => {
+export const scheduledSync = onSchedule({ schedule: "every 1 minutes", region, timeoutSeconds: 60, memory: "512MiB" }, async () => {
   await runScheduledSync();
 });
