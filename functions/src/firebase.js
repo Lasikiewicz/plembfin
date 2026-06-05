@@ -5,6 +5,7 @@ if (!admin.apps.length) {
 }
 
 export const db = admin.firestore();
+db.settings({ ignoreUndefinedProperties: true });
 export const auth = admin.auth();
 export const FieldValue = admin.firestore.FieldValue;
 export const Timestamp = admin.firestore.Timestamp;

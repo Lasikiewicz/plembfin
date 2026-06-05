@@ -510,6 +510,41 @@ h2 {
   color: #fde68a;
 }
 
+.media-sync-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.media-sync-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.retry-sync-btn {
+  padding: 0.1rem 0.4rem;
+  font-size: 0.62rem;
+  min-height: 1.4rem;
+  border-color: rgba(245, 158, 11, 0.4);
+  color: var(--soft);
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: transparent;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.retry-sync-btn:hover {
+  border-color: var(--yellow);
+  background: rgba(245, 158, 11, 0.1);
+  color: #fff;
+}
+
 .compact-terminal {
   min-height: 5.5rem;
   max-height: 9rem;

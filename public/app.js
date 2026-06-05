@@ -641,6 +641,70 @@ function historySyncPill(entry = {}) {
   `;
 }
 
+function getActiveTargets() {
+  const targets = [];
+  if (state.savedConfig.plex?.baseUrl && state.savedConfig.plex?.token && !state.savedConfig.plex?.disabled) targets.push("plex");
+  if (state.savedConfig.emby?.baseUrl && state.savedConfig.emby?.apiKey && state.savedConfig.emby?.userId && !state.savedConfig.emby?.disabled) targets.push("emby");
+  if (state.savedConfig.jellyfin?.baseUrl && state.savedConfig.jellyfin?.apiKey && state.savedConfig.jellyfin?.userId && !state.savedConfig.jellyfin?.disabled) targets.push("jellyfin");
+  return targets;
+}
+
+function getMediaTargetSyncStatus(entry = {}) {
+  const activeTargets = getActiveTargets();
+  const telemetry = String(entry.sync_dispatch_telemetry || entry.syncDispatchTelemetry || "");
+  
+  if (telemetry.includes("Force Sync resolved status to success")) {
+    return activeTargets.map(target => ({ target, status: "success" }));
+  }
+  
+  const states = telemetryTargetStates(telemetry);
+  const source = String(entry.source || "").toLowerCase();
+  
+  return activeTargets.map((target) => {
+    if (source === target || source.startsWith(`${target}_`)) {
+      return { target, status: "success" };
+    }
+    const match = states.find((s) => s.target === target);
+    if (match) {
+      return { target, status: match.status };
+    }
+    
+    if (telemetry.includes("Details: Historical import stored locally") || telemetry.includes("Origin: import")) {
+      return { target, status: "pending" };
+    }
+    
+    return { target, status: "pending" };
+  });
+}
+
+function renderMediaSyncPills(entry = {}) {
+  const activeTargets = getActiveTargets();
+  if (!activeTargets.length) return "";
+  
+  const statuses = getMediaTargetSyncStatus(entry);
+  const allSynced = statuses.every((s) => s.status === "success" || s.status === "skipped");
+  
+  const pillsHtml = statuses
+    .map((s) => {
+      const statusClass = s.status === "success" ? "success" : s.status === "pending" ? "pending" : "error";
+      return `<span class="target-pill" data-status="${statusClass}" style="font-size: 0.62rem; padding: 0.1rem 0.35rem; margin-right: 0.2rem;" title="${escapeAttribute(`${platformBadge(s.target)}: ${s.status}`)}">${escapeHtml(platformBadge(s.target))}</span>`;
+    })
+    .join("");
+    
+  const retryButtonHtml = !allSynced
+    ? `<button class="retry-sync-btn" type="button" data-retry-sync-id="${escapeAttribute(entry.id)}" title="Retry syncing watched state to all platforms">Retry</button>`
+    : "";
+    
+  return `
+    <div class="media-sync-row">
+      <div class="media-sync-pills">
+        ${pillsHtml}
+      </div>
+      ${retryButtonHtml}
+    </div>
+  `;
+}
+
 function telemetryTargetStates(telemetry = "") {
   const rows = [];
   for (const line of String(telemetry || "").split(/\r?\n/)) {
@@ -1778,15 +1842,16 @@ function renderDashboard() {
 
 function renderHistoryCard(entry) {
   return `
-    <button class="movie-card" type="button" data-history-id="${entry.id}">
+    <div class="movie-card" data-history-id="${entry.id}">
       ${posterMarkup(entry, "movie-poster")}
       <div class="movie-card-body">
-        ${historySyncPill(entry)}
+        <span class="history-action-pill ${sourceClass(entry.source)}" style="margin-bottom: 0.2rem;">${escapeHtml(platformBadge(entry.source))} - ${escapeHtml(historyAction(entry))}</span>
         <b>${escapeHtml(entry.title)}</b>
         <span>${formatDate(entry.watched_at)}</span>
         <small>${escapeHtml(idLine(entry))}</small>
+        ${renderMediaSyncPills(entry)}
       </div>
-    </button>
+    </div>
   `;
 }
 
@@ -2003,14 +2068,15 @@ function observeExplorerSentinel(mode) {
 
 function renderMovieCard(movie) {
   return `
-    <button class="movie-card" type="button" data-history-id="${movie.id}">
+    <div class="movie-card" data-history-id="${movie.id}">
       ${posterMarkup(movie, "movie-poster")}
       <div class="movie-card-body">
         <b>${escapeHtml(movie.title)}</b>
         <span>${formatDate(movie.watched_at)}</span>
         <small>${escapeHtml(idLine(movie))}</small>
+        ${renderMediaSyncPills(movie)}
       </div>
-    </button>
+    </div>
   `;
 }
 
@@ -2240,11 +2306,16 @@ function renderSeasonFolder(showKey, season, episodes) {
         ${sortedEpisodes
           .map(
             (episode) => `
-              <article class="episode-row">
-                ${posterMarkup(episode, "explorer-episode-poster")}
-                <span class="episode-code">[ E${String(episode.episode || "?").padStart(2, "0")} ]</span>
-                <b>[ ${escapeHtml(episodeTitle(episode.title, episode.episode))} ]</b>
-                <button class="debug-badge" type="button" data-history-id="${episode.id}">${formatDate(episode.watched_at)}</button>
+              <article class="episode-row" style="display: flex; flex-direction: column; align-items: stretch; gap: 0.5rem; padding: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; min-width: 0;">
+                  ${posterMarkup(episode, "explorer-episode-poster")}
+                  <span class="episode-code">[ E${String(episode.episode || "?").padStart(2, "0")} ]</span>
+                  <b style="flex: 1; min-width: 0;">[ ${escapeHtml(episodeTitle(episode.title, episode.episode))} ]</b>
+                  <button class="debug-badge" type="button" data-history-id="${episode.id}">${formatDate(episode.watched_at)}</button>
+                </div>
+                <div style="padding-left: 3.1rem; margin-top: -0.25rem;">
+                  ${renderMediaSyncPills(episode)}
+                </div>
               </article>
             `,
           )
@@ -3243,6 +3314,7 @@ function renderShowModalContent(show, {
                 <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
               </div>
               <p>${escapeHtml(episode.overview)}</p>
+              ${episode.watched ? renderMediaSyncPills(episode.watched) : ""}
             </div>
             <div class="immersive-episode-actions">
               ${episode.watched ? `<span class="watched-pill">Watched ${escapeHtml(formatDate(episode.watched.watched_at))}</span>` : ""}
@@ -3566,6 +3638,74 @@ async function applyWatchDateChoice(choice) {
       renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
     }
     setMessage(`Manual watch update failed: ${error.message}`, "error");
+    throw error;
+  }
+}
+
+async function triggerRetrySync(id, button) {
+  if (!id || !button) return;
+  button.disabled = true;
+  const originalText = button.textContent;
+  button.textContent = "Syncing...";
+
+  try {
+    const response = await fetch("/api/retry-sync", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.error || `Retry failed with status ${response.status}`);
+    }
+
+    // Refresh the updated record
+    const refreshRes = await fetch(`/api/history?id=${encodeURIComponent(id)}`, { headers: authHeaders() });
+    const refreshBody = await refreshRes.json().catch(() => ({}));
+    if (refreshRes.ok && refreshBody.row) {
+      const updatedRow = refreshBody.row;
+      // Update state.history
+      if (Array.isArray(state.history)) {
+        const idx = state.history.findIndex((x) => x.id === id);
+        if (idx !== -1) state.history[idx] = updatedRow;
+      }
+      // Update state.moviesRaw
+      if (Array.isArray(state.moviesRaw)) {
+        const idx = state.moviesRaw.findIndex((x) => x.id === id);
+        if (idx !== -1) state.moviesRaw[idx] = updatedRow;
+      }
+      // Update state.showsRaw (search episodes)
+      if (Array.isArray(state.showsRaw)) {
+        for (const show of state.showsRaw) {
+          if (Array.isArray(show.episodes)) {
+            const idx = show.episodes.findIndex((x) => x.id === id);
+            if (idx !== -1) show.episodes[idx] = updatedRow;
+          }
+        }
+      }
+
+      // Re-render views
+      clearDerivedUiCaches({ resetExplorer: false });
+      renderDashboard();
+      renderStats();
+
+      if (state.activeView === "explorer") {
+        renderExplorer();
+      }
+
+      // If we are currently inside the immersive show modal for the TV series containing this episode, re-render the modal
+      if (state.activeShowModalKey) {
+        renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+      }
+
+      setMessage("Retry sync completed successfully!", "success");
+    } else {
+      throw new Error("Could not fetch the updated sync state from server.");
+    }
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = originalText;
+    setMessage(`Retry sync failed: ${error.message}`, "error");
     throw error;
   }
 }
@@ -5165,6 +5305,12 @@ function attachEvents() {
   });
 
   document.addEventListener("click", (event) => {
+    const retryBtn = event.target.closest("[data-retry-sync-id]");
+    if (retryBtn) {
+      triggerRetrySync(retryBtn.dataset.retrySyncId, retryBtn).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
     const helpLink = event.target.closest("[data-help-topic-link]");
     if (helpLink) {
       openHelpTopic(helpLink.dataset.helpTopicLink);

@@ -681,6 +681,33 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
   return syncedCount;
 }
 
+function getActiveTargetsForConfig(config) {
+  const targets = [];
+  if (!config?.plex?.disabled && config?.plex?.baseUrl && config?.plex?.token) targets.push("plex");
+  if (!config?.emby?.disabled && config?.emby?.baseUrl && config?.emby?.apiKey && config?.emby?.userId) targets.push("emby");
+  if (!config?.jellyfin?.disabled && config?.jellyfin?.baseUrl && config?.jellyfin?.apiKey && config?.jellyfin?.userId) targets.push("jellyfin");
+  return targets;
+}
+
+function isTargetSynced(telemetry = "", target = "", source = "") {
+  const src = String(source || "").toLowerCase();
+  const tgt = String(target || "").toLowerCase();
+  if (src === tgt || src.startsWith(`${tgt}_`)) return true;
+
+  const text = String(telemetry || "").toLowerCase();
+  if (text.includes("force sync resolved status to success")) return true;
+
+  const lines = text.split("\n");
+  for (const line of lines) {
+    if (line.includes(`${tgt} status:`) || line.includes(`${tgt} progress status:`)) {
+      if (line.includes("success")) return true;
+      if (line.includes("loop")) return true;
+      return false;
+    }
+  }
+  return false;
+}
+
 async function syncPendingManualDispatches(config, loopStore, logger = console.log) {
   if (!watchedPlayedSyncEnabled()) {
     logger("Pending watched dispatch sync is disabled.");
@@ -690,17 +717,40 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
   try {
     const snapshot = await db
       .collection("watchHistory")
-      .where("syncAction", "==", "watched")
+      .orderBy("watchedAt", "desc")
+      .limit(200)
       .get();
     
-    const pendingDocs = snapshot.docs.filter((doc) => {
-      const data = doc.data() || {};
-      const telemetry = data.syncDispatchTelemetry || "";
-      return telemetry.includes("Dispatch status: pending");
-    });
+    const activeTargets = getActiveTargetsForConfig(config);
+    const toRetry = [];
 
-    for (const doc of pendingDocs) {
-      const data = doc.data();
+    for (const doc of snapshot.docs) {
+      const data = doc.data() || {};
+      if (data.syncAction !== "watched") continue;
+
+      const telemetry = data.syncDispatchTelemetry || "";
+      const isPending = telemetry.includes("Dispatch status: pending");
+      
+      let needsSync = isPending;
+      if (!isPending && activeTargets.length > 0) {
+        const allSynced = activeTargets.every((target) => 
+          isTargetSynced(telemetry, target, data.source)
+        );
+        if (!allSynced) {
+          needsSync = true;
+        }
+      }
+
+      if (needsSync) {
+        toRetry.push({ id: doc.id, data });
+      }
+    }
+
+    const maxRetries = 15;
+    const batchToRetry = toRetry.slice(0, maxRetries);
+
+    for (const item of batchToRetry) {
+      const { id, data } = item;
       const media = {
         title: data.title,
         type: data.mediaType,
@@ -715,7 +765,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         episode: data.episode == null ? undefined : Number(data.episode),
       };
 
-      logger(`Pending Queue: dispatching sync for ${media.title}...`);
+      logger(`Background Queue: retrying/dispatching sync for ${media.title} (${id})...`);
       await upsertPlaystateForMedia(requireDb(), media, "watched", data.watchedAt || data.watched_at);
       const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
         skipped: false,
@@ -734,7 +784,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         ),
       ].join("\n");
 
-      await updateWatchTelemetry(requireDb(), doc.id, telemetry);
+      await updateWatchTelemetry(requireDb(), id, telemetry);
       await recordSyncHistory(media, summary, "watched");
       syncedCount++;
     }

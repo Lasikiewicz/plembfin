@@ -546,6 +546,60 @@ async function handleManualWatch(req, res) {
   return sendJson(res, { ok: true, inserted, skipped, rejected, propagated, results });
 }
 
+async function handleRetrySync(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const id = body.id;
+  if (!id) return sendJson(res, { error: "Missing required field: id" }, 400);
+
+  const record = await getWatchRecordById(id);
+  if (!record) return sendJson(res, { error: "Watch record not found" }, 404);
+
+  const config = await loadMediaConfig();
+  const loopStore = createLoopStore();
+
+  const media = {
+    title: record.title,
+    type: record.media_type,
+    source: record.source || "manual",
+    ids: {
+      imdb: record.imdb_id || undefined,
+      tmdb: record.tmdb_id || undefined,
+      tvdb: record.tvdb_id || undefined,
+    },
+    season: record.season == null ? undefined : Number(record.season),
+    episode: record.episode == null ? undefined : Number(record.episode),
+    posterUrl: record.poster_url || undefined,
+    isValid: Boolean(record.title && ["movie", "episode"].includes(record.media_type)),
+  };
+
+  const action = record.sync_action || "watched";
+  let summary;
+  try {
+    if (action === "unwatched" || action === "unplayed") {
+      summary = await syncMediaUnplayedPlaystate(media, config, loopStore);
+    } else {
+      summary = await syncMediaPlaystate(media, config, loopStore);
+    }
+  } catch (error) {
+    console.error("Retry sync failed", error);
+    summary = {
+      skipped: false,
+      status: "error",
+      details: `Retry sync failed: ${error.message || String(error)}`,
+      targetStates: [],
+    };
+  }
+
+  await updateWatchTelemetry(requireDb(), id, formatDispatchTelemetry(summary, media, action));
+  await recordSyncHistory(media, summary, action);
+
+  return sendJson(res, { ok: true, status: summary.status, targetStates: summary.targetStates || [] });
+}
+
 async function handleNowPlaying(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -1200,6 +1254,7 @@ async function dispatch(req, res) {
     if (path === "full-sync-watchstates") return handleFullSyncWatchstates(req, res);
     if (path === "import") return handleImport(req, res);
     if (path === "manual-watch") return handleManualWatch(req, res);
+    if (path === "retry-sync") return handleRetrySync(req, res);
     if (path === "now-playing") return handleNowPlaying(req, res);
     if (path === "active-sessions") return handleActiveSessions(req, res);
     if (path === "cron-sync") return handleCronSync(req, res);
