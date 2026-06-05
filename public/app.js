@@ -19,7 +19,7 @@ const POSTER_LOOKUP_PERSISTED_CACHE_KEY = "plembfin:posterLookupCache:v1";
 const POSTER_LOOKUP_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const POSTER_LOOKUP_PERSISTED_CACHE_LIMIT = 800;
 const TMDB_POSTER_SIZE = "w342";
-const HISTORY_PREVIEW_LIMIT = 72;
+const HISTORY_PREVIEW_LIMIT = 300;
 const DASHBOARD_HISTORY_ROWS = 2;
 const EXPLORER_PAGE_SIZE = 18;
 const EXPLORER_CACHE_TTL_MS = 30 * 60 * 1000;
@@ -135,8 +135,8 @@ function bindElements() {
     fullSyncStatus: document.querySelector("#fullSyncStatus"),
     helpCanvas: document.querySelector("#helpCanvas"),
     helpMenu: document.querySelector("#helpMenu"),
-    dashboardHistoryButtons: [...document.querySelectorAll("[data-dashboard-history-filter]")],
-    historyTable: document.querySelector("#historyTable"),
+    tvHistoryRow: document.querySelector("#tvHistoryRow"),
+    movieHistoryRow: document.querySelector("#movieHistoryRow"),
     importFile: document.querySelector("#importFile"),
     importPreview: document.querySelector("#importPreview"),
     importProgress: document.querySelector("#importProgress"),
@@ -1272,22 +1272,96 @@ function setUnlocked(isUnlocked) {
   elements.statusPill.title = isUnlocked ? "Unlocked" : "Locked";
 }
 
+function handleRouting(path) {
+  const pathname = path.endsWith("/") && path.length > 1 ? path.slice(0, -1) : path;
+  
+  if (pathname === "/" || pathname === "") {
+    state.activeView = "dashboard";
+  } else if (pathname === "/movies") {
+    state.activeView = "explorer";
+    state.explorerMode = "movies";
+  } else if (pathname === "/tvshows") {
+    state.activeView = "explorer";
+    state.explorerMode = "shows";
+  } else if (pathname === "/stats") {
+    state.activeView = "stats";
+  } else if (pathname === "/sync") {
+    state.activeView = "sync";
+  } else if (pathname === "/logs") {
+    state.activeView = "logs";
+  } else if (pathname.startsWith("/settings")) {
+    state.activeView = "settings";
+    const parts = pathname.split("/");
+    if (parts[2] && SETTINGS_TABS.includes(parts[2])) {
+      state.activeSettingsTab = parts[2];
+    } else {
+      state.activeSettingsTab = "general";
+    }
+  } else if (pathname.startsWith("/help")) {
+    state.activeView = "help";
+    const parts = pathname.split("/");
+    if (parts[2]) {
+      state.activeHelpTopic = parts[2];
+    } else {
+      state.activeHelpTopic = "settings";
+    }
+  } else {
+    state.activeView = "dashboard";
+  }
+}
+
+function navigateTo(url) {
+  if (window.location.pathname !== url) {
+    history.pushState(null, "", url);
+  }
+  handleRouting(url);
+  applyActiveView();
+}
+
 function selectView(view) {
   const legacyImporterView = view === "importer";
   const requestedView = legacyImporterView ? "settings" : view;
-  state.activeView = PRIMARY_VIEWS.includes(requestedView) ? requestedView : "dashboard";
-  localStorage.setItem(ACTIVE_VIEW_KEY, state.activeView);
-  if (legacyImporterView) selectSettingsTab("importer");
+  const targetView = PRIMARY_VIEWS.includes(requestedView) ? requestedView : "dashboard";
+  
+  let url = "/";
+  if (targetView === "explorer") {
+    url = state.explorerMode === "shows" ? "/tvshows" : "/movies";
+  } else if (targetView === "settings") {
+    url = `/settings/${legacyImporterView ? "importer" : state.activeSettingsTab}`;
+  } else if (targetView === "help") {
+    url = `/help/${state.activeHelpTopic}`;
+  } else if (targetView !== "dashboard") {
+    url = `/${targetView}`;
+  }
+  navigateTo(url);
+}
 
-  for (const button of elements.tabButtons) {
+function selectSettingsTab(tab) {
+  const targetTab = SETTINGS_TABS.includes(tab) ? tab : "general";
+  navigateTo(`/settings/${targetTab}`);
+}
+
+function applyActiveView() {
+  localStorage.setItem(ACTIVE_VIEW_KEY, state.activeView);
+
+  for (const button of elements.tabButtons || []) {
     const explorerMode = button.dataset.explorerNav;
     const isExplorerMode = state.activeView === "explorer" && explorerMode === state.explorerMode;
     const isActiveView = button.dataset.view === state.activeView && !explorerMode;
     button.classList.toggle("active", isActiveView || isExplorerMode);
   }
 
-  for (const panel of elements.viewPanels) {
+  for (const panel of elements.viewPanels || []) {
     panel.classList.toggle("hidden", panel.dataset.viewPanel !== state.activeView);
+  }
+
+  const helpSubMenu = document.querySelector("#helpMenu");
+  const settingsSubMenu = document.querySelector("#sidebarSettingsMenu");
+  if (helpSubMenu) {
+    helpSubMenu.classList.toggle("hidden", state.activeView !== "help");
+  }
+  if (settingsSubMenu) {
+    settingsSubMenu.classList.toggle("hidden", state.activeView !== "settings");
   }
 
   if (state.activeView === "help") renderHelp();
@@ -1307,25 +1381,22 @@ function selectView(view) {
     state.explorerLoadObserver = undefined;
   }
   if (state.activeView === "logs") renderLogs();
-  if (state.activeView === "settings") selectSettingsTab(state.activeSettingsTab);
-  if (state.activeView === "settings" && state.configLoaded) {
-    renderSettingsStatus("Configuration ready.", "success");
+  
+  if (state.activeView === "settings") {
+    localStorage.setItem(ACTIVE_SETTINGS_TAB_KEY, state.activeSettingsTab);
+    for (const button of elements.settingsTabButtons || []) {
+      button.classList.toggle("active", button.dataset.settingsTab === state.activeSettingsTab);
+    }
+    for (const panel of elements.settingsPanels || []) {
+      panel.classList.toggle("hidden", panel.dataset.settingsPanel !== state.activeSettingsTab);
+    }
+    if (state.configLoaded) {
+      renderSettingsStatus("Configuration ready.", "success");
+    }
   }
+
   if (state.token) {
     syncNowPlayingPolling();
-  }
-}
-
-function selectSettingsTab(tab) {
-  state.activeSettingsTab = SETTINGS_TABS.includes(tab) ? tab : "general";
-  localStorage.setItem(ACTIVE_SETTINGS_TAB_KEY, state.activeSettingsTab);
-
-  for (const button of elements.settingsTabButtons || []) {
-    button.classList.toggle("active", button.dataset.settingsTab === state.activeSettingsTab);
-  }
-
-  for (const panel of elements.settingsPanels || []) {
-    panel.classList.toggle("hidden", panel.dataset.settingsPanel !== state.activeSettingsTab);
   }
 }
 
@@ -1639,64 +1710,84 @@ function syncNowPlayingPolling() {
   stopHistoryPolling();
 }
 
-function renderDashboard() {
-  for (const button of elements.dashboardHistoryButtons || []) {
-    button.classList.toggle("active", button.dataset.dashboardHistoryFilter === state.dashboardHistoryFilter);
-  }
-
-  if (!state.history.length) {
-    elements.historyTable.innerHTML = `
-      <div class="empty-log">
-        <b>No watch history yet</b>
-        <span>Import a Trakt export or send watched webhooks to start building the archive.</span>
-      </div>
-    `;
-    return;
-  }
-
-  const filtered = state.history.filter((entry) => {
-    if (state.dashboardHistoryFilter === "movies") return entry.media_type === "movie";
-    if (state.dashboardHistoryFilter === "tv") return entry.media_type === "episode";
-    return true;
-  });
-  const recent = filtered.slice(0, dashboardHistoryDisplayLimit());
-  if (!recent.length) {
-    elements.historyTable.innerHTML = `
-      <div class="empty-log">
-        <b>No ${state.dashboardHistoryFilter === "movies" ? "movie" : "TV"} history in this preview</b>
-        <span>New matching watched items will appear here when they are logged.</span>
-      </div>
-    `;
-    return;
-  }
-
-  elements.historyTable.innerHTML = `
-    <div class="movie-grid dashboard-history-grid">
-      ${recent
-        .map(
-          (entry) => `
-            <button class="movie-card" type="button" data-history-id="${entry.id}">
-              ${posterMarkup(entry, "movie-poster")}
-              <div class="movie-card-body">
-                ${historySyncPill(entry)}
-                <b>${escapeHtml(entry.title)}</b>
-                <span>${formatDate(entry.watched_at)}</span>
-                <small>${escapeHtml(idLine(entry))}</small>
-              </div>
-            </button>
-          `,
-        )
-        .join("")}
-    </div>
-  `;
-  hydratePosters(elements.historyTable);
+function getRowFitLimit(rowElement) {
+  const width = rowElement ? rowElement.clientWidth : 0;
+  if (width <= 0) return 10;
+  const maxCards = Math.floor((width + 12) / 172);
+  return Math.max(2, maxCards);
 }
 
-function dashboardHistoryDisplayLimit() {
-  const width = window.innerWidth || 1600;
-  if (width <= 900) return DASHBOARD_HISTORY_ROWS * 2;
-  if (width <= 1300) return DASHBOARD_HISTORY_ROWS * 3;
-  return DASHBOARD_HISTORY_ROWS * 4;
+function renderDashboard() {
+  if (!state.history.length) {
+    if (elements.tvHistoryRow) {
+      elements.tvHistoryRow.innerHTML = `
+        <div class="empty-log">
+          <b>No watch history yet</b>
+          <span>Import a Trakt export or send watched webhooks to start building the archive.</span>
+        </div>
+      `;
+    }
+    if (elements.movieHistoryRow) {
+      elements.movieHistoryRow.innerHTML = "";
+    }
+    return;
+  }
+
+  // Filter TV shows (episodes) and Movies
+  const tvHistory = state.history.filter((entry) => entry.media_type === "episode");
+  const movieHistory = state.history.filter((entry) => entry.media_type === "movie");
+
+  // Render TV Shows Row
+  if (elements.tvHistoryRow) {
+    if (!tvHistory.length) {
+      elements.tvHistoryRow.innerHTML = `
+        <div class="empty-log">
+          <b>No TV history in this preview</b>
+          <span>New watched episodes will appear here.</span>
+        </div>
+      `;
+    } else {
+      const tvFitLimit = getRowFitLimit(elements.tvHistoryRow);
+      const tvRecent = tvHistory.slice(0, tvFitLimit);
+      
+      let html = tvRecent.map(renderHistoryCard).join("");
+      elements.tvHistoryRow.innerHTML = html;
+      hydratePosters(elements.tvHistoryRow);
+    }
+  }
+
+  // Render Movies Row
+  if (elements.movieHistoryRow) {
+    if (!movieHistory.length) {
+      elements.movieHistoryRow.innerHTML = `
+        <div class="empty-log">
+          <b>No movie history in this preview</b>
+          <span>New watched movies will appear here.</span>
+        </div>
+      `;
+    } else {
+      const movieFitLimit = getRowFitLimit(elements.movieHistoryRow);
+      const movieRecent = movieHistory.slice(0, movieFitLimit);
+      
+      let html = movieRecent.map(renderHistoryCard).join("");
+      elements.movieHistoryRow.innerHTML = html;
+      hydratePosters(elements.movieHistoryRow);
+    }
+  }
+}
+
+function renderHistoryCard(entry) {
+  return `
+    <button class="movie-card" type="button" data-history-id="${entry.id}">
+      ${posterMarkup(entry, "movie-poster")}
+      <div class="movie-card-body">
+        ${historySyncPill(entry)}
+        <b>${escapeHtml(entry.title)}</b>
+        <span>${formatDate(entry.watched_at)}</span>
+        <small>${escapeHtml(idLine(entry))}</small>
+      </div>
+    </button>
+  `;
 }
 
 function renderActiveSessions() {
@@ -2241,8 +2332,7 @@ function renderHelp() {
 
 function openHelpTopic(topicId) {
   if (!HELP_TOPICS.some((topic) => topic.id === topicId)) return;
-  state.activeHelpTopic = topicId;
-  selectView("help");
+  navigateTo(`/help/${topicId}`);
   window.setTimeout(() => elements.helpCanvas?.scrollIntoView({ block: "start" }), 0);
 }
 
@@ -4999,12 +5089,7 @@ function attachEvents() {
     });
   });
 
-  elements.dashboardHistoryButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      state.dashboardHistoryFilter = button.dataset.dashboardHistoryFilter || "all";
-      renderDashboard();
-    });
-  });
+  // No scroll events or arrow click handlers needed for fixed-fit rows
 
   elements.testConnectionButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -5048,8 +5133,7 @@ function attachEvents() {
   elements.helpMenu.addEventListener("click", (event) => {
     const topicButton = event.target.closest("[data-help-topic]");
     if (!topicButton) return;
-    state.activeHelpTopic = topicButton.dataset.helpTopic;
-    renderHelp();
+    navigateTo(`/help/${topicButton.dataset.helpTopic}`);
   });
 
   elements.lockButton.addEventListener("click", lockDashboard);
@@ -5352,9 +5436,15 @@ function attachEvents() {
     }
     startHistoryPolling();
   });
+
+  window.addEventListener("popstate", () => {
+    handleRouting(window.location.pathname);
+    applyActiveView();
+  });
 }
 
 function initialize() {
+  handleRouting(window.location.pathname);
   bootstrapTokenFromUrl();
   bindElements();
   attachEvents();

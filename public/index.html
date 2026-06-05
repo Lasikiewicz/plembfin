@@ -22,7 +22,6 @@
         </div>
 
         <div class="topbar-actions">
-          <button class="nav-tab settings-action" type="button" data-view="settings">Settings</button>
           <button id="lockButton" class="button-ghost hidden" type="button">Lock</button>
         </div>
       </header>
@@ -37,8 +36,17 @@
           <span class="nav-label">More</span>
           <button class="nav-tab" type="button" data-view="stats">Stats</button>
           <button class="nav-tab" type="button" data-view="sync">Sync</button>
-          <button class="nav-tab" type="button" data-view="help">Help</button>
           <button class="nav-tab" type="button" data-view="logs">Logs</button>
+          <button class="nav-tab" type="button" data-view="help">Help</button>
+          <nav id="helpMenu" class="sidebar-sub-menu hidden" aria-label="Help topics"></nav>
+          <button class="nav-tab" type="button" data-view="settings">Settings</button>
+          <div id="sidebarSettingsMenu" class="sidebar-sub-menu hidden">
+            <button class="settings-tab active" type="button" data-settings-tab="general">General</button>
+            <button class="settings-tab" type="button" data-settings-tab="apps">Apps</button>
+            <button class="settings-tab" type="button" data-settings-tab="importer">Importer</button>
+            <button class="settings-tab" type="button" data-settings-tab="complete-check">Complete Check</button>
+            <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
+          </div>
         </div>
       </nav>
 
@@ -77,17 +85,22 @@
           </section>
 
           <section class="glass-panel p-section history-timeline-panel">
-            <div class="section-heading dashboard-history-heading">
-              <div class="dashboard-history-title">
+            <div class="section-heading">
+              <div>
                 <p>Watch history</p>
-              </div>
-              <div class="segmented-control dashboard-history-filter" aria-label="Watch history filter">
-                <button class="segment-button active" type="button" data-dashboard-history-filter="all">All</button>
-                <button class="segment-button" type="button" data-dashboard-history-filter="tv">TV</button>
-                <button class="segment-button" type="button" data-dashboard-history-filter="movies">Movies</button>
+                <span>Recently watched TV shows and movies</span>
               </div>
             </div>
-            <div id="historyTable" class="history-table" aria-live="polite"></div>
+            
+            <div class="dashboard-row-section">
+              <h3 class="dashboard-row-title">TV Shows</h3>
+              <div id="tvHistoryRow" class="horizontal-scroll-row" aria-live="polite"></div>
+            </div>
+
+            <div class="dashboard-row-section" style="margin-top: 1.8rem;">
+              <h3 class="dashboard-row-title">Movies</h3>
+              <div id="movieHistoryRow" class="horizontal-scroll-row" aria-live="polite"></div>
+            </div>
           </section>
         </section>
 
@@ -160,6 +173,10 @@
                 <span id="explorerSubtitle">Library view from watched history</span>
               </div>
               <div class="explorer-controls">
+                <label class="compact-field explorer-search-box">
+                  <span>Search</span>
+                  <input id="explorerSearchInput" class="field" type="search" placeholder="Movie, show, IMDb, TMDB, TVDB..." />
+                </label>
                 <label class="compact-field">
                   <span>Sort</span>
                   <select id="explorerSort" class="field">
@@ -168,10 +185,6 @@
                     <option value="watched_desc">Watched newest</option>
                     <option value="watched_asc">Watched oldest</option>
                   </select>
-                </label>
-                <label class="search-box explorer-search-box">
-                  <span>Search</span>
-                  <input id="explorerSearchInput" class="field" type="search" placeholder="Movie, show, IMDb, TMDB, TVDB..." />
                 </label>
               </div>
             </div>
@@ -212,18 +225,6 @@
 
         <section id="settings-view" class="view-panel hidden" data-view-panel="settings">
           <section class="settings-hub">
-            <aside class="settings-sidebar glass-panel" aria-label="Settings sections">
-              <div class="settings-sidebar-head">
-                <h2>Settings</h2>
-              </div>
-              <nav class="settings-menu">
-                <button class="settings-tab active" type="button" data-settings-tab="general">General</button>
-                <button class="settings-tab" type="button" data-settings-tab="apps">Apps</button>
-                <button class="settings-tab" type="button" data-settings-tab="importer">Importer</button>
-                <button class="settings-tab" type="button" data-settings-tab="complete-check">Complete Check</button>
-                <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
-              </nav>
-            </aside>
 
             <div class="settings-content">
               <section class="settings-pane" data-settings-panel="general">
@@ -529,12 +530,6 @@
 
         <section class="view-panel hidden" data-view-panel="help">
           <section class="help-layout">
-            <aside class="help-sidebar glass-panel">
-              <div class="help-sidebar-head">
-                <h2>Help</h2>
-              </div>
-              <nav id="helpMenu" class="help-menu" aria-label="Help topics"></nav>
-            </aside>
             <article id="helpCanvas" class="help-canvas glass-panel" aria-live="polite"></article>
           </section>
         </section>

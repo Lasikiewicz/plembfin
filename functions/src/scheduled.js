@@ -746,6 +746,11 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
 
 export async function runScheduledSync(logger = console.log) {
   logger("Scheduled Sync: starting background sync workflow...");
+  const runtime = await loadRuntimeState();
+  if (runtime.rebuildActive === true || runtime.forceSyncActive === true) {
+    logger("Scheduled Sync: skipped because a database rebuild or force sync is currently active.");
+    return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true };
+  }
   await setRuntimeState({ lastCronExecution: Date.now() }).catch(() => null);
   const config = await loadMediaConfig();
   const loopStore = createLoopStore();

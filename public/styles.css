@@ -323,7 +323,7 @@ h2 {
 }
 
 .explorer-controls {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
 }
 
@@ -1206,7 +1206,7 @@ h2 {
 
 .settings-hub {
   display: grid;
-  grid-template-columns: minmax(11rem, 1fr) minmax(0, 4fr);
+  grid-template-columns: 1fr;
   gap: var(--space-4);
   align-items: start;
 }
@@ -1643,7 +1643,7 @@ h2 {
 
 .help-layout {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  grid-template-columns: 1fr;
   gap: var(--space-3);
   align-items: start;
 }
@@ -1977,6 +1977,7 @@ h2 {
   }
 
   .search-box,
+  .explorer-search-box,
   .week-controls,
   .logs-actions,
   .explorer-controls,
@@ -3223,4 +3224,109 @@ h1 {
   .immersive-poster-img {
     width: min(13rem, 54vw);
   }
+}
+
+/* Sidebar Hierarchical Navigation */
+.sidebar-sub-menu {
+  display: grid;
+  gap: 0.15rem;
+  padding-left: var(--space-3);
+  margin-top: 0.15rem;
+  margin-bottom: 0.35rem;
+}
+
+.sidebar-sub-menu .settings-tab,
+.sidebar-sub-menu .help-menu-item {
+  width: 100%;
+  min-height: 1.85rem;
+  font-size: 0.74rem;
+  padding: 0.35rem 0.6rem;
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+  cursor: pointer;
+}
+
+.sidebar-sub-menu .settings-tab:hover,
+.sidebar-sub-menu .help-menu-item:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sidebar-sub-menu .settings-tab.active,
+.sidebar-sub-menu .help-menu-item.active {
+  border-color: #315b86;
+  background: #172232;
+  color: #d9ecff;
+}
+
+.sidebar-sub-menu .help-menu-group {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.sidebar-sub-menu .help-menu-group p {
+  padding: 0.4rem 0.6rem 0.2rem;
+  color: var(--soft);
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+/* Horizontal Scroll Row styling */
+.horizontal-scroll-row {
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  scrollbar-width: none; /* Hide scrollbar for Firefox */
+  -ms-overflow-style: none; /* Hide scrollbar for IE/Edge */
+}
+
+.horizontal-scroll-row::-webkit-scrollbar {
+  display: none; /* Hide scrollbar for Chrome, Safari, Opera */
+}
+
+.horizontal-scroll-row .movie-card {
+  width: 160px;
+  flex: 0 0 160px;
+}
+
+/* Dashboard Row Title styling */
+.dashboard-row-title {
+  font-size: 0.95rem;
+  font-weight: 850;
+  color: var(--text);
+  margin: 0 0 var(--space-3);
+  padding-left: 0.2rem;
+}
+
+/* View More Card and placeholder styling */
+.view-more-poster-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  background: var(--panel-3);
+  border: 1px dashed var(--line-strong);
+  color: var(--blue);
+  font-weight: 800;
+  font-size: 0.9rem;
+  transition: all 140ms ease;
+}
+
+.view-more-card:hover .view-more-poster-placeholder {
+  border-color: var(--blue);
+  background: rgba(75, 150, 230, 0.04);
+  color: #fff;
 }

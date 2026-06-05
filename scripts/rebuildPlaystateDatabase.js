@@ -20,12 +20,14 @@ function parseArgs(argv = process.argv.slice(2)) {
     traktDir: "",
     write: false,
     skipConvergence: false,
+    traktOnly: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--write") args.write = true;
     else if (arg === "--skip-convergence") args.skipConvergence = true;
+    else if (arg === "--trakt-only") args.traktOnly = true;
     else if (arg === "--trakt-dir") args.traktDir = argv[++index] || "";
     else if (arg.startsWith("--trakt-dir=")) args.traktDir = arg.slice("--trakt-dir=".length);
   }
@@ -820,7 +822,7 @@ async function main() {
   await configureFirebaseCredentials();
 
   const { db, FieldValue } = await import("../functions/src/firebase.js");
-  const { loadMediaConfig } = await import("../functions/src/utils/configStore.js");
+  const { loadMediaConfig, setRuntimeState } = await import("../functions/src/utils/configStore.js");
   const {
     fetchPlexWatchedItems,
     markPlexPlayed,
@@ -847,93 +849,147 @@ async function main() {
   const unresolved = [];
 
   console.log(`Mode: ${args.write ? "WRITE" : "DRY RUN"}`);
+  if (args.traktOnly) {
+    console.log("Source of truth: TRAKT ONLY");
+  }
   console.log(`Trakt export: ${args.traktDir}`);
 
-  const traktHistory = [];
-  for (const file of await traktFiles(args.traktDir, /^watched-history-\d+\.json$/i)) {
-    const rows = await readJsonFile(file);
-    for (const row of rows) {
-      const record = await traktHistoryRecord(row, tmdbApiKey, unresolved);
-      if (record) traktHistory.push(record);
+  if (args.write) {
+    console.log("Setting rebuildActive flag in Firestore...");
+    await setRuntimeState({ rebuildActive: true });
+  }
+
+  try {
+    const traktHistory = [];
+    for (const file of await traktFiles(args.traktDir, /^watched-history-\d+\.json$/i)) {
+      const rows = await readJsonFile(file);
+      for (const row of rows) {
+        const record = await traktHistoryRecord(row, tmdbApiKey, unresolved);
+        if (record) traktHistory.push(record);
+      }
+      console.log(`Parsed ${path.basename(file)}: ${traktHistory.length} Trakt history rows total`);
     }
-    console.log(`Parsed ${path.basename(file)}: ${traktHistory.length} Trakt history rows total`);
-  }
 
-  const traktCurrent = [];
-  const watchedMovies = await readJsonFile(path.join(args.traktDir, "watched-movies.json")).catch(() => []);
-  for (const row of watchedMovies) {
-    const record = await traktCurrentMovieRecord(row, tmdbApiKey, unresolved);
-    if (record) traktCurrent.push(record);
-  }
-  const watchedShows = await readJsonFile(path.join(args.traktDir, "watched-shows.json")).catch(() => []);
-  for (const row of watchedShows) {
-    traktCurrent.push(...(await traktCurrentShowRecords(row, tmdbApiKey, unresolved)));
-  }
+    const traktCurrent = [];
+    const watchedMovies = await readJsonFile(path.join(args.traktDir, "watched-movies.json")).catch(() => []);
+    for (const row of watchedMovies) {
+      const record = await traktCurrentMovieRecord(row, tmdbApiKey, unresolved);
+      if (record) traktCurrent.push(record);
+    }
+    const watchedShows = await readJsonFile(path.join(args.traktDir, "watched-shows.json")).catch(() => []);
+    for (const row of watchedShows) {
+      traktCurrent.push(...(await traktCurrentShowRecords(row, tmdbApiKey, unresolved)));
+    }
 
-  console.log(`Parsed Trakt current watched rows: ${traktCurrent.length}`);
+    console.log(`Parsed Trakt current watched rows: ${traktCurrent.length}`);
 
-  const plexHistory = await fetchPlexHistory(config.plex, tmdbApiKey, unresolved);
-  console.log(`Fetched Plex history events: ${plexHistory.length}`);
+    const plexHistory = args.traktOnly ? [] : await fetchPlexHistory(config.plex, tmdbApiKey, unresolved);
+    if (!args.traktOnly) {
+      console.log(`Fetched Plex history events: ${plexHistory.length}`);
+    } else {
+      console.log("Trakt-only mode: skipping Plex history fetch.");
+    }
 
-  const plexCurrentRaw = config.plex?.baseUrl && config.plex?.token ? await fetchPlexWatchedItems(config.plex) : [];
-  const plexCurrent = [];
-  for (const item of plexCurrentRaw) {
-    const record = await plexItemRecord(item, "plex_current", tmdbApiKey, unresolved);
-    if (record) plexCurrent.push(record);
-  }
-  console.log(`Fetched Plex current watched rows: ${plexCurrent.length}`);
+    const plexCurrentRaw = !args.traktOnly && config.plex?.baseUrl && config.plex?.token ? await fetchPlexWatchedItems(config.plex) : [];
+    const plexCurrent = [];
+    for (const item of plexCurrentRaw) {
+      const record = await plexItemRecord(item, "plex_current", tmdbApiKey, unresolved);
+      if (record) plexCurrent.push(record);
+    }
+    if (!args.traktOnly) {
+      console.log(`Fetched Plex current watched rows: ${plexCurrent.length}`);
+    } else {
+      console.log("Trakt-only mode: skipping Plex current watched fetch.");
+    }
 
-  const serverMaps = { plex: new Map(), emby: new Map(), jellyfin: new Map() };
-  const libraryMaps = { plex: new Map(), emby: new Map(), jellyfin: new Map() };
-  const serverOk = { plex: true, emby: true, jellyfin: true };
-  for (const record of plexCurrent) serverMaps.plex.set(mediaKeyFor(record), record);
+    const serverMaps = { plex: new Map(), emby: new Map(), jellyfin: new Map() };
+    const libraryMaps = { plex: new Map(), emby: new Map(), jellyfin: new Map() };
+    const serverOk = { plex: true, emby: true, jellyfin: true };
+    for (const record of plexCurrent) serverMaps.plex.set(mediaKeyFor(record), record);
 
-  try {
-    const records = await fetchPlexLibraryRecords(config.plex);
-    libraryMaps.plex = buildConvergenceMap(records);
-    console.log(`Fetched Plex library availability rows: ${libraryMaps.plex.size}`);
-  } catch (error) {
-    serverOk.plex = false;
-    console.warn(`Plex library availability fetch failed; convergence for Plex will be skipped: ${error.message}`);
-  }
+    try {
+      const records = await fetchPlexLibraryRecords(config.plex);
+      libraryMaps.plex = buildConvergenceMap(records);
+      console.log(`Fetched Plex library availability rows: ${libraryMaps.plex.size}`);
+    } catch (error) {
+      serverOk.plex = false;
+      console.warn(`Plex library availability fetch failed; convergence for Plex will be skipped: ${error.message}`);
+    }
 
-  try {
-    const raw = config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId ? await fetchEmbyWatchedItems(config.emby) : [];
-    raw.map((item) => embyLikeRecord(item, "emby")).filter(Boolean).forEach((record) => serverMaps.emby.set(mediaKeyFor(record), record));
-    console.log(`Fetched Emby current watched rows: ${serverMaps.emby.size}`);
-    const libraryRecords = await fetchEmbyLikeLibraryRecords(config.emby, "emby");
-    libraryMaps.emby = buildConvergenceMap(libraryRecords);
-    console.log(`Fetched Emby library availability rows: ${libraryMaps.emby.size}`);
-  } catch (error) {
-    serverOk.emby = false;
-    console.warn(`Emby current/library fetch failed; convergence for Emby will be skipped: ${error.message}`);
-  }
+    try {
+      const raw = config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId ? await fetchEmbyWatchedItems(config.emby) : [];
+      raw.map((item) => embyLikeRecord(item, "emby")).filter(Boolean).forEach((record) => serverMaps.emby.set(mediaKeyFor(record), record));
+      console.log(`Fetched Emby current watched rows: ${serverMaps.emby.size}`);
+      const libraryRecords = await fetchEmbyLikeLibraryRecords(config.emby, "emby");
+      libraryMaps.emby = buildConvergenceMap(libraryRecords);
+      console.log(`Fetched Emby library availability rows: ${libraryMaps.emby.size}`);
+    } catch (error) {
+      serverOk.emby = false;
+      console.warn(`Emby current/library fetch failed; convergence for Emby will be skipped: ${error.message}`);
+    }
 
-  try {
-    const raw = config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId ? await fetchJellyfinWatchedItems(config.jellyfin) : [];
-    raw.map((item) => embyLikeRecord(item, "jellyfin")).filter(Boolean).forEach((record) => serverMaps.jellyfin.set(mediaKeyFor(record), record));
-    console.log(`Fetched Jellyfin current watched rows: ${serverMaps.jellyfin.size}`);
-    const libraryRecords = await fetchEmbyLikeLibraryRecords(config.jellyfin, "jellyfin");
-    libraryMaps.jellyfin = buildConvergenceMap(libraryRecords);
-    console.log(`Fetched Jellyfin library availability rows: ${libraryMaps.jellyfin.size}`);
-  } catch (error) {
-    serverOk.jellyfin = false;
-    console.warn(`Jellyfin current/library fetch failed; convergence for Jellyfin will be skipped: ${error.message}`);
-  }
+    try {
+      const raw = config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId ? await fetchJellyfinWatchedItems(config.jellyfin) : [];
+      raw.map((item) => embyLikeRecord(item, "jellyfin")).filter(Boolean).forEach((record) => serverMaps.jellyfin.set(mediaKeyFor(record), record));
+      console.log(`Fetched Jellyfin current watched rows: ${serverMaps.jellyfin.size}`);
+      const libraryRecords = await fetchEmbyLikeLibraryRecords(config.jellyfin, "jellyfin");
+      libraryMaps.jellyfin = buildConvergenceMap(libraryRecords);
+      console.log(`Fetched Jellyfin library availability rows: ${libraryMaps.jellyfin.size}`);
+    } catch (error) {
+      serverOk.jellyfin = false;
+      console.warn(`Jellyfin current/library fetch failed; convergence for Jellyfin will be skipped: ${error.message}`);
+    }
 
-  const canonicalMap = new Map();
-  traktCurrent.forEach((record) => addCanonical(canonicalMap, record, "trakt_current", mediaKeyFor));
-  plexCurrent.forEach((record) => addCanonical(canonicalMap, record, "plex_current", mediaKeyFor));
+    const canonicalMap = new Map();
+    traktCurrent.forEach((record) => addCanonical(canonicalMap, record, "trakt_current", mediaKeyFor));
+    plexCurrent.forEach((record) => addCanonical(canonicalMap, record, "plex_current", mediaKeyFor));
 
-  const history = dedupeHistory([...traktHistory, ...plexHistory], mediaKeyFor);
-  console.log(`Canonical watched rows: ${canonicalMap.size}`);
-  console.log(`Unique history events to write: ${history.length}`);
-  console.log(`Unresolved unknown-date rows skipped: ${unresolved.length}`);
+    const history = dedupeHistory([...traktHistory, ...plexHistory], mediaKeyFor);
+    console.log(`Canonical watched rows: ${canonicalMap.size}`);
+    console.log(`Unique history events to write: ${history.length}`);
+    console.log(`Unresolved unknown-date rows skipped: ${unresolved.length}`);
 
-  const plannedConvergence = args.skipConvergence
-    ? { activeTargets: [], summary: {} }
-    : await converge({
-        write: false,
+    const plannedConvergence = args.skipConvergence
+      ? { activeTargets: [], summary: {} }
+      : await converge({
+          write: false,
+          canonicalMap,
+          serverMaps,
+          libraryMaps,
+          serverOk,
+          config,
+          clients: {
+            played: { plex: markPlexPlayed, emby: markEmbyPlayed, jellyfin: markJellyfinPlayed },
+            unplayed: { plex: markPlexUnplayed, emby: markEmbyUnplayed, jellyfin: markJellyfinUnplayed },
+          },
+        });
+
+    console.log("Convergence plan:");
+    console.log(JSON.stringify(plannedConvergence.summary, null, 2));
+
+    if (!args.write) {
+      console.log("Dry run complete. Re-run with --write to clear Firestore, write rebuilt rows, and apply server changes.");
+      return;
+    }
+
+    console.log("Clearing media history/sync collections...");
+    const deleted = await resetMediaData(db);
+    console.log(JSON.stringify({ deleted }, null, 2));
+
+    console.log("Writing watchHistory events...");
+    const historyResult = await writeHistory(db, FieldValue, watchRecordToFirestoreData, history);
+    console.log(JSON.stringify(historyResult, null, 2));
+
+    console.log("Writing canonical playstate rows...");
+    const playstateWritten = await writePlaystate(db, FieldValue, watchRecordToFirestoreData, [...canonicalMap.values()]);
+    console.log(JSON.stringify({ playstateWritten }, null, 2));
+
+    await invalidateHistoryDerivedCaches().catch(() => null);
+
+    if (!args.skipConvergence) {
+      console.log("Applying convergence to media servers...");
+      const convergenceResult = await converge({
+        write: true,
         canonicalMap,
         serverMaps,
         libraryMaps,
@@ -944,48 +1000,17 @@ async function main() {
           unplayed: { plex: markPlexUnplayed, emby: markEmbyUnplayed, jellyfin: markJellyfinUnplayed },
         },
       });
+      console.log("Convergence result:");
+      console.log(JSON.stringify(convergenceResult.summary, null, 2));
+    }
 
-  console.log("Convergence plan:");
-  console.log(JSON.stringify(plannedConvergence.summary, null, 2));
-
-  if (!args.write) {
-    console.log("Dry run complete. Re-run with --write to clear Firestore, write rebuilt rows, and apply server changes.");
-    return;
+    console.log("Rebuild complete.");
+  } finally {
+    if (args.write) {
+      console.log("Clearing rebuildActive flag in Firestore...");
+      await setRuntimeState({ rebuildActive: false }).catch(() => null);
+    }
   }
-
-  console.log("Clearing media history/sync collections...");
-  const deleted = await resetMediaData(db);
-  console.log(JSON.stringify({ deleted }, null, 2));
-
-  console.log("Writing watchHistory events...");
-  const historyResult = await writeHistory(db, FieldValue, watchRecordToFirestoreData, history);
-  console.log(JSON.stringify(historyResult, null, 2));
-
-  console.log("Writing canonical playstate rows...");
-  const playstateWritten = await writePlaystate(db, FieldValue, watchRecordToFirestoreData, [...canonicalMap.values()]);
-  console.log(JSON.stringify({ playstateWritten }, null, 2));
-
-  await invalidateHistoryDerivedCaches().catch(() => null);
-
-  if (!args.skipConvergence) {
-    console.log("Applying convergence to media servers...");
-    const convergenceResult = await converge({
-      write: true,
-      canonicalMap,
-      serverMaps,
-      libraryMaps,
-      serverOk,
-      config,
-      clients: {
-        played: { plex: markPlexPlayed, emby: markEmbyPlayed, jellyfin: markJellyfinPlayed },
-        unplayed: { plex: markPlexUnplayed, emby: markEmbyUnplayed, jellyfin: markJellyfinUnplayed },
-      },
-    });
-    console.log("Convergence result:");
-    console.log(JSON.stringify(convergenceResult.summary, null, 2));
-  }
-
-  console.log("Rebuild complete.");
 }
 
 main().catch((error) => {
