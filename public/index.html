@@ -10,23 +10,37 @@
   <body>
     <div class="app-chassis">
       <header class="topbar">
-        <div class="brand-block">
-          <h1>Plembfin</h1>
-          <span id="statusPill" class="session-dot locked" aria-label="Locked session" title="Locked"></span>
+        <div class="brand-search">
+          <div class="brand-block">
+            <h1>Plembfin</h1>
+            <span id="statusPill" class="session-dot locked" aria-label="Locked session" title="Locked"></span>
+          </div>
+          <label class="global-search" for="globalSearchInput">
+            <span>Search</span>
+            <input id="globalSearchInput" type="search" placeholder="Search movies, shows, IDs..." autocomplete="off" />
+          </label>
         </div>
 
-        <nav class="topnav" aria-label="Primary navigation">
+        <div class="topbar-actions">
+          <button class="nav-tab settings-action" type="button" data-view="settings">Settings</button>
+          <button id="lockButton" class="button-ghost hidden" type="button">Lock</button>
+        </div>
+      </header>
+
+      <nav class="topnav" aria-label="Primary navigation">
+        <div class="sidebar-primary">
           <button class="nav-tab active" type="button" data-view="dashboard">Dashboard</button>
+          <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="movies">Movies</button>
+          <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="shows">TV Shows</button>
+        </div>
+        <div class="sidebar-secondary">
+          <span class="nav-label">More</span>
           <button class="nav-tab" type="button" data-view="stats">Stats</button>
-          <button class="nav-tab" type="button" data-view="explorer">History Explorer</button>
           <button class="nav-tab" type="button" data-view="sync">Sync</button>
-          <button class="nav-tab" type="button" data-view="settings">Settings</button>
           <button class="nav-tab" type="button" data-view="help">Help</button>
           <button class="nav-tab" type="button" data-view="logs">Logs</button>
-        </nav>
-
-        <button id="lockButton" class="button-ghost hidden" type="button">Lock</button>
-      </header>
+        </div>
+      </nav>
 
       <main class="page-shell">
       <section id="authPanel" class="auth-panel glass-panel">
@@ -142,8 +156,8 @@
           <section class="glass-panel p-section">
             <div class="section-heading explorer-heading">
               <div class="explorer-heading-title">
-                <p>History Explorer</p>
-                <span>Folder-style archive drill-down</span>
+                <p id="explorerTitle">Movies</p>
+                <span id="explorerSubtitle">Library view from watched history</span>
               </div>
               <div class="segmented-control explorer-mode-control" aria-label="Explorer mode">
                 <button class="segment-button active" type="button" data-explorer-mode="movies">Movies</button>

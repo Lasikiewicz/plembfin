@@ -117,6 +117,9 @@ function bindElements() {
     explorerPanel: document.querySelector("#explorerPanel"),
     explorerSearchInput: document.querySelector("#explorerSearchInput"),
     explorerSort: document.querySelector("#explorerSort"),
+    explorerSubtitle: document.querySelector("#explorerSubtitle"),
+    explorerTitle: document.querySelector("#explorerTitle"),
+    globalSearchInput: document.querySelector("#globalSearchInput"),
     fullSyncButton: document.querySelector("#fullSyncButton"),
     fullSyncLog: document.querySelector("#fullSyncLog"),
     fullSyncStatus: document.querySelector("#fullSyncStatus"),
@@ -1144,7 +1147,10 @@ function selectView(view) {
   if (legacyImporterView) selectSettingsTab("importer");
 
   for (const button of elements.tabButtons) {
-    button.classList.toggle("active", button.dataset.view === state.activeView);
+    const explorerMode = button.dataset.explorerNav;
+    const isExplorerMode = state.activeView === "explorer" && explorerMode === state.explorerMode;
+    const isActiveView = button.dataset.view === state.activeView && !explorerMode;
+    button.classList.toggle("active", isActiveView || isExplorerMode);
   }
 
   for (const panel of elements.viewPanels) {
@@ -1664,9 +1670,18 @@ function renderExplorer() {
   if (elements.explorerSort) {
     elements.explorerSort.value = state.explorerSort;
   }
+  if (elements.explorerTitle) {
+    elements.explorerTitle.textContent = state.explorerMode === "shows" ? "TV Shows" : "Movies";
+  }
+  if (elements.explorerSubtitle) {
+    elements.explorerSubtitle.textContent = state.savedConfig?.plex?.username || "Watched history library";
+  }
 
   const search = elements.explorerSearchInput ? elements.explorerSearchInput.value.trim() : state.explorerSearch;
   state.explorerSearch = search;
+  if (elements.globalSearchInput && elements.globalSearchInput.value !== state.explorerSearch) {
+    elements.globalSearchInput.value = state.explorerSearch;
+  }
 
   if (state.explorerMode === "movies") {
     renderMovieExplorer();
@@ -4802,7 +4817,12 @@ function attachEvents() {
   });
 
   elements.tabButtons.forEach((button) => {
-    button.addEventListener("click", () => selectView(button.dataset.view));
+    button.addEventListener("click", () => {
+      if (button.dataset.explorerNav) {
+        state.explorerMode = button.dataset.explorerNav;
+      }
+      selectView(button.dataset.view);
+    });
   });
 
   elements.dashboardHistoryButtons.forEach((button) => {
@@ -4842,6 +4862,7 @@ function attachEvents() {
     button.addEventListener("click", () => {
       state.explorerMode = button.dataset.explorerMode;
       renderExplorer();
+      selectView("explorer");
     });
   });
 
@@ -5007,6 +5028,29 @@ function attachEvents() {
     window.clearTimeout(state.explorerSearchTimer);
     state.explorerSearchTimer = window.setTimeout(() => {
       state.explorerSearch = elements.explorerSearchInput.value.trim();
+      if (elements.globalSearchInput && elements.globalSearchInput.value !== state.explorerSearch) {
+        elements.globalSearchInput.value = state.explorerSearch;
+      }
+      renderExplorer();
+    }, 220);
+  });
+
+  elements.globalSearchInput?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    state.explorerSearch = elements.globalSearchInput.value.trim();
+    if (elements.explorerSearchInput) elements.explorerSearchInput.value = state.explorerSearch;
+    selectView("explorer");
+  });
+
+  elements.globalSearchInput?.addEventListener("input", () => {
+    if (state.activeView !== "explorer") return;
+    window.clearTimeout(state.explorerSearchTimer);
+    state.explorerSearchTimer = window.setTimeout(() => {
+      state.explorerSearch = elements.globalSearchInput.value.trim();
+      if (elements.explorerSearchInput && elements.explorerSearchInput.value !== state.explorerSearch) {
+        elements.explorerSearchInput.value = state.explorerSearch;
+      }
       renderExplorer();
     }, 220);
   });
