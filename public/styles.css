@@ -329,17 +329,13 @@ h2 {
 
 .explorer-heading {
   display: grid;
-  grid-template-columns: minmax(12rem, 1fr) auto minmax(18rem, 1fr);
+  grid-template-columns: minmax(12rem, 1fr) minmax(18rem, auto);
   align-items: center;
   gap: var(--space-3);
 }
 
 .explorer-heading-title {
   min-width: 0;
-}
-
-.explorer-mode-control {
-  justify-self: center;
 }
 
 .explorer-heading .explorer-controls {
@@ -1962,13 +1958,8 @@ h2 {
     align-items: stretch;
   }
 
-  .explorer-mode-control,
   .explorer-heading .explorer-controls {
     justify-self: stretch;
-  }
-
-  .explorer-mode-control {
-    justify-content: center;
   }
 
   .dashboard-history-heading {
@@ -3014,7 +3005,7 @@ h1 {
 }
 
 .explorer-heading {
-  grid-template-columns: minmax(12rem, 1fr) auto minmax(20rem, 1fr);
+  grid-template-columns: minmax(12rem, 1fr) minmax(20rem, auto);
   padding-bottom: 0.35rem;
 }
 
@@ -3202,7 +3193,6 @@ h1 {
     align-items: stretch;
   }
 
-  .explorer-mode-control,
   .dashboard-history-filter,
   .explorer-heading .explorer-controls {
     justify-self: stretch;

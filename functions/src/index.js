@@ -21,6 +21,7 @@ import {
   deleteWatchRecord,
   getWatchRecordById,
   getWatchRecordByIdLight,
+  getHistoryCacheVersion,
   getWatchStats,
   invalidateHistoryDerivedCaches,
   insertWatchRecord,
@@ -35,6 +36,7 @@ import {
   queryShows,
   queryWatchHistory,
   requireDb,
+  updateWatchPosterUrl,
   updatePlaybackProgressTelemetry,
   updateWatchTelemetry,
   upsertPlaybackProgress,
@@ -288,16 +290,19 @@ async function handleHistory(req, res) {
 
   const includeStats = !["0", "false", "no"].includes(statsMode);
   const historyPromise = queryWatchHistory(requireDb(), { search: req.query.search || "", limit: req.query.limit || 50, offset: req.query.offset || 0 });
+  const historyVersionPromise = getHistoryCacheVersion();
 
   if (!includeStats) {
-    return sendJson(res, { history: await historyPromise });
+    const [history, historyVersion] = await Promise.all([historyPromise, historyVersionPromise]);
+    return sendJson(res, { history, historyVersion });
   }
 
-  const [history, stats] = await Promise.all([
+  const [history, stats, historyVersion] = await Promise.all([
     historyPromise,
     getWatchStats(requireDb()),
+    historyVersionPromise,
   ]);
-  return sendJson(res, { history, stats });
+  return sendJson(res, { history, stats, historyVersion });
 }
 
 async function handleSyncJobs(req, res) {
@@ -324,7 +329,7 @@ async function handleMovies(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
-  const movies = await queryMovies({ search: req.query.search || "", sort: req.query.sort || "watched_desc", limit: req.query.limit || 100, offset: req.query.offset || 0 });
+  const movies = await queryMovies({ search: req.query.search || "", sort: req.query.sort || "title_asc", limit: req.query.limit || 100, offset: req.query.offset || 0 });
   return sendJson(res, { movies }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=300", Vary: "Authorization" });
 }
 
@@ -332,7 +337,7 @@ async function handleShows(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
-  const shows = await queryShows({ search: req.query.search || "", sort: req.query.sort || "watched_desc", limit: req.query.limit || 6, offset: req.query.offset || 0 });
+  const shows = await queryShows({ search: req.query.search || "", sort: req.query.sort || "title_asc", limit: req.query.limit || 6, offset: req.query.offset || 0 });
   return sendJson(res, { shows }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=300", Vary: "Authorization" });
 }
 
@@ -908,7 +913,8 @@ async function handlePoster(req, res) {
   const cacheHeaders = { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400" };
 
   try {
-    const row = await getWatchRecordByIdLight(String(req.query.id || ""));
+    const rowId = String(req.query.id || "");
+    const row = await getWatchRecordByIdLight(rowId);
     if (!row) return sendJson(res, { error: "not found" }, 404);
 
     const fallbackRequested = ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase());
@@ -916,14 +922,6 @@ async function handlePoster(req, res) {
 
     if (row.poster_url && !fallbackRequested && isHttpsUrl(row.poster_url)) {
       return sendJson(res, { url: row.poster_url }, 200, cacheHeaders);
-    }
-
-    if (config.tmdb?.apiKey && (fallbackRequested || !row.poster_url || isHttpUrl(row.poster_url) || !/^https?:\/\//i.test(row.poster_url))) {
-      const tmdbPoster = await fetchPosterFromTmdb(row, config.tmdb.apiKey).catch((error) => {
-        console.error("Poster TMDB fallback failed", { id: row.id, title: row.title, error: error.message || String(error) });
-        return null;
-      });
-      if (tmdbPoster) return sendJson(res, { url: tmdbPoster }, 200, cacheHeaders);
     }
 
     if (row.poster_url && !fallbackRequested) {
@@ -950,6 +948,9 @@ async function handlePoster(req, res) {
         const base = String(config.plex.baseUrl || "").replace(/\/+$/, "");
         const joined = path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
         const sep = joined.includes("?") ? "&" : "?";
+        await updateWatchPosterUrl(rowId, path).catch((error) => {
+          console.error("Failed to persist Plex poster path", { id: row.id, title: row.title, error: error.message || String(error) });
+        });
         return sendJson(res, { url: `${joined}${sep}X-Plex-Token=${encodeURIComponent(config.plex.token)}` }, 200, cacheHeaders);
       }
     }
@@ -957,6 +958,19 @@ async function handlePoster(req, res) {
     if (row.poster_url) {
       const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
       if (configuredUrl && !fallbackRequested) return sendJson(res, { url: configuredUrl }, 200, cacheHeaders);
+    }
+
+    if (config.tmdb?.apiKey && (fallbackRequested || !row.poster_url || isHttpUrl(row.poster_url) || !/^https?:\/\//i.test(row.poster_url))) {
+      const tmdbPoster = await fetchPosterFromTmdb(row, config.tmdb.apiKey).catch((error) => {
+        console.error("Poster TMDB fallback failed", { id: row.id, title: row.title, error: error.message || String(error) });
+        return null;
+      });
+      if (tmdbPoster) {
+        await updateWatchPosterUrl(rowId, tmdbPoster).catch((error) => {
+          console.error("Failed to persist TMDB poster URL", { id: row.id, title: row.title, error: error.message || String(error) });
+        });
+        return sendJson(res, { url: tmdbPoster }, 200, cacheHeaders);
+      }
     }
 
     return sendJson(res, { url: null }, 200, cacheHeaders);

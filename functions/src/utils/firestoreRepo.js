@@ -21,9 +21,13 @@ let showCache = {
   shows: [],
 };
 
-async function getCachedHistory() {
+export async function getHistoryCacheVersion() {
   const marker = await HISTORY_CACHE_DOC.get().catch(() => null);
-  const version = marker?.data()?.version || 0;
+  return marker?.data()?.version || 0;
+}
+
+async function getCachedHistory() {
+  const version = await getHistoryCacheVersion();
   if (historyCache.version === version && historyCache.rows.length > 0) {
     return historyCache.rows;
   }
@@ -719,6 +723,12 @@ function matchesSearch(row, search) {
   return haystack.includes(search.toLowerCase());
 }
 
+function titleContainsSearch(title, search) {
+  const needle = cleanString(search).toLowerCase();
+  if (!needle) return true;
+  return cleanString(title).toLowerCase().includes(needle);
+}
+
 function dedupeHistory(rows) {
   const map = new Map();
   for (const row of rows) {
@@ -893,6 +903,22 @@ export async function getWatchRecordByIdLight(id) {
   return fromFirestoreWatch(doc);
 }
 
+export async function updateWatchPosterUrl(id, posterUrl) {
+  const cleanUrl = cleanString(posterUrl);
+  if (!id || !cleanUrl) return false;
+  const ref = db.collection("watchHistory").doc(String(id));
+  const doc = await ref.get();
+  if (!doc.exists) return false;
+  const current = doc.data()?.posterUrl || "";
+  if (current === cleanUrl) return false;
+  await ref.update({
+    posterUrl: cleanUrl,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  await invalidateHistoryDerivedCaches();
+  return true;
+}
+
 export async function getWatchRecordById(id) {
   const doc = await db.collection("watchHistory").doc(String(id)).get();
   if (!doc.exists) return null;
@@ -938,14 +964,14 @@ export function requireDb() {
   return db;
 }
 
-export async function queryMovies({ search = "", sort = "watched_desc", limit = 100, offset = 0 } = {}) {
+export async function queryMovies({ search = "", sort = "title_asc", limit = 100, offset = 0 } = {}) {
   const safeLimit = Math.min(Number(limit) || 100, 5000);
   const safeOffset = Number(offset) || 0;
   
   const allRows = await getCachedHistory();
   const movies = allRows.filter((row) => row.media_type === "movie" && isPlembfinTrackedWatchRow(row));
   
-  const filtered = movies.filter((row) => matchesSearch(row, search));
+  const filtered = movies.filter((row) => titleContainsSearch(row.title, search));
   const deduped = dedupeHistory(filtered);
   const sorted = sortRows(deduped, sort);
   return sorted.slice(safeOffset, safeOffset + safeLimit);
@@ -1043,7 +1069,7 @@ function showSummaryFromCache(doc) {
   };
 }
 
-export async function queryShows({ search = "", sort = "watched_desc", limit = 6, offset = 0 } = {}) {
+export async function queryShows({ search = "", sort = "title_asc", limit = 6, offset = 0 } = {}) {
   const safeLimit = Math.min(Number(limit) || 6, 60);
   const safeOffset = Number(offset) || 0;
   
@@ -1052,11 +1078,7 @@ export async function queryShows({ search = "", sort = "watched_desc", limit = 6
   
   const filtered = allShows.filter((show) => {
     if (!needle) return true;
-    if (show.title.toLowerCase().includes(needle)) return true;
-    return show.episodes.some((ep) => {
-      const haystack = [ep.title, ep.source, ep.imdb_id, ep.tmdb_id, ep.tvdb_id, ep.sync_dispatch_telemetry].join(" ").toLowerCase();
-      return haystack.includes(needle);
-    });
+    return titleContainsSearch(show.title, needle);
   });
   
   const sorted = sortShowRows(filtered, sort);

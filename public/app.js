@@ -12,12 +12,20 @@ const IMPORT_BATCH_SIZE = 100;
 const IMPORT_MAX_ATTEMPTS = 4;
 const IMPORT_RETRY_BASE_MS = 1500;
 const NOW_PLAYING_POLL_MS = 30000;
+const NOW_PLAYING_EMPTY_POLL_MS = 2 * 60 * 1000;
+const NOW_PLAYING_REENTRY_CACHE_MS = 20 * 1000;
 const POSTER_LOOKUP_CONCURRENCY = 4;
+const POSTER_LOOKUP_PERSISTED_CACHE_KEY = "plembfin:posterLookupCache:v1";
+const POSTER_LOOKUP_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+const POSTER_LOOKUP_PERSISTED_CACHE_LIMIT = 800;
 const TMDB_POSTER_SIZE = "w342";
 const HISTORY_PREVIEW_LIMIT = 72;
-const DASHBOARD_HISTORY_ROWS = 3;
+const DASHBOARD_HISTORY_ROWS = 2;
 const EXPLORER_PAGE_SIZE = 18;
-const EXPLORER_CACHE_TTL_MS = 2 * 60 * 1000;
+const EXPLORER_CACHE_TTL_MS = 30 * 60 * 1000;
+const EXPLORER_PERSISTED_CACHE_KEY = "plembfin:explorerPageCache:v2";
+const EXPLORER_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+const EXPLORER_PERSISTED_CACHE_LIMIT = 24;
 const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "sync", "settings", "help", "logs"];
 const SETTINGS_TABS = ["general", "apps", "importer", "complete-check", "tools"];
 
@@ -29,6 +37,7 @@ const state = {
   activeSettingsTab: localStorage.getItem(ACTIVE_SETTINGS_TAB_KEY) || "general",
   historyWeekStart: startOfWeek(new Date()),
   history: [],
+  historyVersion: "",
   dashboardHistoryFilter: "all",
   dashboardHistoryResizeTimer: undefined,
   activeSessions: [],
@@ -62,7 +71,7 @@ const state = {
   showsHasMore: true,
   showsLoading: false,
   showsQueryKey: "",
-  explorerSort: "watched_desc",
+  explorerSort: "title_asc",
   posterLookupCache: new Map(),
   posterLookupInflight: new Map(),
   tmdbDetailsCache: new Map(),
@@ -89,6 +98,7 @@ const state = {
   nowPlayingRequestActive: false,
   nowPlayingRefreshToken: "",
   nowPlayingSessionKey: "",
+  nowPlayingLastFetchAt: 0,
   configLoaded: false,
   fullSyncActive: false,
 };
@@ -272,22 +282,144 @@ function compactPosterUrl(value) {
   return url.replace(/(https:\/\/image\.tmdb\.org\/t\/p\/)original\//i, `$1${TMDB_POSTER_SIZE}/`);
 }
 
+function persistentPosterCacheKey() {
+  const userKey = state.firebaseUser?.uid || state.firebaseUser?.email || "local";
+  return `${POSTER_LOOKUP_PERSISTED_CACHE_KEY}:${userKey}`;
+}
+
+function readPersistentPosterCache() {
+  try {
+    const raw = localStorage.getItem(persistentPosterCacheKey());
+    const parsed = raw ? JSON.parse(raw) : {};
+    return Array.isArray(parsed.entries) ? parsed.entries : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function writePersistentPosterCache(entries) {
+  try {
+    localStorage.setItem(persistentPosterCacheKey(), JSON.stringify({ entries }));
+  } catch (error) {
+    // Poster storage is best-effort; missing entries can still resolve through the API.
+  }
+}
+
+function clearPersistentPosterLookupCache() {
+  try {
+    localStorage.removeItem(persistentPosterCacheKey());
+  } catch (error) {}
+}
+
+function cachedPosterLookup(posterId) {
+  if (!posterId) return undefined;
+  if (state.posterLookupCache.has(posterId)) return state.posterLookupCache.get(posterId) || "";
+
+  const now = Date.now();
+  const entries = readPersistentPosterCache().filter((entry) => now - Number(entry.savedAt || 0) <= POSTER_LOOKUP_PERSISTED_CACHE_TTL_MS);
+  const cached = entries.find((entry) => entry.id === posterId);
+  if (!cached) {
+    if (entries.length) writePersistentPosterCache(entries);
+    return undefined;
+  }
+
+  const url = typeof cached.url === "string" ? cached.url : "";
+  state.posterLookupCache.set(posterId, url);
+  return url;
+}
+
+function rememberPosterLookup(posterId, posterUrl) {
+  if (!posterId) return;
+  const url = posterUrl || "";
+  const savedAt = Date.now();
+  state.posterLookupCache.set(posterId, url);
+
+  const entries = readPersistentPosterCache()
+    .filter((entry) => entry.id !== posterId && savedAt - Number(entry.savedAt || 0) <= POSTER_LOOKUP_PERSISTED_CACHE_TTL_MS)
+    .concat({ id: posterId, url, savedAt })
+    .sort((a, b) => Number(b.savedAt || 0) - Number(a.savedAt || 0))
+    .slice(0, POSTER_LOOKUP_PERSISTED_CACHE_LIMIT);
+  writePersistentPosterCache(entries);
+}
+
+function historyVersionFromRows(rows = []) {
+  const newest = rows.reduce((latest, row) => {
+    const watchedAt = String(row?.watched_at || "");
+    return watchedAt > latest ? watchedAt : latest;
+  }, "");
+  return newest ? `rows:${newest}:${rows.length}` : "empty";
+}
+
+function explorerCacheVersion() {
+  return String(state.historyVersion || historyVersionFromRows(state.history));
+}
+
+function persistentExplorerCacheKey() {
+  const userKey = state.firebaseUser?.uid || state.firebaseUser?.email || "local";
+  return `${EXPLORER_PERSISTED_CACHE_KEY}:${userKey}`;
+}
+
+function readPersistentExplorerCache() {
+  try {
+    const raw = localStorage.getItem(persistentExplorerCacheKey());
+    const parsed = raw ? JSON.parse(raw) : {};
+    return Array.isArray(parsed.entries) ? parsed.entries : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function writePersistentExplorerCache(entries) {
+  try {
+    localStorage.setItem(persistentExplorerCacheKey(), JSON.stringify({ entries }));
+  } catch (error) {
+    // Storage is best-effort; the in-memory cache and API remain available.
+  }
+}
+
+function clearPersistentExplorerPageCache() {
+  try {
+    localStorage.removeItem(persistentExplorerCacheKey());
+  } catch (error) {}
+}
+
 function cachedExplorerPage(key) {
+  const version = explorerCacheVersion();
   const cached = state.explorerPageCache.get(key);
-  if (!cached) return null;
-  if (Date.now() - cached.savedAt > EXPLORER_CACHE_TTL_MS) {
+  if (cached && cached.version === version && Date.now() - cached.savedAt <= EXPLORER_CACHE_TTL_MS) {
+    return cached.body;
+  }
+  if (cached) {
     state.explorerPageCache.delete(key);
+  }
+
+  const now = Date.now();
+  const entries = readPersistentExplorerCache().filter((entry) => now - Number(entry.savedAt || 0) <= EXPLORER_PERSISTED_CACHE_TTL_MS);
+  const persisted = entries.find((entry) => entry.key === key && entry.version === version);
+  if (!persisted) {
+    if (entries.length) writePersistentExplorerCache(entries);
     return null;
   }
-  return cached.body;
+
+  state.explorerPageCache.set(key, { savedAt: now, version, body: persisted.body });
+  return persisted.body;
 }
 
 function rememberExplorerPage(key, body) {
-  state.explorerPageCache.set(key, { savedAt: Date.now(), body });
+  const savedAt = Date.now();
+  const version = explorerCacheVersion();
+  state.explorerPageCache.set(key, { savedAt, version, body });
   if (state.explorerPageCache.size > 40) {
     const oldestKey = state.explorerPageCache.keys().next().value;
     state.explorerPageCache.delete(oldestKey);
   }
+
+  const nextEntries = readPersistentExplorerCache()
+    .filter((entry) => entry.key !== key && savedAt - Number(entry.savedAt || 0) <= EXPLORER_PERSISTED_CACHE_TTL_MS)
+    .concat({ key, version, savedAt, body })
+    .sort((a, b) => Number(b.savedAt || 0) - Number(a.savedAt || 0))
+    .slice(0, EXPLORER_PERSISTED_CACHE_LIMIT);
+  writePersistentExplorerCache(nextEntries);
 }
 
 function posterServerConfig(source = "") {
@@ -320,8 +452,9 @@ function configuredImageUrl(path, item = {}) {
 }
 
 function posterUrlFor(item = {}) {
-  if (item.id != null && state.posterLookupCache.has(String(item.id))) {
-    return state.posterLookupCache.get(String(item.id)) || "";
+  if (item.id != null) {
+    const cached = cachedPosterLookup(String(item.id));
+    if (cached !== undefined) return cached || "";
   }
   const raw = item.poster_url || item.posterUrl || item.imageUrl || item.thumb || "";
   return compactPosterUrl(raw) || configuredImageUrl(raw, item);
@@ -345,8 +478,9 @@ function posterFallbackElement(className = "media-poster", posterId = "") {
 
 async function lookupPosterUrl(posterId, { fallback = false } = {}) {
   if (!posterId) return "";
-  if (!fallback && state.posterLookupCache.has(posterId)) {
-    return state.posterLookupCache.get(posterId) || "";
+  if (!fallback) {
+    const cached = cachedPosterLookup(posterId);
+    if (cached !== undefined) return cached || "";
   }
 
   const cacheKey = fallback ? `${posterId}:fallback` : posterId;
@@ -369,8 +503,7 @@ async function lookupPosterUrl(posterId, { fallback = false } = {}) {
   }
 
   const posterUrl = await lookup;
-  if (posterUrl) state.posterLookupCache.set(posterId, posterUrl);
-  else state.posterLookupCache.set(posterId, "");
+  rememberPosterLookup(posterId, posterUrl || "");
   return posterUrl || "";
 }
 
@@ -1318,7 +1451,12 @@ async function loadHistory() {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `History load failed with ${response.status}`);
 
+  const previousHistoryVersion = state.historyVersion;
   state.history = Array.isArray(body.history) ? body.history : [];
+  state.historyVersion = String(body.historyVersion ?? historyVersionFromRows(state.history));
+  if (previousHistoryVersion && previousHistoryVersion !== state.historyVersion) {
+    state.explorerPageCache.clear();
+  }
   if (body.stats) {
     state.stats = body.stats;
     state.statsLoaded = true;
@@ -1336,8 +1474,10 @@ async function loadHistory() {
 
 function clearDerivedUiCaches({ resetExplorer = true } = {}) {
   state.explorerPageCache.clear();
+  clearPersistentExplorerPageCache();
   state.posterLookupCache.clear();
   state.posterLookupInflight.clear();
+  clearPersistentPosterLookupCache();
   state.statsLoaded = false;
   if (resetExplorer) {
     resetMovieExplorer();
@@ -1385,6 +1525,7 @@ async function loadActiveSessions() {
     logDebug(message);
     throw new Error(message);
   } finally {
+    state.nowPlayingLastFetchAt = Date.now();
     state.nowPlayingRequestActive = false;
   }
 
@@ -1435,25 +1576,56 @@ async function loadActiveSessions() {
   return sessions;
 }
 
-function startHistoryPolling() {
-  stopHistoryPolling();
+function nextNowPlayingPollDelay(sessions = state.activeSessions) {
+  return sessions.length ? NOW_PLAYING_POLL_MS : NOW_PLAYING_EMPTY_POLL_MS;
+}
+
+function scheduleNextNowPlayingPoll(delayMs = nextNowPlayingPollDelay()) {
   if (!state.token || state.activeView !== "dashboard") return;
 
-  logDebug(`Starting Now Playing background refresh loop at ${Math.round(NOW_PLAYING_POLL_MS / 1000)} second cadence.`);
-  loadActiveSessions().catch((error) => setMessage(error.message, "error"));
-  state.nowPlayingInterval = window.setInterval(() => {
-    if (state.activeView !== "dashboard" || !state.token) {
-      stopHistoryPolling();
+  if (state.nowPlayingInterval) {
+    window.clearTimeout(state.nowPlayingInterval);
+  }
+
+  state.nowPlayingInterval = window.setTimeout(() => {
+    state.nowPlayingInterval = undefined;
+    if (state.activeView !== "dashboard" || !state.token || document.hidden) {
       return;
     }
 
-    loadActiveSessions().catch((error) => setMessage(error.message, "error"));
-  }, NOW_PLAYING_POLL_MS);
+    loadActiveSessions()
+      .then((sessions) => scheduleNextNowPlayingPoll(nextNowPlayingPollDelay(sessions)))
+      .catch((error) => {
+        setMessage(error.message, "error");
+        scheduleNextNowPlayingPoll(NOW_PLAYING_EMPTY_POLL_MS);
+      });
+  }, delayMs);
+}
+
+function startHistoryPolling() {
+  stopHistoryPolling();
+  if (!state.token || state.activeView !== "dashboard" || document.hidden) return;
+
+  const ageMs = Date.now() - state.nowPlayingLastFetchAt;
+  if (state.nowPlayingLastFetchAt && ageMs < NOW_PLAYING_REENTRY_CACHE_MS) {
+    const delayMs = Math.max(1000, nextNowPlayingPollDelay() - ageMs);
+    logDebug(`Reusing recent Now Playing cache; next refresh in ${Math.round(delayMs / 1000)} seconds.`);
+    scheduleNextNowPlayingPoll(delayMs);
+    return;
+  }
+
+  logDebug("Starting adaptive Now Playing background refresh loop.");
+  loadActiveSessions()
+    .then((sessions) => scheduleNextNowPlayingPoll(nextNowPlayingPollDelay(sessions)))
+    .catch((error) => {
+      setMessage(error.message, "error");
+      scheduleNextNowPlayingPoll(NOW_PLAYING_EMPTY_POLL_MS);
+    });
 }
 
 function stopHistoryPolling() {
   if (!state.nowPlayingInterval) return;
-  window.clearInterval(state.nowPlayingInterval);
+  window.clearTimeout(state.nowPlayingInterval);
   state.nowPlayingInterval = undefined;
   logDebug("Stopped Now Playing background refresh loop.");
 }
@@ -1523,8 +1695,8 @@ function renderDashboard() {
 function dashboardHistoryDisplayLimit() {
   const width = window.innerWidth || 1600;
   if (width <= 900) return DASHBOARD_HISTORY_ROWS * 2;
-  if (width <= 1300) return DASHBOARD_HISTORY_ROWS * 4;
-  return DASHBOARD_HISTORY_ROWS * 8;
+  if (width <= 1300) return DASHBOARD_HISTORY_ROWS * 3;
+  return DASHBOARD_HISTORY_ROWS * 4;
 }
 
 function renderActiveSessions() {
@@ -3637,6 +3809,7 @@ async function lockDashboard() {
   state.token = "";
   state.firebaseUser = undefined;
   state.history = [];
+  state.historyVersion = "";
   state.activeSessions = [];
   state.syncJobs = [];
   state.syncJobsLoaded = false;
@@ -3648,6 +3821,7 @@ async function lockDashboard() {
   state.importProgressValue = 0;
   state.nowPlayingRefreshToken = "";
   state.nowPlayingSessionKey = "";
+  state.nowPlayingLastFetchAt = 0;
   state.configLoaded = false;
   state.savedConfig = {};
   localStorage.removeItem(TOKEN_KEY);
@@ -4867,7 +5041,7 @@ function attachEvents() {
   });
 
   elements.explorerSort?.addEventListener("change", () => {
-    state.explorerSort = elements.explorerSort.value || "watched_desc";
+    state.explorerSort = elements.explorerSort.value || "title_asc";
     renderExplorer();
   });
 
@@ -5168,6 +5342,15 @@ function attachEvents() {
     state.dashboardHistoryResizeTimer = window.setTimeout(() => {
       if (state.activeView === "dashboard") renderDashboard();
     }, 120);
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!state.token || state.activeView !== "dashboard") return;
+    if (document.hidden) {
+      stopHistoryPolling();
+      return;
+    }
+    startHistoryPolling();
   });
 }
 
