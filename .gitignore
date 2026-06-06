@@ -5,7 +5,9 @@ node_modules/
 !.env.example
 firebase-debug.log
 firestore-debug.log
+pubsub-debug.log
+storage-debug.log
 ui-debug.log
 functions/lib/
 service-account-key.json
-
+emulator-data/

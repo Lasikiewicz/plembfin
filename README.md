@@ -2,10 +2,41 @@
 
 ## Local Site
 
-To run the site locally, use:
+To run a safe local copy of the live Firebase stack, use:
+
+```powershell
+npm install
+npm --prefix functions install
+Copy-Item functions\.env.example functions\.env
+npm run emulators
+```
+
+Set `ADMIN_EMAILS` in `functions/.env` to the email you will create in the Auth emulator.
+
+Local emulator URLs:
+
+- Site: `http://127.0.0.1:5000`
+- Emulator UI: `http://127.0.0.1:4000`
+- Auth emulator: `127.0.0.1:9099`
+- Firestore emulator: `127.0.0.1:8180`
+- Storage emulator: `127.0.0.1:9199`
+- Functions emulator: `127.0.0.1:5001`
+- Pub/Sub emulator: `127.0.0.1:8085`
+
+Create a local admin user in the Emulator UI under Authentication, then sign in on the local site with that email and password. The local browser app connects to the Auth emulator automatically on `localhost`, `127.0.0.1`, or `::1`; the Functions emulator connects to the local Auth, Firestore, and Storage emulators when all emulators are started together. Pub/Sub is included so the every-minute `scheduledSync` function can be exercised locally too.
+
+The default emulator command imports from `./emulator-data` and exports back to that folder on exit, so local Auth, Firestore, and Storage state persists between restarts.
+
+You can also start the same persistent emulator stack explicitly with:
 
 ```bash
-npx firebase emulators:start --only functions,hosting
+npm run emulators:import
+```
+
+Export the current local emulator data with:
+
+```bash
+npm run emulators:export
 ```
 
 Fresh Firebase implementation of Plembfin. The original Cloudflare repo remains untouched as the rollback path.

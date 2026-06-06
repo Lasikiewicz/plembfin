@@ -5,7 +5,7 @@ import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyf
 import { findPlexItem, markPlexPlayed, setPlexProgress } from "./utils/plexClient.js";
 import { markEmbyPlayed, setEmbyProgress } from "./utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress } from "./utils/jellyfinClient.js";
-import { requireAdmin } from "./utils/auth.js";
+import { isLocalAdminToken, requireAdmin } from "./utils/auth.js";
 import { readFormData, readJson } from "./utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed, notFound } from "./utils/http.js";
 import { appendSyncHistory, loadMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState } from "./utils/configStore.js";
@@ -33,6 +33,7 @@ import {
   progressRowToMedia,
   querySyncJobs,
   queryMovies,
+  queryShowDetail,
   queryShows,
   queryWatchHistory,
   requireDb,
@@ -47,6 +48,7 @@ import {
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
+import { cachePosterFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
 import { db, FieldValue } from "./firebase.js";
 
 const region = process.env.FUNCTIONS_REGION || "europe-west2";
@@ -66,6 +68,9 @@ async function requireAdminStreaming(req, res) {
     res.write("ERROR: Unauthorized\n");
     res.end();
     return null;
+  }
+  if (isLocalAdminToken(token)) {
+    return { uid: "local-admin", email: "admin", local: true };
   }
   try {
     const { auth } = await import("./firebase.js");
@@ -149,6 +154,11 @@ function isHttpsUrl(value = "") {
 
 function isHttpUrl(value = "") {
   return /^http:\/\//i.test(String(value || "").trim());
+}
+
+function isCachedStorageUrl(value = "") {
+  const raw = String(value || "").trim();
+  return raw.includes("firebasestorage.googleapis.com/") || raw.includes("/v0/b/") || raw.includes("127.0.0.1:9199/");
 }
 
 async function normalizeWebhook(req) {
@@ -339,6 +349,18 @@ async function handleShows(req, res) {
   if (!(await requireAdmin(req, res))) return;
   const shows = await queryShows({ search: req.query.search || "", sort: req.query.sort || "title_asc", limit: req.query.limit || 6, offset: req.query.offset || 0 });
   return sendJson(res, { shows }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=300", Vary: "Authorization" });
+}
+
+async function handleShow(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const id = String(req.query.id || "").trim();
+  const title = String(req.query.title || "").trim();
+  if (!id && !title) return sendJson(res, { error: "id or title is required" }, 400);
+  const show = await queryShowDetail({ id, title });
+  if (!show) return sendJson(res, { error: "not found" }, 404);
+  return sendJson(res, { show }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=300", Vary: "Authorization" });
 }
 
 function configuredRestoreTargets(config = {}) {
@@ -1011,15 +1033,19 @@ async function handlePoster(req, res) {
 
     const fallbackRequested = ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase());
     const config = await loadMediaConfig().catch(() => ({}));
+    const mediaKey = row.media_key || mediaKeyFor(row);
+    const cached = usableCachedPoster(await getPosterCache(mediaKey));
+    if (cached?.url || cached?.cached) return sendJson(res, cached, 200, cacheHeaders);
 
-    if (row.poster_url && !fallbackRequested && isHttpsUrl(row.poster_url)) {
-      return sendJson(res, { url: row.poster_url }, 200, cacheHeaders);
+    if (row.poster_url && !fallbackRequested && isCachedStorageUrl(row.poster_url)) {
+      return sendJson(res, { url: row.poster_url, cached: true, source: "storage" }, 200, cacheHeaders);
     }
 
+    const candidates = [];
     if (row.poster_url && !fallbackRequested) {
-      if (/^https?:\/\//i.test(row.poster_url)) return sendJson(res, { url: row.poster_url }, 200, cacheHeaders);
+      if (/^https?:\/\//i.test(row.poster_url)) candidates.push({ url: row.poster_url, source: "stored" });
       const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
-      if (configuredUrl) return sendJson(res, { url: configuredUrl }, 200, cacheHeaders);
+      if (configuredUrl) candidates.push({ url: configuredUrl, source: configForPosterSource(config, row.source).source || "configured" });
     }
 
     if (String(row.source || "").toLowerCase().includes("plex") && config.plex?.baseUrl && config.plex?.token) {
@@ -1037,19 +1063,14 @@ async function handlePoster(req, res) {
         ? item?.grandparentThumb || item?.parentThumb || item?.thumb || item?.grandparentArt || item?.parentArt || item?.art || ""
         : item?.thumb || item?.parentThumb || item?.grandparentThumb || item?.art || item?.parentArt || item?.grandparentArt || "";
       if (path) {
-        const base = String(config.plex.baseUrl || "").replace(/\/+$/, "");
-        const joined = path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
-        const sep = joined.includes("?") ? "&" : "?";
-        await updateWatchPosterUrl(rowId, path).catch((error) => {
-          console.error("Failed to persist Plex poster path", { id: row.id, title: row.title, error: error.message || String(error) });
-        });
-        return sendJson(res, { url: `${joined}${sep}X-Plex-Token=${encodeURIComponent(config.plex.token)}` }, 200, cacheHeaders);
+        const configuredUrl = configuredPosterUrl(path, "plex", config);
+        if (configuredUrl) candidates.push({ url: configuredUrl, source: "plex" });
       }
     }
 
     if (row.poster_url) {
       const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
-      if (configuredUrl && !fallbackRequested) return sendJson(res, { url: configuredUrl }, 200, cacheHeaders);
+      if (configuredUrl && !fallbackRequested) candidates.push({ url: configuredUrl, source: configForPosterSource(config, row.source).source || "configured" });
     }
 
     if (config.tmdb?.apiKey && (fallbackRequested || !row.poster_url || isHttpUrl(row.poster_url) || !/^https?:\/\//i.test(row.poster_url))) {
@@ -1058,17 +1079,28 @@ async function handlePoster(req, res) {
         return null;
       });
       if (tmdbPoster) {
-        await updateWatchPosterUrl(rowId, tmdbPoster).catch((error) => {
-          console.error("Failed to persist TMDB poster URL", { id: row.id, title: row.title, error: error.message || String(error) });
-        });
-        return sendJson(res, { url: tmdbPoster }, 200, cacheHeaders);
+        candidates.push({ url: tmdbPoster, source: "tmdb" });
       }
     }
 
-    return sendJson(res, { url: null }, 200, cacheHeaders);
+    const seen = new Set();
+    for (const candidate of candidates) {
+      if (!candidate.url || seen.has(candidate.url)) continue;
+      seen.add(candidate.url);
+      const cachedPoster = await cachePosterFromUrl(mediaKey, candidate.url, candidate.source);
+      if (cachedPoster?.url) {
+        await updateWatchPosterUrl(rowId, cachedPoster.url).catch((error) => {
+          console.error("Failed to persist cached poster URL", { id: row.id, title: row.title, error: error.message || String(error) });
+        });
+        return sendJson(res, cachedPoster, 200, cacheHeaders);
+      }
+    }
+
+    await markPosterMissing(mediaKey, "poster", "No usable poster candidate").catch(() => null);
+    return sendJson(res, { url: null, cached: true, source: "missing" }, 200, cacheHeaders);
   } catch (error) {
     console.error("Poster lookup failed", { id: String(req.query.id || ""), error: error.message || String(error) });
-    return sendJson(res, { url: null }, 200, cacheHeaders);
+    return sendJson(res, { url: null, cached: false, source: "error" }, 200, cacheHeaders);
   }
 }
 
@@ -1251,6 +1283,7 @@ async function dispatch(req, res) {
     if (path === "sync-history") return handleSyncHistory(req, res);
     if (path === "movies") return handleMovies(req, res);
     if (path === "shows") return handleShows(req, res);
+    if (path === "show") return handleShow(req, res);
     if (path === "full-sync-watchstates") return handleFullSyncWatchstates(req, res);
     if (path === "import") return handleImport(req, res);
     if (path === "manual-watch") return handleManualWatch(req, res);

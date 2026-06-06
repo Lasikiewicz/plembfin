@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "emulators": "firebase emulators:start --project plembfin --only auth,firestore,functions,hosting,pubsub,storage --import ./emulator-data --export-on-exit ./emulator-data",
+    "emulators:import": "firebase emulators:start --project plembfin --only auth,firestore,functions,hosting,pubsub,storage --import ./emulator-data --export-on-exit ./emulator-data",
+    "emulators:export": "firebase emulators:export ./emulator-data --project plembfin",
     "deploy": "firebase deploy",
     "deploy:hosting": "firebase deploy --only hosting",
     "deploy:functions": "firebase deploy --only functions"

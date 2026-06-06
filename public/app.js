@@ -14,8 +14,8 @@ const IMPORT_RETRY_BASE_MS = 1500;
 const NOW_PLAYING_POLL_MS = 30000;
 const NOW_PLAYING_EMPTY_POLL_MS = 2 * 60 * 1000;
 const NOW_PLAYING_REENTRY_CACHE_MS = 20 * 1000;
-const POSTER_LOOKUP_CONCURRENCY = 4;
-const POSTER_LOOKUP_PERSISTED_CACHE_KEY = "plembfin:posterLookupCache:v1";
+const POSTER_LOOKUP_CONCURRENCY = 2;
+const POSTER_LOOKUP_PERSISTED_CACHE_KEY = "plembfin:posterLookupCache:v2";
 const POSTER_LOOKUP_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const POSTER_LOOKUP_PERSISTED_CACHE_LIMIT = 800;
 const TMDB_POSTER_SIZE = "w342";
@@ -78,6 +78,8 @@ const state = {
   tmdbSeasonCache: new Map(),
   explorerPageCache: new Map(),
   explorerLoadObserver: undefined,
+  explorerScrollArmed: false,
+  posterHydrateScrollScheduled: false,
   expandedShows: new Set(),
   expandedSeasons: new Set(),
   activeShowModalKey: null,
@@ -85,6 +87,7 @@ const state = {
   showModalRequestToken: 0,
   showModalEpisodes: [],
   showModalEpisodeIndex: new Map(),
+  showDetailInflight: new Map(),
   pendingWatchAction: null,
   activeMovieModalId: null,
   activeHelpTopic: "settings",
@@ -323,14 +326,18 @@ function cachedPosterLookup(posterId) {
     return undefined;
   }
 
-  const url = typeof cached.url === "string" ? cached.url : "";
+  const url = typeof cached.url === "string" && isCachedStorageImageUrl(cached.url) ? cached.url : "";
+  if (cached.url && !url) {
+    writePersistentPosterCache(entries.filter((entry) => entry.id !== posterId));
+    return undefined;
+  }
   state.posterLookupCache.set(posterId, url);
   return url;
 }
 
 function rememberPosterLookup(posterId, posterUrl) {
   if (!posterId) return;
-  const url = posterUrl || "";
+  const url = isCachedStorageImageUrl(posterUrl) ? posterUrl : "";
   const savedAt = Date.now();
   state.posterLookupCache.set(posterId, url);
 
@@ -451,13 +458,20 @@ function configuredImageUrl(path, item = {}) {
   }
 }
 
+function isCachedStorageImageUrl(value = "") {
+  const raw = String(value || "").trim();
+  return raw.includes("firebasestorage.googleapis.com/") || raw.includes("/v0/b/") || raw.includes("127.0.0.1:9199/");
+}
+
 function posterUrlFor(item = {}) {
   if (item.id != null) {
     const cached = cachedPosterLookup(String(item.id));
     if (cached !== undefined) return cached || "";
   }
   const raw = item.poster_url || item.posterUrl || item.imageUrl || item.thumb || "";
-  return compactPosterUrl(raw) || configuredImageUrl(raw, item);
+  if (isCachedStorageImageUrl(raw)) return raw;
+  if (item.id != null) return "";
+  return "";
 }
 
 function posterMarkup(item = {}, className = "media-poster") {
@@ -507,11 +521,19 @@ async function lookupPosterUrl(posterId, { fallback = false } = {}) {
   return posterUrl || "";
 }
 
+function shouldHydratePosterElement(element) {
+  if (!element?.isConnected) return false;
+  const rect = element.getBoundingClientRect();
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  return rect.bottom >= -120 && rect.right >= -120 && rect.top <= viewportHeight + 360 && rect.left <= viewportWidth + 120;
+}
+
 async function hydratePosterFallbacks(container = document.body) {
   if (!container) return;
   const fallbacks = [...container.querySelectorAll("[data-poster-id].poster-fallback")].filter((fallback) => {
     const posterId = fallback.dataset.posterId;
-    return posterId && !state.posterLookupCache.has(posterId);
+    return posterId && !state.posterLookupCache.has(posterId) && shouldHydratePosterElement(fallback);
   });
   if (!fallbacks.length) return;
 
@@ -2029,6 +2051,7 @@ function resetMovieExplorer(key = explorerQueryKey("movies")) {
   state.moviesHasMore = true;
   state.moviesLoading = false;
   state.moviesQueryKey = key;
+  state.explorerScrollArmed = false;
 }
 
 function resetShowExplorer(key = explorerQueryKey("shows")) {
@@ -2037,6 +2060,7 @@ function resetShowExplorer(key = explorerQueryKey("shows")) {
   state.showsHasMore = true;
   state.showsLoading = false;
   state.showsQueryKey = key;
+  state.explorerScrollArmed = false;
 }
 
 function renderExplorerSentinel(mode, hasMore, loading) {
@@ -2058,10 +2082,11 @@ function observeExplorerSentinel(mode) {
   state.explorerLoadObserver = new IntersectionObserver(
     (entries) => {
       if (!entries.some((entry) => entry.isIntersecting)) return;
+      if (!state.explorerScrollArmed) return;
       if (mode === "movies") loadExplorerMovies().catch((error) => setMessage(error.message, "error"));
       if (mode === "shows") loadExplorerShows().catch((error) => setMessage(error.message, "error"));
     },
-    { rootMargin: "900px 0px 900px 0px" },
+    { rootMargin: "200px 0px 200px 0px" },
   );
   state.explorerLoadObserver.observe(sentinel);
 }
@@ -2182,6 +2207,39 @@ async function loadExplorerShows() {
   }
 }
 
+function mergeShowDetail(show = {}) {
+  if (!show?.title) return null;
+  const showKey = slug(show.title);
+  const existingIndex = state.showsRaw.findIndex((item) => slug(item.title) === showKey);
+  if (existingIndex >= 0) {
+    state.showsRaw[existingIndex] = { ...state.showsRaw[existingIndex], ...show };
+    return state.showsRaw[existingIndex];
+  }
+  state.showsRaw.push(show);
+  return show;
+}
+
+async function loadShowDetail(show = {}) {
+  const showTitle = show.title || "";
+  const showKey = slug(showTitle);
+  const cacheKey = show.id || showKey || showTitle;
+  if (!cacheKey) return null;
+  if (state.showDetailInflight.has(cacheKey)) return state.showDetailInflight.get(cacheKey);
+
+  const request = (async () => {
+    const url = new URL("/api/show", window.location.origin);
+    if (show.id) url.searchParams.set("id", show.id);
+    else url.searchParams.set("title", showTitle);
+    const response = await fetch(url, { headers: authHeaders() });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Show detail failed ${response.status}`);
+    return mergeShowDetail(body.show || null);
+  })().finally(() => state.showDetailInflight.delete(cacheKey));
+
+  state.showDetailInflight.set(cacheKey, request);
+  return request;
+}
+
 function matchesExplorerSearch(entry = {}, search = "") {
   const needle = String(search || "").trim().toLowerCase();
   if (!needle) return true;
@@ -2267,7 +2325,39 @@ function seasonsFromShowRecord(show = {}) {
   return seasons;
 }
 
+function summaryEpisodeFromShow(show = {}) {
+  const representative = show.representative_episode || show.representativeEpisode || {};
+  return {
+    ...representative,
+    id: representative.id || show.id || show.title,
+    title: representative.title || show.title || "Unknown Show",
+    media_type: representative.media_type || "episode",
+    watched_at: representative.watched_at || show.latest_watched_at || "",
+    source: representative.source || show.source || "",
+    imdb_id: representative.imdb_id || show.imdb_id || null,
+    tmdb_id: representative.tmdb_id || show.tmdb_id || null,
+    tvdb_id: representative.tvdb_id || show.tvdb_id || null,
+    poster_url: representative.poster_url || show.poster_url || show.posterUrl || null,
+  };
+}
+
 function renderShowRecord(show = {}) {
+  if (!Array.isArray(show.episodes) || !show.episodes.length) {
+    const representative = summaryEpisodeFromShow(show);
+    const showKey = slug(show.title || "Unknown Show");
+    return `
+      <article class="folder-card">
+        <button class="folder-cover" type="button" data-show-key="${escapeAttribute(showKey)}">
+          ${posterMarkup(representative, "movie-poster")}
+          <span class="folder-cover-overlay">
+            <b>${escapeHtml(show.title || "Unknown Show")}</b>
+            <span>${formatNumber(show.season_count || 0)} seasons - ${formatNumber(show.episode_count || 0)} episodes</span>
+          </span>
+          <time datetime="${escapeHtml(show.latest_watched_at || "")}">${formatDate(show.latest_watched_at)}</time>
+        </button>
+      </article>
+    `;
+  }
   return renderShowFolder(show.title || "Unknown Show", seasonsFromShowRecord(show));
 }
 
@@ -2705,12 +2795,12 @@ async function openShowImmersiveModalByTitleLegacy(showTitle) {
     `;
 
     try {
-      const response = await fetch(`/api/shows?search=${encodeURIComponent(showTitle)}`, { headers: authHeaders() });
-      const body = await response.json().catch(() => ({}));
-      if (response.ok && Array.isArray(body.shows)) {
-        const found = body.shows.find((s) => slug(s.title) === showKey) || body.shows[0];
+        const response = await fetch(`/api/show?title=${encodeURIComponent(showTitle)}`, { headers: authHeaders() });
+        const body = await response.json().catch(() => ({}));
+      if (response.ok && body.show) {
+        const found = body.show;
         if (found) {
-          state.showsRaw.push(found);
+          mergeShowDetail(found);
           show = found;
         }
       }
@@ -2770,14 +2860,12 @@ async function openShowImmersiveModalByTitle(showTitle, seedEpisode = null) {
   }
 
   try {
-    const response = await fetch(`/api/shows?search=${encodeURIComponent(showTitle)}`, { headers: authHeaders() });
+    const response = await fetch(`/api/show?title=${encodeURIComponent(showTitle)}`, { headers: authHeaders() });
     const body = await response.json().catch(() => ({}));
-    if (response.ok && Array.isArray(body.shows)) {
-      const found = body.shows.find((item) => slug(item.title) === showKey) || body.shows[0];
+    if (response.ok && body.show) {
+      const found = body.show;
       if (found) {
-        const existingIndex = state.showsRaw.findIndex((item) => slug(item.title) === showKey);
-        if (existingIndex >= 0) state.showsRaw[existingIndex] = found;
-        else state.showsRaw.push(found);
+        mergeShowDetail(found);
         show = found;
       }
     }
@@ -2952,8 +3040,40 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
     modalPanel.classList.add("modal-panel--immersive");
   }
 
-  const show = state.showsRaw.find((s) => slug(s.title) === showKey);
+  let show = state.showsRaw.find((s) => slug(s.title) === showKey);
   if (!show) return;
+
+  if (!Array.isArray(show.episodes) || !show.episodes.length) {
+    elements.modalBody.innerHTML = `
+      <div class="modal-backdrop-image"></div>
+      <div class="immersive-container">
+        <button class="immersive-back-button" type="button">&larr; Back</button>
+        <div class="empty-log">
+          <b>Loading episodes...</b>
+          <span>Loading episode history.</span>
+        </div>
+      </div>
+    `;
+    hydratePosters(elements.modalBody);
+    show = await loadShowDetail(show).catch((error) => {
+      console.error("Failed to load show detail", error);
+      setMessage(`Failed to load show details: ${error.message}`, "error");
+      return show;
+    });
+    if (!Array.isArray(show.episodes) || !show.episodes.length) {
+      elements.modalBody.innerHTML = `
+        <div class="modal-backdrop-image"></div>
+        <div class="immersive-container">
+          <button class="immersive-back-button" type="button">&larr; Back</button>
+          <div class="empty-log">
+            <b>No episode rows found</b>
+            <span>No local episode history was available.</span>
+          </div>
+        </div>
+      `;
+      return;
+    }
+  }
 
   const seasonsMap = seasonsFromShowRecord(show);
   
@@ -3415,8 +3535,40 @@ async function renderImmersiveShowModal(showKey, activeSeasonNum = null) {
     modalPanel.classList.add("modal-panel--immersive");
   }
 
-  const show = state.showsRaw.find((s) => slug(s.title) === showKey);
+  let show = state.showsRaw.find((s) => slug(s.title) === showKey);
   if (!show) return;
+
+  if (!Array.isArray(show.episodes) || !show.episodes.length) {
+    elements.modalBody.innerHTML = `
+      <div class="modal-backdrop-image"></div>
+      <div class="immersive-container">
+        <button class="immersive-back-button" type="button">&larr; Back</button>
+        <div class="empty-log">
+          <b>Loading episodes...</b>
+          <span>Loading episode history.</span>
+        </div>
+      </div>
+    `;
+    hydratePosters(elements.modalBody);
+    show = await loadShowDetail(show).catch((error) => {
+      console.error("Failed to load show detail", error);
+      setMessage(`Failed to load show details: ${error.message}`, "error");
+      return show;
+    });
+    if (!Array.isArray(show.episodes) || !show.episodes.length) {
+      elements.modalBody.innerHTML = `
+        <div class="modal-backdrop-image"></div>
+        <div class="immersive-container">
+          <button class="immersive-back-button" type="button">&larr; Back</button>
+          <div class="empty-log">
+            <b>No episode rows found</b>
+            <span>No local episode history was available.</span>
+          </div>
+        </div>
+      `;
+      return;
+    }
+  }
 
   const seasonsMap = seasonsFromShowRecord(show);
   if (activeSeasonNum === null) {
@@ -3588,18 +3740,12 @@ async function postManualWatchRecords(records) {
 }
 
 async function refreshShowAfterManualWatch(showTitle) {
-  const url = new URL("/api/shows", window.location.origin);
-  url.searchParams.set("limit", "1");
-  url.searchParams.set("search", showTitle);
+  const url = new URL("/api/show", window.location.origin);
+  url.searchParams.set("title", showTitle);
   const response = await fetch(url, { headers: authHeaders() });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok || !Array.isArray(body.shows) || !body.shows.length) return;
-
-  const showKey = slug(showTitle);
-  const updated = body.shows.find((show) => slug(show.title) === showKey) || body.shows[0];
-  const index = state.showsRaw.findIndex((show) => slug(show.title) === showKey);
-  if (index >= 0) state.showsRaw[index] = updated;
-  else state.showsRaw.push(updated);
+  if (!response.ok || !body.show) return;
+  mergeShowDetail(body.show);
 }
 
 async function applyWatchDateChoice(choice) {
@@ -4008,7 +4154,7 @@ async function unlockWithToken(password, email = elements.adminEmail?.value) {
   const cleanEmail = String(email || "").trim();
   const cleanPassword = String(password || "");
   if (!cleanEmail || !cleanPassword) {
-    setMessage("Enter your Firebase admin email and password.", "error");
+    setMessage("Enter your Firebase admin email or local username and password.", "error");
     return;
   }
 
@@ -5573,6 +5719,17 @@ function attachEvents() {
       if (state.activeView === "dashboard") renderDashboard();
     }, 120);
   });
+
+  window.addEventListener("scroll", () => {
+    if (state.activeView !== "explorer") return;
+    state.explorerScrollArmed = true;
+    if (state.posterHydrateScrollScheduled) return;
+    state.posterHydrateScrollScheduled = true;
+    window.requestAnimationFrame(() => {
+      state.posterHydrateScrollScheduled = false;
+      hydratePosters(elements.explorerPanel);
+    });
+  }, { passive: true });
 
   document.addEventListener("visibilitychange", () => {
     if (!state.token || state.activeView !== "dashboard") return;

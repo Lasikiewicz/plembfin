@@ -9,7 +9,7 @@ const SHOW_SUMMARY_CACHE = db.collection("derivedShowSummaries");
 const HISTORY_CACHE_DOC = db.collection(DERIVED_CACHE_COLLECTION).doc("history");
 const STATS_CACHE_DOC = db.collection(DERIVED_CACHE_COLLECTION).doc("stats");
 const SHOWS_CACHE_META_DOC = db.collection(DERIVED_CACHE_COLLECTION).doc("showSummaries");
-const HISTORY_VISIBILITY_CACHE_VERSION = 3;
+const HISTORY_VISIBILITY_CACHE_VERSION = 4;
 
 let historyCache = {
   version: null,
@@ -977,8 +977,7 @@ export async function queryMovies({ search = "", sort = "title_asc", limit = 100
   return sorted.slice(safeOffset, safeOffset + safeLimit);
 }
 
-async function buildShowGroups(search = "") {
-  const rows = dedupeHistory((await loadHistoryRowsByType({ mediaType: "episode", limit: MAX_HISTORY_LIMIT })).filter((row) => matchesSearch(row, search)));
+function groupShowRows(rows = []) {
   const groups = new Map();
   rows.forEach((row) => {
     const title = showTitleFrom(row.title);
@@ -990,12 +989,16 @@ async function buildShowGroups(search = "") {
       earliest_watched_at: row.watched_at,
       episodes: [],
       seasons: new Set(),
+      representative_episode: null,
     };
     group.episode_count += 1;
     if (row.season != null) group.seasons.add(row.season);
     if (row.watched_at > group.latest_watched_at) group.latest_watched_at = row.watched_at;
     if (row.watched_at < group.earliest_watched_at) group.earliest_watched_at = row.watched_at;
     group.episodes.push({ ...row, show_title: title });
+    if (!group.representative_episode || row.watched_at > group.representative_episode.watched_at) {
+      group.representative_episode = { ...row, show_title: title };
+    }
     groups.set(title, group);
   });
   return [...groups.values()].map((group) => ({
@@ -1004,6 +1007,32 @@ async function buildShowGroups(search = "") {
     seasons: undefined,
     episodes: group.episodes.sort((a, b) => Number(a.season || 0) - Number(b.season || 0) || Number(a.episode || 0) - Number(b.episode || 0)),
   }));
+}
+
+async function buildShowGroups(search = "") {
+  const rows = dedupeHistory((await loadHistoryRowsByType({ mediaType: "episode", limit: MAX_HISTORY_LIMIT })).filter((row) => matchesSearch(row, search)));
+  return groupShowRows(rows);
+}
+
+function compactEpisode(row = {}) {
+  if (!row?.id) return null;
+  return {
+    id: row.id,
+    title: row.title,
+    media_type: row.media_type,
+    watched_at: row.watched_at,
+    source: row.source,
+    imdb_id: row.imdb_id,
+    tmdb_id: row.tmdb_id,
+    tvdb_id: row.tvdb_id,
+    season: row.season,
+    episode: row.episode,
+    poster_url: row.poster_url,
+    sync_action: row.sync_action,
+    sync_dispatch_telemetry: row.sync_dispatch_telemetry,
+    media_key: row.media_key,
+    show_title: row.show_title,
+  };
 }
 
 async function rebuildShowSummaryCache(version) {
@@ -1022,13 +1051,14 @@ async function rebuildShowSummaryCache(version) {
     const ref = SHOW_SUMMARY_CACHE.doc(canonicalTitleKey(group.title) || normalizeKeyPart(group.title));
     batch.set(ref, {
       version,
+      id: ref.id,
       title: group.title,
       titleLower: group.title.toLowerCase(),
       episodeCount: group.episode_count,
       seasonCount: group.season_count,
       latestWatchedAt: group.latest_watched_at,
       earliestWatchedAt: group.earliest_watched_at,
-      episodes: group.episodes,
+      representativeEpisode: compactEpisode(group.representative_episode),
       updatedAt: FieldValue.serverTimestamp(),
     });
     writes += 1;
@@ -1060,12 +1090,13 @@ async function ensureShowSummaryCache() {
 function showSummaryFromCache(doc) {
   const data = doc.data() || {};
   return {
+    id: data.id || doc.id,
     title: data.title || "",
     episode_count: Number(data.episodeCount || 0),
     season_count: Number(data.seasonCount || 0),
     latest_watched_at: data.latestWatchedAt || "",
     earliest_watched_at: data.earliestWatchedAt || "",
-    episodes: Array.isArray(data.episodes) ? data.episodes : [],
+    representative_episode: data.representativeEpisode || null,
   };
 }
 
@@ -1083,6 +1114,23 @@ export async function queryShows({ search = "", sort = "title_asc", limit = 6, o
   
   const sorted = sortShowRows(filtered, sort);
   return sorted.slice(safeOffset, safeOffset + safeLimit);
+}
+
+export async function queryShowDetail({ id = "", title = "" } = {}) {
+  const requestedTitle = cleanString(title);
+  let resolvedTitle = requestedTitle;
+  if (!resolvedTitle && id) {
+    const doc = await SHOW_SUMMARY_CACHE.doc(String(id)).get().catch(() => null);
+    resolvedTitle = doc?.exists ? String(doc.data()?.title || "") : "";
+  }
+  if (!resolvedTitle && id) {
+    resolvedTitle = String(id).replace(/-/g, " ");
+  }
+  const key = canonicalTitleKey(resolvedTitle);
+  const rows = dedupeHistory(await loadHistoryRowsByType({ mediaType: "episode", limit: MAX_HISTORY_LIMIT }))
+    .filter((row) => canonicalTitleKey(showTitleFrom(row.title)) === key);
+  const [show] = groupShowRows(rows);
+  return show || null;
 }
 
 export async function listWatchRowsForReplay({ limit = 25, offset = 0 } = {}) {

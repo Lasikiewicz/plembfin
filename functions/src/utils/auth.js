@@ -1,6 +1,8 @@
 import { auth } from "../firebase.js";
 import { sendJson } from "./http.js";
 
+const LOCAL_ADMIN_TOKEN = "plembfin-local-admin";
+
 function parseList(value = "") {
   return String(value || "")
     .split(",")
@@ -15,11 +17,20 @@ function bearerToken(req) {
   return String(req.query?.token || req.query?.admin_token || "").trim();
 }
 
+export function isLocalAdminToken(token = "") {
+  const localRuntime = process.env.FUNCTIONS_EMULATOR === "true" || Boolean(process.env.FIRESTORE_EMULATOR_HOST);
+  return localRuntime && String(token || "") === LOCAL_ADMIN_TOKEN;
+}
+
 export async function requireAdmin(req, res) {
   const token = bearerToken(req);
   if (!token) {
     sendJson(res, { error: "Unauthorized" }, 401);
     return null;
+  }
+
+  if (isLocalAdminToken(token)) {
+    return { uid: "local-admin", email: "admin", local: true };
   }
 
   let decoded;
