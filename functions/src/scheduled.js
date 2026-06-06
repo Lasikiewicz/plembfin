@@ -797,6 +797,16 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
 export async function runScheduledSync(logger = console.log) {
   logger("Scheduled Sync: starting background sync workflow...");
   const runtime = await loadRuntimeState();
+  
+  const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+  const isForceSyncStale = runtime.forceSyncStartedAt ? Number(runtime.forceSyncStartedAt) < tenMinutesAgo : true;
+
+  if (runtime.forceSyncActive === true && isForceSyncStale) {
+    logger("Scheduled Sync: detected stale forceSyncActive flag, resetting...");
+    await setRuntimeState({ forceSyncActive: false, forceSyncCancelRequested: false }).catch(() => null);
+    runtime.forceSyncActive = false;
+  }
+
   if (runtime.rebuildActive === true || runtime.forceSyncActive === true) {
     logger("Scheduled Sync: skipped because a database rebuild or force sync is currently active.");
     return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true };

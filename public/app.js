@@ -1847,15 +1847,25 @@ async function loadActiveSessions() {
   let sessions = Array.isArray(body) ? body : Array.isArray(body.sessions) ? body.sessions : [];
   logDebug(`Now-playing payload parsed successfully. Active sessions: ${sessions.length}`, sessions);
 
-  if (!sessions.length) {
-    logDebug("Firebase now-playing cache returned zero sessions. Starting direct browser local network fallback probes.");
-    const localSessions = await fetchLocalActiveSessions(configFromInputs(), logDebug);
-    if (localSessions.length) {
-      sessions = localSessions;
-      logDebug(`Hybrid local fallback returned ${localSessions.length} active sessions.`, localSessions);
-    } else {
-      logDebug("Hybrid local fallback returned zero active sessions.");
+  // Always poll local network in parallel — Firebase only captures sessions that sent webhooks
+  // (Plex webhooks work; Emby/Jellyfin playback events may not be configured).
+  // Merge local sessions so all three platforms show up regardless.
+  logDebug("Starting parallel direct browser local network probes to supplement Firebase sessions.");
+  const localSessions = await fetchLocalActiveSessions(configFromInputs(), logDebug);
+  if (localSessions.length) {
+    logDebug(`Local probes returned ${localSessions.length} session(s). Merging with Firebase sessions.`, localSessions);
+    for (const local of localSessions) {
+      const isDuplicate = sessions.some(
+        (s) =>
+          s.source === local.source &&
+          s.title === local.title &&
+          s.season === local.season &&
+          s.episode === local.episode
+      );
+      if (!isDuplicate) sessions.push(local);
     }
+  } else {
+    logDebug("Local probes returned zero active sessions.");
   }
 
   const refreshChanged = Boolean(refreshToken && refreshToken !== state.nowPlayingRefreshToken);
@@ -2375,7 +2385,7 @@ async function loadShowDetail(show = {}) {
   const request = (async () => {
     const url = new URL("/api/show", window.location.origin);
     if (show.id) url.searchParams.set("id", show.id);
-    else url.searchParams.set("title", showTitle);
+    if (showTitle) url.searchParams.set("title", showTitle);
     const response = await fetch(url, { headers: authHeaders() });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Show detail failed ${response.status}`);
@@ -5575,98 +5585,80 @@ async function triggerForceSync() {
     async () => {
       if (terminal) {
         terminal.classList.remove("hidden");
-        terminal.textContent = "Force Sync started...\n";
+        terminal.textContent = "Force Sync starting...\n";
       }
 
       const originalText = button.textContent;
       button.disabled = true;
       button.textContent = "Syncing...";
-
       button.classList.add("hidden");
-      if (stopButton) {
-        stopButton.classList.remove("hidden");
-      }
+      if (stopButton) stopButton.classList.remove("hidden");
 
       try {
-        const response = await fetch("/api/force-sync", {
+        // POST to kick off — returns 202 immediately (fire-and-forget)
+        const startResponse = await fetch("/api/force-sync", {
           method: "POST",
-          headers: authHeaders()
+          headers: authHeaders(),
         });
 
-        if (!response.ok) {
-          throw new Error(`Force sync failed with HTTP ${response.status}`);
+        if (!startResponse.ok) {
+          const body = await startResponse.json().catch(() => ({}));
+          throw new Error(body.error || `Force sync failed with HTTP ${startResponse.status}`);
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let buffer = "";
+        // Poll GET /api/force-sync every 2s to read Firestore-buffered log lines
+        let seenLines = 0;
         let finalResult = null;
+        let pollActive = true;
 
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
+        while (pollActive) {
+          await new Promise((r) => setTimeout(r, 2000));
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop(); // save incomplete line
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-
-            if (trimmed.startsWith("RESULT: ")) {
-              try {
-                finalResult = JSON.parse(trimmed.substring(8));
-              } catch (e) {
-                console.error("Failed to parse final result JSON", e);
-              }
-            } else {
-              if (terminal) {
-                terminal.textContent += `${trimmed}\n`;
-                terminal.scrollTop = terminal.scrollHeight;
-              }
-            }
+          let statusBody;
+          try {
+            const statusRes = await fetch("/api/force-sync", { headers: authHeaders(), cache: "no-store" });
+            statusBody = await statusRes.json();
+          } catch (err) {
+            // transient network error — keep polling
+            continue;
           }
-        }
 
-        // Flush any remaining buffer
-        if (buffer.trim()) {
-          const trimmed = buffer.trim();
-          if (trimmed.startsWith("RESULT: ")) {
-            try {
-              finalResult = JSON.parse(trimmed.substring(8));
-            } catch (e) {
-              console.error("Failed to parse final result JSON", e);
-            }
-          } else {
-            if (terminal) {
-              terminal.textContent += `${trimmed}\n`;
+          const log = Array.isArray(statusBody.log) ? statusBody.log : [];
+
+          // Append any new lines to the terminal
+          for (let i = seenLines; i < log.length; i++) {
+            const line = log[i];
+            if (line && line.startsWith("RESULT: ")) {
+              try { finalResult = JSON.parse(line.substring(8)); } catch (_) {}
+            } else if (terminal && line) {
+              terminal.textContent += `${line}\n`;
               terminal.scrollTop = terminal.scrollHeight;
             }
+          }
+          seenLines = log.length;
+
+          // Stop polling when the job is done
+          if (!statusBody.active) {
+            finalResult = finalResult || statusBody.result;
+            pollActive = false;
           }
         }
 
         if (finalResult && finalResult.success) {
           const stats = finalResult.stats || {};
-          let detail = "";
-          if (finalResult.aborted) {
-            detail = `Force Sync stopped/aborted! Total watched found: ${stats.totalWatchedFoundAcrossServers ?? 0}, added to history: ${stats.addedToHistory ?? 0}, deleted: ${stats.deletedFromHistory ?? 0}, propagated: ${stats.propagatedUpdates ?? 0}`;
-          } else {
-            detail = `Force Sync complete! Active targets: ${(finalResult.activeTargets || []).join(", ") || "none"}. Total watched found: ${stats.totalWatchedFoundAcrossServers ?? 0}, added to history: ${stats.addedToHistory ?? 0}, deleted: ${stats.deletedFromHistory ?? 0}, propagated: ${stats.propagatedUpdates ?? 0}`;
-          }
+          const detail = finalResult.aborted
+            ? `Force Sync stopped! Found: ${stats.totalWatchedFoundAcrossServers ?? 0}, added: ${stats.addedToHistory ?? 0}, deleted: ${stats.deletedFromHistory ?? 0}, propagated: ${stats.propagatedUpdates ?? 0}`
+            : `Force Sync complete! Targets: ${(finalResult.activeTargets || []).join(", ") || "none"}. Found: ${stats.totalWatchedFoundAcrossServers ?? 0}, added: ${stats.addedToHistory ?? 0}, deleted: ${stats.deletedFromHistory ?? 0}, propagated: ${stats.propagatedUpdates ?? 0}`;
           showToast(detail);
           if (terminal) {
             terminal.textContent += `\n${finalResult.aborted ? "ABORTED" : "SUCCESS"}: ${detail}\n`;
             terminal.scrollTop = terminal.scrollHeight;
           }
-        } else {
-          throw new Error("No final success result returned from server");
+        } else if (finalResult) {
+          throw new Error(finalResult.error || "Force Sync ended with an unknown error.");
         }
 
-        await Promise.all([
-          loadSyncJobs({ force: true }),
-          loadSyncHistory({ force: true })
-        ]);
+        await Promise.all([loadSyncJobs({ force: true }), loadSyncHistory({ force: true })]);
       } catch (error) {
         showToast(`Error: ${error.message}`);
         if (terminal) {
@@ -5677,13 +5669,12 @@ async function triggerForceSync() {
         button.disabled = false;
         button.textContent = originalText;
         button.classList.remove("hidden");
-        if (stopButton) {
-          stopButton.classList.add("hidden");
-        }
+        if (stopButton) stopButton.classList.add("hidden");
       }
     }
   );
 }
+
 
 function attachEvents() {
   elements.authForm.addEventListener("submit", async (event) => {

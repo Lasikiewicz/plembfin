@@ -84,24 +84,25 @@ async function searchEmbyFallback(config, media, targetType) {
     const body = await fetchJson(url, config);
     const results = body?.Items || [];
 
-    const matched = results.find((item) => {
+    const matched = results.filter((item) => {
       if (!titleMatches(queryTitle, item.Name)) return false;
       if (!yearMatches(media.title, item.ProductionYear)) return false;
       return true;
     });
 
-    if (matched?.Id) {
-      console.log("Emby search fallback matched item", { itemId: matched.Id, name: matched.Name, year: matched.ProductionYear });
+    if (matched.length > 0) {
+      console.log("Emby search fallback matched items", { count: matched.length, itemIds: matched.map(i => i.Id) });
       return matched;
     }
   } catch (error) {
     console.error("Emby search fallback failed", error);
   }
-  return undefined;
+  return [];
 }
 
 async function findByProviderIds(config, media, itemTypes) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
+  const allMatched = new Map();
 
   for (const providerTerm of providerTerms(media.ids)) {
     const url = new URL(`${baseUrl}/Items`);
@@ -112,100 +113,125 @@ async function findByProviderIds(config, media, itemTypes) {
     url.searchParams.set("api_key", config.apiKey);
 
     console.log("Emby lookup started", { itemTypes, providerTerm });
-    const body = await fetchJson(url, config);
-    const [prov, val] = providerTerm.split(".");
-    const providerKey = prov.charAt(0).toUpperCase() + prov.slice(1);
+    try {
+      const body = await fetchJson(url, config);
+      const [prov, val] = providerTerm.split(".");
+      const providerKey = prov.charAt(0).toUpperCase() + prov.slice(1);
 
-    const item = body?.Items?.find((it) => {
-      const pIds = it.ProviderIds || {};
-      return String(pIds[providerKey] || "").toLowerCase() === String(val).toLowerCase();
-    });
+      const items = body?.Items?.filter((it) => {
+        const pIds = it.ProviderIds || {};
+        return String(pIds[providerKey] || "").toLowerCase() === String(val).toLowerCase();
+      }) || [];
 
-    if (item?.Id) {
-      console.log("Emby lookup matched item", { itemId: item.Id, providerTerm });
-      return item;
+      for (const item of items) {
+        if (item?.Id) {
+          allMatched.set(item.Id, item);
+        }
+      }
+    } catch (error) {
+      console.error(`Emby lookup failed for providerTerm: ${providerTerm}`, error);
     }
   }
 
-  return undefined;
+  const results = Array.from(allMatched.values());
+  if (results.length > 0) {
+    console.log("Emby lookup matched items", { count: results.length, itemIds: results.map(i => i.Id) });
+    return results;
+  }
+
+  return [];
 }
 
 async function findEpisode(config, media) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
-  let series = await findByProviderIds(config, media, "Series");
-  if (!series?.Id) {
-    series = await searchEmbyFallback(config, media, "Series");
+  let seriesList = await findByProviderIds(config, media, "Series");
+  if (!seriesList || seriesList.length === 0) {
+    seriesList = await searchEmbyFallback(config, media, "Series");
   }
-  if (!series?.Id) {
-    return undefined;
+  if (!seriesList || seriesList.length === 0) {
+    return [];
   }
-
-  const url = new URL(`${baseUrl}/Items`);
-  url.searchParams.set("ParentId", series.Id);
-  url.searchParams.set("Recursive", "true");
-  url.searchParams.set("IncludeItemTypes", "Episode");
-  url.searchParams.set("Fields", "ProviderIds");
-  url.searchParams.set("api_key", config.apiKey);
 
   const parsed = parseShowTitle(media.title);
   const season = media.season ?? parsed.season;
   const episodeNum = media.episode ?? parsed.episode;
 
-  const body = await fetchJson(url, config);
-  const episode = body?.Items?.find(
-    (item) =>
-      Number(item.ParentIndexNumber) === Number(season) &&
-      Number(item.IndexNumber) === Number(episodeNum),
-  );
+  const matchedEpisodes = [];
 
-  if (episode?.Id) {
-    console.log("Emby episode matched from series children", {
-      seriesId: series.Id,
-      itemId: episode.Id,
-      season,
-      episode: episodeNum,
-    });
-    return episode;
+  for (const series of seriesList) {
+    const url = new URL(`${baseUrl}/Items`);
+    url.searchParams.set("ParentId", series.Id);
+    url.searchParams.set("Recursive", "true");
+    url.searchParams.set("IncludeItemTypes", "Episode");
+    url.searchParams.set("Fields", "ProviderIds");
+    url.searchParams.set("api_key", config.apiKey);
+
+    try {
+      const body = await fetchJson(url, config);
+      const episode = body?.Items?.find(
+        (item) =>
+          Number(item.ParentIndexNumber) === Number(season) &&
+          Number(item.IndexNumber) === Number(episodeNum),
+      );
+
+      if (episode?.Id) {
+        console.log("Emby episode matched from series children", {
+          seriesId: series.Id,
+          itemId: episode.Id,
+          season,
+          episode: episodeNum,
+        });
+        matchedEpisodes.push(episode);
+      }
+    } catch (error) {
+      console.error(`Failed to fetch episodes for series ${series.Id}`, error);
+    }
   }
 
-  return undefined;
+  return matchedEpisodes;
 }
 
-async function findEmbyItem(config, media) {
+async function findEmbyItems(config, media) {
   if (media.type === "movie") {
-    let movie = await findByProviderIds(config, media, "Movie");
-    if (!movie?.Id) {
-      movie = await searchEmbyFallback(config, media, "Movie");
+    let movies = await findByProviderIds(config, media, "Movie");
+    if (!movies || movies.length === 0) {
+      movies = await searchEmbyFallback(config, media, "Movie");
     }
-    return movie;
+    return movies;
   }
   if (media.type === "episode") return findEpisode(config, media);
-  return undefined;
+  return [];
 }
 
 export async function markEmbyPlayed(config, media) {
   try {
     requireEmbyConfig(config);
 
-    const item = await findEmbyItem(config, media);
-    if (!item?.Id) {
+    const items = await findEmbyItems(config, media);
+    if (!items || items.length === 0) {
       console.log(`[SKIPPED] Match verification failed`);
       return { platform: "emby", status: "not_found" };
     }
 
-    const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${item.Id}`);
-    url.searchParams.set("api_key", config.apiKey);
+    let lastHttpStatus = 200;
+    const markJobs = items.map(async (item) => {
+      const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${item.Id}`);
+      url.searchParams.set("api_key", config.apiKey);
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: authHeaders(config),
+      const response = await fetch(url, {
+        method: "POST",
+        headers: authHeaders(config),
+      });
+      if (!response.ok) {
+        throw new Error(`Emby mark played failed with status ${response.status} for item ${item.Id}`);
+      }
+      console.log("Emby item marked played", { itemId: item.Id });
+      lastHttpStatus = response.status;
+      return response.status;
     });
-    if (!response.ok) {
-      throw new Error(`Emby mark played failed with status ${response.status}`);
-    }
 
-    console.log("Emby item marked played", { itemId: item.Id });
-    return { platform: "emby", status: "fulfilled", itemId: item.Id, httpStatus: response.status };
+    await Promise.all(markJobs);
+    return { platform: "emby", status: "fulfilled", itemId: items[0].Id, itemIds: items.map(i => i.Id), httpStatus: lastHttpStatus };
   } catch (error) {
     console.error("Emby client failed", error);
     throw error;
@@ -216,25 +242,31 @@ export async function markEmbyUnplayed(config, media) {
   try {
     requireEmbyConfig(config);
 
-    const item = await findEmbyItem(config, media);
-    if (!item?.Id) {
+    const items = await findEmbyItems(config, media);
+    if (!items || items.length === 0) {
       console.log(`[SKIPPED] Match verification failed`);
       return { platform: "emby", status: "not_found" };
     }
 
-    const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${item.Id}`);
-    url.searchParams.set("api_key", config.apiKey);
+    let lastHttpStatus = 200;
+    const markJobs = items.map(async (item) => {
+      const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${item.Id}`);
+      url.searchParams.set("api_key", config.apiKey);
 
-    const response = await fetch(url, {
-      method: "DELETE",
-      headers: authHeaders(config),
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers: authHeaders(config),
+      });
+      if (!response.ok) {
+        throw new Error(`Emby mark unplayed failed with status ${response.status} for item ${item.Id}`);
+      }
+      console.log("Emby item marked unplayed", { itemId: item.Id });
+      lastHttpStatus = response.status;
+      return response.status;
     });
-    if (!response.ok) {
-      throw new Error(`Emby mark unplayed failed with status ${response.status}`);
-    }
 
-    console.log("Emby item marked unplayed", { itemId: item.Id });
-    return { platform: "emby", status: "fulfilled", itemId: item.Id, httpStatus: response.status };
+    await Promise.all(markJobs);
+    return { platform: "emby", status: "fulfilled", itemId: items[0].Id, itemIds: items.map(i => i.Id), httpStatus: lastHttpStatus };
   } catch (error) {
     console.error("Emby client failed", error);
     throw error;
@@ -245,8 +277,8 @@ export async function setEmbyProgress(config, media) {
   try {
     requireEmbyConfig(config);
 
-    const item = await findEmbyItem(config, media);
-    if (!item?.Id) {
+    const items = await findEmbyItems(config, media);
+    if (!items || items.length === 0) {
       console.log(`[SKIPPED] Match verification failed`);
       return { platform: "emby", status: "not_found" };
     }
@@ -256,26 +288,32 @@ export async function setEmbyProgress(config, media) {
       return { platform: "emby", status: "skipped", detail: "No resume position supplied" };
     }
 
-    const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/Items/${item.Id}/UserData`);
-    url.searchParams.set("api_key", config.apiKey);
+    let lastHttpStatus = 200;
+    const progressJobs = items.map(async (item) => {
+      const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/Items/${item.Id}/UserData`);
+      url.searchParams.set("api_key", config.apiKey);
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        ...authHeaders(config),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        PlaybackPositionTicks: positionMs * 10000,
-        Played: false,
-      }),
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          ...authHeaders(config),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          PlaybackPositionTicks: positionMs * 10000,
+          Played: false,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Emby progress update failed with status ${response.status} for item ${item.Id}`);
+      }
+      console.log("Emby item resume progress updated", { itemId: item.Id, positionMs });
+      lastHttpStatus = response.status;
+      return response.status;
     });
-    if (!response.ok) {
-      throw new Error(`Emby progress update failed with status ${response.status}`);
-    }
 
-    console.log("Emby item resume progress updated", { itemId: item.Id, positionMs });
-    return { platform: "emby", status: "fulfilled", itemId: item.Id, positionMs, httpStatus: response.status };
+    await Promise.all(progressJobs);
+    return { platform: "emby", status: "fulfilled", itemId: items[0].Id, itemIds: items.map(i => i.Id), positionMs, httpStatus: lastHttpStatus };
   } catch (error) {
     console.error("Emby progress client failed", error);
     throw error;

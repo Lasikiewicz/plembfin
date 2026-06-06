@@ -10,10 +10,26 @@ const MAX_RESUME_PROGRESS = 90;
 
 const TARGETS_BY_SOURCE = {
   plex: ["emby", "jellyfin"],
+  plex_initial_sync: ["emby", "jellyfin"],
   emby: ["plex", "jellyfin"],
+  emby_initial_sync: ["plex", "jellyfin"],
   jellyfin: ["plex", "emby"],
+  jellyfin_initial_sync: ["plex", "emby"],
   manual: ["plex", "emby", "jellyfin"],
+  force_sync: ["plex", "emby", "jellyfin"],
+  trakt_import: ["plex", "emby", "jellyfin"],
+  trakt_current: ["plex", "emby", "jellyfin"],
 };
+
+export function getTargetsForSource(source = "manual", config = {}) {
+  const baseSource = String(source).trim().toLowerCase();
+  let targets = TARGETS_BY_SOURCE[baseSource];
+  if (!targets) {
+    // Fallback: target all platforms except the source itself
+    targets = ["plex", "emby", "jellyfin"].filter((platform) => !baseSource.startsWith(platform));
+  }
+  return targets.filter((t) => !config[t]?.disabled);
+}
 
 function clientFor(target, config, media) {
   if (target === "plex") return () => markPlexPlayed(config.plex, media);
@@ -239,7 +255,7 @@ export async function syncMediaPlaystate(media, config, kv) {
     };
   }
 
-  const targets = (TARGETS_BY_SOURCE[media.source] || []).filter((t) => !config[t]?.disabled);
+  const targets = getTargetsForSource(media.source, config);
   await primeTargetCache(media, targets, kv);
 
   console.log("Sync dispatch started", {
@@ -288,7 +304,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
     };
   }
 
-  const targets = (TARGETS_BY_SOURCE[media.source] || []).filter((t) => !config[t]?.disabled);
+  const targets = getTargetsForSource(media.source, config);
   await primeTargetCache(media, targets, kv, "unplayed_loop");
 
   console.log("Sync unplayed dispatch started", {
@@ -333,7 +349,7 @@ export async function syncMediaProgress(media, config, kv) {
     };
   }
 
-  const targets = (TARGETS_BY_SOURCE[media.source] || []).filter((t) => !config[t]?.disabled);
+  const targets = getTargetsForSource(media.source, config);
   await primeTargetCache(media, targets, kv, "progress_loop");
 
   console.log("Sync progress dispatch started", {

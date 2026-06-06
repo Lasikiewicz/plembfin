@@ -168,8 +168,10 @@ async function fetchWithTimeout(url, options = {}) {
 }
 
 async function fetchPlexLocal(config, logDebug) {
-  const baseUrl = trimTrailingSlash(config?.plex?.baseUrl || config?.plex?.url);
-  const token = String(config?.plex?.token || config?.plex?.apiKey || "").trim();
+  const plexConfig = config?.plex || {};
+  if (plexConfig.disabled) return [];
+  const baseUrl = trimTrailingSlash(plexConfig.baseUrl || plexConfig.url);
+  const token = String(plexConfig.token || plexConfig.apiKey || "").trim();
   if (!baseUrl || !token) return [];
 
   const url = new URL(`${baseUrl}/status/sessions`);
@@ -190,6 +192,7 @@ async function fetchPlexLocal(config, logDebug) {
 
 async function fetchEmbyLikeLocal(config, source, logDebug) {
   const server = config?.[source] || {};
+  if (server.disabled) return [];
   const baseUrl = trimTrailingSlash(server.baseUrl || server.url);
   const apiKey = String(server.apiKey || server.api_key || "").trim();
   if (!baseUrl || !apiKey) return [];

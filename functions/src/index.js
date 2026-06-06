@@ -709,29 +709,80 @@ async function handleForceSync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
 
-  res.setHeader("Content-Type", "text/plain; charset=utf-8");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.write("Force Sync started...\n");
+  // GET: poll for current status and log lines stored in Firestore runtimeState
+  if (req.method === "GET") {
+    if (!(await requireAdmin(req, res))) return;
+    const runtime = await loadRuntimeState();
+    return sendJson(res, {
+      active: runtime.forceSyncActive === true,
+      log: Array.isArray(runtime.forceSyncLog) ? runtime.forceSyncLog : [],
+      result: runtime.forceSyncResult || null,
+      startedAt: runtime.forceSyncStartedAt || null,
+    });
+  }
 
-  const admin = await requireAdminStreaming(req, res);
-  if (!admin) return;
+  // POST: fire-and-forget — return 202 immediately, run in background
+  if (!(await requireAdmin(req, res))) return;
 
-  const logger = (msg) => {
-    res.write(`${msg}\n`);
-    console.log(msg);
+  // Clear the previous log and mark as active before returning
+  await setRuntimeState({
+    forceSyncLog: ["Force Sync started..."],
+    forceSyncResult: null,
+    forceSyncActive: true,
+    forceSyncStartedAt: Date.now(),
+    forceSyncCancelRequested: false,
+  });
+
+  // Batch log writes: collect lines in memory, flush to Firestore every 3s.
+  // This avoids per-line Firestore writes (Firestore sustains ~1 write/sec per doc).
+  const logBuffer = [];
+  let flushTimer = null;
+
+  const flushLog = async () => {
+    if (!logBuffer.length) return;
+    const batch = logBuffer.splice(0, logBuffer.length);
+    await setRuntimeState({ forceSyncLog: FieldValue.arrayUnion(...batch) }).catch(() => null);
   };
 
-  try {
-    const result = await runForceSync(logger);
-    res.write(`RESULT: ${JSON.stringify(result)}\n`);
-    res.end();
-  } catch (error) {
-    logger(`ERROR: Force Sync failed: ${error.message}`);
-    res.end();
-  }
+  const logLine = (msg) => {
+    console.log(msg);
+    logBuffer.push(msg);
+    if (!flushTimer) {
+      flushTimer = setTimeout(async () => {
+        flushTimer = null;
+        await flushLog();
+      }, 3000);
+    }
+  };
+
+  // Kick off in background — HTTP response returned below without awaiting this
+  Promise.resolve().then(async () => {
+    try {
+      const result = await runForceSync(logLine);
+      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+      await flushLog(); // flush any remaining lines
+      await setRuntimeState({
+        forceSyncActive: false,
+        forceSyncResult: result,
+        forceSyncLog: FieldValue.arrayUnion(`RESULT: ${JSON.stringify(result)}`),
+      }).catch(() => null);
+    } catch (error) {
+      const msg = `ERROR: Force Sync failed: ${error.message}`;
+      console.error(msg);
+      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+      await flushLog();
+      await setRuntimeState({
+        forceSyncActive: false,
+        forceSyncResult: { success: false, error: error.message },
+        forceSyncLog: FieldValue.arrayUnion(msg),
+      }).catch(() => null);
+    }
+  });
+
+  return sendJson(res, { ok: true, started: true, message: "Force Sync started. Poll GET /api/force-sync for status." }, 202);
 }
+
+
 
 async function handleStopForceSync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);

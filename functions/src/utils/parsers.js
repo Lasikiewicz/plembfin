@@ -1,8 +1,8 @@
 const EMPTY_IDS = { imdb: undefined, tmdb: undefined, tvdb: undefined };
 const PLEX_ACTIVE_EVENTS = ["media.play", "media.resume", "media.progress", "media.pause"];
 const PLEX_COMPLETE_EVENTS = ["media.scrobble", "user.playrate"];
-const EMBY_ACTIVE_EVENTS = ["playback.start", "playback.unpause"];
-const JELLYFIN_ACTIVE_EVENTS = ["PlaybackStart", "PlaybackProgress"];
+const EMBY_ACTIVE_EVENTS = ["playback.start", "playback.unpause", "playback.progress", "playback.pause"];
+const JELLYFIN_ACTIVE_EVENTS = ["PlaybackStart", "PlaybackProgress", "PlaybackPause"];
 
 function normalizeType(value) {
   const type = String(value || "").toLowerCase();
@@ -192,7 +192,6 @@ function phaseFromEmbyEvent(event, json, item) {
   if (["itemmarkunplayed", "itemmarkedunplayed", "itemmarkedasunplayed", "itemunplayed"].includes(compactEventKey)) return "unplayed";
   if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === true) return "completed";
   if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === false) return "unplayed";
-  if (compactEventKey === "playbackpause") return progress >= 90 ? "completed" : "ended";
   if (compactEventKey === "playbackstop") return progress >= 90 ? "completed" : "ended";
   if (EMBY_ACTIVE_EVENTS.map((activeEvent) => activeEvent.replace(/[^a-z0-9]/g, "")).includes(compactEventKey)) return "active";
   return "ignored";
