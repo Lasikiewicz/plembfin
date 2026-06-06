@@ -1,0 +1,3 @@
+[      23ms] [VERBOSE] [DOM] Multiple forms should be contained in their own form elements; break up complex forms into ones that represent a single action: (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:5000/?codexReload=202606051342:0
+[  318245ms] [VERBOSE] [DOM] Multiple forms should be contained in their own form elements; break up complex forms into ones that represent a single action: (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:5000/?codexReload=202606051342:0
+[  992378ms] [VERBOSE] [DOM] Multiple forms should be contained in their own form elements; break up complex forms into ones that represent a single action: (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:5000/?codexReload=202606051342:0

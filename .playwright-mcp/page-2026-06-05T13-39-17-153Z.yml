@@ -1,0 +1,627 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Plembfin" [level=1] [ref=e6]
+        - generic "Unlocked session" [ref=e37]
+      - generic [ref=e8]:
+        - generic [ref=e9]: Search
+        - searchbox "Search" [ref=e10]
+    - generic [ref=e11]:
+      - button "Settings" [ref=e12] [cursor=pointer]
+      - button "Lock" [ref=e38] [cursor=pointer]
+  - navigation "Primary navigation" [ref=e13]:
+    - generic [ref=e14]:
+      - button "Dashboard" [ref=e15] [cursor=pointer]
+      - button "Movies" [ref=e16] [cursor=pointer]
+      - button "TV Shows" [active] [ref=e17] [cursor=pointer]
+    - generic [ref=e18]:
+      - generic [ref=e19]: More
+      - button "Stats" [ref=e20] [cursor=pointer]
+      - button "Sync" [ref=e21] [cursor=pointer]
+      - button "Help" [ref=e22] [cursor=pointer]
+      - button "Logs" [ref=e23] [cursor=pointer]
+  - main [ref=e24]:
+    - generic [ref=e359]:
+      - generic [ref=e360]:
+        - generic [ref=e361]:
+          - paragraph [ref=e362]: TV Shows
+          - generic [ref=e363]: Lasikie
+        - generic "Explorer mode" [ref=e364]:
+          - button "Movies" [ref=e365] [cursor=pointer]
+          - button "TV Shows" [ref=e366] [cursor=pointer]
+        - generic [ref=e367]:
+          - generic [ref=e368]:
+            - generic [ref=e369]: Sort
+            - combobox "Sort" [ref=e370]:
+              - option "Watched newest" [selected]
+              - option "Watched oldest"
+              - option "Title A-Z"
+              - option "Title Z-A"
+          - generic [ref=e371]:
+            - generic [ref=e372]: Search
+            - searchbox "Search" [ref=e373]
+      - generic [ref=e374]:
+        - generic [ref=e1466]:
+          - article [ref=e1467]:
+            - button "Shoresy - S05E01 poster Shoresy 5 seasons - 24 episodes 4 Jun 2026, 23:21" [ref=e1468] [cursor=pointer]:
+              - img "Shoresy - S05E01 poster" [ref=e1469]
+              - generic [ref=e1470]:
+                - generic [ref=e1471]: Shoresy
+                - generic [ref=e1472]: 5 seasons - 24 episodes
+              - time [ref=e1473]: 4 Jun 2026, 23:21
+          - article [ref=e1474]:
+            - button "Clarkson's Farm - S05E04 poster Clarkson's Farm 1 seasons - 3 episodes 4 Jun 2026, 22:43" [ref=e1475] [cursor=pointer]:
+              - img "Clarkson's Farm - S05E04 poster" [ref=e1476]
+              - generic [ref=e1477]:
+                - generic [ref=e1478]: Clarkson's Farm
+                - generic [ref=e1479]: 1 seasons - 3 episodes
+              - time [ref=e1480]: 4 Jun 2026, 22:43
+          - article [ref=e1481]:
+            - button "The Curse of Oak Island - S13E25 poster The Curse of Oak Island 14 seasons - 287 episodes 31 May 2026, 18:09" [ref=e1482] [cursor=pointer]:
+              - img "The Curse of Oak Island - S13E25 poster" [ref=e1483]
+              - generic [ref=e1484]:
+                - generic [ref=e1485]: The Curse of Oak Island
+                - generic [ref=e1486]: 14 seasons - 287 episodes
+              - time [ref=e1487]: 31 May 2026, 18:09
+          - article [ref=e1488]:
+            - button "Dimension 20 - S01E05 poster Dimension 20 1 seasons - 2 episodes 31 May 2026, 01:01" [ref=e1489] [cursor=pointer]:
+              - img "Dimension 20 - S01E05 poster" [ref=e1490]
+              - generic [ref=e1491]:
+                - generic [ref=e1492]: Dimension 20
+                - generic [ref=e1493]: 1 seasons - 2 episodes
+              - time [ref=e1494]: 31 May 2026, 01:01
+          - article [ref=e1495]:
+            - button "Dutton Ranch - S01E04 poster Dutton Ranch 1 seasons - 4 episodes 29 May 2026, 22:06" [ref=e1496] [cursor=pointer]:
+              - img "Dutton Ranch - S01E04 poster" [ref=e1497]
+              - generic [ref=e1498]:
+                - generic [ref=e1499]: Dutton Ranch
+                - generic [ref=e1500]: 1 seasons - 4 episodes
+              - time [ref=e1501]: 29 May 2026, 22:06
+          - article [ref=e1502]:
+            - button "Mystery at Blind Frog Ranch - S06E01 poster Mystery at Blind Frog Ranch 6 seasons - 38 episodes 28 May 2026, 17:23" [ref=e1503] [cursor=pointer]:
+              - img "Mystery at Blind Frog Ranch - S06E01 poster" [ref=e1504]
+              - generic [ref=e1505]:
+                - generic [ref=e1506]: Mystery at Blind Frog Ranch
+                - generic [ref=e1507]: 6 seasons - 38 episodes
+              - time [ref=e1508]: 28 May 2026, 17:23
+          - article [ref=e1509]:
+            - button "Off Campus - S01E08 poster Off Campus 1 seasons - 5 episodes 20 May 2026, 16:09" [ref=e1510] [cursor=pointer]:
+              - img "Off Campus - S01E08 poster" [ref=e1511]
+              - generic [ref=e1512]:
+                - generic [ref=e1513]: Off Campus
+                - generic [ref=e1514]: 1 seasons - 5 episodes
+              - time [ref=e1515]: 20 May 2026, 16:09
+          - article [ref=e1516]:
+            - button "Letterkenny - S12E06 poster Letterkenny 12 seasons - 74 episodes 16 May 2026, 22:36" [ref=e1517] [cursor=pointer]:
+              - img "Letterkenny - S12E06 poster" [ref=e1518]
+              - generic [ref=e1519]:
+                - generic [ref=e1520]: Letterkenny
+                - generic [ref=e1521]: 12 seasons - 74 episodes
+              - time [ref=e1522]: 16 May 2026, 22:36
+          - article [ref=e1523]:
+            - button "Outlander - S08E10 poster Outlander 8 seasons - 101 episodes 15 May 2026, 23:32" [ref=e1524] [cursor=pointer]:
+              - img "Outlander - S08E10 poster" [ref=e1525]
+              - generic [ref=e1526]:
+                - generic [ref=e1527]: Outlander
+                - generic [ref=e1528]: 8 seasons - 101 episodes
+              - time [ref=e1529]: 15 May 2026, 23:32
+          - article [ref=e1530]:
+            - button "The Rookie - S08E18 poster The Rookie 8 seasons - 144 episodes 5 May 2026, 19:29" [ref=e1531] [cursor=pointer]:
+              - img "The Rookie - S08E18 poster" [ref=e1532]
+              - generic [ref=e1533]:
+                - generic [ref=e1534]: The Rookie
+                - generic [ref=e1535]: 8 seasons - 144 episodes
+              - time [ref=e1536]: 5 May 2026, 19:29
+          - article [ref=e1537]:
+            - button "The Testaments - S01E02 poster The Testaments 1 seasons - 2 episodes 22 Apr 2026, 20:15" [ref=e1538] [cursor=pointer]:
+              - img "The Testaments - S01E02 poster" [ref=e1539]
+              - generic [ref=e1540]:
+                - generic [ref=e1541]: The Testaments
+                - generic [ref=e1542]: 1 seasons - 2 episodes
+              - time [ref=e1543]: 22 Apr 2026, 20:15
+          - article [ref=e1544]:
+            - button "The Pitt - S02E15 poster The Pitt 2 seasons - 30 episodes 17 Apr 2026, 21:21" [ref=e1545] [cursor=pointer]:
+              - img "The Pitt - S02E15 poster" [ref=e1546]
+              - generic [ref=e1547]:
+                - generic [ref=e1548]: The Pitt
+                - generic [ref=e1549]: 2 seasons - 30 episodes
+              - time [ref=e1550]: 17 Apr 2026, 21:21
+          - article [ref=e1551]:
+            - button "The Madison - S01E06 poster The Madison 1 seasons - 6 episodes 6 Apr 2026, 19:38" [ref=e1552] [cursor=pointer]:
+              - img "The Madison - S01E06 poster" [ref=e1553]
+              - generic [ref=e1554]:
+                - generic [ref=e1555]: The Madison
+                - generic [ref=e1556]: 1 seasons - 6 episodes
+              - time [ref=e1557]: 6 Apr 2026, 19:38
+          - article [ref=e1558]:
+            - button "Black Sails - S04E02 poster Black Sails 4 seasons - 30 episodes 6 Apr 2026, 18:12" [ref=e1559] [cursor=pointer]:
+              - img "Black Sails - S04E02 poster" [ref=e1560]
+              - generic [ref=e1561]:
+                - generic [ref=e1562]: Black Sails
+                - generic [ref=e1563]: 4 seasons - 30 episodes
+              - time [ref=e1564]: 6 Apr 2026, 18:12
+          - article [ref=e1565]:
+            - button "Fallout - S01E01 poster Fallout 2 seasons - 16 episodes 6 Apr 2026, 18:12" [ref=e1566] [cursor=pointer]:
+              - img "Fallout - S01E01 poster" [ref=e1567]
+              - generic [ref=e1568]:
+                - generic [ref=e1569]: Fallout
+                - generic [ref=e1570]: 2 seasons - 16 episodes
+              - time [ref=e1571]: 6 Apr 2026, 18:12
+          - article [ref=e1572]:
+            - button "ted - S02E01 poster ted 2 seasons - 8 episodes 6 Apr 2026, 18:12" [ref=e1573] [cursor=pointer]:
+              - img "ted - S02E01 poster" [ref=e1574]
+              - generic [ref=e1575]:
+                - generic [ref=e1576]: ted
+                - generic [ref=e1577]: 2 seasons - 8 episodes
+              - time [ref=e1578]: 6 Apr 2026, 18:12
+          - article [ref=e1579]:
+            - 'button "Sausage Party: Foodtopia - S02E04 poster Sausage Party: Foodtopia 2 seasons - 12 episodes 6 Apr 2026, 18:11" [ref=e1580] [cursor=pointer]':
+              - 'img "Sausage Party: Foodtopia - S02E04 poster" [ref=e1581]'
+              - generic [ref=e1582]:
+                - generic [ref=e1583]: "Sausage Party: Foodtopia"
+                - generic [ref=e1584]: 2 seasons - 12 episodes
+              - time [ref=e1585]: 6 Apr 2026, 18:11
+          - article [ref=e1586]:
+            - button "The Last Frontier - S01E05 poster The Last Frontier 1 seasons - 9 episodes 6 Apr 2026, 18:11" [ref=e1587] [cursor=pointer]:
+              - img "The Last Frontier - S01E05 poster" [ref=e1588]
+              - generic [ref=e1589]:
+                - generic [ref=e1590]: The Last Frontier
+                - generic [ref=e1591]: 1 seasons - 9 episodes
+              - time [ref=e1592]: 6 Apr 2026, 18:11
+          - article [ref=e1593]:
+            - button "The War Between the Land and the Sea - S01E04 poster The War Between the Land and the Sea 1 seasons - 4 episodes 6 Apr 2026, 18:10" [ref=e1594] [cursor=pointer]:
+              - img "The War Between the Land and the Sea - S01E04 poster" [ref=e1595]
+              - generic [ref=e1596]:
+                - generic [ref=e1597]: The War Between the Land and the Sea
+                - generic [ref=e1598]: 1 seasons - 4 episodes
+              - time [ref=e1599]: 6 Apr 2026, 18:10
+          - article [ref=e1600]:
+            - button "Marshals - S01E02 poster Marshals 1 seasons - 2 episodes 6 Apr 2026, 18:09" [ref=e1601] [cursor=pointer]:
+              - img "Marshals - S01E02 poster" [ref=e1602]
+              - generic [ref=e1603]:
+                - generic [ref=e1604]: Marshals
+                - generic [ref=e1605]: 1 seasons - 2 episodes
+              - time [ref=e1606]: 6 Apr 2026, 18:09
+          - article [ref=e1607]:
+            - button "Scrubs - S01E01 poster Scrubs 1 seasons - 1 episodes 6 Apr 2026, 16:04" [ref=e1608] [cursor=pointer]:
+              - img "Scrubs - S01E01 poster" [ref=e1609]
+              - generic [ref=e1610]:
+                - generic [ref=e1611]: Scrubs
+                - generic [ref=e1612]: 1 seasons - 1 episodes
+              - time [ref=e1613]: 6 Apr 2026, 16:04
+          - article [ref=e1614]:
+            - button "Last Samurai Standing - S01E01 poster Last Samurai Standing 1 seasons - 6 episodes 5 Apr 2026, 17:45" [ref=e1615] [cursor=pointer]:
+              - img "Last Samurai Standing - S01E01 poster" [ref=e1616]
+              - generic [ref=e1617]:
+                - generic [ref=e1618]: Last Samurai Standing
+                - generic [ref=e1619]: 1 seasons - 6 episodes
+              - time [ref=e1620]: 5 Apr 2026, 17:45
+          - article [ref=e1621]:
+            - 'button "LOL: Last One Laughing UK - S02E06 poster LOL: Last One Laughing UK 1 seasons - 6 episodes 2 Apr 2026, 21:23" [ref=e1622] [cursor=pointer]':
+              - 'img "LOL: Last One Laughing UK - S02E06 poster" [ref=e1623]'
+              - generic [ref=e1624]:
+                - generic [ref=e1625]: "LOL: Last One Laughing UK"
+                - generic [ref=e1626]: 1 seasons - 6 episodes
+              - time [ref=e1627]: 2 Apr 2026, 21:23
+          - article [ref=e1628]:
+            - button "Pretty Little Liars - S06E05 poster Pretty Little Liars 3 seasons - 24 episodes 27 Mar 2026, 03:58" [ref=e1629] [cursor=pointer]:
+              - img "Pretty Little Liars - S06E05 poster" [ref=e1630]
+              - generic [ref=e1631]:
+                - generic [ref=e1632]: Pretty Little Liars
+                - generic [ref=e1633]: 3 seasons - 24 episodes
+              - time [ref=e1634]: 27 Mar 2026, 03:58
+          - article [ref=e1635]:
+            - button "School Spirits - S03E08 poster School Spirits 2 seasons - 16 episodes 4 Mar 2026, 21:27" [ref=e1636] [cursor=pointer]:
+              - img "School Spirits - S03E08 poster" [ref=e1637]
+              - generic [ref=e1638]:
+                - generic [ref=e1639]: School Spirits
+                - generic [ref=e1640]: 2 seasons - 16 episodes
+              - time [ref=e1641]: 4 Mar 2026, 21:27
+          - article [ref=e1642]:
+            - button "School Spirits (2023) - S03E08 poster School Spirits (2023) 3 seasons - 24 episodes 4 Mar 2026, 21:25" [ref=e1643] [cursor=pointer]:
+              - img "School Spirits (2023) - S03E08 poster" [ref=e1644]
+              - generic [ref=e1645]:
+                - generic [ref=e1646]: School Spirits (2023)
+                - generic [ref=e1647]: 3 seasons - 24 episodes
+              - time [ref=e1648]: 4 Mar 2026, 21:25
+          - article [ref=e1649]:
+            - button "A Knight of the Seven Kingdoms - S01E06 poster A Knight of the Seven Kingdoms 1 seasons - 6 episodes 25 Feb 2026, 22:25" [ref=e1650] [cursor=pointer]:
+              - img "A Knight of the Seven Kingdoms - S01E06 poster" [ref=e1651]
+              - generic [ref=e1652]:
+                - generic [ref=e1653]: A Knight of the Seven Kingdoms
+                - generic [ref=e1654]: 1 seasons - 6 episodes
+              - time [ref=e1655]: 25 Feb 2026, 22:25
+          - article [ref=e1656]:
+            - button "The Gilded Age - S01E02 poster The Gilded Age 1 seasons - 2 episodes 3 Feb 2026, 20:16" [ref=e1657] [cursor=pointer]:
+              - img "The Gilded Age - S01E02 poster" [ref=e1658]
+              - generic [ref=e1659]:
+                - generic [ref=e1660]: The Gilded Age
+                - generic [ref=e1661]: 1 seasons - 2 episodes
+              - time [ref=e1662]: 3 Feb 2026, 20:16
+          - article [ref=e1663]:
+            - button "A Thousand Blows - S02E04 poster A Thousand Blows 2 seasons - 9 episodes 1 Feb 2026, 12:42" [ref=e1664] [cursor=pointer]:
+              - img "A Thousand Blows - S02E04 poster" [ref=e1665]
+              - generic [ref=e1666]:
+                - generic [ref=e1667]: A Thousand Blows
+                - generic [ref=e1668]: 2 seasons - 9 episodes
+              - time [ref=e1669]: 1 Feb 2026, 12:42
+          - article [ref=e1670]:
+            - button "Downton Abbey - S06E08 poster Downton Abbey 1 seasons - 1 episodes 18 Jan 2026, 21:37" [ref=e1671] [cursor=pointer]:
+              - img "Downton Abbey - S06E08 poster" [ref=e1672]
+              - generic [ref=e1673]:
+                - generic [ref=e1674]: Downton Abbey
+                - generic [ref=e1675]: 1 seasons - 1 episodes
+              - time [ref=e1676]: 18 Jan 2026, 21:37
+          - article [ref=e1677]:
+            - button "Robin Hood (2025) 1 seasons - 10 episodes 29 Dec 2025, 20:26" [ref=e1678] [cursor=pointer]:
+              - generic [ref=e1680]:
+                - generic [ref=e1681]: Robin Hood (2025)
+                - generic [ref=e1682]: 1 seasons - 10 episodes
+              - time [ref=e1683]: 29 Dec 2025, 20:26
+          - article [ref=e1684]:
+            - 'button "Outlander: Blood of My Blood - S01E10 poster Outlander: Blood of My Blood 1 seasons - 10 episodes 24 Dec 2025, 01:17" [ref=e1685] [cursor=pointer]':
+              - 'img "Outlander: Blood of My Blood - S01E10 poster" [ref=e1686]'
+              - generic [ref=e1687]:
+                - generic [ref=e1688]: "Outlander: Blood of My Blood"
+                - generic [ref=e1689]: 1 seasons - 10 episodes
+              - time [ref=e1690]: 24 Dec 2025, 01:17
+          - article [ref=e1691]:
+            - button "The Abandons - S01E01 poster The Abandons 1 seasons - 1 episodes 5 Dec 2025, 19:37" [ref=e1692] [cursor=pointer]:
+              - img "The Abandons - S01E01 poster" [ref=e1693]
+              - generic [ref=e1694]:
+                - generic [ref=e1695]: The Abandons
+                - generic [ref=e1696]: 1 seasons - 1 episodes
+              - time [ref=e1697]: 5 Dec 2025, 19:37
+          - article [ref=e1698]:
+            - button "Malice (2025) 1 seasons - 6 episodes 23 Nov 2025, 16:55" [ref=e1699] [cursor=pointer]:
+              - generic [ref=e1701]:
+                - generic [ref=e1702]: Malice (2025)
+                - generic [ref=e1703]: 1 seasons - 6 episodes
+              - time [ref=e1704]: 23 Nov 2025, 16:55
+          - article [ref=e1705]:
+            - button "Only Murders in the Building - S05E10 poster Only Murders in the Building 5 seasons - 50 episodes 15 Nov 2025, 22:02" [ref=e1706] [cursor=pointer]:
+              - img "Only Murders in the Building - S05E10 poster" [ref=e1707]
+              - generic [ref=e1708]:
+                - generic [ref=e1709]: Only Murders in the Building
+                - generic [ref=e1710]: 5 seasons - 50 episodes
+              - time [ref=e1711]: 15 Nov 2025, 22:02
+          - article [ref=e1712]:
+            - button "The Secret of Skinwalker Ranch - S05E07 poster The Secret of Skinwalker Ranch 5 seasons - 48 episodes 11 Nov 2025, 19:15" [ref=e1713] [cursor=pointer]:
+              - img "The Secret of Skinwalker Ranch - S05E07 poster" [ref=e1714]
+              - generic [ref=e1715]:
+                - generic [ref=e1716]: The Secret of Skinwalker Ranch
+                - generic [ref=e1717]: 5 seasons - 48 episodes
+              - time [ref=e1718]: 11 Nov 2025, 19:15
+          - article [ref=e1719]:
+            - button "Media poster Aussie Gold Hunters 4 seasons - 66 episodes 9 Nov 2025, 14:15" [ref=e1720] [cursor=pointer]:
+              - img "Media poster" [ref=e1721]
+              - generic [ref=e1722]:
+                - generic [ref=e1723]: Aussie Gold Hunters
+                - generic [ref=e1724]: 4 seasons - 66 episodes
+              - time [ref=e1725]: 9 Nov 2025, 14:15
+          - article [ref=e1726]:
+            - button "Brassic - S07E06 poster Brassic 8 seasons - 50 episodes 2 Nov 2025, 21:34" [ref=e1727] [cursor=pointer]:
+              - img "Brassic - S07E06 poster" [ref=e1728]
+              - generic [ref=e1729]:
+                - generic [ref=e1730]: Brassic
+                - generic [ref=e1731]: 8 seasons - 50 episodes
+              - time [ref=e1732]: 2 Nov 2025, 21:34
+          - article [ref=e1733]:
+            - button "Blue Lights - S02E01 poster Blue Lights 1 seasons - 1 episodes 21 Oct 2025, 20:42" [ref=e1734] [cursor=pointer]:
+              - img "Blue Lights - S02E01 poster" [ref=e1735]
+              - generic [ref=e1736]:
+                - generic [ref=e1737]: Blue Lights
+                - generic [ref=e1738]: 1 seasons - 1 episodes
+              - time [ref=e1739]: 21 Oct 2025, 20:42
+          - article [ref=e1740]:
+            - button "The Terminal List - S01E08 poster The Terminal List 1 seasons - 3 episodes 16 Oct 2025, 22:10" [ref=e1741] [cursor=pointer]:
+              - img "The Terminal List - S01E08 poster" [ref=e1742]
+              - generic [ref=e1743]:
+                - generic [ref=e1744]: The Terminal List
+                - generic [ref=e1745]: 1 seasons - 3 episodes
+              - time [ref=e1746]: 16 Oct 2025, 22:10
+          - article [ref=e1747]:
+            - button "Media poster Coldwater 1 seasons - 6 episodes 7 Oct 2025, 22:18" [ref=e1748] [cursor=pointer]:
+              - img "Media poster" [ref=e1749]
+              - generic [ref=e1750]:
+                - generic [ref=e1751]: Coldwater
+                - generic [ref=e1752]: 1 seasons - 6 episodes
+              - time [ref=e1753]: 7 Oct 2025, 22:18
+          - article [ref=e1754]:
+            - button "Media poster Revival 1 seasons - 10 episodes 3 Oct 2025, 22:52" [ref=e1755] [cursor=pointer]:
+              - img "Media poster" [ref=e1756]
+              - generic [ref=e1757]:
+                - generic [ref=e1758]: Revival
+                - generic [ref=e1759]: 1 seasons - 10 episodes
+              - time [ref=e1760]: 3 Oct 2025, 22:52
+          - article [ref=e1761]:
+            - button "Revival (2025) 1 seasons - 10 episodes 3 Oct 2025, 22:50" [ref=e1762] [cursor=pointer]:
+              - generic [ref=e1764]:
+                - generic [ref=e1765]: Revival (2025)
+                - generic [ref=e1766]: 1 seasons - 10 episodes
+              - time [ref=e1767]: 3 Oct 2025, 22:50
+          - article [ref=e1768]:
+            - button "Media poster Bad Thoughts 1 seasons - 1 episodes 26 Sept 2025, 22:10" [ref=e1769] [cursor=pointer]:
+              - img "Media poster" [ref=e1770]
+              - generic [ref=e1771]:
+                - generic [ref=e1772]: Bad Thoughts
+                - generic [ref=e1773]: 1 seasons - 1 episodes
+              - time [ref=e1774]: 26 Sept 2025, 22:10
+          - article [ref=e1775]:
+            - button "The Summer I Turned Pretty 3 seasons - 24 episodes 11 Sept 2025, 18:43" [ref=e1776] [cursor=pointer]:
+              - generic [ref=e1778]:
+                - generic [ref=e1779]: The Summer I Turned Pretty
+                - generic [ref=e1780]: 3 seasons - 24 episodes
+              - time [ref=e1781]: 11 Sept 2025, 18:43
+          - article [ref=e1782]:
+            - button "Invasion (2021) 1 seasons - 1 episodes 3 Sept 2025, 21:15" [ref=e1783] [cursor=pointer]:
+              - generic [ref=e1785]:
+                - generic [ref=e1786]: Invasion (2021)
+                - generic [ref=e1787]: 1 seasons - 1 episodes
+              - time [ref=e1788]: 3 Sept 2025, 21:15
+          - article [ref=e1789]:
+            - button "Invasion 1 seasons - 1 episodes 3 Sept 2025, 21:15" [ref=e1790] [cursor=pointer]:
+              - generic [ref=e1792]:
+                - generic [ref=e1793]: Invasion
+                - generic [ref=e1794]: 1 seasons - 1 episodes
+              - time [ref=e1795]: 3 Sept 2025, 21:15
+          - article [ref=e1796]:
+            - button "Lioness 2 seasons - 16 episodes 1 Sept 2025, 00:07" [ref=e1797] [cursor=pointer]:
+              - generic [ref=e1799]:
+                - generic [ref=e1800]: Lioness
+                - generic [ref=e1801]: 2 seasons - 16 episodes
+              - time [ref=e1802]: 1 Sept 2025, 00:07
+          - article [ref=e1803]:
+            - button "The Institute 1 seasons - 8 episodes 25 Aug 2025, 13:50" [ref=e1804] [cursor=pointer]:
+              - generic [ref=e1806]:
+                - generic [ref=e1807]: The Institute
+                - generic [ref=e1808]: 1 seasons - 8 episodes
+              - time [ref=e1809]: 25 Aug 2025, 13:50
+          - article [ref=e1810]:
+            - button "Landman 1 seasons - 3 episodes 19 Aug 2025, 14:23" [ref=e1811] [cursor=pointer]:
+              - generic [ref=e1813]:
+                - generic [ref=e1814]: Landman
+                - generic [ref=e1815]: 1 seasons - 3 episodes
+              - time [ref=e1816]: 19 Aug 2025, 14:23
+          - article [ref=e1817]:
+            - 'button "Dexter: Resurrection 1 seasons - 7 episodes 19 Aug 2025, 12:03" [ref=e1818] [cursor=pointer]':
+              - generic [ref=e1820]:
+                - generic [ref=e1821]: "Dexter: Resurrection"
+                - generic [ref=e1822]: 1 seasons - 7 episodes
+              - time [ref=e1823]: 19 Aug 2025, 12:03
+          - article [ref=e1824]:
+            - 'button "Gold Rush: White Water 9 seasons - 113 episodes 11 Aug 2025, 00:03" [ref=e1825] [cursor=pointer]':
+              - generic [ref=e1827]:
+                - generic [ref=e1828]: "Gold Rush: White Water"
+                - generic [ref=e1829]: 9 seasons - 113 episodes
+              - time [ref=e1830]: 11 Aug 2025, 00:03
+          - article [ref=e1831]:
+            - button "Sullivan's Crossing 3 seasons - 30 episodes 23 Jun 2025, 16:32" [ref=e1832] [cursor=pointer]:
+              - generic [ref=e1834]:
+                - generic [ref=e1835]: Sullivan's Crossing
+                - generic [ref=e1836]: 3 seasons - 30 episodes
+              - time [ref=e1837]: 23 Jun 2025, 16:32
+          - article [ref=e1838]:
+            - button "Gangs of London 1 seasons - 1 episodes 9 Jun 2025, 17:53" [ref=e1839] [cursor=pointer]:
+              - generic [ref=e1841]:
+                - generic [ref=e1842]: Gangs of London
+                - generic [ref=e1843]: 1 seasons - 1 episodes
+              - time [ref=e1844]: 9 Jun 2025, 17:53
+          - article [ref=e1845]:
+            - button "The Last of Us 2 seasons - 16 episodes 27 May 2025, 20:59" [ref=e1846] [cursor=pointer]:
+              - generic [ref=e1848]:
+                - generic [ref=e1849]: The Last of Us
+                - generic [ref=e1850]: 2 seasons - 16 episodes
+              - time [ref=e1851]: 27 May 2025, 20:59
+          - article [ref=e1852]:
+            - button "Love, Death & Robots 1 seasons - 2 episodes 23 May 2025, 11:45" [ref=e1853] [cursor=pointer]:
+              - generic [ref=e1855]:
+                - generic [ref=e1856]: Love, Death & Robots
+                - generic [ref=e1857]: 1 seasons - 2 episodes
+              - time [ref=e1858]: 23 May 2025, 11:45
+          - article [ref=e1859]:
+            - button "The White Lotus 1 seasons - 1 episodes 27 Apr 2025, 19:24" [ref=e1860] [cursor=pointer]:
+              - generic [ref=e1862]:
+                - generic [ref=e1863]: The White Lotus
+                - generic [ref=e1864]: 1 seasons - 1 episodes
+              - time [ref=e1865]: 27 Apr 2025, 19:24
+          - article [ref=e1866]:
+            - button "Gold Rush 4 seasons - 79 episodes 21 Apr 2025, 16:02" [ref=e1867] [cursor=pointer]:
+              - generic [ref=e1869]:
+                - generic [ref=e1870]: Gold Rush
+                - generic [ref=e1871]: 4 seasons - 79 episodes
+              - time [ref=e1872]: 21 Apr 2025, 16:02
+          - article [ref=e1873]:
+            - button "Yellowstone 1 seasons - 14 episodes 14 Apr 2025, 19:44" [ref=e1874] [cursor=pointer]:
+              - generic [ref=e1876]:
+                - generic [ref=e1877]: Yellowstone
+                - generic [ref=e1878]: 1 seasons - 14 episodes
+              - time [ref=e1879]: 14 Apr 2025, 19:44
+          - article [ref=e1880]:
+            - button "Yellowstone (2018) 1 seasons - 14 episodes 14 Apr 2025, 19:41" [ref=e1881] [cursor=pointer]:
+              - generic [ref=e1883]:
+                - generic [ref=e1884]: Yellowstone (2018)
+                - generic [ref=e1885]: 1 seasons - 14 episodes
+              - time [ref=e1886]: 14 Apr 2025, 19:41
+          - article [ref=e1887]:
+            - button "1923 2 seasons - 15 episodes 6 Apr 2025, 23:40" [ref=e1888] [cursor=pointer]:
+              - generic [ref=e1890]:
+                - generic [ref=e1891]: "1923"
+                - generic [ref=e1892]: 2 seasons - 15 episodes
+              - time [ref=e1893]: 6 Apr 2025, 23:40
+          - article [ref=e1894]:
+            - button "Call the Midwife 2 seasons - 12 episodes 2 Apr 2025, 10:38" [ref=e1895] [cursor=pointer]:
+              - generic [ref=e1897]:
+                - generic [ref=e1898]: Call the Midwife
+                - generic [ref=e1899]: 2 seasons - 12 episodes
+              - time [ref=e1900]: 2 Apr 2025, 10:38
+          - article [ref=e1901]:
+            - button "G'wed 2 seasons - 10 episodes 9 Feb 2025, 00:25" [ref=e1902] [cursor=pointer]:
+              - generic [ref=e1904]:
+                - generic [ref=e1905]: G'wed
+                - generic [ref=e1906]: 2 seasons - 10 episodes
+              - time [ref=e1907]: 9 Feb 2025, 00:25
+          - article [ref=e1908]:
+            - button "Based On A True Story 2 seasons - 10 episodes 22 Jan 2025, 23:36" [ref=e1909] [cursor=pointer]:
+              - generic [ref=e1911]:
+                - generic [ref=e1912]: Based On A True Story
+                - generic [ref=e1913]: 2 seasons - 10 episodes
+              - time [ref=e1914]: 22 Jan 2025, 23:36
+          - article [ref=e1915]:
+            - button "SAS Rogue Heroes 2 seasons - 12 episodes 3 Jan 2025, 21:35" [ref=e1916] [cursor=pointer]:
+              - generic [ref=e1918]:
+                - generic [ref=e1919]: SAS Rogue Heroes
+                - generic [ref=e1920]: 2 seasons - 12 episodes
+              - time [ref=e1921]: 3 Jan 2025, 21:35
+          - article [ref=e1922]:
+            - button "Nashville 4 seasons - 65 episodes 2 Jan 2025, 18:05" [ref=e1923] [cursor=pointer]:
+              - generic [ref=e1925]:
+                - generic [ref=e1926]: Nashville
+                - generic [ref=e1927]: 4 seasons - 65 episodes
+              - time [ref=e1928]: 2 Jan 2025, 18:05
+          - article [ref=e1929]:
+            - button "Nashville (2012) 4 seasons - 75 episodes 2 Jan 2025, 17:57" [ref=e1930] [cursor=pointer]:
+              - generic [ref=e1932]:
+                - generic [ref=e1933]: Nashville (2012)
+                - generic [ref=e1934]: 4 seasons - 75 episodes
+              - time [ref=e1935]: 2 Jan 2025, 17:57
+          - article [ref=e1936]:
+            - button "Earth Abides 1 seasons - 6 episodes 29 Dec 2024, 20:12" [ref=e1937] [cursor=pointer]:
+              - generic [ref=e1939]:
+                - generic [ref=e1940]: Earth Abides
+                - generic [ref=e1941]: 1 seasons - 6 episodes
+              - time [ref=e1942]: 29 Dec 2024, 20:12
+          - article [ref=e1943]:
+            - button "Blue Mountain State 3 seasons - 39 episodes 29 Dec 2024, 00:11" [ref=e1944] [cursor=pointer]:
+              - generic [ref=e1946]:
+                - generic [ref=e1947]: Blue Mountain State
+                - generic [ref=e1948]: 3 seasons - 39 episodes
+              - time [ref=e1949]: 29 Dec 2024, 00:11
+          - article [ref=e1950]:
+            - 'button "Law & Order: Special Victims Unit 1 seasons - 6 episodes 25 Nov 2024, 22:43" [ref=e1951] [cursor=pointer]':
+              - generic [ref=e1953]:
+                - generic [ref=e1954]: "Law & Order: Special Victims Unit"
+                - generic [ref=e1955]: 1 seasons - 6 episodes
+              - time [ref=e1956]: 25 Nov 2024, 22:43
+          - article [ref=e1957]:
+            - button "FROM 2 seasons - 17 episodes 24 Nov 2024, 21:39" [ref=e1958] [cursor=pointer]:
+              - generic [ref=e1960]:
+                - generic [ref=e1961]: FROM
+                - generic [ref=e1962]: 2 seasons - 17 episodes
+              - time [ref=e1963]: 24 Nov 2024, 21:39
+          - article [ref=e1964]:
+            - button "Community 6 seasons - 110 episodes 22 Nov 2024, 22:48" [ref=e1965] [cursor=pointer]:
+              - generic [ref=e1967]:
+                - generic [ref=e1968]: Community
+                - generic [ref=e1969]: 6 seasons - 110 episodes
+              - time [ref=e1970]: 22 Nov 2024, 22:48
+          - article [ref=e1971]:
+            - button "Scot Squad 1 seasons - 2 episodes 7 Nov 2024, 22:45" [ref=e1972] [cursor=pointer]:
+              - generic [ref=e1974]:
+                - generic [ref=e1975]: Scot Squad
+                - generic [ref=e1976]: 1 seasons - 2 episodes
+              - time [ref=e1977]: 7 Nov 2024, 22:45
+          - article [ref=e1978]:
+            - button "Ancient Apocalypse (2022) 1 seasons - 1 episodes 7 Nov 2024, 21:41" [ref=e1979] [cursor=pointer]:
+              - generic [ref=e1981]:
+                - generic [ref=e1982]: Ancient Apocalypse (2022)
+                - generic [ref=e1983]: 1 seasons - 1 episodes
+              - time [ref=e1984]: 7 Nov 2024, 21:41
+          - article [ref=e1985]:
+            - button "Teacup 1 seasons - 8 episodes 1 Nov 2024, 16:14" [ref=e1986] [cursor=pointer]:
+              - generic [ref=e1988]:
+                - generic [ref=e1989]: Teacup
+                - generic [ref=e1990]: 1 seasons - 8 episodes
+              - time [ref=e1991]: 1 Nov 2024, 16:14
+          - article [ref=e1992]:
+            - button "Ludwig (2024) 1 seasons - 6 episodes 31 Oct 2024, 20:40" [ref=e1993] [cursor=pointer]:
+              - generic [ref=e1995]:
+                - generic [ref=e1996]: Ludwig (2024)
+                - generic [ref=e1997]: 1 seasons - 6 episodes
+              - time [ref=e1998]: 31 Oct 2024, 20:40
+          - article [ref=e1999]:
+            - button "Ludwig 1 seasons - 5 episodes 31 Oct 2024, 19:29" [ref=e2000] [cursor=pointer]:
+              - generic [ref=e2002]:
+                - generic [ref=e2003]: Ludwig
+                - generic [ref=e2004]: 1 seasons - 5 episodes
+              - time [ref=e2005]: 31 Oct 2024, 19:29
+          - article [ref=e2006]:
+            - button "Sweetpea 1 seasons - 6 episodes 26 Oct 2024, 23:31" [ref=e2007] [cursor=pointer]:
+              - generic [ref=e2009]:
+                - generic [ref=e2010]: Sweetpea
+                - generic [ref=e2011]: 1 seasons - 6 episodes
+              - time [ref=e2012]: 26 Oct 2024, 23:31
+          - article [ref=e2013]:
+            - button "Everyone Else Burns 1 seasons - 6 episodes 20 Oct 2024, 22:23" [ref=e2014] [cursor=pointer]:
+              - generic [ref=e2016]:
+                - generic [ref=e2017]: Everyone Else Burns
+                - generic [ref=e2018]: 1 seasons - 6 episodes
+              - time [ref=e2019]: 20 Oct 2024, 22:23
+          - article [ref=e2020]:
+            - button "The Boys 3 seasons - 17 episodes 1 Aug 2024, 21:29" [ref=e2021] [cursor=pointer]:
+              - generic [ref=e2023]:
+                - generic [ref=e2024]: The Boys
+                - generic [ref=e2025]: 3 seasons - 17 episodes
+              - time [ref=e2026]: 1 Aug 2024, 21:29
+          - article [ref=e2027]:
+            - button "The Cleaning Lady (US) 1 seasons - 1 episodes 24 Jul 2024, 10:10" [ref=e2028] [cursor=pointer]:
+              - generic [ref=e2030]:
+                - generic [ref=e2031]: The Cleaning Lady (US)
+                - generic [ref=e2032]: 1 seasons - 1 episodes
+              - time [ref=e2033]: 24 Jul 2024, 10:10
+          - article [ref=e2034]:
+            - button "The Cleaning Lady 1 seasons - 1 episodes 24 Jul 2024, 10:10" [ref=e2035] [cursor=pointer]:
+              - generic [ref=e2037]:
+                - generic [ref=e2038]: The Cleaning Lady
+                - generic [ref=e2039]: 1 seasons - 1 episodes
+              - time [ref=e2040]: 24 Jul 2024, 10:10
+          - article [ref=e2041]:
+            - button "The Tattooist of Auschwitz 1 seasons - 6 episodes 24 Jul 2024, 10:09" [ref=e2042] [cursor=pointer]:
+              - generic [ref=e2044]:
+                - generic [ref=e2045]: The Tattooist of Auschwitz
+                - generic [ref=e2046]: 1 seasons - 6 episodes
+              - time [ref=e2047]: 24 Jul 2024, 10:09
+          - article [ref=e2048]:
+            - button "Kin 1 seasons - 4 episodes 24 Jul 2024, 10:06" [ref=e2049] [cursor=pointer]:
+              - generic [ref=e2051]:
+                - generic [ref=e2052]: Kin
+                - generic [ref=e2053]: 1 seasons - 4 episodes
+              - time [ref=e2054]: 24 Jul 2024, 10:06
+          - article [ref=e2055]:
+            - button "Vanderpump Rules 1 seasons - 2 episodes 24 Jul 2024, 09:54" [ref=e2056] [cursor=pointer]:
+              - generic [ref=e2058]:
+                - generic [ref=e2059]: Vanderpump Rules
+                - generic [ref=e2060]: 1 seasons - 2 episodes
+              - time [ref=e2061]: 24 Jul 2024, 09:54
+          - article [ref=e2062]:
+            - button "Renegade Nell 1 seasons - 5 episodes 23 Jul 2024, 20:01" [ref=e2063] [cursor=pointer]:
+              - generic [ref=e2065]:
+                - generic [ref=e2066]: Renegade Nell
+                - generic [ref=e2067]: 1 seasons - 5 episodes
+              - time [ref=e2068]: 23 Jul 2024, 20:01
+          - article [ref=e2069]:
+            - 'button "Sand Land: The Series 1 seasons - 1 episodes 15 Jul 2024, 22:31" [ref=e2070] [cursor=pointer]':
+              - generic [ref=e2072]:
+                - generic [ref=e2073]: "Sand Land: The Series"
+                - generic [ref=e2074]: 1 seasons - 1 episodes
+              - time [ref=e2075]: 15 Jul 2024, 22:31
+          - article [ref=e2076]:
+            - 'button "Mako: Island of Secrets 1 seasons - 16 episodes 15 Jul 2024, 21:59" [ref=e2077] [cursor=pointer]':
+              - generic [ref=e2079]:
+                - generic [ref=e2080]: "Mako: Island of Secrets"
+                - generic [ref=e2081]: 1 seasons - 16 episodes
+              - time [ref=e2082]: 15 Jul 2024, 21:59
+          - article [ref=e2083]:
+            - button "House of the Dragon 1 seasons - 8 episodes 3 Jul 2024, 20:05" [ref=e2084] [cursor=pointer]:
+              - generic [ref=e2086]:
+                - generic [ref=e2087]: House of the Dragon
+                - generic [ref=e2088]: 1 seasons - 8 episodes
+              - time [ref=e2089]: 3 Jul 2024, 20:05
+          - article [ref=e2090]:
+            - button "Trying 4 seasons - 32 episodes 3 Jul 2024, 02:30" [ref=e2091] [cursor=pointer]:
+              - generic [ref=e2093]:
+                - generic [ref=e2094]: Trying
+                - generic [ref=e2095]: 4 seasons - 32 episodes
+              - time [ref=e2096]: 3 Jul 2024, 02:30
+        - generic [ref=e2098]: Loading...

@@ -89,6 +89,136 @@ h2 {
   display: none !important;
 }
 
+.media-detail-page {
+  position: relative;
+  min-height: min(74vh, 860px);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line-strong), transparent 18%);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(90deg, rgba(8, 11, 14, 0.96) 0%, rgba(12, 16, 19, 0.86) 42%, rgba(12, 16, 19, 0.62) 100%),
+    var(--panel-3);
+  padding: clamp(1rem, 2.4vw, 2rem);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+}
+
+#explorerPanel {
+  position: relative;
+}
+
+.modal-backdrop-image {
+  position: fixed;
+  top: 3.5rem;
+  left: 13.5rem;
+  right: 0;
+  bottom: 0;
+  height: auto;
+  z-index: 0;
+  background-position: center;
+  background-size: cover;
+  opacity: 0.15;
+  filter: saturate(0.8);
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.55) 38%, rgba(0, 0, 0, 0.08) 100%), linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.72) 64%, rgba(0, 0, 0, 0) 100%);
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.55) 38%, rgba(0, 0, 0, 0.08) 100%), linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.72) 64%, rgba(0, 0, 0, 0) 100%);
+}
+
+.media-detail-page > :not(.modal-backdrop-image) {
+  position: relative;
+  z-index: 1;
+}
+
+.media-detail-page .immersive-header {
+  display: grid;
+  grid-template-columns: minmax(150px, 230px) minmax(0, 760px);
+  gap: clamp(1rem, 3vw, 2rem);
+  align-items: start;
+  margin-top: clamp(1rem, 3vh, 2.5rem);
+}
+
+.media-detail-page .immersive-poster-img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 5px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+}
+
+.media-detail-page .immersive-meta {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+  padding-top: 0.2rem;
+}
+
+.media-detail-page .immersive-title {
+  max-width: 18ch;
+  font-size: clamp(2rem, 4vw, 3.8rem);
+  line-height: 0.96;
+  letter-spacing: 0;
+}
+
+.media-detail-page .immersive-overview {
+  max-width: 74ch;
+  color: color-mix(in srgb, var(--text), transparent 8%);
+  line-height: 1.55;
+}
+
+.media-detail-page .immersive-back-button {
+  border: 1px solid color-mix(in srgb, var(--line-strong), transparent 20%);
+  border-radius: 999px;
+  background: rgba(7, 10, 13, 0.72);
+  color: var(--text);
+  padding: 0.45rem 0.8rem;
+  font-weight: 800;
+}
+
+.media-detail-page .progress-section,
+.media-detail-page .seasons-section,
+.media-detail-page .episodes-section {
+  margin-top: clamp(1.4rem, 3vw, 2.4rem);
+}
+
+.media-detail-page .horizontal-scroll-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(128px, 158px);
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 0.25rem 0 0.8rem;
+}
+
+.media-detail-page .season-poster-card {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.media-detail-page .season-poster-img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 5px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+.media-detail-page .show-episode-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (max-width: 760px) {
+  .media-detail-page .immersive-header {
+    grid-template-columns: minmax(96px, 34vw) minmax(0, 1fr);
+  }
+
+  .media-detail-page .immersive-title {
+    font-size: 1.7rem;
+  }
+}
+
 .topbar {
   position: sticky;
   top: var(--space-3);
@@ -702,7 +832,7 @@ h2 {
 /* Large movie poster grid (Image 2 style) */
 .movie-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--poster-width, 160px), 1fr));
   gap: var(--space-3);
   align-items: start;
 }
@@ -2055,7 +2185,7 @@ h2 {
   width: min(1900px, calc(100vw - 32px)) !important;
   height: min(1120px, calc(100vh - 32px)) !important;
   max-height: calc(100vh - 32px) !important;
-  background: #090c0f !important;
+  background: var(--bg) !important;
   padding: 0 !important;
   position: relative;
   overflow: hidden !important;
@@ -2077,19 +2207,15 @@ h2 {
   display: none !important;
 }
 
-.modal-backdrop-image {
-  position: absolute;
+.modal-panel--immersive .modal-backdrop-image {
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 400px;
-  background-size: cover;
-  background-position: center 20%;
+  bottom: 0;
+  height: 100vh;
+  width: 100vw;
   opacity: 0.25;
-  pointer-events: none;
-  z-index: 0;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.4) 60%, rgba(0, 0, 0, 0) 100%);
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.4) 60%, rgba(0, 0, 0, 0) 100%);
 }
 
 .immersive-container {
@@ -2939,19 +3065,22 @@ h1 {
   border-radius: 3px;
 }
 
-.movie-grid,
-.dashboard-history-grid {
+.movie-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(8.1rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--poster-width, 160px), 1fr));
   gap: 1.7rem 1.15rem;
   align-items: start;
 }
 
 .dashboard-history-grid {
+  display: grid;
   grid-template-columns: repeat(auto-fill, minmax(8.8rem, 1fr));
+  gap: 1.7rem 1.15rem;
+  align-items: start;
 }
 
 .movie-card,
+.folder-card,
 .folder-trigger,
 .season-trigger {
   border: 0;
@@ -3087,15 +3216,10 @@ h1 {
   max-height: 100vh !important;
   border: 0 !important;
   border-radius: 0 !important;
-  background: #111 !important;
+  background: var(--bg) !important;
 }
 
-.modal-backdrop-image {
-  height: 72vh;
-  opacity: 0.34;
-  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.55) 38%, rgba(0, 0, 0, 0.08) 100%), linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.72) 64%, rgba(0, 0, 0, 0) 100%);
-  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.55) 38%, rgba(0, 0, 0, 0.08) 100%), linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.72) 64%, rgba(0, 0, 0, 0) 100%);
-}
+
 
 .immersive-container {
   padding: 1.4rem clamp(2rem, 4.4vw, 5rem) 3rem;
@@ -3144,9 +3268,12 @@ h1 {
     min-width: 12rem;
   }
 
-  .movie-grid,
   .dashboard-history-grid {
     grid-template-columns: repeat(auto-fill, minmax(7.4rem, 1fr));
+  }
+
+  .modal-backdrop-image {
+    left: 11rem;
   }
 }
 
@@ -3234,7 +3361,6 @@ h1 {
     justify-self: stretch;
   }
 
-  .movie-grid,
   .dashboard-history-grid {
     grid-template-columns: repeat(auto-fill, minmax(7.1rem, 1fr));
     gap: 1.2rem 0.75rem;
@@ -3258,6 +3384,11 @@ h1 {
 
   .immersive-poster-img {
     width: min(13rem, 54vw);
+  }
+
+  .modal-backdrop-image {
+    left: 0;
+    top: 7.5rem;
   }
 }
 
@@ -3364,4 +3495,41 @@ h1 {
   border-color: var(--blue);
   background: rgba(75, 150, 230, 0.04);
   color: #fff;
+}
+
+/* Inline Media Detail Overrides */
+#explorerPanel .media-detail-page {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  min-height: auto !important;
+}
+
+#explorerPanel .modal-backdrop-image {
+  opacity: 0.12 !important;
+}
+
+/* Highlighted Episode Row */
+.immersive-episode-row.is-highlighted {
+  border-color: var(--yellow) !important;
+  background: rgba(234, 179, 8, 0.08) !important;
+  box-shadow: 0 0 12px rgba(234, 179, 8, 0.18) !important;
+}
+
+/* Poster size slider styles */
+.explorer-size-slider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 100px;
+}
+
+.explorer-size-slider input[type="range"] {
+  accent-color: var(--yellow);
+  height: 6px;
+  border-radius: var(--radius);
+  background: var(--line);
+  cursor: pointer;
+  width: 100%;
 }

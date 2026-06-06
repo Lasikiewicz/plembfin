@@ -20,7 +20,7 @@ if (isLocalHost()) {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
 }
 
-let cachedToken = "";
+let cachedToken = localStorage.getItem("adminToken") || "";
 let refreshTimer;
 
 async function refreshIdToken(force = false) {
@@ -40,15 +40,31 @@ export function currentFirebaseUser() {
 }
 
 export function onFirebaseAuthChange(callback) {
+  if (isLocalHost() && cachedToken === LOCAL_ADMIN_TOKEN) {
+    setTimeout(() => {
+      callback({ email: "admin", uid: "local-admin" }, cachedToken);
+    }, 0);
+  }
+
   return onAuthStateChanged(auth, async (user) => {
-    cachedToken = user ? await refreshIdToken() : "";
-    callback(user, cachedToken);
+    if (user) {
+      cachedToken = await refreshIdToken();
+      callback(user, cachedToken);
+    } else {
+      if (isLocalHost() && cachedToken === LOCAL_ADMIN_TOKEN) {
+        return;
+      }
+      cachedToken = "";
+      localStorage.removeItem("adminToken");
+      callback(null, "");
+    }
   });
 }
 
 export async function signInAdmin(email, password) {
   if (isLocalHost() && String(email || "").trim() === "admin" && String(password || "") === "admin") {
     cachedToken = LOCAL_ADMIN_TOKEN;
+    localStorage.setItem("adminToken", cachedToken);
     return { user: { email: "admin", uid: "local-admin" }, token: cachedToken };
   }
   const credential = await signInWithEmailAndPassword(auth, email, password);
@@ -59,6 +75,7 @@ export async function signInAdmin(email, password) {
 export async function signOutAdmin() {
   window.clearTimeout(refreshTimer);
   cachedToken = "";
+  localStorage.removeItem("adminToken");
   await signOut(auth);
 }
 

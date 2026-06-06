@@ -1,0 +1,42 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Plembfin" [level=1] [ref=e6]
+        - generic "Unlocked session" [ref=e36]
+      - generic [ref=e8]:
+        - generic [ref=e9]: Search
+        - searchbox "Search" [ref=e10]
+    - button "Lock" [ref=e38] [cursor=pointer]
+  - navigation "Primary navigation" [ref=e11]:
+    - generic [ref=e12]:
+      - button "Dashboard" [ref=e13] [cursor=pointer]
+      - button "Movies" [ref=e14] [cursor=pointer]
+      - button "TV Shows" [ref=e15] [cursor=pointer]
+    - generic [ref=e16]:
+      - generic [ref=e17]: More
+      - button "Stats" [ref=e18] [cursor=pointer]
+      - button "Sync" [ref=e19] [cursor=pointer]
+      - button "Logs" [ref=e20] [cursor=pointer]
+      - button "Help" [ref=e21] [cursor=pointer]
+      - button "Settings" [ref=e22] [cursor=pointer]
+  - main [ref=e23]:
+    - generic [ref=e41]:
+      - generic [ref=e42]:
+        - generic [ref=e43]:
+          - paragraph [ref=e44]: TV Shows
+          - generic [ref=e45]: lasikie
+        - generic [ref=e46]:
+          - generic [ref=e47]:
+            - generic [ref=e48]: Search
+            - searchbox "Search" [ref=e49]
+          - generic [ref=e50]:
+            - generic [ref=e51]: Sort
+            - combobox "Sort" [ref=e52]:
+              - option "Title A-Z" [selected]
+              - option "Title Z-A"
+              - option "Watched newest"
+              - option "Watched oldest"
+      - generic [ref=e54]:
+        - generic [ref=e55]: Loading TV shows...
+        - generic [ref=e56]: Import history or wait for webhook events.

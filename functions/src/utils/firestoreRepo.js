@@ -833,7 +833,16 @@ export async function querySyncJobs({ limit = 100, offset = 0, status = "outstan
     if (status === "all") return true;
     if (status === "success") return dispatchStatus === "success";
     if (isLegacyInitialSyncPlaceholder(row)) return false;
-    return dispatchStatus !== "success" && dispatchStatus !== "skipped";
+    if (dispatchStatus === "skipped") {
+      const telemetry = row.sync_dispatch_telemetry || "";
+      const hasTargetStatus = telemetryHasTargetStatus(telemetry);
+      const isLoopOrImport = telemetry.includes("Echo loop caught") || telemetry.includes("Historical import");
+      if (hasTargetStatus && !isLoopOrImport) {
+        return true;
+      }
+      return false;
+    }
+    return dispatchStatus !== "success";
   });
 
   return filtered.slice(0, safeLimit);
@@ -1101,7 +1110,7 @@ function showSummaryFromCache(doc) {
 }
 
 export async function queryShows({ search = "", sort = "title_asc", limit = 6, offset = 0 } = {}) {
-  const safeLimit = Math.min(Number(limit) || 6, 60);
+  const safeLimit = Math.min(Number(limit) || 6, 5000);
   const safeOffset = Number(offset) || 0;
   
   const allShows = await getCachedShows();

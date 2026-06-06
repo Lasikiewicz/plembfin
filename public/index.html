@@ -168,14 +168,21 @@
         <section class="view-panel hidden" data-view-panel="explorer">
           <section class="glass-panel p-section">
             <div class="section-heading explorer-heading">
-              <div class="explorer-heading-title">
-                <p id="explorerTitle">Movies</p>
-                <span id="explorerSubtitle">Library view from watched history</span>
+              <div class="explorer-heading-title" style="display: flex; align-items: center; gap: 0.8rem;">
+                <button id="explorerBackButton" class="immersive-back-button hidden" type="button" style="border: 1px solid var(--line-strong); border-radius: 999px; background: rgba(7, 10, 13, 0.72); color: var(--text); padding: 0.45rem 0.8rem; font-weight: 800; display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">&larr; Back</button>
+                <div style="display: flex; flex-direction: column;">
+                  <p id="explorerTitle">Movies</p>
+                  <span id="explorerSubtitle">Library view from watched history</span>
+                </div>
               </div>
               <div class="explorer-controls">
                 <label class="compact-field explorer-search-box">
                   <span>Search</span>
                   <input id="explorerSearchInput" class="field" type="search" placeholder="Movie, show, IMDb, TMDB, TVDB..." />
+                </label>
+                <label class="compact-field explorer-size-slider" style="display: flex; flex-direction: column; gap: 0.25rem; min-width: 120px;">
+                  <span style="font-size: 0.75rem; color: var(--muted);">Poster Size</span>
+                  <input id="explorerPosterSize" type="range" min="80" max="240" value="160" class="field" style="height: auto; padding: 0.25rem 0;" />
                 </label>
                 <label class="compact-field">
                   <span>Sort</span>
@@ -581,6 +588,21 @@
             <button id="cancelConfirmButton" class="button-ghost" type="button">Cancel</button>
             <button id="approveConfirmButton" class="button-primary" type="button">Proceed</button>
           </div>
+        </div>
+      </article>
+    </div>
+
+    <div id="terminalModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="terminalModalTitle">
+      <article class="modal-panel glass-panel" style="max-width: 700px; width: 90%;">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Sync Operation Console</p>
+            <h2 id="terminalModalTitle">Retry Sync Terminal</h2>
+          </div>
+          <button id="closeTerminalModalButton" class="button-ghost" type="button">Close</button>
+        </div>
+        <div class="modal-body" style="padding-top: var(--space-2);">
+          <pre id="retryTerminalOutput" class="import-terminal" style="height: 380px; overflow-y: auto; background: #070a0e; border: 1px solid var(--line); padding: var(--space-3); border-radius: var(--radius); font-family: monospace; color: #38bdf8; white-space: pre-wrap; word-break: break-all; margin: 0;"></pre>
         </div>
       </article>
     </div>

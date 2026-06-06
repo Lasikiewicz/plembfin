@@ -1,0 +1,246 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Plembfin" [level=1] [ref=e6]
+        - generic "Unlocked session" [ref=e36]
+      - generic [ref=e8]:
+        - generic [ref=e9]: Search
+        - searchbox "Search" [ref=e10]
+    - button "Lock" [ref=e38] [cursor=pointer]
+  - navigation "Primary navigation" [ref=e11]:
+    - generic [ref=e12]:
+      - button "Dashboard" [ref=e13] [cursor=pointer]
+      - button "Movies" [ref=e14] [cursor=pointer]
+      - button "TV Shows" [ref=e15] [cursor=pointer]
+    - generic [ref=e16]:
+      - generic [ref=e17]: More
+      - button "Stats" [ref=e18] [cursor=pointer]
+      - button "Sync" [ref=e19] [cursor=pointer]
+      - button "Logs" [ref=e20] [cursor=pointer]
+      - button "Help" [ref=e21] [cursor=pointer]
+      - button "Settings" [ref=e22] [cursor=pointer]
+  - main [ref=e23]:
+    - generic [ref=e40]:
+      - generic [ref=e41]:
+        - generic [ref=e42]:
+          - generic [ref=e43]:
+            - paragraph [ref=e44]: Now Playing
+            - text: Live playback sessions across Plex, Emby, and Jellyfin
+          - generic [ref=e45]: Live cache
+        - generic [ref=e48]: Entire media ecosystem is idle.
+      - generic [ref=e49]:
+        - generic [ref=e51]:
+          - paragraph [ref=e52]: Watch history
+          - text: Recently watched TV shows and movies
+        - generic [ref=e53]:
+          - heading "TV Shows" [level=3] [ref=e54]
+          - generic [ref=e55]:
+            - generic [ref=e56]:
+              - img "Shoresy - S05E04 poster" [ref=e57]
+              - generic [ref=e58]:
+                - generic [ref=e59]: Plex - Marked Watched
+                - generic [ref=e60]: Shoresy - S05E04
+                - generic [ref=e61]: 5 Jun 2026, 22:49
+                - generic [ref=e62]: S05 / E04
+                - generic [ref=e63]:
+                  - generic [ref=e64]:
+                    - 'generic "Plex: success" [ref=e65]': Plex
+                    - 'generic "Emby: pending" [ref=e66]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e67]': Jellyfin
+                  - button "Retry" [ref=e68] [cursor=pointer]
+            - generic [ref=e69]:
+              - img "Shoresy - S05E03 poster" [ref=e70]
+              - generic [ref=e71]:
+                - generic [ref=e72]: Plex - Marked Watched
+                - generic [ref=e73]: Shoresy - S05E03
+                - generic [ref=e74]: 5 Jun 2026, 22:12
+                - generic [ref=e75]: S05 / E03
+                - generic [ref=e76]:
+                  - generic [ref=e77]:
+                    - 'generic "Plex: success" [ref=e78]': Plex
+                    - 'generic "Emby: pending" [ref=e79]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e80]': Jellyfin
+                  - button "Retry" [ref=e81] [cursor=pointer]
+            - generic [ref=e82]:
+              - img "Shoresy - S05E02 poster" [ref=e83]
+              - generic [ref=e84]:
+                - generic [ref=e85]: Plex - Marked Watched
+                - generic [ref=e86]: Shoresy - S05E02
+                - generic [ref=e87]: 5 Jun 2026, 21:47
+                - generic [ref=e88]: S05 / E02
+                - generic [ref=e89]:
+                  - generic [ref=e90]:
+                    - 'generic "Plex: success" [ref=e91]': Plex
+                    - 'generic "Emby: pending" [ref=e92]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e93]': Jellyfin
+                  - button "Retry" [ref=e94] [cursor=pointer]
+            - generic [ref=e95]:
+              - img "Shoresy - S04E05 poster" [ref=e96]
+              - generic [ref=e97]:
+                - generic [ref=e98]: Plex - Marked Watched
+                - generic [ref=e99]: Shoresy - S04E05
+                - generic [ref=e100]: 5 Jun 2026, 17:17
+                - generic [ref=e101]: S04 / E05
+                - generic [ref=e102]:
+                  - generic [ref=e103]:
+                    - 'generic "Plex: success" [ref=e104]': Plex
+                    - 'generic "Emby: pending" [ref=e105]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e106]': Jellyfin
+                  - button "Retry" [ref=e107] [cursor=pointer]
+            - generic [ref=e108]:
+              - img "Clarkson's Farm - S05E01 poster" [ref=e109]
+              - generic [ref=e110]:
+                - generic [ref=e111]: Plex - Marked Watched
+                - generic [ref=e112]: Clarkson's Farm - S05E01
+                - generic [ref=e113]: 5 Jun 2026, 17:07
+                - generic [ref=e114]: S05 / E01
+                - generic [ref=e115]:
+                  - generic [ref=e116]:
+                    - 'generic "Plex: success" [ref=e117]': Plex
+                    - 'generic "Emby: pending" [ref=e118]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e119]': Jellyfin
+                  - button "Retry" [ref=e120] [cursor=pointer]
+            - generic [ref=e121]:
+              - img "Aussie Gold Hunters - S10E06 poster" [ref=e122]
+              - generic [ref=e123]:
+                - generic [ref=e124]: Plex - Marked Watched
+                - generic [ref=e125]: Aussie Gold Hunters - S10E06
+                - generic [ref=e126]: 5 Jun 2026, 16:50
+                - generic [ref=e127]: S10 / E06
+                - generic [ref=e128]:
+                  - generic [ref=e129]:
+                    - 'generic "Plex: success" [ref=e130]': Plex
+                    - 'generic "Emby: pending" [ref=e131]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e132]': Jellyfin
+                  - button "Retry" [ref=e133] [cursor=pointer]
+            - generic [ref=e134]:
+              - img "Aussie Gold Hunters - S10E02 poster" [ref=e135]
+              - generic [ref=e136]:
+                - generic [ref=e137]: Plex - Marked Watched
+                - generic [ref=e138]: Aussie Gold Hunters - S10E02
+                - generic [ref=e139]: 5 Jun 2026, 16:50
+                - generic [ref=e140]: S10 / E02
+                - generic [ref=e141]:
+                  - generic [ref=e142]:
+                    - 'generic "Plex: success" [ref=e143]': Plex
+                    - 'generic "Emby: pending" [ref=e144]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e145]': Jellyfin
+                  - button "Retry" [ref=e146] [cursor=pointer]
+            - generic [ref=e147]:
+              - img "Aussie Gold Hunters - S10E03 poster" [ref=e148]
+              - generic [ref=e149]:
+                - generic [ref=e150]: Plex - Marked Watched
+                - generic [ref=e151]: Aussie Gold Hunters - S10E03
+                - generic [ref=e152]: 5 Jun 2026, 16:50
+                - generic [ref=e153]: S10 / E03
+                - generic [ref=e154]:
+                  - generic [ref=e155]:
+                    - 'generic "Plex: success" [ref=e156]': Plex
+                    - 'generic "Emby: pending" [ref=e157]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e158]': Jellyfin
+                  - button "Retry" [ref=e159] [cursor=pointer]
+            - generic [ref=e160]:
+              - img "Aussie Gold Hunters - S10E05 poster" [ref=e161]
+              - generic [ref=e162]:
+                - generic [ref=e163]: Plex - Marked Watched
+                - generic [ref=e164]: Aussie Gold Hunters - S10E05
+                - generic [ref=e165]: 5 Jun 2026, 16:50
+                - generic [ref=e166]: S10 / E05
+                - generic [ref=e167]:
+                  - generic [ref=e168]:
+                    - 'generic "Plex: success" [ref=e169]': Plex
+                    - 'generic "Emby: pending" [ref=e170]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e171]': Jellyfin
+                  - button "Retry" [ref=e172] [cursor=pointer]
+            - generic [ref=e173]:
+              - img "Aussie Gold Hunters - S10E04 poster" [ref=e174]
+              - generic [ref=e175]:
+                - generic [ref=e176]: Plex - Marked Watched
+                - generic [ref=e177]: Aussie Gold Hunters - S10E04
+                - generic [ref=e178]: 5 Jun 2026, 16:50
+                - generic [ref=e179]: S10 / E04
+                - generic [ref=e180]:
+                  - generic [ref=e181]:
+                    - 'generic "Plex: success" [ref=e182]': Plex
+                    - 'generic "Emby: pending" [ref=e183]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e184]': Jellyfin
+                  - button "Retry" [ref=e185] [cursor=pointer]
+            - generic [ref=e186]:
+              - 'img "Sand Land: The Series - S01E01 poster" [ref=e187]'
+              - generic [ref=e188]:
+                - generic [ref=e189]: Plex - Marked Watched
+                - generic [ref=e190]: "Sand Land: The Series - S01E01"
+                - generic [ref=e191]: 5 Jun 2026, 16:50
+                - generic [ref=e192]: S01 / E01
+                - generic [ref=e193]:
+                  - generic [ref=e194]:
+                    - 'generic "Plex: success" [ref=e195]': Plex
+                    - 'generic "Emby: pending" [ref=e196]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e197]': Jellyfin
+                  - button "Retry" [ref=e198] [cursor=pointer]
+            - generic [ref=e199]:
+              - img "Aussie Gold Hunters - S10E01 poster" [ref=e200]
+              - generic [ref=e201]:
+                - generic [ref=e202]: Plex - Marked Watched
+                - generic [ref=e203]: Aussie Gold Hunters - S10E01
+                - generic [ref=e204]: 5 Jun 2026, 16:50
+                - generic [ref=e205]: S10 / E01
+                - generic [ref=e206]:
+                  - generic [ref=e207]:
+                    - 'generic "Plex: success" [ref=e208]': Plex
+                    - 'generic "Emby: pending" [ref=e209]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e210]': Jellyfin
+                  - button "Retry" [ref=e211] [cursor=pointer]
+            - generic [ref=e212]:
+              - img "A Knight of the Seven Kingdoms - S01E02 poster" [ref=e213]
+              - generic [ref=e214]:
+                - generic [ref=e215]: Plex - Marked Watched
+                - generic [ref=e216]: A Knight of the Seven Kingdoms - S01E02
+                - generic [ref=e217]: 5 Jun 2026, 16:41
+                - generic [ref=e218]: S01 / E02
+                - generic [ref=e219]:
+                  - generic [ref=e220]:
+                    - 'generic "Plex: success" [ref=e221]': Plex
+                    - 'generic "Emby: pending" [ref=e222]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e223]': Jellyfin
+                  - button "Retry" [ref=e224] [cursor=pointer]
+        - generic [ref=e225]:
+          - heading "Movies" [level=3] [ref=e226]
+          - generic [ref=e227]:
+            - generic [ref=e228]:
+              - img "Nosferatu poster" [ref=e229]
+              - generic [ref=e230]:
+                - generic [ref=e231]: Plex - Marked Watched
+                - generic [ref=e232]: Nosferatu
+                - generic [ref=e233]: 5 Jun 2026, 16:50
+                - generic [ref=e234]:
+                  - generic [ref=e235]:
+                    - 'generic "Plex: success" [ref=e236]': Plex
+                    - 'generic "Emby: pending" [ref=e237]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e238]': Jellyfin
+                  - button "Retry" [ref=e239] [cursor=pointer]
+            - generic [ref=e240]:
+              - img "Moana 2 poster" [ref=e241]
+              - generic [ref=e242]:
+                - generic [ref=e243]: Plex - Marked Watched
+                - generic [ref=e244]: Moana 2
+                - generic [ref=e245]: 5 Jun 2026, 16:50
+                - generic [ref=e246]:
+                  - generic [ref=e247]:
+                    - 'generic "Plex: success" [ref=e248]': Plex
+                    - 'generic "Emby: pending" [ref=e249]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e250]': Jellyfin
+                  - button "Retry" [ref=e251] [cursor=pointer]
+            - generic [ref=e252]:
+              - img "The Jungle Book poster" [ref=e253]
+              - generic [ref=e254]:
+                - generic [ref=e255]: Plex - Marked Watched
+                - generic [ref=e256]: The Jungle Book
+                - generic [ref=e257]: 5 Jun 2026, 16:39
+                - generic [ref=e258]:
+                  - generic [ref=e259]:
+                    - 'generic "Plex: success" [ref=e260]': Plex
+                    - 'generic "Emby: pending" [ref=e261]': Emby
+                    - 'generic "Jellyfin: pending" [ref=e262]': Jellyfin
+                  - button "Retry" [ref=e263] [cursor=pointer]

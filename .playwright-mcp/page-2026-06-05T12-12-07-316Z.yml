@@ -1,0 +1,28 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Plembfin" [level=1] [ref=e5]
+      - generic "Locked session" [ref=e6]
+    - navigation "Primary navigation" [ref=e7]:
+      - button "Dashboard" [ref=e8] [cursor=pointer]
+      - button "Stats" [ref=e9] [cursor=pointer]
+      - button "History Explorer" [ref=e10] [cursor=pointer]
+      - button "Sync" [ref=e11] [cursor=pointer]
+      - button "Settings" [ref=e12] [cursor=pointer]
+      - button "Help" [ref=e13] [cursor=pointer]
+      - button "Logs" [ref=e14] [cursor=pointer]
+  - main [ref=e15]:
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - paragraph [ref=e18]: Admin access
+        - heading "Unlock your archive" [level=2] [ref=e19]
+        - paragraph [ref=e20]: Sign in with your Firebase admin account to query Firestore, import Trakt history, and review webhook appends.
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - text: Admin email
+          - textbox "Admin email" [ref=e23]
+        - generic [ref=e24]:
+          - text: Password
+          - textbox "Password" [ref=e25]
+        - button "Sign In" [ref=e26] [cursor=pointer]
+      - status [ref=e27]
