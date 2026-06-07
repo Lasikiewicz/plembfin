@@ -754,6 +754,11 @@ function hasConfirmedMediaAvailability(entry = {}, states = []) {
   return states.some((state) => normalizeTargetStatus(state.status) === "success");
 }
 
+function sharedLibraryAvailability(entry = {}, states = telemetryTargetStates(entry.sync_dispatch_telemetry || entry.syncDispatchTelemetry || "")) {
+  if (!hasConfirmedMediaAvailability(entry, states)) return null;
+  return { statusClass: "success", statusLabel: "Available" };
+}
+
 function getMediaTargetSyncStatus(entry = {}) {
   const activeTargets = getActiveTargets();
   const telemetry = String(entry.sync_dispatch_telemetry || entry.syncDispatchTelemetry || "");
@@ -781,6 +786,9 @@ function getMediaTargetSyncStatus(entry = {}) {
       }
       if (targetStateUnavailable(match) && available) {
         return { target, status: "error", detail: match.detail };
+      }
+      if (targetStateNoop(match) && available) {
+        return { target, status: "pending", detail: match.detail };
       }
       return { target, status: "skipped", detail: match.detail };
     }
@@ -816,7 +824,7 @@ function getSyncStatusTooltip(entry = {}) {
   if (!activeTargets.length) return "No targets configured";
   const statuses = getMediaTargetSyncStatus(entry).filter((s) => !s.hidden);
   if (!statuses.length) return "No sync status needed";
-  return statuses.map(s => `${platformBadge(s.target)}: ${s.status}`).join(", ");
+  return `Watched sync: ${statuses.map(s => `${platformBadge(s.target)} ${s.status}`).join(", ")}`;
 }
 
 function renderSyncStatusDot(entry = {}, style = "") {
@@ -834,12 +842,16 @@ function renderAvailabilityPills(entry = {}) {
   const telemetry = String(entry.sync_dispatch_telemetry || entry.syncDispatchTelemetry || "");
   const states = telemetryTargetStates(telemetry);
   const source = String(entry.source || "").toLowerCase();
+  const sharedAvailability = sharedLibraryAvailability(entry, states);
   
   return activeTargets.map((target) => {
     let statusClass = "pending";
     let statusLabel = "Checking";
     
-    if (source === target || source.startsWith(`${target}_`)) {
+    if (sharedAvailability) {
+      statusClass = sharedAvailability.statusClass;
+      statusLabel = sharedAvailability.statusLabel;
+    } else if (source === target || source.startsWith(`${target}_`)) {
       statusClass = "success";
       statusLabel = "Available";
     } else {
@@ -873,7 +885,7 @@ function renderAvailabilityPills(entry = {}) {
     }
     
     const displayTarget = platformBadge(target);
-    return `<span class="target-pill" data-status="${statusClass}" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;" title="${escapeAttribute(`${displayTarget}: ${statusLabel}`)}">${escapeHtml(displayTarget)}: ${statusLabel}</span>`;
+    return `<span class="target-pill" data-status="${statusClass}" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;" title="${escapeAttribute(`${displayTarget} watch availability: ${statusLabel}`)}">${escapeHtml(displayTarget)}: ${statusLabel}</span>`;
   }).join(" ");
 }
 
@@ -883,6 +895,7 @@ function renderShowAvailabilityPills(show = {}) {
   
   const episodes = show.episodes || [];
   const watchedEpisodes = episodes.filter(e => isWatchedHistoryAction(e));
+  const sharedAvailable = watchedEpisodes.some((episode) => sharedLibraryAvailability(episode));
   
   return activeTargets.map((target) => {
     let statusClass = "pending";
@@ -920,7 +933,10 @@ function renderShowAvailabilityPills(show = {}) {
       }
     }
     
-    if (anyAvailable) {
+    if (sharedAvailable) {
+      statusClass = "success";
+      statusLabel = "Available";
+    } else if (anyAvailable) {
       statusClass = "success";
       statusLabel = "Available";
     } else if (anyChecked && allUnavailable && watchedEpisodes.length > 0) {
@@ -932,7 +948,7 @@ function renderShowAvailabilityPills(show = {}) {
     }
     
     const displayTarget = platformBadge(target);
-    return `<span class="target-pill" data-status="${statusClass}" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;" title="${escapeAttribute(`${displayTarget}: ${statusLabel}`)}">${escapeHtml(displayTarget)}: ${statusLabel}</span>`;
+    return `<span class="target-pill" data-status="${statusClass}" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;" title="${escapeAttribute(`${displayTarget} watch availability: ${statusLabel}`)}">${escapeHtml(displayTarget)}: ${statusLabel}</span>`;
   }).join(" ");
 }
 
