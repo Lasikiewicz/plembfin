@@ -9,7 +9,8 @@
     "emulators:export": "firebase emulators:export ./emulator-data --project plembfin",
     "deploy": "firebase deploy",
     "deploy:hosting": "firebase deploy --only hosting",
-    "deploy:functions": "firebase deploy --only functions"
+    "deploy:functions": "firebase deploy --only functions",
+    "force-sync:local": "node scripts/localForceSync.js"
   },
   "devDependencies": {
     "firebase-tools": "^14.0.0"

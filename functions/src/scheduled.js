@@ -541,13 +541,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
         continue;
       }
 
-      // Always dedup by mediaKey; add watchedAt filter only when we have a precise timestamp.
-      let query = db.collection("watchHistory").where("mediaKey", "==", key);
-      if (hasLastPlayed) {
-        query = query.where("watchedAt", "==", watchedAt);
-      }
-
-      const existing = await query.limit(1).get();
+      const existing = await db.collection("watchHistory").where("mediaKey", "==", key).where("syncAction", "==", "watched").limit(1).get();
 
       if (existing.empty) {
         logger(`Emby: detected new watched item: ${media.title} (${hasLastPlayed ? `played at ${watchedAt}` : `release date ${watchedAt}`})`);
@@ -631,13 +625,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
         continue;
       }
 
-      // Always dedup by mediaKey; add watchedAt filter only when we have a precise timestamp.
-      let query = db.collection("watchHistory").where("mediaKey", "==", key);
-      if (hasLastPlayed) {
-        query = query.where("watchedAt", "==", watchedAt);
-      }
-
-      const existing = await query.limit(1).get();
+      const existing = await db.collection("watchHistory").where("mediaKey", "==", key).where("syncAction", "==", "watched").limit(1).get();
 
       if (existing.empty) {
         logger(`Jellyfin: detected new watched item: ${media.title} (${hasLastPlayed ? `played at ${watchedAt}` : `release date ${watchedAt}`})`);
@@ -930,7 +918,20 @@ export async function runScheduledSync(logger = console.log) {
   };
 }
 
-export async function runForceSync(logger = console.log) {
+async function runWithConcurrency(items, concurrency, handler) {
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(Number(concurrency) || 1, 1), items.length || 1);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      await handler(items[currentIndex], currentIndex);
+    }
+  });
+  await Promise.all(workers);
+}
+
+export async function runForceSync(logger = console.log, { lockAlreadyClaimed = false, concurrency = 1 } = {}) {
   if (!watchedPlayedSyncEnabled()) {
     logger("Force Sync skipped because watched/played syncing is disabled.");
     return {
@@ -942,16 +943,18 @@ export async function runForceSync(logger = console.log) {
     };
   }
 
-  logger("Force Sync: checking if another sync job is already running...");
-  const runtime = await loadRuntimeState();
-  const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+  if (!lockAlreadyClaimed) {
+    logger("Force Sync: checking if another sync job is already running...");
+    const runtime = await loadRuntimeState();
+    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
 
-  if (runtime.forceSyncActive === true && runtime.forceSyncStartedAt && runtime.forceSyncStartedAt > tenMinutesAgo) {
-    logger("Force Sync ERROR: Another force sync job is already running.");
-    throw new Error("Another force sync job is already running.");
+    if (runtime.forceSyncActive === true && runtime.forceSyncStartedAt && runtime.forceSyncStartedAt > tenMinutesAgo) {
+      logger("Force Sync ERROR: Another force sync job is already running.");
+      throw new Error("Another force sync job is already running.");
+    }
+
+    await setRuntimeState({ forceSyncActive: true, forceSyncStartedAt: Date.now(), forceSyncCancelRequested: false });
   }
-
-  await setRuntimeState({ forceSyncActive: true, forceSyncStartedAt: Date.now(), forceSyncCancelRequested: false });
 
   try {
     logger("Force Sync: loading media configuration...");
@@ -1190,26 +1193,69 @@ export async function runForceSync(logger = console.log) {
   let addedToHistoryCount = 0;
   let deletedFromHistoryCount = 0;
 
-  let loopIndex = 0;
-  for (const key of allConsideredKeys) {
-    loopIndex++;
-    if (loopIndex % 5 === 0) {
-      const currentRuntime = await loadRuntimeState();
-      if (currentRuntime.forceSyncCancelRequested === true) {
-        logger("Force Sync: stop request detected in Firestore. Aborting sync...");
-        return {
-          success: true,
-          activeTargets,
-          aborted: true,
-          stats: {
-            totalWatchedFoundAcrossServers: watchedMap.size,
-            addedToHistory: addedToHistoryCount,
-            deletedFromHistory: deletedFromHistoryCount,
-            propagatedUpdates: propagatedCount
-          }
-        };
-      }
+  const reconciliationConcurrency = Math.max(1, Math.min(Number(concurrency) || 1, 64));
+  if (reconciliationConcurrency > 1) {
+    logger(`Force Sync: local concurrency enabled (${reconciliationConcurrency} workers).`);
+  }
+
+  let processedCount = 0;
+  let abortResult = null;
+  const consideredKeys = [...allConsideredKeys];
+
+  const abortSummary = () => ({
+    success: true,
+    activeTargets,
+    aborted: true,
+    stats: {
+      totalWatchedFoundAcrossServers: watchedMap.size,
+      addedToHistory: addedToHistoryCount,
+      deletedFromHistory: deletedFromHistoryCount,
+      propagatedUpdates: propagatedCount
     }
+  });
+
+  async function shouldAbort() {
+    if (abortResult) return true;
+    processedCount += 1;
+    const checkEvery = reconciliationConcurrency > 1 ? 20 : 5;
+    if (processedCount % checkEvery !== 0) return false;
+    const currentRuntime = await loadRuntimeState();
+    if (currentRuntime.forceSyncCancelRequested === true) {
+      logger("Force Sync: stop request detected in Firestore. Aborting sync...");
+      abortResult = abortSummary();
+      return true;
+    }
+    return false;
+  }
+
+  async function markPlayedTarget(target, mediaObj) {
+    if (target === "plex") {
+      const { markPlexPlayed } = await import("./utils/plexClient.js");
+      await markPlexPlayed(config.plex, mediaObj);
+    } else if (target === "emby") {
+      const { markEmbyPlayed } = await import("./utils/embyClient.js");
+      await markEmbyPlayed(config.emby, mediaObj);
+    } else if (target === "jellyfin") {
+      const { markJellyfinPlayed } = await import("./utils/jellyfinClient.js");
+      await markJellyfinPlayed(config.jellyfin, mediaObj);
+    }
+  }
+
+  async function markUnplayedTarget(target, mediaObj) {
+    if (target === "plex") {
+      const { markPlexUnplayed } = await import("./utils/plexClient.js");
+      await markPlexUnplayed(config.plex, mediaObj);
+    } else if (target === "emby") {
+      const { markEmbyUnplayed } = await import("./utils/embyClient.js");
+      await markEmbyUnplayed(config.emby, mediaObj);
+    } else if (target === "jellyfin") {
+      const { markJellyfinUnplayed } = await import("./utils/jellyfinClient.js");
+      await markJellyfinUnplayed(config.jellyfin, mediaObj);
+    }
+  }
+
+  async function processConsideredKey(key) {
+    if (await shouldAbort()) return;
 
     const serverWatchedEntry = watchedMap.get(key);
     const historyRecords = historyMap.get(key) || [];
@@ -1251,25 +1297,12 @@ export async function runForceSync(logger = console.log) {
       };
     }
 
-    if (!mediaObj) continue;
+    if (!mediaObj) return;
 
     if (newestState === "watched") {
       const inHistory = historyRecords.some(r => r.syncAction === "watched");
       if (!inHistory) {
-        logger(`Firestore: adding watched record for "${mediaObj.title}"`);
-        const watchRecord = mediaToWatchRecord(mediaObj, [...serverWatchedOn][0] || "force_sync");
-        watchRecord.sync_action = "watched";
-        watchRecord.sync_dispatch_telemetry = [
-          `Origin: force_sync`,
-          `Loop-check: Passed`,
-          `Dispatch status: success`,
-          `Details: Force Sync resolved status to watched. Newest timestamp: ${new Date(newestTime).toISOString()}`,
-          ...activeTargets.map(t => `Target ${t.charAt(0).toUpperCase() + t.slice(1)} status: success`)
-        ].join("\n");
-        if (newestTime > 0) watchRecord.watched_at = new Date(newestTime).toISOString();
-        const inserted = await insertWatchRecord(requireDb(), watchRecord);
-        await upsertPlaystateForMedia(requireDb(), { ...mediaObj, source: watchRecord.source || "force_sync", isValid: true }, "watched", inserted.record.watched_at);
-        addedToHistoryCount++;
+        logger(`Firestore: skipping server-only watched state for "${mediaObj.title}" because no Plembfin history row exists.`);
       } else if (lastHistoryRecord && lastHistoryRecord.syncAction === "unwatched") {
         logger(`Firestore: deleting outdated unwatched record for "${mediaObj.title}"`);
         const unwatchedDocs = historyRecords.filter(r => r.syncAction === "unwatched");
@@ -1282,16 +1315,7 @@ export async function runForceSync(logger = console.log) {
         if (!serverWatchedOn.has(target)) {
           logger(`Propagating: marking played "${mediaObj.title}" on ${target}`);
           try {
-            if (target === "plex") {
-              const { markPlexPlayed } = await import("./utils/plexClient.js");
-              await markPlexPlayed(config.plex, mediaObj);
-            } else if (target === "emby") {
-              const { markEmbyPlayed } = await import("./utils/embyClient.js");
-              await markEmbyPlayed(config.emby, mediaObj);
-            } else if (target === "jellyfin") {
-              const { markJellyfinPlayed } = await import("./utils/jellyfinClient.js");
-              await markJellyfinPlayed(config.jellyfin, mediaObj);
-            }
+            await markPlayedTarget(target, mediaObj);
             propagatedCount++;
           } catch (err) {
             logger(`Error: failed to mark played for "${mediaObj.title}" on ${target}: ${err.message}`);
@@ -1324,16 +1348,7 @@ export async function runForceSync(logger = console.log) {
         if (serverWatchedOn.has(target)) {
           logger(`Propagating: marking unplayed "${mediaObj.title}" on ${target}`);
           try {
-            if (target === "plex") {
-              const { markPlexUnplayed } = await import("./utils/plexClient.js");
-              await markPlexUnplayed(config.plex, mediaObj);
-            } else if (target === "emby") {
-              const { markEmbyUnplayed } = await import("./utils/embyClient.js");
-              await markEmbyUnplayed(config.emby, mediaObj);
-            } else if (target === "jellyfin") {
-              const { markJellyfinUnplayed } = await import("./utils/jellyfinClient.js");
-              await markJellyfinUnplayed(config.jellyfin, mediaObj);
-            }
+            await markUnplayedTarget(target, mediaObj);
             propagatedCount++;
           } catch (err) {
             logger(`Error: failed to mark unwatched for "${mediaObj.title}" on ${target}: ${err.message}`);
@@ -1342,6 +1357,17 @@ export async function runForceSync(logger = console.log) {
       }
     }
   }
+
+  if (reconciliationConcurrency > 1) {
+    await runWithConcurrency(consideredKeys, reconciliationConcurrency, processConsideredKey);
+  } else {
+    for (const key of consideredKeys) {
+      await processConsideredKey(key);
+      if (abortResult) break;
+    }
+  }
+
+  if (abortResult) return abortResult;
 
   logger("Firestore: invalidating database watch history caches...");
   const { invalidateHistoryDerivedCaches } = await import("./utils/firestoreRepo.js");

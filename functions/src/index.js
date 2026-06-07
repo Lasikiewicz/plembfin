@@ -36,6 +36,7 @@ import {
   queryShowDetail,
   queryShows,
   queryWatchHistory,
+  queryWatchHistoryPreview,
   requireDb,
   updateWatchPosterUrl,
   updatePlaybackProgressTelemetry,
@@ -296,6 +297,15 @@ async function handleHistory(req, res) {
   const statsMode = String(req.query.stats || "").toLowerCase();
   if (statsMode === "only") {
     return sendJson(res, { stats: await getWatchStats(requireDb()) });
+  }
+
+  const previewMode = String(req.query.preview || "").toLowerCase();
+  if (["1", "true", "dashboard"].includes(previewMode)) {
+    const [history, historyVersion] = await Promise.all([
+      queryWatchHistoryPreview({ limit: req.query.limit || 120 }),
+      getHistoryCacheVersion(),
+    ]);
+    return sendJson(res, { history, historyVersion }, 200, { "Cache-Control": "private, max-age=30, stale-while-revalidate=120", Vary: "Authorization" });
   }
 
   const includeStats = !["0", "false", "no"].includes(statsMode);
@@ -724,6 +734,12 @@ async function handleForceSync(req, res) {
   // POST: fire-and-forget — return 202 immediately, run in background
   if (!(await requireAdmin(req, res))) return;
 
+  const runtime = await loadRuntimeState();
+  const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+  if (runtime.forceSyncActive === true && runtime.forceSyncStartedAt && runtime.forceSyncStartedAt > tenMinutesAgo) {
+    return sendJson(res, { ok: false, error: "Another force sync job is already running." }, 409);
+  }
+
   // Clear the previous log and mark as active before returning
   await setRuntimeState({
     forceSyncLog: ["Force Sync started..."],
@@ -758,7 +774,7 @@ async function handleForceSync(req, res) {
   // Kick off in background — HTTP response returned below without awaiting this
   Promise.resolve().then(async () => {
     try {
-      const result = await runForceSync(logLine);
+      const result = await runForceSync(logLine, { lockAlreadyClaimed: true });
       if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
       await flushLog(); // flush any remaining lines
       await setRuntimeState({

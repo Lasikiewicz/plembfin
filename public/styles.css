@@ -928,6 +928,35 @@ h2 {
   align-items: center;
 }
 
+.sync-history-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+.sync-history-summary::-webkit-details-marker {
+  display: none;
+}
+
+.sync-history-summary b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-history-card[open] .sync-history-summary {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.sync-history-card[open] .sync-job-main {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .sync-job-title {
   display: grid;
   min-width: 0;

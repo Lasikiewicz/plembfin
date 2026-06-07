@@ -19,7 +19,9 @@ const POSTER_LOOKUP_PERSISTED_CACHE_KEY = "plembfin:posterLookupCache:v2";
 const POSTER_LOOKUP_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const POSTER_LOOKUP_PERSISTED_CACHE_LIMIT = 800;
 const TMDB_POSTER_SIZE = "w342";
-const HISTORY_PREVIEW_LIMIT = 300;
+const DASHBOARD_HISTORY_CACHE_KEY = "plembfin:dashboardHistory:v1";
+const DASHBOARD_HISTORY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const HISTORY_PREVIEW_LIMIT = 120;
 const DASHBOARD_HISTORY_ROWS = 2;
 const EXPLORER_PAGE_SIZE = 120;
 const EXPLORER_CACHE_TTL_MS = 30 * 60 * 1000;
@@ -38,6 +40,7 @@ const state = {
   historyWeekStart: startOfWeek(new Date()),
   history: [],
   historyVersion: "",
+  historyLoadPromise: null,
   dashboardHistoryFilter: "all",
   dashboardHistoryResizeTimer: undefined,
   activeSessions: [],
@@ -363,6 +366,45 @@ function historyVersionFromRows(rows = []) {
     return watchedAt > latest ? watchedAt : latest;
   }, "");
   return newest ? `rows:${newest}:${rows.length}` : "empty";
+}
+
+function persistentDashboardHistoryCacheKey() {
+  const userKey = state.firebaseUser?.uid || state.firebaseUser?.email || "local";
+  return `${DASHBOARD_HISTORY_CACHE_KEY}:${userKey}`;
+}
+
+function readPersistentDashboardHistory() {
+  try {
+    const raw = localStorage.getItem(persistentDashboardHistoryCacheKey());
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!Array.isArray(parsed.history)) return null;
+    if (Date.now() - Number(parsed.savedAt || 0) > DASHBOARD_HISTORY_CACHE_TTL_MS) return null;
+    return parsed;
+  } catch (error) {
+    return null;
+  }
+}
+
+function rememberDashboardHistory(history, historyVersion) {
+  try {
+    localStorage.setItem(persistentDashboardHistoryCacheKey(), JSON.stringify({
+      savedAt: Date.now(),
+      historyVersion: historyVersion || historyVersionFromRows(history),
+      history,
+    }));
+  } catch (error) {
+    // Dashboard cache is best-effort; the API remains the source of truth.
+  }
+}
+
+function applyCachedDashboardHistory() {
+  if (state.history.length) return true;
+  const cached = readPersistentDashboardHistory();
+  if (!cached?.history?.length) return false;
+  state.history = cached.history;
+  state.historyVersion = String(cached.historyVersion || historyVersionFromRows(cached.history));
+  renderDashboard();
+  return true;
 }
 
 function explorerCacheVersion() {
@@ -1004,11 +1046,13 @@ function renderSyncHistory() {
       const tone = syncHistoryTone(entry);
       const debug = entry.rawPayloadDebug && Object.keys(entry.rawPayloadDebug).length ? JSON.stringify(entry.rawPayloadDebug, null, 2) : "";
       return `
-        <article class="sync-history-card">
-          <div class="sync-job-main">
+        <details class="sync-history-card">
+          <summary class="sync-history-summary">
             <span class="sync-status-dot sync-status-dot--${tone}" aria-hidden="true"></span>
+            <b>${escapeHtml(entry.title || "Unknown media")}</b>
+          </summary>
+          <div class="sync-job-main">
             <div class="sync-job-title">
-              <b>${escapeHtml(entry.title || "Unknown media")}</b>
               <span>${escapeHtml(platformBadge(entry.source))} - ${escapeHtml(syncHistoryActionLabel(entry))} - ${escapeHtml(formatDate(entry.timestamp))}</span>
             </div>
             <span class="status-pill ${tone === "error" ? "status-error" : tone === "pending" ? "status-warning" : "status-ready"}">${escapeHtml(entry.status || "unknown")}</span>
@@ -1021,7 +1065,7 @@ function renderSyncHistory() {
           </div>
           <div class="sync-target-row">${syncHistoryTargetPills(entry)}</div>
           ${debug ? `<pre class="sync-telemetry">${escapeHtml(debug)}</pre>` : ""}
-        </article>
+        </details>
       `;
     })
     .join("");
@@ -1588,6 +1632,11 @@ function applyActiveView() {
   }
 
   if (state.activeView === "help") renderHelp();
+  if (state.activeView === "dashboard") {
+    applyCachedDashboardHistory();
+    renderDashboard();
+    if (state.token) loadHistory().catch((error) => setMessage(error.message, "error"));
+  }
   if (state.activeView === "stats") {
     renderStats();
     loadStats().catch((error) => setMessage(error.message, "error"));
@@ -1736,34 +1785,46 @@ async function saveSavedConfig() {
   return body;
 }
 
-async function loadHistory() {
-  const url = new URL("/api/history", window.location.origin);
-  url.searchParams.set("limit", String(HISTORY_PREVIEW_LIMIT));
-  url.searchParams.set("stats", "0");
+async function loadHistory({ force = false } = {}) {
+  if (state.historyLoadPromise) return state.historyLoadPromise;
 
-  const response = await fetch(url, { headers: authHeaders() });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `History load failed with ${response.status}`);
+  state.historyLoadPromise = (async () => {
+    if (!force) applyCachedDashboardHistory();
 
-  const previousHistoryVersion = state.historyVersion;
-  state.history = Array.isArray(body.history) ? body.history : [];
-  state.historyVersion = String(body.historyVersion ?? historyVersionFromRows(state.history));
-  if (previousHistoryVersion && previousHistoryVersion !== state.historyVersion) {
-    state.explorerPageCache.clear();
-  }
-  if (body.stats) {
-    state.stats = body.stats;
-    state.statsLoaded = true;
-  }
-  renderDashboard();
-  renderStats();
-  if (state.activeView === "stats") loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
-  if (state.activeView === "explorer") renderExplorer();
-  if (state.activeView === "sync") {
-    loadSyncJobs({ force: true }).catch((error) => setMessage(error.message, "error"));
-    loadSyncHistory({ force: true }).catch((error) => setMessage(error.message, "error"));
-  }
-  renderDbStatus(true);
+    const url = new URL("/api/history", window.location.origin);
+    url.searchParams.set("limit", String(HISTORY_PREVIEW_LIMIT));
+    url.searchParams.set("stats", "0");
+    url.searchParams.set("preview", "dashboard");
+
+    const response = await fetch(url, { headers: authHeaders() });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `History load failed with ${response.status}`);
+
+    const previousHistoryVersion = state.historyVersion;
+    state.history = Array.isArray(body.history) ? body.history : [];
+    state.historyVersion = String(body.historyVersion ?? historyVersionFromRows(state.history));
+    rememberDashboardHistory(state.history, state.historyVersion);
+    if (previousHistoryVersion && previousHistoryVersion !== state.historyVersion) {
+      state.explorerPageCache.clear();
+    }
+    if (body.stats) {
+      state.stats = body.stats;
+      state.statsLoaded = true;
+    }
+    renderDashboard();
+    renderStats();
+    if (state.activeView === "stats") loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
+    if (state.activeView === "sync") {
+      loadSyncJobs({ force: true }).catch((error) => setMessage(error.message, "error"));
+      loadSyncHistory({ force: true }).catch((error) => setMessage(error.message, "error"));
+    }
+    renderDbStatus(true);
+    return state.history;
+  })().finally(() => {
+    state.historyLoadPromise = null;
+  });
+
+  return state.historyLoadPromise;
 }
 
 function clearDerivedUiCaches({ resetExplorer = true } = {}) {
@@ -6161,7 +6222,11 @@ function initialize() {
       setUnlocked(true);
       selectView(state.activeView);
       loadSavedConfig()
-        .then(() => loadHistory())
+        .then(() => {
+          if (state.activeView === "dashboard") return loadHistory();
+          if (state.activeView === "stats") return loadStats();
+          return null;
+        })
         .then(() => startHistoryPolling())
         .catch((error) => {
           renderDbStatus(false);
