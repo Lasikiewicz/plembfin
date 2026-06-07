@@ -704,11 +704,10 @@ function syncStatus(entry = {}) {
 }
 
 function historySyncPill(entry = {}) {
-  const status = syncStatus(entry);
   return `
     <span class="history-sync-row">
       <span class="history-action-pill ${sourceClass(entry.source)}">${escapeHtml(platformBadge(entry.source))} - ${escapeHtml(historyAction(entry))}</span>
-      <span class="sync-status-dot sync-status-dot--${status.tone}" data-sync-status-dot="true" role="button" tabindex="0" title="${escapeAttribute(`${status.label}. ${status.detail}`)}" aria-label="${escapeAttribute(`${status.label}. Click for sync details.`)}"></span>
+      ${renderSyncStatusDot(entry)}
     </span>
   `;
 }
@@ -721,6 +720,40 @@ function getActiveTargets() {
   return targets;
 }
 
+function sourcePlatform(value = "") {
+  const source = String(value || "").toLowerCase();
+  if (source.startsWith("plex")) return "plex";
+  if (source.startsWith("emby")) return "emby";
+  if (source.startsWith("jellyfin")) return "jellyfin";
+  return "";
+}
+
+function normalizeTargetStatus(value = "") {
+  const status = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (["fulfilled", "ok", "complete", "completed"].includes(status)) return "success";
+  if (["queued", "in_progress", "checking"].includes(status)) return "pending";
+  if (["not_found", "not_attempted", "unavailable"].includes(status)) return "skipped";
+  return status || "pending";
+}
+
+function targetStateUnavailable(state = {}) {
+  const text = `${state.rawStatus || state.status || ""} ${state.detail || ""}`.toLowerCase();
+  return text.includes("no matching") || text.includes("not_found") || text.includes("not found") || text.includes("unavailable");
+}
+
+function targetStateNoop(state = {}) {
+  const text = `${state.rawStatus || state.status || ""} ${state.detail || ""}`.toLowerCase();
+  return text.includes("not attempted") || text.includes("historical import") || text.includes("stored locally");
+}
+
+function hasConfirmedMediaAvailability(entry = {}, states = []) {
+  const activeTargets = getActiveTargets();
+  const telemetry = String(entry.sync_dispatch_telemetry || entry.syncDispatchTelemetry || "");
+  if (telemetry.includes("Force Sync resolved status to success")) return true;
+  if (activeTargets.includes(sourcePlatform(entry.source))) return true;
+  return states.some((state) => normalizeTargetStatus(state.status) === "success");
+}
+
 function getMediaTargetSyncStatus(entry = {}) {
   const activeTargets = getActiveTargets();
   const telemetry = String(entry.sync_dispatch_telemetry || entry.syncDispatchTelemetry || "");
@@ -731,6 +764,7 @@ function getMediaTargetSyncStatus(entry = {}) {
   
   const states = telemetryTargetStates(telemetry);
   const source = String(entry.source || "").toLowerCase();
+  const available = hasConfirmedMediaAvailability(entry, states);
   
   return activeTargets.map((target) => {
     if (source === target || source.startsWith(`${target}_`)) {
@@ -738,13 +772,27 @@ function getMediaTargetSyncStatus(entry = {}) {
     }
     const match = states.find((s) => s.target === target);
     if (match) {
-      return { target, status: match.status };
+      const status = normalizeTargetStatus(match.status);
+      if (status === "success" || status === "pending" || status === "error") {
+        return { target, status };
+      }
+      if ((targetStateUnavailable(match) || targetStateNoop(match)) && !available) {
+        return { target, status: "skipped", hidden: true, detail: match.detail };
+      }
+      if (targetStateUnavailable(match) && available) {
+        return { target, status: "error", detail: match.detail };
+      }
+      return { target, status: "skipped", detail: match.detail };
     }
     
     if (telemetry.includes("Details: Historical import stored locally") || telemetry.includes("Origin: import")) {
-      return { target, status: "pending" };
+      return { target, status: "skipped", hidden: true };
     }
     
+    if (!available) {
+      return { target, status: "skipped", hidden: true };
+    }
+
     return { target, status: "pending" };
   });
 }
@@ -752,7 +800,8 @@ function getMediaTargetSyncStatus(entry = {}) {
 function getSyncStatusTone(entry = {}) {
   const activeTargets = getActiveTargets();
   if (!activeTargets.length) return "success";
-  const statuses = getMediaTargetSyncStatus(entry);
+  const statuses = getMediaTargetSyncStatus(entry).filter((s) => !s.hidden);
+  if (!statuses.length) return "";
   if (statuses.some((s) => s.status === "error")) {
     return "error";
   }
@@ -765,8 +814,17 @@ function getSyncStatusTone(entry = {}) {
 function getSyncStatusTooltip(entry = {}) {
   const activeTargets = getActiveTargets();
   if (!activeTargets.length) return "No targets configured";
-  const statuses = getMediaTargetSyncStatus(entry);
+  const statuses = getMediaTargetSyncStatus(entry).filter((s) => !s.hidden);
+  if (!statuses.length) return "No sync status needed";
   return statuses.map(s => `${platformBadge(s.target)}: ${s.status}`).join(", ");
+}
+
+function renderSyncStatusDot(entry = {}, style = "") {
+  const tone = getSyncStatusTone(entry);
+  if (!tone) return "";
+  const tooltip = getSyncStatusTooltip(entry);
+  const styleAttr = style ? ` style="${escapeAttribute(style)}"` : "";
+  return `<span class="sync-status-dot sync-status-dot--${tone}" data-sync-status-dot="true" role="button" tabindex="0" title="${escapeAttribute(tooltip)}" aria-label="${escapeAttribute(tooltip)}"${styleAttr}></span>`;
 }
 
 function renderAvailabilityPills(entry = {}) {
@@ -882,7 +940,8 @@ function renderMediaSyncPills(entry = {}, showRetry = true) {
   const activeTargets = getActiveTargets();
   if (!activeTargets.length) return "";
   
-  const statuses = getMediaTargetSyncStatus(entry);
+  const statuses = getMediaTargetSyncStatus(entry).filter((s) => !s.hidden);
+  if (!statuses.length) return "";
   const allSynced = statuses.every((s) => s.status === "success" || s.status === "skipped");
   
   const pillsHtml = statuses
@@ -909,11 +968,12 @@ function renderMediaSyncPills(entry = {}, showRetry = true) {
 function telemetryTargetStates(telemetry = "") {
   const rows = [];
   for (const line of String(telemetry || "").split(/\r?\n/)) {
-    const match = line.match(/^(Plex|Emby|Jellyfin)\s+(?:progress\s+)?status:\s*([^-]+)(?:\s+-\s*(.*))?$/i);
+    const match = line.match(/^(?:Target\s+)?(Plex|Emby|Jellyfin)\s+(?:progress\s+)?status:\s*([^-]+)(?:\s+-\s*(.*))?$/i);
     if (!match) continue;
     rows.push({
       target: match[1].toLowerCase(),
-      status: match[2].trim().toLowerCase(),
+      status: normalizeTargetStatus(match[2]),
+      rawStatus: match[2].trim().toLowerCase(),
       detail: (match[3] || "").trim(),
     });
   }
@@ -2071,15 +2131,13 @@ function renderDashboard() {
 }
 
 function renderHistoryCard(entry) {
-  const tone = getSyncStatusTone(entry);
-  const tooltip = getSyncStatusTooltip(entry);
   return `
     <div class="movie-card" data-history-id="${entry.id}">
       ${posterMarkup(entry, "movie-poster")}
       <div class="movie-card-body">
         <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; min-width: 0; width: 100%;">
           <b style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeAttribute(entry.title)}">${escapeHtml(entry.title)}</b>
-          <span class="sync-status-dot sync-status-dot--${tone}" data-sync-status-dot="true" role="button" tabindex="0" title="${escapeAttribute(tooltip)}" aria-label="${escapeAttribute(tooltip)}" style="margin-left: 0.25rem;"></span>
+          ${renderSyncStatusDot(entry, "margin-left: 0.25rem;")}
         </div>
         <span>${formatDate(entry.watched_at)}</span>
       </div>
@@ -2306,15 +2364,13 @@ function observeExplorerSentinel(mode) {
 }
 
 function renderMovieCard(movie) {
-  const tone = getSyncStatusTone(movie);
-  const tooltip = getSyncStatusTooltip(movie);
   return `
     <div class="movie-card" data-history-id="${movie.id}">
       ${posterMarkup(movie, "movie-poster")}
       <div class="movie-card-body">
         <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; min-width: 0; width: 100%;">
           <b style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeAttribute(movie.title)}">${escapeHtml(movie.title)}</b>
-          <span class="sync-status-dot sync-status-dot--${tone}" data-sync-status-dot="true" role="button" tabindex="0" title="${escapeAttribute(tooltip)}" aria-label="${escapeAttribute(tooltip)}" style="margin-left: 0.25rem;"></span>
+          ${renderSyncStatusDot(movie, "margin-left: 0.25rem;")}
         </div>
         <span>${formatDate(movie.watched_at)}</span>
       </div>
@@ -2607,8 +2663,6 @@ function renderSeasonFolder(showKey, season, episodes) {
       <div class="episode-list ${expanded ? "" : "hidden"}">
         ${sortedEpisodes
           .map((episode) => {
-            const tone = getSyncStatusTone(episode);
-            const tooltip = getSyncStatusTooltip(episode);
             return `
               <article class="episode-row" style="display: flex; flex-direction: column; align-items: stretch; gap: 0.5rem; padding: 0.5rem;">
                 <div style="display: flex; align-items: center; gap: 0.5rem; min-width: 0;">
@@ -2616,7 +2670,7 @@ function renderSeasonFolder(showKey, season, episodes) {
                   <span class="episode-code">[ E${String(episode.episode || "?").padStart(2, "0")} ]</span>
                   <b style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.35rem;">
                     [ ${escapeHtml(episodeTitle(episode.title, episode.episode))} ]
-                    <span class="sync-status-dot sync-status-dot--${tone}" data-sync-status-dot="true" role="button" tabindex="0" title="${escapeAttribute(tooltip)}" aria-label="${escapeAttribute(tooltip)}"></span>
+                    ${renderSyncStatusDot(episode)}
                   </b>
                   <button class="debug-badge" type="button" data-history-id="${episode.id}">${formatDate(episode.watched_at)}</button>
                 </div>
@@ -3641,9 +3695,9 @@ function renderShowModalContent(show, {
       <div class="show-episode-list">
         ${selectedSeasonEpisodes.length ? selectedSeasonEpisodes.map((episode) => {
           const isHighlighted = (Number(episode.seasonNumber) === Number(selectedSeasonNumber)) && (Number(episode.episodeNumber) === Number(state.activeShowModalEpisode));
-          const tone = episode.watched ? getSyncStatusTone(episode.watched) : "";
-          const tooltip = episode.watched ? getSyncStatusTooltip(episode.watched) : "";
-          const allSynced = episode.watched ? getMediaTargetSyncStatus(episode.watched).every((s) => s.status === "success" || s.status === "skipped") : true;
+          const syncStatusDotHtml = episode.watched ? renderSyncStatusDot(episode.watched) : "";
+          const visibleSyncStatuses = episode.watched ? getMediaTargetSyncStatus(episode.watched).filter((s) => !s.hidden) : [];
+          const allSynced = !visibleSyncStatuses.length || visibleSyncStatuses.every((s) => s.status === "success" || s.status === "skipped");
           return `
             <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${isHighlighted ? "is-highlighted" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""}>
               ${episodeThumbMarkup(episode)}
@@ -3651,7 +3705,7 @@ function renderShowModalContent(show, {
                 <div class="immersive-episode-title-row">
                   <b style="display: inline-flex; align-items: center; gap: 0.35rem;">
                     ${escapeHtml(episodeCode(episode.seasonNumber, episode.episodeNumber))} ${escapeHtml(episode.title)}
-                    ${episode.watched ? `<span class="sync-status-dot sync-status-dot--${tone}" data-sync-status-dot="true" role="button" tabindex="0" title="${escapeAttribute(tooltip)}" aria-label="${escapeAttribute(tooltip)}"></span>` : ""}
+                    ${syncStatusDotHtml}
                   </b>
                   <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
                 </div>
@@ -4267,9 +4321,16 @@ async function renderMovieImmersiveModalContent(movie) {
     <span class="source-badge ${sourceClass(movie.source)}" style="display: inline-flex;">${escapeHtml(platformBadge(movie.source))}</span>
   ` : "";
 
-  const tone = getSyncStatusTone(movie);
-  const tooltip = getSyncStatusTooltip(movie);
-  const allSynced = getMediaTargetSyncStatus(movie).every((s) => s.status === "success" || s.status === "skipped");
+  const syncStatusDotHtml = renderSyncStatusDot(movie);
+  const visibleSyncStatuses = getMediaTargetSyncStatus(movie).filter((s) => !s.hidden);
+  const allSynced = !visibleSyncStatuses.length || visibleSyncStatuses.every((s) => s.status === "success" || s.status === "skipped");
+  const syncStatusBlockHtml = syncStatusDotHtml ? `
+            <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
+              <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase;">Sync Status:</span>
+              ${syncStatusDotHtml}
+              ${!allSynced ? `<button class="retry-sync-btn action-pill" type="button" data-retry-sync-id="${escapeAttribute(movie.id)}" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Retry Sync</button>` : ""}
+            </div>
+  ` : "";
 
   root.innerHTML = `
     <div class="modal-backdrop-image" style="background-image: url('${backdropUrl || posterUrl}');"></div>
@@ -4288,11 +4349,7 @@ async function renderMovieImmersiveModalContent(movie) {
               <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase; margin-right: 0.2rem;">Availability:</span>
               ${renderAvailabilityPills(movie)}
             </div>
-            <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
-              <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase;">Sync Status:</span>
-              <span class="sync-status-dot sync-status-dot--${tone}" data-sync-status-dot="true" role="button" tabindex="0" title="${escapeAttribute(tooltip)}" aria-label="${escapeAttribute(tooltip)}"></span>
-              ${!allSynced ? `<button class="retry-sync-btn action-pill" type="button" data-retry-sync-id="${escapeAttribute(movie.id)}" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Retry Sync</button>` : ""}
-            </div>
+            ${syncStatusBlockHtml}
           </div>
 
           <p class="immersive-overview">${escapeHtml(overview)}</p>
