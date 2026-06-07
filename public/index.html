@@ -623,15 +623,15 @@
     </div>
 
     <div id="personModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="personModalTitle" style="z-index: 60;">
-      <article class="modal-panel glass-panel" style="max-width: 1200px; width: 95%; background: var(--bg) !important; border: 1px solid var(--line-strong) !important; box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6) !important;">
-        <div class="modal-head" style="border-bottom: 1px solid var(--line); padding-bottom: 0.75rem;">
+      <article class="modal-panel glass-panel" style="max-width: 1400px; width: 95%; height: 90vh; max-height: 90vh; background: var(--bg) !important; border: 1px solid var(--line-strong) !important; box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6) !important; display: flex !important; flex-direction: column !important; overflow: hidden !important;">
+        <div class="modal-head" style="border-bottom: 1px solid var(--line); padding-bottom: 0.75rem; flex: 0 0 auto;">
           <div>
             <p class="eyebrow">Cast Member Profile</p>
             <h2 id="personModalTitle">Actor Name</h2>
           </div>
           <button id="closePersonModalButton" class="button-ghost" type="button">Close</button>
         </div>
-        <div id="personModalBody" class="modal-body" style="padding-top: var(--space-4);">
+        <div id="personModalBody" class="modal-body" style="padding-top: var(--space-4); flex: 1 1 auto; overflow-y: auto; min-height: 0;">
         </div>
       </article>
     </div>

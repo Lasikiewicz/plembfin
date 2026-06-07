@@ -6715,7 +6715,7 @@ window.showCastMemberDetails = async function(personId, personName) {
         
         if (libItem) {
           return `
-            <div class="person-credit-card in-library" onclick="window.openLibraryItem('${libItem.type}', '${escapeAttribute(libItem.id || libItem.key)}', '${escapeAttribute(title)}');">
+            <div class="person-credit-card in-library" onclick="window.openLibraryItem('${libItem.type}', '${escapeAttribute(libItem.id || libItem.key)}', '${escapeAttribute(title)}', true, null);">
               <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
               <div class="person-credit-info">
                 <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
@@ -6727,7 +6727,7 @@ window.showCastMemberDetails = async function(personId, personName) {
           `;
         } else {
           return `
-            <div class="person-credit-card">
+            <div class="person-credit-card in-library" onclick="window.openLibraryItem('${credit.media_type}', null, '${escapeAttribute(title)}', false, '${credit.id}');">
               <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
               <div class="person-credit-info">
                 <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
@@ -6792,24 +6792,111 @@ window.showCastMemberDetails = async function(personId, personName) {
   }
 };
 
-window.openLibraryItem = function(mediaType, idOrKey, title) {
+window.openLibraryItem = function(mediaType, idOrKey, title, isLibraryItem = true, tmdbId = null) {
   const modal = elements.personModal;
   if (modal) modal.classList.add("hidden");
   
-  if (mediaType === "show" || mediaType === "tv") {
-    if (state.mediaDetailInline) {
-      openShowInlineDetail(idOrKey).catch((error) => setMessage(error.message, "error"));
-    } else {
-      renderImmersiveShowModal(idOrKey).catch((error) => setMessage(error.message, "error"));
+  if (isLibraryItem) {
+    if (mediaType === "show" || mediaType === "tv") {
+      if (state.mediaDetailInline) {
+        openShowInlineDetail(idOrKey).catch((error) => setMessage(error.message, "error"));
+      } else {
+        renderImmersiveShowModal(idOrKey).catch((error) => setMessage(error.message, "error"));
+      }
+    } else if (mediaType === "movie") {
+      if (state.mediaDetailInline) {
+        openMovieInlineDetail(idOrKey).catch((error) => setMessage(error.message, "error"));
+      } else {
+        openMovieImmersiveModal(idOrKey).catch((error) => setMessage(error.message, "error"));
+      }
     }
-  } else if (mediaType === "movie") {
-    if (state.mediaDetailInline) {
-      openMovieInlineDetail(idOrKey).catch((error) => setMessage(error.message, "error"));
-    } else {
-      openMovieImmersiveModal(idOrKey).catch((error) => setMessage(error.message, "error"));
+  } else {
+    if (mediaType === "show" || mediaType === "tv") {
+      openShowImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
+    } else if (mediaType === "movie") {
+      openMovieImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
     }
   }
 };
+
+async function openShowImmersiveModalByTmdbId(tmdbId) {
+  if (!state.mediaDetailInline) {
+    elements.debugModal.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+    const modalPanel = elements.debugModal.querySelector(".modal-panel");
+    if (modalPanel) {
+      modalPanel.classList.add("modal-panel--immersive");
+    }
+  }
+  const root = mediaDetailRoot();
+  root.innerHTML = `
+    <div class="immersive-container">
+      <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
+        <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading TV show details...</span>
+      </div>
+    </div>
+  `;
+
+  const tmdbData = await fetchTmdbDetails("tv", tmdbId, null);
+  if (!tmdbData) {
+    root.innerHTML = `
+      <div class="immersive-container">
+        <div style="display: flex; justify-content: center; align-items: center; min-height: 200px; flex-direction: column; gap: var(--space-2);">
+          <span style="color: var(--danger); font-size: 1.1rem; font-weight: bold;">Could not load TV show details</span>
+          <span style="color: var(--muted); font-size: 0.9rem;">Please check your TMDB API Key in Settings.</span>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const showTitle = tmdbData.name || "Untitled TV Show";
+  let backdropUrl = tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "";
+  let posterUrl = tmdbData.poster_path ? `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}` : "/favicon.svg";
+  let overview = tmdbData.overview || "No synopsis available.";
+  let released = tmdbData.first_air_date ? `First Aired ${formatTmdbDate(tmdbData.first_air_date)}` : "Unknown Air Date";
+  let rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "N/A";
+
+  const ratingBadgeHtml = rating !== "N/A" ? `
+    <div class="rating-pill">
+      <span style="color: #10b981;">TMDB</span>
+      <span>${rating}</span>
+    </div>
+  ` : "";
+
+  root.innerHTML = `
+    <div class="modal-backdrop-image" style="background-image: url('${backdropUrl || posterUrl}');"></div>
+    <div class="immersive-container media-detail-page">
+      
+      <header class="immersive-header">
+        <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(showTitle)} poster" onerror="this.src='/favicon.svg';" />
+        <div class="immersive-meta">
+          <h2 class="immersive-title">${escapeHtml(showTitle)}</h2>
+          <p class="immersive-subtitle">${released}</p>
+          
+          <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            ${ratingBadgeHtml}
+            <div class="avail-pills-row">
+              ${renderAvailabilityPills({})}
+            </div>
+          </div>
+          <p class="immersive-overview">${escapeHtml(overview)}</p>
+
+          <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
+            <h3>Watch Status</h3>
+            <div class="progress-label-row">
+              <span>Not in local library</span>
+              <span>0% complete</span>
+            </div>
+          </section>
+        </div>
+      </header>
+
+      ${renderRichTmdbDetails(tmdbData)}
+    </div>
+  `;
+  hydratePosters(root);
+}
 
 function findLibraryItem(mediaType, tmdbId, title) {
   const cleanTitle = slug(title);
