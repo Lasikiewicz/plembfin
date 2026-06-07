@@ -48,7 +48,7 @@ async function getCachedHistory() {
   return rows;
 }
 
-async function getCachedShows({ allowStale = false } = {}) {
+export async function getCachedShows({ allowStale = false } = {}) {
   const version = await ensureShowSummaryCache({ allowStale });
   if (showCache.version === version && showCache.shows.length > 0) {
     return showCache.shows;
@@ -59,7 +59,7 @@ async function getCachedShows({ allowStale = false } = {}) {
   return shows;
 }
 
-async function getCachedMovies() {
+export async function getCachedMovies() {
   const version = await getHistoryCacheVersion();
   if (movieCache.version === version && Array.isArray(movieCache.rows)) {
     return movieCache.rows;
@@ -123,7 +123,7 @@ function decodeBasicHtmlEntities(value) {
     .replace(/&amp;/gi, "&");
 }
 
-function canonicalTitleKey(value) {
+export function canonicalTitleKey(value) {
   return decodeBasicHtmlEntities(value)
     .trim()
     .toLowerCase()
@@ -472,6 +472,9 @@ export async function insertWatchRecord(_unusedDb, record) {
     createdAt: FieldValue.serverTimestamp(),
   });
   await invalidateHistoryDerivedCaches();
+  if (normalized.tmdb_id || normalized.title) {
+    prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
+  }
   return { id: ref.id, record: normalized };
 }
 
@@ -532,6 +535,9 @@ export async function batchInsertWatchRecords(_unusedDb, records) {
       createdAt: FieldValue.serverTimestamp(),
     });
     inserted += 1;
+    if (normalized.tmdb_id || normalized.title) {
+      prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
+    }
   }
 
   if (inserted) await batch.commit();
@@ -624,6 +630,9 @@ export async function upsertPlaybackProgress(_unusedDb, record) {
     },
     { merge: true },
   );
+  if (normalized.tmdb_id || normalized.title) {
+    prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
+  }
   return normalized;
 }
 
@@ -1243,4 +1252,61 @@ function sortShowRows(rows, sort) {
     if (sort === "watched_asc") return a.earliest_watched_at.localeCompare(b.earliest_watched_at) || a.title.localeCompare(b.title);
     return b.latest_watched_at.localeCompare(a.latest_watched_at) || a.title.localeCompare(b.title);
   });
+}
+
+async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title) {
+  try {
+    const config = await loadMediaConfig().catch(() => ({}));
+    const apiKey = config.tmdb?.apiKey;
+    if (!apiKey) return;
+
+    const resolvedType = mediaType === "movie" ? "movie" : "tv";
+    let resolvedId = tmdbId;
+
+    if (!resolvedId && title) {
+      const searchType = resolvedType;
+      const searchRes = await fetch(`https://api.themoviedb.org/3/search/${searchType}?api_key=${apiKey}&query=${encodeURIComponent(title)}`);
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        resolvedId = String(searchData.results?.[0]?.id || "");
+      }
+    }
+
+    if (!resolvedId) return;
+
+    const docKey = `${resolvedType}_${resolvedId}`;
+    const docRef = db.collection("tmdbMetadataCache").doc(docKey);
+    const cachedDoc = await docRef.get();
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    if (cachedDoc.exists) {
+      const data = cachedDoc.data();
+      if (data.updatedAt && (Date.now() - data.updatedAt < sevenDaysMs)) {
+        return; // already fresh
+      }
+    }
+
+    const detailsRes = await fetch(`https://api.themoviedb.org/3/${resolvedType}/${resolvedId}?api_key=${apiKey}&append_to_response=credits,videos,reviews`);
+    if (detailsRes.ok) {
+      const detailsData = await detailsRes.json();
+      await docRef.set({
+        tmdbId: resolvedId,
+        mediaType: resolvedType,
+        details: detailsData,
+        updatedAt: Date.now()
+      });
+      
+      // Also cache title if we resolved it using a search
+      if (!tmdbId && title) {
+        const titleKey = `title_${resolvedType}_${canonicalTitleKey(title)}`;
+        await db.collection("tmdbMetadataCache").doc(titleKey).set({
+          tmdbId: resolvedId,
+          title,
+          mediaType: resolvedType,
+          updatedAt: Date.now()
+        });
+      }
+    }
+  } catch (e) {
+    console.error("Failed to prefetch TMDB metadata in background", e);
+  }
 }

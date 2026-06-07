@@ -518,6 +518,21 @@
 
                 <article class="glass-panel p-section settings-card">
                   <div class="section-heading">
+                    <p>Refresh All TMDB Metadata</p>
+                    <span>Download and cache rich TMDB metadata for all TV shows and movies</span>
+                  </div>
+                  <p class="muted-copy">Pre-fetches TMDB metadata (cast, reviews, and trailers) for all movies and shows in your library and caches them in Firestore to make loading movie and show details instant.</p>
+                  <div class="settings-actions">
+                    <button id="refreshMetadataButton" class="button-primary" type="button" title="Refresh and pre-cache TMDB metadata for all library items">Refresh Metadata Now</button>
+                    <p id="refreshMetadataStatus" class="muted-copy">Idle</p>
+                  </div>
+                  <div style="margin-top: var(--space-3);">
+                    <div id="refreshMetadataLog" class="import-terminal" style="max-height: 220px; overflow:auto; padding: 8px; background: var(--panel-3); border: 1px solid var(--line);">Refresh log will appear here.</div>
+                  </div>
+                </article>
+
+                <article class="glass-panel p-section settings-card">
+                  <div class="section-heading">
                     <p>Clean Duplicate History Rows</p>
                     <span>Remove duplicate <code>watchHistory</code> entries, keeping the newest per item</span>
                   </div>

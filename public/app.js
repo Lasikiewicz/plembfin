@@ -194,6 +194,9 @@ function bindElements() {
     dedupHistoryButton: document.querySelector("#dedupHistoryButton"),
     dedupHistoryStatus: document.querySelector("#dedupHistoryStatus"),
     dedupHistoryLog: document.querySelector("#dedupHistoryLog"),
+    refreshMetadataButton: document.querySelector("#refreshMetadataButton"),
+    refreshMetadataStatus: document.querySelector("#refreshMetadataStatus"),
+    refreshMetadataLog: document.querySelector("#refreshMetadataLog"),
     settingsToken: document.querySelector("#settingsToken"),
     settingsForm: document.querySelector("#settingsForm"),
     settingsStatus: document.querySelector("#settingsStatus"),
@@ -3288,27 +3291,16 @@ async function openHistoryDebugModal(id) {
 }
 
 async function fetchTmdbDetails(mediaType, tmdbId, title) {
-  const apiKey = state.savedConfig.tmdb?.apiKey;
-  if (!apiKey) return null;
-
   const cacheKey = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}`;
   if (state.tmdbDetailsCache.has(cacheKey)) return state.tmdbDetailsCache.get(cacheKey);
 
   try {
-    let resolvedTmdbId = tmdbId;
-    if (!resolvedTmdbId && title) {
-      const searchType = mediaType === "movie" ? "movie" : "tv";
-      const searchRes = await fetch(`https://api.themoviedb.org/3/search/${searchType}?api_key=${apiKey}&query=${encodeURIComponent(title)}`);
-      if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        resolvedTmdbId = searchData.results?.[0]?.id;
-      }
-    }
+    const url = new URL("/api/tmdb-details", window.location.origin);
+    url.searchParams.set("mediaType", mediaType);
+    if (tmdbId) url.searchParams.set("tmdbId", tmdbId);
+    if (title) url.searchParams.set("title", title);
 
-    if (!resolvedTmdbId) return null;
-
-    const detailsType = mediaType === "movie" ? "movie" : "tv";
-    const res = await fetch(`https://api.themoviedb.org/3/${detailsType}/${resolvedTmdbId}?api_key=${apiKey}&append_to_response=credits,videos,reviews`);
+    const res = await fetch(url, { headers: authHeaders() });
     if (res.ok) {
       const body = await res.json();
       state.tmdbDetailsCache.set(cacheKey, body);
@@ -3368,7 +3360,7 @@ function renderRichTmdbDetails(tmdbData) {
           ${trailers.map(video => {
             return `
               <div class="trailer-card">
-                <div class="trailer-thumb-container" onclick="this.innerHTML = '<iframe src=&quot;https://www.youtube.com/embed/${video.key}?autoplay=1&quot; frameborder=&quot;0&quot; allow=&quot;autoplay; encrypted-media&quot; allowfullscreen style=&quot;position:absolute; top:0; left:0; width:100%; height:100%; border:0;&quot;></iframe>'">
+                <div class="trailer-thumb-container" data-video-key="${video.key}" data-video-name="${escapeAttribute(video.name)}" onclick="window.playTrailer(this, '${video.key}', '${escapeAttribute(video.name)}')">
                   <img class="trailer-thumb" src="https://img.youtube.com/vi/${video.key}/mqdefault.jpg" alt="${escapeAttribute(video.name)}" onerror="this.src='/favicon.svg';" />
                   <div class="play-overlay">
                     <svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -3942,8 +3934,6 @@ function renderShowModalContent(show, {
         ${seasonsSectionHtml}
       </header>
 
-      ${renderRichTmdbDetails(tmdbData)}
-
       <section class="episodes-section">
         <div class="show-section-title">
           <h3>${escapeHtml(selectedSeasonRecord.name || seasonLabel(selectedSeasonNumber))} Episodes</h3>
@@ -3951,6 +3941,8 @@ function renderShowModalContent(show, {
         </div>
         ${selectedSeasonEpisodesHtml}
       </section>
+
+      ${renderRichTmdbDetails(tmdbData)}
     </div>
     ${renderWatchDatePrompt(state.pendingWatchAction)}
   `;
@@ -6319,6 +6311,14 @@ function attachEvents() {
     });
   }
 
+  if (elements.refreshMetadataButton) {
+    elements.refreshMetadataButton.addEventListener("click", () => {
+      runRefreshMetadataWorkflow().catch((error) => {
+        if (elements.refreshMetadataStatus) elements.refreshMetadataStatus.textContent = `Error: ${error?.message || String(error)}`;
+      });
+    });
+  }
+
   if (elements.fullSyncButton) {
     elements.fullSyncButton.addEventListener("click", () => {
       runFullSyncWatchstates().catch(() => {});
@@ -6503,4 +6503,82 @@ function showCopyToast() {
   showCopyToast.timer = window.setTimeout(() => {
     elements.copyToast.classList.add("hidden");
   }, 1300);
+}
+
+window.playTrailer = function(el, videoKey, videoName) {
+  const container = el.closest('.trailer-scroll-row');
+  if (container) {
+    container.querySelectorAll('.trailer-thumb-container').forEach(thumbCont => {
+      if (thumbCont !== el && thumbCont.querySelector('iframe')) {
+        const key = thumbCont.dataset.videoKey;
+        const name = thumbCont.dataset.videoName;
+        thumbCont.innerHTML = `
+          <img class="trailer-thumb" src="https://img.youtube.com/vi/${key}/mqdefault.jpg" alt="${escapeAttribute(name)}" onerror="this.src='/favicon.svg';" />
+          <div class="play-overlay">
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+        `;
+      }
+    });
+  }
+  el.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoKey}?autoplay=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;"></iframe>`;
+};
+
+async function runRefreshMetadataWorkflow() {
+  const button = elements.refreshMetadataButton;
+  const status = elements.refreshMetadataStatus;
+  const logEl = elements.refreshMetadataLog;
+  if (!button) return;
+
+  button.disabled = true;
+  button.textContent = "Refreshing Metadata...";
+  if (status) status.textContent = "Running metadata pre-cache...";
+  if (logEl) logEl.textContent = "";
+
+  try {
+    const response = await fetch("/api/refresh-metadata", {
+      method: "POST",
+      headers: authHeaders(),
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    let finalResult = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.startsWith("RESULT: ")) {
+          try { finalResult = JSON.parse(trimmed.substring(8)); } catch (_) {}
+        } else {
+          if (logEl) logEl.textContent += trimmed + "\n";
+        }
+      }
+      if (logEl) logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    if (finalResult) {
+      const msg = `Complete — processed ${finalResult.processed} items (success: ${finalResult.success}, skipped: ${finalResult.skipped}, error: ${finalResult.error}).`;
+      if (status) status.textContent = msg;
+      if (logEl) logEl.textContent += msg + "\n";
+    } else {
+      if (status) status.textContent = "Complete.";
+    }
+  } catch (error) {
+    const msg = `Error: ${error.message}`;
+    if (status) status.textContent = msg;
+    if (logEl) logEl.textContent += msg + "\n";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Refresh Metadata Now";
+  }
 }
