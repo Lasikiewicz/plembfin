@@ -1433,138 +1433,57 @@ async function handleTmdbDetails(req, res) {
   }
 }
 
-async function handleRefreshMetadata(req, res) {
+async function handleTmdbPerson(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
-  if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
 
-  res.setHeader("Content-Type", "text/plain; charset=utf-8");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.write("Metadata refresh started...\n");
+  const personId = String(req.query.id || "").trim();
+  if (!personId) {
+    return sendJson(res, { error: "Person ID is required" }, 400);
+  }
 
-  const log = (msg) => { res.write(`${msg}\n`); console.log(msg); };
+  const config = await loadMediaConfig();
+  const apiKey = config.tmdb?.apiKey;
+  if (!apiKey) {
+    return sendJson(res, { error: "TMDB API key is not configured" }, 400);
+  }
 
   try {
-    const config = await loadMediaConfig();
-    const apiKey = config.tmdb?.apiKey;
-    if (!apiKey) {
-      log("ERROR: TMDB API Key is not configured in Settings.");
-      res.end();
-      return;
-    }
+    const docKey = `person_${personId}`;
+    const docRef = db.collection("tmdbPersonCache").doc(docKey);
+    const cachedDoc = await docRef.get();
 
-    log("Loading all shows and movies from library...");
-    const shows = await getCachedShows();
-    const movieHistory = await getCachedMovies();
-
-    // Deduplicate movies by title/ids
-    const seen = new Set();
-    const movies = [];
-    for (const m of movieHistory) {
-      const key = m.tmdb_id || m.imdb_id || m.title;
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      movies.push(m);
-    }
-
-    log(`Found ${shows.length} shows and ${movies.length} movies to refresh.`);
-
-    let success = 0;
-    let skipped = 0;
-    let error = 0;
-    let count = 0;
-    const total = shows.length + movies.length;
-
-    const processItem = async (mediaType, tmdbId, title) => {
-      count++;
-      const percent = Math.round((count / total) * 100);
-      const itemLabel = `[${count}/${total}] (${percent}%) ${mediaType === "movie" ? "Movie" : "Show"}: "${title}"`;
-      try {
-        const resolvedType = mediaType === "movie" ? "movie" : "tv";
-        let resolvedId = tmdbId;
-
-        if (!resolvedId && title) {
-          const searchType = resolvedType;
-          const searchRes = await fetch(`https://api.themoviedb.org/3/search/${searchType}?api_key=${apiKey}&query=${encodeURIComponent(title)}`);
-          if (searchRes.ok) {
-            const searchData = await searchRes.json();
-            resolvedId = String(searchData.results?.[0]?.id || "");
-          }
-        }
-
-        if (!resolvedId) {
-          log(`${itemLabel} - SKIPPED (could not resolve TMDB ID)`);
-          skipped++;
-          return;
-        }
-
-        const docKey = `${resolvedType}_${resolvedId}`;
-        const docRef = db.collection("tmdbMetadataCache").doc(docKey);
-        const cachedDoc = await docRef.get();
-        
-        const oneDayMs = 24 * 60 * 60 * 1000;
-        if (cachedDoc.exists) {
-          const data = cachedDoc.data();
-          if (data.updatedAt && (Date.now() - data.updatedAt < oneDayMs)) {
-            log(`${itemLabel} - SKIPPED (already cached & fresh)`);
-            skipped++;
-            return;
-          }
-        }
-
-        const detailsRes = await fetch(`https://api.themoviedb.org/3/${resolvedType}/${resolvedId}?api_key=${apiKey}&append_to_response=credits,videos,reviews`);
-        if (detailsRes.ok) {
-          const detailsData = await detailsRes.json();
-          await docRef.set({
-            tmdbId: resolvedId,
-            mediaType: resolvedType,
-            details: detailsData,
-            updatedAt: Date.now()
-          });
-
-          if (!tmdbId && title) {
-            const titleKey = `title_${resolvedType}_${canonicalTitleKey(title)}`;
-            await db.collection("tmdbMetadataCache").doc(titleKey).set({
-              tmdbId: resolvedId,
-              title,
-              mediaType: resolvedType,
-              updatedAt: Date.now()
-            });
-          }
-
-          log(`${itemLabel} - OK`);
-          success++;
-        } else {
-          log(`${itemLabel} - FAILED (TMDB HTTP ${detailsRes.status})`);
-          error++;
-        }
-      } catch (err) {
-        log(`${itemLabel} - ERROR (${err.message})`);
-        error++;
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    if (cachedDoc.exists) {
+      const data = cachedDoc.data();
+      if (data.updatedAt && (Date.now() - data.updatedAt < sevenDaysMs)) {
+        return sendJson(res, data.details, 200, { "Cache-Control": "private, max-age=86400" });
       }
-
-      await new Promise(r => setTimeout(r, 200));
-    };
-
-    for (const show of shows) {
-      await processItem("tv", show.representative_episode?.tmdb_id || null, show.title);
     }
 
-    for (const movie of movies) {
-      await processItem("movie", movie.tmdb_id, movie.title);
+    const personRes = await fetch(`https://api.themoviedb.org/3/person/${personId}?api_key=${apiKey}&append_to_response=combined_credits`);
+    if (!personRes.ok) {
+      if (cachedDoc.exists) {
+        return sendJson(res, cachedDoc.data().details, 200);
+      }
+      return sendJson(res, { error: `TMDB person fetch failed: ${personRes.statusText}` }, personRes.status);
     }
 
-    const result = { processed: total, success, skipped, error };
-    log(`Done! Refreshed metadata for ${total} items.`);
-    res.write(`RESULT: ${JSON.stringify(result)}\n`);
-    res.end();
-  } catch (err) {
-    log(`ERROR: Metadata refresh failed: ${err.message}`);
-    res.end();
+    const personData = await personRes.json();
+    await docRef.set({
+      personId,
+      details: personData,
+      updatedAt: Date.now()
+    });
+
+    return sendJson(res, personData, 200, { "Cache-Control": "private, max-age=86400" });
+  } catch (error) {
+    console.error("Failed handling TMDB person API", error);
+    return sendJson(res, { error: "Failed to fetch TMDB person details", details: error.message }, 500);
   }
 }
+
 
 async function dispatch(req, res) {
   try {
@@ -1587,7 +1506,7 @@ async function dispatch(req, res) {
     if (path === "stop-force-sync") return handleStopForceSync(req, res);
     if (path === "dedup-history") return handleDedupHistory(req, res);
     if (path === "tmdb-details") return handleTmdbDetails(req, res);
-    if (path === "refresh-metadata") return handleRefreshMetadata(req, res);
+    if (path === "tmdb-person") return handleTmdbPerson(req, res);
     if (path === "webhook") return handleWebhook(req, res);
     if (path === "test-connection") return handleTestConnection(req, res);
     if (path === "poster") return handlePoster(req, res);

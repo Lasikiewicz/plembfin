@@ -3707,12 +3707,6 @@ h1 {
   flex-wrap: nowrap;
   gap: var(--space-3);
   padding-bottom: var(--space-2);
-  scrollbar-width: none; /* Hide scrollbar for Firefox */
-  -ms-overflow-style: none; /* Hide scrollbar for IE/Edge */
-}
-
-.horizontal-scroll-row::-webkit-scrollbar {
-  display: none; /* Hide scrollbar for Chrome, Safari, Opera */
 }
 
 .horizontal-scroll-row .movie-card {
@@ -3839,15 +3833,18 @@ h1 {
 }
 
 /* Trailer/Video Styles */
-.trailer-scroll-row {
-  display: flex;
+.media-detail-page .trailer-scroll-row {
+  display: flex !important;
   gap: 1rem;
   overflow-x: auto;
   padding-bottom: 0.75rem;
 }
 
 .trailer-card {
-  flex: 0 0 240px;
+  flex: 0 0 240px !important;
+  width: 240px !important;
+  min-width: 240px !important;
+  flex-shrink: 0 !important;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -3856,7 +3853,7 @@ h1 {
 
 .trailer-thumb-container {
   position: relative;
-  width: 240px;
+  width: 100% !important;
   aspect-ratio: 16 / 9;
   border-radius: 6px;
   overflow: hidden;
@@ -3968,4 +3965,156 @@ h1 {
   font-size: 0.7rem !important;
   padding: 0.2rem 0.5rem !important;
   cursor: pointer;
+}
+
+/* Person Profile Modal Styles */
+.person-profile-container {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .person-profile-container {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  .person-profile-sidebar {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+  }
+  .person-profile-img {
+    width: 120px !important;
+    height: 180px !important;
+  }
+}
+
+.person-profile-img {
+  width: 200px;
+  height: 300px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.person-profile-meta {
+  margin-top: 1.5rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.person-profile-meta h3 {
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--blue);
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+}
+
+.person-profile-meta .meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.person-profile-meta .meta-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.person-profile-meta .meta-value {
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.person-biography-section h3 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  color: #fff;
+}
+
+.person-biography-text {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--soft);
+  white-space: pre-line;
+  margin: 0;
+}
+
+.person-credits-section h3 {
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+  color: #fff;
+}
+
+.person-credits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.person-credit-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  padding: 0.5rem;
+  border-radius: var(--radius);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.person-credit-card.in-library {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.03);
+  cursor: pointer;
+}
+
+.person-credit-card.in-library:hover {
+  border-color: var(--green);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.person-credit-poster {
+  width: 45px;
+  height: 68px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #000;
+}
+
+.person-credit-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.person-credit-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.person-credit-character {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.person-credit-year {
+  font-size: 0.7rem;
+  color: var(--soft);
 }

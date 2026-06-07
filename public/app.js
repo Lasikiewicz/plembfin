@@ -226,6 +226,10 @@ function bindElements() {
     tabButtons: [...document.querySelectorAll("[data-view]")],
     explorerButtons: [...document.querySelectorAll("[data-explorer-mode]")],
     viewPanels: [...document.querySelectorAll("[data-view-panel]")],
+    closePersonModalButton: document.querySelector("#closePersonModalButton"),
+    personModal: document.querySelector("#personModal"),
+    personModalBody: document.querySelector("#personModalBody"),
+    personModalTitle: document.querySelector("#personModalTitle"),
   });
 }
 
@@ -3336,7 +3340,7 @@ function renderRichTmdbDetails(tmdbData) {
           ${cast.slice(0, 15).map(actor => {
             const avatarUrl = actor.profile_path ? `https://image.tmdb.org/t/p/w185${actor.profile_path}` : '/favicon.svg';
             return `
-              <div class="cast-member-card">
+              <div class="cast-member-card" style="cursor: pointer;" onclick="window.showCastMemberDetails('${actor.id}', '${escapeAttribute(actor.name)}')">
                 <img class="cast-avatar-img" src="${escapeAttribute(avatarUrl)}" alt="${escapeAttribute(actor.name)}" onerror="this.src='/favicon.svg';" />
                 <span class="cast-actor-name">${escapeHtml(actor.name)}</span>
                 <span class="cast-character-name">${escapeHtml(actor.character)}</span>
@@ -6041,6 +6045,25 @@ function attachEvents() {
     if (event.target === elements.debugModal) closeDebugModal();
   });
 
+  if (elements.closePersonModalButton) {
+    elements.closePersonModalButton.addEventListener("click", () => {
+      elements.personModal.classList.add("hidden");
+      if (elements.debugModal.classList.contains("hidden")) {
+        document.body.style.overflow = "";
+      }
+    });
+  }
+  if (elements.personModal) {
+    elements.personModal.addEventListener("click", (event) => {
+      if (event.target === elements.personModal) {
+        elements.personModal.classList.add("hidden");
+        if (elements.debugModal.classList.contains("hidden")) {
+          document.body.style.overflow = "";
+        }
+      }
+    });
+  }
+
   const closeConfirmModal = () => {
     if (elements.confirmModal) elements.confirmModal.classList.add("hidden");
   };
@@ -6058,11 +6081,33 @@ function attachEvents() {
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      closeMediaDetail();
+      if (elements.personModal && !elements.personModal.classList.contains("hidden")) {
+        elements.personModal.classList.add("hidden");
+        if (elements.debugModal.classList.contains("hidden")) {
+          document.body.style.overflow = "";
+        }
+      } else {
+        closeMediaDetail();
+      }
       closeConfirmModal();
       elements.terminalModal?.classList.add("hidden");
     }
   });
+
+  document.addEventListener("wheel", (e) => {
+    const row = e.target.closest(".horizontal-scroll-row, .trailer-scroll-row, .cast-scroll-row");
+    if (row) {
+      const isScrollable = row.scrollWidth > row.clientWidth;
+      if (isScrollable) {
+        const atLeft = row.scrollLeft === 0;
+        const atRight = Math.ceil(row.scrollLeft + row.clientWidth) >= row.scrollWidth;
+        if ((e.deltaY > 0 && !atRight) || (e.deltaY < 0 && !atLeft)) {
+          row.scrollLeft += e.deltaY;
+          e.preventDefault();
+        }
+      }
+    }
+  }, { passive: false });
 
   document.addEventListener("click", (event) => {
     const retryBtn = event.target.closest("[data-retry-sync-id]");
@@ -6532,60 +6577,256 @@ async function runRefreshMetadataWorkflow() {
 
   button.disabled = true;
   button.textContent = "Refreshing Metadata...";
-  if (status) status.textContent = "Running metadata pre-cache...";
-  if (logEl) logEl.textContent = "";
+  if (status) status.textContent = "Loading all library items...";
+  if (logEl) logEl.textContent = "Loading shows and movies from library...\n";
 
   try {
-    const response = await fetch("/api/refresh-metadata", {
-      method: "POST",
-      headers: authHeaders(),
-    });
+    const [showsRes, moviesRes] = await Promise.all([
+      fetch("/api/shows?limit=5000", { headers: authHeaders() }),
+      fetch("/api/movies?limit=5000", { headers: authHeaders() })
+    ]);
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!showsRes.ok) throw new Error(`Failed to load shows (HTTP ${showsRes.status})`);
+    if (!moviesRes.ok) throw new Error(`Failed to load movies (HTTP ${moviesRes.status})`);
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let buffer = "";
-    let finalResult = null;
+    const showsData = await showsRes.json();
+    const moviesData = await moviesRes.json();
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop();
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        if (trimmed.startsWith("RESULT: ")) {
-          try { finalResult = JSON.parse(trimmed.substring(8)); } catch (_) {}
+    const rawShows = Array.isArray(showsData.shows) ? showsData.shows : [];
+    const rawMovies = Array.isArray(moviesData.movies) ? moviesData.movies : [];
+
+    const seen = new Set();
+    const movies = [];
+    for (const m of rawMovies) {
+      const key = m.tmdb_id || m.imdb_id || m.title;
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      movies.push(m);
+    }
+
+    const total = rawShows.length + movies.length;
+    const msg = `Found ${rawShows.length} shows and ${movies.length} movies to refresh.\n`;
+    if (logEl) {
+      logEl.textContent += msg;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    let success = 0;
+    let error = 0;
+    let count = 0;
+
+    const processItem = async (mediaType, tmdbId, title) => {
+      count++;
+      const percent = Math.round((count / total) * 100);
+      const itemLabel = `[${count}/${total}] (${percent}%) ${mediaType === "movie" ? "Movie" : "Show"}: "${title}"`;
+      if (status) status.textContent = `Progress: ${count} of ${total} (${percent}% complete)...`;
+
+      try {
+        const url = new URL("/api/tmdb-details", window.location.origin);
+        url.searchParams.set("mediaType", mediaType);
+        if (tmdbId) url.searchParams.set("tmdbId", String(tmdbId));
+        if (title) url.searchParams.set("title", title);
+
+        const detailsRes = await fetch(url, { headers: authHeaders() });
+        if (detailsRes.ok) {
+          if (logEl) logEl.textContent += `${itemLabel} - OK\n`;
+          success++;
         } else {
-          if (logEl) logEl.textContent += trimmed + "\n";
-          const match = trimmed.match(/^\[(\d+)\/(\d+)\]/);
-          if (match && status) {
-            const current = Number(match[1]);
-            const total = Number(match[2]);
-            const pct = Math.round((current / total) * 100);
-            status.textContent = `Progress: ${current} of ${total} (${pct}% complete)...`;
-          }
+          const errData = await detailsRes.json().catch(() => ({}));
+          const errMsg = errData.error || `HTTP ${detailsRes.status}`;
+          if (logEl) logEl.textContent += `${itemLabel} - FAILED (${errMsg})\n`;
+          error++;
         }
+      } catch (err) {
+        if (logEl) logEl.textContent += `${itemLabel} - ERROR (${err.message})\n`;
+        error++;
       }
+
       if (logEl) logEl.scrollTop = logEl.scrollHeight;
+      await new Promise(r => setTimeout(r, 200));
+    };
+
+    for (const show of rawShows) {
+      const tmdbId = show.representative_episode?.tmdb_id || null;
+      await processItem("tv", tmdbId, show.title);
     }
 
-    if (finalResult) {
-      const msg = `Complete — processed ${finalResult.processed} items (success: ${finalResult.success}, skipped: ${finalResult.skipped}, error: ${finalResult.error}).`;
-      if (status) status.textContent = msg;
-      if (logEl) logEl.textContent += msg + "\n";
-    } else {
-      if (status) status.textContent = "Complete.";
+    for (const movie of movies) {
+      await processItem("movie", movie.tmdb_id || null, movie.title);
     }
-  } catch (error) {
-    const msg = `Error: ${error.message}`;
+
+    const summaryMsg = `Done! Refreshed metadata for ${total} items (success: ${success}, error: ${error}).`;
+    if (status) status.textContent = summaryMsg;
+    if (logEl) {
+      logEl.textContent += summaryMsg + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  } catch (err) {
+    const msg = `Error: ${err.message}`;
     if (status) status.textContent = msg;
-    if (logEl) logEl.textContent += msg + "\n";
+    if (logEl) {
+      logEl.textContent += msg + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+    }
   } finally {
     button.disabled = false;
     button.textContent = "Refresh Metadata Now";
+  }
+}
+
+window.showCastMemberDetails = async function(personId, personName) {
+  const modal = elements.personModal;
+  const modalTitle = elements.personModalTitle;
+  const modalBody = elements.personModalBody;
+  
+  if (!modal || !modalBody) return;
+  
+  if (modalTitle) modalTitle.textContent = personName || "Cast Member Profile";
+  modalBody.innerHTML = `
+    <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
+      <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading profile...</span>
+    </div>
+  `;
+  modal.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  
+  try {
+    const res = await fetch(`/api/tmdb-person?id=${personId}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    
+    const castCredits = (data.combined_credits?.cast || []).sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+    
+    const profileUrl = data.profile_path ? `https://image.tmdb.org/t/p/h632${data.profile_path}` : '/favicon.svg';
+    
+    let creditsHtml = "";
+    if (castCredits.length === 0) {
+      creditsHtml = `<p class="muted-copy">No known filmography recorded.</p>`;
+    } else {
+      creditsHtml = castCredits.slice(0, 30).map(credit => {
+        const isTv = credit.media_type === "tv";
+        const title = credit.title || credit.name || "Untitled";
+        const character = credit.character || "Unknown Character";
+        const posterUrl = credit.poster_path ? `https://image.tmdb.org/t/p/w92${credit.poster_path}` : '/favicon.svg';
+        const dateStr = credit.release_date || credit.first_air_date || "";
+        const year = dateStr ? `(${dateStr.split("-")[0]})` : "";
+        
+        const libItem = findLibraryItem(credit.media_type, credit.id, title);
+        
+        if (libItem) {
+          return `
+            <div class="person-credit-card in-library" onclick="window.openLibraryItem('${libItem.type}', '${escapeAttribute(libItem.id || libItem.key)}', '${escapeAttribute(title)}');">
+              <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
+              <div class="person-credit-info">
+                <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
+                <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
+                <span class="person-credit-year">${isTv ? 'TV Show' : 'Movie'}</span>
+              </div>
+              <span class="library-badge" style="font-size: 0.65rem; background: var(--green); color: #000; padding: 2px 5px; border-radius: 3px; font-weight: 800; margin-left: auto; white-space: nowrap;">In Library</span>
+            </div>
+          `;
+        } else {
+          return `
+            <div class="person-credit-card">
+              <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
+              <div class="person-credit-info">
+                <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
+                <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
+                <span class="person-credit-year">${isTv ? 'TV Show' : 'Movie'}</span>
+              </div>
+            </div>
+          `;
+        }
+      }).join("");
+    }
+    
+    modalBody.innerHTML = `
+      <div class="person-profile-container">
+        <div class="person-profile-sidebar">
+          <img class="person-profile-img" src="${escapeAttribute(profileUrl)}" alt="${escapeAttribute(data.name)}" onerror="this.src='/favicon.svg';" />
+          <div class="person-profile-meta">
+            <h3>Personal Info</h3>
+            <div class="meta-item">
+              <span class="meta-label">Known For</span>
+              <span class="meta-value">${escapeHtml(data.known_for_department || "Acting")}</span>
+            </div>
+            ${data.birthday ? `
+            <div class="meta-item">
+              <span class="meta-label">Born</span>
+              <span class="meta-value">${escapeHtml(data.birthday)}${data.place_of_birth ? ` in ${escapeHtml(data.place_of_birth)}` : ''}</span>
+            </div>
+            ` : ''}
+            ${data.deathday ? `
+            <div class="meta-item">
+              <span class="meta-label">Died</span>
+              <span class="meta-value">${escapeHtml(data.deathday)}</span>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+        <div class="person-profile-content">
+          ${data.biography ? `
+          <div class="person-biography-section">
+            <h3>Biography</h3>
+            <p class="person-biography-text">${escapeHtml(data.biography)}</p>
+          </div>
+          ` : '<p class="muted-copy">No biography available for this cast member.</p>'}
+          
+          <div class="person-credits-section" style="margin-top: 2rem;">
+            <h3>Filmography (Top ${Math.min(castCredits.length, 30)})</h3>
+            <div class="person-credits-grid">
+              ${creditsHtml}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+  } catch (err) {
+    modalBody.innerHTML = `
+      <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 200px; gap: 1rem;">
+        <span class="status-pill status-error" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Failed to load profile</span>
+        <span style="color: var(--muted);">${escapeHtml(err.message)}</span>
+      </div>
+    `;
+  }
+};
+
+window.openLibraryItem = function(mediaType, idOrKey, title) {
+  const modal = elements.personModal;
+  if (modal) modal.classList.add("hidden");
+  
+  if (mediaType === "show" || mediaType === "tv") {
+    if (state.mediaDetailInline) {
+      openShowInlineDetail(idOrKey).catch((error) => setMessage(error.message, "error"));
+    } else {
+      renderImmersiveShowModal(idOrKey).catch((error) => setMessage(error.message, "error"));
+    }
+  } else if (mediaType === "movie") {
+    if (state.mediaDetailInline) {
+      openMovieInlineDetail(idOrKey).catch((error) => setMessage(error.message, "error"));
+    } else {
+      openMovieImmersiveModal(idOrKey).catch((error) => setMessage(error.message, "error"));
+    }
+  }
+};
+
+function findLibraryItem(mediaType, tmdbId, title) {
+  const cleanTitle = slug(title);
+  if (mediaType === "tv" || mediaType === "show") {
+    let found = state.showsRaw.find(s => slug(s.title) === cleanTitle);
+    if (!found) {
+      const histRow = state.history.find(h => h.media_type === "episode" && slug(h.show_title || "") === cleanTitle);
+      if (histRow) {
+        found = { title: histRow.show_title, id: histRow.tvdb_id || histRow.tmdb_id || histRow.show_title };
+      }
+    }
+    return found ? { type: "show", key: slug(found.title) } : null;
+  } else {
+    let found = state.moviesRaw.find(m => String(m.tmdb_id) === String(tmdbId) || slug(m.title) === cleanTitle);
+    if (!found) {
+      found = state.history.find(h => h.media_type === "movie" && (String(h.tmdb_id) === String(tmdbId) || slug(h.title) === cleanTitle));
+    }
+    return found ? { type: "movie", id: found.id } : null;
   }
 }

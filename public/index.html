@@ -302,7 +302,7 @@
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="apps">
-                <div id="settingsForm" class="settings-config-grid">
+                <form id="settingsForm" class="settings-config-grid" onsubmit="event.preventDefault();">
                   <article class="glass-panel p-section settings-card">
                     <div class="section-heading">
                       <p>Plex Setup</p>
@@ -420,7 +420,7 @@
                     </div>
                     <pre id="fullSyncLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for restore request.</pre>
                   </article>
-                </div>
+                </form>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="importer">
@@ -618,6 +618,20 @@
         </div>
         <div class="modal-body" style="padding-top: var(--space-2);">
           <pre id="retryTerminalOutput" class="import-terminal" style="height: 380px; overflow-y: auto; background: #070a0e; border: 1px solid var(--line); padding: var(--space-3); border-radius: var(--radius); font-family: monospace; color: #38bdf8; white-space: pre-wrap; word-break: break-all; margin: 0;"></pre>
+        </div>
+      </article>
+    </div>
+
+    <div id="personModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="personModalTitle" style="z-index: 60;">
+      <article class="modal-panel glass-panel" style="max-width: 1200px; width: 95%; background: var(--bg) !important; border: 1px solid var(--line-strong) !important; box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6) !important;">
+        <div class="modal-head" style="border-bottom: 1px solid var(--line); padding-bottom: 0.75rem;">
+          <div>
+            <p class="eyebrow">Cast Member Profile</p>
+            <h2 id="personModalTitle">Actor Name</h2>
+          </div>
+          <button id="closePersonModalButton" class="button-ghost" type="button">Close</button>
+        </div>
+        <div id="personModalBody" class="modal-body" style="padding-top: var(--space-4);">
         </div>
       </article>
     </div>
