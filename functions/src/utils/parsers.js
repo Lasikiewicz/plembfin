@@ -231,6 +231,7 @@ function buildPayload({
   posterUrl,
   poster,
   itemId,
+  episodeTitle,
   rawPayloadDebug = {},
 }) {
   const isActionable = ["active", "completed", "ended", "unplayed"].includes(phase);
@@ -250,6 +251,7 @@ function buildPayload({
     posterUrl,
     poster,
     itemId,
+    episodeTitle,
     rawPayloadDebug,
     isValid: Boolean(isActionable && type && source && title),
   };
@@ -307,6 +309,7 @@ export async function parsePlexWebhook(formData) {
         user,
         itemId: metadata.ratingKey,
         poster: plexPosterInfo(metadata, type),
+        episodeTitle: type === "episode" ? metadata.title : null,
         rawPayloadDebug,
       });
     }
@@ -326,6 +329,7 @@ export async function parsePlexWebhook(formData) {
       user,
       itemId: metadata.ratingKey,
       poster: plexPosterInfo(metadata, type),
+      episodeTitle: type === "episode" ? metadata.title : null,
       rawPayloadDebug,
     });
   } catch (error) {
@@ -368,6 +372,7 @@ export function parseJellyfinWebhook(json) {
         user,
         itemId: item.Id,
         poster: embyLikePosterInfo(item, type),
+        episodeTitle: type === "episode" ? item.Name : null,
         rawPayloadDebug: {
           payloadKeys: Object.keys(json || {}),
           itemKeys: Object.keys(item || {}),
@@ -391,6 +396,7 @@ export function parseJellyfinWebhook(json) {
       user,
       itemId: item.Id,
       poster: embyLikePosterInfo(item, type),
+      episodeTitle: type === "episode" ? item.Name : null,
       rawPayloadDebug: {
         payloadKeys: Object.keys(json || {}),
         itemKeys: Object.keys(item),
@@ -438,6 +444,7 @@ export function parseEmbyWebhook(json) {
         user,
         itemId: item.Id,
         poster: embyLikePosterInfo(item, type),
+        episodeTitle: type === "episode" ? item.Name : null,
         rawPayloadDebug: {
           payloadKeys: Object.keys(json || {}),
           itemKeys: Object.keys(item || {}),
@@ -461,6 +468,7 @@ export function parseEmbyWebhook(json) {
       user,
       itemId: item.Id,
       poster: embyLikePosterInfo(item, type),
+      episodeTitle: type === "episode" ? item.Name : null,
       rawPayloadDebug: {
         payloadKeys: Object.keys(json || {}),
         itemKeys: Object.keys(item),

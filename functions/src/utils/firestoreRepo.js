@@ -210,6 +210,7 @@ export function normalizeWatchRecord(record = {}, fallbackSource = "trakt_import
     poster_url: emptyToNull(record.poster_url || record.posterUrl),
     sync_action: cleanString(record.sync_action || record.syncAction || record.action) || "watched",
     sync_dispatch_telemetry: emptyToNull(record.sync_dispatch_telemetry || record.syncDispatchTelemetry),
+    episode_title: emptyToNull(record.episode_title || record.episodeTitle || record.episode?.title),
   };
   return normalized;
 }
@@ -229,6 +230,7 @@ export function mediaToWatchRecord(media, source = media?.source || "webhook") {
       poster_url: media?.posterUrl || media?.poster_url,
       sync_action: media?.syncAction || media?.sync_action || "watched",
       sync_dispatch_telemetry: media?.syncDispatchTelemetry,
+      episode_title: media?.episodeTitle || media?.episode_title,
     },
     source,
   );
@@ -265,6 +267,7 @@ function toFirestoreWatch(record) {
     mediaKey,
     showTitle,
     showTitleLower: showTitle ? showTitle.toLowerCase() : null,
+    episodeTitle: record.episode_title || null,
     updatedAt: FieldValue.serverTimestamp(),
   };
 }
@@ -294,6 +297,7 @@ function fromFirestoreWatch(doc) {
     sync_dispatch_telemetry: data.syncDispatchTelemetry || null,
     media_key: data.mediaKey || null,
     show_title: data.showTitle ? decodeBasicHtmlEntities(data.showTitle) : null,
+    episode_title: data.episodeTitle ? decodeBasicHtmlEntities(data.episodeTitle) : null,
   };
 }
 
@@ -846,14 +850,35 @@ function compactHistoryPreviewRow(row = {}) {
 export async function queryWatchHistoryPreview({ limit = 120 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 120, 1), 300);
   const scanLimit = Math.min(Math.max(safeLimit * 4, safeLimit), HISTORY_PREVIEW_SCAN_LIMIT);
-  const snapshot = await db.collection("watchHistory")
-    .orderBy("watchedAt", "desc")
-    .limit(scanLimit)
-    .get();
-  const rows = snapshot.docs
+
+  const [tvSnapshot, movieSnapshot] = await Promise.all([
+    db.collection("watchHistory")
+      .where("mediaType", "==", "episode")
+      .orderBy("watchedAt", "desc")
+      .limit(scanLimit)
+      .get(),
+    db.collection("watchHistory")
+      .where("mediaType", "==", "movie")
+      .orderBy("watchedAt", "desc")
+      .limit(scanLimit)
+      .get()
+  ]);
+
+  const tvRows = tvSnapshot.docs
     .map(fromFirestoreWatch)
     .filter((row) => isPlembfinTrackedWatchRow(row));
-  return dedupeHistory(rows).slice(0, safeLimit).map(compactHistoryPreviewRow);
+
+  const movieRows = movieSnapshot.docs
+    .map(fromFirestoreWatch)
+    .filter((row) => isPlembfinTrackedWatchRow(row));
+
+  const tvDeduped = dedupeHistory(tvRows).slice(0, safeLimit).map(compactHistoryPreviewRow);
+  const movieDeduped = dedupeHistory(movieRows).slice(0, safeLimit).map(compactHistoryPreviewRow);
+
+  const combined = [...tvDeduped, ...movieDeduped];
+  combined.sort((a, b) => b.watched_at.localeCompare(a.watched_at));
+
+  return combined;
 }
 
 function dispatchStatusFromTelemetry(value = "") {

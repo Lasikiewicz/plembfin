@@ -448,6 +448,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
         media.season = Number(item.parentIndex);
         media.episode = Number(item.index);
         media.title = `${item.grandparentTitle} - S${String(media.season || "?").padStart(2, "0")}E${String(media.episode || "?").padStart(2, "0")}`;
+        media.episodeTitle = item.title;
       }
 
       const key = mediaKeyFor(media);
@@ -525,6 +526,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
           tmdb: ids.tmdb || undefined,
           tvdb: ids.tvdb || undefined,
         },
+        episodeTitle: item.Type === "Episode" ? item.Name : null,
         source: "emby",
         isValid: true,
       };
@@ -609,6 +611,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
           tmdb: ids.tmdb || undefined,
           tvdb: ids.tvdb || undefined,
         },
+        episodeTitle: item.Type === "Episode" ? item.Name : null,
         source: "jellyfin",
         isValid: true,
       };
@@ -1011,6 +1014,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
           }
           if (item.type === "episode") {
             media.title = `${item.grandparentTitle} - S${String(media.season || "?").padStart(2, "0")}E${String(media.episode || "?").padStart(2, "0")}`;
+            media.episodeTitle = item.title;
           }
           return media;
         });
@@ -1041,6 +1045,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
             imdb: ids.imdb || null,
             tmdb: ids.tmdb || null,
             tvdb: ids.tvdb || null,
+            episodeTitle: item.Type === "Episode" ? item.Name : null,
             source: "emby",
             timestamp: item.UserData?.LastPlayedDate
               ? new Date(item.UserData.LastPlayedDate)
@@ -1074,6 +1079,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
             imdb: ids.imdb || null,
             tmdb: ids.tmdb || null,
             tvdb: ids.tvdb || null,
+            episodeTitle: item.Type === "Episode" ? item.Name : null,
             source: "jellyfin",
             timestamp: item.UserData?.LastPlayedDate
               ? new Date(item.UserData.LastPlayedDate)
@@ -1152,6 +1158,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
       if (!group.imdb && media.imdb) group.imdb = media.imdb;
       if (!group.tmdb && media.tmdb) group.tmdb = media.tmdb;
       if (!group.tvdb && media.tvdb) group.tvdb = media.tvdb;
+      if (!group.episodeTitle && media.episodeTitle) group.episodeTitle = media.episodeTitle;
     } else {
       groups.push({
         title: media.title,
@@ -1162,6 +1169,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
         tmdb: media.tmdb,
         tvdb: media.tvdb,
         timestamp: media.timestamp,
+        episodeTitle: media.episodeTitle || null,
         watchedOn: new Set([media.source])
       });
     }
@@ -1179,7 +1187,8 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
         imdb: group.imdb || undefined,
         tmdb: group.tmdb || undefined,
         tvdb: group.tvdb || undefined
-      }
+      },
+      episodeTitle: group.episodeTitle || undefined
     };
     const key = mediaKeyFor(mediaObj);
     watchedMap.set(key, { media: mediaObj, group });

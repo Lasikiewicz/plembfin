@@ -4118,3 +4118,10 @@ h1 {
   font-size: 0.7rem;
   color: var(--soft);
 }
+
+/* Watch history dashboard poster sizing overrides */
+#tvHistoryRow .movie-card,
+#movieHistoryRow .movie-card {
+  width: 180px;
+  flex: 0 0 180px;
+}

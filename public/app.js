@@ -2143,7 +2143,9 @@ function syncNowPlayingPolling() {
 function getRowFitLimit(rowElement) {
   const width = rowElement ? rowElement.clientWidth : 0;
   if (width <= 0) return 10;
-  const maxCards = Math.floor((width + 12) / 172);
+  const isDashboardHistory = rowElement.id === "tvHistoryRow" || rowElement.id === "movieHistoryRow";
+  const divisor = isDashboardHistory ? 192 : 172;
+  const maxCards = Math.floor((width + 12) / divisor);
   return Math.max(2, maxCards);
 }
 
@@ -2207,18 +2209,65 @@ function renderDashboard() {
 }
 
 function renderHistoryCard(entry) {
-  return `
-    <div class="movie-card" data-history-id="${entry.id}">
-      ${posterMarkup(entry, "movie-poster")}
-      <div class="movie-card-body">
-        <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; min-width: 0; width: 100%;">
-          <b style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeAttribute(entry.title)}">${escapeHtml(entry.title)}</b>
-          ${renderSyncStatusDot(entry, "margin-left: 0.25rem;")}
+  const isEpisode = entry.media_type === "episode";
+
+  if (isEpisode) {
+    const showTitle = entry.show_title || showTitleFrom(entry.title);
+    let epTitle = entry.episode_title;
+    let needsResolve = false;
+    if (!epTitle || /^Episode \d+$/i.test(String(epTitle).trim())) {
+      const text = String(entry.title || "").trim();
+      const suffixMatch = text.match(/S\d{1,2}E\d{1,2}\s+-\s+(.+)$/i);
+      if (suffixMatch?.[1]) {
+        epTitle = suffixMatch[1].trim();
+      } else {
+        if (!epTitle) {
+          epTitle = `Episode ${entry.episode}`;
+        }
+        needsResolve = true;
+      }
+    }
+
+    if (needsResolve) {
+      setTimeout(() => {
+        const el = document.querySelector(`[data-history-id="${entry.id}"] .history-card-episode-title`);
+        resolveEpisodeTitleFromTmdb(entry, el);
+      }, 50);
+    }
+
+    return `
+      <div class="movie-card" data-history-id="${entry.id}">
+        ${posterMarkup(entry, "movie-poster")}
+        <div class="movie-card-body">
+          <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.15rem; min-width: 0; width: 100%; flex-direction: column;">
+            <b style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; font-size: 0.95rem;" title="${escapeAttribute(showTitle)}">${escapeHtml(showTitle)}</b>
+            <span class="history-card-episode-title" style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; color: var(--text); font-size: 0.85rem;" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>
+            <span class="history-card-coord" style="color: var(--muted); font-size: 0.75rem;">S${entry.season}·E${entry.episode}</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 0.15rem;">
+              <span class="history-card-watched-date" style="color: var(--muted); font-size: 0.75rem;">${formatDate(entry.watched_at)}</span>
+              ${renderSyncStatusDot(entry, "")}
+            </div>
+          </div>
         </div>
-        <span>${formatDate(entry.watched_at)}</span>
       </div>
-    </div>
-  `;
+    `;
+  } else {
+    // Movie
+    return `
+      <div class="movie-card" data-history-id="${entry.id}">
+        ${posterMarkup(entry, "movie-poster")}
+        <div class="movie-card-body">
+          <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.15rem; min-width: 0; width: 100%; flex-direction: column;">
+            <b style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; font-size: 0.95rem;" title="${escapeAttribute(entry.title)}">${escapeHtml(entry.title)}</b>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 0.15rem;">
+              <span class="history-card-watched-date" style="color: var(--muted); font-size: 0.75rem;">${formatDate(entry.watched_at)}</span>
+              ${renderSyncStatusDot(entry, "")}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 }
 
 function renderActiveSessions() {
@@ -3298,23 +3347,34 @@ async function fetchTmdbDetails(mediaType, tmdbId, title) {
   const cacheKey = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}`;
   if (state.tmdbDetailsCache.has(cacheKey)) return state.tmdbDetailsCache.get(cacheKey);
 
-  try {
-    const url = new URL("/api/tmdb-details", window.location.origin);
-    url.searchParams.set("mediaType", mediaType);
-    if (tmdbId) url.searchParams.set("tmdbId", tmdbId);
-    if (title) url.searchParams.set("title", title);
+  const promise = (async () => {
+    try {
+      const url = new URL("/api/tmdb-details", window.location.origin);
+      url.searchParams.set("mediaType", mediaType);
+      if (tmdbId) url.searchParams.set("tmdbId", tmdbId);
+      if (title) url.searchParams.set("title", title);
 
-    const res = await fetch(url, { headers: authHeaders() });
-    if (res.ok) {
-      const body = await res.json();
-      state.tmdbDetailsCache.set(cacheKey, body);
-      return body;
+      const res = await fetch(url, { headers: authHeaders() });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (error) {
+      console.error("Failed to fetch TMDB details client-side", error);
     }
-  } catch (error) {
-    console.error("Failed to fetch TMDB details client-side", error);
-  }
-  state.tmdbDetailsCache.set(cacheKey, null);
-  return null;
+    return null;
+  })();
+
+  state.tmdbDetailsCache.set(cacheKey, promise);
+
+  promise.then((val) => {
+    if (val === null) {
+      state.tmdbDetailsCache.delete(cacheKey);
+    } else {
+      state.tmdbDetailsCache.set(cacheKey, val);
+    }
+  });
+
+  return promise;
 }
 
 function renderRichTmdbDetails(tmdbData) {
@@ -3420,18 +3480,57 @@ async function fetchTmdbSeasonDetails(tmdbId, seasonNumber) {
   const cacheKey = `${tmdbId}|${seasonNumber}`;
   if (state.tmdbSeasonCache.has(cacheKey)) return state.tmdbSeasonCache.get(cacheKey);
 
+  const promise = (async () => {
+    try {
+      const res = await fetch(`https://api.themoviedb.org/3/tv/${encodeURIComponent(tmdbId)}/season/${encodeURIComponent(seasonNumber)}?api_key=${apiKey}`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (error) {
+      console.error("Failed to fetch TMDB season details client-side", error);
+    }
+    return null;
+  })();
+
+  state.tmdbSeasonCache.set(cacheKey, promise);
+
+  promise.then((val) => {
+    if (val === null) {
+      state.tmdbSeasonCache.delete(cacheKey);
+    } else {
+      state.tmdbSeasonCache.set(cacheKey, val);
+    }
+  });
+
+  return promise;
+}
+
+async function resolveEpisodeTitleFromTmdb(entry, element) {
+  const showTitle = entry.show_title || showTitleFrom(entry.title);
+  if (!showTitle) return;
+
   try {
-    const res = await fetch(`https://api.themoviedb.org/3/tv/${encodeURIComponent(tmdbId)}/season/${encodeURIComponent(seasonNumber)}?api_key=${apiKey}`);
-    if (res.ok) {
-      const body = await res.json();
-      state.tmdbSeasonCache.set(cacheKey, body);
-      return body;
+    const tmdbData = await fetchTmdbDetails("tv", entry.tmdb_id, showTitle);
+    if (!tmdbData?.id) return;
+
+    const seasonData = await fetchTmdbSeasonDetails(tmdbData.id, entry.season);
+    if (!seasonData || !Array.isArray(seasonData.episodes)) return;
+
+    const tmdbEpisode = seasonData.episodes.find(
+      (ep) => Number(ep.episode_number) === Number(entry.episode)
+    );
+
+    if (tmdbEpisode?.name) {
+      entry.episode_title = tmdbEpisode.name;
+      entry.episodeTitle = tmdbEpisode.name;
+      if (element) {
+        element.textContent = tmdbEpisode.name;
+        element.title = tmdbEpisode.name;
+      }
     }
   } catch (error) {
-    console.error("Failed to fetch TMDB season details client-side", error);
+    console.error("Failed to resolve episode title from TMDB in background", error);
   }
-  state.tmdbSeasonCache.set(cacheKey, null);
-  return null;
 }
 
 async function fetchTmdbSeasons(tmdbId, seasons = []) {
@@ -6816,6 +6915,10 @@ window.openLibraryItem = function(mediaType, idOrKey, title, isLibraryItem = tru
     } else if (mediaType === "movie") {
       openMovieImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
     }
+  }
+
+  if (elements.debugModal && elements.debugModal.classList.contains("hidden")) {
+    document.body.style.overflow = "";
   }
 };
 
