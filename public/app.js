@@ -835,6 +835,61 @@ function renderSyncStatusDot(entry = {}, style = "") {
   return `<span class="sync-status-dot sync-status-dot--${tone}" data-sync-status-dot="true" role="button" tabindex="0" title="${escapeAttribute(tooltip)}" aria-label="${escapeAttribute(tooltip)}"${styleAttr}></span>`;
 }
 
+function showAvailIssuePopup(anchorEl) {
+  const existing = document.getElementById("avail-issue-popup");
+  if (existing) existing.remove();
+
+  const message = anchorEl.dataset.availIssue || "Unknown issue.";
+  const lines = message.split("\\n");
+  const [headline, ...steps] = lines;
+
+  const popup = document.createElement("div");
+  popup.id = "avail-issue-popup";
+  popup.className = "avail-issue-popup";
+  popup.setAttribute("role", "dialog");
+  popup.setAttribute("aria-modal", "false");
+
+  const stepsHtml = steps.length
+    ? `<ol class="avail-issue-steps">${steps.map(s => `<li>${escapeHtml(s.replace(/^\d+\.\s*/, ""))}</li>`).join("")}</ol>`
+    : "";
+
+  popup.innerHTML = `
+    <button class="avail-issue-close" type="button" aria-label="Close">✕</button>
+    <b class="avail-issue-headline">${escapeHtml(headline)}</b>
+    ${stepsHtml ? `<p class="avail-issue-fix-label">Steps to fix:</p>${stepsHtml}` : ""}
+  `;
+
+  document.body.appendChild(popup);
+
+  // Position near anchor
+  const rect = anchorEl.getBoundingClientRect();
+  const popupW = 280;
+  let left = rect.left + window.scrollX;
+  let top = rect.bottom + window.scrollY + 6;
+  if (left + popupW > window.innerWidth - 12) left = window.innerWidth - popupW - 12;
+  if (left < 8) left = 8;
+  popup.style.left = `${left}px`;
+  popup.style.top = `${top}px`;
+
+  const closePopup = (event) => {
+    if (!popup.contains(event?.target) || event?.target.classList.contains("avail-issue-close")) {
+      popup.remove();
+      document.removeEventListener("click", outsideClick, true);
+      document.removeEventListener("keydown", escKey);
+    }
+  };
+  const outsideClick = (event) => {
+    if (!popup.contains(event.target) && event.target !== anchorEl) closePopup(event);
+  };
+  const escKey = (event) => { if (event.key === "Escape") closePopup(); };
+
+  popup.querySelector(".avail-issue-close").addEventListener("click", closePopup);
+  setTimeout(() => {
+    document.addEventListener("click", outsideClick, true);
+    document.addEventListener("keydown", escKey);
+  }, 0);
+}
+
 function renderAvailabilityPills(entry = {}) {
   const activeTargets = getActiveTargets();
   if (!activeTargets.length) return "";
@@ -846,46 +901,47 @@ function renderAvailabilityPills(entry = {}) {
   
   return activeTargets.map((target) => {
     let statusClass = "pending";
-    let statusLabel = "Checking";
+    let issueDetail = "";
     
     if (sharedAvailability) {
       statusClass = sharedAvailability.statusClass;
-      statusLabel = sharedAvailability.statusLabel;
     } else if (source === target || source.startsWith(`${target}_`)) {
       statusClass = "success";
-      statusLabel = "Available";
     } else {
       const match = states.find((s) => s.target === target);
       if (match) {
         if (match.status === "success") {
           statusClass = "success";
-          statusLabel = "Available";
         } else if (match.status === "skipped" && (match.detail.includes("No matching") || match.detail.includes("not_found") || match.detail.includes("not found"))) {
           statusClass = "error";
-          statusLabel = "Unavailable";
+          issueDetail = `${platformBadge(target)} could not find this title in your library. Steps to fix:\n1. Confirm the title exists in your ${platformBadge(target)} library.\n2. Run a library scan in ${platformBadge(target)}.\n3. Check that your ${platformBadge(target)} server URL and credentials are correct in Settings.\n4. Use Force Sync to re-check all platforms.`;
         } else if (match.status === "error") {
           const detailLower = String(match.detail || "").toLowerCase();
           if (detailLower.includes("not found") || detailLower.includes("404") || detailLower.includes("not_found")) {
             statusClass = "error";
-            statusLabel = "Unavailable";
+            issueDetail = `${platformBadge(target)} returned a 'not found' error for this title. Steps to fix:\n1. Confirm the title exists in your ${platformBadge(target)} library.\n2. Run a library scan in ${platformBadge(target)}.\n3. Check your server URL and API credentials in Settings.`;
           } else {
             statusClass = "error";
-            statusLabel = "Error";
+            issueDetail = `${platformBadge(target)} reported an error: ${match.detail || "unknown error"}. Steps to fix:\n1. Check your ${platformBadge(target)} server is running and reachable.\n2. Verify your API key / token in Settings.\n3. Use Force Sync to retry.`;
           }
         } else {
           statusClass = "pending";
-          statusLabel = "Pending";
+          issueDetail = `${platformBadge(target)} sync is still in progress. Steps to fix:\n1. Wait a moment and refresh.\n2. If it stays pending, use Force Sync.\n3. Check the Sync Jobs panel for details.`;
         }
       } else {
         if (telemetry.includes("Historical import stored locally") || telemetry.includes("Origin: import")) {
           statusClass = "pending";
-          statusLabel = "Pending";
+          issueDetail = `${platformBadge(target)} sync has not run yet for this imported item. Steps to fix:\n1. Use Force Sync to push this watched-state to all platforms.\n2. Check the Sync Jobs panel for progress.`;
+        } else {
+          statusClass = "pending";
+          issueDetail = `${platformBadge(target)} availability is unknown. Steps to fix:\n1. Use Force Sync to check all platforms.\n2. Verify ${platformBadge(target)} credentials in Settings.`;
         }
       }
     }
     
     const displayTarget = platformBadge(target);
-    return `<span class="target-pill" data-status="${statusClass}" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;" title="${escapeAttribute(`${displayTarget} watch availability: ${statusLabel}`)}">${escapeHtml(displayTarget)}: ${statusLabel}</span>`;
+    const issueAttr = (statusClass !== "success" && issueDetail) ? ` data-avail-issue="${escapeAttribute(issueDetail)}" role="button" tabindex="0" style="cursor:pointer;"` : "";
+    return `<span class="target-pill avail-pill" data-status="${statusClass}"${issueAttr} title="${escapeAttribute(displayTarget)}">${escapeHtml(displayTarget)}</span>`;
   }).join(" ");
 }
 
@@ -899,7 +955,7 @@ function renderShowAvailabilityPills(show = {}) {
   
   return activeTargets.map((target) => {
     let statusClass = "pending";
-    let statusLabel = "Checking";
+    let issueDetail = "";
     
     let anyAvailable = false;
     let anyChecked = false;
@@ -933,22 +989,19 @@ function renderShowAvailabilityPills(show = {}) {
       }
     }
     
-    if (sharedAvailable) {
+    if (sharedAvailable || anyAvailable) {
       statusClass = "success";
-      statusLabel = "Available";
-    } else if (anyAvailable) {
-      statusClass = "success";
-      statusLabel = "Available";
     } else if (anyChecked && allUnavailable && watchedEpisodes.length > 0) {
       statusClass = "error";
-      statusLabel = "Unavailable";
+      issueDetail = `${platformBadge(target)} could not find this show in your library. Steps to fix:\n1. Confirm the show exists in your ${platformBadge(target)} library.\n2. Run a library scan in ${platformBadge(target)}.\n3. Check that your server URL and credentials are correct in Settings.\n4. Use Force Sync to re-check.`;
     } else {
       statusClass = "pending";
-      statusLabel = watchedEpisodes.length === 0 ? "Unwatched" : "Checking";
+      issueDetail = `${platformBadge(target)} availability is still being determined. Steps to fix:\n1. Use Force Sync to push watched-state to all platforms.\n2. Check the Sync Jobs panel for details.\n3. Verify ${platformBadge(target)} credentials in Settings.`;
     }
     
     const displayTarget = platformBadge(target);
-    return `<span class="target-pill" data-status="${statusClass}" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;" title="${escapeAttribute(`${displayTarget} watch availability: ${statusLabel}`)}">${escapeHtml(displayTarget)}: ${statusLabel}</span>`;
+    const issueAttr = (statusClass !== "success" && issueDetail) ? ` data-avail-issue="${escapeAttribute(issueDetail)}" role="button" tabindex="0" style="cursor:pointer;"` : "";
+    return `<span class="target-pill avail-pill" data-status="${statusClass}"${issueAttr} title="${escapeAttribute(displayTarget)}">${escapeHtml(displayTarget)}</span>`;
   }).join(" ");
 }
 
@@ -3692,12 +3745,30 @@ function renderShowModalContent(show, {
       </button>
     `;
   }).join("");
+  const seasonsSectionHtml = `
+    <section class="seasons-section show-detail-seasons">
+      <div class="show-section-title">
+        <h3>Seasons</h3>
+        <span>${seasonsList.length} seasons</span>
+      </div>
+      <div class="horizontal-scroll-row">
+        ${seasonsHtml}
+      </div>
+    </section>
+  `;
 
   const selectedSeasonRecord = seasonsList.find((season) => Number(season.season_number) === Number(selectedSeason)) || seasonsList[0] || { season_number: selectedSeason };
   const selectedSeasonNumber = Number(selectedSeasonRecord.season_number) || Number(selectedSeason) || 1;
   const selectedSeasonEpisodes = episodeRows.filter((episode) => episode.seasonNumber === selectedSeasonNumber);
-  const selectedSeasonUnwatched = selectedSeasonEpisodes.filter((episode) => !episode.watched);
-  const unwatchedRows = episodeRows.filter((episode) => !episode.watched);
+  const isUnreleased = (episode) => {
+    if (!episode.airDate) return false;
+    const parts = episode.airDate.split("-");
+    if (parts.length !== 3) return false;
+    const air = new Date(parts[0], parts[1] - 1, parts[2]);
+    return !Number.isNaN(air.getTime()) && air > new Date();
+  };
+  const selectedSeasonUnwatched = selectedSeasonEpisodes.filter((episode) => !episode.watched && !isUnreleased(episode));
+  const unwatchedRows = episodeRows.filter((episode) => !episode.watched && !isUnreleased(episode));
   const selectedSeasonSummary = showSeasonSummary(selectedSeasonNumber, selectedSeasonEpisodes, selectedSeasonRecord);
   const selectedSeasonEpisodesHtml = `
     <section class="show-season-block" id="showSeason${selectedSeasonNumber}">
@@ -3712,10 +3783,9 @@ function renderShowModalContent(show, {
         ${selectedSeasonEpisodes.length ? selectedSeasonEpisodes.map((episode) => {
           const isHighlighted = (Number(episode.seasonNumber) === Number(selectedSeasonNumber)) && (Number(episode.episodeNumber) === Number(state.activeShowModalEpisode));
           const syncStatusDotHtml = episode.watched ? renderSyncStatusDot(episode.watched) : "";
-          const visibleSyncStatuses = episode.watched ? getMediaTargetSyncStatus(episode.watched).filter((s) => !s.hidden) : [];
-          const allSynced = !visibleSyncStatuses.length || visibleSyncStatuses.every((s) => s.status === "success" || s.status === "skipped");
+          const episodeIsUnreleased = isUnreleased(episode);
           return `
-            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${isHighlighted ? "is-highlighted" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""}>
+            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""}>
               ${episodeThumbMarkup(episode)}
               <div class="immersive-episode-copy">
                 <div class="immersive-episode-title-row">
@@ -3726,15 +3796,10 @@ function renderShowModalContent(show, {
                   <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
                 </div>
                 <p>${escapeHtml(episode.overview)}</p>
-                <div style="display: flex; gap: 0.35rem; align-items: center; margin-top: 0.35rem; flex-wrap: wrap;">
-                  <span style="font-size: 0.65rem; color: var(--muted); font-weight: 800; text-transform: uppercase; margin-right: 0.25rem;">Availability:</span>
-                  ${renderAvailabilityPills(episode.watched || {})}
-                </div>
+                ${!episodeIsUnreleased ? `<div class="avail-pills-row">${renderAvailabilityPills(episode.watched || {})}</div>` : ""}
               </div>
               <div class="immersive-episode-actions">
-                ${episode.watched ? `<span class="watched-pill">Watched ${escapeHtml(formatDate(episode.watched.watched_at))}</span>` : ""}
-                ${episode.watched && !allSynced ? `<button class="retry-sync-btn action-pill" type="button" data-retry-sync-id="${escapeAttribute(episode.watched.id)}" style="margin-top: 0.25rem;">Retry Sync</button>` : ""}
-                <button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}" ${episode.watched ? "disabled" : ""}>${episode.watched ? "Watched" : "Mark watched"}</button>
+                ${episodeIsUnreleased ? `<span class="unreleased-pill">Not yet released</span>` : `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}" ${episode.watched ? "disabled" : ""}>${episode.watched ? "Watched" : "Mark watched"}</button>`}
               </div>
             </article>
           `;
@@ -3742,11 +3807,12 @@ function renderShowModalContent(show, {
       </div>
     </section>
   `;
+
   root.innerHTML = `
     <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || "")}');"></div>
     <div class="immersive-container media-detail-page">
 
-      <header class="immersive-header">
+      <header class="immersive-header show-detail-header">
         <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" onerror="this.src='/favicon.svg';" />
         <div class="immersive-meta">
           <span class="format-badge">TV Series</span>
@@ -3755,8 +3821,7 @@ function renderShowModalContent(show, {
 
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${rating ? `<div class="rating-pill"><span>TMDB</span><span>${escapeHtml(rating)}</span></div>` : ""}
-            <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
-              <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase; margin-right: 0.2rem;">Availability:</span>
+            <div class="avail-pills-row">
               ${renderShowAvailabilityPills(show)}
             </div>
             ${showModalStatus(loading, hasTmdbKey, Boolean(tmdbData))}
@@ -3779,17 +3844,8 @@ function renderShowModalContent(show, {
             <button class="action-pill" type="button" data-watch-scope="show" ${unwatchedRows.length ? "" : "disabled"}>Mark whole show watched</button>
           </div>
         </div>
+        ${seasonsSectionHtml}
       </header>
-
-      <section class="seasons-section">
-        <div class="show-section-title">
-          <h3>Seasons</h3>
-          <span>${seasonsList.length} seasons</span>
-        </div>
-        <div class="horizontal-scroll-row">
-          ${seasonsHtml}
-        </div>
-      </section>
 
       <section class="episodes-section">
         <div class="show-section-title">
@@ -4361,13 +4417,11 @@ async function renderMovieImmersiveModalContent(movie) {
           
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingBadgeHtml}
-            <div style="display: flex; gap: 0.35rem; align-items: center; margin-left: 0.5rem; flex-wrap: wrap;">
-              <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase; margin-right: 0.2rem;">Availability:</span>
+            <div class="avail-pills-row">
               ${renderAvailabilityPills(movie)}
             </div>
             ${syncStatusBlockHtml}
           </div>
-
           <p class="immersive-overview">${escapeHtml(overview)}</p>
 
           <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
@@ -4478,8 +4532,7 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
           
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingBadgeHtml}
-            <div style="display: flex; gap: 0.35rem; align-items: center; margin-left: 0.5rem; flex-wrap: wrap;">
-              <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase; margin-right: 0.2rem;">Availability:</span>
+            <div class="avail-pills-row">
               ${renderAvailabilityPills({})}
             </div>
           </div>
@@ -5924,6 +5977,12 @@ function attachEvents() {
     const retryBtn = event.target.closest("[data-retry-sync-id]");
     if (retryBtn) {
       triggerRetrySync(retryBtn.dataset.retrySyncId, retryBtn).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
+    const availIssueEl = event.target.closest("[data-avail-issue]");
+    if (availIssueEl) {
+      showAvailIssuePopup(availIssueEl);
       return;
     }
 

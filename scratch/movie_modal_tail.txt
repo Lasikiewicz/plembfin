@@ -1,0 +1,38 @@
+          <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
+            <h3>Watch Status</h3>
+            <div class="progress-label-row">
+              <span>Watched on ${formatDate(movie.watched_at)}</span>
+              <span>100% complete</span>
+            </div>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" style="width: 100%;"></div>
+            </div>
+          </section>
+        </div>
+      </header>
+
+      ${recommendations.length > 0 ? `
+        <section class="seasons-section">
+          <h3>Recommended movies</h3>
+          <div class="horizontal-scroll-row">
+            ${recommendations
+              .slice(0, 15)
+              .map((rec) => {
+                const recPoster = rec.poster_path
+                  ? `https://image.tmdb.org/t/p/w154${rec.poster_path}`
+                  : "/favicon.svg";
+                return `
+                  <div class="season-poster-card" data-immersive-movie-id="${rec.id}">
+                    <img class="season-poster-img" src="${recPoster}" alt="${escapeHtml(rec.title)}" onerror="this.src='/favicon.svg';" />
+                    <span class="season-poster-name">${escapeHtml(rec.title)}</span>
+                  </div>
+                `;
+              })
+              .join("")}
+          </div>
+        </section>
+      ` : ""}
+    </div>
+  `;
+  hydratePosters(root);
+}

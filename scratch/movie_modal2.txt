@@ -1,0 +1,65 @@
+  const ratingBadgeHtml = rating !== "N/A" ? `
+    <div class="rating-pill">
+      <span style="color: #10b981;">TMDB</span>
+      <span>${rating}</span>
+    </div>
+  ` : "";
+
+  root.innerHTML = `
+    <div class="modal-backdrop-image" style="background-image: url('${backdropUrl || posterUrl}');"></div>
+    <div class="immersive-container media-detail-page">
+      
+      <header class="immersive-header">
+        <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(movieTitle)} poster" onerror="this.src='/favicon.svg';" />
+        <div class="immersive-meta">
+          <span class="format-badge" style="background: #4b96e6;">Movie</span>
+          <h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>
+          <p class="immersive-subtitle">${released}</p>
+          
+          <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            ${ratingBadgeHtml}
+            <div class="avail-pills-row">
+              ${renderAvailabilityPills({})}
+            </div>
+          </div>
+
+          <p class="immersive-overview">${escapeHtml(overview)}</p>
+
+          <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
+            <h3>Watch Status</h3>
+            <div class="progress-label-row">
+              <span>Unwatched (local archive)</span>
+              <span>0% complete</span>
+            </div>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" style="width: 0%;"></div>
+            </div>
+          </section>
+        </div>
+      </header>
+
+      ${recommendations.length > 0 ? `
+        <section class="seasons-section">
+          <h3>Recommended movies</h3>
+          <div class="horizontal-scroll-row">
+            ${recommendations
+              .slice(0, 15)
+              .map((rec) => {
+                const recPoster = rec.poster_path
+                  ? `https://image.tmdb.org/t/p/w154${rec.poster_path}`
+                  : "/favicon.svg";
+                return `
+                  <div class="season-poster-card" data-immersive-movie-id="${rec.id}">
+                    <img class="season-poster-img" src="${recPoster}" alt="${escapeHtml(rec.title)}" onerror="this.src='/favicon.svg';" />
+                    <span class="season-poster-name">${escapeHtml(rec.title)}</span>
+                  </div>
+                `;
+              })
+              .join("")}
+          </div>
+        </section>
+      ` : ""}
+    </div>
+  `;
+  hydratePosters(root);
+}

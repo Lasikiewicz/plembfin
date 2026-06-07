@@ -136,6 +136,11 @@ h2 {
   margin-top: clamp(1rem, 3vh, 2.5rem);
 }
 
+.media-detail-page .show-detail-header {
+  grid-template-columns: minmax(150px, 230px) minmax(0, 760px) minmax(18rem, 1fr);
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+}
+
 .media-detail-page .immersive-poster-img {
   width: 100%;
   aspect-ratio: 2 / 3;
@@ -179,6 +184,44 @@ h2 {
   margin-top: clamp(1.4rem, 3vw, 2.4rem);
 }
 
+.media-detail-page .show-detail-seasons {
+  align-self: start;
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 0.15rem;
+  min-width: 0;
+}
+
+.media-detail-page .show-detail-seasons .show-section-title {
+  margin-bottom: 0.2rem;
+}
+
+.media-detail-page .show-detail-seasons .horizontal-scroll-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  overflow: visible;
+  padding-bottom: 0;
+}
+
+.media-detail-page .show-detail-seasons .season-poster-card {
+  gap: 0.3rem;
+  flex: 0 0 clamp(5.5rem, 5.8vw, 7rem);
+  width: clamp(5.5rem, 5.8vw, 7rem);
+}
+
+.media-detail-page .show-detail-seasons .season-poster-name,
+.media-detail-page .show-detail-seasons .season-poster-card small {
+  text-align: center;
+}
+
+.media-detail-page .show-detail-seasons .season-poster-img {
+  width: 100%;
+  height: clamp(8.25rem, 8.7vw, 10.5rem);
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+}
+
 .media-detail-page .horizontal-scroll-row {
   display: grid;
   grid-auto-flow: column;
@@ -206,7 +249,30 @@ h2 {
 
 .media-detail-page .show-episode-list {
   display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.75rem;
+}
+
+.media-detail-page .immersive-episode-row {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-content: start;
+  min-width: 0;
+}
+
+.media-detail-page .episode-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.media-detail-page .immersive-episode-actions {
+  min-width: 0;
+  justify-items: start;
+  align-self: end;
+}
+
+.media-detail-page .watched-pill {
+  white-space: normal;
 }
 
 @media (max-width: 760px) {
@@ -216,6 +282,59 @@ h2 {
 
   .media-detail-page .immersive-title {
     font-size: 1.7rem;
+  }
+}
+
+@media (max-width: 1180px) {
+  .media-detail-page .show-detail-header {
+    grid-template-columns: minmax(150px, 230px) minmax(0, 1fr);
+  }
+
+  .media-detail-page .show-detail-seasons {
+    grid-column: 1 / -1;
+    margin-top: clamp(1.25rem, 3vw, 2rem);
+    border-top: 1px solid var(--line);
+    padding-top: 1.25rem;
+  }
+
+  .media-detail-page .show-detail-seasons .horizontal-scroll-row {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(8rem, 10rem);
+    grid-template-columns: none;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.8rem;
+  }
+
+  .media-detail-page .show-detail-seasons .season-poster-card {
+    flex-basis: 8rem;
+    width: 8rem;
+  }
+
+  .media-detail-page .show-detail-seasons .season-poster-img {
+    height: 12rem;
+  }
+}
+
+@media (max-width: 1400px) {
+  .media-detail-page .show-episode-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1120px) {
+  .media-detail-page .show-episode-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .media-detail-page .show-detail-header {
+    grid-template-columns: minmax(96px, 34vw) minmax(0, 1fr);
+  }
+
+  .media-detail-page .show-episode-list {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -673,6 +792,112 @@ h2 {
   border-color: var(--yellow);
   background: rgba(245, 158, 11, 0.1);
   color: #fff;
+}
+
+/* Slim name-only availability pills */
+.avail-pills-row {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 0.3rem;
+}
+
+.avail-pill {
+  font-size: 0.68rem !important;
+  padding: 0.12rem 0.5rem !important;
+  font-weight: 850;
+  letter-spacing: 0.01em;
+}
+
+.avail-pill[data-avail-issue] {
+  transition: filter 120ms ease;
+}
+
+.avail-pill[data-avail-issue]:hover {
+  filter: brightness(1.25);
+}
+
+/* Unreleased episode pill */
+.unreleased-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--muted);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 850;
+  white-space: nowrap;
+  font-style: italic;
+}
+
+.immersive-episode-row.is-unreleased {
+  opacity: 0.55;
+}
+
+/* Availability issue popup */
+.avail-issue-popup {
+  position: absolute;
+  z-index: 9999;
+  width: 280px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 10px;
+  background: #0f1419;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.04);
+  padding: 0.85rem 1rem 0.9rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.avail-issue-close {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.55rem;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0.2rem;
+  border-radius: 4px;
+  transition: color 120ms ease;
+}
+
+.avail-issue-close:hover {
+  color: var(--text);
+}
+
+.avail-issue-headline {
+  display: block;
+  color: #fde68a;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  padding-right: 1.2rem;
+}
+
+.avail-issue-fix-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.avail-issue-steps {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.avail-issue-steps li {
+  color: var(--soft);
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .compact-terminal {

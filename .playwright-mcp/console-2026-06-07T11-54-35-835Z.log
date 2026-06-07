@@ -1,0 +1,13 @@
+[      21ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ https://plembfin.web.app/:0
+[      21ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ https://plembfin.web.app/:0
+[      21ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ https://plembfin.web.app/:0
+[      21ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ https://plembfin.web.app/:0
+[ 3599964ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://plembfin.web.app/api/now-playing:0
+[ 3720035ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://plembfin.web.app/api/now-playing:0
+[ 3840093ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://plembfin.web.app/api/now-playing:0
+[ 3960156ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://plembfin.web.app/api/now-playing:0
+[ 4080217ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://plembfin.web.app/api/now-playing:0
+[ 4200274ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://plembfin.web.app/api/now-playing:0
+[ 4320341ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://plembfin.web.app/api/now-playing:0
+[ 4440410ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://plembfin.web.app/api/now-playing:0
+[ 4560558ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://plembfin.web.app/api/now-playing:0
