@@ -3308,7 +3308,7 @@ async function fetchTmdbDetails(mediaType, tmdbId, title) {
     if (!resolvedTmdbId) return null;
 
     const detailsType = mediaType === "movie" ? "movie" : "tv";
-    const res = await fetch(`https://api.themoviedb.org/3/${detailsType}/${resolvedTmdbId}?api_key=${apiKey}`);
+    const res = await fetch(`https://api.themoviedb.org/3/${detailsType}/${resolvedTmdbId}?api_key=${apiKey}&append_to_response=credits,videos,reviews`);
     if (res.ok) {
       const body = await res.json();
       state.tmdbDetailsCache.set(cacheKey, body);
@@ -3319,6 +3319,102 @@ async function fetchTmdbDetails(mediaType, tmdbId, title) {
   }
   state.tmdbDetailsCache.set(cacheKey, null);
   return null;
+}
+
+function renderRichTmdbDetails(tmdbData) {
+  if (!tmdbData) return "";
+
+  const cast = tmdbData.credits?.cast || [];
+  const trailers = (tmdbData.videos?.results || []).filter(
+    (v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser")
+  );
+  const reviews = tmdbData.reviews?.results || [];
+
+  let html = "";
+
+  // 1. Cast Section
+  if (cast.length > 0) {
+    html += `
+      <section class="seasons-section cast-section">
+        <div class="show-section-title">
+          <h3>Cast</h3>
+          <span>${Math.min(cast.length, 15)} shown</span>
+        </div>
+        <div class="horizontal-scroll-row cast-scroll-row" style="margin-top: 0.5rem;">
+          ${cast.slice(0, 15).map(actor => {
+            const avatarUrl = actor.profile_path ? `https://image.tmdb.org/t/p/w185${actor.profile_path}` : '/favicon.svg';
+            return `
+              <div class="cast-member-card">
+                <img class="cast-avatar-img" src="${escapeAttribute(avatarUrl)}" alt="${escapeAttribute(actor.name)}" onerror="this.src='/favicon.svg';" />
+                <span class="cast-actor-name">${escapeHtml(actor.name)}</span>
+                <span class="cast-character-name">${escapeHtml(actor.character)}</span>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  // 2. Trailers Section
+  if (trailers.length > 0) {
+    html += `
+      <section class="seasons-section trailers-section">
+        <div class="show-section-title">
+          <h3>Trailers & Clips</h3>
+          <span>${trailers.length} available</span>
+        </div>
+        <div class="horizontal-scroll-row trailer-scroll-row" style="margin-top: 0.5rem;">
+          ${trailers.map(video => {
+            return `
+              <div class="trailer-card">
+                <div class="trailer-thumb-container" onclick="this.innerHTML = '<iframe src=&quot;https://www.youtube.com/embed/${video.key}?autoplay=1&quot; frameborder=&quot;0&quot; allow=&quot;autoplay; encrypted-media&quot; allowfullscreen style=&quot;position:absolute; top:0; left:0; width:100%; height:100%; border:0;&quot;></iframe>'">
+                  <img class="trailer-thumb" src="https://img.youtube.com/vi/${video.key}/mqdefault.jpg" alt="${escapeAttribute(video.name)}" onerror="this.src='/favicon.svg';" />
+                  <div class="play-overlay">
+                    <svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  </div>
+                </div>
+                <span class="trailer-title" title="${escapeAttribute(video.name)}">${escapeHtml(video.name)}</span>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  // 3. Reviews Section
+  if (reviews.length > 0) {
+    html += `
+      <section class="seasons-section reviews-section">
+        <div class="show-section-title">
+          <h3>Reviews</h3>
+          <span>${reviews.length} reviews</span>
+        </div>
+        <div class="review-list" style="margin-top: 0.5rem;">
+          ${reviews.slice(0, 3).map(review => {
+            const hasLongContent = review.content && review.content.length > 300;
+            return `
+              <div class="review-card">
+                <div class="review-header">
+                  <span class="review-author">${escapeHtml(review.author)}</span>
+                  ${review.author_details?.rating ? `<span class="review-rating">★ ${review.author_details.rating}/10</span>` : ""}
+                </div>
+                <div class="review-content-wrapper">
+                  <p class="review-content">${escapeHtml(review.content)}</p>
+                </div>
+                ${hasLongContent ? `
+                  <button class="action-pill review-toggle-btn" type="button" onclick="const p = this.previousElementSibling.querySelector('.review-content'); p.classList.toggle('expanded'); this.textContent = p.classList.contains('expanded') ? 'Show Less' : 'Read More';">Read More</button>
+                ` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  return html;
 }
 
 async function fetchTmdbSeasonDetails(tmdbId, seasonNumber) {
@@ -3815,7 +3911,6 @@ function renderShowModalContent(show, {
       <header class="immersive-header show-detail-header">
         <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" onerror="this.src='/favicon.svg';" />
         <div class="immersive-meta">
-          <span class="format-badge">TV Series</span>
           <h2 class="immersive-title">${escapeHtml(showTitle)}</h2>
           <p class="immersive-subtitle">${escapeHtml(premiered)}</p>
 
@@ -3846,6 +3941,8 @@ function renderShowModalContent(show, {
         </div>
         ${seasonsSectionHtml}
       </header>
+
+      ${renderRichTmdbDetails(tmdbData)}
 
       <section class="episodes-section">
         <div class="show-section-title">
@@ -4411,7 +4508,6 @@ async function renderMovieImmersiveModalContent(movie) {
       <header class="immersive-header">
         <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(movieTitle)} poster" onerror="this.src='/favicon.svg';" />
         <div class="immersive-meta">
-          <span class="format-badge" style="background: #4b96e6;">Movie</span>
           <h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>
           <p class="immersive-subtitle">${released}</p>
           
@@ -4436,6 +4532,8 @@ async function renderMovieImmersiveModalContent(movie) {
           </section>
         </div>
       </header>
+
+      ${renderRichTmdbDetails(tmdbData)}
 
       ${recommendations.length > 0 ? `
         <section class="seasons-section">
@@ -4526,7 +4624,6 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
       <header class="immersive-header">
         <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(movieTitle)} poster" onerror="this.src='/favicon.svg';" />
         <div class="immersive-meta">
-          <span class="format-badge" style="background: #4b96e6;">Movie</span>
           <h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>
           <p class="immersive-subtitle">${released}</p>
           
@@ -4551,6 +4648,8 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
           </section>
         </div>
       </header>
+
+      ${renderRichTmdbDetails(tmdbData)}
 
       ${recommendations.length > 0 ? `
         <section class="seasons-section">
