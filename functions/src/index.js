@@ -1479,7 +1479,8 @@ async function handleRefreshMetadata(req, res) {
 
     const processItem = async (mediaType, tmdbId, title) => {
       count++;
-      const itemLabel = `[${count}/${total}] ${mediaType === "movie" ? "Movie" : "Show"}: "${title}"`;
+      const percent = Math.round((count / total) * 100);
+      const itemLabel = `[${count}/${total}] (${percent}%) ${mediaType === "movie" ? "Movie" : "Show"}: "${title}"`;
       try {
         const resolvedType = mediaType === "movie" ? "movie" : "tv";
         let resolvedId = tmdbId;

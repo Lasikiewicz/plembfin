@@ -6561,6 +6561,13 @@ async function runRefreshMetadataWorkflow() {
           try { finalResult = JSON.parse(trimmed.substring(8)); } catch (_) {}
         } else {
           if (logEl) logEl.textContent += trimmed + "\n";
+          const match = trimmed.match(/^\[(\d+)\/(\d+)\]/);
+          if (match && status) {
+            const current = Number(match[1]);
+            const total = Number(match[2]);
+            const pct = Math.round((current / total) * 100);
+            status.textContent = `Progress: ${current} of ${total} (${pct}% complete)...`;
+          }
         }
       }
       if (logEl) logEl.scrollTop = logEl.scrollHeight;
