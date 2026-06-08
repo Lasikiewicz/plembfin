@@ -1094,7 +1094,7 @@ h2 {
 /* Now-playing large card: poster left, meta right */
 .now-card-large {
   display: grid;
-  grid-template-columns: 8rem 1fr;
+  grid-template-columns: var(--poster-width, 160px) 1fr;
   gap: var(--space-3);
   min-height: 8.5rem;
   align-items: center;
@@ -1102,8 +1102,8 @@ h2 {
 }
 
 .now-poster-large {
-  width: 8rem;
-  height: 12rem;
+  width: var(--poster-width, 160px);
+  height: calc(var(--poster-width, 160px) * 1.5);
   object-fit: cover;
   border-radius: 6px;
   border: 1px solid var(--line);

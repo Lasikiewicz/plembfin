@@ -4172,6 +4172,7 @@ function renderShowModalContent(show, {
                     ${syncStatusDotHtml}
                   </b>
                   <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
+                  ${episode.watched ? `<time>Watched ${formatDate(episode.watched.watched_at)}</time>` : ""}
                 </div>
                 <p>${escapeHtml(episode.overview)}</p>
                 ${!episodeIsUnreleased ? `<div class="avail-pills-row">${renderAvailabilityPills(episode.watched || {})}</div>` : ""}

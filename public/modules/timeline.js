@@ -108,10 +108,12 @@ function isSessionActive(session = {}) {
   const playState = session.PlayState || session.PlaybackState || session.PlayerState || {};
   const stateText = String(session.State || session.Status || playState.State || playState.Status || "").toLowerCase();
   const isPaused = Boolean(playState.IsPaused || session.IsPaused);
+  const positionTicks = Number(playState.PositionTicks || session.PositionTicks || session.PlaybackPositionTicks || 0);
+  const hasPlaybackData = Boolean(Object.keys(playState).length || Number.isFinite(positionTicks));
   const explicitlyStopped = ["stopped", "idle", "paused"].includes(stateText);
   const explicitlyPlaying = Boolean(session.IsPlaying || session.Playing || playState.IsPlaying || playState.PlayMethod || ["playing", "buffering", "transcoding", "directplay", "directstream"].includes(stateText));
 
-  return !isPaused && !explicitlyStopped && explicitlyPlaying;
+  return hasPlaybackData && !isPaused && !explicitlyStopped && (explicitlyPlaying || item);
 }
 
 function normalizeEmbyLikeSession(session = {}, source = "unknown", server = {}) {
@@ -153,7 +155,7 @@ function normalizeEmbyLikeSession(session = {}, source = "unknown", server = {})
       deviceName: session.DeviceName || session.Client || "",
       userName: session.UserName || session.UserId || "",
     },
-    raw: { localFallback: true },
+    raw: session,
   };
 }
 
@@ -215,7 +217,11 @@ async function fetchEmbyLikeLocal(config, source, logDebug) {
 
     const json = JSON.parse(text);
     const sessions = Array.isArray(json) ? json : json.Items || json.Sessions || [];
-    return sessions.map((session) => normalizeEmbyLikeSession(session, source, server)).filter(Boolean);
+    const userId = String(server.userId || "").trim();
+    return sessions
+      .map((session) => normalizeEmbyLikeSession(session, source, server))
+      .filter(Boolean)
+      .filter((session) => !userId || String(session.raw?.UserId || "").toLowerCase() === userId.toLowerCase());
   } catch (error) {
     logDebug(`${source} fetch failed. Reason: FETCH_FAILED (${error?.message || "Failed to open socket connection or CORS blocked the local request"})`);
     return [];
