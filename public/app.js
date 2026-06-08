@@ -105,6 +105,7 @@ const state = {
   importActive: false,
   debugLogs: readStoredDebugLogs(),
   nowPlayingInterval: undefined,
+  nowPlayingAbortController: null,
   nowPlayingRequestActive: false,
   nowPlayingRefreshToken: "",
   nowPlayingSessionKey: "",
@@ -2058,24 +2059,38 @@ async function loadSavedConfig() {
 }
 
 async function saveSavedConfig() {
-  const config = configFromInputs();
-  const response = await fetch("/api/config", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(config),
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `Config save failed with ${response.status}`);
+  const button = elements.saveConfigButton;
+  const originalText = button ? button.textContent : "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Saving...";
+  }
 
-  state.savedConfig = config;
-  state.configLoaded = true;
-  clearDerivedUiCaches();
-  renderSettingsStatus("Configuration saved. Run Full Sync Watchstates if a media server was rebuilt or newly added.", "success");
-  renderDashboard();
-  renderActiveSessions();
-  refreshHelpIfVisible();
-  setMessage("Configuration saved. Full sync is recommended for rebuilt or newly added servers.", "success");
-  return body;
+  try {
+    const config = configFromInputs();
+    const response = await fetch("/api/config", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(config),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Config save failed with ${response.status}`);
+
+    state.savedConfig = config;
+    state.configLoaded = true;
+    clearDerivedUiCaches();
+    renderSettingsStatus("Configuration saved. Run Full Sync Watchstates if a media server was rebuilt or newly added.", "success");
+    renderDashboard();
+    renderActiveSessions();
+    refreshHelpIfVisible();
+    setMessage("Configuration saved. Full sync is recommended for rebuilt or newly added servers.", "success");
+    return body;
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
 }
 
 async function loadHistory({ force = false } = {}) {
@@ -2234,58 +2249,113 @@ async function loadActiveSessions() {
   return sessions;
 }
 
-function nextNowPlayingPollDelay(sessions = state.activeSessions) {
-  return sessions.length ? NOW_PLAYING_POLL_MS : NOW_PLAYING_EMPTY_POLL_MS;
-}
-
-function scheduleNextNowPlayingPoll(delayMs = nextNowPlayingPollDelay()) {
-  if (!state.token || state.activeView !== "dashboard") return;
-
-  if (state.nowPlayingInterval) {
-    window.clearTimeout(state.nowPlayingInterval);
+async function startNowPlayingStream() {
+  if (state.nowPlayingAbortController) {
+    state.nowPlayingAbortController.abort();
   }
+  state.nowPlayingAbortController = new AbortController();
+  const signal = state.nowPlayingAbortController.signal;
 
-  state.nowPlayingInterval = window.setTimeout(() => {
-    state.nowPlayingInterval = undefined;
-    if (state.activeView !== "dashboard" || !state.token || document.hidden) {
-      return;
+  const url = nowPlayingUrl();
+  url.searchParams.set("stream", "1");
+
+  logDebug("Opening real-time stream connection to /api/now-playing...");
+
+  try {
+    const response = await fetch(url, {
+      headers: authHeaders(),
+      signal,
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
 
-    loadActiveSessions()
-      .then((sessions) => scheduleNextNowPlayingPoll(nextNowPlayingPollDelay(sessions)))
-      .catch((error) => {
-        setMessage(error.message, "error");
-        scheduleNextNowPlayingPoll(NOW_PLAYING_EMPTY_POLL_MS);
-      });
-  }, delayMs);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    if (elements.nowPlayingStatus) {
+      elements.nowPlayingStatus.textContent = "Real-time Stream";
+      elements.nowPlayingStatus.className = "status-pill status-ready";
+    }
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop(); // Keep partial line in buffer
+
+      for (const line of lines) {
+        const cleanLine = line.trim();
+        if (!cleanLine) continue;
+
+        if (cleanLine.startsWith("data:")) {
+          const rawJson = cleanLine.slice(5).trim();
+          try {
+            const sessions = JSON.parse(rawJson);
+
+            // Fetch local network sessions in parallel
+            const localSessions = await fetchLocalActiveSessions(configFromInputs(), logDebug);
+            if (localSessions.length) {
+              for (const local of localSessions) {
+                const isDuplicate = sessions.some(
+                  (s) =>
+                    s.source === local.source &&
+                    s.title === local.title &&
+                    s.season === local.season &&
+                    s.episode === local.episode
+                );
+                if (!isDuplicate) sessions.push(local);
+              }
+            }
+
+            setActiveSessions(sessions);
+          } catch (err) {
+            console.error("Failed to parse stream event JSON", err);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    if (error.name === "AbortError") {
+      logDebug("Now Playing stream aborted intentionally.");
+      return;
+    }
+    logDebug(`Now Playing stream error: ${error.message}. Reconnecting in 5s...`);
+    if (elements.nowPlayingStatus) {
+      elements.nowPlayingStatus.textContent = "Reconnecting...";
+      elements.nowPlayingStatus.className = "status-pill status-muted";
+    }
+    
+    // Attempt reconnect after 5s if still active and authorized
+    setTimeout(() => {
+      if (state.token && state.activeView === "dashboard" && !signal.aborted) {
+        startNowPlayingStream().catch(() => {});
+      }
+    }, 5000);
+  }
 }
 
 function startHistoryPolling() {
   stopHistoryPolling();
   if (!state.token || state.activeView !== "dashboard" || document.hidden) return;
 
-  const ageMs = Date.now() - state.nowPlayingLastFetchAt;
-  if (state.nowPlayingLastFetchAt && ageMs < NOW_PLAYING_REENTRY_CACHE_MS) {
-    const delayMs = Math.max(1000, nextNowPlayingPollDelay() - ageMs);
-    logDebug(`Reusing recent Now Playing cache; next refresh in ${Math.round(delayMs / 1000)} seconds.`);
-    scheduleNextNowPlayingPoll(delayMs);
-    return;
-  }
-
-  logDebug("Starting adaptive Now Playing background refresh loop.");
-  loadActiveSessions()
-    .then((sessions) => scheduleNextNowPlayingPoll(nextNowPlayingPollDelay(sessions)))
-    .catch((error) => {
-      setMessage(error.message, "error");
-      scheduleNextNowPlayingPoll(NOW_PLAYING_EMPTY_POLL_MS);
-    });
+  logDebug("Starting real-time Now Playing updates.");
+  startNowPlayingStream().catch((error) => {
+    setMessage(error.message, "error");
+  });
 }
 
 function stopHistoryPolling() {
-  if (!state.nowPlayingInterval) return;
-  window.clearTimeout(state.nowPlayingInterval);
-  state.nowPlayingInterval = undefined;
-  logDebug("Stopped Now Playing background refresh loop.");
+  if (state.nowPlayingAbortController) {
+    state.nowPlayingAbortController.abort();
+    state.nowPlayingAbortController = null;
+  }
+  logDebug("Stopped Now Playing background updates/stream.");
 }
 
 function syncNowPlayingPolling() {

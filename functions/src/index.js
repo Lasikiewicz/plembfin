@@ -1,3 +1,4 @@
+import { setGlobalDispatcher, Agent } from "undici";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { setGlobalOptions } from "firebase-functions/v2";
@@ -57,6 +58,11 @@ import { db, FieldValue } from "./firebase.js";
 
 const region = process.env.FUNCTIONS_REGION || "europe-west2";
 setGlobalOptions({ region, maxInstances: 10 });
+
+setGlobalDispatcher(new Agent({
+  keepAliveTimeout: 15000,
+  connections: 64,
+}));
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -640,47 +646,97 @@ async function handleNowPlaying(req, res) {
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
 
-  const [cacheRows, activeRows] = await Promise.all([
-    loadLiveTrackingCache(requireDb(), { includeCompleted: false }).catch(() => []),
-    listActiveSessions().catch(() => []),
-  ]);
+  const isStreaming = req.query.stream === "1" || req.query.stream === "true";
 
-  const runtime = await loadRuntimeState();
-  const sessions = cacheRows.map(hydrateCachedSession).filter((session) => !session.completedAt);
+  const getMergedSessions = async () => {
+    const [cacheRows, activeRows] = await Promise.all([
+      loadLiveTrackingCache(requireDb(), { includeCompleted: false }).catch(() => []),
+      listActiveSessions().catch(() => []),
+    ]);
 
-  const merged = [...sessions];
-  for (const active of activeRows) {
-    const isDuplicate = merged.some(
-      (s) =>
-        s.source === active.source &&
-        s.title === active.title &&
-        s.season === active.season &&
-        s.episode === active.episode
-    );
-    if (!isDuplicate) {
-      merged.push({
-        sessionId: active.key,
-        source: active.source,
-        title: active.title,
-        mediaType: active.mediaType,
-        progress: active.progress,
-        offsetMs: active.offsetMs || 0,
-        durationMs: active.durationMs || 0,
-        season: active.season,
-        episode: active.episode,
-        posterUrl: active.posterUrl,
-        ids: active.ids,
-        client: active.client,
-        updatedAt: active.updatedAt,
-        completedAt: null,
-      });
+    const sessions = cacheRows.map(hydrateCachedSession).filter((session) => !session.completedAt);
+    const merged = [...sessions];
+    for (const active of activeRows) {
+      const isDuplicate = merged.some(
+        (s) =>
+          s.source === active.source &&
+          s.title === active.title &&
+          s.season === active.season &&
+          s.episode === active.episode
+      );
+      if (!isDuplicate) {
+        merged.push({
+          sessionId: active.key,
+          source: active.source,
+          title: active.title,
+          mediaType: active.mediaType,
+          progress: active.progress,
+          offsetMs: active.offsetMs || 0,
+          durationMs: active.durationMs || 0,
+          season: active.season,
+          episode: active.episode,
+          posterUrl: active.posterUrl,
+          ids: active.ids,
+          client: active.client,
+          updatedAt: active.updatedAt,
+          completedAt: null,
+        });
+      }
     }
+    merged.sort((a, b) => b.updatedAt - a.updatedAt);
+    return merged;
+  };
+
+  if (!isStreaming) {
+    const runtime = await loadRuntimeState();
+    const merged = await getMergedSessions();
+    return sendJson(res, merged, 200, runtime.nowPlayingRefresh ? { "X-Now-Playing-Refresh": String(runtime.nowPlayingRefresh) } : {});
   }
 
-  // Sort by updatedAt desc to show most recently updated sessions first
-  merged.sort((a, b) => b.updatedAt - a.updatedAt);
+  // Set streaming headers
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
 
-  return sendJson(res, merged, 200, runtime.nowPlayingRefresh ? { "X-Now-Playing-Refresh": String(runtime.nowPlayingRefresh) } : {});
+  const sendUpdate = async () => {
+    try {
+      const merged = await getMergedSessions();
+      res.write(`data: ${JSON.stringify(merged)}\n\n`);
+    } catch (err) {
+      console.error("Stream update failed", err);
+    }
+  };
+
+  // Send initial data immediately
+  await sendUpdate();
+
+  // Listen for changes in Firestore collections
+  let throttleTimer = null;
+  const onChange = () => {
+    if (throttleTimer) return;
+    throttleTimer = setTimeout(async () => {
+      throttleTimer = null;
+      await sendUpdate();
+    }, 1000); // 1-second throttle is perfect to avoid excessive client updates
+  };
+
+  const unsubLive = db.collection("liveTrackingCache").onSnapshot(onChange, (err) => {
+    console.error("Stream liveTrackingCache onSnapshot error", err);
+  });
+  const unsubActive = db.collection("activeSessions").onSnapshot(onChange, (err) => {
+    console.error("Stream activeSessions onSnapshot error", err);
+  });
+
+  const heartbeat = setInterval(() => {
+    res.write(": keepalive\n\n");
+  }, 20000);
+
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    if (unsubLive) unsubLive();
+    if (unsubActive) unsubActive();
+  });
 }
 
 async function handleActiveSessions(req, res) {

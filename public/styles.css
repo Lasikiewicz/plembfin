@@ -1015,6 +1015,7 @@ h2 {
   border-radius: 4px;
   background: #090d11;
   object-fit: cover;
+  aspect-ratio: 2 / 3;
 }
 
 .explorer-search-box {
