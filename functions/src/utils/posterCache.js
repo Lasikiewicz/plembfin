@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import sharp from "sharp";
 import { db, FieldValue, storageBucket } from "../firebase.js";
 
 const POSTER_CACHE_COLLECTION = db.collection("posterCache");
@@ -107,14 +108,28 @@ export async function cachePosterFromUrl(mediaKey = "", remoteUrl = "", source =
       return null;
     }
 
+    let finalBuffer = buffer;
+    let finalContentType = contentType;
+    let extension = extensionForContentType(contentType);
+
+    try {
+      finalBuffer = await sharp(buffer)
+        .resize({ width: 340, withoutEnlargement: true })
+        .webp({ quality: 80 })
+        .toBuffer();
+      finalContentType = "image/webp";
+      extension = "webp";
+    } catch (resizeError) {
+      console.warn("Poster optimization via sharp failed, falling back to original buffer", resizeError);
+    }
+
     const token = crypto.randomUUID();
-    const extension = extensionForContentType(contentType);
     const cacheId = cacheIdFor(mediaKey);
     const storagePath = `posters/${cacheId}.${extension}`;
 
-    await storageBucket.file(storagePath).save(buffer, {
+    await storageBucket.file(storagePath).save(finalBuffer, {
       metadata: {
-        contentType,
+        contentType: finalContentType,
         cacheControl: "public, max-age=31536000, immutable",
         metadata: {
           firebaseStorageDownloadTokens: token,
@@ -132,8 +147,8 @@ export async function cachePosterFromUrl(mediaKey = "", remoteUrl = "", source =
       source,
       originalUrl: sanitizedRemoteUrl(remoteUrl),
       storagePath,
-      contentType,
-      sizeBytes: buffer.length,
+      contentType: finalContentType,
+      sizeBytes: finalBuffer.length,
       url,
       updatedAtMs: Date.now(),
       updatedAt: FieldValue.serverTimestamp(),

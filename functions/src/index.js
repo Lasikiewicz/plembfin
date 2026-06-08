@@ -1257,6 +1257,139 @@ async function handleBackfillTrakt(req, res) {
   }
 }
 
+async function handleAdminFixHistory(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  try {
+    const config = await loadMediaConfig().catch(() => ({}));
+    const limit = 10;
+    let converted = 0;
+    let backfilled = 0;
+    let retyped = 0;
+
+    // Get recently watched items (we can fetch up to 300 to find ones needing processing)
+    const snapshot = await db.collection("watchHistory")
+      .orderBy("watchedAt", "desc")
+      .limit(300)
+      .get();
+
+    const candidates = [];
+    for (const doc of snapshot.docs) {
+      const data = doc.data() || {};
+      const posterUrl = data.posterUrl || "";
+      const isOptimized = isCachedStorageUrl(posterUrl);
+      const needsRetype = !data.mediaType;
+
+      if (!isOptimized || needsRetype) {
+        candidates.push({ id: doc.id, data });
+      }
+      if (candidates.length >= limit) break;
+    }
+
+    if (candidates.length === 0) {
+      return sendJson(res, {
+        ok: true,
+        retyped: 0,
+        converted: 0,
+        backfilled: 0,
+        note: "All checked history rows already have optimized posters.",
+      });
+    }
+
+    for (const candidate of candidates) {
+      const { id, data } = candidate;
+      const row = await getWatchRecordByIdLight(id);
+      if (!row) continue;
+
+      const mediaKey = row.media_key || mediaKeyFor(row);
+
+      // 1. If needs retype:
+      if (!row.media_type) {
+        const isEpisode = /s\d+e\d+/i.test(row.title || "");
+        const newType = isEpisode ? "episode" : "movie";
+        await db.collection("watchHistory").doc(id).update({
+          mediaType: newType,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        retyped++;
+        row.media_type = newType;
+      }
+
+      // 2. Fetch/optimize poster:
+      const cached = usableCachedPoster(await getPosterCache(mediaKey));
+      if (cached?.url) {
+        const updated = await updateWatchPosterUrl(id, cached.url);
+        if (updated) converted++;
+        continue;
+      }
+
+      const urlsToTry = [];
+      if (row.poster_url && !isCachedStorageUrl(row.poster_url)) {
+        if (/^https?:\/\//i.test(row.poster_url)) urlsToTry.push({ url: row.poster_url, source: "stored" });
+        const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
+        if (configuredUrl) urlsToTry.push({ url: configuredUrl, source: "configured" });
+      }
+
+      if (String(row.source || "").toLowerCase().includes("plex") && config.plex?.baseUrl && config.plex?.token) {
+        const item = await findPlexItem(config.plex, {
+          title: row.title,
+          type: row.media_type,
+          ids: { imdb: row.imdb_id || null, tmdb: row.tmdb_id || null, tvdb: row.tvdb_id || null },
+          season: row.season || null,
+          episode: row.episode || null,
+        }).catch(() => null);
+        const path = row.media_type === "episode"
+          ? item?.grandparentThumb || item?.parentThumb || item?.thumb
+          : item?.thumb || item?.parentThumb;
+        if (path) {
+          const configuredUrl = configuredPosterUrl(path, "plex", config);
+          if (configuredUrl) urlsToTry.push({ url: configuredUrl, source: "plex" });
+        }
+      }
+
+      if (config.tmdb?.apiKey && (!row.poster_url || isHttpUrl(row.poster_url) || !/^https?:\/\//i.test(row.poster_url))) {
+        const tmdbPoster = await fetchPosterFromTmdb(row, config.tmdb.apiKey).catch(() => null);
+        if (tmdbPoster) {
+          urlsToTry.push({ url: tmdbPoster, source: "tmdb" });
+        }
+      }
+
+      const seen = new Set();
+      let succeeded = false;
+      for (const candidateUrl of urlsToTry) {
+        if (!candidateUrl.url || seen.has(candidateUrl.url)) continue;
+        seen.add(candidateUrl.url);
+        const cachedPoster = await cachePosterFromUrl(mediaKey, candidateUrl.url, candidateUrl.source);
+        if (cachedPoster?.url) {
+          await updateWatchPosterUrl(id, cachedPoster.url);
+          backfilled++;
+          succeeded = true;
+          break;
+        }
+      }
+
+      if (!succeeded) {
+        await markPosterMissing(mediaKey, "repair", "Failed to resolve poster on repair pass").catch(() => null);
+      }
+    }
+
+    await invalidateHistoryDerivedCaches().catch(() => null);
+
+    return sendJson(res, {
+      ok: true,
+      retyped,
+      converted,
+      backfilled,
+      note: `Processed ${candidates.length} candidate rows.`,
+    });
+  } catch (error) {
+    console.error("History repair pass failed", error);
+    return sendJson(res, { error: "Repair failed", details: error.message }, 500);
+  }
+}
+
 async function handleMaintenanceStub(req, res, name) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!(await requireAdmin(req, res))) return;
@@ -1512,7 +1645,8 @@ async function dispatch(req, res) {
     if (path === "poster") return handlePoster(req, res);
     if (path === "admin-backfill-status") return handleBackfillStatus(req, res);
     if (path === "admin-backfill-trakt") return handleBackfillTrakt(req, res);
-    if (["admin-fix-history", "admin-ensure-columns", "admin-clear-mock"].includes(path)) {
+    if (path === "admin-fix-history") return handleAdminFixHistory(req, res);
+    if (["admin-ensure-columns", "admin-clear-mock"].includes(path)) {
       return handleMaintenanceStub(req, res, path);
     }
     return notFound(res);
