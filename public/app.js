@@ -528,6 +528,9 @@ function posterUrlFor(item = {}) {
   const raw = item.poster_url || item.posterUrl || item.imageUrl || item.thumb || "";
   if (isCachedStorageImageUrl(raw)) return raw;
   if (item.id != null) return "";
+  if (raw) {
+    return configuredImageUrl(raw, item);
+  }
   return "";
 }
 
