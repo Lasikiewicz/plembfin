@@ -4171,14 +4171,16 @@ function renderShowModalContent(show, {
                     ${escapeHtml(episodeCode(episode.seasonNumber, episode.episodeNumber))} ${escapeHtml(episode.title)}
                     ${syncStatusDotHtml}
                   </b>
+                </div>
+                <p>${escapeHtml(episode.overview)}</p>
+                <div class="immersive-episode-meta-row">
                   <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
                   ${episode.watched ? `<time>Watched ${formatDate(episode.watched.watched_at)}</time>` : ""}
                 </div>
-                <p>${escapeHtml(episode.overview)}</p>
                 ${!episodeIsUnreleased ? `<div class="avail-pills-row">${renderAvailabilityPills(episode.watched || {})}</div>` : ""}
               </div>
               <div class="immersive-episode-actions">
-                ${episodeIsUnreleased ? `<span class="unreleased-pill">Not yet released</span>` : `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}" ${episode.watched ? "disabled" : ""}>${episode.watched ? "Watched" : "Mark watched"}</button>`}
+                ${episodeIsUnreleased ? `<span class="unreleased-pill">Not yet released</span>` : (episode.watched ? "" : `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}">Mark watched</button>`)}
               </div>
             </article>
           `;

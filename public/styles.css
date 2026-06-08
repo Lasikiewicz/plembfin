@@ -2800,10 +2800,16 @@ h2 {
   line-height: 1.25;
 }
 
-.immersive-episode-title-row time {
+.immersive-episode-title-row time,
+.immersive-episode-meta-row time {
   color: var(--muted);
   font-size: 0.74rem;
   font-weight: 800;
+}
+
+.immersive-episode-meta-row {
+  display: grid;
+  gap: 0.15rem;
 }
 
 .immersive-episode-copy p {
