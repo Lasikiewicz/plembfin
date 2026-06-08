@@ -11,3 +11,4 @@ ui-debug.log
 functions/lib/
 service-account-key.json
 emulator-data/
+firebase-export-*/

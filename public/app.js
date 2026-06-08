@@ -553,6 +553,9 @@ async function lookupPosterUrl(posterId, { fallback = false } = {}) {
     const cached = cachedPosterLookup(posterId);
     if (cached !== undefined) return cached || "";
   }
+  if (!state.token) {
+    return "";
+  }
 
   const cacheKey = fallback ? `${posterId}:fallback` : posterId;
   let lookup = state.posterLookupInflight.get(cacheKey);
@@ -563,19 +566,31 @@ async function lookupPosterUrl(posterId, { fallback = false } = {}) {
     lookup = fetch(url, { headers: authHeaders() })
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
-        if (!response.ok || !body.url) return "";
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        if (!body.url) {
+          return "MISSING";
+        }
         const usableUrl = compactPosterUrl(body.url);
         if (usableUrl || fallback) return usableUrl;
         return lookupPosterUrl(posterId, { fallback: true });
       })
-      .catch(() => "")
+      .catch((error) => {
+        console.warn("Poster lookup failed", error);
+        return "ERROR";
+      })
       .finally(() => state.posterLookupInflight.delete(cacheKey));
     state.posterLookupInflight.set(cacheKey, lookup);
   }
 
   const posterUrl = await lookup;
-  rememberPosterLookup(posterId, posterUrl || "");
-  return posterUrl || "";
+  if (posterUrl === "ERROR") {
+    return "";
+  }
+  const finalUrl = posterUrl === "MISSING" ? "" : posterUrl;
+  rememberPosterLookup(posterId, finalUrl || "");
+  return finalUrl || "";
 }
 
 function shouldHydratePosterElement(element) {
@@ -1676,24 +1691,118 @@ function setUnlocked(isUnlocked) {
 }
 
 function handleRouting(path) {
-  const pathname = path.endsWith("/") && path.length > 1 ? path.slice(0, -1) : path;
+  const parts = path.split('#');
+  const pathPart = parts[0];
+  const hashPart = parts[1] || "";
+
+  const pathname = pathPart.endsWith("/") && pathPart.length > 1 ? pathPart.slice(0, -1) : pathPart;
   
-  if (pathname === "/" || pathname === "") {
+  if (!pathname.startsWith("/person")) {
+    if (elements.personModal) {
+      elements.personModal.classList.add("hidden");
+    }
+  }
+
+  const personMatch = pathname.match(/^\/person\/(\d+)$/);
+  const movieTmdbMatch = pathname.match(/^\/movie\/tmdb\/(\d+)$/);
+  const tvshowTmdbMatch = pathname.match(/^\/tvshow\/tmdb\/(\d+)(?:\/season\/(\d+))?(?:\/episode\/(\d+))?$/);
+  const movieMatch = pathname.match(/^\/movie\/([^/]+)$/);
+  const tvshowMatch = pathname.match(/^\/tvshow\/([^/]+)(?:\/season\/(\d+))?(?:\/episode\/(\d+))?$/);
+
+  if (personMatch) {
+    const personId = personMatch[1];
+    if (!state.activeView) {
+      state.activeView = "dashboard";
+    }
+    loadCastMemberDetails(personId).catch((error) => console.error("Error loading cast member", error));
+  } else if (movieTmdbMatch) {
+    const tmdbId = movieTmdbMatch[1];
+    state.activeView = "explorer";
+    state.explorerMode = "movies";
+    state.mediaDetailInline = true;
+    state.activeMovieModalId = null;
+    openMovieImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
+  } else if (tvshowTmdbMatch) {
+    const tmdbId = tvshowTmdbMatch[1];
+    let seasonNum = null;
+    let episodeNum = null;
+    if (hashPart) {
+      const hashMatch = hashPart.match(/^season(\d+)(?:ep(\d+))?$/);
+      if (hashMatch) {
+        seasonNum = Number(hashMatch[1]);
+        episodeNum = hashMatch[2] ? Number(hashMatch[2]) : null;
+      }
+    }
+    if (seasonNum === null) {
+      seasonNum = tvshowTmdbMatch[2] ? Number(tvshowTmdbMatch[2]) : null;
+      episodeNum = tvshowTmdbMatch[3] ? Number(tvshowTmdbMatch[3]) : null;
+    }
+    state.activeView = "explorer";
+    state.explorerMode = "shows";
+    state.mediaDetailInline = true;
+    state.activeShowModalKey = null;
+    state.activeShowModalSeason = seasonNum;
+    state.activeShowModalEpisode = episodeNum;
+    openShowImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
+  } else if (movieMatch) {
+    const movieId = movieMatch[1];
+    state.activeView = "explorer";
+    state.explorerMode = "movies";
+    state.mediaDetailInline = true;
+    state.activeMovieModalId = movieId;
+    openMovieInlineDetail(movieId).catch((error) => setMessage(error.message, "error"));
+  } else if (tvshowMatch) {
+    const showKey = tvshowMatch[1];
+    let seasonNum = null;
+    let episodeNum = null;
+    if (hashPart) {
+      const hashMatch = hashPart.match(/^season(\d+)(?:ep(\d+))?$/);
+      if (hashMatch) {
+        seasonNum = Number(hashMatch[1]);
+        episodeNum = hashMatch[2] ? Number(hashMatch[2]) : null;
+      }
+    }
+    if (seasonNum === null) {
+      seasonNum = tvshowMatch[2] ? Number(tvshowMatch[2]) : null;
+      episodeNum = tvshowMatch[3] ? Number(tvshowMatch[3]) : null;
+    }
+    state.activeView = "explorer";
+    state.explorerMode = "shows";
+    state.mediaDetailInline = true;
+    state.activeShowModalKey = showKey;
+    state.activeShowModalSeason = seasonNum;
+    state.activeShowModalEpisode = episodeNum;
+    openShowInlineDetail(showKey, seasonNum, episodeNum).catch((error) => setMessage(error.message, "error"));
+  } else if (pathname === "/" || pathname === "" || pathname === "/dashboard") {
     state.activeView = "dashboard";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
   } else if (pathname === "/movies") {
     state.activeView = "explorer";
     state.explorerMode = "movies";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
   } else if (pathname === "/tvshows") {
     state.activeView = "explorer";
     state.explorerMode = "shows";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
   } else if (pathname === "/stats") {
     state.activeView = "stats";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
   } else if (pathname === "/sync") {
     state.activeView = "sync";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
   } else if (pathname === "/logs") {
     state.activeView = "logs";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
   } else if (pathname.startsWith("/settings")) {
     state.activeView = "settings";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
     const parts = pathname.split("/");
     if (parts[2] && SETTINGS_TABS.includes(parts[2])) {
       state.activeSettingsTab = parts[2];
@@ -1702,6 +1811,8 @@ function handleRouting(path) {
     }
   } else if (pathname.startsWith("/help")) {
     state.activeView = "help";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
     const parts = pathname.split("/");
     if (parts[2]) {
       state.activeHelpTopic = parts[2];
@@ -1710,11 +1821,14 @@ function handleRouting(path) {
     }
   } else {
     state.activeView = "dashboard";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
   }
 }
 
 function navigateTo(url) {
-  if (window.location.pathname !== url) {
+  const currentUrl = window.location.pathname + window.location.hash;
+  if (currentUrl !== url) {
     history.pushState(null, "", url);
   }
   handleRouting(url);
@@ -1727,7 +1841,21 @@ function selectView(view) {
   const targetView = PRIMARY_VIEWS.includes(requestedView) ? requestedView : "dashboard";
   
   let url = "/";
-  if (targetView === "explorer") {
+  if (state.mediaDetailInline) {
+    if (state.explorerMode === "shows" && state.activeShowModalKey) {
+      url = `/tvshow/${state.activeShowModalKey}`;
+      if (state.activeShowModalSeason !== null) {
+        url += `#season${state.activeShowModalSeason}`;
+        if (state.activeShowModalEpisode !== null) {
+          url += `ep${state.activeShowModalEpisode}`;
+        }
+      }
+    } else if (state.explorerMode === "movies" && state.activeMovieModalId) {
+      url = `/movie/${state.activeMovieModalId}`;
+    } else {
+      url = state.explorerMode === "shows" ? "/tvshows" : "/movies";
+    }
+  } else if (targetView === "explorer") {
     url = state.explorerMode === "shows" ? "/tvshows" : "/movies";
   } else if (targetView === "settings") {
     url = `/settings/${legacyImporterView ? "importer" : state.activeSettingsTab}`;
@@ -1736,7 +1864,17 @@ function selectView(view) {
   } else if (targetView !== "dashboard") {
     url = `/${targetView}`;
   }
-  navigateTo(url);
+  
+  if (window.location.pathname.startsWith("/person/")) {
+    url = window.location.pathname;
+  }
+  
+  const currentUrl = window.location.pathname + window.location.hash;
+  if (currentUrl !== url) {
+    navigateTo(url);
+  } else {
+    applyActiveView();
+  }
 }
 
 function selectSettingsTab(tab) {
@@ -2406,7 +2544,20 @@ function renderMonthChart() {
     .join("");
 }
 
+function syncExplorerControlsState() {
+  const backBtn = document.querySelector("#explorerBackButton");
+  const controls = document.querySelector(".explorer-controls");
+  if (state.mediaDetailInline) {
+    backBtn?.classList.remove("hidden");
+    controls?.classList.add("hidden");
+  } else {
+    backBtn?.classList.add("hidden");
+    controls?.classList.remove("hidden");
+  }
+}
+
 function renderExplorer() {
+  syncExplorerControlsState();
   for (const button of elements.explorerButtons) {
     button.classList.toggle("active", button.dataset.explorerMode === state.explorerMode);
   }
@@ -3234,17 +3385,24 @@ async function openShowImmersiveModalByTitle(showTitle, seedEpisode = null) {
       episodes: [{ ...seedEpisode, show_title: showTitle }],
     };
     state.showsRaw.push(show);
-    renderImmersiveShowModal(slug(show.title), requestedSeason);
-  } else if (!show) {
-    elements.debugModal.classList.remove("hidden");
-    document.body.style.overflow = "hidden";
-    const modalPanel = elements.debugModal.querySelector(".modal-panel");
-    if (modalPanel) {
-      modalPanel.classList.add("modal-panel--immersive");
+    if (state.mediaDetailInline) {
+      await openShowInlineDetail(slug(show.title), requestedSeason);
+    } else {
+      await renderImmersiveShowModal(slug(show.title), requestedSeason);
     }
-    elements.modalBody.innerHTML = `
+  } else if (!show) {
+    if (!state.mediaDetailInline) {
+      elements.debugModal.classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+      const modalPanel = elements.debugModal.querySelector(".modal-panel");
+      if (modalPanel) {
+        modalPanel.classList.add("modal-panel--immersive");
+      }
+    }
+    const root = mediaDetailRoot();
+    root.innerHTML = `
       <div class="immersive-container">
-        <button class="immersive-back-button" type="button">&larr; Back</button>
+        ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">&larr; Back</button>' : ''}
         <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
           <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading show details...</span>
         </div>
@@ -3266,12 +3424,19 @@ async function openShowImmersiveModalByTitle(showTitle, seedEpisode = null) {
     console.error("Failed to fetch show details by title", error);
   }
 
-  if (show && state.activeShowModalKey === showKey && !elements.debugModal.classList.contains("hidden")) {
-    await renderImmersiveShowModal(slug(show.title), requestedSeason || state.activeShowModalSeason);
-  } else if (!show && state.activeShowModalKey === showKey && !elements.debugModal.classList.contains("hidden")) {
-    elements.modalBody.innerHTML = `
+  const root = mediaDetailRoot();
+  const isModalOpen = state.mediaDetailInline || !elements.debugModal.classList.contains("hidden");
+
+  if (show && state.activeShowModalKey === showKey && isModalOpen) {
+    if (state.mediaDetailInline) {
+      await openShowInlineDetail(slug(show.title), requestedSeason || state.activeShowModalSeason);
+    } else {
+      await renderImmersiveShowModal(slug(show.title), requestedSeason || state.activeShowModalSeason);
+    }
+  } else if (!show && state.activeShowModalKey === showKey && isModalOpen) {
+    root.innerHTML = `
       <div class="immersive-container">
-        <button class="immersive-back-button" type="button">&larr; Back</button>
+        ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">&larr; Back</button>' : ''}
         <div style="display: flex; justify-content: center; align-items: center; min-height: 200px; flex-direction: column; gap: var(--space-2);">
           <span style="color: var(--danger); font-size: 1.1rem; font-weight: bold;">Show not found</span>
           <span style="color: var(--muted); font-size: 0.9rem;">Could not locate this TV series in the archive.</span>
@@ -3282,15 +3447,18 @@ async function openShowImmersiveModalByTitle(showTitle, seedEpisode = null) {
 }
 
 async function openImmersiveModal(id) {
-  elements.debugModal.classList.remove("hidden");
-  document.body.style.overflow = "hidden";
-  const modalPanel = elements.debugModal.querySelector(".modal-panel");
-  if (modalPanel) {
-    modalPanel.classList.add("modal-panel--immersive");
+  if (!state.mediaDetailInline) {
+    elements.debugModal.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+    const modalPanel = elements.debugModal.querySelector(".modal-panel");
+    if (modalPanel) {
+      modalPanel.classList.add("modal-panel--immersive");
+    }
   }
-  elements.modalBody.innerHTML = `
+  const root = mediaDetailRoot();
+  root.innerHTML = `
     <div class="immersive-container media-detail-page">
-      <button class="immersive-back-button" type="button">← Back</button>
+      ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">← Back</button>' : ''}
       <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
         <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading details...</span>
       </div>
@@ -3311,9 +3479,9 @@ async function openImmersiveModal(id) {
   }
 
   if (!entry) {
-    elements.modalBody.innerHTML = `
+    root.innerHTML = `
       <div class="immersive-container">
-        <button class="immersive-back-button" type="button">← Back</button>
+        ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">← Back</button>' : ''}
         <div style="display: flex; justify-content: center; align-items: center; min-height: 200px; flex-direction: column; gap: var(--space-2);">
           <span style="color: var(--danger); font-size: 1.1rem; font-weight: bold;">Content not found</span>
           <span style="color: var(--muted); font-size: 0.9rem;">Could not locate this watch history record.</span>
@@ -3976,7 +4144,7 @@ function renderShowModalContent(show, {
           const syncStatusDotHtml = episode.watched ? renderSyncStatusDot(episode.watched) : "";
           const episodeIsUnreleased = isUnreleased(episode);
           return `
-            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""}>
+            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
               ${episodeThumbMarkup(episode)}
               <div class="immersive-episode-copy">
                 <div class="immersive-episode-title-row">
@@ -4094,7 +4262,40 @@ async function renderImmersiveShowModal(showKey, activeSeasonNum = null, activeE
   const root = mediaDetailRoot();
 
   let show = state.showsRaw.find((s) => slug(s.title) === showKey);
-  if (!show) return;
+  if (!show) {
+    root.innerHTML = `
+      <div class="modal-backdrop-image"></div>
+      <div class="immersive-container media-detail-page">
+        <div class="empty-log">
+          <b>Loading show details...</b>
+          <span>Loading TV series history.</span>
+        </div>
+      </div>
+    `;
+    try {
+      const response = await fetch(`/api/show?id=${encodeURIComponent(showKey)}`, { headers: authHeaders() });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok && body.show) {
+        show = body.show;
+        state.showsRaw.push(show);
+      }
+    } catch (error) {
+      console.error("Failed to load show detail on direct link", error);
+    }
+  }
+
+  if (!show) {
+    root.innerHTML = `
+      <div class="modal-backdrop-image"></div>
+      <div class="immersive-container media-detail-page">
+        <div class="empty-log">
+          <b style="color: var(--danger);">TV Show Not Found</b>
+          <span>Could not locate the series "${escapeHtml(showKey)}" in your archive.</span>
+        </div>
+      </div>
+    `;
+    return;
+  }
 
   if (!Array.isArray(show.episodes) || !show.episodes.length) {
     root.innerHTML = `
@@ -4839,12 +5040,7 @@ function prepareInlineMediaDetail(mode = state.explorerMode || "movies") {
   document.querySelector(".explorer-controls")?.classList.add("hidden");
 }
 
-function closeMediaDetail() {
-  if (!state.mediaDetailInline) {
-    closeDebugModal();
-    return;
-  }
-  state.mediaDetailInline = false;
+function clearMediaDetailState() {
   state.activeShowModalKey = null;
   state.activeShowModalSeason = null;
   state.activeShowModalEpisode = null;
@@ -4853,6 +5049,24 @@ function closeMediaDetail() {
   state.showModalEpisodeIndex = new Map();
   state.pendingWatchAction = null;
   state.activeMovieModalId = null;
+}
+
+function closeMediaDetail() {
+  if (window.location.pathname.startsWith("/person/")) {
+    if (window.history.length > 1) {
+      history.back();
+      return;
+    } else {
+      navigateTo("/");
+      return;
+    }
+  }
+  if (!state.mediaDetailInline) {
+    closeDebugModal();
+    return;
+  }
+  state.mediaDetailInline = false;
+  clearMediaDetailState();
   document.querySelector("#explorerBackButton")?.classList.add("hidden");
   document.querySelector(".explorer-controls")?.classList.remove("hidden");
   state.explorerMode = state.mediaDetailReturnExplorerMode || state.explorerMode || "movies";
@@ -6146,19 +6360,13 @@ function attachEvents() {
 
   if (elements.closePersonModalButton) {
     elements.closePersonModalButton.addEventListener("click", () => {
-      elements.personModal.classList.add("hidden");
-      if (elements.debugModal.classList.contains("hidden")) {
-        document.body.style.overflow = "";
-      }
+      closePersonProfile();
     });
   }
   if (elements.personModal) {
     elements.personModal.addEventListener("click", (event) => {
       if (event.target === elements.personModal) {
-        elements.personModal.classList.add("hidden");
-        if (elements.debugModal.classList.contains("hidden")) {
-          document.body.style.overflow = "";
-        }
+        closePersonProfile();
       }
     });
   }
@@ -6181,10 +6389,7 @@ function attachEvents() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       if (elements.personModal && !elements.personModal.classList.contains("hidden")) {
-        elements.personModal.classList.add("hidden");
-        if (elements.debugModal.classList.contains("hidden")) {
-          document.body.style.overflow = "";
-        }
+        closePersonProfile();
       } else {
         closeMediaDetail();
       }
@@ -6268,15 +6473,27 @@ function attachEvents() {
     if (seasonCard) {
       const seasonNum = Number(seasonCard.dataset.immersiveSeasonNum);
       if (state.activeShowModalKey) {
-        if (state.mediaDetailInline) openShowInlineDetail(state.activeShowModalKey, seasonNum);
-        else renderImmersiveShowModal(state.activeShowModalKey, seasonNum);
+        navigateTo(`/tvshow/${state.activeShowModalKey}#season${seasonNum}`);
+      }
+      return;
+    }
+
+    const episodeRow = event.target.closest("[data-immersive-episode-num]");
+    if (episodeRow) {
+      if (event.target.closest("button") || event.target.closest("a") || event.target.closest(".avail-pill")) {
+        return;
+      }
+      const episodeNum = Number(episodeRow.dataset.immersiveEpisodeNum);
+      const seasonNum = Number(episodeRow.dataset.immersiveSeasonNum);
+      if (state.activeShowModalKey) {
+        navigateTo(`/tvshow/${state.activeShowModalKey}#season${seasonNum}ep${episodeNum}`);
       }
       return;
     }
 
     const recMovieCard = event.target.closest("[data-immersive-movie-id]");
     if (recMovieCard) {
-      openRecommendedMovieInlineDetail(recMovieCard.dataset.immersiveMovieId).catch((error) => setMessage(error.message, "error"));
+      navigateTo(`/movie/tmdb/${recMovieCard.dataset.immersiveMovieId}`);
       return;
     }
 
@@ -6304,12 +6521,19 @@ function attachEvents() {
           const seasonNum = entry.season != null ? Number(entry.season) : parsedSeason;
           const episodeNum = entry.episode != null ? Number(entry.episode) : parsedEpisode;
 
-          openShowInlineDetail(showKeySlug, seasonNum, episodeNum).catch((error) => setMessage(error.message, "error"));
+          let url = `/tvshow/${showKeySlug}`;
+          if (seasonNum !== null) {
+            url += `#season${seasonNum}`;
+            if (episodeNum !== null) {
+              url += `ep${episodeNum}`;
+            }
+          }
+          navigateTo(url);
         }
       } else {
         const isMovieCard = event.target.closest(".movie-card");
         if (isMovieCard) {
-          openMovieInlineDetail(historyRow.dataset.historyId).catch((error) => setMessage(error.message, "error"));
+          navigateTo(`/movie/${historyRow.dataset.historyId}`);
         } else {
           openHistoryDebugModal(historyRow.dataset.historyId).catch((error) => setMessage(error.message, "error"));
         }
@@ -6319,7 +6543,7 @@ function attachEvents() {
 
     const showTrigger = event.target.closest("[data-show-key]");
     if (showTrigger) {
-      openShowInlineDetail(showTrigger.dataset.showKey).catch((error) => setMessage(error.message, "error"));
+      navigateTo(`/tvshow/${showTrigger.dataset.showKey}`);
       return;
     }
 
@@ -6327,8 +6551,15 @@ function attachEvents() {
     if (seasonTrigger) {
       toggleSet(state.expandedSeasons, seasonTrigger.dataset.seasonKey);
       if (state.activeShowModalKey) {
-        if (state.mediaDetailInline) openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason);
-        else renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+        if (state.mediaDetailInline) {
+          let url = `/tvshow/${state.activeShowModalKey}`;
+          if (state.activeShowModalSeason !== null) {
+            url += `#season${state.activeShowModalSeason}`;
+          }
+          navigateTo(url);
+        } else {
+          renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+        }
       } else {
         renderExplorer();
       }
@@ -6537,7 +6768,7 @@ function attachEvents() {
   });
 
   window.addEventListener("popstate", () => {
-    handleRouting(window.location.pathname);
+    handleRouting(window.location.pathname + window.location.hash);
     applyActiveView();
   });
 
@@ -6559,9 +6790,9 @@ function attachEvents() {
 }
 
 function initialize() {
-  handleRouting(window.location.pathname);
-  bootstrapTokenFromUrl();
   bindElements();
+  bootstrapTokenFromUrl();
+  handleRouting(window.location.pathname + window.location.hash);
   attachEvents();
   const savedWidth = localStorage.getItem("explorer_poster_width") || "160px";
   document.documentElement.style.setProperty("--poster-width", savedWidth);
@@ -6591,6 +6822,31 @@ function initialize() {
     state.authReady = true;
     state.firebaseUser = user || undefined;
     state.token = token || "";
+    if (user && token) {
+      for (const [key, value] of state.posterLookupCache.entries()) {
+        if (!value) state.posterLookupCache.delete(key);
+      }
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("plembfin:posterLookupCache:v2")) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                const cleaned = parsed.filter(item => item.url);
+                localStorage.setItem(key, JSON.stringify(cleaned));
+              }
+            }
+          }
+        }
+      } catch (e) {}
+
+      const fullPath = window.location.pathname + window.location.hash;
+      if (fullPath.startsWith("/movie/") || fullPath.startsWith("/tvshow/") || fullPath.startsWith("/person/")) {
+        handleRouting(fullPath);
+      }
+    }
     if (user && token && !state.configLoaded) {
       elements.settingsToken.value = user.email || "";
       localStorage.setItem("firebaseAdminEmail", user.email || "");
@@ -6665,7 +6921,7 @@ window.playTrailer = function(el, videoKey, videoName) {
       }
     });
   }
-  el.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoKey}?autoplay=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;"></iframe>`;
+  el.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoKey}?autoplay=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;"></iframe>`;
 };
 
 async function runRefreshMetadataWorkflow() {
@@ -6773,29 +7029,60 @@ async function runRefreshMetadataWorkflow() {
   }
 }
 
-window.showCastMemberDetails = async function(personId, personName) {
-  const modal = elements.personModal;
-  const modalTitle = elements.personModalTitle;
-  const modalBody = elements.personModalBody;
-  
-  if (!modal || !modalBody) return;
-  
-  if (modalTitle) modalTitle.textContent = personName || "Cast Member Profile";
-  modalBody.innerHTML = `
+window.showCastMemberDetails = function(personId, personName) {
+  navigateTo(`/person/${personId}`);
+};
+
+function closePersonProfile() {
+  if (elements.personModal) {
+    elements.personModal.classList.add("hidden");
+  }
+  document.body.style.overflow = "";
+  if (window.location.pathname.startsWith("/person/")) {
+    if (window.history.length > 1) {
+      history.back();
+    } else {
+      navigateTo("/");
+    }
+  }
+}
+
+async function loadCastMemberDetails(personId, personName = null) {
+  if (elements.personModal) {
+    elements.personModal.classList.add("hidden");
+  }
+  document.body.style.overflow = "";
+
+  state.activeView = "explorer";
+  state.mediaDetailInline = true;
+
+  prepareInlineMediaDetail(state.explorerMode || "shows");
+
+  const root = mediaDetailRoot();
+
+  if (elements.explorerTitle) {
+    elements.explorerTitle.textContent = personName || "Cast Member Profile";
+  }
+  if (elements.explorerSubtitle) {
+    elements.explorerSubtitle.textContent = "Cast Member Biography and Filmography";
+  }
+
+  root.innerHTML = `
     <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
       <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading profile...</span>
     </div>
   `;
-  modal.classList.remove("hidden");
-  document.body.style.overflow = "hidden";
   
   try {
     const res = await fetch(`/api/tmdb-person?id=${personId}`, { headers: authHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     
-    const castCredits = (data.combined_credits?.cast || []).sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+    if (elements.explorerTitle) {
+      elements.explorerTitle.textContent = data.name || "Cast Member Profile";
+    }
     
+    const castCredits = (data.combined_credits?.cast || []).sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
     const profileUrl = data.profile_path ? `https://image.tmdb.org/t/p/h632${data.profile_path}` : '/favicon.svg';
     
     let creditsHtml = "";
@@ -6826,7 +7113,7 @@ window.showCastMemberDetails = async function(personId, personName) {
           `;
         } else {
           return `
-            <div class="person-credit-card in-library" onclick="window.openLibraryItem('${credit.media_type}', null, '${escapeAttribute(title)}', false, '${credit.id}');">
+            <div class="person-credit-card" onclick="window.openLibraryItem('${credit.media_type}', null, '${escapeAttribute(title)}', false, '${credit.id}');">
               <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
               <div class="person-credit-info">
                 <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
@@ -6839,8 +7126,8 @@ window.showCastMemberDetails = async function(personId, personName) {
       }).join("");
     }
     
-    modalBody.innerHTML = `
-      <div class="person-profile-container">
+    root.innerHTML = `
+      <div class="person-profile-container" style="padding-top: var(--space-4);">
         <div class="person-profile-sidebar">
           <img class="person-profile-img" src="${escapeAttribute(profileUrl)}" alt="${escapeAttribute(data.name)}" onerror="this.src='/favicon.svg';" />
           <div class="person-profile-meta">
@@ -6867,7 +7154,7 @@ window.showCastMemberDetails = async function(personId, personName) {
           ${data.biography ? `
           <div class="person-biography-section">
             <h3>Biography</h3>
-            <p class="person-biography-text">${escapeHtml(data.biography)}</p>
+            <p class="person-biography-text" style="white-space: pre-wrap;">${escapeHtml(data.biography)}</p>
           </div>
           ` : '<p class="muted-copy">No biography available for this cast member.</p>'}
           
@@ -6882,14 +7169,14 @@ window.showCastMemberDetails = async function(personId, personName) {
     `;
     
   } catch (err) {
-    modalBody.innerHTML = `
+    root.innerHTML = `
       <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 200px; gap: 1rem;">
         <span class="status-pill status-error" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Failed to load profile</span>
         <span style="color: var(--muted);">${escapeHtml(err.message)}</span>
       </div>
     `;
   }
-};
+}
 
 window.openLibraryItem = function(mediaType, idOrKey, title, isLibraryItem = true, tmdbId = null) {
   const modal = elements.personModal;
@@ -6897,23 +7184,15 @@ window.openLibraryItem = function(mediaType, idOrKey, title, isLibraryItem = tru
   
   if (isLibraryItem) {
     if (mediaType === "show" || mediaType === "tv") {
-      if (state.mediaDetailInline) {
-        openShowInlineDetail(idOrKey).catch((error) => setMessage(error.message, "error"));
-      } else {
-        renderImmersiveShowModal(idOrKey).catch((error) => setMessage(error.message, "error"));
-      }
+      navigateTo(`/tvshow/${idOrKey}`);
     } else if (mediaType === "movie") {
-      if (state.mediaDetailInline) {
-        openMovieInlineDetail(idOrKey).catch((error) => setMessage(error.message, "error"));
-      } else {
-        openMovieImmersiveModal(idOrKey).catch((error) => setMessage(error.message, "error"));
-      }
+      navigateTo(`/movie/${idOrKey}`);
     }
   } else {
     if (mediaType === "show" || mediaType === "tv") {
-      openShowImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
+      navigateTo(`/tvshow/tmdb/${tmdbId}`);
     } else if (mediaType === "movie") {
-      openMovieImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
+      navigateTo(`/movie/tmdb/${tmdbId}`);
     }
   }
 

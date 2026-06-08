@@ -167,12 +167,12 @@
 
         <section class="view-panel hidden" data-view-panel="explorer">
           <section class="glass-panel p-section">
-            <div class="section-heading explorer-heading">
-              <div class="explorer-heading-title" style="display: flex; align-items: center; gap: 0.8rem;">
-                <button id="explorerBackButton" class="immersive-back-button hidden" type="button" style="border: 1px solid var(--line-strong); border-radius: 999px; background: rgba(7, 10, 13, 0.72); color: var(--text); padding: 0.45rem 0.8rem; font-weight: 800; display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">&larr; Back</button>
-                <div style="display: flex; flex-direction: column;">
-                  <p id="explorerTitle">Movies</p>
-                  <span id="explorerSubtitle">Library view from watched history</span>
+            <div class="section-heading explorer-heading" style="padding-top: 0.25rem; padding-bottom: 0.25rem;">
+              <div class="explorer-heading-title" style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
+                <button id="explorerBackButton" class="immersive-back-button hidden" type="button" style="border: 1px solid var(--line-strong); border-radius: 999px; background: rgba(7, 10, 13, 0.72); color: var(--text); padding: 0.35rem 0.65rem; font-weight: 800; display: flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.75rem; min-height: 1.8rem;">&larr; Back</button>
+                <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+                  <p id="explorerTitle" style="margin: 0; font-weight: 850; font-size: 0.95rem; line-height: 1.2;">Movies</p>
+                  <span id="explorerSubtitle" style="color: var(--muted); font-size: 0.74rem;">Library view from watched history</span>
                 </div>
               </div>
               <div class="explorer-controls">
@@ -622,8 +622,8 @@
       </article>
     </div>
 
-    <div id="personModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="personModalTitle" style="z-index: 60;">
-      <article class="modal-panel glass-panel" style="max-width: 1400px; width: 95%; height: 90vh; max-height: 90vh; background: var(--bg) !important; border: 1px solid var(--line-strong) !important; box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6) !important; display: flex !important; flex-direction: column !important; overflow: hidden !important;">
+    <div id="personModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="personModalTitle">
+      <article class="modal-panel glass-panel">
         <div class="modal-head" style="border-bottom: 1px solid var(--line); padding-bottom: 0.75rem; flex: 0 0 auto;">
           <div>
             <p class="eyebrow">Cast Member Profile</p>
