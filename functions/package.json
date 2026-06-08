@@ -12,6 +12,7 @@
     "firebase-admin": "^13.0.0",
     "firebase-functions": "^6.0.0",
     "plembfinfire": "file:..",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "undici": "^8.4.1"
   }
 }
