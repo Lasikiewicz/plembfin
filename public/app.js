@@ -1717,6 +1717,10 @@ function handleRouting(path) {
     loadCastMemberDetails(personId).catch((error) => console.error("Error loading cast member", error));
   } else if (movieTmdbMatch) {
     const tmdbId = movieTmdbMatch[1];
+    if (!state.mediaDetailInline) {
+      state.mediaDetailReturnView = state.activeView || "dashboard";
+      state.mediaDetailReturnExplorerMode = state.explorerMode || "movies";
+    }
     state.activeView = "explorer";
     state.explorerMode = "movies";
     state.mediaDetailInline = true;
@@ -1737,6 +1741,10 @@ function handleRouting(path) {
       seasonNum = tvshowTmdbMatch[2] ? Number(tvshowTmdbMatch[2]) : null;
       episodeNum = tvshowTmdbMatch[3] ? Number(tvshowTmdbMatch[3]) : null;
     }
+    if (!state.mediaDetailInline) {
+      state.mediaDetailReturnView = state.activeView || "dashboard";
+      state.mediaDetailReturnExplorerMode = state.explorerMode || "shows";
+    }
     state.activeView = "explorer";
     state.explorerMode = "shows";
     state.mediaDetailInline = true;
@@ -1746,6 +1754,10 @@ function handleRouting(path) {
     openShowImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
   } else if (movieMatch) {
     const movieId = movieMatch[1];
+    if (!state.mediaDetailInline) {
+      state.mediaDetailReturnView = state.activeView || "dashboard";
+      state.mediaDetailReturnExplorerMode = state.explorerMode || "movies";
+    }
     state.activeView = "explorer";
     state.explorerMode = "movies";
     state.mediaDetailInline = true;
@@ -1765,6 +1777,10 @@ function handleRouting(path) {
     if (seasonNum === null) {
       seasonNum = tvshowMatch[2] ? Number(tvshowMatch[2]) : null;
       episodeNum = tvshowMatch[3] ? Number(tvshowMatch[3]) : null;
+    }
+    if (!state.mediaDetailInline) {
+      state.mediaDetailReturnView = state.activeView || "dashboard";
+      state.mediaDetailReturnExplorerMode = state.explorerMode || "shows";
     }
     state.activeView = "explorer";
     state.explorerMode = "shows";
