@@ -560,7 +560,7 @@ async function handleManualWatch(req, res) {
       const media = manualWatchMediaFromRecord(record);
       let id = "";
       if (existing.empty) {
-        const insertResult = await insertWatchRecord(requireDb(), record);
+        const insertResult = await insertWatchRecord(requireDb(), record, { skipInvalidate: true });
         id = insertResult.id;
         inserted += 1;
       } else {
@@ -568,7 +568,7 @@ async function handleManualWatch(req, res) {
         skipped += 1;
       }
 
-      await upsertPlaystateForMedia(requireDb(), media, "watched", record.watched_at);
+      await upsertPlaystateForMedia(requireDb(), media, "watched", record.watched_at, { skipInvalidate: true });
       const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
         skipped: false,
         status: "error",
@@ -576,7 +576,7 @@ async function handleManualWatch(req, res) {
         targetStates: [],
       }));
 
-      await updateWatchTelemetry(requireDb(), id, formatDispatchTelemetry(summary, media, "watched"));
+      await updateWatchTelemetry(requireDb(), id, formatDispatchTelemetry(summary, media, "watched"), { skipInvalidate: true });
       await recordSyncHistory(media, summary, "watched");
       if (summary.status === "success" || summary.status === "partial") propagated += 1;
       results.push({ index, id, title: record.title, inserted: existing.empty, status: summary.status, targetStates: summary.targetStates || [] });
@@ -585,6 +585,8 @@ async function handleManualWatch(req, res) {
       results.push({ index, rejected: true, error: error.message || String(error) });
     }
   }
+
+  await invalidateHistoryDerivedCaches().catch(() => null);
 
   return sendJson(res, { ok: true, inserted, skipped, rejected, propagated, results });
 }
@@ -981,7 +983,7 @@ async function handleWebhook(req, res) {
 
           if (media.phase === "unplayed") {
             await deleteActiveSession(null, episodeMedia).catch(() => null);
-            const wasDeleted = await deleteWatchRecord(requireDb(), episodeMedia).catch((error) => {
+            const wasDeleted = await deleteWatchRecord(requireDb(), episodeMedia, { skipInvalidate: true }).catch((error) => {
               console.error("Failed to delete watch record from Firestore", error);
               return false;
             });
@@ -990,15 +992,15 @@ async function handleWebhook(req, res) {
             const unplayedRecord = mediaToWatchRecord({ ...episodeMedia, syncAction: "unwatched" }, episodeMedia.source);
             unplayedRecord.sync_action = "unwatched";
             unplayedRecord.sync_dispatch_telemetry = formatDispatchTelemetry(pendingSummary, episodeMedia, "unwatched");
-            const dbResult = await insertWatchRecord(requireDb(), unplayedRecord);
-            await upsertPlaystateForMedia(requireDb(), episodeMedia, "unwatched", dbResult.record.watched_at);
+            const dbResult = await insertWatchRecord(requireDb(), unplayedRecord, { skipInvalidate: true });
+            await upsertPlaystateForMedia(requireDb(), episodeMedia, "unwatched", dbResult.record.watched_at, { skipInvalidate: true });
             const summary = await syncMediaUnplayedPlaystate(episodeMedia, config, loopStore).catch((error) => ({
               skipped: false,
               status: "error",
               details: `Unwatched propagation failed: ${error.message || String(error)}`,
               targetStates: [],
             }));
-            await updateWatchTelemetry(requireDb(), dbResult.id, formatDispatchTelemetry(summary, episodeMedia, "unwatched"));
+            await updateWatchTelemetry(requireDb(), dbResult.id, formatDispatchTelemetry(summary, episodeMedia, "unwatched"), { skipInvalidate: true });
             await recordSyncHistory(episodeMedia, summary, "unwatched");
             results.push({ episodeId: ep.Id, title: episodeMedia.title, success: summary.status === "success" || summary.status === "partial" });
           } else {
@@ -1006,15 +1008,15 @@ async function handleWebhook(req, res) {
             const watchRecord = mediaToWatchRecord(episodeMedia, episodeMedia.source);
             watchRecord.sync_action = "watched";
             watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, episodeMedia, "watched");
-            const dbResult = await insertWatchRecord(requireDb(), watchRecord);
-            await upsertPlaystateForMedia(requireDb(), episodeMedia, "watched", dbResult.record.watched_at);
+            const dbResult = await insertWatchRecord(requireDb(), watchRecord, { skipInvalidate: true });
+            await upsertPlaystateForMedia(requireDb(), episodeMedia, "watched", dbResult.record.watched_at, { skipInvalidate: true });
             const summary = await syncMediaPlaystate(episodeMedia, config, loopStore).catch((error) => ({
               skipped: false,
               status: "error",
               details: `Propagation failed: ${error.message || String(error)}`,
               targetStates: [],
             }));
-            await updateWatchTelemetry(requireDb(), dbResult.id, formatDispatchTelemetry(summary, episodeMedia, "watched"));
+            await updateWatchTelemetry(requireDb(), dbResult.id, formatDispatchTelemetry(summary, episodeMedia, "watched"), { skipInvalidate: true });
             await recordSyncHistory(episodeMedia, summary, "watched");
             await deletePlaybackProgress(requireDb(), episodeMedia).catch(() => null);
             results.push({ episodeId: ep.Id, title: episodeMedia.title, success: summary.status === "success" || summary.status === "partial" });
@@ -1025,6 +1027,8 @@ async function handleWebhook(req, res) {
         }
       })
     );
+
+    await invalidateHistoryDerivedCaches().catch(() => null);
 
     return sendJson(res, {
       ok: true,
@@ -1070,8 +1074,9 @@ async function handleWebhook(req, res) {
   }
 
   if (media.phase === "unplayed") {
+    try {
     await deleteActiveSession(null, media);
-    const wasDeleted = await deleteWatchRecord(requireDb(), media).catch((error) => {
+    const wasDeleted = await deleteWatchRecord(requireDb(), media, { skipInvalidate: true }).catch((error) => {
       console.error("Failed to delete watch record from Firestore", error);
       return false;
     });
@@ -1081,17 +1086,20 @@ async function handleWebhook(req, res) {
     const unplayedRecord = mediaToWatchRecord({ ...media, syncAction: "unwatched" }, media.source);
     unplayedRecord.sync_action = "unwatched";
     unplayedRecord.sync_dispatch_telemetry = formatDispatchTelemetry(pendingSummary, media, "unwatched");
-    const result = await insertWatchRecord(requireDb(), unplayedRecord);
-    await upsertPlaystateForMedia(requireDb(), media, "unwatched", result.record.watched_at);
+    const result = await insertWatchRecord(requireDb(), unplayedRecord, { skipInvalidate: true });
+    await upsertPlaystateForMedia(requireDb(), media, "unwatched", result.record.watched_at, { skipInvalidate: true });
     const summary = await syncMediaUnplayedPlaystate(media, config, loopStore).catch((error) => ({
       skipped: false,
       status: "error",
       details: `Unwatched propagation failed: ${error.message || String(error)}`,
       targetStates: [],
     }));
-    await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "unwatched"));
+    await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "unwatched"), { skipInvalidate: true });
     await recordSyncHistory(media, summary, "unwatched");
     return sendJson(res, { ok: true, deleted: wasDeleted, unplayed: true, inserted: true, id: result.id, ...(wasDeleted ? {} : { reason: "No previous watched record found to delete" }) });
+    } finally {
+      await invalidateHistoryDerivedCaches().catch(() => null);
+    }
   }
 
   try {
@@ -1099,8 +1107,8 @@ async function handleWebhook(req, res) {
     const watchRecord = mediaToWatchRecord(media, media.source);
     watchRecord.sync_action = "watched";
     watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, media, "watched");
-    const result = await insertWatchRecord(requireDb(), watchRecord);
-    await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at);
+    const result = await insertWatchRecord(requireDb(), watchRecord, { skipInvalidate: true });
+    await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at, { skipInvalidate: true });
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
     const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
       skipped: false,
@@ -1108,12 +1116,14 @@ async function handleWebhook(req, res) {
       details: `Propagation failed: ${error.message || String(error)}`,
       targetStates: [],
     }));
-    await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "watched"));
+    await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "watched"), { skipInvalidate: true });
     await recordSyncHistory(media, summary, "watched");
     await deletePlaybackProgress(requireDb(), media).catch(() => null);
+    await invalidateHistoryDerivedCaches().catch(() => null);
     return sendJson(res, { ok: true, inserted: true, id: result.id, record: result.record });
   } catch (error) {
     console.error("Webhook Firestore insert failed", error);
+    await invalidateHistoryDerivedCaches().catch(() => null);
     return sendJson(res, { error: "Webhook insert failed", details: error.message }, 500);
   }
 }

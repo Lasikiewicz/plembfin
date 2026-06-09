@@ -856,15 +856,53 @@ function readPersistentPosterCache() {
   }
 }
 
-function writePersistentPosterCache(entries) {
+// In-memory mirror of the persisted poster cache so each poster resolution
+// doesn't pay a full localStorage JSON parse/stringify round trip. Writes are
+// debounced and flushed when the page is hidden or unloaded.
+let posterCacheMirror = null;
+let posterCacheFlushTimer = null;
+
+function flushPosterCacheMirror() {
+  if (posterCacheFlushTimer) {
+    clearTimeout(posterCacheFlushTimer);
+    posterCacheFlushTimer = null;
+  }
+  if (!posterCacheMirror) return;
   try {
-    localStorage.setItem(persistentPosterCacheKey(), JSON.stringify({ entries }));
+    localStorage.setItem(posterCacheMirror.key, JSON.stringify({ entries: posterCacheMirror.entries }));
   } catch (error) {
     // Poster storage is best-effort; missing entries can still resolve through the API.
   }
 }
 
+function schedulePosterCacheFlush() {
+  if (posterCacheFlushTimer) return;
+  posterCacheFlushTimer = setTimeout(() => {
+    posterCacheFlushTimer = null;
+    flushPosterCacheMirror();
+  }, 500);
+}
+
+function posterCacheEntries() {
+  const key = persistentPosterCacheKey();
+  if (!posterCacheMirror || posterCacheMirror.key !== key) {
+    flushPosterCacheMirror();
+    posterCacheMirror = { key, entries: readPersistentPosterCache() };
+  }
+  return posterCacheMirror.entries;
+}
+
+window.addEventListener("pagehide", flushPosterCacheMirror);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") flushPosterCacheMirror();
+});
+
 function clearPersistentPosterLookupCache() {
+  if (posterCacheFlushTimer) {
+    clearTimeout(posterCacheFlushTimer);
+    posterCacheFlushTimer = null;
+  }
+  posterCacheMirror = null;
   try {
     localStorage.removeItem(persistentPosterCacheKey());
   } catch (error) {}
@@ -875,16 +913,19 @@ function cachedPosterLookup(posterId) {
   if (state.posterLookupCache.has(posterId)) return state.posterLookupCache.get(posterId) || "";
 
   const now = Date.now();
-  const entries = readPersistentPosterCache().filter((entry) => now - Number(entry.savedAt || 0) <= POSTER_LOOKUP_PERSISTED_CACHE_TTL_MS);
-  const cached = entries.find((entry) => entry.id === posterId);
-  if (!cached) {
-    if (entries.length) writePersistentPosterCache(entries);
-    return undefined;
+  const allEntries = posterCacheEntries();
+  const entries = allEntries.filter((entry) => now - Number(entry.savedAt || 0) <= POSTER_LOOKUP_PERSISTED_CACHE_TTL_MS);
+  if (entries.length !== allEntries.length) {
+    posterCacheMirror.entries = entries;
+    schedulePosterCacheFlush();
   }
+  const cached = entries.find((entry) => entry.id === posterId);
+  if (!cached) return undefined;
 
   const url = typeof cached.url === "string" && isCachedStorageImageUrl(cached.url) ? cached.url : "";
   if (cached.url && !url) {
-    writePersistentPosterCache(entries.filter((entry) => entry.id !== posterId));
+    posterCacheMirror.entries = entries.filter((entry) => entry.id !== posterId);
+    schedulePosterCacheFlush();
     return undefined;
   }
   state.posterLookupCache.set(posterId, url);
@@ -897,12 +938,15 @@ function rememberPosterLookup(posterId, posterUrl) {
   const savedAt = Date.now();
   state.posterLookupCache.set(posterId, url);
 
-  const entries = readPersistentPosterCache()
+  const entries = posterCacheEntries()
     .filter((entry) => entry.id !== posterId && savedAt - Number(entry.savedAt || 0) <= POSTER_LOOKUP_PERSISTED_CACHE_TTL_MS)
-    .concat({ id: posterId, url, savedAt })
-    .sort((a, b) => Number(b.savedAt || 0) - Number(a.savedAt || 0))
-    .slice(0, POSTER_LOOKUP_PERSISTED_CACHE_LIMIT);
-  writePersistentPosterCache(entries);
+    .concat({ id: posterId, url, savedAt });
+  if (entries.length > POSTER_LOOKUP_PERSISTED_CACHE_LIMIT) {
+    entries.sort((a, b) => Number(b.savedAt || 0) - Number(a.savedAt || 0));
+    entries.length = POSTER_LOOKUP_PERSISTED_CACHE_LIMIT;
+  }
+  posterCacheMirror.entries = entries;
+  schedulePosterCacheFlush();
 }
 
 function historyVersionFromRows(rows = []) {
@@ -1160,6 +1204,7 @@ async function hydratePosterFallbacks(container = document.body) {
 
     const image = document.createElement("img");
     image.className = fallback.className.replace(/\bposter-fallback\b/g, "").trim() || fallback.className;
+    bindPosterImageErrorHandler(image);
     image.src = posterUrl;
     image.alt = `${fallback.getAttribute("aria-label") || "Media poster"}`;
     image.loading = "lazy";
@@ -1167,7 +1212,6 @@ async function hydratePosterFallbacks(container = document.body) {
     image.referrerPolicy = "no-referrer";
     image.dataset.posterId = posterId;
     fallback.replaceWith(image);
-    hydratePosterImages(container);
   };
 
   const workers = Array.from({ length: Math.min(POSTER_LOOKUP_CONCURRENCY, fallbacks.length) }, async (_, workerIndex) => {
@@ -1179,30 +1223,34 @@ async function hydratePosterFallbacks(container = document.body) {
   await Promise.allSettled(workers);
 }
 
+function bindPosterImageErrorHandler(image) {
+  if (image.dataset.posterErrorBound) return;
+  image.dataset.posterErrorBound = "1";
+  image.addEventListener("error", async () => {
+    const posterId = image.dataset.posterId;
+    if (!posterId || image.dataset.posterFallbackAttempted === "1") {
+      if (posterId) state.posterLookupCache.set(posterId, "");
+      image.replaceWith(posterFallbackElement(image.className, posterId));
+      return;
+    }
+
+    image.dataset.posterFallbackAttempted = "1";
+    const brokenUrl = image.currentSrc || image.src;
+    const fallbackUrl = await lookupPosterUrl(posterId, { fallback: true });
+    if (fallbackUrl && fallbackUrl !== brokenUrl && image.isConnected) {
+      image.src = fallbackUrl;
+      return;
+    }
+
+    state.posterLookupCache.set(posterId, "");
+    if (image.isConnected) image.replaceWith(posterFallbackElement(image.className, posterId));
+  });
+}
+
 function hydratePosterImages(container = document.body) {
   if (!container) return;
   for (const image of container.querySelectorAll("img[data-poster-id]")) {
-    if (image.dataset.posterErrorBound) continue;
-    image.dataset.posterErrorBound = "1";
-    image.addEventListener("error", async () => {
-      const posterId = image.dataset.posterId;
-      if (!posterId || image.dataset.posterFallbackAttempted === "1") {
-        if (posterId) state.posterLookupCache.set(posterId, "");
-        image.replaceWith(posterFallbackElement(image.className, posterId));
-        return;
-      }
-
-      image.dataset.posterFallbackAttempted = "1";
-      const brokenUrl = image.currentSrc || image.src;
-      const fallbackUrl = await lookupPosterUrl(posterId, { fallback: true });
-      if (fallbackUrl && fallbackUrl !== brokenUrl && image.isConnected) {
-        image.src = fallbackUrl;
-        return;
-      }
-
-      state.posterLookupCache.set(posterId, "");
-      if (image.isConnected) image.replaceWith(posterFallbackElement(image.className, posterId));
-    });
+    bindPosterImageErrorHandler(image);
   }
 }
 
@@ -1418,7 +1466,7 @@ function showAvailIssuePopup(anchorEl) {
     : "";
 
   popup.innerHTML = `
-    <button class="avail-issue-close" type="button" aria-label="Close">âœ•</button>
+    <button class="avail-issue-close" type="button" aria-label="Close">✕</button>
     <b class="avail-issue-headline">${escapeHtml(headline)}</b>
     ${stepsHtml ? `<p class="avail-issue-fix-label">Steps to fix:</p>${stepsHtml}` : ""}
   `;
@@ -1961,7 +2009,7 @@ function webhookWarning() {
           2. Emby Webhook Setup
         </h3>
         <ul style="padding-left: 1.2rem; margin: 0; display: grid; gap: 4px;">
-          <li>In Emby Server Settings âž” <b>Webhooks</b>, add a new webhook pointing to your Plembfin webhook URL.</li>
+          <li>In Emby Server Settings ➔ <b>Webhooks</b>, add a new webhook pointing to your Plembfin webhook URL.</li>
           <li>Under <b>Events</b>, check the following boxes:
             <ul style="padding-left: 1.2rem; margin-top: 2px;">
               <li><b>Playback</b>: Check <code>Start</code>, <code>Pause</code>, <code>Unpause</code>, and <code>Stop</code></li>
@@ -2080,19 +2128,19 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
               <button class="copy-button" type="button" data-copy="node scripts/exportPlexHistory.js" aria-label="Copy bash snippet">Copy</button>
               <pre><code>node scripts/exportPlexHistory.js</code></pre>
             </div>
-            ${terminalOutput(`ðŸš€ Initiating Local Plex History Extraction Engine...
-      âœ” Connection established to local server at http://127.0.0.1:32400
-      â„¹ Found 3 media library sections to process.
+            ${terminalOutput(`🚀 Initiating Local Plex History Extraction Engine...
+      ✔ Connection established to local server at http://127.0.0.1:32400
+      ℹ Found 3 media library sections to process.
 
       [1/3] Processing Section: "Movies" (ID: 1)
-      â†’ Found 450 watched titles. Streaming to Firebase in chunks...
-      â””â”€â”€ Chunks: [â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ] 100% | Sent 5/5 batches successfully.
+      → Found 450 watched titles. Streaming to Firebase in chunks...
+      └── Chunks: [██████████████████████████████] 100% | Sent 5/5 batches successfully.
 
       [2/3] Processing Section: "TV Shows" (ID: 2)
-      â†’ Traversing underlying episodes. Found 1,200 tracked played logs.
-      â””â”€â”€ Chunks: [â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ] 100% | Sent 12/12 batches successfully.
+      → Traversing underlying episodes. Found 1,200 tracked played logs.
+      └── Chunks: [██████████████████████████████] 100% | Sent 12/12 batches successfully.
 
-      ðŸŽ‰ [SUCCESS] Historic data migration finalized!
+      🎉 [SUCCESS] Historic data migration finalized!
       Total Rows Synced to Firestore Archive: 1,650 items.
       Ecosystem is fully synchronized and ready for live playback tracking.`)}
           </section>
@@ -2120,20 +2168,20 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
               <button class="copy-button" type="button" data-copy="node scripts/forcePushHistory.js" aria-label="Copy bash snippet">Copy</button>
               <pre><code>node scripts/forcePushHistory.js</code></pre>
             </div>
-            ${terminalOutput(`ðŸ”„ Initiating Central Database Outward Force-Push Matrix...
-      âœ” Fetched 1,650 master tracking history logs from website API.
-      â„¹ Mapping provider GUID parameters across target endpoints...
+            ${terminalOutput(`🔄 Initiating Central Database Outward Force-Push Matrix...
+      ✔ Fetched 1,650 master tracking history logs from website API.
+      ℹ Mapping provider GUID parameters across target endpoints...
 
-      [PROCESSING] Index: 001/1650 | 'Dimension 20 - S01E01' âž” Synchronizing...
-      â”œâ”€â”€ Plex Server Client API: [SKIPPED] (Already marked watched)
-      â”œâ”€â”€ Emby Server Client API: [SUCCESS] Item resolved (ID: 8849) âž” Sent PlayState HTTP 200 OK
-      â””â”€â”€ Jellyfin Server Client API: [SUCCESS] Cache-busted (ID: 9412) âž” Sent PlayState HTTP 200 OK
+      [PROCESSING] Index: 001/1650 | 'Dimension 20 - S01E01' ➔ Synchronizing...
+      ├── Plex Server Client API: [SKIPPED] (Already marked watched)
+      ├── Emby Server Client API: [SUCCESS] Item resolved (ID: 8849) ➔ Sent PlayState HTTP 200 OK
+      └── Jellyfin Server Client API: [SUCCESS] Cache-busted (ID: 9412) ➔ Sent PlayState HTTP 200 OK
 
-      â³ Applying 150ms structural rate-limit protection delay...
-      [PROCESSING] Index: 002/1650 | 'The Curse of Oak Island' âž” Synchronizing...
-      â””â”€â”€ Continuing batch redistribution across all configured servers.
+      ⏳ Applying 150ms structural rate-limit protection delay...
+      [PROCESSING] Index: 002/1650 | 'The Curse of Oak Island' ➔ Synchronizing...
+      └── Continuing batch redistribution across all configured servers.
 
-      ðŸŽ‰ [SUCCESS] Outward catch-up synchronization task completed across all servers!`)}
+      🎉 [SUCCESS] Outward catch-up synchronization task completed across all servers!`)}
           </section>
         `;
       }
@@ -4004,7 +4052,7 @@ function renderSeasonFolder(showKey, season, episodes) {
   return `
     <article class="season-card">
       <button class="season-trigger" type="button" data-season-key="${seasonKey}" aria-expanded="${expanded}">
-        <span class="accordion-chevron ${expanded ? "expanded" : ""}">â–¼</span>
+        <span class="accordion-chevron ${expanded ? "expanded" : ""}">▼</span>
         <b>Season ${String(season || "?").padStart(2, "0")}</b>
         <span>${episodes.length} watched episodes</span>
       </button>
@@ -4160,7 +4208,7 @@ async function testConnection(type, button) {
     body = await response.json().catch(() => ({}));
   } catch (error) {
     const message = `${label} fetch failed. Reason: FETCH_FAILED (${error?.message || "request could not be sent"})`;
-    setConnectionButton(button, `âœ˜ Failed`, "error");
+    setConnectionButton(button, `✘ Failed`, "error");
     setConnectionStatus(type, message, "error");
     logDebug(message);
     return;
@@ -4171,7 +4219,7 @@ async function testConnection(type, button) {
   logDebug(`${label} test-connection endpoint returned HTTP ${response.status}`, body);
 
   if (response.ok && body.ok) {
-    const message = `âœ” Connected (HTTP ${body.status || response.status})`;
+    const message = `✔ Connected (HTTP ${body.status || response.status})`;
     setConnectionButton(button, message, "success");
     setConnectionStatus(type, `${body.detail || "Server identity verified"} in ${body.elapsedMs || 0}ms`, "success");
     window.setTimeout(() => setConnectionButton(button, "Test Connection", "muted"), 3000);
@@ -4180,8 +4228,8 @@ async function testConnection(type, button) {
 
   const statusText = body.status ? `HTTP ${body.status}` : `HTTP ${response.status}`;
   const errorMessage = body.error || `Connection failed with ${statusText}`;
-  setConnectionButton(button, `âœ˜ Failed`, "error");
-  setConnectionStatus(type, `âœ˜ Failed: ${errorMessage} (${statusText})`, "error");
+  setConnectionButton(button, `✘ Failed`, "error");
+  setConnectionStatus(type, `✘ Failed: ${errorMessage} (${statusText})`, "error");
 }
 
 function refreshHelpIfVisible() {
@@ -4406,7 +4454,7 @@ async function openShowImmersiveModalByTitleLegacy(showTitle) {
     }
     elements.modalBody.innerHTML = `
       <div class="immersive-container">
-        <button class="immersive-back-button" type="button">â† Back</button>
+        <button class="immersive-back-button" type="button">← Back</button>
         <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
           <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading show details...</span>
         </div>
@@ -4433,7 +4481,7 @@ async function openShowImmersiveModalByTitleLegacy(showTitle) {
   } else {
     elements.modalBody.innerHTML = `
       <div class="immersive-container">
-        <button class="immersive-back-button" type="button">â† Back</button>
+        <button class="immersive-back-button" type="button">← Back</button>
         <div style="display: flex; justify-content: center; align-items: center; min-height: 200px; flex-direction: column; gap: var(--space-2);">
           <span style="color: var(--danger); font-size: 1.1rem; font-weight: bold;">Show not found</span>
           <span style="color: var(--muted); font-size: 0.9rem;">Could not locate this TV series in the archive.</span>
@@ -4533,7 +4581,7 @@ async function openImmersiveModal(id) {
   const root = mediaDetailRoot();
   root.innerHTML = `
     <div class="immersive-container media-detail-page">
-      ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">â† Back</button>' : ''}
+      ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">← Back</button>' : ''}
       <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
         <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading details...</span>
       </div>
@@ -4556,7 +4604,7 @@ async function openImmersiveModal(id) {
   if (!entry) {
     root.innerHTML = `
       <div class="immersive-container">
-        ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">â† Back</button>' : ''}
+        ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">← Back</button>' : ''}
         <div style="display: flex; justify-content: center; align-items: center; min-height: 200px; flex-direction: column; gap: var(--space-2);">
           <span style="color: var(--danger); font-size: 1.1rem; font-weight: bold;">Content not found</span>
           <span style="color: var(--muted); font-size: 0.9rem;">Could not locate this watch history record.</span>
@@ -4678,7 +4726,7 @@ function renderTrailersReviewsSection(tmdbData) {
               <div class="review-card">
                 <div class="review-header">
                   <span class="review-author">${escapeHtml(review.author)}</span>
-                  ${review.author_details?.rating ? `<span class="review-rating">â˜… ${review.author_details.rating}/10</span>` : ""}
+                  ${review.author_details?.rating ? `<span class="review-rating">★ ${review.author_details.rating}/10</span>` : ""}
                 </div>
                 <div class="review-content-wrapper"><p class="review-content">${escapeHtml(review.content)}</p></div>
                 ${hasLong ? `<button class="action-pill review-toggle-btn" type="button" onclick="const p=this.previousElementSibling.querySelector('.review-content');p.classList.toggle('expanded');this.textContent=p.classList.contains('expanded')?'Show Less':'Read More';">Read More</button>` : ""}
@@ -4859,7 +4907,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
 
   elements.modalBody.innerHTML = `
     <div class="immersive-container">
-      <button class="immersive-back-button" type="button">â† Back</button>
+      <button class="immersive-back-button" type="button">← Back</button>
       <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
         <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading show details...</span>
       </div>
@@ -4924,7 +4972,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
   root.innerHTML = `
     <div class="modal-backdrop-image" style="background-image: url('${backdropUrl || posterUrl}');"></div>
     <div class="immersive-container media-detail-page">
-      <button class="immersive-back-button" type="button">â† Back</button>
+      <button class="immersive-back-button" type="button">← Back</button>
       
       <header class="immersive-header">
         <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(showTitle)} poster" onerror="this.src='/favicon.svg';" />
@@ -5232,7 +5280,7 @@ function renderShowModalContent(show, {
                 <p>${escapeHtml(episode.overview)}</p>
                 <div class="immersive-episode-meta-row">
                   <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
-                  ${episode.watched ? `<time>Watched ${formatDate(episode.watched.watched_at)} <button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(episode.watched.id)}" data-watched-at="${escapeAttribute(episode.watched.watched_at || "")}">âœŽ</button></time>` : ""}
+                  ${episode.watched ? `<time>Watched ${formatDate(episode.watched.watched_at)} <button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(episode.watched.id)}" data-watched-at="${escapeAttribute(episode.watched.watched_at || "")}">✎</button></time>` : ""}
                 </div>
               </div>
               <div class="immersive-episode-actions">
@@ -5727,7 +5775,7 @@ async function triggerRetrySync(id, button) {
       const pendings = targetStatuses.filter(t => t.status === "pending");
 
       if (errors.length > 0) {
-        termLog("\nâš ï¸ Sync failure detected for one or more targets!", "error");
+        termLog("\n⚠️ Sync failure detected for one or more targets!", "error");
         for (const err of errors) {
           termLog(`\n[DIAGNOSTICS & FIX FOR ${err.target.toUpperCase()}]:`, "warn");
           const telLine = telemetry.split("\n").find(l => l.toLowerCase().includes(err.target) && l.toLowerCase().includes("error"));
@@ -5735,20 +5783,20 @@ async function triggerRetrySync(id, button) {
           
           const errLower = (telLine || "").toLowerCase();
           if (errLower.includes("unauthorized") || errLower.includes("401") || errLower.includes("token") || errLower.includes("auth")) {
-            termLog("ðŸ‘‰ FIX: Go to the settings tab for this app (Settings -> Apps) and verify that the API Key or Token is correct, valid, and not expired.", "success");
+            termLog("👉 FIX: Go to the settings tab for this app (Settings -> Apps) and verify that the API Key or Token is correct, valid, and not expired.", "success");
           } else if (errLower.includes("refused") || errLower.includes("timeout") || errLower.includes("conn") || errLower.includes("reach") || errLower.includes("address")) {
-            termLog("ðŸ‘‰ FIX: Verify that the Server URL is correct, the target server is currently online, and there are no network rules/firewalls blocking the connection from the Firebase Cloud Functions runtime.", "success");
+            termLog("👉 FIX: Verify that the Server URL is correct, the target server is currently online, and there are no network rules/firewalls blocking the connection from the Firebase Cloud Functions runtime.", "success");
           } else if (errLower.includes("not found") || errLower.includes("404") || errLower.includes("match")) {
-            termLog("ðŸ‘‰ FIX: The media item was not found on the target platform. Ensure the TMDB/IMDB/TVDB IDs are correct and that the media is properly scanned/matched in your Plex/Emby/Jellyfin library.", "success");
+            termLog("👉 FIX: The media item was not found on the target platform. Ensure the TMDB/IMDB/TVDB IDs are correct and that the media is properly scanned/matched in your Plex/Emby/Jellyfin library.", "success");
           } else {
-            termLog("ðŸ‘‰ FIX: Check the Settings -> Apps configuration for this platform. Try testing the connection to verify credentials and endpoint URLs.", "success");
+            termLog("👉 FIX: Check the Settings -> Apps configuration for this platform. Try testing the connection to verify credentials and endpoint URLs.", "success");
           }
         }
       } else if (pendings.length > 0) {
-        termLog("\nâš ï¸ One or more sync dispatches are still pending or queued.", "warn");
-        termLog("ðŸ‘‰ SUGGESTION: The target sync is in progress or propagation is queued. Wait a few moments and retry.", "info");
+        termLog("\n⚠️ One or more sync dispatches are still pending or queued.", "warn");
+        termLog("👉 SUGGESTION: The target sync is in progress or propagation is queued. Wait a few moments and retry.", "info");
       } else {
-        termLog("\nâœ¨ Sync completed successfully! All configured targets are fully up to date.", "success");
+        termLog("\n✨ Sync completed successfully! All configured targets are fully up to date.", "success");
       }
 
       clearDerivedUiCaches({ resetExplorer: false });
@@ -5922,7 +5970,7 @@ async function renderMovieImmersiveModalContent(movie) {
           <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
             <h3>Watch Status</h3>
             <div class="progress-label-row">
-              <span>Watched on ${formatDate(movie.watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(movie.id)}" data-watched-at="${escapeAttribute(movie.watched_at || "")}">âœŽ</button></span>
+              <span>Watched on ${formatDate(movie.watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(movie.id)}" data-watched-at="${escapeAttribute(movie.watched_at || "")}">✎</button></span>
               <span>100% complete</span>
             </div>
             <div class="progress-bar-track">
@@ -7423,7 +7471,7 @@ function attachEvents() {
       testConnection(button.dataset.testConnection, button).catch((error) => {
         const type = button.dataset.testConnection;
         const message = `${connectionLabel(type)} connection test exception: ${error?.message || "unknown error"}`;
-        setConnectionButton(button, "âœ˜ Failed", "error");
+        setConnectionButton(button, "✘ Failed", "error");
         setConnectionStatus(type, message, "error");
         logDebug(message);
       });
@@ -7618,10 +7666,10 @@ function attachEvents() {
         editDateIconBtn.dataset.watchedAt = watched_at;
         // Update the time element this icon is inside
         const timeEl = editDateIconBtn.closest("time");
-        if (timeEl) timeEl.innerHTML = `Watched ${formatDate(watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(id)}" data-watched-at="${escapeAttribute(watched_at)}">âœŽ</button>`;
+        if (timeEl) timeEl.innerHTML = `Watched ${formatDate(watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(id)}" data-watched-at="${escapeAttribute(watched_at)}">✎</button>`;
         // Also update movie watch status row if present
         const span = editDateIconBtn.closest(".progress-label-row")?.querySelector("span");
-        if (span) span.innerHTML = `Watched on ${formatDate(watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(id)}" data-watched-at="${escapeAttribute(watched_at)}">âœŽ</button>`;
+        if (span) span.innerHTML = `Watched on ${formatDate(watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(id)}" data-watched-at="${escapeAttribute(watched_at)}">✎</button>`;
         const entry = state.history.find((h) => h.id === id);
         if (entry) entry.watched_at = watched_at;
       });
@@ -8216,11 +8264,11 @@ window.playTrailer = function(el, videoKey, videoName) {
           <button class="photo-lightbox-nav photo-lightbox-nav--next">&#8250;</button>
         </div>
         <div class="photo-lightbox-controls">
-          <button class="photo-lightbox-btn" data-lb-zoom="-1">ï¼</button>
+          <button class="photo-lightbox-btn" data-lb-zoom="-1">－</button>
           <button class="photo-lightbox-btn" data-lb-zoom="0">1:1</button>
-          <button class="photo-lightbox-btn" data-lb-zoom="1">ï¼‹</button>
+          <button class="photo-lightbox-btn" data-lb-zoom="1">＋</button>
           <span class="photo-lightbox-counter"></span>
-          <button class="photo-lightbox-btn" data-lb-close>âœ•</button>
+          <button class="photo-lightbox-btn" data-lb-close>✕</button>
         </div>
       `;
 
