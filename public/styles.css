@@ -181,7 +181,13 @@ h2 {
 .media-detail-page .progress-section,
 .media-detail-page .seasons-section,
 .media-detail-page .episodes-section {
-  margin-top: clamp(1.4rem, 3vw, 2.4rem);
+  margin-top: 0.75rem;
+}
+
+.media-detail-page .cast-section {
+  border-top: 0;
+  padding-top: 0;
+  gap: 0.4rem;
 }
 
 .media-detail-page .show-detail-seasons {
@@ -574,21 +580,24 @@ h2 {
 .explorer-controls {
   flex-wrap: nowrap;
   justify-content: flex-end;
+  gap: 0.6rem;
+  min-width: 0;
 }
 
 .explorer-heading {
-  display: grid;
-  grid-template-columns: minmax(12rem, 1fr) minmax(18rem, auto);
+  display: flex;
   align-items: center;
   gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .explorer-heading-title {
+  flex: 1;
   min-width: 0;
 }
 
 .explorer-heading .explorer-controls {
-  justify-self: end;
+  margin-left: auto;
 }
 
 .dashboard-history-heading {
@@ -1019,7 +1028,8 @@ h2 {
 }
 
 .explorer-search-box {
-  min-width: min(24rem, 100%);
+  flex: 1 1 10rem;
+  min-width: 8rem;
 }
 
 .now-poster {
@@ -1474,9 +1484,115 @@ h2 {
   gap: var(--space-3);
 }
 
+/* ── Tools accordion ─────────────────────────────────────── */
+
+.settings-pane[data-settings-panel="tools"] {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tool-accordion {
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.tool-accordion-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.tool-accordion-header::-webkit-details-marker {
+  display: none;
+}
+
+.tool-accordion-header::marker {
+  display: none;
+}
+
+.tool-accordion-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tool-accordion-title > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.tool-accordion-title > div > p {
+  margin: 0;
+  font-weight: 850;
+  font-size: 0.95rem;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.tool-accordion-title > div > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.tool-accordion-chevron {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: transform 0.18s ease;
+  order: -1;
+}
+
+.tool-accordion-chevron::before {
+  content: "▶";
+  font-size: 0.6rem;
+  display: block;
+  transition: transform 0.18s ease;
+}
+
+details[open] .tool-accordion-chevron::before {
+  transform: rotate(90deg);
+}
+
+.tool-accordion-desc {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.6;
+  padding-left: calc(1.1rem + var(--space-2));
+}
+
+.tool-accordion-body {
+  padding: var(--space-3);
+  padding-top: 0;
+  border-top: 1px solid var(--line);
+  margin-top: 0;
+}
+
 .settings-config-grid {
   display: grid;
   grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+.apps-server-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.apps-secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
 }
 
@@ -1821,8 +1937,6 @@ h2 {
   justify-items: stretch;
   align-content: start;
   overflow: hidden;
-  content-visibility: auto;
-  contain-intrinsic-size: 0 380px;
 }
 
 .movie-card-body {
@@ -1873,8 +1987,6 @@ h2 {
 }
 
 .folder-card {
-  content-visibility: auto;
-  contain-intrinsic-size: 0 420px;
 }
 
 .folder-trigger,
@@ -2102,12 +2214,31 @@ h2 {
   color: var(--soft);
   padding: 0.48rem 0.6rem;
   text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
 .help-menu-item.active {
   border-color: #315b86;
   background: #172232;
   color: #d9ecff;
+}
+
+.help-menu-item-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.help-menu-item-desc {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.help-menu-item.active .help-menu-item-desc {
+  color: rgba(217, 236, 255, 0.65);
 }
 
 .help-canvas {
@@ -2117,16 +2248,30 @@ h2 {
 }
 
 .help-hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-2);
+  display: grid;
+  gap: var(--space-1);
   border-bottom: 1px solid var(--line);
   padding-bottom: var(--space-3);
 }
 
+.help-hero-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
 .help-hero h2 {
   font-size: 1.4rem;
+  margin: 0;
+}
+
+.help-hero-desc {
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin: 0;
+  line-height: 1.5;
 }
 
 .help-badges,
@@ -2264,6 +2409,175 @@ h2 {
   font-weight: 900;
 }
 
+/* ── Edit dialogs (date / image / fix-match) ─────────────────────────── */
+
+.media-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.edit-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(7, 10, 13, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.edit-dialog {
+  width: min(480px, 94vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--bg, #0d1117);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8);
+}
+
+.edit-dialog--wide {
+  width: min(680px, 96vw);
+}
+
+.edit-dialog h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.edit-dialog-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.edit-dialog-status {
+  font-size: 0.78rem;
+  color: var(--danger);
+  min-height: 1em;
+  margin: 0;
+}
+
+.edit-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.6rem;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 0.25rem 0;
+}
+
+.edit-image-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: transparent;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.25rem;
+  cursor: pointer;
+  transition: border-color 100ms;
+}
+
+.edit-image-option:hover,
+.edit-image-option.selected {
+  border-color: var(--blue);
+}
+
+.edit-image-option img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 3px;
+  display: block;
+}
+
+.availability-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.availability-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.edit-date-icon-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0 0.2rem;
+  line-height: 1;
+  vertical-align: middle;
+  transition: color 100ms;
+}
+
+.edit-date-icon-btn:hover {
+  color: var(--text);
+}
+
+.fix-match-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 420px;
+  overflow-y: auto;
+  margin-top: 0.25rem;
+}
+
+.fix-match-result {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font-size: 0.85rem;
+  transition: background 100ms, border-color 100ms;
+}
+
+.fix-match-result:hover {
+  background: var(--panel-3);
+  border-color: var(--blue);
+}
+
+.fix-match-result img {
+  width: 46px;
+  height: 69px;
+  object-fit: cover;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.fix-match-result small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* ── end edit dialogs ────────────────────────────────────────────────── */
+
 .logs-panel {
   min-height: calc(100vh - 6rem);
 }
@@ -2323,6 +2637,9 @@ h2 {
 
   .insight-grid,
   .settings-config-grid,
+  .apps-server-grid,
+  .apps-secondary-grid,
+  .explorer-overview-view,
   .stats-grid,
   .episode-row,
   .ranking-head,
@@ -2481,7 +2798,34 @@ h2 {
   height: 100%;
   overflow-y: auto;
   padding: var(--space-4) clamp(1.25rem, 2.4vw, 3rem) 2rem;
-  gap: 1.5rem;
+  gap: 0.75rem;
+}
+
+.immersive-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.immersive-topbar-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+
+.immersive-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .immersive-back-button {
@@ -2669,8 +3013,6 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  border-top: 1px solid var(--line);
-  padding-top: 1.5rem;
 }
 
 .episodes-section h3 {
@@ -2728,10 +3070,10 @@ h2 {
 .show-season-block {
   display: grid;
   gap: var(--space-3);
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: var(--radius);
-  background: rgba(12, 18, 23, 0.76);
-  padding: var(--space-3);
+  background: transparent;
+  padding: 0;
 }
 
 .show-season-head {
@@ -2739,18 +3081,13 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
-.show-season-head h4 {
-  margin: 0;
+.show-season-label {
+  font-size: 0.9rem;
+  font-weight: 700;
   color: var(--text);
-  font-size: 0.95rem;
-}
-
-.show-season-head span {
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 800;
 }
 
 .show-episode-list {
@@ -2763,15 +3100,14 @@ h2 {
   grid-template-columns: 8rem minmax(0, 1fr) auto;
   gap: var(--space-3);
   align-items: start;
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: var(--radius);
-  background: #0b1116;
+  background: transparent;
   padding: var(--space-2);
 }
 
 .immersive-episode-row.is-watched {
-  background: #0e1716;
-  border-color: rgba(16, 185, 129, 0.28);
+  border-color: rgba(16, 185, 129, 0.15);
 }
 
 .episode-thumb {
@@ -2848,8 +3184,6 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  border-top: 1px solid var(--line);
-  padding-top: 1.5rem;
 }
 
 .seasons-section h3 {
@@ -3107,6 +3441,113 @@ h1 {
 .global-search input:focus {
   outline: 2px solid rgba(229, 160, 13, 0.5);
   outline-offset: 2px;
+}
+
+#globalSearchDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #1c1c1c;
+  border: 1px solid #2e2e2e;
+  border-radius: 12px;
+  overflow: hidden;
+  z-index: 9500;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.gsd-header {
+  padding: 0.7rem 1rem 0.5rem;
+  font-size: 0.85rem;
+  color: #aaa;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.global-search-result {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.55rem 1rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #222;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.global-search-result:last-of-type {
+  border-bottom: none;
+}
+
+.global-search-result:hover,
+.global-search-result:focus {
+  background: rgba(255,255,255,0.06);
+  outline: none;
+}
+
+.gsr-thumb {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #2b2b2b;
+  display: block;
+}
+
+.gsr-thumb--empty {
+  background: #2b2b2b;
+}
+
+.gsr-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.gsr-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #e8e8e8;
+}
+
+.gsr-sub {
+  font-size: 0.77rem;
+  color: #888;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gsd-more {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  background: transparent;
+  border: none;
+  border-top: 1px solid #2a2a2a;
+  color: #e5a00d;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: right;
+  transition: background 0.1s;
+}
+
+.gsd-more:hover,
+.gsd-more:focus {
+  background: rgba(229,160,13,0.08);
+  outline: none;
 }
 
 .session-dot {
@@ -3445,6 +3886,10 @@ h1 {
   font-size: 0.74rem;
 }
 
+.explorer-controls > .compact-field:not(.explorer-search-box):not(.explorer-size-slider) {
+  flex-shrink: 0;
+}
+
 .explorer-controls {
   gap: 0.7rem;
 }
@@ -3484,7 +3929,7 @@ h1 {
 
 .immersive-container {
   padding: 1.4rem clamp(2rem, 4.4vw, 5rem) 3rem;
-  gap: 2.2rem;
+  gap: 1rem;
 }
 
 .immersive-back-button {
@@ -3513,10 +3958,13 @@ h1 {
   color: #e8e8e8;
 }
 
-.season-poster-card,
-.immersive-episode-row {
+.season-poster-card {
   border-color: rgba(255, 255, 255, 0.08);
   background: rgba(20, 20, 20, 0.72);
+}
+
+.immersive-episode-row {
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 @media (max-width: 1100px) {
@@ -3627,6 +4075,15 @@ h1 {
     gap: 1.2rem 0.75rem;
   }
 
+  .explorer-list-card,
+  .explorer-list-header {
+    --list-cols: calc(var(--poster-width, 160px) * 0.4) 1fr 8rem !important;
+  }
+  .explorer-list-card > *:nth-child(n+4),
+  .explorer-list-header > *:nth-child(n+4) {
+    display: none;
+  }
+
   .now-card {
     flex-basis: 20rem;
     grid-template-columns: 4.8rem minmax(0, 1fr);
@@ -3675,6 +4132,10 @@ h1 {
   text-align: left;
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
   cursor: pointer;
+}
+
+.sidebar-sub-menu .help-menu-item-desc {
+  display: none;
 }
 
 .sidebar-sub-menu .settings-tab:hover,
@@ -3774,10 +4235,9 @@ h1 {
 
 /* Poster size slider styles */
 .explorer-size-slider {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 100px;
+  min-width: 120px;
+  max-width: 200px;
+  flex-shrink: 0;
 }
 
 .explorer-size-slider input[type="range"] {
@@ -3787,56 +4247,380 @@ h1 {
   background: var(--line);
   cursor: pointer;
   width: 100%;
+  padding: 0;
+}
+
+/* ── Explorer view toggle ─────────────────────────────────── */
+
+.explorer-view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px;
+  background: var(--panel-2);
+  flex-shrink: 0;
+}
+
+.explorer-view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.explorer-view-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+}
+
+.explorer-view-btn.active {
+  background: var(--panel-3);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+/* ── List view ────────────────────────────────────────────── */
+
+/* poster | title | source | release | watched | year | runtime | sync */
+.movies-list {
+  --list-cols: calc(var(--poster-width, 160px) * 0.4) 1fr 8rem 10rem 11rem 5rem 7rem 3rem;
+}
+
+/* poster | title | source | next-air | seasons | episodes | last-watched | year */
+.shows-list {
+  --list-cols: calc(var(--poster-width, 160px) * 0.4) 1fr 8rem 11rem 6rem 8rem 11rem 5rem;
+}
+
+.explorer-list-view {
+  display: grid;
+  grid-template-columns: 1fr;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.explorer-list-header {
+  display: grid;
+  grid-template-columns: var(--list-cols);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 1rem;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.explorer-list-header span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  user-select: none;
+}
+
+.list-header-sortable {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.list-header-sortable:hover {
+  color: var(--text);
+}
+
+.sort-arrow {
+  font-size: 0.65rem;
+  color: var(--yellow);
+  flex-shrink: 0;
+}
+
+.explorer-list-card {
+  display: grid;
+  grid-template-columns: var(--list-cols);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 1rem;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.explorer-list-card:last-child {
+  border-bottom: none;
+}
+
+.explorer-list-card:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+.list-thumb-poster {
+  width: calc(var(--poster-width, 160px) * 0.4);
+  height: calc(var(--poster-width, 160px) * 0.4 * 1.5);
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: #090d11;
+  flex-shrink: 0;
+  display: block;
+}
+
+.list-thumb-poster.poster-fallback {
+  width: calc(var(--poster-width, 160px) * 0.4);
+  height: calc(var(--poster-width, 160px) * 0.4 * 1.5);
+}
+
+.list-card-title {
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.list-card-col {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.list-eps-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding-right: 0.5rem;
+}
+
+.list-eps-bar-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.list-eps-bar-fill {
+  height: 100%;
+  background: #f59e0b;
+  border-radius: inherit;
+  transition: width 300ms ease;
+}
+
+.list-eps-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.list-card-year {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.list-card-platform {
+  display: flex;
+  align-items: center;
+}
+
+.list-card-sync {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.list-show-nav {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.list-show-nav:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+/* ── Overview view ────────────────────────────────────────── */
+
+.explorer-overview-view {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.explorer-overview-card {
+  display: grid;
+  grid-template-columns: 40% 60%;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  cursor: pointer;
+  overflow: hidden;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.explorer-overview-card:hover {
+  background: var(--panel-3);
+  border-color: var(--line-strong);
+}
+
+.overview-thumb-poster {
+  width: 100%;
+  height: 100%;
+  min-height: 160px;
+  object-fit: cover;
+  display: block;
+}
+
+.overview-thumb-poster.poster-fallback {
+  width: 100%;
+  min-height: 160px;
+  background: #090d11;
+}
+
+.overview-show-poster-btn,
+.overview-show-poster-btn:focus {
+  outline: none;
+  display: block;
+  line-height: 0;
+}
+
+.overview-card-meta {
+  padding: 0.85rem;
+  min-width: 0;
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+
+.overview-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.overview-card-header b {
+  font-size: 0.92rem;
+  line-height: 1.3;
+}
+
+.overview-show-title-btn b {
+  font-size: 0.92rem;
+  line-height: 1.3;
+}
+
+.overview-card-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.overview-card-attrs {
+  font-size: 0.74rem;
+  color: var(--muted);
+  line-height: 1.3;
+  min-height: 1em;
+}
+
+.overview-card-text {
+  font-size: 0.78rem;
+  color: var(--soft);
+  line-height: 1.55;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 3.6em;
+}
+
+.overview-card-date {
+  font-size: 0.74rem;
+  color: var(--muted);
 }
 
 /* Cast Styles */
+.cast-compact-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  margin-top: 0.25rem;
+}
+
 .cast-member-card {
-  flex: 0 0 90px;
+  flex: 0 0 100px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 0.25rem;
+  align-items: flex-start;
+  text-align: left;
+  gap: 0.3rem;
 }
 
 .cast-avatar-img {
-  width: 70px;
-  height: 70px;
+  width: 100px;
+  aspect-ratio: 2 / 3;
   object-fit: cover;
-  border-radius: 50%;
+  border-radius: 4px;
   border: 1px solid var(--line);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
   transition: transform 150ms ease, border-color 150ms ease;
 }
 
 .cast-member-card:hover .cast-avatar-img {
-  transform: scale(1.05);
+  transform: scale(1.03);
   border-color: #3a7fc2;
 }
 
 .cast-actor-name {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text);
-  line-height: 1.2;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #e8e8e8;
+  line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
   width: 100%;
 }
 
 .cast-character-name {
-  font-size: 0.65rem;
-  color: var(--muted);
-  line-height: 1.2;
+  font-size: 0.75rem;
+  color: #e8e8e8;
+  line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
   width: 100%;
+  opacity: 0.65;
 }
 
 /* Trailer/Video Styles */

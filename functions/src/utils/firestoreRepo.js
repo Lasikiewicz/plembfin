@@ -293,6 +293,7 @@ function fromFirestoreWatch(doc) {
     season: data.season ?? null,
     episode: data.episode ?? null,
     poster_url: data.posterUrl || null,
+    youtube_url: data.youtubeUrl || null,
     sync_action: data.syncAction || "watched",
     sync_dispatch_telemetry: data.syncDispatchTelemetry || null,
     media_key: data.mediaKey || null,
@@ -1028,6 +1029,87 @@ export async function getWatchRecordById(id) {
     row.playHistory = [row.watched_at];
   }
   return row;
+}
+
+export async function updateWatchRecord(id, fields = {}) {
+  if (!id) return { ok: false, error: "id is required" };
+  const updates = {};
+  if (fields.watched_at != null) {
+    const normalized = normalizeWatchedAt(fields.watched_at);
+    if (!normalized) return { ok: false, error: "Invalid watched_at value" };
+    updates.watchedAt = normalized;
+  }
+  if (fields.poster_url != null) updates.posterUrl = String(fields.poster_url).trim();
+  if (fields.tmdb_id != null) {
+    const tmdbId = String(fields.tmdb_id).trim();
+    updates["ids.tmdb"] = tmdbId;
+    updates.tmdbId = tmdbId;
+  }
+  if (fields.title != null) {
+    const title = String(fields.title).trim();
+    if (title) updates.title = title;
+  }
+  if (fields.youtube_url != null) updates.youtubeUrl = String(fields.youtube_url).trim();
+  if (!Object.keys(updates).length) return { ok: false, error: "No valid fields to update" };
+  updates.updatedAt = FieldValue.serverTimestamp();
+  await db.collection("watchHistory").doc(String(id)).update(updates);
+  await invalidateHistoryDerivedCaches();
+  return { ok: true };
+}
+
+export async function mergeShows(sourceTitle, targetTitle) {
+  if (!sourceTitle || !targetTitle) throw new Error("source_title and target_title are required");
+  const sourceKey = canonicalTitleKey(sourceTitle);
+  const targetKey = canonicalTitleKey(targetTitle);
+  if (sourceKey === targetKey) throw new Error("source and target are the same show");
+
+  const snapshot = await db.collection("watchHistory")
+    .where("mediaType", "==", "episode")
+    .where("showTitleLower", "==", sourceTitle.toLowerCase())
+    .get();
+
+  if (snapshot.empty) {
+    // Fallback: scan by canonical key
+    const allSnapshot = await db.collection("watchHistory").where("mediaType", "==", "episode").get();
+    const toUpdate = allSnapshot.docs.filter((doc) => {
+      const raw = doc.data().showTitle || doc.data().title || "";
+      return canonicalTitleKey(showTitleFrom(raw)) === sourceKey;
+    });
+    if (!toUpdate.length) throw new Error("No episodes found for source show");
+    const batch = db.batch();
+    for (const doc of toUpdate) {
+      const data = doc.data();
+      const oldTitle = data.title || "";
+      const newTitle = oldTitle.replace(new RegExp(`^${sourceTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i"), targetTitle);
+      batch.update(doc.ref, {
+        title: newTitle,
+        titleLower: newTitle.toLowerCase(),
+        showTitle: targetTitle,
+        showTitleLower: targetTitle.toLowerCase(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+    await invalidateHistoryDerivedCaches();
+    return { merged: toUpdate.length };
+  }
+
+  const batch = db.batch();
+  for (const doc of snapshot.docs) {
+    const data = doc.data();
+    const oldTitle = data.title || "";
+    const newTitle = oldTitle.replace(new RegExp(`^${sourceTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i"), targetTitle);
+    batch.update(doc.ref, {
+      title: newTitle,
+      titleLower: newTitle.toLowerCase(),
+      showTitle: targetTitle,
+      showTitleLower: targetTitle.toLowerCase(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+  await batch.commit();
+  await invalidateHistoryDerivedCaches();
+  return { merged: snapshot.size };
 }
 
 export async function deleteWatchRecordById(id) {

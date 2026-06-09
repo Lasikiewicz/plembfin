@@ -1,4 +1,4 @@
-import { buildAuthHeaders, buildNowPlayingUrl, currentFirebaseUser, onFirebaseAuthChange, readStoredAdminToken, scrubTokenFromLocation, signInAdmin, signOutAdmin } from "./modules/auth.js";
+﻿import { buildAuthHeaders, buildNowPlayingUrl, currentFirebaseUser, onFirebaseAuthChange, readStoredAdminToken, scrubTokenFromLocation, signInAdmin, signOutAdmin } from "./modules/auth.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs } from "./modules/logs.js";
 import { connectionLabel, connectionPayloadFromElements } from "./modules/settings.js";
 import { fetchLocalActiveSessions } from "./modules/timeline.js";
@@ -23,13 +23,17 @@ const DASHBOARD_HISTORY_CACHE_KEY = "plembfin:dashboardHistory:v1";
 const DASHBOARD_HISTORY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const HISTORY_PREVIEW_LIMIT = 120;
 const DASHBOARD_HISTORY_ROWS = 2;
-const EXPLORER_PAGE_SIZE = 120;
+const EXPLORER_PAGE_SIZE = 240;
 const EXPLORER_CACHE_TTL_MS = 30 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_KEY = "plembfin:explorerPageCache:v2";
+const EXPLORER_VIEW_KEY_MOVIES = "plembfin:explorerView:movies";
+const EXPLORER_VIEW_KEY_SHOWS = "plembfin:explorerView:shows";
+const EXPLORER_SORT_KEY_MOVIES = "plembfin:explorerSort:movies";
+const EXPLORER_SORT_KEY_SHOWS = "plembfin:explorerSort:shows";
 const EXPLORER_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_LIMIT = 24;
-const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "sync", "settings", "help", "logs"];
-const SETTINGS_TABS = ["general", "apps", "importer", "complete-check", "tools"];
+const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help"];
+const SETTINGS_TABS = ["general", "apps", "tools", "sync", "logs"];
 
 const state = {
   token: readStoredAdminToken([TOKEN_KEY, LEGACY_UPPER_TOKEN_KEY, LEGACY_TOKEN_KEY]),
@@ -74,7 +78,10 @@ const state = {
   showsHasMore: true,
   showsLoading: false,
   showsQueryKey: "",
-  explorerSort: "title_asc",
+  explorerSortMovies: localStorage.getItem(EXPLORER_SORT_KEY_MOVIES) || "title_asc",
+  explorerSortShows: localStorage.getItem(EXPLORER_SORT_KEY_SHOWS) || "title_asc",
+  explorerViewMovies: localStorage.getItem(EXPLORER_VIEW_KEY_MOVIES) || "posters",
+  explorerViewShows: localStorage.getItem(EXPLORER_VIEW_KEY_SHOWS) || "posters",
   posterLookupCache: new Map(),
   posterLookupInflight: new Map(),
   tmdbDetailsCache: new Map(),
@@ -95,9 +102,10 @@ const state = {
   mediaDetailInline: false,
   mediaDetailReturnView: "explorer",
   mediaDetailReturnExplorerMode: "movies",
+  personReturnUrl: null,
   pendingWatchAction: null,
   activeMovieModalId: null,
-  activeHelpTopic: "settings",
+  activeHelpTopic: "getting-started",
   importRecords: [],
   importFileNames: [],
   importLogs: ["[idle] Waiting for files."],
@@ -138,7 +146,9 @@ function bindElements() {
     explorerPanel: document.querySelector("#explorerPanel"),
     explorerSearchInput: document.querySelector("#explorerSearchInput"),
     explorerPosterSize: document.querySelector("#explorerPosterSize"),
+    explorerPosterSizeLabel: document.querySelector(".explorer-size-slider"),
     explorerSort: document.querySelector("#explorerSort"),
+    explorerViewButtons: [...document.querySelectorAll("[data-explorer-view]")],
     explorerSubtitle: document.querySelector("#explorerSubtitle"),
     explorerTitle: document.querySelector("#explorerTitle"),
     terminalModal: document.querySelector("#terminalModal"),
@@ -175,6 +185,7 @@ function bindElements() {
     plexToken: document.querySelector("#plexToken"),
     plexUsername: document.querySelector("#plexUsername"),
     tmdbApiKey: document.querySelector("#tmdbApiKey"),
+    youtubeApiKey: document.querySelector("#youtubeApiKey"),
     embyEnabled: document.querySelector("#embyEnabled"),
     embyServerUrl: document.querySelector("#embyServerUrl"),
     embyApiKey: document.querySelector("#embyApiKey"),
@@ -238,6 +249,526 @@ function authHeaders() {
   return buildAuthHeaders(state.token);
 }
 
+async function apiUpdateWatch(id, fields) {
+  const res = await fetch("/api/update-watch", {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ id, ...fields }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body;
+}
+
+// Convert a watched_at ISO string to a value suitable for datetime-local input
+function watchedAtToInputValue(watchedAt) {
+  if (!watchedAt) return "";
+  try {
+    const d = new Date(watchedAt);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch { return ""; }
+}
+
+// Show inline edit-date dialog inside `container`, saves to record `id`
+function openEditDateDialog(_container, id, currentWatchedAt, onSaved) {
+  document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
+
+  const overlay = document.createElement("div");
+  overlay.className = "edit-dialog-overlay";
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.innerHTML = `
+    <div class="edit-dialog glass-panel">
+      <h3>Edit Watch Date</h3>
+      <label class="field-label">
+        Watched at
+        <input type="datetime-local" class="field edit-date-input" value="${escapeAttribute(watchedAtToInputValue(currentWatchedAt))}" />
+      </label>
+      <div class="edit-dialog-actions">
+        <button class="button-primary edit-dialog-save" type="button">Save</button>
+        <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
+      </div>
+      <p class="edit-dialog-status"></p>
+    </div>
+  `;
+
+  overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
+  overlay.querySelector(".edit-dialog-save").addEventListener("click", async () => {
+    const input = overlay.querySelector(".edit-date-input");
+    const status = overlay.querySelector(".edit-dialog-status");
+    const value = input.value;
+    if (!value) { status.textContent = "Please enter a date."; return; }
+    const iso = new Date(value).toISOString();
+    status.textContent = "Saving…";
+    try {
+      await apiUpdateWatch(id, { watched_at: iso });
+      overlay.remove();
+      onSaved?.({ watched_at: iso });
+    } catch (err) {
+      status.textContent = `Error: ${err.message}`;
+    }
+  });
+
+  document.body.appendChild(overlay);
+}
+
+function closeGlobalSearchDropdown() {
+  document.getElementById("globalSearchDropdown")?.remove();
+}
+
+function renderGlobalSearchDropdown(query) {
+  closeGlobalSearchDropdown();
+  const q = query.toLowerCase();
+  const results = [];
+  const seenShows = new Set();
+  const seenMovies = new Set();
+
+  // TV shows (deduplicated by title)
+  for (const s of (state.showsRaw || [])) {
+    if (results.length >= 4) break;
+    if (!(s.title || "").toLowerCase().includes(q)) continue;
+    if (seenShows.has(s.title)) continue;
+    seenShows.add(s.title);
+    results.push({ _type: "show", title: s.title, poster: s.poster_url || s.posterUrl || "", href: `/tvshow/${slug(s.title)}`, sub: "TV Show" });
+  }
+
+  // Movies
+  for (const m of (state.history || [])) {
+    if (results.length >= 7) break;
+    if (m.media_type !== "movie") continue;
+    if (!(m.title || "").toLowerCase().includes(q)) continue;
+    if (seenMovies.has(m.title)) continue;
+    seenMovies.add(m.title);
+    results.push({ _type: "movie", title: m.title, poster: m.poster_url || "", href: `/movie/${m.id}`, sub: "Movie" });
+  }
+
+  // Episodes (search episode title)
+  const seenEps = new Set();
+  for (const e of (state.history || [])) {
+    if (results.length >= 8) break;
+    if (e.media_type !== "episode") continue;
+    const epTitle = e.title || "";
+    if (!epTitle.toLowerCase().includes(q)) continue;
+    const key = `${e.show_title}|${epTitle}`;
+    if (seenEps.has(key)) continue;
+    seenEps.add(key);
+    const showTitle = e.show_title || showTitleFrom(epTitle);
+    const showEntry = (state.showsRaw || []).find((s) => slug(s.title) === slug(showTitle));
+    const poster = showEntry?.poster_url || showEntry?.posterUrl || e.poster_url || "";
+    const sNum = e.season ? `S${String(e.season).padStart(2, "0")}` : "";
+    const eNum = e.episode ? `E${String(e.episode).padStart(2, "0")}` : "";
+    const coord = [sNum, eNum].filter(Boolean).join("·");
+    const sub = [showTitle, coord, "Episode"].filter(Boolean).join(" · ");
+    results.push({ _type: "episode", title: epTitle, poster, href: `/tvshow/${slug(showTitle)}`, sub });
+  }
+
+  if (!results.length) return;
+
+  const anchor = document.querySelector(".global-search");
+  if (!anchor) return;
+
+  const dd = document.createElement("div");
+  dd.id = "globalSearchDropdown";
+  dd.innerHTML = `
+    <div class="gsd-header">Top Results for "<strong>${escapeHtml(query)}</strong>"</div>
+    ${results.map((r) => `
+      <button class="global-search-result" data-href="${escapeAttribute(r.href)}" tabindex="0">
+        ${r.poster ? `<img src="${escapeAttribute(r.poster)}" alt="" class="gsr-thumb" loading="lazy">` : `<span class="gsr-thumb gsr-thumb--empty"></span>`}
+        <span class="gsr-text">
+          <span class="gsr-title">${escapeHtml(r.title)}</span>
+          <span class="gsr-sub">${escapeHtml(r.sub)}</span>
+        </span>
+      </button>`).join("")}
+    <button class="gsd-more" data-search="${escapeAttribute(query)}">View All Results</button>
+  `;
+
+  anchor.appendChild(dd);
+
+  dd.addEventListener("click", (e) => {
+    const more = e.target.closest(".gsd-more");
+    if (more) {
+      closeGlobalSearchDropdown();
+      state.explorerSearch = more.dataset.search;
+      if (elements.explorerSearchInput) elements.explorerSearchInput.value = state.explorerSearch;
+      selectView("explorer");
+      return;
+    }
+    const btn = e.target.closest(".global-search-result");
+    if (!btn) return;
+    closeGlobalSearchDropdown();
+    elements.globalSearchInput.value = "";
+    navigateTo(btn.dataset.href);
+  });
+
+  dd.addEventListener("keydown", (e) => {
+    const btns = [...dd.querySelectorAll(".global-search-result, .gsd-more")];
+    const idx = btns.indexOf(document.activeElement);
+    if (e.key === "ArrowDown") { e.preventDefault(); btns[(idx + 1) % btns.length]?.focus(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); (idx > 0 ? btns[idx - 1] : elements.globalSearchInput)?.focus(); }
+    else if (e.key === "Enter" && idx >= 0) { btns[idx].click(); }
+    else if (e.key === "Escape") { closeGlobalSearchDropdown(); elements.globalSearchInput.focus(); }
+  });
+}
+
+function extractYouTubeId(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === "youtu.be") return u.pathname.slice(1).split("?")[0];
+    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v") || null;
+  } catch { /* invalid URL */ }
+  return null;
+}
+
+function openEditImageDialog(_container, id, _currentPosterUrl, tmdbData, onSaved) {
+  document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
+
+  const overlay = document.createElement("div");
+  overlay.className = "edit-dialog-overlay";
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.innerHTML = `
+    <div class="edit-dialog edit-dialog--wide glass-panel">
+      <h3>Choose Poster</h3>
+      <p class="edit-dialog-status" style="margin:0;"></p>
+      <div class="edit-image-grid poster-search-grid"></div>
+      <label class="field-label" style="margin-top: 0.75rem;">
+        YouTube URL <span class="muted-copy" style="font-weight:normal;">(paste to fetch thumbnails)</span>
+        <div style="display:flex;gap:0.5rem;">
+          <input type="url" class="field yt-url-input" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;" />
+          <button class="button-ghost yt-fetch-btn" type="button">Fetch</button>
+        </div>
+      </label>
+      <label class="field-label" style="margin-top: 0.5rem;">
+        Custom image URL
+        <input type="url" class="field edit-image-input" placeholder="https://..." value="" />
+      </label>
+      <div class="edit-dialog-actions">
+        <button class="button-primary edit-dialog-save" type="button">Save</button>
+        <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  const gridEl = overlay.querySelector(".poster-search-grid");
+  const status = overlay.querySelector(".edit-dialog-status");
+  const urlInput = overlay.querySelector(".edit-image-input");
+  const ytInput = overlay.querySelector(".yt-url-input");
+  const ytFetchBtn = overlay.querySelector(".yt-fetch-btn");
+
+  const renderGrid = (posters, selectFirst = true) => {
+    gridEl.innerHTML = posters.map((url, i) => `
+      <button class="edit-image-option" type="button" data-url="${escapeAttribute(url)}">
+        <img src="${escapeAttribute(url)}" alt="Poster ${i + 1}" loading="lazy" onerror="this.closest('button').style.display='none'" />
+      </button>
+    `).join("");
+    gridEl.querySelectorAll(".edit-image-option").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        urlInput.value = btn.dataset.url;
+        gridEl.querySelectorAll(".edit-image-option").forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+      });
+    });
+    if (selectFirst) {
+      urlInput.value = posters[0];
+      gridEl.querySelector(".edit-image-option")?.classList.add("selected");
+    }
+  };
+
+  const fetchYouTubeThumbnails = async () => {
+    const videoId = extractYouTubeId(ytInput.value.trim());
+    if (!videoId) { status.textContent = "Could not find a YouTube video ID in that URL."; return; }
+    status.textContent = "Fetching YouTube thumbnails…";
+    // YouTube provides several thumbnail resolutions; maxresdefault may 404 for older videos
+    const candidates = [
+      `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+      `https://img.youtube.com/vi/${videoId}/sddefault.jpg`,
+      `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+      `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+    ];
+    // Probe which ones actually exist by loading them as images
+    const valid = await Promise.all(candidates.map((url) => new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img.naturalWidth > 120 ? url : null); // 120px wide = YouTube's "no thumbnail" placeholder
+      img.onerror = () => resolve(null);
+      img.src = url;
+    })));
+    const found = valid.filter(Boolean);
+    if (!found.length) { status.textContent = "No thumbnails found for that video."; return; }
+    status.textContent = "";
+    renderGrid(found);
+  };
+
+  ytFetchBtn.addEventListener("click", fetchYouTubeThumbnails);
+  ytInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); fetchYouTubeThumbnails(); } });
+
+  const loadPosters = async () => {
+    status.textContent = "Loading posters…";
+    const apiKey = state.savedConfig?.tmdb?.apiKey;
+    const tmdbId = tmdbData?.id;
+    const mediaType = tmdbData?.title !== undefined ? "movie" : "tv";
+    if (apiKey && tmdbId) {
+      try {
+        const res = await fetch(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}/images?api_key=${encodeURIComponent(apiKey)}&include_image_language=en,null`);
+        const data = await res.json();
+        const posters = (data.posters || []).slice(0, 20).map((p) => `https://image.tmdb.org/t/p/w342${p.file_path}`);
+        if (posters.length) {
+          status.textContent = "";
+          renderGrid(posters);
+          return;
+        }
+      } catch (e) { /* fall through */ }
+    }
+    // Fallback: use any images already on tmdbData
+    const fallback = [];
+    if (tmdbData?.poster_path) fallback.push(`https://image.tmdb.org/t/p/w342${tmdbData.poster_path}`);
+    if (tmdbData?.backdrop_path) fallback.push(`https://image.tmdb.org/t/p/w780${tmdbData.backdrop_path}`);
+    if (fallback.length) { status.textContent = ""; renderGrid(fallback); }
+    else { status.textContent = apiKey ? "No posters found." : "Configure a TMDB API key to browse posters."; }
+  };
+
+  overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
+  overlay.querySelector(".edit-dialog-save").addEventListener("click", async () => {
+    const url = urlInput.value.trim();
+    if (!url) { status.textContent = "Please select or enter an image URL."; return; }
+    status.textContent = "Saving…";
+    try {
+      await apiUpdateWatch(id, { poster_url: url });
+      overlay.remove();
+      onSaved?.({ poster_url: url });
+    } catch (err) {
+      status.textContent = `Error: ${err.message}`;
+    }
+  });
+
+  document.body.appendChild(overlay);
+  loadPosters();
+}
+
+function openFixMatchDialog(_container, id, currentTitle, mediaType, onSaved) {
+  document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
+
+  const overlay = document.createElement("div");
+  overlay.className = "edit-dialog-overlay";
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.innerHTML = `
+    <div class="edit-dialog edit-dialog--wide glass-panel">
+      <h3>Fix Match</h3>
+      <p class="muted-copy" style="margin-bottom: 0.75rem;">Search TMDB to link the correct ${mediaType === "movie" ? "movie" : "TV show"}, or match to a YouTube video.</p>
+      <div style="display: flex; gap: 0.5rem;">
+        <input type="search" class="field fix-match-input" placeholder="${escapeAttribute(currentTitle || "Search title…")}" value="${escapeAttribute(currentTitle || "")}" style="flex: 1;" />
+        <button class="button-primary fix-match-search-btn" type="button">Search TMDB</button>
+      </div>
+      <div class="fix-match-results"></div>
+
+      <hr style="border:0;border-top:1px solid var(--border);margin:1rem 0 0.75rem;" />
+      <p class="muted-copy" style="margin-bottom:0.5rem;">YouTube content not on TMDB? Paste the video URL below.</p>
+      <div style="display:flex;gap:0.5rem;">
+        <input type="url" class="field fix-match-yt-input" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;" />
+        <button class="button-ghost fix-match-yt-fetch-btn" type="button">Fetch</button>
+      </div>
+      <div class="fix-match-yt-preview" style="display:none;margin-top:0.75rem;"></div>
+
+      <p class="edit-dialog-status"></p>
+      <div class="edit-dialog-actions" style="margin-top: 0.5rem;">
+        <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  const resultsEl = overlay.querySelector(".fix-match-results");
+  const status = overlay.querySelector(".edit-dialog-status");
+  const input = overlay.querySelector(".fix-match-input");
+  const ytInput = overlay.querySelector(".fix-match-yt-input");
+  const ytFetchBtn = overlay.querySelector(".fix-match-yt-fetch-btn");
+  const ytPreview = overlay.querySelector(".fix-match-yt-preview");
+  const tmdbType = mediaType === "movie" ? "movie" : "tv";
+
+  const doSearch = async () => {
+    const query = input.value.trim();
+    if (!query) return;
+    status.textContent = "Searching…";
+    resultsEl.innerHTML = "";
+    try {
+      const apiKey = state.savedConfig?.tmdb?.apiKey;
+      if (!apiKey) { status.textContent = "TMDB API key not configured."; return; }
+      const res = await fetch(`https://api.themoviedb.org/3/search/${tmdbType}?api_key=${encodeURIComponent(apiKey)}&query=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      const results = data.results || [];
+      status.textContent = results.length ? "" : "No results found.";
+      resultsEl.innerHTML = results.slice(0, 10).map((item) => {
+        const poster = item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : "/favicon.svg";
+        const title = item.title || item.name || "Unknown";
+        const year = (item.release_date || item.first_air_date || "").slice(0, 4);
+        return `
+          <button class="fix-match-result" type="button" data-tmdb-id="${item.id}" data-title="${escapeAttribute(title)}">
+            <img src="${escapeAttribute(poster)}" alt="" onerror="this.src='/favicon.svg'" />
+            <span>${escapeHtml(title)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
+          </button>
+        `;
+      }).join("");
+
+      resultsEl.querySelectorAll(".fix-match-result").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          status.textContent = "Saving…";
+          try {
+            await apiUpdateWatch(id, { tmdb_id: btn.dataset.tmdbId });
+            state.tmdbDetailsCache.clear();
+            overlay.remove();
+            onSaved?.({ tmdb_id: btn.dataset.tmdbId, title: btn.dataset.title });
+          } catch (err) {
+            status.textContent = `Error: ${err.message}`;
+          }
+        });
+      });
+    } catch (err) {
+      status.textContent = `Search failed: ${err.message}`;
+    }
+  };
+
+  const doYtFetch = async () => {
+    const url = ytInput.value.trim();
+    const videoId = extractYouTubeId(url);
+    if (!videoId) { status.textContent = "Could not find a YouTube video ID in that URL."; return; }
+    status.textContent = "Fetching YouTube metadata…";
+    ytPreview.style.display = "none";
+    try {
+      const res = await fetch(`/api/youtube-meta?url=${encodeURIComponent(url)}`, { headers: authHeaders() });
+      const meta = await res.json();
+      if (meta.error) { status.textContent = `YouTube: ${meta.error}`; return; }
+      status.textContent = "";
+
+      const thumbHtml = meta.thumbnails?.length
+        ? `<img src="${escapeAttribute(meta.thumbnails[0])}" alt="thumbnail" style="width:120px;height:68px;object-fit:cover;border-radius:4px;flex-shrink:0;" onerror="this.style.display='none'" />`
+        : "";
+      const descHtml = meta.description
+        ? `<p style="font-size:0.8rem;color:var(--muted);margin:0.4rem 0 0;max-height:4.5rem;overflow:hidden;">${escapeHtml(meta.description)}</p>`
+        : "";
+      const dateHtml = meta.publishedAt ? `<small style="color:var(--muted);">${escapeHtml(meta.publishedAt.slice(0, 10))}</small>` : "";
+
+      ytPreview.style.display = "block";
+      ytPreview.innerHTML = `
+        <div style="display:flex;gap:0.75rem;align-items:flex-start;background:var(--surface-raised,rgba(255,255,255,0.04));border-radius:8px;padding:0.6rem;">
+          ${thumbHtml}
+          <div style="flex:1;min-width:0;">
+            <b style="display:block;">${escapeHtml(meta.title || "Unknown title")}</b>
+            <small style="color:var(--muted);">${escapeHtml(meta.channelName || "")}${dateHtml ? " &middot; " + dateHtml : ""}</small>
+            ${descHtml}
+          </div>
+        </div>
+        <button class="button-primary fix-match-yt-confirm-btn" type="button" style="margin-top:0.6rem;width:100%;">Match as YouTube video</button>
+      `;
+
+      ytPreview.querySelector(".fix-match-yt-confirm-btn").addEventListener("click", async () => {
+        status.textContent = "Saving…";
+        try {
+          const updates = { youtube_url: url, poster_url: meta.thumbnails?.[0] || "" };
+          if (meta.title && meta.title !== currentTitle) updates.title = meta.title;
+          await apiUpdateWatch(id, updates);
+          state.tmdbDetailsCache.clear();
+          overlay.remove();
+          onSaved?.({ youtube_url: url, poster_url: updates.poster_url, title: updates.title || currentTitle });
+        } catch (err) {
+          status.textContent = `Error: ${err.message}`;
+        }
+      });
+    } catch (err) {
+      status.textContent = `Fetch failed: ${err.message}`;
+    }
+  };
+
+  overlay.querySelector(".fix-match-search-btn").addEventListener("click", doSearch);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
+  ytFetchBtn.addEventListener("click", doYtFetch);
+  ytInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doYtFetch(); } });
+  overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
+
+  document.body.appendChild(overlay);
+  doSearch();
+}
+
+function openMergeShowDialog(targetTitle) {
+  document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
+
+  const overlay = document.createElement("div");
+  overlay.className = "edit-dialog-overlay";
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.innerHTML = `
+    <div class="edit-dialog edit-dialog--wide glass-panel">
+      <h3>Merge Into "${escapeHtml(targetTitle)}"</h3>
+      <p class="muted-copy" style="margin-bottom: 0.75rem;">Select a duplicate show to merge into this one. Its episodes will be moved here and the duplicate removed.</p>
+      <div style="display: flex; gap: 0.5rem;">
+        <input type="search" class="field merge-show-input" placeholder="Search shows…" value="${escapeAttribute(targetTitle)}" style="flex: 1;" />
+        <button class="button-primary merge-show-search-btn" type="button">Search</button>
+      </div>
+      <div class="fix-match-results merge-show-results"></div>
+      <p class="edit-dialog-status"></p>
+      <div class="edit-dialog-actions" style="margin-top: 0.5rem;">
+        <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  const resultsEl = overlay.querySelector(".merge-show-results");
+  const status = overlay.querySelector(".edit-dialog-status");
+  const input = overlay.querySelector(".merge-show-input");
+
+  const doSearch = async () => {
+    const query = input.value.trim();
+    if (!query) return;
+    status.textContent = "Searching…";
+    resultsEl.innerHTML = "";
+    try {
+      const res = await fetch(`/api/shows?search=${encodeURIComponent(query)}&limit=20`, { headers: authHeaders() });
+      const body = await res.json().catch(() => ({}));
+      const shows = (body.shows || []).filter((s) => (sanitizeTitle(s.title) || "").toLowerCase() !== targetTitle.toLowerCase());
+      status.textContent = shows.length ? "" : "No other shows found.";
+      resultsEl.innerHTML = shows.map((s) => {
+        const title = sanitizeTitle(s.title) || "Unknown Show";
+        const count = s.episode_count || s.episodes?.length || 0;
+        const posterUrl = s.poster_url || "";
+        return `
+          <button class="fix-match-result" type="button" data-source-title="${escapeAttribute(title)}">
+            ${posterUrl ? `<img src="${escapeAttribute(posterUrl)}" alt="" onerror="this.style.display='none'" />` : ""}
+            <span>${escapeHtml(title)}${count ? ` <small>(${count} eps)</small>` : ""}</span>
+          </button>
+        `;
+      }).join("");
+
+      resultsEl.querySelectorAll(".fix-match-result").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const sourceTitle = btn.dataset.sourceTitle;
+          if (!confirm(`Merge "${sourceTitle}" into "${targetTitle}"? This cannot be undone.`)) return;
+          status.textContent = "Merging…";
+          try {
+            const r = await fetch("/api/merge-shows", {
+              method: "POST",
+              headers: { ...authHeaders(), "Content-Type": "application/json" },
+              body: JSON.stringify({ source_title: sourceTitle, target_title: targetTitle }),
+            });
+            const result = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(result.error || "Merge failed");
+            overlay.remove();
+            state.showsRaw = state.showsRaw.filter((s) => (sanitizeTitle(s.title) || "") !== sourceTitle);
+            setMessage(`Merged "${sourceTitle}" into "${targetTitle}"`, "success");
+            navigateTo("/tvshows");
+          } catch (err) {
+            status.textContent = `Error: ${err.message}`;
+          }
+        });
+      });
+    } catch (err) {
+      status.textContent = `Search failed: ${err.message}`;
+    }
+  };
+
+  overlay.querySelector(".merge-show-search-btn").addEventListener("click", doSearch);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
+  overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
+
+  document.body.appendChild(overlay);
+  doSearch();
+}
+
 function logDebug(message, details) {
   state.debugLogs = appendDebugLog(state.debugLogs, message, details);
   renderLogs();
@@ -283,6 +814,12 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
   return escapeHtml(value).replace(/`/g, "&#96;");
+}
+
+function sanitizeTitle(value) {
+  const raw = String(value || "").trim();
+  if (!raw || /^[a-z][a-z0-9+\-.]*:\/\//i.test(raw)) return "";
+  return raw;
 }
 
 function safeImageUrl(value) {
@@ -528,6 +1065,7 @@ function posterUrlFor(item = {}) {
   }
   const raw = item.poster_url || item.posterUrl || item.imageUrl || item.thumb || "";
   if (isCachedStorageImageUrl(raw)) return raw;
+  if (raw.startsWith("https://img.youtube.com/")) return raw;
   if (item.id != null) return "";
   if (raw) {
     return configuredImageUrl(raw, item);
@@ -880,7 +1418,7 @@ function showAvailIssuePopup(anchorEl) {
     : "";
 
   popup.innerHTML = `
-    <button class="avail-issue-close" type="button" aria-label="Close">✕</button>
+    <button class="avail-issue-close" type="button" aria-label="Close">âœ•</button>
     <b class="avail-issue-headline">${escapeHtml(headline)}</b>
     ${stepsHtml ? `<p class="avail-issue-fix-label">Steps to fix:</p>${stepsHtml}` : ""}
   `;
@@ -1423,7 +1961,7 @@ function webhookWarning() {
           2. Emby Webhook Setup
         </h3>
         <ul style="padding-left: 1.2rem; margin: 0; display: grid; gap: 4px;">
-          <li>In Emby Server Settings ➔ <b>Webhooks</b>, add a new webhook pointing to your Plembfin webhook URL.</li>
+          <li>In Emby Server Settings âž” <b>Webhooks</b>, add a new webhook pointing to your Plembfin webhook URL.</li>
           <li>Under <b>Events</b>, check the following boxes:
             <ul style="padding-left: 1.2rem; margin-top: 2px;">
               <li><b>Playback</b>: Check <code>Start</code>, <code>Pause</code>, <code>Unpause</code>, and <code>Stop</code></li>
@@ -1542,19 +2080,19 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
               <button class="copy-button" type="button" data-copy="node scripts/exportPlexHistory.js" aria-label="Copy bash snippet">Copy</button>
               <pre><code>node scripts/exportPlexHistory.js</code></pre>
             </div>
-            ${terminalOutput(`🚀 Initiating Local Plex History Extraction Engine...
-      ✔ Connection established to local server at http://127.0.0.1:32400
-      ℹ Found 3 media library sections to process.
+            ${terminalOutput(`ðŸš€ Initiating Local Plex History Extraction Engine...
+      âœ” Connection established to local server at http://127.0.0.1:32400
+      â„¹ Found 3 media library sections to process.
 
       [1/3] Processing Section: "Movies" (ID: 1)
-      → Found 450 watched titles. Streaming to Firebase in chunks...
-      └── Chunks: [██████████████████████████████] 100% | Sent 5/5 batches successfully.
+      â†’ Found 450 watched titles. Streaming to Firebase in chunks...
+      â””â”€â”€ Chunks: [â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ] 100% | Sent 5/5 batches successfully.
 
       [2/3] Processing Section: "TV Shows" (ID: 2)
-      → Traversing underlying episodes. Found 1,200 tracked played logs.
-      └── Chunks: [██████████████████████████████] 100% | Sent 12/12 batches successfully.
+      â†’ Traversing underlying episodes. Found 1,200 tracked played logs.
+      â””â”€â”€ Chunks: [â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ] 100% | Sent 12/12 batches successfully.
 
-      🎉 [SUCCESS] Historic data migration finalized!
+      ðŸŽ‰ [SUCCESS] Historic data migration finalized!
       Total Rows Synced to Firestore Archive: 1,650 items.
       Ecosystem is fully synchronized and ready for live playback tracking.`)}
           </section>
@@ -1582,101 +2120,171 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
               <button class="copy-button" type="button" data-copy="node scripts/forcePushHistory.js" aria-label="Copy bash snippet">Copy</button>
               <pre><code>node scripts/forcePushHistory.js</code></pre>
             </div>
-            ${terminalOutput(`🔄 Initiating Central Database Outward Force-Push Matrix...
-      ✔ Fetched 1,650 master tracking history logs from website API.
-      ℹ Mapping provider GUID parameters across target endpoints...
+            ${terminalOutput(`ðŸ”„ Initiating Central Database Outward Force-Push Matrix...
+      âœ” Fetched 1,650 master tracking history logs from website API.
+      â„¹ Mapping provider GUID parameters across target endpoints...
 
-      [PROCESSING] Index: 001/1650 | 'Dimension 20 - S01E01' ➔ Synchronizing...
-      ├── Plex Server Client API: [SKIPPED] (Already marked watched)
-      ├── Emby Server Client API: [SUCCESS] Item resolved (ID: 8849) ➔ Sent PlayState HTTP 200 OK
-      └── Jellyfin Server Client API: [SUCCESS] Cache-busted (ID: 9412) ➔ Sent PlayState HTTP 200 OK
+      [PROCESSING] Index: 001/1650 | 'Dimension 20 - S01E01' âž” Synchronizing...
+      â”œâ”€â”€ Plex Server Client API: [SKIPPED] (Already marked watched)
+      â”œâ”€â”€ Emby Server Client API: [SUCCESS] Item resolved (ID: 8849) âž” Sent PlayState HTTP 200 OK
+      â””â”€â”€ Jellyfin Server Client API: [SUCCESS] Cache-busted (ID: 9412) âž” Sent PlayState HTTP 200 OK
 
-      ⏳ Applying 150ms structural rate-limit protection delay...
-      [PROCESSING] Index: 002/1650 | 'The Curse of Oak Island' ➔ Synchronizing...
-      └── Continuing batch redistribution across all configured servers.
+      â³ Applying 150ms structural rate-limit protection delay...
+      [PROCESSING] Index: 002/1650 | 'The Curse of Oak Island' âž” Synchronizing...
+      â””â”€â”€ Continuing batch redistribution across all configured servers.
 
-      🎉 [SUCCESS] Outward catch-up synchronization task completed across all servers!`)}
+      ðŸŽ‰ [SUCCESS] Outward catch-up synchronization task completed across all servers!`)}
           </section>
         `;
       }
 
       const HELP_TOPICS = [
+        // ── Overview ──────────────────────────────────────────────────────
         {
-          id: "settings",
-          category: "Configuration",
-          title: "Settings Page",
+          id: "getting-started",
+          category: "Overview",
+          title: "Getting Started",
+          description: "Initial setup from Firebase auth to first webhook",
           badges: ["FIREBASE_AUTH", "PLEX_URL", "EMBY_API_KEY", "JELLYFIN_API_KEY"],
           body: () => `
-            <p>The Settings view is the control center for all server credentials and operational endpoints. It stores the Plex, Emby, and Jellyfin connection details used by the backend worker, exposes the webhook listener, and shows the web-cron trigger that can keep the cache synchronized even when the dashboard is closed.</p>
-            <p>When values are saved here, the Help badges become green and reveal a quick copy action. That lets you move between tabs without retyping hostnames, API keys, or user identifiers.</p>
-            ${adminTokenGuide()}
-            ${plexCredentialGuide()}
-            ${embyCredentialGuide()}
-            ${jellyfinCredentialGuide()}
-            ${webhookWarning()}
+            <p>Plembfin is a self-hosted watch-state bridge. It listens for playback events from Plex, Emby, and Jellyfin via webhooks, records them in Firestore, and propagates the watched or unwatched state to every other connected platform automatically. A background worker runs every minute so sync continues even when the dashboard is closed.</p>
+            <p>Follow these steps to get from zero to a fully synchronised setup:</p>
             <ol>
-              <li>Sign in with your Firebase Auth admin account.</li>
-              <li>Fill the Plex, Emby, and Jellyfin input cards.</li>
-              <li>Click <b>Save Configuration</b> to commit the data.</li>
-              <li>Reload the page to confirm the fields repopulate automatically.</li>
+              <li><b>Firebase Auth</b> — Create an admin account in the Firebase console and allowlist it via the <code>ADMIN_EMAILS</code> environment variable. See the <a href="#" data-help-topic-link="firebase-auth">Firebase Auth</a> guide for details.</li>
+              <li><b>Add credentials</b> — Open <b>Settings → Apps</b> and fill in the server URL, token or API key, and user ID for each platform you use. Click <b>Save Configuration</b>.</li>
+              <li><b>Configure webhooks</b> — Point each media server at your Plembfin webhook URL. See the <a href="#" data-help-topic-link="webhooks">Webhook Setup</a> guide for per-server instructions.</li>
+              <li><b>Verify</b> — Open <b>Settings → Tools → System Integrity Check</b> and run the diagnostic. All probes should return green before you rely on live sync.</li>
+              <li><b>Import history (optional)</b> — Use the Trakt History Importer in <b>Settings → Tools</b> to seed your Firestore archive from a Trakt export, then run Full Sync Watchstates to push everything to your media servers.</li>
             </ol>
+            <h3>How the system works</h3>
+            <p>When a webhook event arrives at <code>/api/webhook</code>, Plembfin normalises the payload from whichever server sent it into a unified media object. The <code>phase</code> field drives the response: active playback upserts a live session; a completed watch inserts a <code>watchHistory</code> record and triggers immediate propagation to the other platforms; an unplayed event deletes the record and marks it unwatched everywhere. A loop-detection store prevents echo loops when the propagation itself fires a webhook back.</p>
+            <p>The scheduled worker (<code>scheduledSync</code>) runs every minute via Cloud Scheduler. It polls active sessions, detects completed watches that crossed the 90% threshold, dispatches any outstanding sync jobs, and checks recent Plex items for unwatched removals — even when the dashboard is closed.</p>
+          `,
+        },
+
+        // ── Credentials ───────────────────────────────────────────────────
+        {
+          id: "firebase-auth",
+          category: "Credentials",
+          title: "Firebase Auth",
+          description: "Admin account setup and ADMIN_EMAILS env var",
+          badges: ["FIREBASE_AUTH"],
+          body: () => `
+            <p>Plembfin uses Firebase Authentication (email/password) to gate access to the dashboard and all <code>/api/*</code> endpoints. Every API request is verified server-side against the allowlist — unauthenticated requests are rejected before they touch the database.</p>
+            ${adminTokenGuide()}
           `,
         },
         {
+          id: "plex",
+          category: "Credentials",
+          title: "Plex",
+          description: "Server URL and token extraction",
+          badges: ["PLEX_URL", "PLEX_TOKEN"],
+          body: () => `
+            <p>Plembfin connects to your Plex server directly using its local or remote URL and a user token. The token identifies the account whose watch state is read and updated. Enter both in <b>Settings → Apps → Plex Setup</b> and click Save Configuration.</p>
+            ${plexCredentialGuide()}
+          `,
+        },
+        {
+          id: "emby",
+          category: "Credentials",
+          title: "Emby",
+          description: "API key, server URL, and user ID",
+          badges: ["EMBY_API_KEY", "EMBY_USER_ID"],
+          body: () => `
+            <p>Plembfin uses the Emby HTTP API to read and write watch states. You need a server-level API key (not a user password) and the internal user ID of the account whose playstate should be synchronised. Enter these in <b>Settings → Apps → Emby Setup</b> and click Save Configuration.</p>
+            ${embyCredentialGuide()}
+          `,
+        },
+        {
+          id: "jellyfin",
+          category: "Credentials",
+          title: "Jellyfin",
+          description: "API key, server URL, and user ID",
+          badges: ["JELLYFIN_API_KEY", "JELLYFIN_USER_ID"],
+          body: () => `
+            <p>Plembfin uses the Jellyfin HTTP API to read and write watch states. You need a server-level API key generated in the Jellyfin admin dashboard and the internal user ID of the account whose playstate should be synchronised. Enter these in <b>Settings → Apps → Jellyfin Setup</b> and click Save Configuration.</p>
+            ${jellyfinCredentialGuide()}
+          `,
+        },
+
+        // ── Webhooks ──────────────────────────────────────────────────────
+        {
           id: "webhooks",
-          category: "Operations",
-          title: "Webhook and Cron Sync",
+          category: "Webhooks",
+          title: "Webhook Setup",
+          description: "Configuring Plex, Emby, and Jellyfin to send events",
           badges: ["FIREBASE_AUTH"],
           body: () => {
             const url = `${window.location.origin}/api/webhook`;
             return `
-              <p>Plembfin uses a combination of direct webhooks and a scheduled background worker to keep your watch states in sync:</p>
-              <ul>
-                <li><b>Webhook Listener:</b> Point your media servers at this URL for immediate, real-time tracking. It processes playback sessions and instant play/unplay updates, committing them to your database and coordinating immediate propagation to the other platforms.</li>
-                <li><b>Scheduled Worker:</b> Firebase runs the backend background worker every minute. It polls active playback sessions, commits completed watches, and runs the Plex unwatched check even when the dashboard is closed.</li>
-              </ul>
-              <p>Resume progress sync uses stop/progress payloads below 90% watched. Plembfin stores the last resume point, ignores tiny positions under one minute, and pushes that position to the other two platforms so the same movie or episode can continue from the last stopped point.</p>
-              <p>Your unique Webhook URL is:</p>
+              <p>Webhooks are how your media servers notify Plembfin the moment something is watched, paused, stopped, or marked as unplayed. Each server needs to be told where to send events — that is your unique webhook URL below. Plembfin accepts events from all three platforms on the same endpoint and normalises them into a single internal format.</p>
+              <p>Your webhook URL:</p>
               ${snippet(url, "url")}
-              ${cronSyncGuide()}
               ${webhookWarning()}
             `;
           },
         },
+
+        // ── Sync ──────────────────────────────────────────────────────────
+        {
+          id: "sync-worker",
+          category: "Sync",
+          title: "Background Sync Worker",
+          description: "Cron schedule, resume sync, and loop detection",
+          badges: ["FIREBASE_AUTH"],
+          body: () => {
+            const url = `${window.location.origin}/api/webhook`;
+            return `
+              <p>Plembfin keeps your watch states converged through two complementary mechanisms: immediate webhook propagation for real-time events, and a scheduled background worker for polling, catch-up, and recovery.</p>
+              <h3>What the worker does each minute</h3>
+              <ul>
+                <li>Writes a heartbeat timestamp to <code>runtimeState</code> so you can confirm it is running.</li>
+                <li>Polls Plex, Emby, and Jellyfin for active playback sessions and upserts live cache rows.</li>
+                <li>Checks whether any active sessions have crossed the 90% watched threshold and commits completed watches to <code>watchHistory</code>.</li>
+                <li>Dispatches outstanding sync jobs — records that were written but not yet propagated to all platforms.</li>
+                <li>Checks recent Plex items for unwatched removals and propagates the unplayed state to Emby and Jellyfin.</li>
+              </ul>
+              <h3>Resume progress sync</h3>
+              <p>When a stop or pause event arrives with a playback position below 90% of the item's duration, Plembfin stores the resume offset (in ticks) and pushes it to the other two platforms. Positions under one minute are ignored to avoid noise from accidental plays. The next time you open the item on a different platform it will offer to resume from where you left off.</p>
+              <h3>Loop detection</h3>
+              <p>When Plembfin propagates a watch event to Emby or Jellyfin, that server fires its own webhook back to Plembfin. The <code>loopStore</code> in-memory map tracks recently-processed events keyed by platform and media identifier. Any incoming webhook that matches a recently-dispatched event is detected as an echo and dropped before it can trigger another propagation round.</p>
+              ${cronSyncGuide()}
+            `;
+          },
+        },
+        {
+          id: "sync-dashboard",
+          category: "Sync",
+          title: "Sync Dashboard",
+          description: "Reading the job queue and sync history panels",
+          badges: [],
+          body: () => `
+            <p>The <b>Settings → Sync</b> tab shows the current state of the sync queue and a log of recent propagation attempts. Use it to diagnose failures, check whether outstanding jobs are backed up, or confirm that a specific watched item was sent successfully.</p>
+            <h3>Job queue</h3>
+            <p>Each row in the sync jobs panel represents a <code>watchHistory</code> record that has at least one platform it still needs to reach. The row shows the media title, the target platform, the last attempt timestamp, and the current status. Rows clear automatically once all targets confirm success.</p>
+            <p>Use <b>Force Sync</b> to immediately run the full sync pass on demand and stream the output to the terminal below the controls. Use <b>Run Cron Sync</b> to trigger the scheduled worker manually — useful for testing that the worker endpoint is reachable and that credentials are valid.</p>
+            <h3>Sync history</h3>
+            <p>The history panel shows the most recent sync dispatch results in reverse chronological order. Each row records the media title, the target platform, the HTTP status the platform returned, and whether the dispatch succeeded or failed. Persistent failures on a specific platform usually indicate a credential or connectivity problem — open <b>Settings → Tools → System Integrity Check</b> to probe that server directly.</p>
+          `,
+        },
+
+        // ── Scripts ───────────────────────────────────────────────────────
         {
           id: "rebuild-playstate",
-          category: "Local Utilities",
+          category: "Scripts",
           title: "Rebuild Playstate Database",
+          description: "Full reset and reimport from a Trakt export + live Plex state",
           badges: ["FIREBASE_AUTH", "PLEX_TOKEN", "EMBY_API_KEY", "JELLYFIN_API_KEY"],
           body: () => rebuildPlaystateGuide(),
         },
         {
           id: "force-push-history",
-          category: "Local Utilities",
-          title: "scripts/forcePushHistory.js",
+          category: "Scripts",
+          title: "Force Push History",
+          description: "Replay the Firestore archive to Emby and Jellyfin",
           badges: ["EMBY_API_KEY", "EMBY_USER_ID", "JELLYFIN_API_KEY", "JELLYFIN_USER_ID"],
           body: () => forcePushHistoryGuide(),
-        },
-        {
-          id: "plex",
-          category: "Credentials",
-          title: "Plex Setup",
-          badges: ["PLEX_URL", "PLEX_TOKEN"],
-          body: () => `${plexCredentialGuide()}${webhookWarning()}`,
-        },
-        {
-          id: "emby",
-          category: "Credentials",
-          title: "Emby Setup",
-          badges: ["EMBY_API_KEY", "EMBY_USER_ID"],
-          body: () => `${embyCredentialGuide()}${webhookWarning()}`,
-        },
-        {
-          id: "jellyfin",
-          category: "Credentials",
-          title: "Jellyfin Setup",
-          badges: ["JELLYFIN_API_KEY", "JELLYFIN_USER_ID"],
-          body: () => `${jellyfinCredentialGuide()}${webhookWarning()}`,
         },
       ];
 
@@ -1812,11 +2420,13 @@ function handleRouting(path) {
     state.mediaDetailInline = false;
     clearMediaDetailState();
   } else if (pathname === "/sync") {
-    state.activeView = "sync";
+    state.activeView = "settings";
+    state.activeSettingsTab = "sync";
     state.mediaDetailInline = false;
     clearMediaDetailState();
   } else if (pathname === "/logs") {
-    state.activeView = "logs";
+    state.activeView = "settings";
+    state.activeSettingsTab = "logs";
     state.mediaDetailInline = false;
     clearMediaDetailState();
   } else if (pathname.startsWith("/settings")) {
@@ -1837,7 +2447,7 @@ function handleRouting(path) {
     if (parts[2]) {
       state.activeHelpTopic = parts[2];
     } else {
-      state.activeHelpTopic = "settings";
+      state.activeHelpTopic = "getting-started";
     }
   } else {
     state.activeView = "dashboard";
@@ -1858,6 +2468,7 @@ function navigateTo(url) {
 function selectView(view) {
   const legacyImporterView = view === "importer";
   const requestedView = legacyImporterView ? "settings" : view;
+  const legacySettingsTab = legacyImporterView ? "tools" : null;
   const targetView = PRIMARY_VIEWS.includes(requestedView) ? requestedView : "dashboard";
   
   let url = "/";
@@ -1878,7 +2489,7 @@ function selectView(view) {
   } else if (targetView === "explorer") {
     url = state.explorerMode === "shows" ? "/tvshows" : "/movies";
   } else if (targetView === "settings") {
-    url = `/settings/${legacyImporterView ? "importer" : state.activeSettingsTab}`;
+    url = `/settings/${legacySettingsTab || state.activeSettingsTab}`;
   } else if (targetView === "help") {
     url = `/help/${state.activeHelpTopic}`;
   } else if (targetView !== "dashboard") {
@@ -1932,18 +2543,11 @@ function applyActiveView() {
     loadStats().catch((error) => setMessage(error.message, "error"));
   }
   if (state.activeView === "explorer") renderExplorer();
-  if (state.activeView === "sync") {
-    renderSyncJobs();
-    renderSyncHistory();
-    loadSyncJobs().catch((error) => setMessage(error.message, "error"));
-    loadSyncHistory().catch((error) => setMessage(error.message, "error"));
-  }
   if (state.activeView !== "explorer") {
     state.explorerLoadObserver?.disconnect();
     state.explorerLoadObserver = undefined;
   }
-  if (state.activeView === "logs") renderLogs();
-  
+
   if (state.activeView === "settings") {
     localStorage.setItem(ACTIVE_SETTINGS_TAB_KEY, state.activeSettingsTab);
     for (const button of elements.settingsTabButtons || []) {
@@ -1952,6 +2556,13 @@ function applyActiveView() {
     for (const panel of elements.settingsPanels || []) {
       panel.classList.toggle("hidden", panel.dataset.settingsPanel !== state.activeSettingsTab);
     }
+    if (state.activeSettingsTab === "sync") {
+      renderSyncJobs();
+      renderSyncHistory();
+      loadSyncJobs().catch((error) => setMessage(error.message, "error"));
+      loadSyncHistory().catch((error) => setMessage(error.message, "error"));
+    }
+    if (state.activeSettingsTab === "logs") renderLogs();
     if (state.configLoaded) {
       renderSettingsStatus("Configuration ready.", "success");
     }
@@ -1972,6 +2583,9 @@ function configFromInputs() {
     },
     tmdb: {
       apiKey: elements.tmdbApiKey?.value.trim() || "",
+    },
+    youtube: {
+      apiKey: elements.youtubeApiKey?.value.trim() || "",
     },
     emby: {
       baseUrl: elements.embyServerUrl.value.trim(),
@@ -2022,6 +2636,7 @@ function populateConfigForm(config = {}) {
   elements.jellyfinUserId.value = config.jellyfin?.userId || "";
 
   elements.tmdbApiKey.value = config.tmdb?.apiKey || "";
+  if (elements.youtubeApiKey) elements.youtubeApiKey.value = config.youtube?.apiKey || "";
   
   syncSettingsInputsDisabledState();
 }
@@ -2118,7 +2733,7 @@ async function loadHistory({ force = false } = {}) {
     renderDashboard();
     renderStats();
     if (state.activeView === "stats") loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
-    if (state.activeView === "sync") {
+    if (state.activeView === "settings" && state.activeSettingsTab === "sync") {
       loadSyncJobs({ force: true }).catch((error) => setMessage(error.message, "error"));
       loadSyncHistory({ force: true }).catch((error) => setMessage(error.message, "error"));
     }
@@ -2570,6 +3185,20 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
 
+function futureListDate(isoString) {
+  if (!isoString) return "";
+  const today = new Date().toISOString().slice(0, 10);
+  if (isoString < today) return "";
+  return formatListDate(isoString);
+}
+
+function formatListDate(isoString) {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(d);
+}
+
 function formatDateShort(date) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "2-digit" }).format(date);
 }
@@ -2672,12 +3301,26 @@ function syncExplorerControlsState() {
 }
 
 function renderExplorer() {
+  if (state.mediaDetailInline) return;
   syncExplorerControlsState();
   for (const button of elements.explorerButtons) {
     button.classList.toggle("active", button.dataset.explorerMode === state.explorerMode);
   }
+  const activeView = currentExplorerView();
+  for (const button of elements.explorerViewButtons || []) {
+    button.classList.toggle("active", button.dataset.explorerView === activeView);
+  }
+  if (elements.explorerPosterSizeLabel) {
+    elements.explorerPosterSizeLabel.style.display = activeView === "overview" ? "none" : "";
+  }
+  applyExplorerPosterWidth();
   if (elements.explorerSort) {
-    elements.explorerSort.value = state.explorerSort;
+    const sort = currentExplorerSort();
+    elements.explorerSort.value = sort;
+    // Only show "Next Airing" option for shows
+    for (const opt of elements.explorerSort.options) {
+      if (opt.value === "next_air_asc") opt.hidden = state.explorerMode !== "shows";
+    }
   }
   if (elements.explorerTitle) {
     elements.explorerTitle.textContent = state.explorerMode === "shows" ? "TV Shows" : "Movies";
@@ -2705,7 +3348,7 @@ function renderExplorer() {
 }
 
 function explorerQueryKey(mode) {
-  return [mode, state.explorerSort, state.explorerSearch].join("|");
+  return [mode, currentExplorerSort(), state.explorerSearch].join("|");
 }
 
 function resetMovieExplorer(key = explorerQueryKey("movies")) {
@@ -2749,7 +3392,7 @@ function observeExplorerSentinel(mode) {
       if (mode === "movies") loadExplorerMovies().catch((error) => setMessage(error.message, "error"));
       if (mode === "shows") loadExplorerShows().catch((error) => setMessage(error.message, "error"));
     },
-    { rootMargin: "200px 0px 200px 0px" },
+    { rootMargin: "1200px 0px 1200px 0px" },
   );
   state.explorerLoadObserver.observe(sentinel);
 }
@@ -2769,7 +3412,78 @@ function observeExplorerTmdbPrefetch(container) {
         const title = el.dataset.prefetchTitle;
         if (mediaType && title) {
           if (state.token) {
-            fetchTmdbDetails(mediaType, tmdbId || undefined, title);
+            fetchTmdbDetails(mediaType, tmdbId || undefined, title).then((data) => {
+              if (!el.isConnected) return;
+              if (data?.poster_path) {
+                const posterUrl = tmdbImage(data.poster_path, TMDB_POSTER_SIZE);
+                if (posterUrl) {
+                  const fallback = el.querySelector(".poster-fallback[data-poster-id]");
+                  if (fallback) {
+                    const posterId = fallback.dataset.posterId;
+                    state.posterLookupCache.set(posterId, posterUrl);
+                    const img = document.createElement("img");
+                    img.className = fallback.className.replace(/\bposter-fallback\b/g, "").trim() || fallback.className;
+                    img.src = posterUrl;
+                    img.alt = title;
+                    img.loading = "lazy";
+                    img.decoding = "async";
+                    img.referrerPolicy = "no-referrer";
+                    img.dataset.posterId = posterId;
+                    fallback.replaceWith(img);
+                  }
+                }
+              }
+              if (currentExplorerView() === "list" && data) {
+                const isMovie = mediaType === "movie";
+                const releaseEl = el.querySelector("[data-list-release]");
+                if (releaseEl && !releaseEl.textContent.trim()) {
+                  const raw = isMovie ? data.release_date : data.first_air_date;
+                  if (raw) releaseEl.textContent = formatListDate(raw);
+                }
+                const yearEl = el.querySelector("[data-list-year]");
+                if (yearEl && !yearEl.textContent.trim()) {
+                  const raw = isMovie ? data.release_date : data.first_air_date;
+                  if (raw) yearEl.textContent = raw.slice(0, 4);
+                }
+                if (isMovie) {
+                  const runtimeEl = el.querySelector("[data-list-runtime]");
+                  if (runtimeEl && !runtimeEl.textContent.trim() && data.runtime) {
+                    runtimeEl.textContent = `${data.runtime} min`;
+                  }
+                } else {
+                  const nextAirEl = el.querySelector("[data-list-next-air]");
+                  if (nextAirEl && !nextAirEl.textContent.trim() && data.next_episode_to_air?.air_date) {
+                    nextAirEl.textContent = futureListDate(data.next_episode_to_air.air_date);
+                  }
+                  const epsEl = el.querySelector("[data-list-eps]");
+                  if (epsEl && data.number_of_episodes) {
+                    const watched = parseInt(epsEl.dataset.watched || "0") || 0;
+                    const total = data.number_of_episodes;
+                    const pct = Math.round((watched / total) * 100);
+                    epsEl.dataset.total = String(total);
+                    epsEl.outerHTML = `<div class="list-eps-progress" data-list-eps data-watched="${watched}" data-total="${total}"><div class="list-eps-bar-track"><div class="list-eps-bar-fill" style="width:${pct}%"></div></div><span class="list-eps-label">${watched} / ${total}</span></div>`;
+                  }
+                }
+              }
+              if (state.explorerSortShows === "next_air_asc" && mediaType === "tv") {
+                scheduleNextAirResort();
+              }
+              if (currentExplorerView() === "overview" && data) {
+                const attrsEl = el.querySelector("[data-overview-attrs]");
+                const textEl = el.querySelector("[data-overview-text]");
+                if (attrsEl && !attrsEl.textContent.trim()) {
+                  const isMovie = mediaType === "movie";
+                  const year = isMovie ? data.release_date?.slice(0, 4) : data.first_air_date?.slice(0, 4);
+                  const genres = data.genres?.slice(0, 3).map((g) => g.name).join(" · ") || "";
+                  const epCount = !isMovie && el.querySelector("[data-overview-attrs]")?.dataset?.epCount;
+                  const parts = [year, genres].filter(Boolean);
+                  attrsEl.textContent = parts.join(" · ");
+                }
+                if (textEl && !textEl.textContent.trim() && data.overview) {
+                  textEl.textContent = data.overview;
+                }
+              }
+            }).catch(() => {});
             _explorerPrefetchObserver?.unobserve(el);
           }
         } else {
@@ -2784,7 +3498,82 @@ function observeExplorerTmdbPrefetch(container) {
   }
 }
 
+let _nextAirResortTimer = null;
+function scheduleNextAirResort() {
+  clearTimeout(_nextAirResortTimer);
+  _nextAirResortTimer = setTimeout(() => {
+    if (state.explorerSortShows === "next_air_asc" && state.explorerMode === "shows") renderShowExplorer();
+  }, 600);
+}
+
+function currentExplorerView() {
+  return state.explorerMode === "shows" ? state.explorerViewShows : state.explorerViewMovies;
+}
+
+function currentExplorerSort() {
+  return state.explorerMode === "shows" ? state.explorerSortShows : state.explorerSortMovies;
+}
+
+function setCurrentExplorerSort(value) {
+  if (state.explorerMode === "shows") {
+    state.explorerSortShows = value;
+    localStorage.setItem(EXPLORER_SORT_KEY_SHOWS, value);
+  } else {
+    state.explorerSortMovies = value;
+    localStorage.setItem(EXPLORER_SORT_KEY_MOVIES, value);
+  }
+}
+
+function currentPosterWidthKey() {
+  const mode = state.explorerMode === "shows" ? "shows" : "movies";
+  const view = currentExplorerView();
+  return `plembfin:posterWidth:${mode}:${view}`;
+}
+
+function applyExplorerPosterWidth() {
+  const saved = localStorage.getItem(currentPosterWidthKey()) || "160px";
+  document.documentElement.style.setProperty("--poster-width", saved);
+  if (elements.explorerPosterSize) elements.explorerPosterSize.value = parseInt(saved) || 160;
+}
+
+function explorerGridClass(isShows = false) {
+  const base = isShows ? "movie-grid explorer-show-grid" : "movie-grid";
+  const view = currentExplorerView();
+  if (view === "list") return `explorer-list-view ${isShows ? "shows-list" : "movies-list"}`;
+  if (view === "overview") return "explorer-overview-view";
+  return base;
+}
+
+function sortArrow(colKey) {
+  const s = currentExplorerSort();
+  if (s === `${colKey}_asc`) return `<span class="sort-arrow">↑</span>`;
+  if (s === `${colKey}_desc`) return `<span class="sort-arrow">↓</span>`;
+  return "";
+}
+
+function applyListHeaderSort(key) {
+  const asc = `${key}_asc`, desc = `${key}_desc`;
+  setCurrentExplorerSort(currentExplorerSort() === asc ? desc : asc);
+  if (elements.explorerSort) elements.explorerSort.value = currentExplorerSort();
+  if (state.explorerMode === "shows") {
+    state.showsRaw = []; state.showsOffset = 0; state.showsHasMore = true; state.showsLoading = false;
+  } else {
+    state.moviesRaw = []; state.moviesOffset = 0; state.moviesHasMore = true; state.moviesLoading = false;
+  }
+  renderExplorer();
+}
+
+function resolvedTmdbCache(mediaType, tmdbId, title) {
+  if (!tmdbId && !title) return null;
+  const key = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}`;
+  const cached = state.tmdbDetailsCache.get(key);
+  if (!cached || typeof cached.then === "function") return null;
+  return cached;
+}
+
 function renderMovieCard(movie) {
+  if (currentExplorerView() === "list") return renderMovieListCard(movie);
+  if (currentExplorerView() === "overview") return renderMovieOverviewCard(movie);
   return `
     <div class="movie-card" data-history-id="${movie.id}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}">
       ${posterMarkup(movie, "movie-poster")}
@@ -2799,7 +3588,79 @@ function renderMovieCard(movie) {
   `;
 }
 
+function renderListHeader(isShows) {
+  if (isShows) {
+    return `
+      <div class="explorer-list-header">
+        <span></span>
+        <span class="list-header-sortable" data-sort-key="title">Series Title${sortArrow("title")}</span>
+        <span>Source</span>
+        <span class="list-header-sortable" data-sort-key="next_air">Next Airing${sortArrow("next_air")}</span>
+        <span>Seasons</span>
+        <span>Episodes</span>
+        <span class="list-header-sortable" data-sort-key="watched">Last Watched${sortArrow("watched")}</span>
+        <span>Year</span>
+      </div>
+    `;
+  }
+  return `
+    <div class="explorer-list-header">
+      <span></span>
+      <span class="list-header-sortable" data-sort-key="title">Title${sortArrow("title")}</span>
+      <span>Source</span>
+      <span>Release Date</span>
+      <span class="list-header-sortable" data-sort-key="watched">Watched${sortArrow("watched")}</span>
+      <span>Year</span>
+      <span>Runtime</span>
+      <span></span>
+    </div>
+  `;
+}
+
+function renderMovieListCard(movie) {
+  const sourceBadge = movie.source ? `<span class="source-badge ${sourceClass(movie.source)}">${escapeHtml(platformBadge(movie.source))}</span>` : "";
+  const tmdb = resolvedTmdbCache("movie", movie.tmdb_id, movie.title);
+  const releaseDate = tmdb?.release_date ? formatListDate(tmdb.release_date) : "";
+  const runtime = tmdb?.runtime ? `${tmdb.runtime} min` : "";
+  const year = tmdb?.release_date?.slice(0, 4) || "";
+  return `
+    <div class="movie-card explorer-list-card" data-history-id="${movie.id}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}">
+      ${posterMarkup(movie, "list-thumb-poster")}
+      <span class="list-card-title" title="${escapeAttribute(movie.title)}">${escapeHtml(movie.title)}</span>
+      <div class="list-card-col list-card-platform">${sourceBadge}</div>
+      <span class="list-card-col list-card-release" data-list-release>${escapeHtml(releaseDate)}</span>
+      <span class="list-card-col">${escapeHtml(formatDate(movie.watched_at))}</span>
+      <span class="list-card-col list-card-year" data-list-year>${escapeHtml(year)}</span>
+      <span class="list-card-col" data-list-runtime>${escapeHtml(runtime)}</span>
+      <div class="list-card-col list-card-sync">${renderSyncStatusDot(movie)}</div>
+    </div>
+  `;
+}
+
+function renderMovieOverviewCard(movie) {
+  const tmdb = resolvedTmdbCache("movie", movie.tmdb_id, movie.title);
+  const year = tmdb?.release_date?.slice(0, 4) || "";
+  const genres = tmdb?.genres?.slice(0, 3).map((g) => escapeHtml(g.name)).join(" &middot; ") || "";
+  const overview = tmdb?.overview || "";
+  const sourceBadge = movie.source ? `<span class="source-badge ${sourceClass(movie.source)}">${escapeHtml(platformBadge(movie.source))}</span>` : "";
+  return `
+    <div class="movie-card explorer-overview-card" data-history-id="${movie.id}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}">
+      ${posterMarkup(movie, "overview-thumb-poster")}
+      <div class="overview-card-meta">
+        <div class="overview-card-header">
+          <b title="${escapeAttribute(movie.title)}">${escapeHtml(movie.title)}</b>
+          <div class="overview-card-badges">${sourceBadge}${renderSyncStatusDot(movie)}</div>
+        </div>
+        <div class="overview-card-attrs" data-overview-attrs>${[year, genres].filter(Boolean).join(" &middot; ")}</div>
+        <p class="overview-card-text" data-overview-text>${escapeHtml(overview)}</p>
+        <span class="overview-card-date">${formatDate(movie.watched_at)}</span>
+      </div>
+    </div>
+  `;
+}
+
 function renderMovieExplorer() {
+  if (state.mediaDetailInline) return;
   const key = explorerQueryKey("movies");
   if (state.moviesQueryKey !== key) resetMovieExplorer(key);
 
@@ -2812,9 +3673,10 @@ function renderMovieExplorer() {
     return;
   }
 
-  elements.explorerPanel.innerHTML = state.moviesRaw.length
-    ? `<div class="movie-grid">${state.moviesRaw.map(renderMovieCard).join("")}</div>${renderExplorerSentinel("movies", state.moviesHasMore, state.moviesLoading)}`
+  const movieGrid = state.moviesRaw.length
+    ? `<div class="${explorerGridClass()}">${currentExplorerView() === "list" ? renderListHeader(false) : ""}${state.moviesRaw.map(renderMovieCard).join("")}</div>${renderExplorerSentinel("movies", state.moviesHasMore, state.moviesLoading)}`
     : emptyExplorer("No movies logged yet");
+  elements.explorerPanel.innerHTML = movieGrid;
   hydratePosters(elements.explorerPanel);
   observeExplorerSentinel("movies");
   observeExplorerTmdbPrefetch(elements.explorerPanel);
@@ -2829,7 +3691,7 @@ async function loadExplorerMovies() {
     const url = new URL("/api/movies", window.location.origin);
     url.searchParams.set("limit", String(EXPLORER_PAGE_SIZE));
     url.searchParams.set("offset", String(state.moviesOffset));
-    url.searchParams.set("sort", state.explorerSort);
+    url.searchParams.set("sort", currentExplorerSort());
     if (state.explorerSearch) url.searchParams.set("search", state.explorerSearch);
 
     const cacheKey = url.toString();
@@ -2852,6 +3714,7 @@ async function loadExplorerMovies() {
 }
 
 function renderShowExplorer() {
+  if (state.mediaDetailInline) return;
   const key = explorerQueryKey("shows");
   if (state.showsQueryKey !== key) resetShowExplorer(key);
 
@@ -2864,8 +3727,21 @@ function renderShowExplorer() {
     return;
   }
 
-  elements.explorerPanel.innerHTML = state.showsRaw.length
-    ? `<div class="movie-grid explorer-show-grid">${state.showsRaw.map(renderShowRecord).join("")}</div>${renderExplorerSentinel("shows", state.showsHasMore, state.showsLoading)}`
+  const showsToRender = state.explorerSortShows === "next_air_asc"
+    ? [...state.showsRaw].sort((a, b) => {
+        const tmdbA = resolvedTmdbCache("tv", a.tmdb_id, a.title);
+        const tmdbB = resolvedTmdbCache("tv", b.tmdb_id, b.title);
+        const dateA = tmdbA?.next_episode_to_air?.air_date;
+        const dateB = tmdbB?.next_episode_to_air?.air_date;
+        if (dateA && dateB) return dateA.localeCompare(dateB);
+        if (dateA) return -1;
+        if (dateB) return 1;
+        return String(a.title).localeCompare(String(b.title));
+      })
+    : state.showsRaw;
+
+  elements.explorerPanel.innerHTML = showsToRender.length
+    ? `<div class="${explorerGridClass(true)}">${currentExplorerView() === "list" ? renderListHeader(true) : ""}${showsToRender.map(renderShowRecord).join("")}</div>${renderExplorerSentinel("shows", state.showsHasMore, state.showsLoading)}`
     : emptyExplorer("No TV episodes logged yet");
   hydratePosters(elements.explorerPanel);
   observeExplorerSentinel("shows");
@@ -2881,7 +3757,7 @@ async function loadExplorerShows() {
     const url = new URL("/api/shows", window.location.origin);
     url.searchParams.set("limit", String(EXPLORER_PAGE_SIZE));
     url.searchParams.set("offset", String(state.showsOffset));
-    url.searchParams.set("sort", state.explorerSort);
+    url.searchParams.set("sort", state.explorerSortShows === "next_air_asc" ? "title_asc" : state.explorerSortShows);
     if (state.explorerSearch) url.searchParams.set("search", state.explorerSearch);
 
     const cacheKey = url.toString();
@@ -3026,7 +3902,7 @@ function summaryEpisodeFromShow(show = {}) {
   return {
     ...representative,
     id: representative.id || show.id || show.title,
-    title: representative.title || show.title || "Unknown Show",
+    title: sanitizeTitle(representative.title) || sanitizeTitle(show.title) || "Unknown Show",
     media_type: representative.media_type || "episode",
     watched_at: representative.watched_at || show.latest_watched_at || "",
     source: representative.source || show.source || "",
@@ -3038,21 +3914,70 @@ function summaryEpisodeFromShow(show = {}) {
 }
 
 function renderShowRecord(show = {}) {
-  if (!Array.isArray(show.episodes) || !show.episodes.length) {
-    const representative = summaryEpisodeFromShow(show);
-    const showKey = slug(show.title || "Unknown Show");
+  const displayTitle = sanitizeTitle(show.title) || "Unknown Show";
+  const showKey = slug(displayTitle);
+  const representative = summaryEpisodeFromShow(show);
+  const seasons = Array.isArray(show.episodes) && show.episodes.length ? seasonsFromShowRecord(show) : null;
+  const episodeCount = show.episode_count || (seasons ? allSeasonEpisodes(seasons).length : 0);
+  const seasonCount = show.season_count || (seasons ? seasons.size : 0);
+  const latestEpisode = seasons ? representativeEpisode(seasons) : representative;
+  const tmdbId = show.tmdb_id || "";
+
+  if (currentExplorerView() === "list") {
+    const tmdbShow = resolvedTmdbCache("tv", tmdbId, displayTitle);
+    const year = tmdbShow?.first_air_date?.slice(0, 4) || "";
+    const totalEps = tmdbShow?.number_of_episodes || 0;
+    const nextAirDate = tmdbShow?.next_episode_to_air?.air_date ? futureListDate(tmdbShow.next_episode_to_air.air_date) : "";
+    const pct = totalEps ? Math.round((episodeCount / totalEps) * 100) : null;
+    const episodeProgressHtml = totalEps
+      ? `<div class="list-eps-progress" data-list-eps data-watched="${episodeCount}" data-total="${totalEps}"><div class="list-eps-bar-track"><div class="list-eps-bar-fill" style="width:${pct}%"></div></div><span class="list-eps-label">${episodeCount} / ${totalEps}</span></div>`
+      : `<span class="list-card-col" data-list-eps data-watched="${episodeCount}" data-total="0">${episodeCount}</span>`;
+    const sourceEl = latestEpisode?.source ? `<span class="source-badge ${sourceClass(latestEpisode.source)}">${escapeHtml(platformBadge(latestEpisode.source))}</span>` : "";
     return `
-      <article class="folder-card" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(show.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(show.title || "Unknown Show")}">
-        <button class="folder-trigger" type="button" data-show-key="${escapeAttribute(showKey)}" style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block;">
-          ${posterMarkup(representative, "explorer-folder-poster")}
-          <div class="movie-card-body" style="margin-top: 0.5rem;">
-            <b>${escapeHtml(show.title || "Unknown Show")}</b>
-          </div>
-        </button>
+      <article class="explorer-list-card explorer-list-show-card" data-show-key="${escapeAttribute(showKey)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
+        ${posterMarkup(latestEpisode, "list-thumb-poster")}
+        <span class="list-card-title">${escapeHtml(displayTitle)}</span>
+        <div class="list-card-col list-card-platform">${sourceEl}</div>
+        <span class="list-card-col" data-list-next-air>${escapeHtml(nextAirDate)}</span>
+        <span class="list-card-col">${escapeHtml(String(seasonCount || ""))}</span>
+        ${episodeProgressHtml}
+        <span class="list-card-col">${latestEpisode?.watched_at ? escapeHtml(formatDate(latestEpisode.watched_at)) : ""}</span>
+        <span class="list-card-col list-card-year" data-list-year>${escapeHtml(year)}</span>
       </article>
     `;
   }
-  return renderShowFolder(show.title || "Unknown Show", seasonsFromShowRecord(show), show.tmdb_id);
+
+  if (currentExplorerView() === "overview") {
+    const tmdb = resolvedTmdbCache("tv", tmdbId, displayTitle);
+    const genres = tmdb?.genres?.slice(0, 3).map((g) => escapeHtml(g.name)).join(" &middot; ") || "";
+    const overview = tmdb?.overview || "";
+    const firstYear = tmdb?.first_air_date?.slice(0, 4) || "";
+    return `
+      <article class="explorer-overview-card explorer-overview-show-card" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
+        <button class="folder-trigger overview-show-poster-btn" type="button" data-show-key="${escapeAttribute(showKey)}" style="border:0;background:transparent;padding:0;display:block;">
+          ${posterMarkup(latestEpisode, "overview-thumb-poster")}
+        </button>
+        <div class="overview-card-meta">
+          <div class="overview-card-header">
+            <button class="folder-trigger overview-show-title-btn" type="button" data-show-key="${escapeAttribute(showKey)}" style="border:0;background:transparent;padding:0;text-align:left;cursor:pointer;"><b>${escapeHtml(displayTitle)}</b></button>
+          </div>
+          <div class="overview-card-attrs" data-overview-attrs>${[firstYear, genres].filter(Boolean).join(" &middot; ")}${episodeCount ? `${firstYear || genres ? " &middot; " : ""}${episodeCount} ep${episodeCount !== 1 ? "s" : ""}` : ""}</div>
+          <p class="overview-card-text" data-overview-text>${escapeHtml(overview)}</p>
+        </div>
+      </article>
+    `;
+  }
+
+  return `
+    <article class="folder-card" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
+      <button class="folder-trigger" type="button" data-show-key="${escapeAttribute(showKey)}" style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block;">
+        ${posterMarkup(latestEpisode, "explorer-folder-poster")}
+        <div class="movie-card-body" style="margin-top: 0.5rem;">
+          <b>${escapeHtml(displayTitle)}</b>
+        </div>
+      </button>
+    </article>
+  `;
 }
 
 function renderShowFolder(showTitle, seasons, tmdbId) {
@@ -3074,12 +3999,12 @@ function renderShowFolder(showTitle, seasons, tmdbId) {
 function renderSeasonFolder(showKey, season, episodes) {
   const seasonKey = `${showKey}:s${season}`;
   const expanded = state.expandedSeasons.has(seasonKey);
-  const sortedEpisodes = sortExplorerItems(episodes, state.explorerSort);
+  const sortedEpisodes = sortExplorerItems(episodes, currentExplorerSort());
 
   return `
     <article class="season-card">
       <button class="season-trigger" type="button" data-season-key="${seasonKey}" aria-expanded="${expanded}">
-        <span class="accordion-chevron ${expanded ? "expanded" : ""}">▼</span>
+        <span class="accordion-chevron ${expanded ? "expanded" : ""}">â–¼</span>
         <b>Season ${String(season || "?").padStart(2, "0")}</b>
         <span>${episodes.length} watched episodes</span>
       </button>
@@ -3162,7 +4087,8 @@ function renderHelp() {
             .map(
               (topic) => `
                 <button class="help-menu-item ${topic.id === state.activeHelpTopic ? "active" : ""}" type="button" data-help-topic="${topic.id}">
-                  ${escapeHtml(topic.title)}
+                  <span class="help-menu-item-title">${escapeHtml(topic.title)}</span>
+                  ${topic.description ? `<span class="help-menu-item-desc">${escapeHtml(topic.description)}</span>` : ""}
                 </button>
               `,
             )
@@ -3175,7 +4101,9 @@ function renderHelp() {
   const topic = HELP_TOPICS.find((item) => item.id === state.activeHelpTopic) || HELP_TOPICS[0];
   elements.helpCanvas.innerHTML = `
     <div class="help-hero">
-      <h2>${escapeHtml(topic.category)} - ${escapeHtml(topic.title)}</h2>
+      <div class="help-hero-eyebrow">${escapeHtml(topic.category)}</div>
+      <h2>${escapeHtml(topic.title)}</h2>
+      ${topic.description ? `<p class="help-hero-desc">${escapeHtml(topic.description)}</p>` : ""}
       ${tokenBadges(topic.badges)}
     </div>
     <div class="help-doc-body">${topic.body()}</div>
@@ -3232,7 +4160,7 @@ async function testConnection(type, button) {
     body = await response.json().catch(() => ({}));
   } catch (error) {
     const message = `${label} fetch failed. Reason: FETCH_FAILED (${error?.message || "request could not be sent"})`;
-    setConnectionButton(button, `✘ Failed`, "error");
+    setConnectionButton(button, `âœ˜ Failed`, "error");
     setConnectionStatus(type, message, "error");
     logDebug(message);
     return;
@@ -3243,7 +4171,7 @@ async function testConnection(type, button) {
   logDebug(`${label} test-connection endpoint returned HTTP ${response.status}`, body);
 
   if (response.ok && body.ok) {
-    const message = `✔ Connected (HTTP ${body.status || response.status})`;
+    const message = `âœ” Connected (HTTP ${body.status || response.status})`;
     setConnectionButton(button, message, "success");
     setConnectionStatus(type, `${body.detail || "Server identity verified"} in ${body.elapsedMs || 0}ms`, "success");
     window.setTimeout(() => setConnectionButton(button, "Test Connection", "muted"), 3000);
@@ -3252,8 +4180,8 @@ async function testConnection(type, button) {
 
   const statusText = body.status ? `HTTP ${body.status}` : `HTTP ${response.status}`;
   const errorMessage = body.error || `Connection failed with ${statusText}`;
-  setConnectionButton(button, `✘ Failed`, "error");
-  setConnectionStatus(type, `✘ Failed: ${errorMessage} (${statusText})`, "error");
+  setConnectionButton(button, `âœ˜ Failed`, "error");
+  setConnectionStatus(type, `âœ˜ Failed: ${errorMessage} (${statusText})`, "error");
 }
 
 function refreshHelpIfVisible() {
@@ -3478,7 +4406,7 @@ async function openShowImmersiveModalByTitleLegacy(showTitle) {
     }
     elements.modalBody.innerHTML = `
       <div class="immersive-container">
-        <button class="immersive-back-button" type="button">← Back</button>
+        <button class="immersive-back-button" type="button">â† Back</button>
         <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
           <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading show details...</span>
         </div>
@@ -3505,7 +4433,7 @@ async function openShowImmersiveModalByTitleLegacy(showTitle) {
   } else {
     elements.modalBody.innerHTML = `
       <div class="immersive-container">
-        <button class="immersive-back-button" type="button">← Back</button>
+        <button class="immersive-back-button" type="button">â† Back</button>
         <div style="display: flex; justify-content: center; align-items: center; min-height: 200px; flex-direction: column; gap: var(--space-2);">
           <span style="color: var(--danger); font-size: 1.1rem; font-weight: bold;">Show not found</span>
           <span style="color: var(--muted); font-size: 0.9rem;">Could not locate this TV series in the archive.</span>
@@ -3605,7 +4533,7 @@ async function openImmersiveModal(id) {
   const root = mediaDetailRoot();
   root.innerHTML = `
     <div class="immersive-container media-detail-page">
-      ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">← Back</button>' : ''}
+      ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">â† Back</button>' : ''}
       <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
         <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading details...</span>
       </div>
@@ -3628,7 +4556,7 @@ async function openImmersiveModal(id) {
   if (!entry) {
     root.innerHTML = `
       <div class="immersive-container">
-        ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">← Back</button>' : ''}
+        ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">â† Back</button>' : ''}
         <div style="display: flex; justify-content: center; align-items: center; min-height: 200px; flex-direction: column; gap: var(--space-2);">
           <span style="color: var(--danger); font-size: 1.1rem; font-weight: bold;">Content not found</span>
           <span style="color: var(--muted); font-size: 0.9rem;">Could not locate this watch history record.</span>
@@ -3692,91 +4620,68 @@ async function fetchTmdbDetails(mediaType, tmdbId, title) {
   return promise;
 }
 
-function renderRichTmdbDetails(tmdbData) {
+function renderCastSection(tmdbData) {
+  const cast = tmdbData?.credits?.cast || [];
+  if (!cast.length) return "";
+  return `
+    <section class="seasons-section cast-section">
+      <div class="show-section-title"><h3>Cast</h3></div>
+      <div class="cast-compact-row">
+        ${cast.slice(0, 20).map((actor) => {
+          const avatarUrl = actor.profile_path ? `https://image.tmdb.org/t/p/w185${actor.profile_path}` : "/favicon.svg";
+          return `
+            <div class="cast-member-card" style="cursor: pointer;" onclick="window.showCastMemberDetails('${actor.id}', '${escapeAttribute(actor.name)}')">
+              <img class="cast-avatar-img" src="${escapeAttribute(avatarUrl)}" alt="${escapeAttribute(actor.name)}" onerror="this.src='/favicon.svg';" />
+              <span class="cast-actor-name">${escapeHtml(actor.name)}</span>
+              <span class="cast-character-name">${escapeHtml(actor.character)}</span>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderTrailersReviewsSection(tmdbData) {
   if (!tmdbData) return "";
-
-  const cast = tmdbData.credits?.cast || [];
-  const trailers = (tmdbData.videos?.results || []).filter(
-    (v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser")
-  );
+  const trailers = (tmdbData.videos?.results || []).filter((v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser"));
   const reviews = tmdbData.reviews?.results || [];
-
   let html = "";
 
-  // 1. Cast Section
-  if (cast.length > 0) {
-    html += `
-      <section class="seasons-section cast-section">
-        <div class="show-section-title">
-          <h3>Cast</h3>
-          <span>${Math.min(cast.length, 15)} shown</span>
-        </div>
-        <div class="horizontal-scroll-row cast-scroll-row" style="margin-top: 0.5rem;">
-          ${cast.slice(0, 15).map(actor => {
-            const avatarUrl = actor.profile_path ? `https://image.tmdb.org/t/p/w185${actor.profile_path}` : '/favicon.svg';
-            return `
-              <div class="cast-member-card" style="cursor: pointer;" onclick="window.showCastMemberDetails('${actor.id}', '${escapeAttribute(actor.name)}')">
-                <img class="cast-avatar-img" src="${escapeAttribute(avatarUrl)}" alt="${escapeAttribute(actor.name)}" onerror="this.src='/favicon.svg';" />
-                <span class="cast-actor-name">${escapeHtml(actor.name)}</span>
-                <span class="cast-character-name">${escapeHtml(actor.character)}</span>
-              </div>
-            `;
-          }).join("")}
-        </div>
-      </section>
-    `;
-  }
-
-  // 2. Trailers Section
   if (trailers.length > 0) {
     html += `
       <section class="seasons-section trailers-section">
-        <div class="show-section-title">
-          <h3>Trailers & Clips</h3>
-          <span>${trailers.length} available</span>
-        </div>
+        <div class="show-section-title"><h3>Trailers & Clips</h3><span>${trailers.length} available</span></div>
         <div class="horizontal-scroll-row trailer-scroll-row" style="margin-top: 0.5rem;">
-          ${trailers.map(video => {
-            return `
-              <div class="trailer-card">
-                <div class="trailer-thumb-container" data-video-key="${video.key}" data-video-name="${escapeAttribute(video.name)}" onclick="window.playTrailer(this, '${video.key}', '${escapeAttribute(video.name)}')">
-                  <img class="trailer-thumb" src="https://img.youtube.com/vi/${video.key}/mqdefault.jpg" alt="${escapeAttribute(video.name)}" onerror="this.src='/favicon.svg';" />
-                  <div class="play-overlay">
-                    <svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                  </div>
-                </div>
-                <span class="trailer-title" title="${escapeAttribute(video.name)}">${escapeHtml(video.name)}</span>
+          ${trailers.map((video) => `
+            <div class="trailer-card">
+              <div class="trailer-thumb-container" data-video-key="${video.key}" data-video-name="${escapeAttribute(video.name)}" onclick="window.playTrailer(this, '${video.key}', '${escapeAttribute(video.name)}')">
+                <img class="trailer-thumb" src="https://img.youtube.com/vi/${video.key}/mqdefault.jpg" alt="${escapeAttribute(video.name)}" onerror="this.src='/favicon.svg';" />
+                <div class="play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
               </div>
-            `;
-          }).join("")}
+              <span class="trailer-title" title="${escapeAttribute(video.name)}">${escapeHtml(video.name)}</span>
+            </div>
+          `).join("")}
         </div>
       </section>
     `;
   }
 
-  // 3. Reviews Section
   if (reviews.length > 0) {
     html += `
       <section class="seasons-section reviews-section">
-        <div class="show-section-title">
-          <h3>Reviews</h3>
-          <span>${reviews.length} reviews</span>
-        </div>
+        <div class="show-section-title"><h3>Reviews</h3><span>${reviews.length} reviews</span></div>
         <div class="review-list" style="margin-top: 0.5rem;">
-          ${reviews.slice(0, 3).map(review => {
-            const hasLongContent = review.content && review.content.length > 300;
+          ${reviews.slice(0, 3).map((review) => {
+            const hasLong = review.content?.length > 300;
             return `
               <div class="review-card">
                 <div class="review-header">
                   <span class="review-author">${escapeHtml(review.author)}</span>
-                  ${review.author_details?.rating ? `<span class="review-rating">★ ${review.author_details.rating}/10</span>` : ""}
+                  ${review.author_details?.rating ? `<span class="review-rating">â˜… ${review.author_details.rating}/10</span>` : ""}
                 </div>
-                <div class="review-content-wrapper">
-                  <p class="review-content">${escapeHtml(review.content)}</p>
-                </div>
-                ${hasLongContent ? `
-                  <button class="action-pill review-toggle-btn" type="button" onclick="const p = this.previousElementSibling.querySelector('.review-content'); p.classList.toggle('expanded'); this.textContent = p.classList.contains('expanded') ? 'Show Less' : 'Read More';">Read More</button>
-                ` : ""}
+                <div class="review-content-wrapper"><p class="review-content">${escapeHtml(review.content)}</p></div>
+                ${hasLong ? `<button class="action-pill review-toggle-btn" type="button" onclick="const p=this.previousElementSibling.querySelector('.review-content');p.classList.toggle('expanded');this.textContent=p.classList.contains('expanded')?'Show Less':'Read More';">Read More</button>` : ""}
               </div>
             `;
           }).join("")}
@@ -3786,6 +4691,32 @@ function renderRichTmdbDetails(tmdbData) {
   }
 
   return html;
+}
+
+function renderRelatedShowsSection(tmdbData) {
+  const related = tmdbData?.similar?.results || [];
+  if (!related.length) return "";
+  return `
+    <section class="seasons-section related-section">
+      <div class="show-section-title"><h3>Related Shows</h3></div>
+      <div class="horizontal-scroll-row" style="margin-top: 0.5rem;">
+        ${related.slice(0, 20).map((item) => {
+          const poster = item.poster_path ? `https://image.tmdb.org/t/p/w154${item.poster_path}` : "/favicon.svg";
+          const year = (item.first_air_date || "").slice(0, 4);
+          return `
+            <div class="season-poster-card related-show-card" data-immersive-related-tmdb="${item.id}" style="cursor:pointer;">
+              <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(item.name || "")}" onerror="this.src='/favicon.svg';" />
+              <span class="season-poster-name">${escapeHtml(item.name || "")}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderRichTmdbDetails(tmdbData) {
+  return renderTrailersReviewsSection(tmdbData);
 }
 
 async function fetchTmdbSeasonDetails(tmdbId, seasonNumber) {
@@ -3928,7 +4859,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
 
   elements.modalBody.innerHTML = `
     <div class="immersive-container">
-      <button class="immersive-back-button" type="button">← Back</button>
+      <button class="immersive-back-button" type="button">â† Back</button>
       <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
         <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading show details...</span>
       </div>
@@ -3937,7 +4868,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
 
   const tmdbData = await fetchTmdbDetails("tv", show.tmdb_id, show.title);
 
-  const showTitle = show.title;
+  const showTitle = sanitizeTitle(show.title) || "Unknown Show";
   let backdropUrl = "";
   let posterUrl = posterUrlFor(representativeEpisode(seasonsMap));
   let overview = "No synopsis available.";
@@ -3993,7 +4924,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
   root.innerHTML = `
     <div class="modal-backdrop-image" style="background-image: url('${backdropUrl || posterUrl}');"></div>
     <div class="immersive-container media-detail-page">
-      <button class="immersive-back-button" type="button">← Back</button>
+      <button class="immersive-back-button" type="button">â† Back</button>
       
       <header class="immersive-header">
         <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(showTitle)} poster" onerror="this.src='/favicon.svg';" />
@@ -4034,7 +4965,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
           <span>${watchedCount} episodes watched</span>
         </button>
         <div id="immersiveEpisodeList" class="episode-list hidden" style="margin-top: 0.75rem;">
-          ${sortExplorerItems(watchedEpisodes, state.explorerSort)
+          ${sortExplorerItems(watchedEpisodes, currentExplorerSort())
             .map(
               (episode) => `
                 <article class="episode-row" style="background: #0d1216;">
@@ -4217,7 +5148,7 @@ function renderShowModalContent(show, {
   const root = mediaDetailRoot();
   show = mergeShowWithLoadedHistory(show);
   const seasonsMap = seasonsFromShowRecord(show);
-  const showTitle = show.title;
+  const showTitle = sanitizeTitle(show.title) || "Unknown Show";
   const hasTmdbKey = Boolean(state.savedConfig.tmdb?.apiKey);
   const seasonsList = (tmdbData?.seasons?.length ? tmdbData.seasons : fallbackSeasonList(seasonsMap)).filter((season) => Number(season.season_number) > 0);
   const selectedSeason = activeSeasonNum || seasonsList[0]?.season_number || [...seasonsMap.keys()].sort((a, b) => b - a)[0] || 1;
@@ -4280,10 +5211,7 @@ function renderShowModalContent(show, {
   const selectedSeasonEpisodesHtml = `
     <section class="show-season-block" id="showSeason${selectedSeasonNumber}">
       <div class="show-season-head">
-        <div>
-          <h4>${escapeHtml(selectedSeasonRecord.name || seasonLabel(selectedSeasonNumber))}</h4>
-          <span>${selectedSeasonSummary.watchedInSeason} of ${selectedSeasonSummary.seasonTotal || "?"} episodes watched</span>
-        </div>
+        <span class="show-season-label">${escapeHtml(selectedSeasonRecord.name || seasonLabel(selectedSeasonNumber))} &mdash; ${selectedSeasonSummary.watchedInSeason} of ${selectedSeasonSummary.seasonTotal || "?"} episodes watched</span>
         <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${selectedSeasonNumber}" ${selectedSeasonUnwatched.length ? "" : "disabled"}>Mark season watched</button>
       </div>
       <div class="show-episode-list">
@@ -4304,12 +5232,15 @@ function renderShowModalContent(show, {
                 <p>${escapeHtml(episode.overview)}</p>
                 <div class="immersive-episode-meta-row">
                   <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
-                  ${episode.watched ? `<time>Watched ${formatDate(episode.watched.watched_at)}</time>` : ""}
+                  ${episode.watched ? `<time>Watched ${formatDate(episode.watched.watched_at)} <button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(episode.watched.id)}" data-watched-at="${escapeAttribute(episode.watched.watched_at || "")}">âœŽ</button></time>` : ""}
                 </div>
-                ${!episodeIsUnreleased ? `<div class="avail-pills-row">${renderAvailabilityPills(episode.watched || {})}</div>` : ""}
               </div>
               <div class="immersive-episode-actions">
-                ${episodeIsUnreleased ? `<span class="unreleased-pill">Not yet released</span>` : (episode.watched ? "" : `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}">Mark watched</button>`)}
+                ${episodeIsUnreleased
+                  ? `<span class="unreleased-pill">Not yet released</span>`
+                  : !episode.watched
+                    ? `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}">Mark watched</button>`
+                    : ""}
               </div>
             </article>
           `;
@@ -4317,6 +5248,13 @@ function renderShowModalContent(show, {
       </div>
     </section>
   `;
+
+  setMediaDetailActions(`
+    <button class="action-pill" type="button" data-watch-scope="show" ${unwatchedRows.length ? "" : "disabled"}>Mark whole show watched</button>
+    <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}">Edit Image</button>
+    <button class="action-pill media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">Fix Match</button>
+    <button class="action-pill media-merge-show-btn" type="button" data-show-title="${escapeAttribute(showTitle)}">Merge</button>
+  `);
 
   root.innerHTML = `
     <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || "")}');"></div>
@@ -4330,15 +5268,16 @@ function renderShowModalContent(show, {
 
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${rating ? `<div class="rating-pill"><span>TMDB</span><span>${escapeHtml(rating)}</span></div>` : ""}
-            <div class="avail-pills-row">
-              ${renderShowAvailabilityPills(show)}
-            </div>
             ${showModalStatus(loading, hasTmdbKey, Boolean(tmdbData))}
           </div>
 
           <p class="immersive-overview">${escapeHtml(overview)}</p>
 
           <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
+            <div class="availability-row">
+              <span class="availability-label">Availability</span>
+              <div class="avail-pills-row">${renderShowAvailabilityPills(show)}</div>
+            </div>
             <h3>Progress</h3>
             <div class="progress-label-row">
               <span>${watchedCount} of ${totalCount} episodes watched</span>
@@ -4349,32 +5288,23 @@ function renderShowModalContent(show, {
             </div>
           </section>
 
-          <div class="actions-row" style="margin-top: 0.5rem;">
-            <button class="action-pill" type="button" data-watch-scope="show" ${unwatchedRows.length ? "" : "disabled"}>Mark whole show watched</button>
-          </div>
         </div>
         ${seasonsSectionHtml}
       </header>
 
+      ${renderCastSection(tmdbData)}
+
       <section class="episodes-section">
-        <div class="show-section-title">
-          <h3>${escapeHtml(selectedSeasonRecord.name || seasonLabel(selectedSeasonNumber))} Episodes</h3>
-          <span>${selectedSeasonEpisodes.length || selectedSeasonSummary.seasonTotal || 0} shown</span>
-        </div>
         ${selectedSeasonEpisodesHtml}
       </section>
 
-      ${renderRichTmdbDetails(tmdbData)}
+      ${renderTrailersReviewsSection(tmdbData)}
+      ${renderRelatedShowsSection(tmdbData)}
     </div>
     ${renderWatchDatePrompt(state.pendingWatchAction)}
   `;
   hydratePosters(root);
-  const highlighted = root.querySelector("#highlightedEpisode");
-  if (highlighted) {
-    setTimeout(() => {
-      highlighted.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 100);
-  }
+  // Highlight only — no scrolling when navigating from dashboard
 }
 
 async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken) {
@@ -4797,7 +5727,7 @@ async function triggerRetrySync(id, button) {
       const pendings = targetStatuses.filter(t => t.status === "pending");
 
       if (errors.length > 0) {
-        termLog("\n⚠️ Sync failure detected for one or more targets!", "error");
+        termLog("\nâš ï¸ Sync failure detected for one or more targets!", "error");
         for (const err of errors) {
           termLog(`\n[DIAGNOSTICS & FIX FOR ${err.target.toUpperCase()}]:`, "warn");
           const telLine = telemetry.split("\n").find(l => l.toLowerCase().includes(err.target) && l.toLowerCase().includes("error"));
@@ -4805,20 +5735,20 @@ async function triggerRetrySync(id, button) {
           
           const errLower = (telLine || "").toLowerCase();
           if (errLower.includes("unauthorized") || errLower.includes("401") || errLower.includes("token") || errLower.includes("auth")) {
-            termLog("👉 FIX: Go to the settings tab for this app (Settings -> Apps) and verify that the API Key or Token is correct, valid, and not expired.", "success");
+            termLog("ðŸ‘‰ FIX: Go to the settings tab for this app (Settings -> Apps) and verify that the API Key or Token is correct, valid, and not expired.", "success");
           } else if (errLower.includes("refused") || errLower.includes("timeout") || errLower.includes("conn") || errLower.includes("reach") || errLower.includes("address")) {
-            termLog("👉 FIX: Verify that the Server URL is correct, the target server is currently online, and there are no network rules/firewalls blocking the connection from the Firebase Cloud Functions runtime.", "success");
+            termLog("ðŸ‘‰ FIX: Verify that the Server URL is correct, the target server is currently online, and there are no network rules/firewalls blocking the connection from the Firebase Cloud Functions runtime.", "success");
           } else if (errLower.includes("not found") || errLower.includes("404") || errLower.includes("match")) {
-            termLog("👉 FIX: The media item was not found on the target platform. Ensure the TMDB/IMDB/TVDB IDs are correct and that the media is properly scanned/matched in your Plex/Emby/Jellyfin library.", "success");
+            termLog("ðŸ‘‰ FIX: The media item was not found on the target platform. Ensure the TMDB/IMDB/TVDB IDs are correct and that the media is properly scanned/matched in your Plex/Emby/Jellyfin library.", "success");
           } else {
-            termLog("👉 FIX: Check the Settings -> Apps configuration for this platform. Try testing the connection to verify credentials and endpoint URLs.", "success");
+            termLog("ðŸ‘‰ FIX: Check the Settings -> Apps configuration for this platform. Try testing the connection to verify credentials and endpoint URLs.", "success");
           }
         }
       } else if (pendings.length > 0) {
-        termLog("\n⚠️ One or more sync dispatches are still pending or queued.", "warn");
-        termLog("👉 SUGGESTION: The target sync is in progress or propagation is queued. Wait a few moments and retry.", "info");
+        termLog("\nâš ï¸ One or more sync dispatches are still pending or queued.", "warn");
+        termLog("ðŸ‘‰ SUGGESTION: The target sync is in progress or propagation is queued. Wait a few moments and retry.", "info");
       } else {
-        termLog("\n✨ Sync completed successfully! All configured targets are fully up to date.", "success");
+        termLog("\nâœ¨ Sync completed successfully! All configured targets are fully up to date.", "success");
       }
 
       clearDerivedUiCaches({ resetExplorer: false });
@@ -4895,6 +5825,15 @@ async function renderMovieImmersiveModalContent(movie) {
 
   const tmdbData = await fetchTmdbDetails("movie", movie.tmdb_id, movie.title);
 
+  // For YouTube-only content, fetch metadata from our backend
+  let youtubeMeta = null;
+  if (!tmdbData && movie.youtube_url) {
+    try {
+      const ytRes = await fetch(`/api/youtube-meta?url=${encodeURIComponent(movie.youtube_url)}`, { headers: authHeaders() });
+      const ytData = await ytRes.json();
+      if (!ytData.error) youtubeMeta = ytData;
+    } catch { /* non-fatal */ }
+  }
 
   const movieTitle = movie.title;
   let backdropUrl = "";
@@ -4924,6 +5863,10 @@ async function renderMovieImmersiveModalContent(movie) {
     } catch (e) {
       console.error("Failed to fetch recommended movies", e);
     }
+  } else if (youtubeMeta) {
+    if (youtubeMeta.thumbnails?.[0]) posterUrl = youtubeMeta.thumbnails[0];
+    overview = youtubeMeta.description || overview;
+    if (youtubeMeta.publishedAt) released = `Published ${formatTmdbDate(youtubeMeta.publishedAt.slice(0, 10))}`;
   }
 
   const ratingBadgeHtml = rating !== "N/A" ? `
@@ -4948,16 +5891,25 @@ async function renderMovieImmersiveModalContent(movie) {
             </div>
   ` : "";
 
+  const ytWatchBtn = movie.youtube_url
+    ? `<a class="action-pill" href="${escapeAttribute(movie.youtube_url)}" target="_blank" rel="noopener noreferrer">Watch on YouTube</a>`
+    : "";
+  setMediaDetailActions(`
+    <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}">Edit Image</button>
+    <button class="action-pill media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
+    ${ytWatchBtn}
+  `);
+
   root.innerHTML = `
     <div class="modal-backdrop-image" style="background-image: url('${backdropUrl || posterUrl}');"></div>
     <div class="immersive-container media-detail-page">
-      
+
       <header class="immersive-header">
         <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(movieTitle)} poster" onerror="this.src='/favicon.svg';" />
         <div class="immersive-meta">
           <h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>
-          <p class="immersive-subtitle">${released}</p>
-          
+          <p class="immersive-subtitle">${released}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
+
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingBadgeHtml}
             <div class="avail-pills-row">
@@ -4970,15 +5922,18 @@ async function renderMovieImmersiveModalContent(movie) {
           <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
             <h3>Watch Status</h3>
             <div class="progress-label-row">
-              <span>Watched on ${formatDate(movie.watched_at)}</span>
+              <span>Watched on ${formatDate(movie.watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(movie.id)}" data-watched-at="${escapeAttribute(movie.watched_at || "")}">âœŽ</button></span>
               <span>100% complete</span>
             </div>
             <div class="progress-bar-track">
               <div class="progress-bar-fill" style="width: 100%;"></div>
             </div>
           </section>
+
         </div>
       </header>
+
+      ${renderCastSection(tmdbData)}
 
       ${renderRichTmdbDetails(tmdbData)}
 
@@ -5096,6 +6051,8 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
         </div>
       </header>
 
+      ${renderCastSection(tmdbData)}
+
       ${renderRichTmdbDetails(tmdbData)}
 
       ${recommendations.length > 0 ? `
@@ -5191,6 +6148,11 @@ function prepareInlineMediaDetail(mode = state.explorerMode || "movies") {
   document.querySelector(".explorer-controls")?.classList.add("hidden");
 }
 
+function setMediaDetailActions(html) {
+  const el = document.getElementById("mediaDetailActions");
+  if (el) el.innerHTML = html || "";
+}
+
 function clearMediaDetailState() {
   state.activeShowModalKey = null;
   state.activeShowModalSeason = null;
@@ -5200,17 +6162,15 @@ function clearMediaDetailState() {
   state.showModalEpisodeIndex = new Map();
   state.pendingWatchAction = null;
   state.activeMovieModalId = null;
+  setMediaDetailActions("");
 }
 
 function closeMediaDetail() {
   if (window.location.pathname.startsWith("/person/")) {
-    if (window.history.length > 1) {
-      history.back();
-      return;
-    } else {
-      navigateTo("/");
-      return;
-    }
+    const returnUrl = state.personReturnUrl;
+    state.personReturnUrl = null;
+    navigateTo(returnUrl || "/");
+    return;
   }
   if (!state.mediaDetailInline) {
     closeDebugModal();
@@ -6463,7 +7423,7 @@ function attachEvents() {
       testConnection(button.dataset.testConnection, button).catch((error) => {
         const type = button.dataset.testConnection;
         const message = `${connectionLabel(type)} connection test exception: ${error?.message || "unknown error"}`;
-        setConnectionButton(button, "✘ Failed", "error");
+        setConnectionButton(button, "âœ˜ Failed", "error");
         setConnectionStatus(type, message, "error");
         logDebug(message);
       });
@@ -6493,8 +7453,14 @@ function attachEvents() {
   });
 
   elements.explorerSort?.addEventListener("change", () => {
-    state.explorerSort = elements.explorerSort.value || "title_asc";
+    setCurrentExplorerSort(elements.explorerSort.value || "title_asc");
     renderExplorer();
+  });
+
+  elements.explorerPanel?.addEventListener("click", (e) => {
+    const header = e.target.closest("[data-sort-key]");
+    if (!header) return;
+    applyListHeaderSort(header.dataset.sortKey);
   });
 
   elements.helpMenu.addEventListener("click", (event) => {
@@ -6502,6 +7468,14 @@ function attachEvents() {
     if (!topicButton) return;
     navigateTo(`/help/${topicButton.dataset.helpTopic}`);
   });
+
+  const brandLink = document.querySelector("#brandLink");
+  if (brandLink) {
+    brandLink.addEventListener("click", (event) => {
+      event.preventDefault();
+      navigateTo("/");
+    });
+  }
 
   elements.lockButton.addEventListener("click", lockDashboard);
   elements.closeModalButton.addEventListener("click", closeDebugModal);
@@ -6568,6 +7542,89 @@ function attachEvents() {
     const retryBtn = event.target.closest("[data-retry-sync-id]");
     if (retryBtn) {
       triggerRetrySync(retryBtn.dataset.retrySyncId, retryBtn).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
+    const editDateBtn = event.target.closest(".media-edit-date-btn");
+    if (editDateBtn) {
+      const container = editDateBtn.closest(".immersive-container, .modal-body") || document.body;
+      openEditDateDialog(container, editDateBtn.dataset.editId, editDateBtn.dataset.watchedAt, ({ watched_at }) => {
+        editDateBtn.dataset.watchedAt = watched_at;
+        const span = container.querySelector(".progress-label-row span");
+        if (span) span.textContent = `Watched on ${formatDate(watched_at)}`;
+        const entry = state.history.find((h) => h.id === editDateBtn.dataset.editId);
+        if (entry) entry.watched_at = watched_at;
+      });
+      return;
+    }
+
+    const editImageBtn = event.target.closest(".media-edit-image-btn");
+    if (editImageBtn) {
+      const container = editImageBtn.closest(".immersive-container, .modal-body") || document.body;
+      const id = editImageBtn.dataset.editId;
+      // Resolve tmdbData — check both movie and TV caches
+      let tmdbData = null;
+      const entry = state.history.find((h) => h.id === id);
+      if (entry) {
+        const movieKey = `movie|${entry.tmdb_id || ""}|${String(entry.title || "").toLowerCase()}`;
+        const cached = state.tmdbDetailsCache.get(movieKey);
+        if (cached && !(cached instanceof Promise)) tmdbData = cached;
+      }
+      if (!tmdbData && state.activeShowModalKey) {
+        const show = state.showsRaw.find((s) => slug(s.title) === state.activeShowModalKey);
+        if (show) {
+          const tvKey = `tv|${show.tmdb_id || ""}|${String(show.title || "").toLowerCase()}`;
+          const cached = state.tmdbDetailsCache.get(tvKey);
+          if (cached && !(cached instanceof Promise)) tmdbData = cached;
+        }
+      }
+      openEditImageDialog(container, id, editImageBtn.dataset.posterUrl, tmdbData, ({ poster_url }) => {
+        editImageBtn.dataset.posterUrl = poster_url;
+        const posterImg = container.querySelector(".immersive-poster-img");
+        if (posterImg) posterImg.src = poster_url;
+        const backdrop = container.querySelector(".modal-backdrop-image");
+        if (backdrop) backdrop.style.backgroundImage = `url('${poster_url}')`;
+      });
+      return;
+    }
+
+    const fixMatchBtn = event.target.closest(".media-fix-match-btn");
+    if (fixMatchBtn) {
+      const container = fixMatchBtn.closest(".immersive-container, .modal-body") || document.body;
+      const mediaType = fixMatchBtn.dataset.mediaType;
+      openFixMatchDialog(container, fixMatchBtn.dataset.editId, fixMatchBtn.dataset.title, mediaType, ({ tmdb_id }) => {
+        state.tmdbDetailsCache.clear();
+        if (mediaType === "movie") {
+          const movie = state.history.find((h) => h.id === fixMatchBtn.dataset.editId);
+          if (movie) { movie.tmdb_id = tmdb_id; renderMovieImmersiveModalContent(movie).catch(() => {}); }
+        } else if (state.activeShowModalKey) {
+          const show = state.showsRaw.find((s) => slug(s.title) === state.activeShowModalKey);
+          if (show) { show.tmdb_id = tmdb_id; openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason, state.activeShowModalEpisode).catch(() => {}); }
+        }
+      });
+      return;
+    }
+
+    const mergeShowBtn = event.target.closest(".media-merge-show-btn");
+    if (mergeShowBtn) {
+      openMergeShowDialog(mergeShowBtn.dataset.showTitle);
+      return;
+    }
+
+    const editDateIconBtn = event.target.closest(".edit-date-icon-btn");
+    if (editDateIconBtn) {
+      const id = editDateIconBtn.dataset.editId;
+      openEditDateDialog(null, id, editDateIconBtn.dataset.watchedAt, ({ watched_at }) => {
+        editDateIconBtn.dataset.watchedAt = watched_at;
+        // Update the time element this icon is inside
+        const timeEl = editDateIconBtn.closest("time");
+        if (timeEl) timeEl.innerHTML = `Watched ${formatDate(watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(id)}" data-watched-at="${escapeAttribute(watched_at)}">âœŽ</button>`;
+        // Also update movie watch status row if present
+        const span = editDateIconBtn.closest(".progress-label-row")?.querySelector("span");
+        if (span) span.innerHTML = `Watched on ${formatDate(watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(id)}" data-watched-at="${escapeAttribute(watched_at)}">âœŽ</button>`;
+        const entry = state.history.find((h) => h.id === id);
+        if (entry) entry.watched_at = watched_at;
+      });
       return;
     }
 
@@ -6645,6 +7702,12 @@ function attachEvents() {
     const recMovieCard = event.target.closest("[data-immersive-movie-id]");
     if (recMovieCard) {
       navigateTo(`/movie/tmdb/${recMovieCard.dataset.immersiveMovieId}`);
+      return;
+    }
+
+    const relatedShowCard = event.target.closest("[data-immersive-related-tmdb]");
+    if (relatedShowCard) {
+      navigateTo(`/tvshow/tmdb/${relatedShowCard.dataset.immersiveRelatedTmdb}`);
       return;
     }
 
@@ -6756,23 +7819,51 @@ function attachEvents() {
   });
 
   elements.globalSearchInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeGlobalSearchDropdown();
+      elements.globalSearchInput.blur();
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      const first = document.querySelector(".global-search-result");
+      first?.focus();
+      return;
+    }
     if (event.key !== "Enter") return;
     event.preventDefault();
+    closeGlobalSearchDropdown();
     state.explorerSearch = elements.globalSearchInput.value.trim();
     if (elements.explorerSearchInput) elements.explorerSearchInput.value = state.explorerSearch;
     selectView("explorer");
   });
 
   elements.globalSearchInput?.addEventListener("input", () => {
-    if (state.activeView !== "explorer") return;
-    window.clearTimeout(state.explorerSearchTimer);
-    state.explorerSearchTimer = window.setTimeout(() => {
-      state.explorerSearch = elements.globalSearchInput.value.trim();
-      if (elements.explorerSearchInput && elements.explorerSearchInput.value !== state.explorerSearch) {
-        elements.explorerSearchInput.value = state.explorerSearch;
-      }
-      renderExplorer();
-    }, 220);
+    const query = elements.globalSearchInput.value.trim();
+    window.clearTimeout(state.globalSearchDropdownTimer);
+    if (!query) { closeGlobalSearchDropdown(); }
+    else {
+      state.globalSearchDropdownTimer = window.setTimeout(() => renderGlobalSearchDropdown(query), 120);
+    }
+    if (state.activeView === "explorer") {
+      window.clearTimeout(state.explorerSearchTimer);
+      state.explorerSearchTimer = window.setTimeout(() => {
+        state.explorerSearch = query;
+        if (elements.explorerSearchInput && elements.explorerSearchInput.value !== query) {
+          elements.explorerSearchInput.value = query;
+        }
+        renderExplorer();
+      }, 220);
+    }
+  });
+
+  elements.globalSearchInput?.addEventListener("focus", () => {
+    const query = elements.globalSearchInput.value.trim();
+    if (query) renderGlobalSearchDropdown(query);
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".global-search")) closeGlobalSearchDropdown();
   });
 
   elements.importFile.addEventListener("change", async () => {
@@ -6926,8 +8017,31 @@ function attachEvents() {
   elements.explorerPosterSize?.addEventListener("input", (e) => {
     const val = e.target.value;
     document.documentElement.style.setProperty("--poster-width", `${val}px`);
-    localStorage.setItem("explorer_poster_width", `${val}px`);
+    localStorage.setItem(currentPosterWidthKey(), `${val}px`);
   });
+
+  for (const btn of elements.explorerViewButtons || []) {
+    btn.addEventListener("click", () => {
+      const view = btn.dataset.explorerView;
+      if (!view || view === currentExplorerView()) return;
+      if (state.explorerMode === "shows") {
+        state.explorerViewShows = view;
+        localStorage.setItem(EXPLORER_VIEW_KEY_SHOWS, view);
+        state.showsRaw = [];
+        state.showsOffset = 0;
+        state.showsHasMore = true;
+        state.showsLoading = false;
+      } else {
+        state.explorerViewMovies = view;
+        localStorage.setItem(EXPLORER_VIEW_KEY_MOVIES, view);
+        state.moviesRaw = [];
+        state.moviesOffset = 0;
+        state.moviesHasMore = true;
+        state.moviesLoading = false;
+      }
+      renderExplorer();
+    });
+  }
 
   elements.closeTerminalModalButton?.addEventListener("click", () => {
     elements.terminalModal?.classList.add("hidden");
@@ -6945,11 +8059,7 @@ function initialize() {
   bootstrapTokenFromUrl();
   handleRouting(window.location.pathname + window.location.hash);
   attachEvents();
-  const savedWidth = localStorage.getItem("explorer_poster_width") || "160px";
-  document.documentElement.style.setProperty("--poster-width", savedWidth);
-  if (elements.explorerPosterSize) {
-    elements.explorerPosterSize.value = parseInt(savedWidth) || 160;
-  }
+  applyExplorerPosterWidth();
   elements.adminEmail.value = localStorage.getItem("firebaseAdminEmail") || "";
   elements.adminToken.value = "";
   elements.settingsToken.value = elements.adminEmail.value;
@@ -7106,11 +8216,11 @@ window.playTrailer = function(el, videoKey, videoName) {
           <button class="photo-lightbox-nav photo-lightbox-nav--next">&#8250;</button>
         </div>
         <div class="photo-lightbox-controls">
-          <button class="photo-lightbox-btn" data-lb-zoom="-1">－</button>
+          <button class="photo-lightbox-btn" data-lb-zoom="-1">ï¼</button>
           <button class="photo-lightbox-btn" data-lb-zoom="0">1:1</button>
-          <button class="photo-lightbox-btn" data-lb-zoom="1">＋</button>
+          <button class="photo-lightbox-btn" data-lb-zoom="1">ï¼‹</button>
           <span class="photo-lightbox-counter"></span>
-          <button class="photo-lightbox-btn" data-lb-close>✕</button>
+          <button class="photo-lightbox-btn" data-lb-close>âœ•</button>
         </div>
       `;
 
@@ -7266,6 +8376,7 @@ async function runRefreshMetadataWorkflow() {
 }
 
 window.showCastMemberDetails = function(personId, personName) {
+  state.personReturnUrl = window.location.pathname + window.location.hash;
   navigateTo(`/person/${personId}`);
 };
 
@@ -7275,11 +8386,9 @@ function closePersonProfile() {
   }
   document.body.style.overflow = "";
   if (window.location.pathname.startsWith("/person/")) {
-    if (window.history.length > 1) {
-      history.back();
-    } else {
-      navigateTo("/");
-    }
+    const returnUrl = state.personReturnUrl;
+    state.personReturnUrl = null;
+    navigateTo(returnUrl || "/");
   }
 }
 
@@ -7395,15 +8504,7 @@ async function loadCastMemberDetails(personId, personName = null) {
           ` : '<p class="muted-copy">No biography available for this cast member.</p>'}
           
           ${(() => {
-            const headshots = (data.images?.profiles || []).slice(0, 5).map(img => ({ file_path: img.file_path, aspect_ratio: img.aspect_ratio || 0.667 }));
-            const tagged = (data.tagged_images || []).slice(0, 15).map(img => ({ file_path: img.file_path, aspect_ratio: img.aspect_ratio || 1.778 }));
-            // Interleave: 1 headshot, 3 tagged, 1 headshot, 3 tagged…
-            const mixed = [];
-            let hi = 0, ti = 0;
-            while (hi < headshots.length || ti < tagged.length) {
-              if (hi < headshots.length) mixed.push(headshots[hi++]);
-              for (let k = 0; k < 3 && ti < tagged.length; k++) mixed.push(tagged[ti++]);
-            }
+            const mixed = (data.images?.profiles || []).map(img => ({ file_path: img.file_path }));
             if (!mixed.length) return '';
             window._personPhotos = mixed.map(img => `https://image.tmdb.org/t/p/w780${img.file_path}`);
             return `
@@ -7533,6 +8634,8 @@ async function openShowImmersiveModalByTmdbId(tmdbId) {
         </div>
       </header>
 
+      ${renderCastSection(tmdbData)}
+
       ${renderRichTmdbDetails(tmdbData)}
     </div>
   `;
@@ -7558,3 +8661,4 @@ function findLibraryItem(mediaType, tmdbId, title) {
     return found ? { type: "movie", id: found.id } : null;
   }
 }
+

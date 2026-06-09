@@ -20,6 +20,8 @@ import {
   countWatchedPlaystateRows,
   deletePlaybackProgress,
   deleteWatchRecord,
+  updateWatchRecord,
+  mergeShows,
   getWatchRecordById,
   getWatchRecordByIdLight,
   getHistoryCacheVersion,
@@ -1598,7 +1600,7 @@ async function handleTmdbDetails(req, res) {
 
     // Fetch fresh details
     const detailsType = mediaType === "movie" ? "movie" : "tv";
-    const detailsUrl = `https://api.themoviedb.org/3/${detailsType}/${tmdbId}?api_key=${apiKey}&append_to_response=credits,videos,reviews`;
+    const detailsUrl = `https://api.themoviedb.org/3/${detailsType}/${tmdbId}?api_key=${apiKey}&append_to_response=credits,videos,reviews,similar`;
     const detailsRes = await fetch(detailsUrl);
     if (!detailsRes.ok) {
       if (cachedDoc.exists) {
@@ -1651,10 +1653,7 @@ async function handleTmdbPerson(req, res) {
       }
     }
 
-    const [personRes, taggedRes] = await Promise.all([
-      fetch(`https://api.themoviedb.org/3/person/${personId}?api_key=${apiKey}&append_to_response=combined_credits,images`),
-      fetch(`https://api.themoviedb.org/3/person/${personId}/tagged_images?api_key=${apiKey}&page=1`),
-    ]);
+    const personRes = await fetch(`https://api.themoviedb.org/3/person/${personId}?api_key=${apiKey}&append_to_response=combined_credits,images`);
     if (!personRes.ok) {
       if (cachedDoc.exists) {
         return sendJson(res, cachedDoc.data().details, 200);
@@ -1663,12 +1662,6 @@ async function handleTmdbPerson(req, res) {
     }
 
     const personData = await personRes.json();
-    if (taggedRes.ok) {
-      const taggedData = await taggedRes.json();
-      personData.tagged_images = taggedData.results || [];
-    } else {
-      personData.tagged_images = [];
-    }
 
     await docRef.set({
       personId,
@@ -1684,6 +1677,127 @@ async function handleTmdbPerson(req, res) {
 }
 
 
+async function handleUpdateWatch(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "PATCH" && req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const id = String(body.id || "").trim();
+  if (!id) return sendJson(res, { error: "id is required" }, 400);
+
+  const fields = {};
+  if (body.watched_at !== undefined) fields.watched_at = body.watched_at;
+  if (body.poster_url !== undefined) fields.poster_url = body.poster_url;
+  if (body.tmdb_id !== undefined) fields.tmdb_id = body.tmdb_id;
+  if (body.title !== undefined) fields.title = body.title;
+  if (body.youtube_url !== undefined) fields.youtube_url = body.youtube_url;
+
+  const result = await updateWatchRecord(id, fields);
+  if (!result.ok) return sendJson(res, { error: result.error }, 400);
+
+  // If TMDB ID changed, clear any cached TMDB data for this record
+  if (body.tmdb_id !== undefined) {
+    const row = await getWatchRecordByIdLight(id).catch(() => null);
+    if (row) {
+      const mediaType = row.media_type === "movie" ? "movie" : "tv";
+      const docKey = `${mediaType}_${body.tmdb_id}`;
+      // Don't delete the TMDB cache - the new ID may already be cached
+      // But do clear the poster cache so it re-fetches with the new TMDB ID
+      const mediaKey = row.media_key;
+      if (mediaKey) {
+        await db.collection("posterCache").doc(mediaKey).delete().catch(() => null);
+      }
+    }
+  }
+
+  return sendJson(res, { ok: true });
+}
+
+function extractYouTubeVideoId(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === "youtu.be") return u.pathname.slice(1).split("?")[0] || null;
+    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v") || null;
+  } catch { /* invalid URL */ }
+  return null;
+}
+
+async function handleYoutubeMeta(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const url = String(req.query.url || "").trim();
+  if (!url) return sendJson(res, { error: "url is required" }, 400);
+
+  const videoId = extractYouTubeVideoId(url);
+  if (!videoId) return sendJson(res, { error: "Could not extract YouTube video ID from URL" }, 400);
+
+  // oEmbed is free, no API key required
+  let title = "";
+  let channelName = "";
+  try {
+    const oembedRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+    if (oembedRes.ok) {
+      const oembed = await oembedRes.json();
+      title = oembed.title || "";
+      channelName = oembed.author_name || "";
+    }
+  } catch { /* non-fatal */ }
+
+  // Optional: YouTube Data API for description, duration, publishedAt
+  let description = "";
+  let publishedAt = "";
+  let duration = "";
+  const config = await loadMediaConfig();
+  const ytApiKey = config.youtube?.apiKey;
+  if (ytApiKey) {
+    try {
+      const apiRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${encodeURIComponent(videoId)}&key=${encodeURIComponent(ytApiKey)}`);
+      if (apiRes.ok) {
+        const apiData = await apiRes.json();
+        const item = apiData.items?.[0];
+        if (item) {
+          title = title || item.snippet?.title || "";
+          channelName = channelName || item.snippet?.channelTitle || "";
+          description = item.snippet?.description || "";
+          publishedAt = item.snippet?.publishedAt || "";
+          duration = item.contentDetails?.duration || "";
+        }
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  // Thumbnail URLs from highest to lowest quality
+  const thumbnails = [
+    `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+    `https://img.youtube.com/vi/${videoId}/sddefault.jpg`,
+    `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+  ];
+
+  return sendJson(res, { videoId, title, channelName, description, publishedAt, duration, thumbnails });
+}
+
+async function handleMergeShows(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const sourceTitle = String(body.source_title || "").trim();
+  const targetTitle = String(body.target_title || "").trim();
+  if (!sourceTitle || !targetTitle) return sendJson(res, { error: "source_title and target_title are required" }, 400);
+
+  try {
+    const result = await mergeShows(sourceTitle, targetTitle);
+    return sendJson(res, { ok: true, merged: result.merged });
+  } catch (err) {
+    return sendJson(res, { error: err.message }, 400);
+  }
+}
+
 async function dispatch(req, res) {
   try {
     const path = routePath(req);
@@ -1698,6 +1812,8 @@ async function dispatch(req, res) {
     if (path === "import") return handleImport(req, res);
     if (path === "manual-watch") return handleManualWatch(req, res);
     if (path === "retry-sync") return handleRetrySync(req, res);
+    if (path === "update-watch") return handleUpdateWatch(req, res);
+    if (path === "merge-shows") return handleMergeShows(req, res);
     if (path === "now-playing") return handleNowPlaying(req, res);
     if (path === "active-sessions") return handleActiveSessions(req, res);
     if (path === "cron-sync") return handleCronSync(req, res);
@@ -1706,6 +1822,7 @@ async function dispatch(req, res) {
     if (path === "dedup-history") return handleDedupHistory(req, res);
     if (path === "tmdb-details") return handleTmdbDetails(req, res);
     if (path === "tmdb-person") return handleTmdbPerson(req, res);
+    if (path === "youtube-meta") return handleYoutubeMeta(req, res);
     if (path === "webhook") return handleWebhook(req, res);
     if (path === "test-connection") return handleTestConnection(req, res);
     if (path === "poster") return handlePoster(req, res);
