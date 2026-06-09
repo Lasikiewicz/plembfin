@@ -2376,6 +2376,28 @@ function getRowFitLimit(rowElement) {
   return Math.max(2, maxCards);
 }
 
+function prefetchDashboardHistoryTmdb(tvEntries, movieEntries) {
+  const seen = new Set();
+  for (const entry of movieEntries) {
+    const key = `movie|${entry.tmdb_id || ""}|${String(entry.title || "").toLowerCase()}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      fetchTmdbDetails("movie", entry.tmdb_id, entry.title);
+    }
+  }
+  for (const entry of tvEntries) {
+    const showTitle = entry.show_title || showTitleFrom(entry.title);
+    const showKeySlug = slug(showTitle);
+    const show = state.showsRaw.find((s) => slug(s.title) === showKeySlug);
+    const tmdbId = show?.tmdb_id || entry.tmdb_id;
+    const key = `tv|${tmdbId || ""}|${String(showTitle || "").toLowerCase()}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      fetchTmdbDetails("tv", tmdbId, showTitle);
+    }
+  }
+}
+
 function renderDashboard() {
   if (!state.history.length) {
     if (elements.tvHistoryRow) {
@@ -2396,6 +2418,9 @@ function renderDashboard() {
   const tvHistory = state.history.filter((entry) => entry.media_type === "episode");
   const movieHistory = state.history.filter((entry) => entry.media_type === "movie");
 
+  let visibleTv = [];
+  let visibleMovies = [];
+
   // Render TV Shows Row
   if (elements.tvHistoryRow) {
     if (!tvHistory.length) {
@@ -2407,9 +2432,9 @@ function renderDashboard() {
       `;
     } else {
       const tvFitLimit = getRowFitLimit(elements.tvHistoryRow);
-      const tvRecent = tvHistory.slice(0, tvFitLimit);
-      
-      let html = tvRecent.map(renderHistoryCard).join("");
+      visibleTv = tvHistory.slice(0, tvFitLimit);
+
+      let html = visibleTv.map(renderHistoryCard).join("");
       elements.tvHistoryRow.innerHTML = html;
       hydratePosters(elements.tvHistoryRow);
     }
@@ -2426,12 +2451,16 @@ function renderDashboard() {
       `;
     } else {
       const movieFitLimit = getRowFitLimit(elements.movieHistoryRow);
-      const movieRecent = movieHistory.slice(0, movieFitLimit);
-      
-      let html = movieRecent.map(renderHistoryCard).join("");
+      visibleMovies = movieHistory.slice(0, movieFitLimit);
+
+      let html = visibleMovies.map(renderHistoryCard).join("");
       elements.movieHistoryRow.innerHTML = html;
       hydratePosters(elements.movieHistoryRow);
     }
+  }
+
+  if (visibleTv.length || visibleMovies.length) {
+    prefetchDashboardHistoryTmdb(visibleTv, visibleMovies);
   }
 }
 
@@ -2728,9 +2757,35 @@ function observeExplorerSentinel(mode) {
   state.explorerLoadObserver.observe(sentinel);
 }
 
+let _explorerPrefetchObserver = null;
+
+function observeExplorerTmdbPrefetch(container) {
+  _explorerPrefetchObserver?.disconnect();
+  if (!("IntersectionObserver" in window)) return;
+  _explorerPrefetchObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const el = entry.target;
+        const mediaType = el.dataset.prefetchType;
+        const tmdbId = el.dataset.prefetchTmdb;
+        const title = el.dataset.prefetchTitle;
+        if (mediaType && title) {
+          fetchTmdbDetails(mediaType, tmdbId || undefined, title);
+        }
+        _explorerPrefetchObserver?.unobserve(el);
+      }
+    },
+    { rootMargin: "200px 0px 200px 0px" },
+  );
+  for (const el of container.querySelectorAll("[data-prefetch-type]")) {
+    _explorerPrefetchObserver.observe(el);
+  }
+}
+
 function renderMovieCard(movie) {
   return `
-    <div class="movie-card" data-history-id="${movie.id}">
+    <div class="movie-card" data-history-id="${movie.id}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}">
       ${posterMarkup(movie, "movie-poster")}
       <div class="movie-card-body">
         <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; min-width: 0; width: 100%;">
@@ -2761,6 +2816,7 @@ function renderMovieExplorer() {
     : emptyExplorer("No movies logged yet");
   hydratePosters(elements.explorerPanel);
   observeExplorerSentinel("movies");
+  observeExplorerTmdbPrefetch(elements.explorerPanel);
 }
 
 async function loadExplorerMovies() {
@@ -2812,6 +2868,7 @@ function renderShowExplorer() {
     : emptyExplorer("No TV episodes logged yet");
   hydratePosters(elements.explorerPanel);
   observeExplorerSentinel("shows");
+  observeExplorerTmdbPrefetch(elements.explorerPanel);
 }
 
 async function loadExplorerShows() {
@@ -2984,7 +3041,7 @@ function renderShowRecord(show = {}) {
     const representative = summaryEpisodeFromShow(show);
     const showKey = slug(show.title || "Unknown Show");
     return `
-      <article class="folder-card">
+      <article class="folder-card" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(show.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(show.title || "Unknown Show")}">
         <button class="folder-trigger" type="button" data-show-key="${escapeAttribute(showKey)}" style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block;">
           ${posterMarkup(representative, "explorer-folder-poster")}
           <div class="movie-card-body" style="margin-top: 0.5rem;">
@@ -2994,15 +3051,15 @@ function renderShowRecord(show = {}) {
       </article>
     `;
   }
-  return renderShowFolder(show.title || "Unknown Show", seasonsFromShowRecord(show));
+  return renderShowFolder(show.title || "Unknown Show", seasonsFromShowRecord(show), show.tmdb_id);
 }
 
-function renderShowFolder(showTitle, seasons) {
+function renderShowFolder(showTitle, seasons, tmdbId) {
   const showKey = slug(showTitle);
   const latestEpisode = representativeEpisode(seasons);
 
   return `
-    <article class="folder-card">
+    <article class="folder-card" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId || "")}" data-prefetch-title="${escapeAttribute(showTitle)}">
       <button class="folder-trigger" type="button" data-show-key="${showKey}" style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block;">
         ${posterMarkup(latestEpisode, "explorer-folder-poster")}
         <div class="movie-card-body" style="margin-top: 0.5rem;">
