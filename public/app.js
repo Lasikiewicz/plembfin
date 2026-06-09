@@ -4266,6 +4266,7 @@ function renderShowModalContent(show, {
   const selectedSeasonNumber = Number(selectedSeasonRecord.season_number) || Number(selectedSeason) || 1;
   const selectedSeasonEpisodes = episodeRows.filter((episode) => episode.seasonNumber === selectedSeasonNumber);
   const isUnreleased = (episode) => {
+    if (episode.watched) return false;
     if (!episode.airDate) return false;
     const parts = episode.airDate.split("-");
     if (parts.length !== 3) return false;
