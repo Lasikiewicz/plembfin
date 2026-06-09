@@ -1885,10 +1885,6 @@ function selectView(view) {
     url = `/${targetView}`;
   }
   
-  if (window.location.pathname.startsWith("/person/")) {
-    url = window.location.pathname;
-  }
-  
   const currentUrl = window.location.pathname + window.location.hash;
   if (currentUrl !== url) {
     navigateTo(url);
@@ -2377,6 +2373,7 @@ function getRowFitLimit(rowElement) {
 }
 
 function prefetchDashboardHistoryTmdb(tvEntries, movieEntries) {
+  if (!state.token) return;
   const seen = new Set();
   for (const entry of movieEntries) {
     const key = `movie|${entry.tmdb_id || ""}|${String(entry.title || "").toLowerCase()}`;
@@ -2771,9 +2768,13 @@ function observeExplorerTmdbPrefetch(container) {
         const tmdbId = el.dataset.prefetchTmdb;
         const title = el.dataset.prefetchTitle;
         if (mediaType && title) {
-          fetchTmdbDetails(mediaType, tmdbId || undefined, title);
+          if (state.token) {
+            fetchTmdbDetails(mediaType, tmdbId || undefined, title);
+            _explorerPrefetchObserver?.unobserve(el);
+          }
+        } else {
+          _explorerPrefetchObserver?.unobserve(el);
         }
-        _explorerPrefetchObserver?.unobserve(el);
       }
     },
     { rootMargin: "200px 0px 200px 0px" },
@@ -7071,8 +7072,93 @@ window.playTrailer = function(el, videoKey, videoName) {
       }
     });
   }
+  el.style.overflow = "visible";
   el.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoKey}?autoplay=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;"></iframe>`;
 };
+
+// Photo lightbox
+(function() {
+  let photos = [];
+  let current = 0;
+  let scale = 1;
+  let lb = null;
+
+  function render() {
+    const img = lb.querySelector('.photo-lightbox-img');
+    img.src = photos[current];
+    scale = 1;
+    img.style.transform = '';
+    lb.querySelector('.photo-lightbox-counter').textContent = `${current + 1} / ${photos.length}`;
+    lb.querySelector('.photo-lightbox-nav--prev').style.display = photos.length > 1 ? '' : 'none';
+    lb.querySelector('.photo-lightbox-nav--next').style.display = photos.length > 1 ? '' : 'none';
+  }
+
+  function open(srcs, index) {
+    photos = srcs;
+    current = index;
+    if (!lb) {
+      lb = document.createElement('div');
+      lb.className = 'photo-lightbox';
+      lb.innerHTML = `
+        <div class="photo-lightbox-img-wrap">
+          <button class="photo-lightbox-nav photo-lightbox-nav--prev">&#8249;</button>
+          <img class="photo-lightbox-img" alt="" draggable="false" />
+          <button class="photo-lightbox-nav photo-lightbox-nav--next">&#8250;</button>
+        </div>
+        <div class="photo-lightbox-controls">
+          <button class="photo-lightbox-btn" data-lb-zoom="-1">－</button>
+          <button class="photo-lightbox-btn" data-lb-zoom="0">1:1</button>
+          <button class="photo-lightbox-btn" data-lb-zoom="1">＋</button>
+          <span class="photo-lightbox-counter"></span>
+          <button class="photo-lightbox-btn" data-lb-close>✕</button>
+        </div>
+      `;
+
+      // Zoom buttons
+      lb.addEventListener('click', (e) => {
+        if (e.target.dataset.lbClose !== undefined || e.target === lb) { close(); return; }
+        const z = e.target.dataset.lbZoom;
+        if (z === undefined) return;
+        const img = lb.querySelector('.photo-lightbox-img');
+        if (z === '0') scale = 1;
+        else if (z === '1') scale = Math.min(scale + 0.5, 5);
+        else scale = Math.max(scale - 0.5, 0.5);
+        img.style.transform = scale === 1 ? '' : `scale(${scale})`;
+      });
+
+      // Wheel zoom
+      lb.querySelector('.photo-lightbox-img-wrap').addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const img = lb.querySelector('.photo-lightbox-img');
+        scale = Math.min(5, Math.max(0.5, scale - e.deltaY * 0.001));
+        img.style.transform = scale === 1 ? '' : `scale(${scale})`;
+      }, { passive: false });
+
+      // Nav arrows
+      lb.querySelector('.photo-lightbox-nav--prev').addEventListener('click', (e) => { e.stopPropagation(); current = (current - 1 + photos.length) % photos.length; render(); });
+      lb.querySelector('.photo-lightbox-nav--next').addEventListener('click', (e) => { e.stopPropagation(); current = (current + 1) % photos.length; render(); });
+
+      document.body.appendChild(lb);
+    }
+    lb.style.display = 'flex';
+    render();
+    document.body.style.overflow = 'hidden';
+  }
+
+  function close() {
+    if (lb) lb.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (!lb || lb.style.display === 'none') return;
+    if (e.key === 'Escape') close();
+    if (e.key === 'ArrowLeft') { current = (current - 1 + photos.length) % photos.length; render(); }
+    if (e.key === 'ArrowRight') { current = (current + 1) % photos.length; render(); }
+  });
+
+  window.openPhotoLightbox = function(srcs, index) { open(srcs, index); };
+})();
 
 async function runRefreshMetadataWorkflow() {
   const button = elements.refreshMetadataButton;
@@ -7308,6 +7394,29 @@ async function loadCastMemberDetails(personId, personName = null) {
           </div>
           ` : '<p class="muted-copy">No biography available for this cast member.</p>'}
           
+          ${(() => {
+            const headshots = (data.images?.profiles || []).slice(0, 5).map(img => ({ file_path: img.file_path, aspect_ratio: img.aspect_ratio || 0.667 }));
+            const tagged = (data.tagged_images || []).slice(0, 15).map(img => ({ file_path: img.file_path, aspect_ratio: img.aspect_ratio || 1.778 }));
+            // Interleave: 1 headshot, 3 tagged, 1 headshot, 3 tagged…
+            const mixed = [];
+            let hi = 0, ti = 0;
+            while (hi < headshots.length || ti < tagged.length) {
+              if (hi < headshots.length) mixed.push(headshots[hi++]);
+              for (let k = 0; k < 3 && ti < tagged.length; k++) mixed.push(tagged[ti++]);
+            }
+            if (!mixed.length) return '';
+            window._personPhotos = mixed.map(img => `https://image.tmdb.org/t/p/w780${img.file_path}`);
+            return `
+            <div class="person-photos-section" style="margin-top: 2rem;">
+              <h3>Photos</h3>
+              <div class="person-photos-row">
+                ${mixed.map((img, i) => `
+                  <img class="person-photo-thumb" src="https://image.tmdb.org/t/p/w185${escapeAttribute(img.file_path)}" loading="lazy" alt="${escapeAttribute(data.name)}" onclick="window.openPhotoLightbox(window._personPhotos, ${i})" onerror="this.style.display='none';" />
+                `).join('')}
+              </div>
+            </div>`;
+          })()}
+
           <div class="person-credits-section" style="margin-top: 2rem;">
             <h3>Filmography (Top ${Math.min(castCredits.length, 30)})</h3>
             <div class="person-credits-grid">

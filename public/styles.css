@@ -3980,6 +3980,11 @@ h1 {
   grid-template-columns: 200px 1fr;
   gap: 2rem;
   align-items: start;
+  min-width: 0;
+}
+
+.person-profile-content {
+  min-width: 0;
 }
 
 @media (max-width: 768px) {
@@ -4054,10 +4059,119 @@ h1 {
   margin: 0;
 }
 
+.person-photos-section h3,
 .person-credits-section h3 {
   font-size: 1.1rem;
   margin-bottom: 0.75rem;
   color: #fff;
+}
+
+.person-photos-row {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 0.75rem;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.person-photo-thumb {
+  flex: 0 0 auto;
+  height: 180px;
+  width: auto;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  cursor: zoom-in;
+  transition: opacity 120ms ease;
+}
+
+.person-photo-thumb:hover {
+  opacity: 0.85;
+}
+
+/* Photo lightbox */
+.photo-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.photo-lightbox-img-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  width: min(80vw, 600px);
+  height: min(88vh, 860px);
+  cursor: grab;
+}
+
+.photo-lightbox-img-wrap.grabbing {
+  cursor: grabbing;
+}
+
+.photo-lightbox-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  transform-origin: center center;
+  transition: transform 150ms ease;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.photo-lightbox-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.photo-lightbox-btn {
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.photo-lightbox-btn:hover {
+  background: rgba(255,255,255,0.22);
+}
+
+.photo-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.5);
+  border: none;
+  color: #fff;
+  font-size: 1.75rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  border-radius: 6px;
+  z-index: 1;
+}
+
+.photo-lightbox-nav:hover { background: rgba(0,0,0,0.8); }
+.photo-lightbox-nav--prev { left: 0.5rem; }
+.photo-lightbox-nav--next { right: 0.5rem; }
+
+.photo-lightbox-counter {
+  color: rgba(255,255,255,0.6);
+  font-size: 0.8rem;
 }
 
 .person-credits-grid {

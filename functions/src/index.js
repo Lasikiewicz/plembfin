@@ -1651,7 +1651,10 @@ async function handleTmdbPerson(req, res) {
       }
     }
 
-    const personRes = await fetch(`https://api.themoviedb.org/3/person/${personId}?api_key=${apiKey}&append_to_response=combined_credits`);
+    const [personRes, taggedRes] = await Promise.all([
+      fetch(`https://api.themoviedb.org/3/person/${personId}?api_key=${apiKey}&append_to_response=combined_credits,images`),
+      fetch(`https://api.themoviedb.org/3/person/${personId}/tagged_images?api_key=${apiKey}&page=1`),
+    ]);
     if (!personRes.ok) {
       if (cachedDoc.exists) {
         return sendJson(res, cachedDoc.data().details, 200);
@@ -1660,6 +1663,13 @@ async function handleTmdbPerson(req, res) {
     }
 
     const personData = await personRes.json();
+    if (taggedRes.ok) {
+      const taggedData = await taggedRes.json();
+      personData.tagged_images = taggedData.results || [];
+    } else {
+      personData.tagged_images = [];
+    }
+
     await docRef.set({
       personId,
       details: personData,
