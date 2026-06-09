@@ -10,13 +10,14 @@ import {
   deletePlaybackProgress,
   deleteWatchRecordById,
   insertWatchRecord,
+  invalidateHistoryDerivedCaches,
+  listRecentTrackedWatchRows,
   loadLiveTrackingCache,
   markLiveTrackingComplete,
   mediaKeyFor,
   mediaToPlaybackProgressRecord,
   mediaToWatchRecord,
   purgeCompletedLiveTrackingCache,
-  queryWatchHistory,
   requireDb,
   updatePlaybackProgressTelemetry,
   updateWatchTelemetry,
@@ -199,7 +200,7 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
   if (!config.plex?.baseUrl || !config.plex?.token) return;
 
   const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
-  const records = (await queryWatchHistory(null, { limit: 100 })).filter(
+  const records = (await listRecentTrackedWatchRows({ limit: 100 })).filter(
     (record) =>
       record.watched_at < threeMinutesAgo &&
       (["plex", "plex_initial_sync"].includes(record.source) || String(record.sync_dispatch_telemetry || "").includes("Target Plex status: success")),
@@ -224,7 +225,7 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
         const isWatched = Boolean(plexItem.viewCount && Number(plexItem.viewCount) > 0);
         if (!isWatched) {
           console.log("Cron detected Plex item marked unwatched: deleting watch history and syncing", { title: record.title });
-          await deleteWatchRecordById(record.id);
+          await deleteWatchRecordById(record.id, { skipInvalidate: true });
           const unplayedMedia = { ...media, isValid: true, source: "plex" };
           const unplayedRecord = mediaToWatchRecord({ ...unplayedMedia, syncAction: "unwatched" }, "plex");
           unplayedRecord.sync_action = "unwatched";
@@ -234,11 +235,12 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
             details: "Plex unwatched propagation queued",
             targetStates: [],
           });
-          const inserted = await insertWatchRecord(requireDb(), unplayedRecord);
-          await upsertPlaystateForMedia(requireDb(), unplayedMedia, "unwatched", inserted.record.watched_at);
+          const inserted = await insertWatchRecord(requireDb(), unplayedRecord, { skipInvalidate: true });
+          await upsertPlaystateForMedia(requireDb(), unplayedMedia, "unwatched", inserted.record.watched_at, { skipInvalidate: true });
           const summary = await syncMediaUnplayedPlaystate(unplayedMedia, config, loopStore);
-          await updateWatchTelemetry(requireDb(), inserted.id, buildTelemetry(unplayedMedia, summary));
+          await updateWatchTelemetry(requireDb(), inserted.id, buildTelemetry(unplayedMedia, summary), { skipInvalidate: true });
           await recordSyncHistory(unplayedMedia, summary, "unwatched");
+          await invalidateHistoryDerivedCaches().catch(() => null);
         }
       }
     } catch (error) {
@@ -266,8 +268,8 @@ async function processCompletedSession(row, config, loopStore) {
     media.source,
   );
 
-  const inserted = await insertWatchRecord(requireDb(), watchRecord);
-  await upsertPlaystateForMedia(requireDb(), media, "watched", inserted.record.watched_at);
+  const inserted = await insertWatchRecord(requireDb(), watchRecord, { skipInvalidate: true });
+  await upsertPlaystateForMedia(requireDb(), media, "watched", inserted.record.watched_at, { skipInvalidate: true });
   let syncSummary;
   try {
     syncSummary = await syncMediaPlaystate(media, config, loopStore);
@@ -281,11 +283,12 @@ async function processCompletedSession(row, config, loopStore) {
     };
   }
   const telemetry = buildTelemetry(media, syncSummary);
-  await updateWatchTelemetry(requireDb(), inserted.id, telemetry);
+  await updateWatchTelemetry(requireDb(), inserted.id, telemetry, { skipInvalidate: true });
   await recordSyncHistory(media, syncSummary, "watched");
   await deletePlaybackProgress(requireDb(), media).catch((error) => {
     console.error("Failed to clear completed resume progress", { sessionId: row.session_id, error });
   });
+  await invalidateHistoryDerivedCaches().catch(() => null);
 
   return { ...inserted, telemetry };
 }
@@ -471,8 +474,8 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
           `Details: Watch event fetched from Plex library history; queueing sync.`,
         ].join("\n");
 
-        const result = await insertWatchRecord(requireDb(), watchRecord);
-        await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at);
+        const result = await insertWatchRecord(requireDb(), watchRecord, { skipInvalidate: true });
+        await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at, { skipInvalidate: true });
         const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
           skipped: false,
           status: "error",
@@ -490,7 +493,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
           ),
         ].join("\n");
 
-        await updateWatchTelemetry(requireDb(), result.id, telemetry);
+        await updateWatchTelemetry(requireDb(), result.id, telemetry, { skipInvalidate: true });
         await recordSyncHistory(media, summary, "watched");
         syncedCount++;
       }
@@ -499,6 +502,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
     logger(`Plex sync recently watched failed: ${error.message}`);
   }
 
+  if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
   return syncedCount;
 }
 
@@ -557,8 +561,8 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
           `Details: Watch event fetched from Emby library history; queueing sync.`,
         ].join("\n");
 
-        const result = await insertWatchRecord(requireDb(), watchRecord);
-        await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at);
+        const result = await insertWatchRecord(requireDb(), watchRecord, { skipInvalidate: true });
+        await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at, { skipInvalidate: true });
         const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
           skipped: false,
           status: "error",
@@ -576,7 +580,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
           ),
         ].join("\n");
 
-        await updateWatchTelemetry(requireDb(), result.id, telemetry);
+        await updateWatchTelemetry(requireDb(), result.id, telemetry, { skipInvalidate: true });
         await recordSyncHistory(media, summary, "watched");
         syncedCount++;
       }
@@ -584,6 +588,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
   } catch (error) {
     logger(`Emby sync recently watched failed: ${error.message}`);
   }
+  if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
   return syncedCount;
 }
 
@@ -642,8 +647,8 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
           `Details: Watch event fetched from Jellyfin library history; queueing sync.`,
         ].join("\n");
 
-        const result = await insertWatchRecord(requireDb(), watchRecord);
-        await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at);
+        const result = await insertWatchRecord(requireDb(), watchRecord, { skipInvalidate: true });
+        await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at, { skipInvalidate: true });
         const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
           skipped: false,
           status: "error",
@@ -661,7 +666,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
           ),
         ].join("\n");
 
-        await updateWatchTelemetry(requireDb(), result.id, telemetry);
+        await updateWatchTelemetry(requireDb(), result.id, telemetry, { skipInvalidate: true });
         await recordSyncHistory(media, summary, "watched");
         syncedCount++;
       }
@@ -669,6 +674,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
   } catch (error) {
     logger(`Jellyfin sync recently watched failed: ${error.message}`);
   }
+  if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
   return syncedCount;
 }
 
@@ -757,7 +763,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
       };
 
       logger(`Background Queue: retrying/dispatching sync for ${media.title} (${id})...`);
-      await upsertPlaystateForMedia(requireDb(), media, "watched", data.watchedAt || data.watched_at);
+      await upsertPlaystateForMedia(requireDb(), media, "watched", data.watchedAt || data.watched_at, { skipInvalidate: true });
       const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
         skipped: false,
         status: "error",
@@ -775,13 +781,14 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         ),
       ].join("\n");
 
-      await updateWatchTelemetry(requireDb(), id, telemetry);
+      await updateWatchTelemetry(requireDb(), id, telemetry, { skipInvalidate: true });
       await recordSyncHistory(media, summary, "watched");
       syncedCount++;
     }
   } catch (error) {
     logger(`Pending Queue dispatcher failed: ${error.message}`);
   }
+  if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
   return syncedCount;
 }
 
@@ -1349,8 +1356,8 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
           ...activeTargets.map(t => `Target ${t.charAt(0).toUpperCase() + t.slice(1)} status: success`)
         ].join("\n");
         if (newestTime > 0) unwatchedRecord.watched_at = new Date(newestTime).toISOString();
-        const inserted = await insertWatchRecord(requireDb(), unwatchedRecord);
-        await upsertPlaystateForMedia(requireDb(), { ...mediaObj, source: "force_sync", isValid: true }, "unwatched", inserted.record.watched_at);
+        const inserted = await insertWatchRecord(requireDb(), unwatchedRecord, { skipInvalidate: true });
+        await upsertPlaystateForMedia(requireDb(), { ...mediaObj, source: "force_sync", isValid: true }, "unwatched", inserted.record.watched_at, { skipInvalidate: true });
       }
 
       for (const target of activeTargets) {
@@ -1378,10 +1385,6 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
 
   if (abortResult) return abortResult;
 
-  logger("Firestore: invalidating database watch history caches...");
-  const { invalidateHistoryDerivedCaches } = await import("./utils/firestoreRepo.js");
-  await invalidateHistoryDerivedCaches().catch(() => null);
-
   logger("Force Sync: process complete.");
   return {
     success: true,
@@ -1394,6 +1397,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
     }
   };
   } finally {
+    await invalidateHistoryDerivedCaches().catch(() => null);
     await setRuntimeState({ forceSyncActive: false, forceSyncCancelRequested: false }).catch(() => null);
   }
 }

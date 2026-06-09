@@ -399,7 +399,7 @@ export function playstateRecordFromMedia(media = {}, state = media?.syncAction |
   return record;
 }
 
-export async function upsertPlaystate(_unusedDb, record, stateOverride = undefined) {
+export async function upsertPlaystate(_unusedDb, record, stateOverride = undefined, { skipInvalidate = false } = {}) {
   const normalized = normalizeWatchRecord(record, record.source || "webhook");
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));
@@ -434,12 +434,12 @@ export async function upsertPlaystate(_unusedDb, record, stateOverride = undefin
     { merge: true },
   );
 
-  await invalidateHistoryDerivedCaches().catch(() => null);
+  if (!skipInvalidate) await invalidateHistoryDerivedCaches().catch(() => null);
   return { mediaKey, state, record: normalized };
 }
 
-export async function upsertPlaystateForMedia(_unusedDb, media, state = "watched", watchedAt = undefined) {
-  return upsertPlaystate(_unusedDb, playstateRecordFromMedia(media, state, watchedAt), state);
+export async function upsertPlaystateForMedia(_unusedDb, media, state = "watched", watchedAt = undefined, options = {}) {
+  return upsertPlaystate(_unusedDb, playstateRecordFromMedia(media, state, watchedAt), state, options);
 }
 
 export async function listWatchedPlaystateRowsForReplay({ limit = 25, offset = 0 } = {}) {
@@ -466,7 +466,7 @@ export async function invalidateHistoryDerivedCaches() {
   ]);
 }
 
-export async function insertWatchRecord(_unusedDb, record) {
+export async function insertWatchRecord(_unusedDb, record, { skipInvalidate = false } = {}) {
   const normalized = normalizeWatchRecord(record, record.source);
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));
@@ -476,7 +476,7 @@ export async function insertWatchRecord(_unusedDb, record) {
     ...toFirestoreWatch(normalized),
     createdAt: FieldValue.serverTimestamp(),
   });
-  await invalidateHistoryDerivedCaches();
+  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
   if (normalized.tmdb_id || normalized.title) {
     prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
   }
@@ -508,13 +508,10 @@ export async function batchInsertWatchRecords(_unusedDb, records) {
   const config = await loadMediaConfig().catch(() => ({}));
   const tmdbApiKey = config.tmdb?.apiKey;
 
-  for (const [index, record] of records.entries()) {
+  const prepareRecord = async (record, index) => {
     const normalized = normalizeWatchRecord(record, "trakt_import");
     const errors = validateWatchRecord(normalized);
-    if (errors.length) {
-      rejected.push({ index, errors });
-      continue;
-    }
+    if (errors.length) return { action: "reject", index, errors };
 
     const existing = await db
       .collection("watchHistory")
@@ -522,26 +519,40 @@ export async function batchInsertWatchRecords(_unusedDb, records) {
       .where("watchedAt", "==", normalized.watched_at)
       .limit(1)
       .get();
-    if (!existing.empty) {
-      skipped += 1;
-      continue;
-    }
+    if (!existing.empty) return { action: "skip" };
 
     if (tmdbApiKey && !normalized.poster_url) {
       normalized.poster_url = await fetchPosterFromTmdb(normalized, tmdbApiKey);
     }
+    return { action: "insert", normalized };
+  };
 
-    const ref = db.collection("watchHistory").doc();
-    batch.set(ref, {
-      ...toFirestoreWatch({
-        ...normalized,
-        sync_dispatch_telemetry: normalized.sync_dispatch_telemetry || defaultTelemetry(normalized),
-      }),
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    inserted += 1;
-    if (normalized.tmdb_id || normalized.title) {
-      prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
+  const CHUNK_SIZE = 10;
+  for (let start = 0; start < records.length; start += CHUNK_SIZE) {
+    const chunk = records.slice(start, start + CHUNK_SIZE);
+    const outcomes = await Promise.all(chunk.map((record, offset) => prepareRecord(record, start + offset)));
+    for (const outcome of outcomes) {
+      if (outcome.action === "reject") {
+        rejected.push({ index: outcome.index, errors: outcome.errors });
+        continue;
+      }
+      if (outcome.action === "skip") {
+        skipped += 1;
+        continue;
+      }
+      const normalized = outcome.normalized;
+      const ref = db.collection("watchHistory").doc();
+      batch.set(ref, {
+        ...toFirestoreWatch({
+          ...normalized,
+          sync_dispatch_telemetry: normalized.sync_dispatch_telemetry || defaultTelemetry(normalized),
+        }),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      inserted += 1;
+      if (normalized.tmdb_id || normalized.title) {
+        prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
+      }
     }
   }
 
@@ -550,7 +561,7 @@ export async function batchInsertWatchRecords(_unusedDb, records) {
   return { inserted, updated: 0, skipped, rejected };
 }
 
-export async function updateWatchTelemetry(_unusedDb, id, telemetry) {
+export async function updateWatchTelemetry(_unusedDb, id, telemetry, { skipInvalidate = false } = {}) {
   if (!id) return;
   await db.collection("watchHistory").doc(String(id)).set(
     {
@@ -559,7 +570,7 @@ export async function updateWatchTelemetry(_unusedDb, id, telemetry) {
     },
     { merge: true },
   );
-  await invalidateHistoryDerivedCaches();
+  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
 }
 
 export function normalizePlaybackProgressRecord(record = {}, fallbackSource = "webhook") {
@@ -821,6 +832,20 @@ function historyDedupeKey(row = {}) {
   }
 
   return `${mediaType || "unknown"}|${canonicalTitleKey(row.title)}|${row.watched_at || ""}`;
+}
+
+// Lightweight variant of queryWatchHistory for callers that only need the most
+// recent rows (e.g. the per-minute cron). Reads a bounded window directly from
+// Firestore instead of going through the full-collection history cache.
+export async function listRecentTrackedWatchRows({ limit = 100, scanLimit = 400 } = {}) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
+  const safeScanLimit = Math.min(Math.max(Number(scanLimit) || safeLimit * 4, safeLimit), 2000);
+  const snapshot = await db.collection("watchHistory")
+    .orderBy("watchedAt", "desc")
+    .limit(safeScanLimit)
+    .get();
+  const rows = snapshot.docs.map(fromFirestoreWatch).filter(isPlembfinTrackedWatchRow);
+  return dedupeHistory(rows).slice(0, safeLimit);
 }
 
 export async function queryWatchHistory(_unusedDb, { search = "", limit = 50, offset = 0 } = {}) {
@@ -1112,14 +1137,14 @@ export async function mergeShows(sourceTitle, targetTitle) {
   return { merged: snapshot.size };
 }
 
-export async function deleteWatchRecordById(id) {
+export async function deleteWatchRecordById(id, { skipInvalidate = false } = {}) {
   if (!id) return false;
   await db.collection("watchHistory").doc(String(id)).delete();
-  await invalidateHistoryDerivedCaches();
+  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
   return true;
 }
 
-export async function deleteWatchRecord(_unusedDb, media) {
+export async function deleteWatchRecord(_unusedDb, media, { skipInvalidate = false } = {}) {
   const key = mediaKeyFor({
     title: media.title,
     type: media.type,
@@ -1134,7 +1159,7 @@ export async function deleteWatchRecord(_unusedDb, media) {
   const batch = db.batch();
   snapshot.docs.forEach((doc) => batch.delete(doc.ref));
   await batch.commit();
-  await invalidateHistoryDerivedCaches();
+  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
   return true;
 }
 
