@@ -31,6 +31,9 @@ export function normalizeStoredConfig(stored = {}) {
     tmdb: {
       apiKey: String(stored.tmdb?.apiKey || stored.tmdbApiKey || "").trim(),
     },
+    youtube: {
+      apiKey: String(stored.youtube?.apiKey || "").trim(),
+    },
   };
 }
 
