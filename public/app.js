@@ -11,7 +11,7 @@ const ACTIVE_SETTINGS_TAB_KEY = "history_active_settings_tab";
 const IMPORT_BATCH_SIZE = 100;
 const IMPORT_MAX_ATTEMPTS = 4;
 const IMPORT_RETRY_BASE_MS = 1500;
-const NOW_PLAYING_POLL_MS = 30000;
+const NOW_PLAYING_POLL_MS = 10000;
 const NOW_PLAYING_EMPTY_POLL_MS = 2 * 60 * 1000;
 const NOW_PLAYING_REENTRY_CACHE_MS = 20 * 1000;
 const POSTER_LOOKUP_CONCURRENCY = 2;
@@ -2908,113 +2908,39 @@ async function loadActiveSessions() {
   return sessions;
 }
 
-async function startNowPlayingStream() {
-  if (state.nowPlayingAbortController) {
-    state.nowPlayingAbortController.abort();
+function pollNowPlayingOnce() {
+  if (!state.token || state.activeView !== "dashboard" || document.hidden) {
+    stopHistoryPolling();
+    return;
   }
-  state.nowPlayingAbortController = new AbortController();
-  const signal = state.nowPlayingAbortController.signal;
-
-  const url = nowPlayingUrl();
-  url.searchParams.set("stream", "1");
-
-  logDebug("Opening real-time stream connection to /api/now-playing...");
-
-  try {
-    const response = await fetch(url, {
-      headers: authHeaders(),
-      signal,
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    if (elements.nowPlayingStatus) {
-      elements.nowPlayingStatus.textContent = "Real-time Stream";
-      elements.nowPlayingStatus.className = "status-pill status-ready";
-    }
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop(); // Keep partial line in buffer
-
-      for (const line of lines) {
-        const cleanLine = line.trim();
-        if (!cleanLine) continue;
-
-        if (cleanLine.startsWith("data:")) {
-          const rawJson = cleanLine.slice(5).trim();
-          try {
-            const sessions = JSON.parse(rawJson);
-
-            // Fetch local network sessions in parallel
-            const localSessions = await fetchLocalActiveSessions(configFromInputs(), logDebug);
-            if (localSessions.length) {
-              for (const local of localSessions) {
-                const isDuplicate = sessions.some(
-                  (s) =>
-                    s.source === local.source &&
-                    s.title === local.title &&
-                    s.season === local.season &&
-                    s.episode === local.episode
-                );
-                if (!isDuplicate) sessions.push(local);
-              }
-            }
-
-            setActiveSessions(sessions);
-          } catch (err) {
-            console.error("Failed to parse stream event JSON", err);
-          }
-        }
-      }
-    }
-  } catch (error) {
-    if (error.name === "AbortError") {
-      logDebug("Now Playing stream aborted intentionally.");
-      return;
-    }
-    logDebug(`Now Playing stream error: ${error.message}. Reconnecting in 5s...`);
-    if (elements.nowPlayingStatus) {
-      elements.nowPlayingStatus.textContent = "Reconnecting...";
-      elements.nowPlayingStatus.className = "status-pill status-muted";
-    }
-    
-    // Attempt reconnect after 5s if still active and authorized
-    setTimeout(() => {
-      if (state.token && state.activeView === "dashboard" && !signal.aborted) {
-        startNowPlayingStream().catch(() => {});
-      }
-    }, 5000);
-  }
+  loadActiveSessions().catch((error) => {
+    logDebug(`Now Playing poll failed: ${error?.message || "unknown error"}`);
+  });
 }
 
 function startHistoryPolling() {
   stopHistoryPolling();
   if (!state.token || state.activeView !== "dashboard" || document.hidden) return;
 
-  logDebug("Starting real-time Now Playing updates.");
-  startNowPlayingStream().catch((error) => {
-    setMessage(error.message, "error");
-  });
+  logDebug(`Starting Now Playing polling (every ${NOW_PLAYING_POLL_MS / 1000}s).`);
+  // SSE streaming via /api/now-playing?stream=1 does not survive the Firebase
+  // Hosting proxy in production (responses are buffered), so the dashboard polls
+  // the non-streaming endpoint on an interval instead. Visibility-gated so it
+  // pauses when the tab is hidden or the user leaves the dashboard.
+  pollNowPlayingOnce();
+  state.nowPlayingInterval = setInterval(pollNowPlayingOnce, NOW_PLAYING_POLL_MS);
 }
 
 function stopHistoryPolling() {
+  if (state.nowPlayingInterval) {
+    clearInterval(state.nowPlayingInterval);
+    state.nowPlayingInterval = undefined;
+  }
   if (state.nowPlayingAbortController) {
     state.nowPlayingAbortController.abort();
     state.nowPlayingAbortController = null;
   }
-  logDebug("Stopped Now Playing background updates/stream.");
+  logDebug("Stopped Now Playing polling.");
 }
 
 function syncNowPlayingPolling() {
