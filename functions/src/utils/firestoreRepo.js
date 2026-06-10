@@ -1336,6 +1336,17 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
     const doc = await SHOW_SUMMARY_CACHE.doc(String(id)).get().catch(() => null);
     resolvedTitle = doc?.exists ? String(doc.data()?.title || "") : "";
   }
+
+  if (resolvedTitle) {
+    const snapshot = await db.collection("watchHistory")
+      .where("mediaType", "==", "episode")
+      .where("showTitleLower", "==", resolvedTitle.toLowerCase())
+      .get();
+    const rows = dedupeHistory(snapshot.docs.map(fromFirestoreWatch).filter(isPlembfinTrackedWatchRow));
+    const [show] = groupShowRows(rows);
+    if (show) return show;
+  }
+
   if (!resolvedTitle && id) {
     resolvedTitle = String(id).replace(/-/g, " ");
   }
