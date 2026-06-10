@@ -113,7 +113,6 @@ const state = {
   importActive: false,
   debugLogs: readStoredDebugLogs(),
   nowPlayingInterval: undefined,
-  nowPlayingAbortController: null,
   nowPlayingRequestActive: false,
   nowPlayingRefreshToken: "",
   nowPlayingSessionKey: "",
@@ -2935,10 +2934,6 @@ function stopHistoryPolling() {
   if (state.nowPlayingInterval) {
     clearInterval(state.nowPlayingInterval);
     state.nowPlayingInterval = undefined;
-  }
-  if (state.nowPlayingAbortController) {
-    state.nowPlayingAbortController.abort();
-    state.nowPlayingAbortController = null;
   }
   logDebug("Stopped Now Playing polling.");
 }

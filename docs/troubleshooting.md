@@ -6,10 +6,12 @@ Start here. Find the symptom, follow the pointer.
 
 The classic. Causes, in order of likelihood:
 
-1. **SSE reintroduced behind the Hosting proxy.** Firebase Hosting buffers
-   streamed responses, so `/api/now-playing?stream=1` never delivers in prod. The
-   dashboard must poll the **non-streaming** `/api/now-playing`. Check DevTools →
-   Network: a `?stream=1` request stuck *pending* = this. Fix: revert to polling
+1. **SSE reintroduced behind the Hosting proxy.** Now Playing is polled, not
+   streamed — `handleNowPlaying` returns plain JSON and the dashboard re-fetches it
+   every 10s. If someone wires Server-Sent Events back up, Firebase Hosting buffers
+   the streamed response and it never delivers in prod (the original bug). Tell:
+   DevTools → Network shows a long-lived `now-playing` request stuck *pending* with
+   no body instead of quick ~10s JSON polls. Fix: keep it on polling
    (`startHistoryPolling` → `loadActiveSessions` on an interval). Full write-up:
    [now-playing.md](now-playing.md#why-it-broke-the-sse-trap).
 2. **Production `liveTrackingCache` is empty.** The cloud poller can't reach your
@@ -25,7 +27,7 @@ Now Playing idle on prod?
  ├─ Firestore → liveTrackingCache has fresh completedAt:null docs?
  │    ├─ NO  → poller can't reach servers (settings URLs / reachability)
  │    └─ YES → DevTools Network → /api/now-playing
- │             ├─ ?stream=1 pending      → SSE behind Hosting; switch to polling
+ │             ├─ request stuck pending  → SSE reintroduced behind Hosting; keep polling
  │             ├─ returns [] (empty)     → stale function deploy or read bug
  │             └─ returns sessions       → frontend render bug
 ```

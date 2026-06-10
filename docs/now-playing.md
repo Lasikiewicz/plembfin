@@ -68,9 +68,10 @@ was confirmed present in production's `liveTrackingCache`.
 
 **Root cause:** the dashboard used to consume Now Playing as a **Server-Sent
 Events stream** — `startNowPlayingStream()` fetched `/api/now-playing?stream=1` and
-read a long-lived `text/event-stream` response (`handleNowPlaying`'s streaming
-branch, `functions/src/index.js:700`+, which writes `data: …` frames and keeps the
-connection open with Firestore `onSnapshot` listeners + a heartbeat).
+read a long-lived `text/event-stream` response. The server handler had a streaming
+branch that wrote `data: …` frames and kept the connection open with Firestore
+`onSnapshot` listeners + a heartbeat. (Both the frontend consumer and that server
+branch have since been removed — see the fix below.)
 
 SSE works against the **emulator** (browser talks to the function directly). In
 **production** the request goes `browser → Firebase Hosting → Cloud Function`, and
@@ -79,16 +80,19 @@ frames never reached the browser; the reader sat receiving nothing, the connecti
 eventually dropped, it reconnected every 5s, and the grid stayed on its "idle"
 placeholder forever.
 
-**Fix (current state):** dropped SSE for Now Playing. The dashboard polls the
-non-streaming `/api/now-playing` every 10s via `loadActiveSessions()`. The
-non-streaming branch returns a normal JSON array, which passes through the Hosting
-proxy fine. Polling is also *cheaper* than SSE here, because SSE pinned a Cloud
-Function instance open (billed by wall-clock GB-seconds) for the whole time the
-dashboard was open; short polls spin up and die in under a second.
+**Fix (current state):** dropped SSE for Now Playing entirely. `handleNowPlaying`
+(`functions/src/index.js:648`) is now a plain request/response handler that returns
+a JSON array, and the dashboard polls it every 10s via `loadActiveSessions()`. JSON
+passes through the Hosting proxy fine. Polling is also *cheaper* than SSE here,
+because SSE pinned a Cloud Function instance open (billed by wall-clock GB-seconds)
+for the whole time the dashboard was open; short polls spin up and die in under a
+second. The `?stream=1` query param is no longer recognised — it returns the same
+JSON as any other request.
 
-> The streaming branch of `handleNowPlaying` still exists server-side but is no
-> longer used by the frontend. Don't reintroduce an SSE consumer behind the
-> Hosting proxy without verifying chunks actually flush through in production.
+> Don't reintroduce an SSE consumer behind the Hosting proxy without first
+> verifying chunks actually flush through in production (they didn't before). The
+> streaming server branch and its `onSnapshot`/heartbeat machinery were deleted, so
+> reintroducing SSE means rebuilding both ends.
 
 ## Diagnosing "Now Playing is wrong" in future
 
@@ -108,8 +112,9 @@ Work outside-in:
 2. **Does the API return it?** On the live site, DevTools → Network → filter
    `now-playing`. You should see repeating requests (~every 10s) returning a JSON
    array of sessions. If the array is populated but the grid is empty → a frontend
-   rendering bug (`renderNowPlaying` / `setActiveSessions`). If a `?stream=1`
-   request is stuck **pending** → someone reintroduced SSE; revert to polling.
+   rendering bug (`renderNowPlaying` / `setActiveSessions`). If instead you see a
+   long-lived `now-playing` request stuck **pending** with no body → someone
+   reintroduced SSE; revert to polling.
 3. **Auth?** A `401` means the ID token isn't being accepted — check
    `ADMIN_EMAILS`/`ADMIN_UIDS` and that you're signed in.
 
