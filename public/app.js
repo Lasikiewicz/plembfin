@@ -8490,7 +8490,15 @@ async function loadCastMemberDetails(personId, personName = null) {
   state.activeView = "explorer";
   state.mediaDetailInline = true;
 
-  prepareInlineMediaDetail(state.explorerMode || "shows");
+  // Don't use prepareInlineMediaDetail() here: it calls selectView("explorer"),
+  // which rebuilds the URL from activeMovieModalId/activeShowModalKey (still set
+  // from the underlying movie/show) and overwrites the /person/<id> URL we're on.
+  // That breaks closeMediaDetail()'s "return to the media item" branch below.
+  applyActiveView();
+  elements.explorerPanel.innerHTML = "";
+  elements.explorerPanel.scrollIntoView({ block: "start" });
+  document.querySelector("#explorerBackButton")?.classList.remove("hidden");
+  document.querySelector(".explorer-controls")?.classList.add("hidden");
 
   const root = mediaDetailRoot();
 
