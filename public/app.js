@@ -2978,11 +2978,15 @@ function syncNowPlayingPolling() {
 }
 
 function getRowFitLimit(rowElement) {
+  // Dashboard history rows scroll horizontally, so render a generous
+  // number of cards regardless of viewport width rather than only as
+  // many as fit on screen.
+  if (rowElement && (rowElement.id === "tvHistoryRow" || rowElement.id === "movieHistoryRow")) {
+    return 24;
+  }
   const width = rowElement ? rowElement.clientWidth : 0;
   if (width <= 0) return 10;
-  const isDashboardHistory = rowElement.id === "tvHistoryRow" || rowElement.id === "movieHistoryRow";
-  const divisor = isDashboardHistory ? 192 : 172;
-  const maxCards = Math.floor((width + 12) / divisor);
+  const maxCards = Math.floor((width + 12) / 172);
   return Math.max(2, maxCards);
 }
 
