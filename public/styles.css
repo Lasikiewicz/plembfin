@@ -3259,28 +3259,72 @@ details[open] .tool-accordion-chevron::before {
 }
 
 .watch-date-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 5;
+  z-index: 9000;
   display: grid;
   place-items: center;
-  background: rgba(2, 6, 9, 0.72);
+  background: rgba(2, 6, 9, 0.84);
+  backdrop-filter: blur(3px);
   padding: var(--space-4);
 }
 
 .watch-date-dialog {
   display: grid;
-  width: min(420px, 100%);
+  width: min(640px, 96vw);
+  max-height: 88vh;
+  overflow-y: auto;
   gap: var(--space-3);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  background: #0b1116;
-  padding: var(--space-4);
+  background: #0d141a;
+  padding: clamp(1.25rem, 2.5vw, 2rem);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
 }
 
 .watch-date-dialog h3,
 .watch-date-dialog p {
   margin: 0;
+}
+
+.watch-date-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.watch-date-head-text {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.watch-date-head h3 {
+  font-size: 1.3rem;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.watch-date-sub {
+  color: var(--soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.watch-date-close {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.7rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.watch-date-close:hover {
+  color: var(--text);
 }
 
 .watch-date-dialog p {
@@ -3289,30 +3333,172 @@ details[open] .tool-accordion-chevron::before {
   line-height: 1.45;
 }
 
-.watch-date-options,
-.watch-date-actions {
+.watch-date-intro {
+  font-size: 0.9rem !important;
+}
+
+.watch-date-episodes {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #080d11;
+  overflow: hidden;
+}
+
+.watch-date-episodes-head {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: #11181f;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.watch-date-episode-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.watch-date-episode {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.watch-date-episode:last-child {
+  border-bottom: 0;
+}
+
+.watch-date-episode-code {
+  flex: none;
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+}
+
+.watch-date-episode-title {
+  color: var(--soft);
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watch-date-episode-air {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.watch-date-section-label {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.watch-date-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: var(--space-2);
+}
+
+.watch-date-pick {
+  display: grid;
+  gap: 0.3rem;
+  text-align: left;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #141b22;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, transform 120ms ease;
+}
+
+.watch-date-pick:hover {
+  background: #1e2936;
+  border-color: #3a7fc2;
+  transform: translateY(-1px);
+}
+
+.watch-date-pick-title {
+  color: var(--text);
+  font-size: 0.98rem;
+  font-weight: 850;
+}
+
+.watch-date-pick-sub {
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .watch-date-custom {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.4rem;
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
 }
 
-.watch-date-custom span {
+.watch-date-custom label {
   color: var(--muted);
   font-size: 0.74rem;
   font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
-.watch-date-custom input {
+.watch-date-custom-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.watch-date-custom-row input {
+  flex: 1;
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #080d11;
   color: var(--text);
-  padding: 0.55rem 0.65rem;
+  font-size: 0.9rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.watch-date-custom-row .button-primary {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Ghost / secondary variant of .action-pill used for destructive-ish actions
+   like "Mark unwatched". */
+.action-pill-ghost {
+  background: transparent;
+  color: var(--muted);
+}
+
+.action-pill-ghost:hover {
+  background: #2a1416;
+  border-color: #b4474f;
+  color: #fca5a5;
+}
+
+.confirm-dialog-body {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
 @media (max-width: 760px) {
@@ -4850,12 +5036,25 @@ h1 {
   color: #fff;
 }
 
-.person-photos-row {
+.person-photos-count {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: #1e2936;
+  color: var(--soft);
+  font-size: 0.72rem;
+  font-weight: 800;
+  vertical-align: middle;
+}
+
+.person-photos-grid {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding-bottom: 0.75rem;
+  max-height: 540px;
+  overflow-y: auto;
+  padding-bottom: 0.5rem;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
 }

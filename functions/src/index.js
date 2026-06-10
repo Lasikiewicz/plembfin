@@ -523,6 +523,78 @@ function manualWatchMediaFromRecord(record = {}) {
   };
 }
 
+function mediaFromWatchRecord(record) {
+  return {
+    title: record.title,
+    type: record.media_type,
+    source: record.source || "manual",
+    ids: {
+      imdb: record.imdb_id || undefined,
+      tmdb: record.tmdb_id || undefined,
+      tvdb: record.tvdb_id || undefined,
+    },
+    season: record.season == null ? undefined : Number(record.season),
+    episode: record.episode == null ? undefined : Number(record.episode),
+    posterUrl: record.poster_url || undefined,
+    isValid: Boolean(record.title && ["movie", "episode"].includes(record.media_type)),
+  };
+}
+
+// Core of "mark unwatched": delete the watched record, write a superseding
+// unwatched record, flip the playstate cache, and propagate unplayed to the other
+// platforms. Shared by the webhook `unplayed` phase and the manual-unwatch handler.
+async function applyManualUnwatch(media, config, loopStore) {
+  const wasDeleted = await deleteWatchRecord(requireDb(), media, { skipInvalidate: true }).catch((error) => {
+    console.error("Failed to delete watch record from Firestore", error);
+    return false;
+  });
+  await deletePlaybackProgress(requireDb(), media).catch(() => null);
+
+  const pendingSummary = { skipped: false, status: "pending", details: "Unwatched propagation queued", targetStates: [] };
+  const unplayedRecord = mediaToWatchRecord({ ...media, syncAction: "unwatched" }, media.source);
+  unplayedRecord.sync_action = "unwatched";
+  unplayedRecord.sync_dispatch_telemetry = formatDispatchTelemetry(pendingSummary, media, "unwatched");
+  const result = await insertWatchRecord(requireDb(), unplayedRecord, { skipInvalidate: true });
+  await upsertPlaystateForMedia(requireDb(), media, "unwatched", result.record.watched_at, { skipInvalidate: true });
+
+  const summary = await syncMediaUnplayedPlaystate(media, config, loopStore).catch((error) => ({
+    skipped: false,
+    status: "error",
+    details: `Unwatched propagation failed: ${error.message || String(error)}`,
+    targetStates: [],
+  }));
+  await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "unwatched"), { skipInvalidate: true });
+  await recordSyncHistory(media, summary, "unwatched");
+  return { wasDeleted, id: result.id, summary };
+}
+
+async function handleManualUnwatch(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const id = String(body.id || "").trim();
+  if (!id) return sendJson(res, { error: "id is required" }, 400);
+
+  const record = await getWatchRecordById(id);
+  if (!record) return sendJson(res, { error: "Watch record not found" }, 404);
+
+  const media = mediaFromWatchRecord(record);
+  const config = await loadMediaConfig();
+  const loopStore = createLoopStore();
+
+  try {
+    const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore);
+    return sendJson(res, { ok: true, id: unwatchedId, status: summary.status, targetStates: summary.targetStates || [] });
+  } catch (error) {
+    console.error("Manual unwatch failed", error);
+    return sendJson(res, { error: "Manual unwatch failed", details: error.message }, 500);
+  } finally {
+    await invalidateHistoryDerivedCaches().catch(() => null);
+  }
+}
+
 async function handleManualWatch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -606,20 +678,7 @@ async function handleRetrySync(req, res) {
   const config = await loadMediaConfig();
   const loopStore = createLoopStore();
 
-  const media = {
-    title: record.title,
-    type: record.media_type,
-    source: record.source || "manual",
-    ids: {
-      imdb: record.imdb_id || undefined,
-      tmdb: record.tmdb_id || undefined,
-      tvdb: record.tvdb_id || undefined,
-    },
-    season: record.season == null ? undefined : Number(record.season),
-    episode: record.episode == null ? undefined : Number(record.episode),
-    posterUrl: record.poster_url || undefined,
-    isValid: Boolean(record.title && ["movie", "episode"].includes(record.media_type)),
-  };
+  const media = mediaFromWatchRecord(record);
 
   const action = record.sync_action || "watched";
   let summary;
@@ -1022,28 +1081,10 @@ async function handleWebhook(req, res) {
 
   if (media.phase === "unplayed") {
     try {
-    await deleteActiveSession(null, media);
-    const wasDeleted = await deleteWatchRecord(requireDb(), media, { skipInvalidate: true }).catch((error) => {
-      console.error("Failed to delete watch record from Firestore", error);
-      return false;
-    });
-    await deletePlaybackProgress(requireDb(), media).catch(() => null);
-    await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
-    const pendingSummary = { skipped: false, status: "pending", details: "Unwatched propagation queued", targetStates: [] };
-    const unplayedRecord = mediaToWatchRecord({ ...media, syncAction: "unwatched" }, media.source);
-    unplayedRecord.sync_action = "unwatched";
-    unplayedRecord.sync_dispatch_telemetry = formatDispatchTelemetry(pendingSummary, media, "unwatched");
-    const result = await insertWatchRecord(requireDb(), unplayedRecord, { skipInvalidate: true });
-    await upsertPlaystateForMedia(requireDb(), media, "unwatched", result.record.watched_at, { skipInvalidate: true });
-    const summary = await syncMediaUnplayedPlaystate(media, config, loopStore).catch((error) => ({
-      skipped: false,
-      status: "error",
-      details: `Unwatched propagation failed: ${error.message || String(error)}`,
-      targetStates: [],
-    }));
-    await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "unwatched"), { skipInvalidate: true });
-    await recordSyncHistory(media, summary, "unwatched");
-    return sendJson(res, { ok: true, deleted: wasDeleted, unplayed: true, inserted: true, id: result.id, ...(wasDeleted ? {} : { reason: "No previous watched record found to delete" }) });
+      await deleteActiveSession(null, media);
+      await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+      const { wasDeleted, id } = await applyManualUnwatch(media, config, loopStore);
+      return sendJson(res, { ok: true, deleted: wasDeleted, unplayed: true, inserted: true, id, ...(wasDeleted ? {} : { reason: "No previous watched record found to delete" }) });
     } finally {
       await invalidateHistoryDerivedCaches().catch(() => null);
     }
@@ -1603,14 +1644,19 @@ async function handleTmdbPerson(req, res) {
     const cachedDoc = await docRef.get();
 
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    // Bumped when the fetched shape changes (added tagged_images for the photo
+    // gallery). Entries cached under an older schema are refetched immediately
+    // rather than waiting out the 7-day TTL.
+    const PERSON_SCHEMA_VERSION = 2;
     if (cachedDoc.exists) {
       const data = cachedDoc.data();
-      if (data.updatedAt && (Date.now() - data.updatedAt < sevenDaysMs)) {
+      const fresh = data.updatedAt && (Date.now() - data.updatedAt < sevenDaysMs);
+      if (fresh && data.schemaVersion >= PERSON_SCHEMA_VERSION) {
         return sendJson(res, data.details, 200, { "Cache-Control": "private, max-age=86400" });
       }
     }
 
-    const personRes = await fetch(`https://api.themoviedb.org/3/person/${personId}?api_key=${apiKey}&append_to_response=combined_credits,images`);
+    const personRes = await fetch(`https://api.themoviedb.org/3/person/${personId}?api_key=${apiKey}&append_to_response=combined_credits,images,tagged_images`);
     if (!personRes.ok) {
       if (cachedDoc.exists) {
         return sendJson(res, cachedDoc.data().details, 200);
@@ -1623,6 +1669,7 @@ async function handleTmdbPerson(req, res) {
     await docRef.set({
       personId,
       details: personData,
+      schemaVersion: PERSON_SCHEMA_VERSION,
       updatedAt: Date.now()
     });
 
@@ -1768,6 +1815,7 @@ async function dispatch(req, res) {
     if (path === "full-sync-watchstates") return handleFullSyncWatchstates(req, res);
     if (path === "import") return handleImport(req, res);
     if (path === "manual-watch") return handleManualWatch(req, res);
+    if (path === "manual-unwatch") return handleManualUnwatch(req, res);
     if (path === "retry-sync") return handleRetrySync(req, res);
     if (path === "update-watch") return handleUpdateWatch(req, res);
     if (path === "merge-shows") return handleMergeShows(req, res);

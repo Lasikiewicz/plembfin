@@ -312,6 +312,36 @@ function openEditDateDialog(_container, id, currentWatchedAt, onSaved) {
   document.body.appendChild(overlay);
 }
 
+function openConfirmDialog({ title = "Are you sure?", body = "", confirmLabel = "Confirm", cancelLabel = "Cancel", danger = false } = {}) {
+  return new Promise((resolve) => {
+    document.querySelectorAll(".confirm-dialog-overlay").forEach((el) => el.remove());
+    const overlay = document.createElement("div");
+    overlay.className = "edit-dialog-overlay confirm-dialog-overlay";
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      overlay.remove();
+      resolve(value);
+    };
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) finish(false); });
+    overlay.innerHTML = `
+      <div class="edit-dialog">
+        <h3>${escapeHtml(title)}</h3>
+        ${body ? `<p class="confirm-dialog-body">${escapeHtml(body)}</p>` : ""}
+        <div class="edit-dialog-actions">
+          <button class="${danger ? "button-danger" : "button-primary"} confirm-dialog-confirm" type="button">${escapeHtml(confirmLabel)}</button>
+          <button class="button-ghost confirm-dialog-cancel" type="button">${escapeHtml(cancelLabel)}</button>
+        </div>
+      </div>
+    `;
+    overlay.querySelector(".confirm-dialog-confirm").addEventListener("click", () => finish(true));
+    overlay.querySelector(".confirm-dialog-cancel").addEventListener("click", () => finish(false));
+    document.body.appendChild(overlay);
+    overlay.querySelector(".confirm-dialog-confirm").focus();
+  });
+}
+
 function closeGlobalSearchDropdown() {
   document.getElementById("globalSearchDropdown")?.remove();
 }
@@ -5080,22 +5110,57 @@ function showModalStatus(loading, hasTmdbKey, hasTmdbData) {
 function renderWatchDatePrompt(action) {
   if (!action) return "";
   const customValue = new Date().toISOString().slice(0, 10);
+  const episodeCount = action.episodes.length;
+  const them = episodeCount === 1 ? "this episode" : "these episodes";
+  const episodesHtml = action.episodes
+    .map((episode) => `
+      <li class="watch-date-episode">
+        <span class="watch-date-episode-code">${escapeHtml(episodeCode(episode.seasonNumber, episode.episodeNumber))}</span>
+        <span class="watch-date-episode-title">${escapeHtml(episode.title || "Untitled episode")}</span>
+        <span class="watch-date-episode-air">${episode.airDate ? escapeHtml(formatTmdbDate(episode.airDate)) : "Air date TBA"}</span>
+      </li>
+    `)
+    .join("");
+
   return `
     <div class="watch-date-overlay" role="dialog" aria-modal="true" aria-label="Choose watched date">
       <div class="watch-date-dialog">
-        <h3>${escapeHtml(action.label)}</h3>
-        <p>Choose the watched date for ${escapeHtml(action.countLabel)}.</p>
-        <div class="watch-date-options">
-          <button class="action-pill" type="button" data-watch-date-choice="release">Day of release</button>
-          <button class="action-pill" type="button" data-watch-date-choice="now">Now</button>
+        <div class="watch-date-head">
+          <div class="watch-date-head-text">
+            <h3>${escapeHtml(action.label)}</h3>
+            <p class="watch-date-sub">${escapeHtml(action.showTitle)} &middot; ${escapeHtml(action.countLabel)}</p>
+          </div>
+          <button class="watch-date-close" type="button" data-watch-date-cancel="true" aria-label="Cancel">&times;</button>
         </div>
-        <label class="watch-date-custom">
-          <span>Custom date</span>
-          <input id="watchDateCustomInput" type="date" value="${escapeAttribute(customValue)}" />
-        </label>
-        <div class="watch-date-actions">
-          <button class="action-pill" type="button" data-watch-date-choice="custom">Use custom</button>
-          <button class="action-pill" type="button" data-watch-date-cancel="true">Cancel</button>
+
+        <p class="watch-date-intro">Logs ${escapeHtml(them)} to your watch history and marks ${episodeCount === 1 ? "it" : "them"} played on Plex, Emby, and Jellyfin. Pick which date to record.</p>
+
+        <div class="watch-date-episodes">
+          <div class="watch-date-episodes-head">
+            <span>${episodeCount === 1 ? "Episode" : "Episodes"}</span>
+            <span>${episodeCount}</span>
+          </div>
+          <ul class="watch-date-episode-list">${episodesHtml}</ul>
+        </div>
+
+        <div class="watch-date-section-label">Watched date</div>
+        <div class="watch-date-options">
+          <button class="watch-date-pick" type="button" data-watch-date-choice="release">
+            <span class="watch-date-pick-title">Day of release</span>
+            <span class="watch-date-pick-sub">Use each episode's air date</span>
+          </button>
+          <button class="watch-date-pick" type="button" data-watch-date-choice="now">
+            <span class="watch-date-pick-title">Now</span>
+            <span class="watch-date-pick-sub">Today, ${escapeHtml(formatTmdbDate(customValue))}</span>
+          </button>
+        </div>
+
+        <div class="watch-date-custom">
+          <label for="watchDateCustomInput">Or pick a specific date</label>
+          <div class="watch-date-custom-row">
+            <input id="watchDateCustomInput" type="date" value="${escapeAttribute(customValue)}" max="${escapeAttribute(customValue)}" />
+            <button class="button-primary" type="button" data-watch-date-choice="custom">Use date</button>
+          </div>
         </div>
       </div>
     </div>
@@ -5209,7 +5274,7 @@ function renderShowModalContent(show, {
                   ? `<span class="unreleased-pill">Not yet released</span>`
                   : !episode.watched
                     ? `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}">Mark watched</button>`
-                    : ""}
+                    : `<button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
               </div>
             </article>
           `;
@@ -5597,6 +5662,54 @@ async function applyWatchDateChoice(choice) {
   }
 }
 
+async function confirmAndMarkUnwatched(button) {
+  const id = button.dataset.unwatchId;
+  if (!id) return;
+  const kind = button.dataset.unwatchKind || "item";
+  const label = button.dataset.unwatchLabel || "this item";
+  const showTitle = button.dataset.showTitle || "";
+
+  const confirmed = await openConfirmDialog({
+    title: "Mark unwatched",
+    body: `Remove "${label}" from your watch history and mark it unplayed on Plex, Emby, and Jellyfin?`,
+    confirmLabel: "Mark unwatched",
+    danger: true,
+  });
+  if (!confirmed) return;
+
+  button.disabled = true;
+  const originalText = button.textContent;
+  button.textContent = "Removing…";
+
+  try {
+    const response = await fetch("/api/manual-unwatch", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || `Mark unwatched failed (${response.status})`);
+
+    clearDerivedUiCaches({ resetExplorer: kind === "movie" });
+    setMessage(`Marked "${label}" unwatched; pushed unplayed to media apps.`, "success");
+
+    if (kind === "episode" && state.activeShowModalKey) {
+      if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
+      await loadHistory().catch(() => null);
+      renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+    } else {
+      // Movie (or no show context): the watched record is gone, so refresh history
+      // and drop back out of the now-empty detail view.
+      await loadHistory().catch(() => null);
+      closeMediaDetail();
+    }
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = originalText;
+    setMessage(`Mark unwatched failed: ${error.message}`, "error");
+  }
+}
+
 async function triggerRetrySync(id, button) {
   if (!id || !button) return;
   button.disabled = true;
@@ -5864,6 +5977,7 @@ async function renderMovieImmersiveModalContent(movie) {
     ? `<a class="action-pill" href="${escapeAttribute(movie.youtube_url)}" target="_blank" rel="noopener noreferrer">Watch on YouTube</a>`
     : "";
   setMediaDetailActions(`
+    <button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
     <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}">Edit Image</button>
     <button class="action-pill media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
     ${ytWatchBtn}
@@ -7633,6 +7747,12 @@ function attachEvents() {
       return;
     }
 
+    const unwatchButton = event.target.closest("[data-unwatch-id]");
+    if (unwatchButton) {
+      confirmAndMarkUnwatched(unwatchButton).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
     const backBtn = event.target.closest(".immersive-back-button");
     if (backBtn) {
       closeMediaDetail();
@@ -8473,15 +8593,28 @@ async function loadCastMemberDetails(personId, personName = null) {
           ` : '<p class="muted-copy">No biography available for this cast member.</p>'}
           
           ${(() => {
-            const mixed = (data.images?.profiles || []).map(img => ({ file_path: img.file_path }));
-            if (!mixed.length) return '';
-            window._personPhotos = mixed.map(img => `https://image.tmdb.org/t/p/w780${img.file_path}`);
+            const seen = new Set();
+            const addUnique = (list) => list.filter((img) => {
+              if (!img.file_path || seen.has(img.file_path)) return false;
+              seen.add(img.file_path);
+              return true;
+            });
+            // Headshots/portraits of the person.
+            const profiles = addUnique(data.images?.profiles || []);
+            // Photos the person is tagged in (scenes, premieres, stills) — these add
+            // variety beyond headshots. Exclude posters so no show/movie art appears.
+            const tagged = addUnique(
+              (data.tagged_images?.results || []).filter((img) => img.image_type !== "poster")
+            );
+            const gallery = [...profiles, ...tagged].slice(0, 40);
+            if (!gallery.length) return '';
+            window._personPhotos = gallery.map((img) => `https://image.tmdb.org/t/p/w780${img.file_path}`);
             return `
             <div class="person-photos-section" style="margin-top: 2rem;">
-              <h3>Photos</h3>
-              <div class="person-photos-row">
-                ${mixed.map((img, i) => `
-                  <img class="person-photo-thumb" src="https://image.tmdb.org/t/p/w185${escapeAttribute(img.file_path)}" loading="lazy" alt="${escapeAttribute(data.name)}" onclick="window.openPhotoLightbox(window._personPhotos, ${i})" onerror="this.style.display='none';" />
+              <h3>Photos <span class="person-photos-count">${gallery.length}</span></h3>
+              <div class="person-photos-grid">
+                ${gallery.map((img, i) => `
+                  <img class="person-photo-thumb" src="https://image.tmdb.org/t/p/w300${escapeAttribute(img.file_path)}" loading="lazy" alt="${escapeAttribute(data.name)}" onclick="window.openPhotoLightbox(window._personPhotos, ${i})" onerror="this.style.display='none';" />
                 `).join('')}
               </div>
             </div>`;
