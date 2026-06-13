@@ -7610,18 +7610,51 @@ function attachEvents() {
     }
   });
 
+  const wheelScrollTargets = new WeakMap();
   document.addEventListener("wheel", (e) => {
     const row = e.target.closest(".horizontal-scroll-row, .trailer-scroll-row, .cast-scroll-row");
-    if (row) {
-      const isScrollable = row.scrollWidth > row.clientWidth;
-      if (isScrollable) {
-        const atLeft = row.scrollLeft === 0;
-        const atRight = Math.ceil(row.scrollLeft + row.clientWidth) >= row.scrollWidth;
-        if ((e.deltaY > 0 && !atRight) || (e.deltaY < 0 && !atLeft)) {
-          row.scrollLeft += e.deltaY;
-          e.preventDefault();
+    if (!row) return;
+    if (row.scrollWidth <= row.clientWidth) return;
+    // Let native horizontal gestures (trackpad swipe) pass through untouched.
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+
+    // Normalise delta to pixels regardless of the device's wheel mode.
+    let delta = e.deltaY;
+    if (e.deltaMode === 1) delta *= 16;
+    else if (e.deltaMode === 2) delta *= row.clientWidth;
+
+    const maxScroll = row.scrollWidth - row.clientWidth;
+    const atLeft = row.scrollLeft <= 0;
+    const atRight = Math.ceil(row.scrollLeft + row.clientWidth) >= row.scrollWidth;
+    // At an edge in the scroll direction, release the wheel back to the page.
+    if ((delta > 0 && atRight) || (delta < 0 && atLeft)) {
+      wheelScrollTargets.delete(row);
+      return;
+    }
+    e.preventDefault();
+
+    const current = wheelScrollTargets.has(row) ? wheelScrollTargets.get(row) : row.scrollLeft;
+    const target = Math.max(0, Math.min(maxScroll, current + delta));
+    wheelScrollTargets.set(row, target);
+
+    if (!row._wheelRAF) {
+      const step = () => {
+        const goal = wheelScrollTargets.get(row);
+        if (goal == null) {
+          row._wheelRAF = null;
+          return;
         }
-      }
+        const diff = goal - row.scrollLeft;
+        if (Math.abs(diff) < 0.5) {
+          row.scrollLeft = goal;
+          wheelScrollTargets.delete(row);
+          row._wheelRAF = null;
+          return;
+        }
+        row.scrollLeft += diff * 0.2;
+        row._wheelRAF = requestAnimationFrame(step);
+      };
+      row._wheelRAF = requestAnimationFrame(step);
     }
   }, { passive: false });
 
