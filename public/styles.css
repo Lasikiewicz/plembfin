@@ -3854,6 +3854,7 @@ h1 {
 
 .app-shell,
 .view-panel {
+  grid-template-columns: minmax(0, 1fr);
   gap: 2.1rem;
 }
 
@@ -4370,12 +4371,14 @@ h1 {
   flex: 0 0 160px;
 }
 
-.history-timeline-panel .horizontal-scroll-row {
-  scroll-snap-type: x proximity;
-}
+@media (pointer: coarse) {
+  .history-timeline-panel .horizontal-scroll-row {
+    scroll-snap-type: x proximity;
+  }
 
-.history-timeline-panel .horizontal-scroll-row .movie-card {
-  scroll-snap-align: start;
+  .history-timeline-panel .horizontal-scroll-row .movie-card {
+    scroll-snap-align: start;
+  }
 }
 
 /* Dashboard Row Title styling */
