@@ -4632,7 +4632,11 @@ async function fetchTmdbDetails(mediaType, tmdbId, title) {
       if (tmdbId) url.searchParams.set("tmdbId", tmdbId);
       if (title) url.searchParams.set("title", title);
 
-      const res = await fetch(url, { headers: authHeaders() });
+      // no-store: the real cache is server-side (Firestore, status-aware TTL).
+      // HTTP-caching this response made stale next_airing_date / poster data
+      // linger in the browser for up to a day. Always hit the function, which
+      // serves from its own cache cheaply.
+      const res = await fetch(url, { headers: authHeaders(), cache: "no-store" });
       if (res.ok) {
         return await res.json();
       }

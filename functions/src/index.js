@@ -1597,7 +1597,7 @@ async function handleTmdbDetails(req, res) {
       const data = cachedDoc.data();
       const fresh = data.updatedAt && (Date.now() - data.updatedAt < tmdbCacheTtlMs(existingDetails));
       if (fresh && (data.schemaVersion || 0) >= TMDB_DETAILS_SCHEMA_VERSION) {
-        return sendJson(res, data.details, 200, { "Cache-Control": "private, max-age=86400" });
+        return sendJson(res, data.details, 200, { "Cache-Control": "no-store" });
       }
     }
 
@@ -1631,7 +1631,7 @@ async function handleTmdbDetails(req, res) {
       updatedAt: Date.now()
     });
 
-    return sendJson(res, merged, 200, { "Cache-Control": "private, max-age=86400" });
+    return sendJson(res, merged, 200, { "Cache-Control": "no-store" });
   } catch (error) {
     console.error("Failed handling TMDB details API", error);
     return sendJson(res, { error: "Failed to fetch TMDB details", details: error.message }, 500);
