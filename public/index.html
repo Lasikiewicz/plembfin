@@ -566,10 +566,10 @@
                       <span class="tool-accordion-chevron" aria-hidden="true"></span>
                       <div>
                         <p>Refresh All TMDB Metadata</p>
-                        <span>Pre-cache cast, trailers, and reviews for every item in your library</span>
+                        <span>Pre-cache cast, trailers, reviews, posters and artwork for every item in your library</span>
                       </div>
                     </div>
-                    <p class="tool-accordion-desc">Fetches full TMDB detail pages — cast and crew, trailers, reviews, and related titles — for every movie and TV show currently in your <code>watchHistory</code> and writes the results into the <code>tmdbMetadataCache</code> Firestore collection with a 7-day TTL. Pre-populating this cache means opening a movie or show detail page is instant rather than waiting for a live API call. Run this after a large import or periodically to keep metadata fresh for new library additions. The cache is also updated automatically in the background when individual titles are viewed.</p>
+                    <p class="tool-accordion-desc">Fetches full TMDB detail pages — cast and crew, trailers, reviews, and related titles — for every movie and TV show currently in your <code>watchHistory</code>, writes the results into the <code>tmdbMetadataCache</code> Firestore collection, downloads each poster and backdrop into Storage, and stamps the canonical poster back onto every watch record. This brings existing media to full parity with newly-added media: both detail pages and grid thumbnails are instant rather than waiting for a live API call. Run this after a large import or periodically. The cache is also updated automatically when a title is added or first viewed.</p>
                   </summary>
                   <div class="tool-accordion-body">
                     <div class="settings-actions">
