@@ -3222,7 +3222,10 @@ function showStatusLabel(status) {
 // Returns { text, isStatus } so the caller can style status differently.
 function nextAiringCell(tmdb) {
   if (!tmdb) return { text: "", isStatus: false };
-  const date = tmdb.next_episode_to_air?.air_date ? futureListDate(tmdb.next_episode_to_air.air_date) : "";
+  // Prefer the backend-derived next_airing_date (computed from the season episode
+  // list); fall back to TMDB's own next_episode_to_air when it isn't present.
+  const raw = tmdb.next_airing_date || tmdb.next_episode_to_air?.air_date || "";
+  const date = raw ? futureListDate(raw) : "";
   if (date) return { text: date, isStatus: false };
   return { text: showStatusLabel(tmdb.status), isStatus: true };
 }

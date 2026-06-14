@@ -53,6 +53,7 @@ import {
   canonicalTitleKey,
   tmdbCacheTtlMs,
   mergeTmdbDetails,
+  computeTvNextAiringDate,
 } from "./utils/firestoreRepo.js";
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
@@ -1613,6 +1614,13 @@ async function handleTmdbDetails(req, res) {
     // fields (next_episode_to_air, status, episode counts) update while any
     // sub-resources this fetch didn't request are preserved.
     const merged = mergeTmdbDetails(existingDetails, await detailsRes.json());
+    // TMDB's next_episode_to_air is unreliable; derive a dependable next-airing
+    // date from the season episode list so the list view matches the detail page.
+    if (mediaType === "tv") {
+      const nextAiring = await computeTvNextAiringDate(merged, tmdbId, apiKey);
+      if (nextAiring) merged.next_airing_date = nextAiring;
+      else delete merged.next_airing_date;
+    }
     await docRef.set({
       tmdbId,
       mediaType,
