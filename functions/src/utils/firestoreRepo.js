@@ -1397,6 +1397,40 @@ function sortShowRows(rows, sort) {
   });
 }
 
+const TMDB_DAY_MS = 24 * 60 * 60 * 1000;
+
+// How long a cached TMDB details doc stays "fresh" before we refetch + merge.
+// Decided from the *previously cached* status, since that's what we're trusting:
+// finished/released titles change rarely, while actively-airing shows need
+// frequent refreshes so next_episode_to_air / status / episode counts stay current.
+export function tmdbCacheTtlMs(details) {
+  switch (details?.status) {
+    case "Returning Series":
+    case "In Production":
+    case "Post Production":
+    case "Planned":
+    case "Pilot":
+      return TMDB_DAY_MS;        // actively changing — keep next-airing fresh
+    case "Ended":
+    case "Canceled":
+    case "Released":
+      return 30 * TMDB_DAY_MS;   // settled — rarely changes
+    default:
+      return 7 * TMDB_DAY_MS;    // unknown shape — middle ground
+  }
+}
+
+// Merge a fresh TMDB fetch into the existing cached details instead of replacing
+// wholesale. A shallow top-level merge updates volatile fields (next_episode_to_air,
+// status, episode counts) while preserving sub-resources that this fetch didn't
+// request — e.g. the endpoint appends `similar` but the background prefetch doesn't,
+// so an overwrite would silently drop it. New values win; nothing is cleaned out.
+export function mergeTmdbDetails(existing, fresh) {
+  if (!existing || typeof existing !== "object") return fresh;
+  if (!fresh || typeof fresh !== "object") return existing;
+  return { ...existing, ...fresh };
+}
+
 async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title) {
   try {
     const config = await loadMediaConfig().catch(() => ({}));
@@ -1420,10 +1454,10 @@ async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title) {
     const docKey = `${resolvedType}_${resolvedId}`;
     const docRef = db.collection("tmdbMetadataCache").doc(docKey);
     const cachedDoc = await docRef.get();
-    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    const existingDetails = cachedDoc.exists ? cachedDoc.data().details : null;
     if (cachedDoc.exists) {
       const data = cachedDoc.data();
-      if (data.updatedAt && (Date.now() - data.updatedAt < sevenDaysMs)) {
+      if (data.updatedAt && (Date.now() - data.updatedAt < tmdbCacheTtlMs(existingDetails))) {
         return; // already fresh
       }
     }
@@ -1434,7 +1468,7 @@ async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title) {
       await docRef.set({
         tmdbId: resolvedId,
         mediaType: resolvedType,
-        details: detailsData,
+        details: mergeTmdbDetails(existingDetails, detailsData),
         updatedAt: Date.now()
       });
       

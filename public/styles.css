@@ -3792,6 +3792,18 @@ h1 {
   gap: 0.15rem;
 }
 
+.sidebar-footer {
+  margin-top: auto;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.sidebar-footer .button-ghost {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+}
+
 .nav-label {
   padding: 0 0.65rem 0.35rem;
   color: #b8b8b8;
@@ -4602,6 +4614,13 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+
+/* Status fallback in the "Next Airing" column (Returning / Ended / etc.) —
+   dimmed and italic so genuine upcoming dates stand out. */
+.list-next-air-status {
+  font-style: italic;
+  opacity: 0.7;
 }
 
 .list-eps-progress {
