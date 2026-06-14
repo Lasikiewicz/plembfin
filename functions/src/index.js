@@ -9,7 +9,7 @@ import { markJellyfinPlayed, setJellyfinProgress } from "./utils/jellyfinClient.
 import { isLocalAdminToken, requireAdmin } from "./utils/auth.js";
 import { readFormData, readJson } from "./utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed, notFound } from "./utils/http.js";
-import { appendSyncHistory, loadMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState } from "./utils/configStore.js";
+import { appendSyncHistory, loadMediaConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState } from "./utils/configStore.js";
 import { createLoopStore } from "./utils/loopStore.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "./utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "./utils/liveSessions.js";
@@ -50,17 +50,13 @@ import {
   watchRowToMedia,
   getCachedShows,
   getCachedMovies,
-  canonicalTitleKey,
-  tmdbCacheTtlMs,
-  mergeTmdbDetails,
-  computeTvNextAiringDate,
-  TMDB_DETAILS_SCHEMA_VERSION,
 } from "./utils/firestoreRepo.js";
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
 import { cachePosterFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
 import { db, FieldValue } from "./firebase.js";
+import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, prewarmTmdbLibrary, searchTmdb } from "./utils/tmdbGateway.js";
 
 const region = process.env.FUNCTIONS_REGION || "europe-west2";
 setGlobalOptions({ region, maxInstances: 10 });
@@ -282,8 +278,9 @@ async function handleConfig(req, res) {
 
   if (req.method === "GET") {
     const runtime = await loadRuntimeState();
+    const storedConfig = await loadMediaConfig();
     return sendJson(res, {
-      config: await loadMediaConfig(),
+      config: publicMediaConfig(storedConfig),
       history: await getSyncHistory(),
       lastCron: runtime.lastCronExecution || null,
       lastWebhook: runtime.lastWebhookReceived || null,
@@ -1550,91 +1547,68 @@ async function handleTmdbDetails(req, res) {
     return sendJson(res, { error: "mediaType and either tmdbId or title are required" }, 400);
   }
 
-  const config = await loadMediaConfig();
-  const apiKey = config.tmdb?.apiKey;
-  if (!apiKey) {
-    return sendJson(res, { error: "TMDB API key is not configured" }, 400);
-  }
-
   try {
-    // 1. Resolve tmdbId if not provided
-    if (!tmdbId && title) {
-      const titleKey = `title_${mediaType}_${canonicalTitleKey(title)}`;
-      const titleDoc = await db.collection("tmdbMetadataCache").doc(titleKey).get();
-      if (titleDoc.exists) {
-        tmdbId = titleDoc.data()?.tmdbId;
-      }
-
-      if (!tmdbId) {
-        const searchType = mediaType === "movie" ? "movie" : "tv";
-        const searchRes = await fetch(`https://api.themoviedb.org/3/search/${searchType}?api_key=${apiKey}&query=${encodeURIComponent(title)}`);
-        if (searchRes.ok) {
-          const searchData = await searchRes.json();
-          tmdbId = String(searchData.results?.[0]?.id || "");
-          if (tmdbId) {
-            await db.collection("tmdbMetadataCache").doc(titleKey).set({
-              tmdbId,
-              title,
-              mediaType,
-              updatedAt: Date.now()
-            });
-          }
-        }
-      }
-    }
-
-    if (!tmdbId) {
-      return sendJson(res, { error: "Could not resolve TMDB ID" }, 404);
-    }
-
-    // 2. Fetch or load from cache
-    const docKey = `${mediaType}_${tmdbId}`;
-    const docRef = db.collection("tmdbMetadataCache").doc(docKey);
-    const cachedDoc = await docRef.get();
-    const existingDetails = cachedDoc.exists ? cachedDoc.data().details : null;
-
-    if (cachedDoc.exists) {
-      const data = cachedDoc.data();
-      const fresh = data.updatedAt && (Date.now() - data.updatedAt < tmdbCacheTtlMs(existingDetails));
-      if (fresh && (data.schemaVersion || 0) >= TMDB_DETAILS_SCHEMA_VERSION) {
-        return sendJson(res, data.details, 200, { "Cache-Control": "no-store" });
-      }
-    }
-
-    // Fetch fresh details
-    const detailsType = mediaType === "movie" ? "movie" : "tv";
-    const detailsUrl = `https://api.themoviedb.org/3/${detailsType}/${tmdbId}?api_key=${apiKey}&append_to_response=credits,videos,reviews,similar`;
-    const detailsRes = await fetch(detailsUrl);
-    if (!detailsRes.ok) {
-      if (cachedDoc.exists) {
-        return sendJson(res, cachedDoc.data().details, 200);
-      }
-      return sendJson(res, { error: `TMDB details fetch failed: ${detailsRes.statusText}` }, detailsRes.status);
-    }
-
-    // Merge fresh data into the cached object rather than overwriting, so volatile
-    // fields (next_episode_to_air, status, episode counts) update while any
-    // sub-resources this fetch didn't request are preserved.
-    const merged = mergeTmdbDetails(existingDetails, await detailsRes.json());
-    // TMDB's next_episode_to_air is unreliable; derive a dependable next-airing
-    // date from the season episode list so the list view matches the detail page.
-    if (mediaType === "tv") {
-      const nextAiring = await computeTvNextAiringDate(merged, tmdbId, apiKey);
-      if (nextAiring) merged.next_airing_date = nextAiring;
-      else delete merged.next_airing_date;
-    }
-    await docRef.set({
-      tmdbId,
-      mediaType,
-      details: merged,
-      schemaVersion: TMDB_DETAILS_SCHEMA_VERSION,
-      updatedAt: Date.now()
-    });
-
-    return sendJson(res, merged, 200, { "Cache-Control": "no-store" });
+    const details = await getTmdbDetails({ mediaType, tmdbId, title });
+    return sendJson(res, details, 200, { "Cache-Control": "private, max-age=300, stale-while-revalidate=86400", Vary: "Authorization" });
   } catch (error) {
     console.error("Failed handling TMDB details API", error);
-    return sendJson(res, { error: "Failed to fetch TMDB details", details: error.message }, 500);
+    return sendJson(res, { error: error.message || "Failed to fetch TMDB details" }, error.status || 500);
+  }
+}
+
+async function handleTmdbSearch(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const query = String(req.query.query || req.query.q || "").trim();
+  if (query.length < 2) return sendJson(res, { error: "A search query of at least two characters is required" }, 400);
+  try {
+    const result = await searchTmdb({ query, page: req.query.page, mediaType: req.query.mediaType || req.query.type || "multi" });
+    return sendJson(res, result, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=900", Vary: "Authorization" });
+  } catch (error) {
+    return sendJson(res, { error: error.message }, error.status || 500);
+  }
+}
+
+async function handleMediaSearch(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const query = String(req.query.query || req.query.q || "").trim();
+  if (query.length < 2) return sendJson(res, { error: "A search query of at least two characters is required" }, 400);
+  try {
+    const [movies, shows, discovery] = await Promise.all([
+      queryMovies({ search: query, limit: 8 }),
+      queryShows({ search: query, limit: 8 }),
+      searchTmdb({ query, page: req.query.page, mediaType: req.query.mediaType || "multi" }),
+    ]);
+    return sendJson(res, { local: { movies, shows }, discovery });
+  } catch (error) {
+    return sendJson(res, { error: error.message }, error.status || 500);
+  }
+}
+
+async function handleTmdbSeason(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const details = await getTmdbSeason({ tmdbId: req.query.tmdbId || req.query.id, seasonNumber: req.query.seasonNumber || req.query.season });
+    return sendJson(res, details, 200, { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400", Vary: "Authorization" });
+  } catch (error) {
+    return sendJson(res, { error: error.message }, error.status || 500);
+  }
+}
+
+async function handleTmdbImages(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const details = await getTmdbImages({ mediaType: req.query.mediaType || req.query.type, tmdbId: req.query.tmdbId || req.query.id });
+    return sendJson(res, details);
+  } catch (error) {
+    return sendJson(res, { error: error.message }, error.status || 500);
   }
 }
 
@@ -1648,51 +1622,12 @@ async function handleTmdbPerson(req, res) {
     return sendJson(res, { error: "Person ID is required" }, 400);
   }
 
-  const config = await loadMediaConfig();
-  const apiKey = config.tmdb?.apiKey;
-  if (!apiKey) {
-    return sendJson(res, { error: "TMDB API key is not configured" }, 400);
-  }
-
   try {
-    const docKey = `person_${personId}`;
-    const docRef = db.collection("tmdbPersonCache").doc(docKey);
-    const cachedDoc = await docRef.get();
-
-    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-    // Bumped when the fetched shape changes (added tagged_images for the photo
-    // gallery). Entries cached under an older schema are refetched immediately
-    // rather than waiting out the 7-day TTL.
-    const PERSON_SCHEMA_VERSION = 2;
-    if (cachedDoc.exists) {
-      const data = cachedDoc.data();
-      const fresh = data.updatedAt && (Date.now() - data.updatedAt < sevenDaysMs);
-      if (fresh && data.schemaVersion >= PERSON_SCHEMA_VERSION) {
-        return sendJson(res, data.details, 200, { "Cache-Control": "private, max-age=86400" });
-      }
-    }
-
-    const personRes = await fetch(`https://api.themoviedb.org/3/person/${personId}?api_key=${apiKey}&append_to_response=combined_credits,images,tagged_images`);
-    if (!personRes.ok) {
-      if (cachedDoc.exists) {
-        return sendJson(res, cachedDoc.data().details, 200);
-      }
-      return sendJson(res, { error: `TMDB person fetch failed: ${personRes.statusText}` }, personRes.status);
-    }
-
-    const personData = await personRes.json();
-
-    await docRef.set({
-      personId,
-      details: personData,
-      schemaVersion: PERSON_SCHEMA_VERSION,
-      updatedAt: Date.now()
-    });
-
+    const personData = await getTmdbPerson(personId);
     return sendJson(res, personData, 200, { "Cache-Control": "private, max-age=86400" });
   } catch (error) {
     console.error("Failed handling TMDB person API", error);
-    return sendJson(res, { error: "Failed to fetch TMDB person details", details: error.message }, 500);
+    return sendJson(res, { error: error.message || "Failed to fetch TMDB person details" }, error.status || 500);
   }
 }
 
@@ -1842,6 +1777,11 @@ async function dispatch(req, res) {
     if (path === "stop-force-sync") return handleStopForceSync(req, res);
     if (path === "dedup-history") return handleDedupHistory(req, res);
     if (path === "tmdb-details") return handleTmdbDetails(req, res);
+    if (path === "media-details") return handleTmdbDetails(req, res);
+    if (path === "tmdb-search") return handleTmdbSearch(req, res);
+    if (path === "media-search") return handleMediaSearch(req, res);
+    if (path === "tmdb-season") return handleTmdbSeason(req, res);
+    if (path === "tmdb-images") return handleTmdbImages(req, res);
     if (path === "tmdb-person") return handleTmdbPerson(req, res);
     if (path === "youtube-meta") return handleYoutubeMeta(req, res);
     if (path === "webhook") return handleWebhook(req, res);
@@ -1864,4 +1804,5 @@ export const api = onRequest({ region, cors: true, timeoutSeconds: 540, memory: 
 
 export const scheduledSync = onSchedule({ schedule: "every 1 minutes", region, timeoutSeconds: 60, memory: "512MiB" }, async () => {
   await runScheduledSync();
+  await prewarmTmdbLibrary({ limit: 4 }).catch((error) => console.error("TMDB prewarm failed", error));
 });

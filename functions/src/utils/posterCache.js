@@ -5,10 +5,11 @@ import { db, FieldValue, storageBucket } from "../firebase.js";
 const POSTER_CACHE_COLLECTION = db.collection("posterCache");
 const FAILED_RETRY_MS = 24 * 60 * 60 * 1000;
 const MISSING_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
-const MAX_POSTER_BYTES = 5 * 1024 * 1024;
+const MAX_ARTWORK_BYTES = 10 * 1024 * 1024;
 
-function cacheIdFor(mediaKey = "") {
-  return crypto.createHash("sha1").update(String(mediaKey || "unknown")).digest("hex");
+function cacheIdFor(mediaKey = "", variant = "poster") {
+  const key = variant === "poster" ? mediaKey : `${mediaKey}:${variant}`;
+  return crypto.createHash("sha1").update(String(key || "unknown")).digest("hex");
 }
 
 function extensionForContentType(contentType = "") {
@@ -48,9 +49,9 @@ function freshNegativeCache(data = {}) {
   return Date.now() - updatedAt < ttl;
 }
 
-export async function getPosterCache(mediaKey = "") {
+export async function getPosterCache(mediaKey = "", variant = "poster") {
   if (!mediaKey) return null;
-  const doc = await POSTER_CACHE_COLLECTION.doc(cacheIdFor(mediaKey)).get().catch(() => null);
+  const doc = await POSTER_CACHE_COLLECTION.doc(cacheIdFor(mediaKey, variant)).get().catch(() => null);
   if (!doc?.exists) return null;
   return { id: doc.id, ...doc.data() };
 }
@@ -65,11 +66,12 @@ export function usableCachedPoster(cache = {}) {
   return null;
 }
 
-export async function markPosterMissing(mediaKey = "", source = "unknown", detail = "") {
+export async function markPosterMissing(mediaKey = "", source = "unknown", detail = "", variant = "poster") {
   if (!mediaKey) return;
-  await POSTER_CACHE_COLLECTION.doc(cacheIdFor(mediaKey)).set(
+  await POSTER_CACHE_COLLECTION.doc(cacheIdFor(mediaKey, variant)).set(
     {
       mediaKey,
+      variant,
       status: "missing",
       source,
       detail: String(detail || ""),
@@ -81,30 +83,38 @@ export async function markPosterMissing(mediaKey = "", source = "unknown", detai
 }
 
 export async function cachePosterFromUrl(mediaKey = "", remoteUrl = "", source = "unknown") {
+  return cacheArtworkFromUrl(mediaKey, remoteUrl, source, { variant: "poster", width: 340, quality: 80 });
+}
+
+export async function cacheBackdropFromUrl(mediaKey = "", remoteUrl = "", source = "unknown") {
+  return cacheArtworkFromUrl(mediaKey, remoteUrl, source, { variant: "backdrop", width: 1600, quality: 82 });
+}
+
+export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source = "unknown", { variant = "poster", width = 340, quality = 80 } = {}) {
   if (!mediaKey || !remoteUrl) return null;
 
   try {
     const response = await fetch(remoteUrl, { headers: { Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8" } });
     if (!response.ok) {
-      await markPosterFailure(mediaKey, source, `HTTP ${response.status}`, remoteUrl);
+      await markPosterFailure(mediaKey, source, `HTTP ${response.status}`, remoteUrl, variant);
       return null;
     }
 
     const contentType = response.headers.get("content-type") || "image/jpeg";
     if (!String(contentType).toLowerCase().startsWith("image/")) {
-      await markPosterFailure(mediaKey, source, `Unexpected content type ${contentType}`, remoteUrl);
+      await markPosterFailure(mediaKey, source, `Unexpected content type ${contentType}`, remoteUrl, variant);
       return null;
     }
 
     const contentLength = Number(response.headers.get("content-length") || 0);
-    if (contentLength > MAX_POSTER_BYTES) {
-      await markPosterFailure(mediaKey, source, `Poster exceeds ${MAX_POSTER_BYTES} bytes`, remoteUrl);
+    if (contentLength > MAX_ARTWORK_BYTES) {
+      await markPosterFailure(mediaKey, source, `Artwork exceeds ${MAX_ARTWORK_BYTES} bytes`, remoteUrl, variant);
       return null;
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
-    if (!buffer.length || buffer.length > MAX_POSTER_BYTES) {
-      await markPosterFailure(mediaKey, source, "Poster body is empty or too large", remoteUrl);
+    if (!buffer.length || buffer.length > MAX_ARTWORK_BYTES) {
+      await markPosterFailure(mediaKey, source, "Artwork body is empty or too large", remoteUrl, variant);
       return null;
     }
 
@@ -114,18 +124,18 @@ export async function cachePosterFromUrl(mediaKey = "", remoteUrl = "", source =
 
     try {
       finalBuffer = await sharp(buffer)
-        .resize({ width: 340, withoutEnlargement: true })
-        .webp({ quality: 80 })
+        .resize({ width, withoutEnlargement: true })
+        .webp({ quality })
         .toBuffer();
       finalContentType = "image/webp";
       extension = "webp";
     } catch (resizeError) {
-      console.warn("Poster optimization via sharp failed, falling back to original buffer", resizeError);
+      console.warn("Artwork optimization via sharp failed, falling back to original buffer", resizeError);
     }
 
     const token = crypto.randomUUID();
-    const cacheId = cacheIdFor(mediaKey);
-    const storagePath = `posters/${cacheId}.${extension}`;
+    const cacheId = cacheIdFor(mediaKey, variant);
+    const storagePath = `${variant === "backdrop" ? "backdrops" : "posters"}/${cacheId}.${extension}`;
 
     await storageBucket.file(storagePath).save(finalBuffer, {
       metadata: {
@@ -134,6 +144,7 @@ export async function cachePosterFromUrl(mediaKey = "", remoteUrl = "", source =
         metadata: {
           firebaseStorageDownloadTokens: token,
           mediaKey,
+          variant,
           source,
         },
       },
@@ -143,6 +154,7 @@ export async function cachePosterFromUrl(mediaKey = "", remoteUrl = "", source =
     const url = publicStorageUrl(storagePath, token);
     const record = {
       mediaKey,
+      variant,
       status: "cached",
       source,
       originalUrl: sanitizedRemoteUrl(remoteUrl),
@@ -157,16 +169,17 @@ export async function cachePosterFromUrl(mediaKey = "", remoteUrl = "", source =
     await POSTER_CACHE_COLLECTION.doc(cacheId).set(record, { merge: true });
     return { url, cached: false, source };
   } catch (error) {
-    await markPosterFailure(mediaKey, source, error?.message || String(error), remoteUrl).catch(() => null);
+    await markPosterFailure(mediaKey, source, error?.message || String(error), remoteUrl, variant).catch(() => null);
     return null;
   }
 }
 
-async function markPosterFailure(mediaKey = "", source = "unknown", detail = "", remoteUrl = "") {
+async function markPosterFailure(mediaKey = "", source = "unknown", detail = "", remoteUrl = "", variant = "poster") {
   if (!mediaKey) return;
-  await POSTER_CACHE_COLLECTION.doc(cacheIdFor(mediaKey)).set(
+  await POSTER_CACHE_COLLECTION.doc(cacheIdFor(mediaKey, variant)).set(
     {
       mediaKey,
+      variant,
       status: "failed",
       source,
       detail: String(detail || ""),

@@ -42,10 +42,21 @@ export async function loadMediaConfig() {
   return normalizeStoredConfig(doc.exists ? doc.data() : {});
 }
 
+export function publicMediaConfig(config = {}) {
+  const normalized = normalizeStoredConfig(config);
+  return {
+    ...normalized,
+    tmdb: { configured: Boolean(normalized.tmdb.apiKey) },
+  };
+}
+
 export async function saveMediaConfig(config) {
+  const existing = await loadMediaConfig().catch(() => normalizeStoredConfig({}));
+  const normalized = normalizeStoredConfig(config);
+  if (!normalized.tmdb.apiKey) normalized.tmdb.apiKey = existing.tmdb.apiKey;
   await SETTINGS_DOC.set(
     {
-      ...normalizeStoredConfig(config),
+      ...normalized,
       updatedAt: FieldValue.serverTimestamp(),
     },
     { merge: true },

@@ -156,6 +156,52 @@ h2 {
   padding-top: 0.2rem;
 }
 
+.media-kicker {
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.media-facts-rail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  margin-top: 1.25rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--line);
+}
+
+.media-fact {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  background: color-mix(in srgb, var(--panel-3), transparent 8%);
+}
+
+.media-fact span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.media-fact b {
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.is-loading-metadata .immersive-overview {
+  max-width: 58ch;
+  color: var(--muted);
+}
+
 .media-detail-page .immersive-title {
   max-width: 18ch;
   font-size: clamp(2rem, 4vw, 3.8rem);
@@ -3674,6 +3720,35 @@ h1 {
 .global-search-result:focus {
   background: rgba(255,255,255,0.06);
   outline: none;
+}
+
+.gsd-loading {
+  padding: 0.65rem 1rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.media-detail-page button:focus-visible,
+.media-detail-page a:focus-visible,
+#globalSearchDropdown button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .media-facts-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .media-detail-page *,
+  #globalSearchDropdown * {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 .gsr-thumb {

@@ -86,6 +86,9 @@ const state = {
   posterLookupInflight: new Map(),
   tmdbDetailsCache: new Map(),
   tmdbSeasonCache: new Map(),
+  globalDiscoveryResults: new Map(),
+  globalSearchRequestToken: 0,
+  globalSearchRemoteTimer: undefined,
   explorerPageCache: new Map(),
   explorerLoadObserver: undefined,
   explorerScrollArmed: false,
@@ -93,6 +96,7 @@ const state = {
   expandedShows: new Set(),
   expandedSeasons: new Set(),
   activeShowModalKey: null,
+  activeShowTmdbId: null,
   activeShowModalSeason: null,
   activeShowModalEpisode: null,
   showModalRequestToken: 0,
@@ -392,7 +396,24 @@ function renderGlobalSearchDropdown(query) {
     results.push({ _type: "episode", title: epTitle, poster, href: `/tvshow/${slug(showTitle)}`, sub });
   }
 
-  if (!results.length) return;
+  const discoveryState = state.globalDiscoveryResults.get(q);
+  for (const item of (discoveryState?.results || [])) {
+    if (results.length >= 14) break;
+    const mediaType = item.media_type || (item.title ? "movie" : "tv");
+    const title = item.title || item.name || "Unknown title";
+    const duplicate = results.some((result) => result._type !== "episode" && result.title.toLowerCase() === title.toLowerCase());
+    if (duplicate || !["movie", "tv"].includes(mediaType)) continue;
+    const year = (item.release_date || item.first_air_date || "").slice(0, 4);
+    results.push({
+      _type: mediaType === "movie" ? "movie" : "show",
+      title,
+      poster: item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : "",
+      href: mediaType === "movie" ? `/movie/tmdb/${item.id}` : `/tvshow/tmdb/${item.id}`,
+      sub: `${mediaType === "movie" ? "Movie" : "TV Show"}${year ? ` · ${year}` : ""} · TMDB`,
+    });
+  }
+
+  if (!results.length && !discoveryState?.loading) return;
 
   const anchor = document.querySelector(".global-search");
   if (!anchor) return;
@@ -409,6 +430,7 @@ function renderGlobalSearchDropdown(query) {
           <span class="gsr-sub">${escapeHtml(r.sub)}</span>
         </span>
       </button>`).join("")}
+    ${discoveryState?.loading ? `<div class="gsd-loading">Searching TMDB…</div>` : ""}
     <button class="gsd-more" data-search="${escapeAttribute(query)}">View All Results</button>
   `;
 
@@ -438,6 +460,26 @@ function renderGlobalSearchDropdown(query) {
     else if (e.key === "Enter" && idx >= 0) { btns[idx].click(); }
     else if (e.key === "Escape") { closeGlobalSearchDropdown(); elements.globalSearchInput.focus(); }
   });
+}
+
+async function loadGlobalDiscovery(query) {
+  const normalized = query.trim().toLowerCase();
+  if (normalized.length < 2 || !state.savedConfig.tmdb?.configured) return;
+  const token = ++state.globalSearchRequestToken;
+  state.globalDiscoveryResults.set(normalized, { loading: true, results: [] });
+  renderGlobalSearchDropdown(query);
+  try {
+    const response = await fetch(`/api/tmdb-search?query=${encodeURIComponent(query)}&mediaType=multi`, { headers: authHeaders() });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Search failed with ${response.status}`);
+    state.globalDiscoveryResults.set(normalized, { loading: false, results: body.results || [] });
+  } catch (error) {
+    state.globalDiscoveryResults.set(normalized, { loading: false, results: [] });
+    console.error("TMDB discovery search failed", error);
+  }
+  if (token === state.globalSearchRequestToken && elements.globalSearchInput?.value.trim().toLowerCase() === normalized) {
+    renderGlobalSearchDropdown(query);
+  }
 }
 
 function extractYouTubeId(url) {
@@ -532,12 +574,11 @@ function openEditImageDialog(_container, id, _currentPosterUrl, tmdbData, onSave
 
   const loadPosters = async () => {
     status.textContent = "Loading posters…";
-    const apiKey = state.savedConfig?.tmdb?.apiKey;
     const tmdbId = tmdbData?.id;
     const mediaType = tmdbData?.title !== undefined ? "movie" : "tv";
-    if (apiKey && tmdbId) {
+    if (state.savedConfig?.tmdb?.configured && tmdbId) {
       try {
-        const res = await fetch(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}/images?api_key=${encodeURIComponent(apiKey)}&include_image_language=en,null`);
+        const res = await fetch(`/api/tmdb-images?mediaType=${encodeURIComponent(mediaType)}&tmdbId=${encodeURIComponent(tmdbId)}`, { headers: authHeaders() });
         const data = await res.json();
         const posters = (data.posters || []).slice(0, 20).map((p) => `https://image.tmdb.org/t/p/w342${p.file_path}`);
         if (posters.length) {
@@ -552,7 +593,7 @@ function openEditImageDialog(_container, id, _currentPosterUrl, tmdbData, onSave
     if (tmdbData?.poster_path) fallback.push(`https://image.tmdb.org/t/p/w342${tmdbData.poster_path}`);
     if (tmdbData?.backdrop_path) fallback.push(`https://image.tmdb.org/t/p/w780${tmdbData.backdrop_path}`);
     if (fallback.length) { status.textContent = ""; renderGrid(fallback); }
-    else { status.textContent = apiKey ? "No posters found." : "Configure a TMDB API key to browse posters."; }
+    else { status.textContent = state.savedConfig?.tmdb?.configured ? "No posters found." : "Configure a TMDB API key to browse posters."; }
   };
 
   overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
@@ -618,9 +659,8 @@ function openFixMatchDialog(_container, id, currentTitle, mediaType, onSaved) {
     status.textContent = "Searching…";
     resultsEl.innerHTML = "";
     try {
-      const apiKey = state.savedConfig?.tmdb?.apiKey;
-      if (!apiKey) { status.textContent = "TMDB API key not configured."; return; }
-      const res = await fetch(`https://api.themoviedb.org/3/search/${tmdbType}?api_key=${encodeURIComponent(apiKey)}&query=${encodeURIComponent(query)}`);
+      if (!state.savedConfig?.tmdb?.configured) { status.textContent = "TMDB API key not configured."; return; }
+      const res = await fetch(`/api/tmdb-search?mediaType=${encodeURIComponent(tmdbType)}&query=${encodeURIComponent(query)}`, { headers: authHeaders() });
       const data = await res.json();
       const results = data.results || [];
       status.textContent = results.length ? "" : "No results found.";
@@ -2438,6 +2478,7 @@ function handleRouting(path) {
     state.explorerMode = "shows";
     state.mediaDetailInline = true;
     state.activeShowModalKey = null;
+    state.activeShowTmdbId = null;
     state.activeShowModalSeason = seasonNum;
     state.activeShowModalEpisode = episodeNum;
     openShowImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
@@ -2712,7 +2753,8 @@ function populateConfigForm(config = {}) {
   elements.jellyfinApiKey.value = config.jellyfin?.apiKey || config.jellyfin?.api_key || "";
   elements.jellyfinUserId.value = config.jellyfin?.userId || "";
 
-  elements.tmdbApiKey.value = config.tmdb?.apiKey || "";
+  elements.tmdbApiKey.value = "";
+  elements.tmdbApiKey.placeholder = config.tmdb?.configured ? "Configured - enter a new key to replace it" : "TMDB API key";
   if (elements.youtubeApiKey) elements.youtubeApiKey.value = config.youtube?.apiKey || "";
   
   syncSettingsInputsDisabledState();
@@ -2764,7 +2806,11 @@ async function saveSavedConfig() {
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Config save failed with ${response.status}`);
 
-    state.savedConfig = config;
+    state.savedConfig = {
+      ...config,
+      tmdb: { configured: Boolean(config.tmdb?.apiKey || state.savedConfig.tmdb?.configured) },
+    };
+    if (elements.tmdbApiKey) elements.tmdbApiKey.value = "";
     state.configLoaded = true;
     clearDerivedUiCaches();
     renderSettingsStatus("Configuration saved. Run Full Sync Watchstates if a media server was rebuilt or newly added.", "success");
@@ -4758,21 +4804,41 @@ function renderRichTmdbDetails(tmdbData) {
   return renderTrailersReviewsSection(tmdbData);
 }
 
+function renderMediaFacts(tmdbData, mediaType = "movie") {
+  if (!tmdbData) return "";
+  const providers = tmdbData["watch/providers"]?.results?.GB?.flatrate || tmdbData["watch/providers"]?.results?.US?.flatrate || [];
+  const runtime = mediaType === "movie"
+    ? (tmdbData.runtime ? `${tmdbData.runtime} min` : "")
+    : (tmdbData.episode_run_time?.[0] ? `${tmdbData.episode_run_time[0]} min episodes` : "");
+  const facts = [
+    ["Status", tmdbData.status],
+    [mediaType === "movie" ? "Release" : "First aired", formatTmdbDate(tmdbData.release_date || tmdbData.first_air_date)],
+    ["Runtime", runtime],
+    ["Language", String(tmdbData.original_language || "").toUpperCase()],
+    ["Genres", (tmdbData.genres || []).map((genre) => genre.name).join(", ")],
+    ["Network", (tmdbData.networks || []).map((network) => network.name).join(", ")],
+    ["Streaming", providers.map((provider) => provider.provider_name).join(", ")],
+  ].filter(([, value]) => value);
+  if (!facts.length) return "";
+  return `<aside class="media-facts-rail" aria-label="Media facts">${facts.map(([label, value]) => `
+    <div class="media-fact"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>
+  `).join("")}</aside>`;
+}
+
 async function fetchTmdbSeasonDetails(tmdbId, seasonNumber) {
-  const apiKey = state.savedConfig.tmdb?.apiKey;
-  if (!apiKey || !tmdbId || seasonNumber == null) return null;
+  if (!state.savedConfig.tmdb?.configured || !tmdbId || seasonNumber == null) return null;
 
   const cacheKey = `${tmdbId}|${seasonNumber}`;
   if (state.tmdbSeasonCache.has(cacheKey)) return state.tmdbSeasonCache.get(cacheKey);
 
   const promise = (async () => {
     try {
-      const res = await fetch(`https://api.themoviedb.org/3/tv/${encodeURIComponent(tmdbId)}/season/${encodeURIComponent(seasonNumber)}?api_key=${apiKey}`);
+      const res = await fetch(`/api/tmdb-season?tmdbId=${encodeURIComponent(tmdbId)}&seasonNumber=${encodeURIComponent(seasonNumber)}`, { headers: authHeaders() });
       if (res.ok) {
         return await res.json();
       }
     } catch (error) {
-      console.error("Failed to fetch TMDB season details client-side", error);
+      console.error("Failed to fetch TMDB season details", error);
     }
     return null;
   })();
@@ -4816,23 +4882,6 @@ async function resolveEpisodeTitleFromTmdb(entry, element) {
   } catch (error) {
     console.error("Failed to resolve episode title from TMDB in background", error);
   }
-}
-
-async function fetchTmdbSeasons(tmdbId, seasons = []) {
-  const seasonNumbers = seasons.map((season) => Number(season.season_number)).filter((seasonNumber) => seasonNumber > 0);
-  const results = new Map();
-  const concurrency = 3;
-
-  const workers = Array.from({ length: Math.min(concurrency, seasonNumbers.length) }, async (_, workerIndex) => {
-    for (let index = workerIndex; index < seasonNumbers.length; index += concurrency) {
-      const seasonNumber = seasonNumbers[index];
-      const details = await fetchTmdbSeasonDetails(tmdbId, seasonNumber);
-      if (details) results.set(seasonNumber, details);
-    }
-  });
-
-  await Promise.allSettled(workers);
-  return results;
 }
 
 function formatTmdbDate(dateStr) {
@@ -5223,7 +5272,7 @@ function renderShowModalContent(show, {
   show = mergeShowWithLoadedHistory(show);
   const seasonsMap = seasonsFromShowRecord(show);
   const showTitle = sanitizeTitle(show.title) || "Unknown Show";
-  const hasTmdbKey = Boolean(state.savedConfig.tmdb?.apiKey);
+  const hasTmdbKey = Boolean(state.savedConfig.tmdb?.configured);
   const seasonsList = (tmdbData?.seasons?.length ? tmdbData.seasons : fallbackSeasonList(seasonsMap)).filter((season) => Number(season.season_number) > 0);
   const selectedSeason = activeSeasonNum || seasonsList[0]?.season_number || [...seasonsMap.keys()].sort((a, b) => b - a)[0] || 1;
   const episodeRows = buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, tmdbData?.id || show.tmdb_id || "");
@@ -5232,8 +5281,8 @@ function renderShowModalContent(show, {
   const watchedCount = watchedRows.length || [...watchedEpisodesByKey(show).keys()].length;
   const progressPercent = Math.max(0, Math.min(100, Math.round((watchedCount / totalCount) * 100)));
   const representative = representativeEpisode(seasonsMap);
-  const backdropUrl = tmdbImage(tmdbData?.backdrop_path, "original");
-  const posterUrl = tmdbImage(tmdbData?.poster_path, "w500") || posterUrlFor(representative);
+  const backdropUrl = tmdbData?.cached_backdrop_url || tmdbImage(tmdbData?.backdrop_path, "original");
+  const posterUrl = tmdbData?.cached_poster_url || tmdbImage(tmdbData?.poster_path, "w500") || posterUrlFor(representative);
   const overview = tmdbData?.overview || "No synopsis available.";
   const premiered = tmdbData?.first_air_date ? `Premiered ${formatTmdbDate(tmdbData.first_air_date)}` : "Release date unknown";
   const rating = tmdbData?.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "";
@@ -5366,6 +5415,8 @@ function renderShowModalContent(show, {
         ${seasonsSectionHtml}
       </header>
 
+      ${renderMediaFacts(tmdbData, "tv")}
+
       ${renderCastSection(tmdbData)}
 
       <section class="episodes-section">
@@ -5391,7 +5442,11 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
   const seasonsList = (tmdbData?.seasons?.length ? tmdbData.seasons : fallbackSeasonList(seasonsFromShowRecord(show))).filter((season) => Number(season.season_number) > 0);
   renderShowModalContent(show, { activeSeasonNum, tmdbData, seasonDetailsByNumber: new Map(), loading: true });
 
-  const seasonDetailsByNumber = tmdbData?.id ? await fetchTmdbSeasons(tmdbData.id, seasonsList) : new Map();
+  const seasonDetailsByNumber = new Map();
+  if (tmdbData?.id && activeSeasonNum != null) {
+    const seasonDetails = await fetchTmdbSeasonDetails(tmdbData.id, activeSeasonNum);
+    if (seasonDetails) seasonDetailsByNumber.set(Number(activeSeasonNum), seasonDetails);
+  }
   if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
 
   renderShowModalContent(show, {
@@ -5494,7 +5549,7 @@ async function renderImmersiveShowModal(showKey, activeSeasonNum = null, activeE
     activeSeasonNum,
     tmdbData: null,
     seasonDetailsByNumber: new Map(),
-    loading: Boolean(state.savedConfig.tmdb?.apiKey),
+    loading: Boolean(state.savedConfig.tmdb?.configured),
   });
   hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken).catch((error) => {
     console.error("Failed to hydrate show modal", error);
@@ -5937,11 +5992,24 @@ async function renderMovieImmersiveModalContent(movie) {
   }
   const root = mediaDetailRoot();
 
+  const localPoster = posterUrlFor(movie) || "/favicon.svg";
+  setMediaDetailActions(`
+    <button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
+    <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}">Edit Image</button>
+    <button class="action-pill media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
+  `);
   root.innerHTML = `
-    <div class="immersive-container">
-      <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
-        <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading movie details...</span>
-      </div>
+    <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(localPoster)}');"></div>
+    <div class="immersive-container media-detail-page is-loading-metadata">
+      <header class="immersive-header">
+        <img class="immersive-poster-img" src="${escapeAttribute(localPoster)}" alt="${escapeAttribute(movie.title || "Movie")} poster" onerror="this.src='/favicon.svg';" />
+        <div class="immersive-meta">
+          <span class="media-kicker">Movie · Loading metadata</span>
+          <h2 class="immersive-title">${escapeHtml(movie.title || "Unknown movie")}</h2>
+          <div class="avail-pills-row">${renderAvailabilityPills(movie)}</div>
+          <p class="immersive-overview">Your library record is ready. Synopsis, cast, providers and related media are loading.</p>
+        </div>
+      </header>
     </div>
   `;
 
@@ -5967,24 +6035,16 @@ async function renderMovieImmersiveModalContent(movie) {
 
   if (tmdbData) {
     if (tmdbData.backdrop_path) {
-      backdropUrl = `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`;
+      backdropUrl = tmdbData.cached_backdrop_url || `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`;
     }
     if (tmdbData.poster_path) {
-      posterUrl = `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}`;
+      posterUrl = tmdbData.cached_poster_url || `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}`;
     }
     overview = tmdbData.overview || overview;
     released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : released;
     rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : rating;
 
-    try {
-      const recRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbData.id}/recommendations?api_key=${state.savedConfig.tmdb?.apiKey}`);
-      if (recRes.ok) {
-        const recData = await recRes.json();
-        recommendations = recData.results || [];
-      }
-    } catch (e) {
-      console.error("Failed to fetch recommended movies", e);
-    }
+    recommendations = tmdbData.recommendations?.results || [];
   } else if (youtubeMeta) {
     if (youtubeMeta.thumbnails?.[0]) posterUrl = youtubeMeta.thumbnails[0];
     overview = youtubeMeta.description || overview;
@@ -6056,6 +6116,8 @@ async function renderMovieImmersiveModalContent(movie) {
         </div>
       </header>
 
+      ${renderMediaFacts(tmdbData, "movie")}
+
       ${renderCastSection(tmdbData)}
 
       ${renderRichTmdbDetails(tmdbData)}
@@ -6118,22 +6180,14 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
   }
 
   const movieTitle = tmdbData.title;
-  let backdropUrl = tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "";
-  let posterUrl = tmdbData.poster_path ? `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}` : "/favicon.svg";
+  let backdropUrl = tmdbData.cached_backdrop_url || (tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "");
+  let posterUrl = tmdbData.cached_poster_url || (tmdbData.poster_path ? `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}` : "/favicon.svg");
   let overview = tmdbData.overview || "No synopsis available.";
   let released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : "Unknown Release Date";
   let rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "N/A";
   let recommendations = [];
 
-  try {
-    const recRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbData.id}/recommendations?api_key=${state.savedConfig.tmdb?.apiKey}`);
-    if (recRes.ok) {
-      const recData = await recRes.json();
-      recommendations = recData.results || [];
-    }
-  } catch (e) {
-    // Ignore
-  }
+  recommendations = tmdbData.recommendations?.results || [];
 
   const ratingBadgeHtml = rating !== "N/A" ? `
     <div class="rating-pill">
@@ -6173,6 +6227,8 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
           </section>
         </div>
       </header>
+
+      ${renderMediaFacts(tmdbData, "movie")}
 
       ${renderCastSection(tmdbData)}
 
@@ -6240,6 +6296,7 @@ function closeDebugModal() {
     modalPanel.classList.remove("modal-panel--immersive");
   }
   state.activeShowModalKey = null;
+  state.activeShowTmdbId = null;
   state.activeShowModalSeason = null;
   state.activeShowModalEpisode = null;
   state.showModalRequestToken += 1;
@@ -6278,6 +6335,7 @@ function setMediaDetailActions(html) {
 
 function clearMediaDetailState() {
   state.activeShowModalKey = null;
+  state.activeShowTmdbId = null;
   state.activeShowModalSeason = null;
   state.activeShowModalEpisode = null;
   state.showModalRequestToken += 1;
@@ -7844,6 +7902,8 @@ function attachEvents() {
       const seasonNum = Number(seasonCard.dataset.immersiveSeasonNum);
       if (state.activeShowModalKey) {
         navigateTo(`/tvshow/${state.activeShowModalKey}#season${seasonNum}`);
+      } else if (state.activeShowTmdbId) {
+        navigateTo(`/tvshow/tmdb/${state.activeShowTmdbId}#season${seasonNum}`);
       }
       return;
     }
@@ -8003,9 +8063,11 @@ function attachEvents() {
   elements.globalSearchInput?.addEventListener("input", () => {
     const query = elements.globalSearchInput.value.trim();
     window.clearTimeout(state.globalSearchDropdownTimer);
+    window.clearTimeout(state.globalSearchRemoteTimer);
     if (!query) { closeGlobalSearchDropdown(); }
     else {
-      state.globalSearchDropdownTimer = window.setTimeout(() => renderGlobalSearchDropdown(query), 120);
+      renderGlobalSearchDropdown(query);
+      state.globalSearchRemoteTimer = window.setTimeout(() => loadGlobalDiscovery(query), 260);
     }
     if (state.activeView === "explorer") {
       window.clearTimeout(state.explorerSearchTimer);
@@ -8745,6 +8807,7 @@ window.openLibraryItem = function(mediaType, idOrKey, title, isLibraryItem = tru
 };
 
 async function openShowImmersiveModalByTmdbId(tmdbId) {
+  state.activeShowTmdbId = String(tmdbId);
   if (!state.mediaDetailInline) {
     elements.debugModal.classList.remove("hidden");
     document.body.style.overflow = "hidden";
@@ -8776,11 +8839,26 @@ async function openShowImmersiveModalByTmdbId(tmdbId) {
   }
 
   const showTitle = tmdbData.name || "Untitled TV Show";
-  let backdropUrl = tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "";
-  let posterUrl = tmdbData.poster_path ? `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}` : "/favicon.svg";
+  let backdropUrl = tmdbData.cached_backdrop_url || (tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "");
+  let posterUrl = tmdbData.cached_poster_url || (tmdbData.poster_path ? `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}` : "/favicon.svg");
   let overview = tmdbData.overview || "No synopsis available.";
   let released = tmdbData.first_air_date ? `First Aired ${formatTmdbDate(tmdbData.first_air_date)}` : "Unknown Air Date";
   let rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "N/A";
+  const selectedSeason = state.activeShowModalSeason;
+  const seasonData = selectedSeason != null ? await fetchTmdbSeasonDetails(tmdbData.id, selectedSeason) : null;
+  const seasonsHtml = (tmdbData.seasons || []).filter((season) => Number(season.season_number) > 0).map((season) => `
+    <button class="season-poster-card ${Number(season.season_number) === Number(selectedSeason) ? "active" : ""}" type="button" data-immersive-season-num="${season.season_number}">
+      <img class="season-poster-img" src="${escapeAttribute(tmdbImage(season.poster_path, "w154") || posterUrl)}" alt="${escapeAttribute(season.name || seasonLabel(season.season_number))}" onerror="this.src='/favicon.svg';" />
+      <span class="season-poster-name">${escapeHtml(season.name || seasonLabel(season.season_number))}</span>
+      <small>${Number(season.episode_count) || "?"} episodes</small>
+    </button>
+  `).join("");
+  const episodeHtml = (seasonData?.episodes || []).map((episode) => `
+    <article class="immersive-episode-row">
+      ${episode.still_path ? `<img class="episode-thumb" src="${escapeAttribute(tmdbImage(episode.still_path, "w500"))}" alt="" loading="lazy" />` : ""}
+      <div class="immersive-episode-copy"><b>${escapeHtml(episodeCode(episode.season_number, episode.episode_number))} ${escapeHtml(episode.name || "Episode")}</b><p>${escapeHtml(episode.overview || "No synopsis available.")}</p><time>${escapeHtml(formatTmdbDate(episode.air_date))}</time></div>
+    </article>
+  `).join("");
 
   const ratingBadgeHtml = rating !== "N/A" ? `
     <div class="rating-pill">
@@ -8816,6 +8894,12 @@ async function openShowImmersiveModalByTmdbId(tmdbId) {
           </section>
         </div>
       </header>
+
+      ${renderMediaFacts(tmdbData, "tv")}
+
+      ${seasonsHtml ? `<section class="seasons-section"><div class="show-section-title"><h3>Seasons</h3><span>Open a season to load episodes</span></div><div class="horizontal-scroll-row">${seasonsHtml}</div></section>` : ""}
+
+      ${selectedSeason != null ? `<section class="episodes-section"><div class="show-section-title"><h3>${escapeHtml(seasonLabel(selectedSeason))}</h3></div><div class="show-episode-list">${episodeHtml || `<div class="empty-log"><b>No episodes found</b></div>`}</div></section>` : ""}
 
       ${renderCastSection(tmdbData)}
 

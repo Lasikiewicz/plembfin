@@ -1,6 +1,7 @@
 import { db, FieldValue, Timestamp } from "../firebase.js";
 import { loadMediaConfig } from "./configStore.js";
 import { fetchPosterFromTmdb } from "./tmdbClient.js";
+import { getTmdbDetails, getTmdbSeason } from "./tmdbGateway.js";
 
 const MAX_HISTORY_LIMIT = 25000;
 const DERIVED_CACHE_COLLECTION = "derivedCache";
@@ -1441,9 +1442,9 @@ export function mergeTmdbDetails(existing, fresh) {
 // The per-season episode list is accurate, so when the top-level field isn't a
 // usable future date we scan the current/next season's episodes and return the
 // earliest air_date that is today or later. Returns "YYYY-MM-DD" or null.
-export async function computeTvNextAiringDate(details, tmdbId, apiKey) {
+export async function computeTvNextAiringDate(details, tmdbId) {
   try {
-    if (!details || !tmdbId || !apiKey) return null;
+    if (!details || !tmdbId) return null;
     const today = new Date().toISOString().slice(0, 10);
 
     // Cheap path: trust TMDB's field only when it's genuinely in the future.
@@ -1464,9 +1465,8 @@ export async function computeTvNextAiringDate(details, tmdbId, apiKey) {
 
     const seasonNums = [...candidates].filter((n) => n > 0).sort((a, b) => a - b);
     for (const n of seasonNums) {
-      const res = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${n}?api_key=${apiKey}`);
-      if (!res.ok) continue;
-      const season = await res.json();
+      const season = await getTmdbSeason({ tmdbId, seasonNumber: n, showStatus: details.status }).catch(() => null);
+      if (!season) continue;
       let earliest = null;
       for (const ep of season.episodes || []) {
         const d = ep.air_date;
@@ -1485,64 +1485,7 @@ export async function computeTvNextAiringDate(details, tmdbId, apiKey) {
 
 async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title) {
   try {
-    const config = await loadMediaConfig().catch(() => ({}));
-    const apiKey = config.tmdb?.apiKey;
-    if (!apiKey) return;
-
-    const resolvedType = mediaType === "movie" ? "movie" : "tv";
-    let resolvedId = tmdbId;
-
-    if (!resolvedId && title) {
-      const searchType = resolvedType;
-      const searchRes = await fetch(`https://api.themoviedb.org/3/search/${searchType}?api_key=${apiKey}&query=${encodeURIComponent(title)}`);
-      if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        resolvedId = String(searchData.results?.[0]?.id || "");
-      }
-    }
-
-    if (!resolvedId) return;
-
-    const docKey = `${resolvedType}_${resolvedId}`;
-    const docRef = db.collection("tmdbMetadataCache").doc(docKey);
-    const cachedDoc = await docRef.get();
-    const existingDetails = cachedDoc.exists ? cachedDoc.data().details : null;
-    if (cachedDoc.exists) {
-      const data = cachedDoc.data();
-      const fresh = data.updatedAt && (Date.now() - data.updatedAt < tmdbCacheTtlMs(existingDetails));
-      if (fresh && (data.schemaVersion || 0) >= TMDB_DETAILS_SCHEMA_VERSION) {
-        return; // already fresh and on the current schema
-      }
-    }
-
-    const detailsRes = await fetch(`https://api.themoviedb.org/3/${resolvedType}/${resolvedId}?api_key=${apiKey}&append_to_response=credits,videos,reviews`);
-    if (detailsRes.ok) {
-      const detailsData = await detailsRes.json();
-      const merged = mergeTmdbDetails(existingDetails, detailsData);
-      if (resolvedType === "tv") {
-        const nextAiring = await computeTvNextAiringDate(merged, resolvedId, apiKey);
-        if (nextAiring) merged.next_airing_date = nextAiring;
-        else delete merged.next_airing_date;
-      }
-      await docRef.set({
-        tmdbId: resolvedId,
-        mediaType: resolvedType,
-        details: merged,
-        schemaVersion: TMDB_DETAILS_SCHEMA_VERSION,
-        updatedAt: Date.now()
-      });
-      
-      // Also cache title if we resolved it using a search
-      if (!tmdbId && title) {
-        const titleKey = `title_${resolvedType}_${canonicalTitleKey(title)}`;
-        await db.collection("tmdbMetadataCache").doc(titleKey).set({
-          tmdbId: resolvedId,
-          title,
-          mediaType: resolvedType,
-          updatedAt: Date.now()
-        });
-      }
-    }
+    await getTmdbDetails({ mediaType, tmdbId, title });
   } catch (e) {
     console.error("Failed to prefetch TMDB metadata in background", e);
   }

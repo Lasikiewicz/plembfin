@@ -7,13 +7,6 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-const db = admin.firestore();
-const configDoc = await db.collection('settings').doc('mediaConfig').get();
-const config = configDoc.data();
-const tmdbApiKey = config?.tmdb?.apiKey;
-
-console.log('TMDB API Key:', tmdbApiKey);
-
 const testRows = [
   {
     title: "Trying - S04E08",
@@ -41,7 +34,7 @@ const testRows = [
 for (const row of testRows) {
   console.log(`\nTesting: "${row.title}"`);
   try {
-    const posterUrl = await fetchPosterFromTmdb(row, tmdbApiKey);
+    const posterUrl = await fetchPosterFromTmdb(row);
     console.log(`Result posterUrl:`, posterUrl);
   } catch (error) {
     console.error(`Error:`, error);
