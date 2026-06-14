@@ -4804,7 +4804,7 @@ function renderRichTmdbDetails(tmdbData) {
   return renderTrailersReviewsSection(tmdbData);
 }
 
-function renderMediaFacts(tmdbData, mediaType = "movie") {
+function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inline") {
   if (!tmdbData) return "";
   const providers = tmdbData["watch/providers"]?.results?.GB?.flatrate || tmdbData["watch/providers"]?.results?.US?.flatrate || [];
   const runtime = mediaType === "movie"
@@ -4820,7 +4820,7 @@ function renderMediaFacts(tmdbData, mediaType = "movie") {
     ["Streaming", providers.map((provider) => provider.provider_name).join(", ")],
   ].filter(([, value]) => value);
   if (!facts.length) return "";
-  return `<aside class="media-facts-rail" aria-label="Media facts">${facts.map(([label, value]) => `
+  return `<aside class="media-facts-rail ${placement === "sidebar" ? "media-facts-rail--sidebar" : ""}" aria-label="Media facts">${facts.map(([label, value]) => `
     <div class="media-fact"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>
   `).join("")}</aside>`;
 }
@@ -5258,7 +5258,7 @@ function renderWatchDatePrompt(action) {
 
 function showSeasonSummary(seasonNumber, seasonEpisodes, season) {
   const watchedInSeason = seasonEpisodes.filter((episode) => episode.watched).length;
-  const seasonTotal = seasonEpisodes.length || Number(season.episode_count || 0);
+  const seasonTotal = Math.max(seasonEpisodes.length, Number(season.episode_count || 0));
   return { watchedInSeason, seasonTotal };
 }
 
@@ -5274,10 +5274,11 @@ function renderShowModalContent(show, {
   const showTitle = sanitizeTitle(show.title) || "Unknown Show";
   const hasTmdbKey = Boolean(state.savedConfig.tmdb?.configured);
   const seasonsList = (tmdbData?.seasons?.length ? tmdbData.seasons : fallbackSeasonList(seasonsMap)).filter((season) => Number(season.season_number) > 0);
-  const selectedSeason = activeSeasonNum || seasonsList[0]?.season_number || [...seasonsMap.keys()].sort((a, b) => b - a)[0] || 1;
+  const selectedSeason = activeSeasonNum == null ? null : Number(activeSeasonNum);
   const episodeRows = buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, tmdbData?.id || show.tmdb_id || "");
   const watchedRows = episodeRows.filter((episode) => episode.watched);
-  const totalCount = episodeRows.length || seasonsList.reduce((total, season) => total + Number(season.episode_count || 0), 0) || watchedRows.length || 1;
+  const metadataEpisodeCount = seasonsList.reduce((total, season) => total + Number(season.episode_count || 0), 0);
+  const totalCount = Math.max(episodeRows.length, metadataEpisodeCount, watchedRows.length, 1);
   const watchedCount = watchedRows.length || [...watchedEpisodesByKey(show).keys()].length;
   const progressPercent = Math.max(0, Math.min(100, Math.round((watchedCount / totalCount) * 100)));
   const representative = representativeEpisode(seasonsMap);
@@ -5291,35 +5292,13 @@ function renderShowModalContent(show, {
   state.showModalEpisodes = episodeRows;
   state.showModalEpisodeIndex = new Map(episodeRows.map((episode) => [episode.key, episode]));
 
-  const seasonsHtml = seasonsList.map((season) => {
-    const seasonNumber = Number(season.season_number);
-    const seasonEpisodes = episodeRows.filter((episode) => episode.seasonNumber === seasonNumber);
-    const { watchedInSeason, seasonTotal } = showSeasonSummary(seasonNumber, seasonEpisodes, season);
-    const isActive = seasonNumber === selectedSeason;
-    const seasonPoster = tmdbImage(season.poster_path, "w154") || posterUrl;
-    return `
-      <button class="season-poster-card ${isActive ? "active" : ""}" type="button" data-immersive-season-num="${seasonNumber}">
-        <img class="season-poster-img" src="${escapeAttribute(seasonPoster || "/favicon.svg")}" alt="${escapeAttribute(season.name || seasonLabel(seasonNumber))}" onerror="this.src='/favicon.svg';" />
-        <span class="season-poster-name">${escapeHtml(season.name || seasonLabel(seasonNumber))}</span>
-        <small>${watchedInSeason}/${seasonTotal || "?"} watched</small>
-      </button>
-    `;
-  }).join("");
-  const seasonsSectionHtml = `
-    <section class="seasons-section show-detail-seasons">
-      <div class="show-section-title">
-        <h3>Seasons</h3>
-        <span>${seasonsList.length} seasons</span>
-      </div>
-      <div class="horizontal-scroll-row">
-        ${seasonsHtml}
-      </div>
-    </section>
-  `;
-
-  const selectedSeasonRecord = seasonsList.find((season) => Number(season.season_number) === Number(selectedSeason)) || seasonsList[0] || { season_number: selectedSeason };
-  const selectedSeasonNumber = Number(selectedSeasonRecord.season_number) || Number(selectedSeason) || 1;
-  const selectedSeasonEpisodes = episodeRows.filter((episode) => episode.seasonNumber === selectedSeasonNumber);
+  const selectedSeasonRecord = selectedSeason == null
+    ? null
+    : seasonsList.find((season) => Number(season.season_number) === selectedSeason) || { season_number: selectedSeason };
+  const selectedSeasonNumber = selectedSeasonRecord ? Number(selectedSeasonRecord.season_number) : null;
+  const selectedSeasonEpisodes = selectedSeasonNumber == null
+    ? []
+    : episodeRows.filter((episode) => episode.seasonNumber === selectedSeasonNumber);
   const isUnreleased = (episode) => {
     if (episode.watched) return false;
     if (!episode.airDate) return false;
@@ -5330,11 +5309,13 @@ function renderShowModalContent(show, {
   };
   const selectedSeasonUnwatched = selectedSeasonEpisodes.filter((episode) => !episode.watched && !isUnreleased(episode));
   const unwatchedRows = episodeRows.filter((episode) => !episode.watched && !isUnreleased(episode));
-  const selectedSeasonSummary = showSeasonSummary(selectedSeasonNumber, selectedSeasonEpisodes, selectedSeasonRecord);
-  const selectedSeasonEpisodesHtml = `
+  const selectedSeasonSummary = selectedSeasonRecord
+    ? showSeasonSummary(selectedSeasonNumber, selectedSeasonEpisodes, selectedSeasonRecord)
+    : { watchedInSeason: 0, seasonTotal: 0 };
+  const selectedSeasonEpisodesHtml = selectedSeasonRecord ? `
     <section class="show-season-block" id="showSeason${selectedSeasonNumber}">
       <div class="show-season-head">
-        <span class="show-season-label">${escapeHtml(selectedSeasonRecord.name || seasonLabel(selectedSeasonNumber))} &mdash; ${selectedSeasonSummary.watchedInSeason} of ${selectedSeasonSummary.seasonTotal || "?"} episodes watched</span>
+        <span class="show-season-label">${selectedSeasonSummary.watchedInSeason} of ${selectedSeasonSummary.seasonTotal || "?"} episodes watched</span>
         <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${selectedSeasonNumber}" ${selectedSeasonUnwatched.length ? "" : "disabled"}>Mark season watched</button>
       </div>
       <div class="show-episode-list">
@@ -5370,7 +5351,40 @@ function renderShowModalContent(show, {
         }).join("") : `<div class="empty-log"><b>No episode rows yet</b><span>${loading ? "Episode metadata is loading." : "No local or TMDB episodes were found for this season."}</span></div>`}
       </div>
     </section>
-  `;
+  ` : "";
+
+  const seasonsAccordionHtml = seasonsList.map((season) => {
+    const seasonNumber = Number(season.season_number);
+    const seasonEpisodes = episodeRows.filter((episode) => episode.seasonNumber === seasonNumber);
+    const { watchedInSeason, seasonTotal } = showSeasonSummary(seasonNumber, seasonEpisodes, season);
+    const isActive = seasonNumber === selectedSeasonNumber;
+    const panelId = `seasonAccordionPanel${seasonNumber}`;
+    return `
+      <article class="season-accordion ${isActive ? "is-open" : ""}">
+        <button class="season-accordion-trigger" type="button" data-season-accordion="${seasonNumber}" aria-expanded="${isActive}" aria-controls="${panelId}">
+          <span class="season-accordion-title">
+            <strong>${escapeHtml(season.name || seasonLabel(seasonNumber))}</strong>
+            <span class="season-episode-count">${seasonTotal || "?"} episode${seasonTotal === 1 ? "" : "s"}</span>
+          </span>
+          <span class="season-accordion-meta">
+            ${watchedInSeason ? `<span>${watchedInSeason} watched</span>` : ""}
+            <svg class="season-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </button>
+        ${isActive ? `<div class="season-accordion-panel" id="${panelId}">${selectedSeasonEpisodesHtml}</div>` : ""}
+      </article>
+    `;
+  }).join("");
+
+  const seasonsSectionHtml = seasonsList.length ? `
+    <section class="seasons-section season-accordions">
+      <div class="show-section-title">
+        <h3>Seasons</h3>
+        <span>${seasonsList.length} season${seasonsList.length === 1 ? "" : "s"}</span>
+      </div>
+      <div class="season-accordion-list">${seasonsAccordionHtml}</div>
+    </section>
+  ` : "";
 
   setMediaDetailActions(`
     <button class="action-pill" type="button" data-watch-scope="show" ${unwatchedRows.length ? "" : "disabled"}>Mark whole show watched</button>
@@ -5383,7 +5397,7 @@ function renderShowModalContent(show, {
     <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || "")}');"></div>
     <div class="immersive-container media-detail-page">
 
-      <header class="immersive-header show-detail-header">
+      <header class="immersive-header">
         <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" onerror="this.src='/favicon.svg';" />
         <div class="immersive-meta">
           <h2 class="immersive-title">${escapeHtml(showTitle)}</h2>
@@ -5412,16 +5426,12 @@ function renderShowModalContent(show, {
           </section>
 
         </div>
-        ${seasonsSectionHtml}
+        ${renderMediaFacts(tmdbData, "tv", "sidebar")}
       </header>
 
-      ${renderMediaFacts(tmdbData, "tv")}
+      ${seasonsSectionHtml}
 
       ${renderCastSection(tmdbData)}
-
-      <section class="episodes-section">
-        ${selectedSeasonEpisodesHtml}
-      </section>
 
       ${renderTrailersReviewsSection(tmdbData)}
       ${renderRelatedShowsSection(tmdbData)}
@@ -5537,11 +5547,6 @@ async function renderImmersiveShowModal(showKey, activeSeasonNum = null, activeE
     }
   }
 
-  const seasonsMap = seasonsFromShowRecord(show);
-  if (activeSeasonNum === null) {
-    const sortedSeasonNums = [...seasonsMap.keys()].sort((a, b) => b - a);
-    activeSeasonNum = sortedSeasonNums[0] || 1;
-  }
   state.activeShowModalSeason = activeSeasonNum;
   const requestToken = ++state.showModalRequestToken;
 
@@ -7897,13 +7902,14 @@ function attachEvents() {
       return;
     }
 
-    const seasonCard = event.target.closest("[data-immersive-season-num]");
-    if (seasonCard) {
-      const seasonNum = Number(seasonCard.dataset.immersiveSeasonNum);
+    const seasonAccordion = event.target.closest("[data-season-accordion]");
+    if (seasonAccordion) {
+      const seasonNum = Number(seasonAccordion.dataset.seasonAccordion);
+      const shouldClose = Number(state.activeShowModalSeason) === seasonNum;
       if (state.activeShowModalKey) {
-        navigateTo(`/tvshow/${state.activeShowModalKey}#season${seasonNum}`);
+        navigateTo(shouldClose ? `/tvshow/${state.activeShowModalKey}` : `/tvshow/${state.activeShowModalKey}#season${seasonNum}`);
       } else if (state.activeShowTmdbId) {
-        navigateTo(`/tvshow/tmdb/${state.activeShowTmdbId}#season${seasonNum}`);
+        navigateTo(shouldClose ? `/tvshow/tmdb/${state.activeShowTmdbId}` : `/tvshow/tmdb/${state.activeShowTmdbId}#season${seasonNum}`);
       }
       return;
     }
@@ -8846,19 +8852,31 @@ async function openShowImmersiveModalByTmdbId(tmdbId) {
   let rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "N/A";
   const selectedSeason = state.activeShowModalSeason;
   const seasonData = selectedSeason != null ? await fetchTmdbSeasonDetails(tmdbData.id, selectedSeason) : null;
-  const seasonsHtml = (tmdbData.seasons || []).filter((season) => Number(season.season_number) > 0).map((season) => `
-    <button class="season-poster-card ${Number(season.season_number) === Number(selectedSeason) ? "active" : ""}" type="button" data-immersive-season-num="${season.season_number}">
-      <img class="season-poster-img" src="${escapeAttribute(tmdbImage(season.poster_path, "w154") || posterUrl)}" alt="${escapeAttribute(season.name || seasonLabel(season.season_number))}" onerror="this.src='/favicon.svg';" />
-      <span class="season-poster-name">${escapeHtml(season.name || seasonLabel(season.season_number))}</span>
-      <small>${Number(season.episode_count) || "?"} episodes</small>
-    </button>
-  `).join("");
   const episodeHtml = (seasonData?.episodes || []).map((episode) => `
     <article class="immersive-episode-row">
       ${episode.still_path ? `<img class="episode-thumb" src="${escapeAttribute(tmdbImage(episode.still_path, "w500"))}" alt="" loading="lazy" />` : ""}
       <div class="immersive-episode-copy"><b>${escapeHtml(episodeCode(episode.season_number, episode.episode_number))} ${escapeHtml(episode.name || "Episode")}</b><p>${escapeHtml(episode.overview || "No synopsis available.")}</p><time>${escapeHtml(formatTmdbDate(episode.air_date))}</time></div>
     </article>
   `).join("");
+  const seasonList = (tmdbData.seasons || []).filter((season) => Number(season.season_number) > 0);
+  const seasonsHtml = seasonList.map((season) => {
+    const seasonNumber = Number(season.season_number);
+    const isActive = seasonNumber === Number(selectedSeason);
+    const episodeCount = Number(season.episode_count) || "?";
+    const panelId = `tmdbSeasonAccordionPanel${seasonNumber}`;
+    return `
+      <article class="season-accordion ${isActive ? "is-open" : ""}">
+        <button class="season-accordion-trigger" type="button" data-season-accordion="${seasonNumber}" aria-expanded="${isActive}" aria-controls="${panelId}">
+          <span class="season-accordion-title">
+            <strong>${escapeHtml(season.name || seasonLabel(seasonNumber))}</strong>
+            <span class="season-episode-count">${episodeCount} episode${episodeCount === 1 ? "" : "s"}</span>
+          </span>
+          <svg class="season-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        ${isActive ? `<div class="season-accordion-panel" id="${panelId}"><div class="show-episode-list">${episodeHtml || `<div class="empty-log"><b>No episodes found</b></div>`}</div></div>` : ""}
+      </article>
+    `;
+  }).join("");
 
   const ratingBadgeHtml = rating !== "N/A" ? `
     <div class="rating-pill">
@@ -8893,13 +8911,10 @@ async function openShowImmersiveModalByTmdbId(tmdbId) {
             </div>
           </section>
         </div>
+        ${renderMediaFacts(tmdbData, "tv", "sidebar")}
       </header>
 
-      ${renderMediaFacts(tmdbData, "tv")}
-
-      ${seasonsHtml ? `<section class="seasons-section"><div class="show-section-title"><h3>Seasons</h3><span>Open a season to load episodes</span></div><div class="horizontal-scroll-row">${seasonsHtml}</div></section>` : ""}
-
-      ${selectedSeason != null ? `<section class="episodes-section"><div class="show-section-title"><h3>${escapeHtml(seasonLabel(selectedSeason))}</h3></div><div class="show-episode-list">${episodeHtml || `<div class="empty-log"><b>No episodes found</b></div>`}</div></section>` : ""}
+      ${seasonsHtml ? `<section class="seasons-section season-accordions"><div class="show-section-title"><h3>Seasons</h3><span>${seasonList.length} season${seasonList.length === 1 ? "" : "s"}</span></div><div class="season-accordion-list">${seasonsHtml}</div></section>` : ""}
 
       ${renderCastSection(tmdbData)}
 
