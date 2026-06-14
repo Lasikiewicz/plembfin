@@ -478,10 +478,14 @@ export async function insertWatchRecord(_unusedDb, record, { skipInvalidate = fa
     createdAt: FieldValue.serverTimestamp(),
   });
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
+  // Start eagerly pulling + storing TMDB metadata and artwork at ingest. The
+  // promise is returned (not awaited here) so the webhook can await it before the
+  // Cloud Run instance freezes; other callers stay fire-and-forget best-effort.
+  let assetPrefetch = Promise.resolve(null);
   if (normalized.tmdb_id || normalized.title) {
-    prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
+    assetPrefetch = prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title, ref.id).catch(() => null);
   }
-  return { id: ref.id, record: normalized };
+  return { id: ref.id, record: normalized, assetPrefetch };
 }
 
 function defaultTelemetry(record) {
@@ -1042,6 +1046,59 @@ export async function updateWatchPosterUrl(id, posterUrl) {
   return true;
 }
 
+// Bulk-stamp poster URLs onto watch records (used by the library refresh tool).
+// Caller is responsible for invalidating derived caches once afterwards.
+export async function setWatchPosterUrls(updates = []) {
+  let changed = 0;
+  let batch = db.batch();
+  let pending = 0;
+  for (const { id, posterUrl } of updates) {
+    const url = cleanString(posterUrl);
+    if (!id || !url) continue;
+    batch.set(db.collection("watchHistory").doc(String(id)), { posterUrl: url, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    changed += 1;
+    pending += 1;
+    if (pending >= 400) { await batch.commit(); batch = db.batch(); pending = 0; }
+  }
+  if (pending > 0) await batch.commit();
+  return changed;
+}
+
+// Distinct list of library items to (re)hydrate from TMDB — one entry per movie
+// and per show — each carrying the watch-record ids whose poster_url should be
+// stamped with the canonical poster, so existing media matches the stored-at-ingest
+// state of newly added media. All episodes of a show receive the show poster.
+export async function listLibraryItemsForRefresh() {
+  const movieMap = new Map();
+  for (const row of (await getCachedMovies()).filter(isPlembfinTrackedWatchRow)) {
+    const key = row.tmdb_id ? `tmdb:${row.tmdb_id}` : `title:${canonicalTitleKey(row.title)}`;
+    let group = movieMap.get(key);
+    if (!group) { group = { mediaType: "movie", tmdbId: row.tmdb_id || "", title: row.title, records: [] }; movieMap.set(key, group); }
+    if (row.id) group.records.push({ id: row.id, poster: row.poster_url || "" });
+    if (!group.tmdbId && row.tmdb_id) group.tmdbId = row.tmdb_id;
+  }
+
+  const showMap = new Map();
+  for (const row of (await getCachedHistory()).filter((r) => r.media_type === "episode" && isPlembfinTrackedWatchRow(r))) {
+    const title = showTitleFrom(row.title);
+    const key = canonicalTitleKey(title) || title.toLowerCase();
+    let group = showMap.get(key);
+    if (!group) { group = { mediaType: "tv", tmdbId: row.tmdb_id || "", title, records: [], _repAt: "" }; showMap.set(key, group); }
+    if (row.id) group.records.push({ id: row.id, poster: row.poster_url || "" });
+    // Match the show summary's representative episode (latest watched) for id + title.
+    if ((row.watched_at || "") >= group._repAt) {
+      group._repAt = row.watched_at || "";
+      if (row.tmdb_id) group.tmdbId = row.tmdb_id;
+      group.title = title;
+    }
+  }
+
+  return [
+    ...movieMap.values(),
+    ...[...showMap.values()].map(({ _repAt, ...rest }) => rest),
+  ];
+}
+
 export async function getWatchRecordById(id) {
   const doc = await db.collection("watchHistory").doc(String(id)).get();
   if (!doc.exists) return null;
@@ -1483,10 +1540,20 @@ export async function computeTvNextAiringDate(details, tmdbId) {
   }
 }
 
-async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title) {
+async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title, recordId = "") {
   try {
-    await getTmdbDetails({ mediaType, tmdbId, title });
+    // Episodes resolve against the SHOW on TMDB, so look up the show title
+    // ("Breaking Bad"), not the episode title ("Breaking Bad - S01E02").
+    const lookupTitle = String(mediaType).toLowerCase() === "movie" ? title : showTitleFrom(title);
+    const details = await getTmdbDetails({ mediaType, tmdbId, title: lookupTitle });
+    // Persist the canonical poster onto the record so the grid renders it
+    // instantly, without a per-card /api/poster round-trip on first view.
+    if (recordId && details?.cached_poster_url) {
+      await updateWatchPosterUrl(recordId, details.cached_poster_url).catch(() => null);
+    }
+    return details;
   } catch (e) {
     console.error("Failed to prefetch TMDB metadata in background", e);
+    return null;
   }
 }

@@ -3,6 +3,24 @@ import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs } from 
 import { connectionLabel, connectionPayloadFromElements } from "./modules/settings.js";
 import { fetchLocalActiveSessions } from "./modules/timeline.js";
 
+// Warm the backend the moment the app loads (no auth needed), so the Cloud
+// Function is hot by the time the user clicks into anything. A light keep-alive
+// holds it warm while the tab is open. This gives warm-instance latency without
+// the 24/7 cost of minInstances — we only ping while someone is actually here.
+const BACKEND_KEEPALIVE_MS = 4 * 60 * 1000;
+function warmUpBackend() {
+  try {
+    fetch("/api/ping", { cache: "no-store", keepalive: true }).catch(() => {});
+  } catch { /* non-fatal */ }
+}
+warmUpBackend();
+setInterval(() => {
+  if (document.visibilityState === "visible") warmUpBackend();
+}, BACKEND_KEEPALIVE_MS);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") warmUpBackend();
+});
+
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
 const LEGACY_TOKEN_KEY = "sync_admin_token";
@@ -3487,6 +3505,16 @@ function observeExplorerTmdbPrefetch(container) {
         const mediaType = el.dataset.prefetchType;
         const tmdbId = el.dataset.prefetchTmdb;
         const title = el.dataset.prefetchTitle;
+        // In the default "posters" grid the only thing TMDB details supplies is a
+        // poster_path for cards whose poster hasn't resolved yet. Cards that already
+        // rendered an <img> need nothing — skip them so we don't fire a request per
+        // card. List/overview views always need the metadata (dates, runtime, eps).
+        const needsMeta = currentExplorerView() === "list" || currentExplorerView() === "overview";
+        const needsPoster = !!el.querySelector(".poster-fallback[data-poster-id]");
+        if (!needsMeta && !needsPoster) {
+          _explorerPrefetchObserver?.unobserve(el);
+          continue;
+        }
         if (mediaType && title) {
           if (state.token) {
             fetchTmdbDetails(mediaType, tmdbId || undefined, title).then((data) => {
@@ -4667,30 +4695,61 @@ async function openHistoryDebugModal(id) {
   openDebugModal(body.row || historyById(id));
 }
 
+// Request coalescer: explorer grids ask for TMDB details one card at a time, which
+// used to mean ~90 separate /api/tmdb-details calls hammering a single Cloud Function
+// instance (3s avg, 14s worst case). We now batch all asks within a short window into
+// one POST to /api/tmdb-details-batch, which resolves them in parallel server-side.
+let _tmdbBatchQueue = [];
+let _tmdbBatchTimer = null;
+
+function flushTmdbBatch() {
+  _tmdbBatchTimer = null;
+  const batch = _tmdbBatchQueue;
+  _tmdbBatchQueue = [];
+  if (!batch.length) return;
+  const items = batch.map((entry) => entry.item);
+  (async () => {
+    try {
+      // no-store: the real cache is server-side (Firestore, status-aware TTL).
+      const res = await fetch("/api/tmdb-details-batch", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ items }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const results = Array.isArray(data.results) ? data.results : [];
+        batch.forEach((entry, i) => {
+          const r = results[i];
+          entry.resolve(r && r.details ? r.details : null);
+        });
+        return;
+      }
+      batch.forEach((entry) => entry.resolve(null));
+    } catch (error) {
+      console.error("Failed to fetch TMDB details batch", error);
+      batch.forEach((entry) => entry.resolve(null));
+    }
+  })();
+}
+
 async function fetchTmdbDetails(mediaType, tmdbId, title) {
   const cacheKey = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}`;
   if (state.tmdbDetailsCache.has(cacheKey)) return state.tmdbDetailsCache.get(cacheKey);
 
-  const promise = (async () => {
-    try {
-      const url = new URL("/api/tmdb-details", window.location.origin);
-      url.searchParams.set("mediaType", mediaType);
-      if (tmdbId) url.searchParams.set("tmdbId", tmdbId);
-      if (title) url.searchParams.set("title", title);
-
-      // no-store: the real cache is server-side (Firestore, status-aware TTL).
-      // HTTP-caching this response made stale next_airing_date / poster data
-      // linger in the browser for up to a day. Always hit the function, which
-      // serves from its own cache cheaply.
-      const res = await fetch(url, { headers: authHeaders(), cache: "no-store" });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (error) {
-      console.error("Failed to fetch TMDB details client-side", error);
-    }
-    return null;
-  })();
+  let resolveFn;
+  const promise = new Promise((resolve) => { resolveFn = resolve; });
+  _tmdbBatchQueue.push({
+    item: { mediaType, tmdbId: tmdbId || undefined, title: title || undefined },
+    resolve: resolveFn,
+  });
+  if (_tmdbBatchQueue.length >= 100) {
+    clearTimeout(_tmdbBatchTimer);
+    flushTmdbBatch();
+  } else if (!_tmdbBatchTimer) {
+    _tmdbBatchTimer = setTimeout(flushTmdbBatch, 50);
+  }
 
   state.tmdbDetailsCache.set(cacheKey, promise);
 
@@ -5468,6 +5527,7 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
 }
 
 async function renderImmersiveShowModal(showKey, activeSeasonNum = null, activeEpisodeNum = null) {
+  _mediaRenderToken += 1; // invalidate any in-flight movie render
   state.activeShowModalKey = showKey;
   state.pendingWatchAction = null;
   state.activeShowModalEpisode = activeEpisodeNum;
@@ -5985,7 +6045,16 @@ async function openShowInlineDetail(showKey, activeSeasonNum = null, activeEpiso
   await renderImmersiveShowModal(showKey, activeSeasonNum, activeEpisodeNum);
 }
 
+// Monotonic token guarding async media-detail renders. Each render captures the
+// current value; if navigation (a new render, or clearMediaDetailState) bumps it
+// while a slow TMDB fetch is in flight, the stale render aborts before writing the
+// DOM. Without this, an abandoned detail page would "appear" after you'd already
+// navigated back and opened something else.
+let _mediaRenderToken = 0;
+
 async function renderMovieImmersiveModalContent(movie) {
+  const renderToken = ++_mediaRenderToken;
+  state.showModalRequestToken += 1; // invalidate any in-flight show hydrate
   state.activeMovieModalId = movie.id;
   if (!state.mediaDetailInline) {
     elements.debugModal.classList.remove("hidden");
@@ -6019,6 +6088,7 @@ async function renderMovieImmersiveModalContent(movie) {
   `;
 
   const tmdbData = await fetchTmdbDetails("movie", movie.tmdb_id, movie.title);
+  if (_mediaRenderToken !== renderToken) return; // navigated away while loading
 
   // For YouTube-only content, fetch metadata from our backend
   let youtubeMeta = null;
@@ -6028,6 +6098,7 @@ async function renderMovieImmersiveModalContent(movie) {
       const ytData = await ytRes.json();
       if (!ytData.error) youtubeMeta = ytData;
     } catch { /* non-fatal */ }
+    if (_mediaRenderToken !== renderToken) return; // navigated away while loading
   }
 
   const movieTitle = movie.title;
@@ -6339,6 +6410,7 @@ function setMediaDetailActions(html) {
 }
 
 function clearMediaDetailState() {
+  _mediaRenderToken += 1; // invalidate any in-flight detail render (movie/show)
   state.activeShowModalKey = null;
   state.activeShowTmdbId = null;
   state.activeShowModalSeason = null;
@@ -8508,85 +8580,46 @@ async function runRefreshMetadataWorkflow() {
 
   button.disabled = true;
   button.textContent = "Refreshing Metadata...";
-  if (status) status.textContent = "Loading all library items...";
-  if (logEl) logEl.textContent = "Loading shows and movies from library...\n";
+  if (status) status.textContent = "Starting...";
+  if (logEl) logEl.textContent = "Refreshing TMDB metadata, cast, artwork and posters for your whole library...\n";
 
   try {
-    const [showsRes, moviesRes] = await Promise.all([
-      fetch("/api/shows?limit=5000", { headers: authHeaders() }),
-      fetch("/api/movies?limit=5000", { headers: authHeaders() })
-    ]);
-
-    if (!showsRes.ok) throw new Error(`Failed to load shows (HTTP ${showsRes.status})`);
-    if (!moviesRes.ok) throw new Error(`Failed to load movies (HTTP ${moviesRes.status})`);
-
-    const showsData = await showsRes.json();
-    const moviesData = await moviesRes.json();
-
-    const rawShows = Array.isArray(showsData.shows) ? showsData.shows : [];
-    const rawMovies = Array.isArray(moviesData.movies) ? moviesData.movies : [];
-
-    const seen = new Set();
-    const movies = [];
-    for (const m of rawMovies) {
-      const key = m.tmdb_id || m.imdb_id || m.title;
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      movies.push(m);
-    }
-
-    const total = rawShows.length + movies.length;
-    const msg = `Found ${rawShows.length} shows and ${movies.length} movies to refresh.\n`;
-    if (logEl) {
-      logEl.textContent += msg;
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
+    let offset = 0;
+    let total = 0;
     let success = 0;
-    let error = 0;
-    let count = 0;
+    let failed = 0;
+    let posters = 0;
+    let hasMore = true;
 
-    const processItem = async (mediaType, tmdbId, title) => {
-      count++;
-      const percent = Math.round((count / total) * 100);
-      const itemLabel = `[${count}/${total}] (${percent}%) ${mediaType === "movie" ? "Movie" : "Show"}: "${title}"`;
-      if (status) status.textContent = `Progress: ${count} of ${total} (${percent}% complete)...`;
-
-      try {
-        const url = new URL("/api/tmdb-details", window.location.origin);
-        url.searchParams.set("mediaType", mediaType);
-        if (tmdbId) url.searchParams.set("tmdbId", String(tmdbId));
-        if (title) url.searchParams.set("title", title);
-
-        const detailsRes = await fetch(url, { headers: authHeaders() });
-        if (detailsRes.ok) {
-          if (logEl) logEl.textContent += `${itemLabel} - OK\n`;
-          success++;
-        } else {
-          const errData = await detailsRes.json().catch(() => ({}));
-          const errMsg = errData.error || `HTTP ${detailsRes.status}`;
-          if (logEl) logEl.textContent += `${itemLabel} - FAILED (${errMsg})\n`;
-          error++;
-        }
-      } catch (err) {
-        if (logEl) logEl.textContent += `${itemLabel} - ERROR (${err.message})\n`;
-        error++;
+    // The backend processes the library in pages (metadata + artwork cached, and
+    // the canonical poster stamped back onto every record). We just drive the pages.
+    while (hasMore) {
+      const res = await fetch("/api/refresh-tmdb-metadata", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ offset, limit: 12 }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
       }
+      const data = await res.json();
+      total = data.total || total;
+      success += data.success || 0;
+      failed += data.failed || 0;
+      posters += data.postersWritten || 0;
+      offset = data.nextOffset != null ? data.nextOffset : offset + 12;
+      hasMore = !!data.hasMore;
 
-      if (logEl) logEl.scrollTop = logEl.scrollHeight;
-      await new Promise(r => setTimeout(r, 200));
-    };
-
-    for (const show of rawShows) {
-      const tmdbId = show.representative_episode?.tmdb_id || null;
-      await processItem("tv", tmdbId, show.title);
+      const percent = total ? Math.round((Math.min(offset, total) / total) * 100) : 100;
+      if (status) status.textContent = `Progress: ${Math.min(offset, total)} of ${total} (${percent}%)`;
+      if (logEl && Array.isArray(data.log)) {
+        for (const line of data.log) logEl.textContent += line + "\n";
+        logEl.scrollTop = logEl.scrollHeight;
+      }
     }
 
-    for (const movie of movies) {
-      await processItem("movie", movie.tmdb_id || null, movie.title);
-    }
-
-    const summaryMsg = `Done! Refreshed metadata for ${total} items (success: ${success}, error: ${error}).`;
+    const summaryMsg = `Done! Refreshed ${success} items (failed: ${failed}), ${posters} posters stored.`;
     if (status) status.textContent = summaryMsg;
     if (logEl) {
       logEl.textContent += summaryMsg + "\n";

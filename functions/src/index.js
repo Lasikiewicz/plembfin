@@ -28,6 +28,8 @@ import {
   getWatchStats,
   invalidateHistoryDerivedCaches,
   insertWatchRecord,
+  listLibraryItemsForRefresh,
+  setWatchPosterUrls,
   listPlaybackProgressRowsForReplay,
   listWatchedPlaystateRowsForReplay,
   mediaToPlaybackProgressRecord,
@@ -635,6 +637,7 @@ async function handleManualWatch(req, res) {
       if (existing.empty) {
         const insertResult = await insertWatchRecord(requireDb(), record, { skipInvalidate: true });
         id = insertResult.id;
+        await insertResult.assetPrefetch?.catch(() => null);
         inserted += 1;
       } else {
         id = existing.docs[0].id;
@@ -1026,6 +1029,7 @@ async function handleWebhook(req, res) {
             await updateWatchTelemetry(requireDb(), dbResult.id, formatDispatchTelemetry(summary, episodeMedia, "watched"), { skipInvalidate: true });
             await recordSyncHistory(episodeMedia, summary, "watched");
             await deletePlaybackProgress(requireDb(), episodeMedia).catch(() => null);
+            await dbResult.assetPrefetch?.catch(() => null);
             results.push({ episodeId: ep.Id, title: episodeMedia.title, success: summary.status === "success" || summary.status === "partial" });
           }
         } catch (err) {
@@ -1108,6 +1112,9 @@ async function handleWebhook(req, res) {
     await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "watched"), { skipInvalidate: true });
     await recordSyncHistory(media, summary, "watched");
     await deletePlaybackProgress(requireDb(), media).catch(() => null);
+    // Ensure TMDB metadata + artwork finish caching before the instance freezes,
+    // so the detail page is instant on first click. Overlaps with the sync above.
+    await result.assetPrefetch?.catch(() => null);
     await invalidateHistoryDerivedCaches().catch(() => null);
     return sendJson(res, { ok: true, inserted: true, id: result.id, record: result.record });
   } catch (error) {
@@ -1556,6 +1563,101 @@ async function handleTmdbDetails(req, res) {
   }
 }
 
+// Ultra-cheap, no-auth, no-Firestore endpoint whose only job is to boot a warm
+// instance. The client calls this on page load so the function is hot by the time
+// the user clicks into anything — gives the latency benefit of a warm instance
+// without the 24/7 cost of minInstances.
+function handlePing(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  return sendJson(res, { ok: true, ts: Date.now() }, 200, { "Cache-Control": "no-store" });
+}
+
+// Paginated bulk refresh of the whole library's TMDB metadata + artwork. Mirrors
+// the ingest prefetch (full details cached to tmdbMetadataCache + poster/backdrop
+// to Storage) AND stamps the canonical poster back onto every watch record, so
+// EXISTING media reaches full parity with newly-added media. Paginated so a large
+// library never hits the request timeout; the client loops until hasMore is false.
+async function handleRefreshTmdbMetadata(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req).catch(() => ({}));
+  const offset = Math.max(Number(body.offset || 0), 0);
+  const limit = Math.min(Math.max(Number(body.limit || 12), 1), 30);
+
+  const items = await listLibraryItemsForRefresh();
+  const total = items.length;
+  const slice = items.slice(offset, offset + limit);
+
+  let success = 0;
+  let failed = 0;
+  const posterUpdates = [];
+  const log = [];
+
+  for (const item of slice) {
+    const label = `${item.mediaType === "movie" ? "Movie" : "Show"}: ${item.title}`;
+    try {
+      const details = await getTmdbDetails({ mediaType: item.mediaType, tmdbId: item.tmdbId, title: item.title });
+      const posterUrl = details?.cached_poster_url || "";
+      if (posterUrl) {
+        for (const rec of item.records) {
+          if (rec.poster !== posterUrl) posterUpdates.push({ id: rec.id, posterUrl });
+        }
+      }
+      success += 1;
+      log.push(`OK - ${label}`);
+    } catch (error) {
+      failed += 1;
+      log.push(`FAILED - ${label} (${error.message || "error"})`);
+    }
+  }
+
+  let postersWritten = 0;
+  if (posterUpdates.length) {
+    postersWritten = await setWatchPosterUrls(posterUpdates).catch(() => 0);
+    if (postersWritten > 0) await invalidateHistoryDerivedCaches().catch(() => null);
+  }
+
+  const nextOffset = offset + slice.length;
+  return sendJson(res, {
+    ok: true,
+    total,
+    processed: slice.length,
+    nextOffset,
+    hasMore: nextOffset < total,
+    success,
+    failed,
+    postersWritten,
+    log,
+  });
+}
+
+async function handleTmdbDetailsBatch(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req).catch(() => ({}));
+  const items = Array.isArray(body.items) ? body.items.slice(0, 240) : [];
+  if (!items.length) return sendJson(res, { results: [] });
+
+  const results = await Promise.all(items.map(async (item) => {
+    const mediaType = String(item?.mediaType || item?.type || "").trim().toLowerCase();
+    const tmdbId = String(item?.tmdbId || item?.id || "").trim();
+    const title = String(item?.title || "").trim();
+    if (!mediaType || (!tmdbId && !title)) return { error: "invalid" };
+    try {
+      const details = await getTmdbDetails({ mediaType, tmdbId, title });
+      return { details };
+    } catch (error) {
+      return { error: error.message || "failed", status: error.status || 500 };
+    }
+  }));
+
+  return sendJson(res, { results }, 200, { "Cache-Control": "private, max-age=300, stale-while-revalidate=86400", Vary: "Authorization" });
+}
+
 async function handleTmdbSearch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -1756,6 +1858,7 @@ async function handleMergeShows(req, res) {
 async function dispatch(req, res) {
   try {
     const path = routePath(req);
+    if (path === "ping") return handlePing(req, res);
     if (path === "config") return handleConfig(req, res);
     if (path === "history") return handleHistory(req, res);
     if (path === "sync-jobs") return handleSyncJobs(req, res);
@@ -1777,6 +1880,8 @@ async function dispatch(req, res) {
     if (path === "stop-force-sync") return handleStopForceSync(req, res);
     if (path === "dedup-history") return handleDedupHistory(req, res);
     if (path === "tmdb-details") return handleTmdbDetails(req, res);
+    if (path === "tmdb-details-batch") return handleTmdbDetailsBatch(req, res);
+    if (path === "refresh-tmdb-metadata") return handleRefreshTmdbMetadata(req, res);
     if (path === "media-details") return handleTmdbDetails(req, res);
     if (path === "tmdb-search") return handleTmdbSearch(req, res);
     if (path === "media-search") return handleMediaSearch(req, res);
