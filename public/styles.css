@@ -136,11 +136,6 @@ h2 {
   margin-top: clamp(1rem, 3vh, 2.5rem);
 }
 
-.media-detail-page .show-detail-header {
-  grid-template-columns: minmax(150px, 230px) minmax(0, 760px) minmax(18rem, 1fr);
-  gap: clamp(1.25rem, 3vw, 2.5rem);
-}
-
 .media-detail-page .immersive-poster-img {
   width: 100%;
   aspect-ratio: 2 / 3;
@@ -167,20 +162,15 @@ h2 {
 .media-facts-rail {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1px;
+  gap: var(--space-4) calc(var(--space-4) + var(--space-2));
   margin-top: 1.25rem;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--line);
 }
 
 .media-fact {
   display: grid;
   gap: 0.25rem;
   min-width: 0;
-  padding: 0.75rem 0.9rem;
-  background: color-mix(in srgb, var(--panel-3), transparent 8%);
+  align-content: start;
 }
 
 .media-fact span {
@@ -195,6 +185,23 @@ h2 {
   overflow-wrap: anywhere;
   font-size: 0.85rem;
   line-height: 1.35;
+}
+
+.media-detail-page .immersive-header:has(.media-facts-rail--sidebar) {
+  grid-template-columns: minmax(150px, 230px) minmax(0, 760px) minmax(15rem, 1fr);
+  gap: clamp(1rem, 2.5vw, 2rem);
+}
+
+.media-facts-rail--sidebar {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4) calc(var(--space-4) + var(--space-2));
+  align-self: start;
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+}
+
+.media-facts-rail--sidebar .media-fact:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 .is-loading-metadata .immersive-overview {
@@ -234,44 +241,6 @@ h2 {
   border-top: 0;
   padding-top: 0;
   gap: 0.4rem;
-}
-
-.media-detail-page .show-detail-seasons {
-  align-self: start;
-  margin-top: 0;
-  border-top: 0;
-  padding-top: 0.15rem;
-  min-width: 0;
-}
-
-.media-detail-page .show-detail-seasons .show-section-title {
-  margin-bottom: 0.2rem;
-}
-
-.media-detail-page .show-detail-seasons .horizontal-scroll-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.85rem;
-  overflow: visible;
-  padding-bottom: 0;
-}
-
-.media-detail-page .show-detail-seasons .season-poster-card {
-  gap: 0.3rem;
-  flex: 0 0 clamp(5.5rem, 5.8vw, 7rem);
-  width: clamp(5.5rem, 5.8vw, 7rem);
-}
-
-.media-detail-page .show-detail-seasons .season-poster-name,
-.media-detail-page .show-detail-seasons .season-poster-card small {
-  text-align: center;
-}
-
-.media-detail-page .show-detail-seasons .season-poster-img {
-  width: 100%;
-  height: clamp(8.25rem, 8.7vw, 10.5rem);
-  aspect-ratio: 2 / 3;
-  object-fit: cover;
 }
 
 .media-detail-page .horizontal-scroll-row {
@@ -332,39 +301,30 @@ h2 {
     grid-template-columns: minmax(96px, 34vw) minmax(0, 1fr);
   }
 
+  .media-detail-page .immersive-header:has(.media-facts-rail--sidebar) {
+    grid-template-columns: minmax(96px, 34vw) minmax(0, 1fr);
+  }
+
+  .media-facts-rail--sidebar {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: var(--space-2);
+  }
+
   .media-detail-page .immersive-title {
     font-size: 1.7rem;
   }
 }
 
-@media (max-width: 1180px) {
-  .media-detail-page .show-detail-header {
+@media (min-width: 761px) and (max-width: 1180px) {
+  .media-detail-page .immersive-header:has(.media-facts-rail--sidebar) {
     grid-template-columns: minmax(150px, 230px) minmax(0, 1fr);
   }
 
-  .media-detail-page .show-detail-seasons {
+  .media-facts-rail--sidebar {
     grid-column: 1 / -1;
-    margin-top: clamp(1.25rem, 3vw, 2rem);
-    border-top: 1px solid var(--line);
-    padding-top: 1.25rem;
-  }
-
-  .media-detail-page .show-detail-seasons .horizontal-scroll-row {
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(8rem, 10rem);
-    grid-template-columns: none;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 0.8rem;
-  }
-
-  .media-detail-page .show-detail-seasons .season-poster-card {
-    flex-basis: 8rem;
-    width: 8rem;
-  }
-
-  .media-detail-page .show-detail-seasons .season-poster-img {
-    height: 12rem;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    margin-top: var(--space-2);
   }
 }
 
@@ -381,10 +341,6 @@ h2 {
 }
 
 @media (max-width: 760px) {
-  .media-detail-page .show-detail-header {
-    grid-template-columns: minmax(96px, 34vw) minmax(0, 1fr);
-  }
-
   .media-detail-page .show-episode-list {
     grid-template-columns: 1fr;
   }
@@ -5401,4 +5357,183 @@ h1 {
   border-color: rgba(234, 179, 8, 0.45);
   box-shadow: 0 0 10px rgba(234, 179, 8, 0.1);
   background: #0f161c;
+}
+
+/* Seerr-style season disclosure */
+.season-accordions {
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.season-accordions .show-section-title > span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.season-accordion-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.season-accordion {
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel-2), transparent 8%);
+}
+
+.season-accordion.is-open {
+  border-color: color-mix(in srgb, var(--text), transparent 24%);
+}
+
+.season-accordion-trigger {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  cursor: pointer;
+}
+
+.season-accordion-trigger:hover {
+  background: color-mix(in srgb, var(--panel-3), transparent 12%);
+}
+
+.season-accordion.is-open .season-accordion-trigger {
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.season-accordion-title,
+.season-accordion-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.season-accordion-title strong {
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.season-episode-count {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-3), transparent 5%);
+  color: var(--soft);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.season-accordion-meta {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.season-accordion-chevron {
+  width: 1.1rem;
+  height: 1.1rem;
+  transition: transform 160ms ease-out;
+}
+
+.season-accordion.is-open .season-accordion-chevron {
+  transform: rotate(180deg);
+}
+
+.season-accordion-panel {
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.season-accordion-panel .show-season-block {
+  gap: 0;
+}
+
+.season-accordion-panel .show-season-head {
+  min-height: 44px;
+  padding: var(--space-2) 0;
+}
+
+.season-accordion-panel .show-episode-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+.media-detail-page .season-accordion-panel .immersive-episode-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(9rem, 13rem) auto;
+  grid-template-areas: "copy thumb actions";
+  gap: var(--space-4);
+  align-items: center;
+  min-height: 116px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--space-4) 0;
+  box-shadow: none;
+}
+
+.media-detail-page .season-accordion-panel .immersive-episode-row:last-child {
+  border-bottom: 0;
+}
+
+.media-detail-page .season-accordion-panel .immersive-episode-row:hover {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--panel-3), transparent 55%);
+  box-shadow: none;
+}
+
+.season-accordion-panel .episode-thumb {
+  grid-area: thumb;
+  width: 100%;
+  max-width: 13rem;
+  justify-self: end;
+}
+
+.season-accordion-panel .immersive-episode-copy {
+  grid-area: copy;
+}
+
+.season-accordion-panel .immersive-episode-actions {
+  grid-area: actions;
+  min-width: 7rem;
+}
+
+@media (max-width: 760px) {
+  .season-accordion-trigger {
+    padding-inline: var(--space-3);
+  }
+
+  .season-accordion-meta > span {
+    display: none;
+  }
+
+  .season-accordion-panel {
+    padding-inline: var(--space-3);
+  }
+
+  .media-detail-page .season-accordion-panel .immersive-episode-row {
+    grid-template-columns: minmax(0, 1fr) 7rem;
+    grid-template-areas:
+      "copy thumb"
+      "actions actions";
+    min-height: 0;
+    gap: var(--space-3);
+  }
+
+  .season-accordion-panel .immersive-episode-actions {
+    min-width: 0;
+    justify-items: start;
+  }
 }
