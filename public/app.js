@@ -8591,19 +8591,37 @@ async function runRefreshMetadataWorkflow() {
     let posters = 0;
     let hasMore = true;
 
-    // The backend processes the library in pages (metadata + artwork cached, and
-    // the canonical poster stamped back onto every record). We just drive the pages.
-    while (hasMore) {
-      const res = await fetch("/api/refresh-tmdb-metadata", {
-        method: "POST",
-        headers: { ...authHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ offset, limit: 12 }),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `HTTP ${res.status}`);
+    // The backend processes the library in time-boxed pages (metadata + artwork
+    // cached, and the canonical poster stamped back onto every record). We just
+    // drive the pages, retrying transient 503/504s (cold start / scaling).
+    const fetchPage = async () => {
+      let lastErr;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          const res = await fetch("/api/refresh-tmdb-metadata", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ offset, limit: 8 }),
+          });
+          if (res.ok) return await res.json();
+          if (res.status === 503 || res.status === 504 || res.status === 429) {
+            lastErr = new Error(`HTTP ${res.status}`);
+            if (logEl) { logEl.textContent += `(server busy, retrying...)\n`; logEl.scrollTop = logEl.scrollHeight; }
+            await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+            continue;
+          }
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP ${res.status}`);
+        } catch (err) {
+          lastErr = err;
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        }
       }
-      const data = await res.json();
+      throw lastErr || new Error("Refresh page failed");
+    };
+
+    while (hasMore) {
+      const data = await fetchPage();
       total = data.total || total;
       success += data.success || 0;
       failed += data.failed || 0;

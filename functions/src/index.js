@@ -1586,16 +1586,24 @@ async function handleRefreshTmdbMetadata(req, res) {
   const offset = Math.max(Number(body.offset || 0), 0);
   const limit = Math.min(Math.max(Number(body.limit || 12), 1), 30);
 
+  // Firebase Hosting cuts off rewritten requests at ~60s, and TV items are slow
+  // (deriveNextAiring fetches multiple seasons). Time-box each page so it always
+  // returns well under that limit; the client just resumes from nextOffset.
+  const PAGE_BUDGET_MS = 25000;
+  const startedAt = Date.now();
+
   const items = await listLibraryItemsForRefresh();
   const total = items.length;
-  const slice = items.slice(offset, offset + limit);
 
   let success = 0;
   let failed = 0;
+  let processed = 0;
   const posterUpdates = [];
   const log = [];
 
-  for (const item of slice) {
+  for (let i = offset; i < items.length && processed < limit; i++) {
+    if (processed > 0 && Date.now() - startedAt > PAGE_BUDGET_MS) break;
+    const item = items[i];
     const label = `${item.mediaType === "movie" ? "Movie" : "Show"}: ${item.title}`;
     try {
       const details = await getTmdbDetails({ mediaType: item.mediaType, tmdbId: item.tmdbId, title: item.title });
@@ -1611,21 +1619,27 @@ async function handleRefreshTmdbMetadata(req, res) {
       failed += 1;
       log.push(`FAILED - ${label} (${error.message || "error"})`);
     }
+    processed += 1;
   }
 
   let postersWritten = 0;
   if (posterUpdates.length) {
     postersWritten = await setWatchPosterUrls(posterUpdates).catch(() => 0);
-    if (postersWritten > 0) await invalidateHistoryDerivedCaches().catch(() => null);
   }
 
-  const nextOffset = offset + slice.length;
+  const nextOffset = offset + processed;
+  const hasMore = nextOffset < total;
+  // Invalidate derived caches ONCE, on the final page. Doing it per page forced a
+  // full watchHistory re-scan on every subsequent page's list build, which pushed
+  // pages past the Firebase Hosting ~60s timeout (503s).
+  if (!hasMore) await invalidateHistoryDerivedCaches().catch(() => null);
+
   return sendJson(res, {
     ok: true,
     total,
-    processed: slice.length,
+    processed,
     nextOffset,
-    hasMore: nextOffset < total,
+    hasMore,
     success,
     failed,
     postersWritten,
