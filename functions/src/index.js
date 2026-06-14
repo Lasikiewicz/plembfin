@@ -51,6 +51,8 @@ import {
   getCachedShows,
   getCachedMovies,
   canonicalTitleKey,
+  tmdbCacheTtlMs,
+  mergeTmdbDetails,
 } from "./utils/firestoreRepo.js";
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
@@ -1587,11 +1589,11 @@ async function handleTmdbDetails(req, res) {
     const docKey = `${mediaType}_${tmdbId}`;
     const docRef = db.collection("tmdbMetadataCache").doc(docKey);
     const cachedDoc = await docRef.get();
+    const existingDetails = cachedDoc.exists ? cachedDoc.data().details : null;
 
-    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
     if (cachedDoc.exists) {
       const data = cachedDoc.data();
-      if (data.updatedAt && (Date.now() - data.updatedAt < sevenDaysMs)) {
+      if (data.updatedAt && (Date.now() - data.updatedAt < tmdbCacheTtlMs(existingDetails))) {
         return sendJson(res, data.details, 200, { "Cache-Control": "private, max-age=86400" });
       }
     }
@@ -1607,15 +1609,18 @@ async function handleTmdbDetails(req, res) {
       return sendJson(res, { error: `TMDB details fetch failed: ${detailsRes.statusText}` }, detailsRes.status);
     }
 
-    const detailsData = await detailsRes.json();
+    // Merge fresh data into the cached object rather than overwriting, so volatile
+    // fields (next_episode_to_air, status, episode counts) update while any
+    // sub-resources this fetch didn't request are preserved.
+    const merged = mergeTmdbDetails(existingDetails, await detailsRes.json());
     await docRef.set({
       tmdbId,
       mediaType,
-      details: detailsData,
+      details: merged,
       updatedAt: Date.now()
     });
 
-    return sendJson(res, detailsData, 200, { "Cache-Control": "private, max-age=86400" });
+    return sendJson(res, merged, 200, { "Cache-Control": "private, max-age=86400" });
   } catch (error) {
     console.error("Failed handling TMDB details API", error);
     return sendJson(res, { error: "Failed to fetch TMDB details", details: error.message }, 500);

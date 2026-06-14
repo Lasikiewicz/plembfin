@@ -3202,6 +3202,31 @@ function formatListDate(isoString) {
   return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(d);
 }
 
+// Friendlier labels for TMDB's `status` field, used as a fallback in the
+// "Next Airing" column when a show has no upcoming scheduled episode.
+function showStatusLabel(status) {
+  switch (status) {
+    case "Returning Series": return "Returning";
+    case "In Production": return "In production";
+    case "Post Production": return "Post-production";
+    case "Planned": return "Planned";
+    case "Canceled": return "Canceled";
+    case "Ended": return "Ended";
+    case "Pilot": return "Pilot";
+    default: return status || "";
+  }
+}
+
+// Cell content for the "Next Airing" column: a future air date when TMDB has
+// one scheduled, otherwise the show's status (Returning / Ended / etc.).
+// Returns { text, isStatus } so the caller can style status differently.
+function nextAiringCell(tmdb) {
+  if (!tmdb) return { text: "", isStatus: false };
+  const date = tmdb.next_episode_to_air?.air_date ? futureListDate(tmdb.next_episode_to_air.air_date) : "";
+  if (date) return { text: date, isStatus: false };
+  return { text: showStatusLabel(tmdb.status), isStatus: true };
+}
+
 function formatDateShort(date) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "2-digit" }).format(date);
 }
@@ -3455,8 +3480,12 @@ function observeExplorerTmdbPrefetch(container) {
                   }
                 } else {
                   const nextAirEl = el.querySelector("[data-list-next-air]");
-                  if (nextAirEl && !nextAirEl.textContent.trim() && data.next_episode_to_air?.air_date) {
-                    nextAirEl.textContent = futureListDate(data.next_episode_to_air.air_date);
+                  if (nextAirEl && !nextAirEl.textContent.trim()) {
+                    const nextAiring = nextAiringCell(data);
+                    if (nextAiring.text) {
+                      nextAirEl.textContent = nextAiring.text;
+                      nextAirEl.classList.toggle("list-next-air-status", nextAiring.isStatus);
+                    }
                   }
                   const epsEl = el.querySelector("[data-list-eps]");
                   if (epsEl && data.number_of_episodes) {
@@ -3930,7 +3959,7 @@ function renderShowRecord(show = {}) {
     const tmdbShow = resolvedTmdbCache("tv", tmdbId, displayTitle);
     const year = tmdbShow?.first_air_date?.slice(0, 4) || "";
     const totalEps = tmdbShow?.number_of_episodes || 0;
-    const nextAirDate = tmdbShow?.next_episode_to_air?.air_date ? futureListDate(tmdbShow.next_episode_to_air.air_date) : "";
+    const nextAiring = nextAiringCell(tmdbShow);
     const pct = totalEps ? Math.round((episodeCount / totalEps) * 100) : null;
     const episodeProgressHtml = totalEps
       ? `<div class="list-eps-progress" data-list-eps data-watched="${episodeCount}" data-total="${totalEps}"><div class="list-eps-bar-track"><div class="list-eps-bar-fill" style="width:${pct}%"></div></div><span class="list-eps-label">${episodeCount} / ${totalEps}</span></div>`
@@ -3941,7 +3970,7 @@ function renderShowRecord(show = {}) {
         ${posterMarkup(latestEpisode, "list-thumb-poster")}
         <span class="list-card-title">${escapeHtml(displayTitle)}</span>
         <div class="list-card-col list-card-platform">${sourceEl}</div>
-        <span class="list-card-col" data-list-next-air>${escapeHtml(nextAirDate)}</span>
+        <span class="list-card-col${nextAiring.isStatus && nextAiring.text ? " list-next-air-status" : ""}" data-list-next-air>${escapeHtml(nextAiring.text)}</span>
         <span class="list-card-col">${escapeHtml(String(seasonCount || ""))}</span>
         ${episodeProgressHtml}
         <span class="list-card-col">${latestEpisode?.watched_at ? escapeHtml(formatDate(latestEpisode.watched_at)) : ""}</span>
