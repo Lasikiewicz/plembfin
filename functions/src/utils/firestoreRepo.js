@@ -1431,6 +1431,53 @@ export function mergeTmdbDetails(existing, fresh) {
   return { ...existing, ...fresh };
 }
 
+// TMDB's top-level `next_episode_to_air` is unreliable for shows with batch or
+// weekly releases — it routinely sits null or lags on an already-aired episode.
+// The per-season episode list is accurate, so when the top-level field isn't a
+// usable future date we scan the current/next season's episodes and return the
+// earliest air_date that is today or later. Returns "YYYY-MM-DD" or null.
+export async function computeTvNextAiringDate(details, tmdbId, apiKey) {
+  try {
+    if (!details || !tmdbId || !apiKey) return null;
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Cheap path: trust TMDB's field only when it's genuinely in the future.
+    const direct = details.next_episode_to_air?.air_date;
+    if (direct && direct >= today) return direct;
+
+    // Derive from real episode air dates. Check the season that's currently
+    // airing (and the one after it), plus the highest-numbered season, so we
+    // also cover shows between seasons or with an announced upcoming season.
+    const candidates = new Set();
+    const lastSeason = details.last_episode_to_air?.season_number;
+    if (Number.isInteger(lastSeason)) {
+      candidates.add(lastSeason);
+      candidates.add(lastSeason + 1);
+    }
+    const maxSeason = Math.max(0, ...(details.seasons || []).map((s) => Number(s.season_number) || 0));
+    if (maxSeason > 0) candidates.add(maxSeason);
+
+    const seasonNums = [...candidates].filter((n) => n > 0).sort((a, b) => a - b);
+    for (const n of seasonNums) {
+      const res = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${n}?api_key=${apiKey}`);
+      if (!res.ok) continue;
+      const season = await res.json();
+      let earliest = null;
+      for (const ep of season.episodes || []) {
+        const d = ep.air_date;
+        if (d && d >= today && (!earliest || d < earliest)) earliest = d;
+      }
+      // Episodes air in season order, so the earliest future episode lives in
+      // the lowest-numbered candidate season that has one.
+      if (earliest) return earliest;
+    }
+    return null;
+  } catch (e) {
+    console.error("Failed computing TV next airing date", e);
+    return null;
+  }
+}
+
 async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title) {
   try {
     const config = await loadMediaConfig().catch(() => ({}));
@@ -1465,10 +1512,16 @@ async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title) {
     const detailsRes = await fetch(`https://api.themoviedb.org/3/${resolvedType}/${resolvedId}?api_key=${apiKey}&append_to_response=credits,videos,reviews`);
     if (detailsRes.ok) {
       const detailsData = await detailsRes.json();
+      const merged = mergeTmdbDetails(existingDetails, detailsData);
+      if (resolvedType === "tv") {
+        const nextAiring = await computeTvNextAiringDate(merged, resolvedId, apiKey);
+        if (nextAiring) merged.next_airing_date = nextAiring;
+        else delete merged.next_airing_date;
+      }
       await docRef.set({
         tmdbId: resolvedId,
         mediaType: resolvedType,
-        details: mergeTmdbDetails(existingDetails, detailsData),
+        details: merged,
         updatedAt: Date.now()
       });
       
