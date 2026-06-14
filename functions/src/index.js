@@ -54,6 +54,7 @@ import {
   tmdbCacheTtlMs,
   mergeTmdbDetails,
   computeTvNextAiringDate,
+  TMDB_DETAILS_SCHEMA_VERSION,
 } from "./utils/firestoreRepo.js";
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
@@ -1594,7 +1595,8 @@ async function handleTmdbDetails(req, res) {
 
     if (cachedDoc.exists) {
       const data = cachedDoc.data();
-      if (data.updatedAt && (Date.now() - data.updatedAt < tmdbCacheTtlMs(existingDetails))) {
+      const fresh = data.updatedAt && (Date.now() - data.updatedAt < tmdbCacheTtlMs(existingDetails));
+      if (fresh && (data.schemaVersion || 0) >= TMDB_DETAILS_SCHEMA_VERSION) {
         return sendJson(res, data.details, 200, { "Cache-Control": "private, max-age=86400" });
       }
     }
@@ -1625,6 +1627,7 @@ async function handleTmdbDetails(req, res) {
       tmdbId,
       mediaType,
       details: merged,
+      schemaVersion: TMDB_DETAILS_SCHEMA_VERSION,
       updatedAt: Date.now()
     });
 

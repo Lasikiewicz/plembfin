@@ -1399,6 +1399,11 @@ function sortShowRows(rows, sort) {
 
 const TMDB_DAY_MS = 24 * 60 * 60 * 1000;
 
+// Bumped when the cached details shape changes (now carries a derived
+// next_airing_date). Entries written under an older schema are treated as stale
+// and refetched immediately rather than waiting out the status-aware TTL.
+export const TMDB_DETAILS_SCHEMA_VERSION = 1;
+
 // How long a cached TMDB details doc stays "fresh" before we refetch + merge.
 // Decided from the *previously cached* status, since that's what we're trusting:
 // finished/released titles change rarely, while actively-airing shows need
@@ -1504,8 +1509,9 @@ async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title) {
     const existingDetails = cachedDoc.exists ? cachedDoc.data().details : null;
     if (cachedDoc.exists) {
       const data = cachedDoc.data();
-      if (data.updatedAt && (Date.now() - data.updatedAt < tmdbCacheTtlMs(existingDetails))) {
-        return; // already fresh
+      const fresh = data.updatedAt && (Date.now() - data.updatedAt < tmdbCacheTtlMs(existingDetails));
+      if (fresh && (data.schemaVersion || 0) >= TMDB_DETAILS_SCHEMA_VERSION) {
+        return; // already fresh and on the current schema
       }
     }
 
@@ -1522,6 +1528,7 @@ async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title) {
         tmdbId: resolvedId,
         mediaType: resolvedType,
         details: merged,
+        schemaVersion: TMDB_DETAILS_SCHEMA_VERSION,
         updatedAt: Date.now()
       });
       
