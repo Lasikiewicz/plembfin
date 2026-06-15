@@ -4,6 +4,8 @@ data
 .gitignore
 .claude
 scripts
+!scripts/
+!scripts/install-git-hooks.js
 docs
 emulator-data
 firebase-export-*
