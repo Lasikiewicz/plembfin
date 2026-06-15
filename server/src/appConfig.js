@@ -26,13 +26,14 @@ function hashPassword(plain, salt = crypto.randomBytes(16).toString("hex")) {
 function resolveAuthConfig() {
   const stored = readConfigFile();
   let changed = false;
+  const authManagedInApp = stored.authManagedInApp === true;
 
-  const username = String(process.env.ADMIN_USERNAME || stored.username || "admin");
+  const username = String(authManagedInApp ? stored.username || "admin" : process.env.ADMIN_USERNAME || stored.username || "admin");
   if (stored.username !== username) { stored.username = username; changed = true; }
 
   // Password: an env override (re)hashes; otherwise keep the stored hash, or
   // fall back to a default "admin" password on a brand-new install.
-  if (process.env.ADMIN_PASSWORD) {
+  if (!authManagedInApp && process.env.ADMIN_PASSWORD) {
     stored.passwordHash = hashPassword(process.env.ADMIN_PASSWORD);
     changed = true;
   } else if (!stored.passwordHash) {
@@ -70,4 +71,23 @@ export function verifyPassword(plain) {
 
 export function verifyUsername(name) {
   return String(name || "") === config.username;
+}
+
+export function updateAdminCredentials({ username, password = "" }) {
+  const nextUsername = String(username || "").trim();
+  if (!nextUsername) throw new Error("Username is required");
+
+  const nextConfig = {
+    ...config,
+    username: nextUsername,
+    authManagedInApp: true,
+    sessionSecret: crypto.randomBytes(32).toString("hex"),
+  };
+  if (password) nextConfig.passwordHash = hashPassword(password);
+  writeConfigFile(nextConfig);
+  Object.assign(config, nextConfig);
+
+  AUTH.username = config.username;
+  AUTH.sessionSecret = config.sessionSecret;
+  return { username: config.username };
 }

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { AUTH, verifyPassword, verifyUsername } from "../appConfig.js";
+import { AUTH, updateAdminCredentials, verifyPassword, verifyUsername } from "../appConfig.js";
 import { readJson } from "./requestBody.js";
 import { sendJson } from "./http.js";
 
@@ -102,4 +102,35 @@ export async function handleAuthStatus(req, res) {
   const principal = resolvePrincipal(req);
   if (!principal) return sendJson(res, { authenticated: false });
   return sendJson(res, { authenticated: true, username: principal.username, apiKey: AUTH.apiKey });
+}
+
+export async function handleAuthCredentials(req, res) {
+  if (req.method !== "POST") return sendJson(res, { error: "Method not allowed" }, 405);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req).catch(() => ({}));
+  const username = String(body.username || "").trim();
+  const currentPassword = String(body.currentPassword || "");
+  const newPassword = String(body.newPassword || "");
+
+  if (!verifyPassword(currentPassword)) {
+    return sendJson(res, { error: "Current password is incorrect" }, 401);
+  }
+  if (!username) return sendJson(res, { error: "Username is required" }, 400);
+  if (username.length > 128) return sendJson(res, { error: "Username must be 128 characters or fewer" }, 400);
+  if (newPassword && newPassword.length < 8) {
+    return sendJson(res, { error: "New password must be at least 8 characters" }, 400);
+  }
+  if (newPassword.length > 256) {
+    return sendJson(res, { error: "New password must be 256 characters or fewer" }, 400);
+  }
+
+  updateAdminCredentials({ username, password: newPassword });
+  res.cookie(COOKIE_NAME, signSession(username), {
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: SESSION_TTL_MS,
+    path: "/",
+  });
+  return sendJson(res, { ok: true, username, apiKey: AUTH.apiKey });
 }

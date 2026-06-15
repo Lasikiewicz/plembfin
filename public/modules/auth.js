@@ -80,6 +80,19 @@ export async function signOutAdmin() {
   clearSession();
 }
 
+export async function updateAdminCredentials({ username, currentPassword, newPassword }) {
+  const res = await fetch("/api/auth/credentials", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, currentPassword, newPassword }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Login update failed");
+  setSession(data.username, data.apiKey);
+  return { user: cachedUser, token: cachedToken || "session" };
+}
+
 export function buildAuthHeaders(token) {
   const headers = { "Content-Type": "application/json" };
   const key = token && token !== "session" ? token : cachedToken;
