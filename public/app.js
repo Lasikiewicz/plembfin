@@ -570,6 +570,18 @@ function renderWatchBackups() {
 }
 
 const DESTINATION_FORMS = {
+  folder: {
+    label: "Local / synced folder",
+    settings: [
+      { key: "path", label: "Folder path", placeholder: "C:\\Users\\you\\OneDrive\\Plembfin Backups", full: true },
+    ],
+    secrets: [],
+    oauth: null,
+    help: `<details class="destination-help"><summary>No login needed — how does this work?</summary>
+      <p>Point this at a folder your cloud's <b>desktop app already syncs</b> (e.g. a folder inside your OneDrive or Dropbox folder, or a mounted NAS share). Plembfin writes the backup there and your sync client uploads it. No Azure app, no OAuth.</p>
+      <p>The path is read on the server running Plembfin, so use a path that exists on that machine.</p>
+    </details>`,
+  },
   webdav: {
     label: "WebDAV",
     settings: [
@@ -595,11 +607,20 @@ const DESTINATION_FORMS = {
   onedrive: {
     label: "OneDrive",
     settings: [
-      { key: "clientId", label: "Azure app client ID", placeholder: "00000000-0000-0000-0000-000000000000" },
-      { key: "tenant", label: "Tenant (common / consumers / tenant ID)", placeholder: "common" },
+      { key: "clientId", label: "Azure app client ID", placeholder: "00000000-0000-0000-0000-000000000000", full: true },
     ],
     secrets: [],
     oauth: "device",
+    help: `<details class="destination-help"><summary>Where do I get a client ID? (one-time, ~2 min, free)</summary>
+      <p>Microsoft requires every app that uses the OneDrive API to have a free app registration. You only do this once:</p>
+      <ol>
+        <li>Open <a href="https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Entra app registrations</a> → <b>New registration</b>.</li>
+        <li>Name it anything. Under supported account types pick <b>“Accounts in any organizational directory and personal Microsoft accounts”</b>. Leave redirect URI blank → <b>Register</b>.</li>
+        <li>Open <b>Authentication</b> → enable <b>Allow public client flows</b> → <b>Save</b>.</li>
+        <li>Copy the <b>Application (client) ID</b> into the field above, Save, then click <b>Connect</b>.</li>
+      </ol>
+      <p>Prefer no setup at all? Use a <b>Local / synced folder</b> destination pointed at your OneDrive sync folder instead.</p>
+    </details>`,
   },
   dropbox: {
     label: "Dropbox",
@@ -609,6 +630,14 @@ const DESTINATION_FORMS = {
     ],
     secrets: [{ key: "appSecret", label: "App secret" }],
     oauth: "code",
+    help: `<details class="destination-help"><summary>Where do I get an app key & secret? (one-time, free)</summary>
+      <ol>
+        <li>Open <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener">Dropbox App Console</a> → <b>Create app</b> → <b>Scoped access</b> → <b>App folder</b>, name it.</li>
+        <li>On the <b>Permissions</b> tab enable <b>files.content.write</b>, <b>files.content.read</b>, and <b>files.metadata.read</b> → Submit.</li>
+        <li>On the <b>Settings</b> tab copy the <b>App key</b> and <b>App secret</b> above, Save, then click <b>Connect</b>.</li>
+      </ol>
+      <p>Prefer no setup? Use a <b>Local / synced folder</b> destination pointed at your Dropbox sync folder instead.</p>
+    </details>`,
   },
 };
 
@@ -629,11 +658,12 @@ function destinationStatusPill(destination, status) {
 
 function renderDestinationField(destination, field) {
   const value = destination.settings?.[field.key];
+  const span = field.full ? ' style="grid-column: 1 / -1;"' : "";
   if (field.type === "checkbox") {
     const checked = value === undefined ? field.default : Boolean(value);
-    return `<label class="checkbox-label"><input type="checkbox" data-dest-setting="${field.key}" ${checked ? "checked" : ""} /><span>${escapeHtml(field.label)}</span></label>`;
+    return `<label class="checkbox-label"${span}><input type="checkbox" data-dest-setting="${field.key}" ${checked ? "checked" : ""} /><span>${escapeHtml(field.label)}</span></label>`;
   }
-  return `<label class="field-label">${escapeHtml(field.label)}
+  return `<label class="field-label"${span}>${escapeHtml(field.label)}
     <input class="field" data-dest-setting="${field.key}" value="${escapeAttribute(value || "")}" placeholder="${escapeAttribute(field.placeholder || "")}" />
   </label>`;
 }
@@ -676,6 +706,7 @@ function renderWatchBackupDestinations(data) {
           ${fields}
           ${secrets}
         </div>
+        ${form.help || ""}
         <div class="destination-feedback" data-dest-feedback>${status?.status === "error" && status.lastError ? escapeHtml(status.lastError) : ""}</div>
         <div class="destination-actions">
           <button class="button-primary" type="button" data-dest-action="save">Save</button>
