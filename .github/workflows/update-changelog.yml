@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   update:
-    if: github.actor != 'github-actions[bot]' && !startsWith(github.event.head_commit.message, 'chore: update changelog for ')
+    if: ${{ github.actor != 'github-actions[bot]' && startsWith(github.event.head_commit.message, 'chore: update changelog for ') == false }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
