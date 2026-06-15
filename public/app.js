@@ -2739,7 +2739,7 @@ function handleRouting(path) {
     state.activeShowModalEpisode = episodeNum;
     openShowImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
   } else if (movieMatch) {
-    const movieId = movieMatch[1];
+    const movieId = decodeURIComponent(movieMatch[1]);
     if (!state.mediaDetailInline) {
       state.mediaDetailReturnView = state.activeView || "dashboard";
       state.mediaDetailReturnExplorerMode = state.explorerMode || "movies";
@@ -3510,8 +3510,9 @@ function renderActiveSessions() {
   elements.nowPlayingGrid.innerHTML = state.activeSessions
     .map((session) => {
       const progress = Math.max(0, Math.min(100, Number(session.progress ?? computeProgress(session.offsetMs, session.durationMs))));
+      const href = nowPlayingHref(session);
       return `
-        <article class="now-card-large live-now-card">
+        <button class="now-card-large live-now-card" type="button" data-now-playing-href="${escapeAttribute(href)}" aria-label="Open ${escapeAttribute(session.title)} details">
           ${posterMarkup(session, "now-poster-large")}
           <div class="now-meta">
             <div class="now-card-head">
@@ -3523,7 +3524,7 @@ function renderActiveSessions() {
             <div class="progress-track" aria-label="Playback progress"><span style="width: ${progress}%"></span></div>
             <time>${escapeHtml(formatPlaybackClock(session.offsetMs, session.durationMs))}</time>
           </div>
-        </article>
+        </button>
       `;
     })
     .join("");
@@ -4739,7 +4740,40 @@ function historyById(id) {
 function movieById(id) {
   return state.history.find((entry) => String(entry.id) === String(id)) ||
          state.moviesRaw.find((entry) => String(entry.id) === String(id)) ||
-         state.activeSessions.find((entry) => String(entry.id) === String(id));
+         state.activeSessions.find((entry) => String(entry.id || entry.key) === String(id));
+}
+
+function nowPlayingHref(session = {}) {
+  const mediaType = String(session.mediaType || session.media_type || "").toLowerCase();
+  const ids = session.ids || {};
+  const isEpisode = ["episode", "show", "tv", "tvshow"].includes(mediaType) || session.season != null || session.episode != null;
+
+  if (isEpisode) {
+    const title = showTitleFrom(session.showTitle || session.show_title || session.title);
+    const localShow = state.showsRaw.find((show) => {
+      if (ids.tmdb && String(show.tmdb_id || "") === String(ids.tmdb)) return true;
+      if (ids.tvdb && String(show.tvdb_id || "") === String(ids.tvdb)) return true;
+      return slug(show.title) === slug(title);
+    });
+    const base = localShow
+      ? `/tvshow/${slug(localShow.title)}`
+      : ids.tmdb
+        ? `/tvshow/tmdb/${ids.tmdb}`
+        : `/tvshow/${slug(title)}`;
+    const season = session.season != null ? Number(session.season) : null;
+    const episode = session.episode != null ? Number(session.episode) : null;
+    return season == null ? base : `${base}#season${season}${episode == null ? "" : `ep${episode}`}`;
+  }
+
+  const localMovie = state.history.find((entry) => {
+    if (entry.media_type !== "movie" || !isWatchedHistoryAction(entry)) return false;
+    if (ids.imdb && String(entry.imdb_id || "") === String(ids.imdb)) return true;
+    if (ids.tmdb && String(entry.tmdb_id || "") === String(ids.tmdb)) return true;
+    return String(entry.title || "").trim().toLowerCase() === String(session.title || "").trim().toLowerCase();
+  });
+  if (localMovie?.id) return `/movie/${encodeURIComponent(localMovie.id)}`;
+  if (ids.tmdb) return `/movie/tmdb/${ids.tmdb}`;
+  return `/movie/${encodeURIComponent(session.id || session.key || session.title || "unknown")}`;
 }
 
 function showTitleFrom(title = "") {
@@ -4776,7 +4810,7 @@ function mergeShowWithLoadedHistory(show = {}) {
     }
   }
 
-  const episodes = [...byEpisode.values()].sort((a, b) => Number(a.season || 0) - Number(b.season || 0) || Number(a.episode || 0) - Number(b.episode || 0));
+  const episodes = [...byEpisode.values()].sort((a, b) => Number(b.season || 0) - Number(a.season || 0) || Number(b.episode || 0) - Number(a.episode || 0));
   if (!episodes.length) return show;
 
   const seasonCount = new Set(episodes.map((episode) => episode.season).filter((season) => season != null)).size;
@@ -5332,7 +5366,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
   }
 
   if (seasonsList.length === 0) {
-    seasonsList = [...seasonsMap.keys()].sort((a, b) => a - b).map((num) => ({
+    seasonsList = [...seasonsMap.keys()].sort((a, b) => b - a).map((num) => ({
       season_number: num,
       name: `Season ${num}`,
       episode_count: seasonsMap.get(num)?.length || 0,
@@ -5401,7 +5435,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
           <span>${watchedCount} episodes watched</span>
         </button>
         <div id="immersiveEpisodeList" class="episode-list hidden" style="margin-top: 0.75rem;">
-          ${sortExplorerItems(watchedEpisodes, currentExplorerSort())
+          ${[...watchedEpisodes].sort((a, b) => Number(b.episode || 0) - Number(a.episode || 0))
             .map(
               (episode) => `
                 <article class="episode-row" style="background: #0d1216;">
@@ -5419,8 +5453,9 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
       <section class="seasons-section">
         <h3>Other seasons</h3>
         <div class="horizontal-scroll-row">
-          ${seasonsList
+          ${[...seasonsList]
             .filter((s) => s.season_number > 0)
+            .sort((a, b) => Number(b.season_number) - Number(a.season_number))
             .map((s) => {
               const isActive = s.season_number === activeSeasonNum;
               const seasonPoster = s.poster_path
@@ -5475,7 +5510,7 @@ function watchedEpisodesByKey(show = {}) {
 }
 
 function fallbackSeasonList(seasonsMap) {
-  return [...seasonsMap.keys()].sort((a, b) => a - b).map((seasonNumber) => ({
+  return [...seasonsMap.keys()].sort((a, b) => b - a).map((seasonNumber) => ({
     season_number: seasonNumber,
     name: seasonLabel(seasonNumber),
     episode_count: seasonsMap.get(seasonNumber)?.length || 0,
@@ -5532,7 +5567,7 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
     }
   }
 
-  return rows.sort((a, b) => a.seasonNumber - b.seasonNumber || a.episodeNumber - b.episodeNumber);
+  return rows.sort((a, b) => b.seasonNumber - a.seasonNumber || b.episodeNumber - a.episodeNumber);
 }
 
 function episodeThumbMarkup(episode) {
@@ -5629,7 +5664,9 @@ function renderShowModalContent(show, {
   const seasonsMap = seasonsFromShowRecord(show);
   const showTitle = sanitizeTitle(show.title) || "Unknown Show";
   const hasTmdbKey = Boolean(state.savedConfig.tmdb?.configured);
-  const seasonsList = (tmdbData?.seasons?.length ? tmdbData.seasons : fallbackSeasonList(seasonsMap)).filter((season) => Number(season.season_number) > 0);
+  const seasonsList = [...(tmdbData?.seasons?.length ? tmdbData.seasons : fallbackSeasonList(seasonsMap))]
+    .filter((season) => Number(season.season_number) > 0)
+    .sort((a, b) => Number(b.season_number) - Number(a.season_number));
   const selectedSeason = activeSeasonNum == null ? null : Number(activeSeasonNum);
   const episodeRows = buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, tmdbData?.id || show.tmdb_id || "");
   const watchedRows = episodeRows.filter((episode) => episode.watched);
@@ -8127,6 +8164,12 @@ function attachEvents() {
   }, { passive: false });
 
   document.addEventListener("click", (event) => {
+    const nowPlayingCard = event.target.closest("[data-now-playing-href]");
+    if (nowPlayingCard) {
+      navigateTo(nowPlayingCard.dataset.nowPlayingHref);
+      return;
+    }
+
     const retryBtn = event.target.closest("[data-retry-sync-id]");
     if (retryBtn) {
       triggerRetrySync(retryBtn.dataset.retrySyncId, retryBtn).catch((error) => setMessage(error.message, "error"));
@@ -9059,10 +9102,12 @@ async function loadCastMemberDetails(personId, personName = null) {
     const profileUrl = tmdbProfile(data.profile_path) || '/favicon.svg';
     
     let creditsHtml = "";
+    const libraryTvCredits = [];
     if (castCredits.length === 0) {
       creditsHtml = `<p class="muted-copy">No known filmography recorded.</p>`;
     } else {
-      creditsHtml = castCredits.slice(0, 30).map(credit => {
+      const displayedCredits = castCredits.slice(0, 30);
+      creditsHtml = displayedCredits.map(credit => {
         const isTv = credit.media_type === "tv";
         const title = credit.title || credit.name || "Untitled";
         const character = credit.character || "Unknown Character";
@@ -9073,6 +9118,9 @@ async function loadCastMemberDetails(personId, personName = null) {
         const libItem = findLibraryItem(credit.media_type, credit.id, title);
         
         if (libItem) {
+          const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
+          const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
+          if (isTv) libraryTvCredits.push({ credit, libItem, title });
           return `
             <div class="person-credit-card in-library" onclick="window.openLibraryItem('${libItem.type}', '${escapeAttribute(libItem.id || libItem.key)}', '${escapeAttribute(title)}', true, null);">
               <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
@@ -9081,7 +9129,10 @@ async function loadCastMemberDetails(personId, personName = null) {
                 <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
                 <span class="person-credit-year">${isTv ? 'TV Show' : 'Movie'}</span>
               </div>
-              <span class="library-badge" style="font-size: 0.65rem; background: var(--green); color: #000; padding: 2px 5px; border-radius: 3px; font-weight: 800; margin-left: auto; white-space: nowrap;">In Library</span>
+              <span class="person-credit-badges">
+                <span class="library-badge">In Library</span>
+                ${isTv ? personWatchBadgeMarkup(watchProgress, credit.id) : ""}
+              </span>
             </div>
           `;
         } else {
@@ -9168,6 +9219,7 @@ async function loadCastMemberDetails(personId, personName = null) {
         </div>
       </div>
     `;
+    hydratePersonFilmographyWatchStatuses(personId, libraryTvCredits);
     
   } catch (err) {
     root.innerHTML = `
@@ -9242,13 +9294,15 @@ async function openShowImmersiveModalByTmdbId(tmdbId) {
   let rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "N/A";
   const selectedSeason = state.activeShowModalSeason;
   const seasonData = selectedSeason != null ? await fetchTmdbSeasonDetails(tmdbData.id, selectedSeason) : null;
-  const episodeHtml = (seasonData?.episodes || []).map((episode) => `
+  const episodeHtml = [...(seasonData?.episodes || [])].sort((a, b) => Number(b.episode_number) - Number(a.episode_number)).map((episode) => `
     <article class="immersive-episode-row">
       ${episode.still_path ? `<img class="episode-thumb" src="${escapeAttribute(tmdbImage(episode.still_path, "w500"))}" alt="" loading="lazy" />` : ""}
       <div class="immersive-episode-copy"><b>${escapeHtml(episodeCode(episode.season_number, episode.episode_number))} ${escapeHtml(episode.name || "Episode")}</b><p>${escapeHtml(episode.overview || "No synopsis available.")}</p><time>${escapeHtml(formatTmdbDate(episode.air_date))}</time></div>
     </article>
   `).join("");
-  const seasonList = (tmdbData.seasons || []).filter((season) => Number(season.season_number) > 0);
+  const seasonList = [...(tmdbData.seasons || [])]
+    .filter((season) => Number(season.season_number) > 0)
+    .sort((a, b) => Number(b.season_number) - Number(a.season_number));
   const seasonsHtml = seasonList.map((season) => {
     const seasonNumber = Number(season.season_number);
     const isActive = seasonNumber === Number(selectedSeason);
@@ -9317,14 +9371,23 @@ async function openShowImmersiveModalByTmdbId(tmdbId) {
 function findLibraryItem(mediaType, tmdbId, title) {
   const cleanTitle = slug(title);
   if (mediaType === "tv" || mediaType === "show") {
-    let found = state.showsRaw.find(s => slug(s.title) === cleanTitle);
+    let found = state.showsRaw.find(s => String(s.tmdb_id || "") === String(tmdbId) || slug(s.title) === cleanTitle);
     if (!found) {
-      const histRow = state.history.find(h => h.media_type === "episode" && slug(h.show_title || "") === cleanTitle);
-      if (histRow) {
-        found = { title: histRow.show_title, id: histRow.tvdb_id || histRow.tmdb_id || histRow.show_title };
+      const historyRows = state.history.filter(h => h.media_type === "episode" && isWatchedHistoryAction(h) && (
+        String(h.tmdb_id || "") === String(tmdbId) || slug(h.show_title || showTitleFrom(h.title)) === cleanTitle
+      ));
+      if (historyRows.length) {
+        const histRow = historyRows[0];
+        found = {
+          title: histRow.show_title || showTitleFrom(histRow.title),
+          id: histRow.tvdb_id || histRow.tmdb_id || histRow.show_title,
+          tmdb_id: histRow.tmdb_id || tmdbId,
+          episodes: historyRows,
+          episode_count: new Set(historyRows.map((row) => showEpisodeKey(row.season, row.episode))).size,
+        };
       }
     }
-    return found ? { type: "show", key: slug(found.title) } : null;
+    return found ? { type: "show", key: slug(found.title), item: found } : null;
   } else {
     let found = state.moviesRaw.find(m => String(m.tmdb_id) === String(tmdbId) || slug(m.title) === cleanTitle);
     if (!found) {
@@ -9332,5 +9395,41 @@ function findLibraryItem(mediaType, tmdbId, title) {
     }
     return found ? { type: "movie", id: found.id } : null;
   }
+}
+
+function libraryTvWatchProgress(libItem, tmdbData = null) {
+  const show = libItem?.item || {};
+  const watchedKeys = new Set();
+  for (const episode of show.episodes || []) {
+    if (!isWatchedHistoryAction(episode)) continue;
+    if (Number(episode.season || 0) <= 0) continue;
+    watchedKeys.add(showEpisodeKey(episode.season, episode.episode));
+  }
+  const watched = watchedKeys.size || Number(show.episode_count || 0);
+  const total = Number(tmdbData?.number_of_episodes || 0);
+  return {
+    watched,
+    total,
+    complete: total > 0 && watched >= total,
+  };
+}
+
+function personWatchBadgeMarkup(progress, tmdbId) {
+  if (!progress?.watched) return "";
+  const label = progress.complete ? "Watched" : "Part watched";
+  const count = progress.total > 0 ? `${progress.watched}/${progress.total}` : `${progress.watched} ep`;
+  return `<span class="watch-state-badge ${progress.complete ? "is-complete" : "is-partial"}" data-person-watch-status="${escapeAttribute(tmdbId)}">${label} <small>${count}</small></span>`;
+}
+
+async function hydratePersonFilmographyWatchStatuses(personId, credits = []) {
+  await Promise.all(credits.map(async ({ credit, libItem, title }) => {
+    const tmdbData = await fetchTmdbDetails("tv", credit.id, title);
+    if (window.location.pathname !== `/person/${personId}`) return;
+    const progress = libraryTvWatchProgress(libItem, tmdbData);
+    document.querySelectorAll(`[data-person-watch-status="${CSS.escape(String(credit.id))}"]`).forEach((badge) => {
+      badge.className = `watch-state-badge ${progress.complete ? "is-complete" : "is-partial"}`;
+      badge.innerHTML = `${progress.complete ? "Watched" : "Part watched"} <small>${progress.total > 0 ? `${progress.watched}/${progress.total}` : `${progress.watched} ep`}</small>`;
+    });
+  }));
 }
 

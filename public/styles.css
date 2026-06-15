@@ -997,7 +997,26 @@ h2 {
 }
 
 .live-now-card {
-  border-color: #243641;
+  appearance: none;
+  border: 1px solid #243641;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.live-now-card:hover {
+  border-color: var(--yellow);
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-1px);
+}
+
+.live-now-card:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 3px;
 }
 
 .now-card-head {
@@ -5329,6 +5348,43 @@ h1 {
 .person-credit-year {
   font-size: 0.7rem;
   color: var(--soft);
+}
+
+.person-credit-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+  margin-left: auto;
+}
+
+.library-badge,
+.watch-state-badge {
+  padding: 0.15rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.library-badge,
+.watch-state-badge.is-complete {
+  background: var(--green);
+  color: #04120d;
+}
+
+.watch-state-badge.is-partial {
+  border: 1px solid rgba(234, 179, 8, 0.55);
+  background: rgba(234, 179, 8, 0.14);
+  color: #facc15;
+}
+
+.watch-state-badge small {
+  margin-left: 0.15rem;
+  color: inherit;
+  font-size: 0.58rem;
+  opacity: 0.8;
 }
 
 /* Watch history dashboard poster sizing overrides */
