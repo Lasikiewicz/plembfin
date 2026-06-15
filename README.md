@@ -1,85 +1,80 @@
-# Plembfin Firebase
+# Plembfin
 
-## Local Site
+A self-hosted **watch-state bridge** for Plex, Emby, and Jellyfin — in the style of
+Sonarr/Radarr/Jellyseerr. It listens for playback webhooks, records your watch history in a
+local SQLite database, and propagates watched/unwatched state across every connected
+platform automatically. A built-in scheduler keeps things in sync even when the dashboard
+is closed.
 
-To run a safe local copy of the live Firebase stack, use:
+One Node process serves the web UI, the API, and the scheduler. All state lives under
+`data/` (SQLite database + cached artwork + generated config). No cloud services required.
 
-```powershell
-npm install
-npm --prefix functions install
-Copy-Item functions\.env.example functions\.env
-npm run emulators
-```
-
-Set `ADMIN_EMAILS` in `functions/.env` to the email you will create in the Auth emulator.
-
-Local emulator URLs:
-
-- Site: `http://127.0.0.1:5000`
-- Emulator UI: `http://127.0.0.1:4000`
-- Auth emulator: `127.0.0.1:9099`
-- Firestore emulator: `127.0.0.1:8180`
-- Storage emulator: `127.0.0.1:9199`
-- Functions emulator: `127.0.0.1:5001`
-- Pub/Sub emulator: `127.0.0.1:8085`
-
-Create a local admin user in the Emulator UI under Authentication, then sign in on the local site with that email and password. The local browser app connects to the Auth emulator automatically on `localhost`, `127.0.0.1`, or `::1`; the Functions emulator connects to the local Auth, Firestore, and Storage emulators when all emulators are started together. Pub/Sub is included so the every-minute `scheduledSync` function can be exercised locally too.
-
-The default emulator command imports from `./emulator-data` and exports back to that folder on exit, so local Auth, Firestore, and Storage state persists between restarts.
-
-You can also start the same persistent emulator stack explicitly with:
+## Quick start (Docker)
 
 ```bash
-npm run emulators:import
+docker compose up --build
 ```
 
-Export the current local emulator data with:
+Then open <http://localhost:5055> and sign in (default `admin` / `admin` — change
+`ADMIN_PASSWORD` in `docker-compose.yml` first). Data persists in `./data`.
 
-```bash
-npm run emulators:export
-```
+## Quick start (bare metal)
 
-Fresh Firebase implementation of Plembfin. The original Cloudflare repo remains untouched as the rollback path.
-
-## Stack
-
-- Firebase Hosting serves the static dashboard from `public/`.
-- Cloud Functions for Firebase v2 serves all `/api/*` routes through `api`.
-- `scheduledSync` runs every minute through Firebase Scheduler/Cloud Scheduler.
-- Cloud Firestore stores watch history, live session cache, resume progress, settings, loop keys, and runtime logs.
-- Firebase Auth email/password signs in dashboard admins.
-
-## Required Setup
-
-1. Create a Firebase project and update `.firebaserc` if the project ID is not `plembfinfire`.
-2. Enable Firebase Authentication -> Email/Password.
-3. Create the admin user.
-4. Edit `public/firebase-config.js` with the Firebase web app config.
-5. Configure Functions environment variables. For local/deploy-time dotenv configuration, copy `functions/.env.example` to `functions/.env` and set at least:
-
-```text
-ADMIN_EMAILS=your-admin@example.com
-FUNCTIONS_REGION=europe-west2
-```
-
-`ADMIN_UIDS` is optional. If neither `ADMIN_EMAILS` nor `ADMIN_UIDS` is set, dashboard APIs reject requests.
-
-## Deploy
+Requires Node.js 20+. The native modules (`better-sqlite3`, `sharp`) install via prebuilt
+binaries; on Windows you may need the
+[VS Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) as a fallback.
 
 ```bash
 npm install
-npm --prefix functions install
-firebase deploy
+npm start            # http://localhost:5055
+# or: npm run dev    # auto-reload during development
 ```
 
-After deployment:
+## Configuration
 
-1. Sign in to the dashboard with the Firebase Auth admin user.
-2. Save Plex, Emby, Jellyfin, and optional TMDB settings.
-3. Point Plex, Emby, and Jellyfin webhooks at `https://YOUR_HOSTING_DOMAIN/api/webhook`.
-4. Confirm `scheduledSync` appears in Firebase Functions and runs every minute.
-5. Use `/api/cron-sync` only as an authenticated manual trigger.
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `5055` | HTTP port |
+| `DATA_DIR` | `./data` | Database + artwork + config location (Docker uses `/data`) |
+| `ADMIN_USERNAME` | `admin` | Dashboard login username |
+| `ADMIN_PASSWORD` | `admin` | Dashboard login password |
+| `API_KEY` | _generated_ | Webhook/integration key (else written to `data/config.json`) |
+| `SESSION_SECRET` | _generated_ | Session cookie signing secret |
 
-## Data Migration
+On first boot the server writes `data/config.json` with the admin credentials (password
+hashed), the API key, and the session secret.
 
-No D1 data is migrated by design. This repo starts with a fresh Firestore archive.
+## Setup
+
+1. Sign in to the dashboard.
+2. In **Settings → Apps**, fill in the server URL, token/API key, and user ID for each
+   platform you use, plus an optional TMDB API key for artwork and metadata.
+3. Point each media server's webhook at `http://YOUR_HOST:5055/api/webhook` and include
+   your API key (header `X-Api-Key`, or `?api_key=` for servers that only support a URL).
+4. (Optional) Import a Trakt history export under **Settings → Tools**, then run
+   **Full Sync Watchstates**.
+
+## Authentication
+
+- **Dashboard:** username + password → HttpOnly session cookie.
+- **Webhooks / integrations:** the API key (shown after sign-in, stored in
+  `data/config.json`) via `X-Api-Key`, `Authorization: Bearer <key>`, or `?api_key=<key>`.
+
+## Migrating from the old Firebase project
+
+If you previously ran the Firebase version, import your data once:
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=./service-account-key.json \
+FIREBASE_STORAGE_BUCKET=your-bucket.firebasestorage.app \
+npm run migrate
+```
+
+This copies every Firestore collection into SQLite and downloads cached poster/backdrop
+binaries into `data/media`. It is idempotent and safe to re-run. (`firebase-admin` is a
+dev dependency used only by this script.)
+
+## Architecture
+
+See [CLAUDE.md](CLAUDE.md) for a full breakdown of the process layout, data layer, auth,
+the webhook→sync flow, and the SQLite schema.

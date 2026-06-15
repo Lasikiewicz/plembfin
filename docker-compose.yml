@@ -1,0 +1,20 @@
+services:
+  plembfinfire:
+    build: .
+    image: plembfinfire:latest
+    container_name: plembfinfire
+    ports:
+      - "5055:5055"
+    volumes:
+      # SQLite database, cached artwork, and generated config.json live here.
+      - ./data:/data
+    environment:
+      # Admin login for the dashboard. Change the password before exposing it.
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=changeme
+      # Optional: pin the webhook/integration API key (otherwise auto-generated
+      # into data/config.json on first boot).
+      # - API_KEY=your-long-random-key
+      # Optional: pin the session signing secret (otherwise auto-generated).
+      # - SESSION_SECRET=your-long-random-secret
+    restart: unless-stopped

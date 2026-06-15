@@ -1,0 +1,56 @@
+import path from "node:path";
+import express from "express";
+import cookieParser from "cookie-parser";
+import { setGlobalDispatcher, Agent } from "undici";
+import { PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } from "./src/paths.js";
+import { dispatch, runScheduledTick } from "./src/index.js";
+
+ensureDataDirs();
+
+// Keep upstream connections (Plex/Emby/Jellyfin/TMDB) warm.
+setGlobalDispatcher(new Agent({ keepAliveTimeout: 15000, connections: 64 }));
+
+const PORT = Number(process.env.PORT || 5055);
+const app = express();
+app.disable("x-powered-by");
+app.use(cookieParser());
+
+// Capture the raw request body for /api so webhook/JSON handlers can parse it
+// themselves (multipart via busboy, JSON via readJson). express.raw sets
+// req.body to a Buffer, which the requestBody helpers already understand.
+app.all("/api/*", express.raw({ type: "*/*", limit: "15mb" }), (req, res) => {
+  Promise.resolve(dispatch(req, res)).catch((error) => {
+    console.error("Unhandled API error", error);
+    if (!res.headersSent) res.status(500).json({ error: "Internal error" });
+  });
+});
+
+// Locally cached posters/backdrops.
+app.use("/media", express.static(MEDIA_DIR, { maxAge: "365d", immutable: true }));
+
+// Static SPA assets, then SPA fallback to index.html for client-side routes.
+app.use(express.static(PUBLIC_DIR, { extensions: ["html"] }));
+app.get("*", (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, "index.html"));
+});
+
+// In-process scheduler — replaces the per-minute scheduledSync Cloud Function.
+let tickRunning = false;
+async function tick() {
+  if (tickRunning) return;
+  tickRunning = true;
+  try {
+    await runScheduledTick();
+  } catch (error) {
+    console.error("Scheduled tick failed", error);
+  } finally {
+    tickRunning = false;
+  }
+}
+
+app.listen(PORT, () => {
+  console.log(`plembfinfire listening on http://localhost:${PORT}`);
+  // Kick once shortly after boot, then every minute.
+  setTimeout(tick, 10_000);
+  setInterval(tick, 60_000);
+});

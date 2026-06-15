@@ -1,14 +1,24 @@
 node_modules/
-.firebase/
 .env
 .env.*
 !.env.example
+
+# Local runtime data: SQLite database, cached artwork, generated config.json
+data/
+
+# Service account key (only needed for the one-time Firestore migration)
+service-account-key.json
+
+# Local editor/agent tooling
+.claude/
+
+# Legacy Firebase emulator/export artifacts (kept out of the repo)
+.firebase/
 firebase-debug.log
 firestore-debug.log
 pubsub-debug.log
 storage-debug.log
 ui-debug.log
-functions/lib/
-service-account-key.json
+firebase-emulators*.log
 emulator-data/
 firebase-export-*/
