@@ -25,20 +25,39 @@ function encodeKeyPath(key) {
   return key.split("/").map(encodeRfc3986).join("/");
 }
 
+// Extract the bare region token from whatever the user typed — a plain region,
+// the full endpoint host, or a value that still carries the "s3." prefix or
+// ".backblazeb2.com"/".amazonaws.com" suffix (all common copy/paste mistakes).
+function deriveRegion(raw) {
+  let value = String(raw || "").trim().replace(/^https?:\/\//i, "");
+  value = value.replace(/\/.*$/, "");                               // drop any path
+  value = value.replace(/\.(backblazeb2|amazonaws)\.com$/i, "");    // drop provider domain
+  value = value.replace(/^[^.]*\.s3[.-]/i, "").replace(/^s3[.-]/i, ""); // drop optional bucket + s3 prefix
+  return value;
+}
+
 function s3Config(destination) {
-  const region = String(destination.settings?.region || "us-east-1").trim();
   const bucket = String(destination.settings?.bucket || "").trim();
   if (!bucket) throw new Error("S3 bucket is required");
   const accessKeyId = String(destination.settings?.accessKeyId || "").trim();
   const secretAccessKey = String(destination.secrets?.secretAccessKey || "").trim();
   if (!accessKeyId || !secretAccessKey) throw new Error("S3 access key and secret are required");
+
+  let endpoint = String(destination.settings?.endpoint || "").trim();
+  let region = deriveRegion(destination.settings?.region);
+  if (!region && endpoint) region = deriveRegion(endpoint);
+  if (!region) region = "us-east-1";
+
   // Backblaze B2 endpoints follow s3.<region>.backblazeb2.com; AWS uses s3.<region>.amazonaws.com.
-  const defaultEndpoint = destination.type === "backblaze"
-    ? `https://s3.${region}.backblazeb2.com`
-    : `https://s3.${region}.amazonaws.com`;
-  const endpoint = String(destination.settings?.endpoint || defaultEndpoint)
-    .trim()
-    .replace(/\/+$/, "");
+  if (!endpoint) {
+    endpoint = destination.type === "backblaze"
+      ? `https://s3.${region}.backblazeb2.com`
+      : `https://s3.${region}.amazonaws.com`;
+  } else if (!/^https?:\/\//i.test(endpoint)) {
+    endpoint = `https://${endpoint}`;
+  }
+  endpoint = endpoint.replace(/\/+$/, "");
+
   // Default to path-style: required by MinIO and most non-AWS providers.
   const forcePathStyle = destination.settings?.forcePathStyle !== false;
   let prefix = String(destination.settings?.prefix || "").trim().replace(/^\/+/, "");
