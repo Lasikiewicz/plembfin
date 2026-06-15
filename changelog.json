@@ -1,7 +1,14 @@
 {
-  "version": "0.0.1",
-  "updatedAt": "2026-06-15T10:51:18Z",
+  "version": "0.0.2",
+  "updatedAt": "2026-06-15T12:09:54+01:00",
   "entries": [
+    {
+      "version": "0.0.2",
+      "date": "2026-06-15T12:09:54+01:00",
+      "commit": "545542a14f95b9e05b24457ed58a55b06d0473b5",
+      "message": "ci: validate builds before publishing",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.1",
       "date": "2026-06-15T10:51:18Z",
