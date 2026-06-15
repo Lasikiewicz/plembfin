@@ -115,6 +115,10 @@ export async function cacheBackdropFromUrl(mediaKey = "", remoteUrl = "", source
   return cacheArtworkFromUrl(mediaKey, remoteUrl, source, { variant: "backdrop", width: 1600, quality: 82 });
 }
 
+export async function cacheProfileFromUrl(mediaKey = "", remoteUrl = "", source = "unknown") {
+  return cacheArtworkFromUrl(mediaKey, remoteUrl, source, { variant: "profile", width: 780, quality: 82 });
+}
+
 export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source = "unknown", { variant = "poster", width = 340, quality = 80 } = {}) {
   if (!mediaKey || !remoteUrl) return null;
 
@@ -159,7 +163,8 @@ export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source 
     }
 
     const cacheId = cacheIdFor(mediaKey, variant);
-    const storagePath = `${variant === "backdrop" ? "backdrops" : "posters"}/${cacheId}.${extension}`;
+    const storageFolder = variant === "backdrop" ? "backdrops" : variant === "profile" ? "profiles" : "posters";
+    const storagePath = `${storageFolder}/${cacheId}.${extension}`;
     const absolutePath = path.join(MEDIA_DIR, storagePath);
     await fs.mkdir(path.dirname(absolutePath), { recursive: true });
     await fs.writeFile(absolutePath, finalBuffer);

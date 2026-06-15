@@ -14,6 +14,7 @@ RUN npm ci --omit=dev
 # Application code.
 COPY server ./server
 COPY public ./public
+COPY changelog.json ./changelog.json
 
 VOLUME ["/data"]
 EXPOSE 5055

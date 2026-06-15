@@ -154,6 +154,7 @@ const elements = {};
 function bindElements() {
   Object.assign(elements, {
     appShell: document.querySelector("#appShell"),
+    appVersion: document.querySelector("#appVersion"),
     authForm: document.querySelector("#authForm"),
     authPanel: document.querySelector("#authPanel"),
     adminToken: document.querySelector("#adminToken"),
@@ -285,6 +286,17 @@ function bindElements() {
 
 function authHeaders() {
   return buildAuthHeaders(state.token);
+}
+
+async function loadAppVersion() {
+  if (!elements.appVersion) return;
+  try {
+    const response = await fetch("/changelog.json", { cache: "no-store" });
+    const changelog = await response.json();
+    if (response.ok && changelog.version) elements.appVersion.textContent = `v${changelog.version}`;
+  } catch {
+    // Keep the HTML fallback version when release metadata is unavailable.
+  }
 }
 
 function setBackupTransferState(label, tone = "muted", log = "") {
@@ -649,7 +661,7 @@ function renderGlobalSearchDropdown(query) {
     results.push({
       _type: mediaType === "movie" ? "movie" : "show",
       title,
-      poster: item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : "",
+      poster: tmdbPoster(item.poster_path),
       href: mediaType === "movie" ? `/movie/tmdb/${item.id}` : `/tvshow/tmdb/${item.id}`,
       sub: `${mediaType === "movie" ? "Movie" : "TV Show"}${year ? ` · ${year}` : ""} · TMDB`,
     });
@@ -822,7 +834,7 @@ function openEditImageDialog(_container, id, _currentPosterUrl, tmdbData, onSave
       try {
         const res = await fetch(`/api/tmdb-images?mediaType=${encodeURIComponent(mediaType)}&tmdbId=${encodeURIComponent(tmdbId)}`, { headers: authHeaders() });
         const data = await res.json();
-        const posters = (data.posters || []).slice(0, 20).map((p) => `https://image.tmdb.org/t/p/w342${p.file_path}`);
+        const posters = (data.posters || []).slice(0, 20).map((p) => tmdbPoster(p.file_path));
         if (posters.length) {
           status.textContent = "";
           renderGrid(posters);
@@ -832,7 +844,7 @@ function openEditImageDialog(_container, id, _currentPosterUrl, tmdbData, onSave
     }
     // Fallback: use any images already on tmdbData
     const fallback = [];
-    if (tmdbData?.poster_path) fallback.push(`https://image.tmdb.org/t/p/w342${tmdbData.poster_path}`);
+    if (tmdbData?.poster_path) fallback.push(tmdbPoster(tmdbData.poster_path));
     if (tmdbData?.backdrop_path) fallback.push(`https://image.tmdb.org/t/p/w780${tmdbData.backdrop_path}`);
     if (fallback.length) { status.textContent = ""; renderGrid(fallback); }
     else { status.textContent = state.savedConfig?.tmdb?.configured ? "No posters found." : "Configure a TMDB API key to browse posters."; }
@@ -907,7 +919,7 @@ function openFixMatchDialog(_container, id, currentTitle, mediaType, onSaved) {
       const results = data.results || [];
       status.textContent = results.length ? "" : "No results found.";
       resultsEl.innerHTML = results.slice(0, 10).map((item) => {
-        const poster = item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : "/favicon.svg";
+        const poster = tmdbPoster(item.poster_path) || "/favicon.svg";
         const title = item.title || item.name || "Unknown";
         const year = (item.release_date || item.first_air_date || "").slice(0, 4);
         return `
@@ -3795,7 +3807,7 @@ function observeExplorerTmdbPrefetch(container) {
             fetchTmdbDetails(mediaType, tmdbId || undefined, title).then((data) => {
               if (!el.isConnected) return;
               if (data?.poster_path) {
-                const posterUrl = tmdbImage(data.poster_path, TMDB_POSTER_SIZE);
+                const posterUrl = tmdbPoster(data.poster_path);
                 if (posterUrl) {
                   const fallback = el.querySelector(".poster-fallback[data-poster-id]");
                   if (fallback) {
@@ -5047,7 +5059,7 @@ function renderCastSection(tmdbData) {
       <div class="show-section-title"><h3>Cast</h3></div>
       <div class="cast-compact-row">
         ${cast.slice(0, 20).map((actor) => {
-          const avatarUrl = actor.profile_path ? `https://image.tmdb.org/t/p/w185${actor.profile_path}` : "/favicon.svg";
+          const avatarUrl = tmdbProfile(actor.profile_path) || "/favicon.svg";
           return `
             <div class="cast-member-card" style="cursor: pointer;" onclick="window.showCastMemberDetails('${actor.id}', '${escapeAttribute(actor.name)}')">
               <img class="cast-avatar-img" src="${escapeAttribute(avatarUrl)}" alt="${escapeAttribute(actor.name)}" onerror="this.src='/favicon.svg';" />
@@ -5120,7 +5132,7 @@ function renderRelatedShowsSection(tmdbData) {
       <div class="show-section-title"><h3>Related Shows</h3></div>
       <div class="horizontal-scroll-row" style="margin-top: 0.5rem;">
         ${related.slice(0, 20).map((item) => {
-          const poster = item.poster_path ? `https://image.tmdb.org/t/p/w154${item.poster_path}` : "/favicon.svg";
+          const poster = tmdbPoster(item.poster_path) || "/favicon.svg";
           const year = (item.first_air_date || "").slice(0, 4);
           return `
             <div class="season-poster-card related-show-card" data-immersive-related-tmdb="${item.id}" style="cursor:pointer;">
@@ -5304,7 +5316,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
       backdropUrl = `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`;
     }
     if (tmdbData.poster_path) {
-      posterUrl = `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}`;
+      posterUrl = tmdbPoster(tmdbData.poster_path);
     }
     overview = tmdbData.overview || overview;
     premiered = tmdbData.first_air_date ? `Premiered ${formatTmdbDate(tmdbData.first_air_date)}` : premiered;
@@ -5410,7 +5422,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
             .map((s) => {
               const isActive = s.season_number === activeSeasonNum;
               const seasonPoster = s.poster_path
-                ? `https://image.tmdb.org/t/p/w154${s.poster_path}`
+                ? tmdbPoster(s.poster_path)
                 : posterUrl;
               return `
                 <div class="season-poster-card ${isActive ? "active" : ""}" data-immersive-season-num="${s.season_number}">
@@ -5441,6 +5453,14 @@ function episodeCode(seasonNumber, episodeNumber) {
 
 function tmdbImage(path, size = "w300") {
   return path ? `https://image.tmdb.org/t/p/${size}${path}` : "";
+}
+
+function tmdbPoster(path) {
+  return path ? `/api/tmdb-poster?path=${encodeURIComponent(path)}` : "";
+}
+
+function tmdbProfile(path) {
+  return path ? `/api/tmdb-profile?path=${encodeURIComponent(path)}` : "";
 }
 
 function watchedEpisodesByKey(show = {}) {
@@ -5485,7 +5505,7 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
           overview: episode.overview || "No synopsis available.",
           airDate: episode.air_date || "",
           stillUrl: tmdbImage(episode.still_path, "w300"),
-          posterUrl: tmdbImage(season.poster_path, "w154") || posterUrlFor(watched || representativeEpisode(localSeasons)),
+          posterUrl: tmdbPoster(season.poster_path) || posterUrlFor(watched || representativeEpisode(localSeasons)),
           watched,
         });
       }
@@ -5617,7 +5637,7 @@ function renderShowModalContent(show, {
   const progressPercent = Math.max(0, Math.min(100, Math.round((watchedCount / totalCount) * 100)));
   const representative = representativeEpisode(seasonsMap);
   const backdropUrl = tmdbData?.cached_backdrop_url || tmdbImage(tmdbData?.backdrop_path, "original");
-  const posterUrl = tmdbData?.cached_poster_url || tmdbImage(tmdbData?.poster_path, "w500") || posterUrlFor(representative);
+  const posterUrl = tmdbData?.cached_poster_url || tmdbPoster(tmdbData?.poster_path) || posterUrlFor(representative);
   const overview = tmdbData?.overview || "No synopsis available.";
   const premiered = tmdbData?.first_air_date ? `Premiered ${formatTmdbDate(tmdbData.first_air_date)}` : "Release date unknown";
   const rating = tmdbData?.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "";
@@ -6389,7 +6409,7 @@ async function renderMovieImmersiveModalContent(movie) {
       backdropUrl = tmdbData.cached_backdrop_url || `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`;
     }
     if (tmdbData.poster_path) {
-      posterUrl = tmdbData.cached_poster_url || `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}`;
+      posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path);
     }
     overview = tmdbData.overview || overview;
     released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : released;
@@ -6481,7 +6501,7 @@ async function renderMovieImmersiveModalContent(movie) {
               .slice(0, 15)
               .map((rec) => {
                 const recPoster = rec.poster_path
-                  ? `https://image.tmdb.org/t/p/w154${rec.poster_path}`
+                  ? tmdbPoster(rec.poster_path)
                   : "/favicon.svg";
                 return `
                   <div class="season-poster-card" data-immersive-movie-id="${rec.id}">
@@ -6532,7 +6552,7 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
 
   const movieTitle = tmdbData.title;
   let backdropUrl = tmdbData.cached_backdrop_url || (tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "");
-  let posterUrl = tmdbData.cached_poster_url || (tmdbData.poster_path ? `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}` : "/favicon.svg");
+  let posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path) || "/favicon.svg";
   let overview = tmdbData.overview || "No synopsis available.";
   let released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : "Unknown Release Date";
   let rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "N/A";
@@ -6593,7 +6613,7 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
               .slice(0, 15)
               .map((rec) => {
                 const recPoster = rec.poster_path
-                  ? `https://image.tmdb.org/t/p/w154${rec.poster_path}`
+                  ? tmdbPoster(rec.poster_path)
                   : "/favicon.svg";
                 return `
                   <div class="season-poster-card" data-immersive-movie-id="${rec.id}">
@@ -8671,6 +8691,7 @@ function attachEvents() {
 
 function initialize() {
   bindElements();
+  loadAppVersion();
   bootstrapTokenFromUrl();
   handleRouting(window.location.pathname + window.location.hash);
   attachEvents();
@@ -9030,7 +9051,7 @@ async function loadCastMemberDetails(personId, personName = null) {
     }
     
     const castCredits = (data.combined_credits?.cast || []).sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
-    const profileUrl = data.profile_path ? `https://image.tmdb.org/t/p/h632${data.profile_path}` : '/favicon.svg';
+    const profileUrl = tmdbProfile(data.profile_path) || '/favicon.svg';
     
     let creditsHtml = "";
     if (castCredits.length === 0) {
@@ -9040,7 +9061,7 @@ async function loadCastMemberDetails(personId, personName = null) {
         const isTv = credit.media_type === "tv";
         const title = credit.title || credit.name || "Untitled";
         const character = credit.character || "Unknown Character";
-        const posterUrl = credit.poster_path ? `https://image.tmdb.org/t/p/w92${credit.poster_path}` : '/favicon.svg';
+        const posterUrl = tmdbPoster(credit.poster_path) || '/favicon.svg';
         const dateStr = credit.release_date || credit.first_air_date || "";
         const year = dateStr ? `(${dateStr.split("-")[0]})` : "";
         
@@ -9121,13 +9142,13 @@ async function loadCastMemberDetails(personId, personName = null) {
             );
             const gallery = [...profiles, ...tagged].slice(0, 40);
             if (!gallery.length) return '';
-            window._personPhotos = gallery.map((img) => `https://image.tmdb.org/t/p/w780${img.file_path}`);
+            window._personPhotos = gallery.map((img) => tmdbProfile(img.file_path));
             return `
             <div class="person-photos-section" style="margin-top: 2rem;">
               <h3>Photos <span class="person-photos-count">${gallery.length}</span></h3>
               <div class="person-photos-grid">
                 ${gallery.map((img, i) => `
-                  <img class="person-photo-thumb" src="https://image.tmdb.org/t/p/w300${escapeAttribute(img.file_path)}" loading="lazy" alt="${escapeAttribute(data.name)}" onclick="window.openPhotoLightbox(window._personPhotos, ${i})" onerror="this.style.display='none';" />
+                  <img class="person-photo-thumb" src="${escapeAttribute(tmdbProfile(img.file_path))}" loading="lazy" alt="${escapeAttribute(data.name)}" onclick="window.openPhotoLightbox(window._personPhotos, ${i})" onerror="this.style.display='none';" />
                 `).join('')}
               </div>
             </div>`;
@@ -9210,7 +9231,7 @@ async function openShowImmersiveModalByTmdbId(tmdbId) {
 
   const showTitle = tmdbData.name || "Untitled TV Show";
   let backdropUrl = tmdbData.cached_backdrop_url || (tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "");
-  let posterUrl = tmdbData.cached_poster_url || (tmdbData.poster_path ? `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}` : "/favicon.svg");
+  let posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path) || "/favicon.svg";
   let overview = tmdbData.overview || "No synopsis available.";
   let released = tmdbData.first_air_date ? `First Aired ${formatTmdbDate(tmdbData.first_air_date)}` : "Unknown Air Date";
   let rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "N/A";
