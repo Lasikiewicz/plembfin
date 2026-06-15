@@ -1,5 +1,13 @@
 {
-  "version": "0.0.0",
-  "updatedAt": null,
-  "entries": []
+  "version": "0.0.1",
+  "updatedAt": "2026-06-15T10:51:18Z",
+  "entries": [
+    {
+      "version": "0.0.1",
+      "date": "2026-06-15T10:51:18Z",
+      "commit": "be842a7ee86a912e5efdd969b53828f284da4ddb",
+      "message": "feat: add versioning and local artwork cache",
+      "author": "Lasikiewicz"
+    }
+  ]
 }
