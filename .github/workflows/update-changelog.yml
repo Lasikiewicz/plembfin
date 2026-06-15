@@ -32,6 +32,12 @@ jobs:
       - name: Rebase onto current main
         run: git pull --rebase origin main
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run build check
+        run: npm run build
+
       - name: Update changelog and version
         id: release
         env:

@@ -10,6 +10,8 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "node --watch server/server.js",
+    "build": "node scripts/build-check.js",
+    "prepare": "node scripts/install-git-hooks.js",
     "migrate": "node scripts/migrate-firestore-to-sqlite.js",
     "changelog:update": "node scripts/update-changelog.js"
   },

@@ -52,9 +52,31 @@ async function tick() {
   }
 }
 
-app.listen(PORT, () => {
-  console.log(`plembfinfire listening on http://localhost:${PORT}`);
+const server = app.listen(PORT);
+
+server.on("listening", () => {
+  const address = server.address();
+  const listeningPort = typeof address === "object" && address ? address.port : PORT;
+  console.log(`plembfinfire listening on http://localhost:${listeningPort}`);
+  if (process.env.PLEMBFIN_BUILD_CHECK === "1") {
+    server.close((error) => {
+      if (error) {
+        console.error("Build-check shutdown failed", error);
+        process.exitCode = 1;
+      }
+    });
+    return;
+  }
   // Kick once shortly after boot, then every minute.
   setTimeout(tick, 10_000);
   setInterval(tick, 60_000);
+});
+
+server.on("error", (error) => {
+  if (error?.code === "EADDRINUSE") {
+    console.error(`Port ${PORT} is already in use. Stop the existing Plembfin process or set PORT to another value.`);
+    process.exitCode = 1;
+    return;
+  }
+  throw error;
 });
