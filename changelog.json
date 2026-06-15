@@ -1,7 +1,14 @@
 {
-  "version": "0.0.4",
-  "updatedAt": "2026-06-15T12:44:49+01:00",
+  "version": "0.0.5",
+  "updatedAt": "2026-06-15T13:00:51+01:00",
   "entries": [
+    {
+      "version": "0.0.5",
+      "date": "2026-06-15T13:00:51+01:00",
+      "commit": "1c50909d0bc821019543daeb949560e2d59efb73",
+      "message": "feat: improve TV watch controls and search results",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.4",
       "date": "2026-06-15T12:44:49+01:00",
