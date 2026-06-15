@@ -6856,7 +6856,7 @@ async function postManualWatchRecords(records, onProgress) {
 async function refreshShowAfterManualWatch(showTitle) {
   const url = new URL("/api/show", window.location.origin);
   url.searchParams.set("title", showTitle);
-  const response = await fetch(url, { headers: authHeaders() });
+  const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
   const body = await response.json().catch(() => ({}));
   if (!response.ok || !body.show) return;
   mergeShowDetail(body.show);
@@ -7334,7 +7334,7 @@ async function fetchWatchedMovieByTmdb(tmdbId, title) {
     const url = new URL("/api/movies", window.location.origin);
     url.searchParams.set("search", title || "");
     url.searchParams.set("limit", "30");
-    const response = await fetch(url, { headers: authHeaders() });
+    const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
     const body = await response.json().catch(() => ({}));
     const movies = Array.isArray(body.movies) ? body.movies : [];
     return movies.find((movie) => String(movie.tmdb_id || "") === String(tmdbId)) || null;
