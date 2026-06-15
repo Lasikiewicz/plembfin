@@ -30,6 +30,7 @@ const IMPORT_BATCH_SIZE = 100;
 const IMPORT_MAX_ATTEMPTS = 4;
 const IMPORT_RETRY_BASE_MS = 1500;
 const BACKUP_BATCH_SIZE = 250;
+const BACKUP_MAX_REQUEST_BYTES = 512 * 1024;
 const BACKUP_FORMAT = "plembfin-backup";
 const BACKUP_VERSION = 1;
 const BACKUP_COLLECTIONS = ["watchHistory", "playstate", "playbackProgress", "activeSessions", "liveTrackingCache", "syncHistory", "settings", "runtimeState", "loopKeys", "posterCache", "tmdbMetadataCache", "tmdbSearchCache", "tmdbSeasonCache", "tmdbPersonCache"];
@@ -329,6 +330,63 @@ function validatePlembfinBackup(value) {
   return { backup: value, included };
 }
 
+function backupImportPayload(collection, documents, reset) {
+  return JSON.stringify({
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
+    collection,
+    documents,
+    reset,
+  });
+}
+
+function backupPayloadBytes(collection, documents) {
+  return new TextEncoder().encode(backupImportPayload(collection, documents, false)).byteLength;
+}
+
+function createBackupImportBatches(collection, documents) {
+  if (!documents.length) return [[]];
+  const batches = [];
+  let current = [];
+
+  for (const document of documents) {
+    const candidate = [...current, document];
+    if (current.length && (candidate.length > BACKUP_BATCH_SIZE || backupPayloadBytes(collection, candidate) > BACKUP_MAX_REQUEST_BYTES)) {
+      batches.push(current);
+      current = [document];
+    } else {
+      current = candidate;
+    }
+  }
+
+  if (current.length) batches.push(current);
+  return batches;
+}
+
+async function sendBackupImportBatch(collection, documents, reset, onImported) {
+  const response = await fetch("/api/backup/import", {
+    method: "POST",
+    headers: authHeaders(),
+    body: backupImportPayload(collection, documents, reset),
+  });
+
+  if (response.status === 413 && documents.length > 1) {
+    const midpoint = Math.ceil(documents.length / 2);
+    await sendBackupImportBatch(collection, documents.slice(0, midpoint), reset, onImported);
+    await sendBackupImportBatch(collection, documents.slice(midpoint), false, onImported);
+    return;
+  }
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    if (response.status === 413) {
+      throw new Error(`${collection} contains a single document that exceeds the server request limit.`);
+    }
+    throw new Error(result.error || `${collection} import failed with ${response.status}`);
+  }
+  onImported(documents.length);
+}
+
 async function exportPlembfinBackup() {
   const button = elements.backupExportButton;
   if (!button) return;
@@ -403,18 +461,14 @@ async function importPlembfinBackup() {
   try {
     for (const collection of included) {
       const documents = backup.collections[collection];
-      const batches = documents.length ? Math.ceil(documents.length / BACKUP_BATCH_SIZE) : 1;
-      for (let batchIndex = 0; batchIndex < batches; batchIndex += 1) {
-        const batch = documents.slice(batchIndex * BACKUP_BATCH_SIZE, (batchIndex + 1) * BACKUP_BATCH_SIZE);
-        const response = await fetch("/api/backup/import", {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({ format: BACKUP_FORMAT, version: BACKUP_VERSION, collection, documents: batch, reset: batchIndex === 0 }),
+      const batches = createBackupImportBatches(collection, documents);
+      let collectionImported = 0;
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+        await sendBackupImportBatch(collection, batches[batchIndex], batchIndex === 0, (count) => {
+          collectionImported += count;
+          totalDocuments += count;
+          setBackupTransferState("Importing", "warning", `Imported ${collection}: ${formatNumber(collectionImported)} of ${formatNumber(documents.length)} documents\nTotal imported: ${formatNumber(totalDocuments)} documents`);
         });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result.error || `${collection} import failed with ${response.status}`);
-        totalDocuments += batch.length;
-        setBackupTransferState("Importing", "warning", `Imported ${collection}: batch ${batchIndex + 1} of ${batches}\nTotal imported: ${formatNumber(totalDocuments)} documents`);
       }
     }
 
