@@ -227,7 +227,7 @@ async function deriveNextAiring(details, tmdbId) {
   return null;
 }
 
-export async function getTmdbDetails({ mediaType, tmdbId = "", title = "" }) {
+export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", force = false }) {
   const type = mediaTypeFor(mediaType);
   const resolvedId = await resolveTmdbId(type, tmdbId, title);
   if (!resolvedId) {
@@ -235,11 +235,11 @@ export async function getTmdbDetails({ mediaType, tmdbId = "", title = "" }) {
     error.status = 404;
     throw error;
   }
-  const key = `details:${type}:${resolvedId}`;
+  const key = `details:${type}:${resolvedId}:${force ? "force" : "cached"}`;
   return collapse(key, async () => {
     const cacheId = `${type}_${resolvedId}`;
     const cached = metaGet(cacheId);
-    if (cached?.details && cached.schemaVersion >= DETAILS_SCHEMA_VERSION && fresh(cached, detailsTtl(cached.details))) return cached.details;
+    if (!force && cached?.details && cached.schemaVersion >= DETAILS_SCHEMA_VERSION && fresh(cached, detailsTtl(cached.details))) return cached.details;
     try {
       const fetched = compactDetails(await upstream(`${type}/${resolvedId}`, {
         append_to_response: "credits,videos,reviews,similar,recommendations,watch/providers,keywords,external_ids,release_dates,content_ratings,images",

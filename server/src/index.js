@@ -1618,7 +1618,7 @@ async function handleRefreshTmdbMetadata(req, res) {
     const item = items[i];
     const label = `${item.mediaType === "movie" ? "Movie" : "Show"}: ${item.title}`;
     try {
-      const details = await getTmdbDetails({ mediaType: item.mediaType, tmdbId: item.tmdbId, title: item.title });
+      const details = await getTmdbDetails({ mediaType: item.mediaType, tmdbId: item.tmdbId, title: item.title, force: true });
       const posterUrl = details?.cached_poster_url || "";
       if (posterUrl) {
         for (const rec of item.records) {
