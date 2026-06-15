@@ -611,15 +611,16 @@ const DESTINATION_FORMS = {
     ],
     secrets: [],
     oauth: "device",
-    help: `<details class="destination-help"><summary>Where do I get a client ID? (one-time, ~2 min, free)</summary>
-      <p>Microsoft requires every app that uses the OneDrive API to have a free app registration. You only do this once:</p>
+    help: `<details class="destination-help"><summary>Where do I get a client ID? (one-time, free)</summary>
+      <p><b>Easiest option:</b> skip the API entirely and use a <b>Local / synced folder</b> destination pointed at your OneDrive sync folder — your OneDrive desktop app does the upload, no registration needed.</p>
+      <p>If you do want the API, Microsoft requires a free app registration (one time):</p>
       <ol>
         <li>Open <a href="https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Entra app registrations</a> → <b>New registration</b>.</li>
         <li>Name it anything. Under supported account types pick <b>“Accounts in any organizational directory and personal Microsoft accounts”</b>. Leave redirect URI blank → <b>Register</b>.</li>
         <li>Open <b>Authentication</b> → enable <b>Allow public client flows</b> → <b>Save</b>.</li>
         <li>Copy the <b>Application (client) ID</b> into the field above, Save, then click <b>Connect</b>.</li>
       </ol>
-      <p>Prefer no setup at all? Use a <b>Local / synced folder</b> destination pointed at your OneDrive sync folder instead.</p>
+      <p><b>Personal @outlook/@hotmail account?</b> If step 1 says <i>“creating applications outside of a directory has been deprecated”</i>, your account has no Azure directory yet. Click <b>“sign up for Azure”</b> on that page (free — creates a directory) and then register the app there. The app still works with your personal OneDrive thanks to the account type in step 2. Or just use the folder option above and avoid all of this.</p>
     </details>`,
   },
   dropbox: {
