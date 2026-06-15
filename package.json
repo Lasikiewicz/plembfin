@@ -1,18 +1,26 @@
 {
   "name": "plembfinfire",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
+  "main": "server/server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "emulators": "firebase emulators:start --project plembfin --only auth,firestore,functions,hosting,pubsub,storage --import ./emulator-data --export-on-exit ./emulator-data",
-    "emulators:import": "firebase emulators:start --project plembfin --only auth,firestore,functions,hosting,pubsub,storage --import ./emulator-data --export-on-exit ./emulator-data",
-    "emulators:export": "firebase emulators:export ./emulator-data --project plembfin",
-    "deploy": "firebase deploy",
-    "deploy:hosting": "firebase deploy --only hosting",
-    "deploy:functions": "firebase deploy --only functions",
-    "force-sync:local": "node scripts/localForceSync.js"
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js",
+    "migrate": "node scripts/migrate-firestore-to-sqlite.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "busboy": "^1.6.0",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "sharp": "^0.34.5",
+    "undici": "^8.4.1"
   },
   "devDependencies": {
-    "firebase-tools": "^14.0.0"
+    "firebase-admin": "^13.0.0"
   }
 }

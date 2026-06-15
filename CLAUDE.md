@@ -5,82 +5,139 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Local development with emulators (auth, firestore, functions, hosting, pubsub, storage)
-npm run emulators
+# Install dependencies (native modules better-sqlite3 + sharp install via prebuilt binaries)
+npm install
 
-# Deploy everything
-npm run deploy
+# Run the app locally (serves UI + API + scheduler on http://localhost:5055)
+npm start
 
-# Deploy only hosting (frontend)
-npm run deploy:hosting
+# Run with auto-reload during development
+npm run dev
 
-# Deploy only functions (backend)
-npm run deploy:functions
+# One-time import of data from the old Firebase project into local SQLite
+npm run migrate
+
+# Build & run as a container
+docker compose up --build
 ```
 
 There are no tests or linters configured in this project.
 
-The emulators run at: hosting `localhost:5000`, functions `localhost:5001`, firestore `localhost:8180`, auth `localhost:9099`, storage `localhost:9199`, emulator UI `localhost:4000`.
-
-Local admin login (emulator only): username `admin`, password `admin`.
+The app listens on `PORT` (default `5055`). Default admin login on a fresh install is
+`admin` / `admin` — override with the `ADMIN_USERNAME` / `ADMIN_PASSWORD` environment
+variables. On first boot the server writes `data/config.json` with the admin credentials,
+a generated API key, and a session secret.
 
 ## Architecture
 
-### Two-layer system
+This is a **self-hosted, single-process app** in the style of Sonarr/Radarr/Jellyseerr.
+One long-running Node process serves the web UI, the `/api/*` surface, and an in-process
+per-minute scheduler. All state lives in a local **SQLite** database and a local **media
+folder** under `data/`. (It was previously a Firebase app — Hosting + Cloud Functions +
+Firestore + Storage + Auth — which was fully migrated to local infrastructure.)
 
-**Frontend** (`public/`) — a plain ES module SPA with no build step. Served by Firebase Hosting. All logic is in `public/app.js` (~7000 lines), with thin helpers in `public/modules/` (auth, logs, settings, timeline). There is no framework, no bundler, no TypeScript. CSS is in `public/styles.css`.
+### Process layout
 
-**Backend** (`functions/`) — a single Firebase Cloud Function (`api`) that handles all API routes via a manual `dispatch()` router in `functions/src/index.js`. A second function (`scheduledSync`) runs every minute via Cloud Scheduler. Both export from `functions/src/index.js`.
+**Entrypoint** (`server/server.js`) — an Express app that:
+- static-serves `public/` (the SPA) and `data/media` (cached artwork at `/media/...`)
+- mounts the API router at `/api/*` (raw body captured so webhook/JSON handlers parse it themselves)
+- runs `setInterval(runScheduledTick, 60000)` in place of the old `scheduledSync` Cloud Function
+- falls back to `index.html` for client-side routes
 
-### Request flow
+**API** (`server/src/index.js`) — a manual `dispatch()` router that strips the `/api/`
+prefix and routes to `handleWebhook`, `handleHistory`, `handleMovies`, etc. `dispatch` is
+imported and mounted by `server.js`.
 
-All `/api/*` requests are rewritten by Firebase Hosting to the `api` Cloud Function (europe-west2). The `dispatch()` function strips the `/api/` prefix and routes to handler functions like `handleWebhook`, `handleHistory`, `handleMovies`, etc. Auth is verified on every request via Firebase Auth ID tokens (`functions/src/utils/auth.js`). CORS is handled by the Firebase Functions `cors: true` option.
+**Frontend** (`public/`) — a plain ES module SPA with no build step (`app.js` ~9000 lines
+plus `public/modules/`). No framework, bundler, or TypeScript.
+
+### Data layer (`server/src/db.js` + `schema.sql`)
+
+`better-sqlite3` opens `data/plembfin.db` (WAL mode) and applies `schema.sql` on boot. The
+repo modules (`firestoreRepo.js`, `configStore.js`, `posterCache.js`, `activeSessions.js`,
+`loopStore.js`, `tmdbGateway.js`) use prepared SQL statements. Firestore document semantics
+were translated as: `.doc(id).set(x,{merge})` → `INSERT ... ON CONFLICT DO UPDATE`,
+`.batch()` → `db.transaction()`, `serverTimestamp()` → `Date.now()`, `.count()` →
+`SELECT COUNT(*)`.
+
+Because the process is long-lived, the old Firestore-backed derived caches were replaced by
+**in-process memoization** keyed by an in-memory `dataVersion` integer (`getDataVersion()` /
+`bumpDataVersion()` in `db.js`). `invalidateHistoryDerivedCaches()` just bumps the version;
+the in-memory `historyCache`/`movieCache`/`showCache`/`statsCache` reload on the next read.
+
+### Auth (`server/src/utils/auth.js` + `server/src/appConfig.js`)
+
+Local username/password login (no Firebase). `appConfig.js` resolves credentials from env or
+`data/config.json` (hashing the password with scrypt) and generates an API key + session
+secret on first run. `requireAdmin(req,res)` accepts either a signed HttpOnly session cookie
+(`plembfin_session`, HMAC over the session secret) **or** the API key (via `X-Api-Key`,
+`Authorization: Bearer`, or `?api_key=`). Routes: `POST /api/login`, `POST /api/logout`,
+`GET /api/auth/status`. The webhook + now-playing EventSource use the API key.
 
 ### Data flow: webhook → sync
 
 When a play event arrives at `/api/webhook`:
-1. `normalizeWebhook()` parses Plex (multipart), Emby (JSON), Jellyfin (JSON), or custom JSON payloads into a unified `media` object
+1. `normalizeWebhook()` parses Plex (multipart), Emby (JSON), Jellyfin (JSON), or custom JSON into a unified `media` object
 2. The `phase` field drives branching: `active` → upsert active session; `ended` → sync resume progress; `unplayed` → delete + propagate unwatched; default → insert watch record + propagate watched
-3. `syncMediaPlaystate()` (in `syncOrchestrator.js`) propagates the event to the other two platforms, with loop detection via `loopStore` to prevent echo loops
-4. Results are written back to Firestore as `sync_dispatch_telemetry` on the watch record
+3. `syncMediaPlaystate()` (in `syncOrchestrator.js`) propagates to the other two platforms, with loop detection via `loopStore`
+4. Results are written back as `sync_dispatch_telemetry` on the watch record
 
-### Scheduled sync (`scheduledSync` / `/api/cron-sync`)
+### Scheduled sync (`runScheduledTick` / `/api/cron-sync`)
 
-Runs every minute. Queries recent watch history and live tracking cache, checks if active sessions have crossed the "watched" threshold, and propagates any outstanding sync jobs. Force sync (`/api/force-sync`) runs the same logic on demand and stores progress in `runtimeState` for polling.
+`server.js` invokes `runScheduledTick()` (in `index.js`, wrapping `runScheduledSync` in
+`scheduled.js`) once per minute, guarded against overlap. It queries recent watch history and
+the live tracking cache, checks whether active sessions crossed the "watched" threshold, and
+propagates outstanding sync jobs. Force sync (`/api/force-sync`) runs the same logic on demand
+and stores progress in `runtime_state` for polling.
 
 ### Poster pipeline
 
-Posters go through a two-tier system:
-1. **Frontend** (`posterMarkup` / `hydratePosterFallbacks` in `app.js`): renders a `poster-fallback` span if no URL is known, then calls `/api/poster?id=<firestoreDocId>` to resolve it. The TMDB prefetch observer (`observeExplorerTmdbPrefetch`) short-circuits this for explorer cards — it calls `/api/tmdb-details` and directly updates the DOM/cache when it gets a `poster_path` back.
-2. **Backend** (`/api/poster`): tries poster candidates in order — stored URL, configured server URL (Plex/Emby/Jellyfin), TMDB fallback — then downloads and caches the winner in Firebase Storage. The cache key is `mediaKey` (canonical title + type + IDs).
+1. **Frontend** (`posterMarkup` / `hydratePosterFallbacks` in `app.js`): renders a `poster-fallback` span if no URL is known, then calls `/api/poster?id=<watchRecordId>`. The TMDB prefetch observer (`observeExplorerTmdbPrefetch`) short-circuits this for explorer cards.
+2. **Backend** (`/api/poster`, `posterCache.js`): tries candidates in order — stored URL, configured server URL (Plex/Emby/Jellyfin), TMDB fallback — resizes with `sharp`, writes the winner to `data/media/posters` (or `backdrops`), and serves it at `/media/...`. The cache key is `mediaKey` (canonical title + type + IDs); metadata lives in the `poster_cache` table.
 
-**Important**: `isCachedStorageImageUrl()` in `app.js` only returns `true` for `firebasestorage.googleapis.com` URLs. TMDB `image.tmdb.org` URLs are **not** treated as cached and will be stored as `""` by `rememberPosterLookup`. The `posterLookupCache` in-memory map bypasses this for TMDB URLs fetched via the prefetch observer (set directly, not via `rememberPosterLookup`).
+**Important**: `isCachedStorageImageUrl()` in `app.js` returns `true` only for `/media/posters/` and `/media/backdrops/` URLs. TMDB `image.tmdb.org` URLs are **not** treated as cached.
 
-### Firestore collections
+### SQLite tables (one per former Firestore collection)
 
-- `watchHistory` — canonical watch records (one doc per unique watched item)
-- `playstateCache` — per-item watched/unwatched state for sync targets
-- `playbackProgress` — resume position records
-- `activeSessions` — currently-playing sessions from webhook `active` events
-- `liveTrackingCache` — richer live session data used by scheduled sync
-- `syncHistory` — log of all sync dispatch results
-- `runtimeState` (single doc) — last cron time, force sync state/log, now-playing refresh signal
-- `mediaConfig` (single doc) — Plex/Emby/Jellyfin connection settings
-- `tmdbMetadataCache` — TMDB details cached for 7 days, keyed by `${mediaType}_${tmdbId}`
-- `tmdbPersonCache` — TMDB person details, keyed by `person_${personId}`
-- `posterCache` — downloaded poster URLs keyed by `mediaKey`
+- `watch_history` — canonical watch records
+- `playstate` — per-item watched/unwatched state for sync targets
+- `playback_progress` — resume position records
+- `active_sessions` — currently-playing sessions from webhook `active` events
+- `live_tracking_cache` — richer live session data used by scheduled sync
+- `sync_history` — log of all sync dispatch results
+- `runtime_state` (single row, JSON blob) — last cron time, force sync state/log, now-playing refresh signal
+- `settings` (single row, JSON blob) — Plex/Emby/Jellyfin/TMDB connection settings
+- `loop_keys` — loop-detection KV with TTL
+- `poster_cache` — cached artwork metadata (binaries live in `data/media`)
+- `tmdb_metadata_cache` / `tmdb_search_cache` / `tmdb_season_cache` / `tmdb_person_cache` — TMDB caches
+
+The Firestore `derivedCache` / `derivedShowSummaries` collections were dropped (now in-process memo).
 
 ### Frontend state and routing
 
-`app.js` uses a single `state` object (no framework). Navigation is SPA-style via `navigateTo(url)` / `handleRouting()` / `history.pushState`. Routes: `/` → dashboard, `/movie/:id` → movie detail, `/tvshow/:key` → show detail, `/person/:id` → cast member modal, `/help/:topic` → help page.
+`app.js` uses a single `state` object (no framework). Navigation is SPA-style via
+`navigateTo(url)` / `handleRouting()` / `history.pushState`. Routes: `/` → dashboard,
+`/movie/:id`, `/tvshow/:key`, `/person/:id`, `/help/:topic`.
 
-Auth is managed by `onFirebaseAuthChange()` (`modules/auth.js`). The auth panel starts hidden; it only becomes visible after Firebase confirms no user is signed in. The app shell is shown on successful auth.
+Auth is managed by `onFirebaseAuthChange()` (`modules/auth.js`) — which now checks
+`/api/auth/status` rather than Firebase. The auth panel becomes visible when no session is
+active; the app shell shows on successful login.
 
-The explorer (movies/TV shows grid) uses IntersectionObserver with a 1200px rootMargin to pre-fetch the next page well before the user reaches the bottom. Page size is 240 items. A second IntersectionObserver (`observeExplorerTmdbPrefetch`) pre-fetches TMDB details for visible cards.
+The explorer grid uses IntersectionObserver (1200px rootMargin) to pre-fetch the next page;
+page size 240. A second observer (`observeExplorerTmdbPrefetch`) pre-fetches TMDB details.
 
-### Environment variables (functions)
+### Environment variables
 
-Set in `functions/.env`:
-- `ADMIN_EMAILS` — comma-separated Firebase Auth emails allowed to use the dashboard
-- `ADMIN_UIDS` — optional comma-separated Firebase Auth UIDs
-- `FUNCTIONS_REGION` — defaults to `europe-west2`
+- `PORT` — HTTP port (default `5055`)
+- `DATA_DIR` — data directory (default `<repo>/data`; Docker sets `/data`)
+- `ADMIN_USERNAME` / `ADMIN_PASSWORD` — admin login (default `admin` / `admin`)
+- `API_KEY` — pin the webhook/integration key (otherwise generated into `data/config.json`)
+- `SESSION_SECRET` — pin the session signing secret (otherwise generated)
+
+### Migrating from the old Firebase project
+
+`scripts/migrate-firestore-to-sqlite.js` (run via `npm run migrate`) reads every Firestore
+collection with `firebase-admin` and a service-account key, inserts into the matching SQLite
+table, and downloads cached poster/backdrop binaries from Firebase Storage into `data/media`.
+It is idempotent. Requires `GOOGLE_APPLICATION_CREDENTIALS` (defaults to
+`./service-account-key.json`) and `FIREBASE_STORAGE_BUCKET`.

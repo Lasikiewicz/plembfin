@@ -1186,7 +1186,8 @@ function configuredImageUrl(path, item = {}) {
 
 function isCachedStorageImageUrl(value = "") {
   const raw = String(value || "").trim();
-  return raw.includes("firebasestorage.googleapis.com/") || raw.includes("/v0/b/") || raw.includes("127.0.0.1:9199/");
+  // Locally cached artwork is served from /media/posters or /media/backdrops.
+  return raw.startsWith("/media/posters/") || raw.startsWith("/media/backdrops/");
 }
 
 function posterUrlFor(item = {}) {
@@ -1969,14 +1970,13 @@ function setActiveSessions(sessions = [], { force = false } = {}) {
 function adminTokenGuide() {
   return `
     <div class="guide-callout credential-guide">
-      <b>Firebase Auth Admin Sign-In</b>
-      <p><b>What it is:</b> The email/password account created in Firebase Authentication and allowlisted through <code>ADMIN_EMAILS</code> or <code>ADMIN_UIDS</code>.</p>
+      <b>Admin Sign-In</b>
+      <p><b>What it is:</b> The local username and password for this self-hosted instance.</p>
       <ol>
-        <li>Open the Firebase console and select the Plembfin Firebase project.</li>
-        <li>Enable <b>Email/Password</b> in Firebase Authentication sign-in providers.</li>
-        <li>Create the admin user account.</li>
-        <li>Set the Functions runtime variable <code>ADMIN_EMAILS</code> to that email address.</li>
-        <li>Use that email and password to sign in to this dashboard.</li>
+        <li>Defaults to <code>admin</code> / <code>admin</code> on first run.</li>
+        <li>Override by setting <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> environment variables (e.g. in <code>docker-compose.yml</code>).</li>
+        <li>Use that username and password to sign in to this dashboard.</li>
+        <li>External integrations (webhooks) authenticate with the API key shown after sign-in, stored in <code>data/config.json</code>.</li>
       </ol>
     </div>
   `;
@@ -2282,18 +2282,18 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
           description: "Initial setup from Firebase auth to first webhook",
           badges: ["FIREBASE_AUTH", "PLEX_URL", "EMBY_API_KEY", "JELLYFIN_API_KEY"],
           body: () => `
-            <p>Plembfin is a self-hosted watch-state bridge. It listens for playback events from Plex, Emby, and Jellyfin via webhooks, records them in Firestore, and propagates the watched or unwatched state to every other connected platform automatically. A background worker runs every minute so sync continues even when the dashboard is closed.</p>
+            <p>Plembfin is a self-hosted watch-state bridge. It listens for playback events from Plex, Emby, and Jellyfin via webhooks, records them in a local SQLite database, and propagates the watched or unwatched state to every other connected platform automatically. A background worker runs every minute so sync continues even when the dashboard is closed.</p>
             <p>Follow these steps to get from zero to a fully synchronised setup:</p>
             <ol>
-              <li><b>Firebase Auth</b> — Create an admin account in the Firebase console and allowlist it via the <code>ADMIN_EMAILS</code> environment variable. See the <a href="#" data-help-topic-link="firebase-auth">Firebase Auth</a> guide for details.</li>
+              <li><b>Sign in</b> — Log in with your admin username and password (defaults to <code>admin</code> / <code>admin</code>; override with <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code>). See the <a href="#" data-help-topic-link="firebase-auth">Admin Sign-In</a> guide for details.</li>
               <li><b>Add credentials</b> — Open <b>Settings → Apps</b> and fill in the server URL, token or API key, and user ID for each platform you use. Click <b>Save Configuration</b>.</li>
-              <li><b>Configure webhooks</b> — Point each media server at your Plembfin webhook URL. See the <a href="#" data-help-topic-link="webhooks">Webhook Setup</a> guide for per-server instructions.</li>
+              <li><b>Configure webhooks</b> — Point each media server at your Plembfin webhook URL, including your API key. See the <a href="#" data-help-topic-link="webhooks">Webhook Setup</a> guide for per-server instructions.</li>
               <li><b>Verify</b> — Open <b>Settings → Tools → System Integrity Check</b> and run the diagnostic. All probes should return green before you rely on live sync.</li>
-              <li><b>Import history (optional)</b> — Use the Trakt History Importer in <b>Settings → Tools</b> to seed your Firestore archive from a Trakt export, then run Full Sync Watchstates to push everything to your media servers.</li>
+              <li><b>Import history (optional)</b> — Use the Trakt History Importer in <b>Settings → Tools</b> to seed your local archive from a Trakt export, then run Full Sync Watchstates to push everything to your media servers.</li>
             </ol>
             <h3>How the system works</h3>
-            <p>When a webhook event arrives at <code>/api/webhook</code>, Plembfin normalises the payload from whichever server sent it into a unified media object. The <code>phase</code> field drives the response: active playback upserts a live session; a completed watch inserts a <code>watchHistory</code> record and triggers immediate propagation to the other platforms; an unplayed event deletes the record and marks it unwatched everywhere. A loop-detection store prevents echo loops when the propagation itself fires a webhook back.</p>
-            <p>The scheduled worker (<code>scheduledSync</code>) runs every minute via Cloud Scheduler. It polls active sessions, detects completed watches that crossed the 90% threshold, dispatches any outstanding sync jobs, and checks recent Plex items for unwatched removals — even when the dashboard is closed.</p>
+            <p>When a webhook event arrives at <code>/api/webhook</code>, Plembfin normalises the payload from whichever server sent it into a unified media object. The <code>phase</code> field drives the response: active playback upserts a live session; a completed watch inserts a <code>watch_history</code> record and triggers immediate propagation to the other platforms; an unplayed event deletes the record and marks it unwatched everywhere. A loop-detection store prevents echo loops when the propagation itself fires a webhook back.</p>
+            <p>The scheduled worker runs every minute in-process. It polls active sessions, detects completed watches that crossed the 90% threshold, dispatches any outstanding sync jobs, and checks recent Plex items for unwatched removals — even when the dashboard is closed.</p>
           `,
         },
 
@@ -2301,11 +2301,11 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
         {
           id: "firebase-auth",
           category: "Credentials",
-          title: "Firebase Auth",
-          description: "Admin account setup and ADMIN_EMAILS env var",
+          title: "Admin Sign-In",
+          description: "Local username/password and API key",
           badges: ["FIREBASE_AUTH"],
           body: () => `
-            <p>Plembfin uses Firebase Authentication (email/password) to gate access to the dashboard and all <code>/api/*</code> endpoints. Every API request is verified server-side against the allowlist — unauthenticated requests are rejected before they touch the database.</p>
+            <p>Plembfin uses a local username and password to gate access to the dashboard, and an API key to gate webhooks and external integrations. Every <code>/api/*</code> request is verified server-side — unauthenticated requests are rejected before they touch the database.</p>
             ${adminTokenGuide()}
           `,
         },
@@ -4154,7 +4154,7 @@ function renderDbStatus(isOnline) {
 
 function helpBadgeValue(token = "") {
   const key = String(token || "").trim().toUpperCase();
-  if (key === "FIREBASE_AUTH") return { label: "FIREBASE_AUTH", value: state.firebaseUser?.email || "" };
+  if (key === "FIREBASE_AUTH") return { label: "ADMIN", value: state.firebaseUser?.email || "" };
   if (key === "PLEX_URL") return { label: "PLEX_URL", value: state.savedConfig.plex?.baseUrl || state.savedConfig.plex?.url || "" };
   if (key === "PLEX_TOKEN") return { label: "PLEX_TOKEN", value: state.savedConfig.plex?.token || state.savedConfig.plex?.apiKey || "" };
   if (key === "EMBY_API_KEY") return { label: "EMBY_API_KEY", value: state.savedConfig.emby?.apiKey || state.savedConfig.emby?.api_key || "" };

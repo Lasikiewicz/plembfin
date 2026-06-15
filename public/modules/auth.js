@@ -1,34 +1,29 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-import {
-  connectAuthEmulator,
-  getAuth,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-} from "https://www.gstatic.com/firebasejs/11.9.0/firebase-auth.js";
-import { firebaseConfig } from "../firebase-config.js";
+// Local authentication client. Replaces the Firebase Auth web SDK with calls to
+// the self-hosted /api/login, /api/logout, and /api/auth/status endpoints. The
+// browser holds an HttpOnly session cookie (sent automatically on same-origin
+// requests); the returned API key is kept in memory + localStorage so it can be
+// attached to header-less requests like the now-playing EventSource.
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const LOCAL_ADMIN_TOKEN = "plembfin-local-admin";
+const API_KEY_STORAGE = "plembfinApiKey";
 
-function isLocalHost() {
-  return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+let cachedToken = localStorage.getItem(API_KEY_STORAGE) || "";
+let cachedUser = null;
+
+function userFrom(username) {
+  const name = username || "admin";
+  return { email: name, uid: name, username: name };
 }
 
-if (isLocalHost()) {
-  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+function setSession(username, apiKey) {
+  cachedUser = userFrom(username);
+  cachedToken = apiKey || cachedToken || "";
+  if (cachedToken) localStorage.setItem(API_KEY_STORAGE, cachedToken);
 }
 
-let cachedToken = localStorage.getItem("adminToken") || "";
-let refreshTimer;
-
-async function refreshIdToken(force = false) {
-  if (!auth.currentUser) return "";
-  cachedToken = await auth.currentUser.getIdToken(force);
-  window.clearTimeout(refreshTimer);
-  refreshTimer = window.setTimeout(() => refreshIdToken(true).catch(() => {}), 45 * 60 * 1000);
-  return cachedToken;
+function clearSession() {
+  cachedUser = null;
+  cachedToken = "";
+  localStorage.removeItem(API_KEY_STORAGE);
 }
 
 export function readStoredAdminToken(_keys, fallback = "") {
@@ -36,65 +31,73 @@ export function readStoredAdminToken(_keys, fallback = "") {
 }
 
 export function currentFirebaseUser() {
-  return auth.currentUser || (cachedToken === LOCAL_ADMIN_TOKEN ? { email: "admin", uid: "local-admin" } : null);
+  return cachedUser;
 }
 
+// Called once at startup. Resolves the current auth state from the session
+// cookie and invokes the callback with (user, token) or (null, "").
 export function onFirebaseAuthChange(callback) {
-  if (isLocalHost() && cachedToken === LOCAL_ADMIN_TOKEN) {
-    setTimeout(() => {
-      callback({ email: "admin", uid: "local-admin" }, cachedToken);
-    }, 0);
-  }
-
-  return onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      cachedToken = await refreshIdToken();
-      callback(user, cachedToken);
-    } else {
-      if (isLocalHost() && cachedToken === LOCAL_ADMIN_TOKEN) {
-        return;
+  (async () => {
+    try {
+      const res = await fetch("/api/auth/status", { credentials: "same-origin" });
+      const data = await res.json().catch(() => ({}));
+      if (data.authenticated) {
+        setSession(data.username, data.apiKey);
+        callback(cachedUser, cachedToken || "session");
+      } else {
+        clearSession();
+        callback(null, "");
       }
-      cachedToken = "";
-      localStorage.removeItem("adminToken");
+    } catch {
+      clearSession();
       callback(null, "");
     }
-  });
+  })();
+  return () => {};
 }
 
-export async function signInAdmin(email, password) {
-  if (isLocalHost() && String(email || "").trim() === "admin" && String(password || "") === "admin") {
-    cachedToken = LOCAL_ADMIN_TOKEN;
-    localStorage.setItem("adminToken", cachedToken);
-    return { user: { email: "admin", uid: "local-admin" }, token: cachedToken };
+export async function signInAdmin(username, password) {
+  const res = await fetch("/api/login", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: String(username || "").trim(), password: String(password || "") }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || "Invalid username or password");
   }
-  const credential = await signInWithEmailAndPassword(auth, email, password);
-  const token = await refreshIdToken(true);
-  return { user: credential.user, token };
+  setSession(data.username, data.apiKey);
+  return { user: cachedUser, token: cachedToken || "session" };
 }
 
 export async function signOutAdmin() {
-  window.clearTimeout(refreshTimer);
-  cachedToken = "";
-  localStorage.removeItem("adminToken");
-  await signOut(auth);
+  try {
+    await fetch("/api/logout", { method: "POST", credentials: "same-origin" });
+  } catch {
+    /* best-effort */
+  }
+  clearSession();
 }
 
 export function buildAuthHeaders(token) {
-  return {
-    Authorization: `Bearer ${token || cachedToken}`,
-    "Content-Type": "application/json",
-  };
+  const headers = { "Content-Type": "application/json" };
+  const key = token && token !== "session" ? token : cachedToken;
+  if (key) headers["X-Api-Key"] = key;
+  return headers;
 }
 
-export function buildNowPlayingUrl(origin, _token) {
+export function buildNowPlayingUrl(origin, token) {
   const url = new URL("/api/now-playing", origin);
+  const key = token && token !== "session" ? token : cachedToken;
+  if (key) url.searchParams.set("api_key", key);
   return url;
 }
 
 export function scrubTokenFromLocation() {
   const search = String(window.location.search || "");
   const hash = String(window.location.hash || "");
-  const hasAuthParams = /(?:[?&#](?:adminToken|username|token)=)|(?:^#(?:adminToken|username|token)=)/i.test(`${search}${hash}`);
+  const hasAuthParams = /(?:[?&#](?:adminToken|username|token|api_key)=)|(?:^#(?:adminToken|username|token|api_key)=)/i.test(`${search}${hash}`);
 
   if (hasAuthParams) {
     window.history.replaceState({}, document.title, window.location.pathname);

@@ -1,0 +1,12 @@
+node_modules
+data
+.git
+.gitignore
+.claude
+scripts
+docs
+emulator-data
+firebase-export-*
+*.log
+*.md
+service-account-key.json
