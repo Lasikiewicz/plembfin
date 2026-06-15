@@ -8,6 +8,7 @@ import {
   deleteLiveTrackingCacheRows,
   deletePlaybackProgress,
   deleteWatchRecordById,
+  findExistingWatch,
   findWatchedByMediaKey,
   getCachedHistory,
   insertWatchRecord,
@@ -456,14 +457,9 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       }
 
       const key = mediaKeyFor(media);
-      const existing = await db
-        .collection("watchHistory")
-        .where("mediaKey", "==", key)
-        .where("watchedAt", "==", watchedAt)
-        .limit(1)
-        .get();
+      const existing = await findExistingWatch(key, watchedAt);
 
-      if (existing.empty) {
+      if (!existing) {
         logger(`Plex: detected new watched item: ${media.title} (watched at ${watchedAt})`);
         const watchRecord = mediaToWatchRecord(media, "plex");
         watchRecord.watched_at = watchedAt;

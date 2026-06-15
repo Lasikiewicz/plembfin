@@ -815,10 +815,10 @@ async function handleManualWatch(req, res) {
   const config = await loadMediaConfig();
   const loopStore = createLoopStore();
   const results = [];
+  const syncTasks = [];
   let inserted = 0;
   let skipped = 0;
   let rejected = 0;
-  let propagated = 0;
 
   for (const [index, rawRecord] of records.entries()) {
     try {
@@ -844,17 +844,9 @@ async function handleManualWatch(req, res) {
       }
 
       await upsertPlaystateForMedia(requireDb(), media, "watched", record.watched_at, { skipInvalidate: true });
-      const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
-        skipped: false,
-        status: "error",
-        details: `Manual watch propagation failed: ${error.message || String(error)}`,
-        targetStates: [],
-      }));
+      syncTasks.push({ media, id, record });
 
-      await updateWatchTelemetry(requireDb(), id, formatDispatchTelemetry(summary, media, "watched"), { skipInvalidate: true });
-      await recordSyncHistory(media, summary, "watched");
-      if (summary.status === "success" || summary.status === "partial") propagated += 1;
-      results.push({ index, id, title: record.title, inserted: !existing, status: summary.status, targetStates: summary.targetStates || [] });
+      results.push({ index, id, title: record.title, inserted: !existing, status: "pending", targetStates: [] });
     } catch (error) {
       rejected += 1;
       results.push({ index, rejected: true, error: error.message || String(error) });
@@ -863,7 +855,29 @@ async function handleManualWatch(req, res) {
 
   await invalidateHistoryDerivedCaches().catch(() => null);
 
-  return sendJson(res, { ok: true, inserted, skipped, rejected, propagated, results });
+  // Sync in the background to prevent client timeouts
+  if (syncTasks.length > 0) {
+    (async () => {
+      for (const task of syncTasks) {
+        try {
+          const summary = await syncMediaPlaystate(task.media, config, loopStore).catch((error) => ({
+            skipped: false,
+            status: "error",
+            details: `Manual watch propagation failed: ${error.message || String(error)}`,
+            targetStates: [],
+          }));
+
+          await updateWatchTelemetry(requireDb(), task.id, formatDispatchTelemetry(summary, task.media, "watched"), { skipInvalidate: true });
+          await recordSyncHistory(task.media, summary, "watched");
+        } catch (error) {
+          console.error("Background manual watch sync failed:", error);
+        }
+      }
+      await invalidateHistoryDerivedCaches().catch(() => null);
+    })().catch((error) => console.error("Background manual watch sync loop crashed:", error));
+  }
+
+  return sendJson(res, { ok: true, inserted, skipped, rejected, propagated: 0, results });
 }
 
 async function handleRetrySync(req, res) {

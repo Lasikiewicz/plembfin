@@ -1,4 +1,4 @@
-﻿import { buildAuthHeaders, buildNowPlayingUrl, currentFirebaseUser, onFirebaseAuthChange, readStoredAdminToken, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
+import { buildAuthHeaders, buildNowPlayingUrl, currentFirebaseUser, onFirebaseAuthChange, readStoredAdminToken, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs } from "./modules/logs.js";
 import { connectionLabel, connectionPayloadFromElements } from "./modules/settings.js";
 import { fetchLocalActiveSessions } from "./modules/timeline.js";
@@ -131,6 +131,7 @@ const state = {
   mediaDetailReturnExplorerMode: "movies",
   personReturnUrl: null,
   pendingWatchAction: null,
+  savingWatchAction: null,
   activeMovieModalId: null,
   activeHelpTopic: "getting-started",
   importRecords: [],
@@ -575,7 +576,7 @@ const DESTINATION_FORMS = {
   backblaze: {
     label: "Backblaze B2",
     settings: [
-      { key: "region", label: "Region (from your bucket's endpoint, e.g. us-west-004)", placeholder: "us-west-004" },
+      { key: "region", label: "Region or endpoint (e.g. eu-central-003 — pasting the full endpoint is fine too)", placeholder: "eu-central-003" },
       { key: "bucket", label: "Bucket name", placeholder: "yourname-plembfin" },
       { key: "accessKeyId", label: "keyID", placeholder: "0035…" },
       { key: "prefix", label: "Key prefix (optional)", placeholder: "plembfin/" },
@@ -6200,6 +6201,8 @@ function renderShowModalContent(show, {
   tmdbOnly = false,
 } = {}) {
   const root = mediaDetailRoot();
+  const isSaving = state.savingWatchAction;
+  const isSavingShow = isSaving && isSaving.scope === "show";
   show = mergeShowWithLoadedHistory(show);
   const seasonsMap = seasonsFromShowRecord(show);
   const showTitle = sanitizeTitle(show.title) || "Unknown Show";
@@ -6249,7 +6252,9 @@ function renderShowModalContent(show, {
     <section class="show-season-block" id="showSeason${selectedSeasonNumber}">
       <div class="show-season-head">
         <span class="show-season-label">${selectedSeasonSummary.watchedInSeason} of ${selectedSeasonSummary.seasonTotal || "?"} episodes watched</span>
-        <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${selectedSeasonNumber}" ${selectedSeasonUnwatched.length ? "" : "disabled"}>Mark season watched</button>
+        <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${selectedSeasonNumber}" ${(selectedSeasonUnwatched.length && !isSaving) ? "" : "disabled"}>
+          ${isSaving && isSaving.scope === "season" && Number(isSaving.episodes[0]?.seasonNumber) === Number(selectedSeasonNumber) ? "Saving…" : "Mark season watched"}
+        </button>
       </div>
       <div class="show-episode-list">
         ${selectedSeasonEpisodes.length ? selectedSeasonEpisodes.map((episode) => {
@@ -6276,8 +6281,10 @@ function renderShowModalContent(show, {
                     ${episodeIsUnreleased
                       ? `<span class="unreleased-pill">Not yet released</span>`
                       : !episode.watched
-                        ? `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}">Mark watched</button>`
-                        : `<button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
+                        ? `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}" ${isSaving ? "disabled" : ""}>
+                            ${isSaving && isSaving.scope === "episode" && isSaving.episodes[0]?.key === episode.key ? "Saving…" : "Mark watched"}
+                           </button>`
+                        : `<button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
                   </span>
                 </div>
               </div>
@@ -6322,11 +6329,13 @@ function renderShowModalContent(show, {
   ` : "";
 
   setMediaDetailActions(`
-    <button class="action-pill" type="button" data-watch-scope="show" ${unwatchedRows.length ? "" : "disabled"}>Mark whole show watched</button>
+    <button class="action-pill" type="button" data-watch-scope="show" ${(unwatchedRows.length && !isSaving) ? "" : "disabled"}>
+      ${isSavingShow ? "Saving watched state…" : "Mark whole show watched"}
+    </button>
     ${tmdbOnly ? "" : `
-      <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}">Edit Image</button>
-      <button class="action-pill media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">Fix Match</button>
-      <button class="action-pill media-merge-show-btn" type="button" data-show-title="${escapeAttribute(showTitle)}">Merge</button>
+      <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}">Edit Image</button>
+      <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">Fix Match</button>
+      <button class="action-pill media-merge-show-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">Merge</button>
     `}
   `);
 
@@ -6616,10 +6625,19 @@ async function applyMovieWatchDateChoice(choice) {
   root.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]").forEach((button) => {
     button.disabled = true;
   });
+
+  state.savingWatchAction = action;
   closeWatchDatePrompt();
+
+  if (movie.tmdbId) {
+    await openMovieImmersiveModalByTmdbId(movie.tmdbId).catch(() => null);
+  }
+
+  setMessage(`Saving "${movie.title}" to your watch history…`, "muted");
 
   try {
     const result = await postManualWatchRecords([record]);
+    state.savingWatchAction = null;
     clearDerivedUiCaches({ resetExplorer: false });
     setMessage(
       `Marked "${movie.title}" watched${result.skipped ? " (already logged)" : ""}; pushed ${result.propagated} to media apps.`,
@@ -6628,6 +6646,8 @@ async function applyMovieWatchDateChoice(choice) {
     await loadHistory({ force: true }).catch(() => null);
     if (movie.tmdbId) await openMovieImmersiveModalByTmdbId(movie.tmdbId);
   } catch (error) {
+    state.savingWatchAction = null;
+    if (movie.tmdbId) await openMovieImmersiveModalByTmdbId(movie.tmdbId).catch(() => null);
     setMessage(`Manual watch update failed: ${error.message}`, "error");
     throw error;
   }
@@ -6696,7 +6716,7 @@ function rollbackOptimisticWatchedEpisodes(rollback) {
   if (index >= 0 && rollback?.previousShow) state.showsRaw[index] = rollback.previousShow;
 }
 
-async function postManualWatchRecords(records) {
+async function postManualWatchRecords(records, onProgress) {
   let inserted = 0;
   let skipped = 0;
   let rejected = 0;
@@ -6715,6 +6735,7 @@ async function postManualWatchRecords(records) {
     skipped += Number(body.skipped || 0);
     rejected += Array.isArray(body.rejected) ? body.rejected.length : Number(body.rejected || 0);
     propagated += Number(body.propagated || 0);
+    onProgress?.(Math.min(index + batch.length, records.length), records.length);
   }
 
   return { inserted, skipped, rejected, propagated };
@@ -6743,14 +6764,23 @@ async function applyWatchDateChoice(choice) {
     button.disabled = true;
   });
 
+  state.savingWatchAction = action;
   closeWatchDatePrompt();
   const rollback = applyOptimisticWatchedEpisodes(action, watchedRows);
   if (state.activeShowModalKey) {
     renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+  } else if (state.activeShowTmdbId) {
+    await openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
   }
 
+  const total = records.length;
+  setMessage(total > 1 ? `Saving ${total} episodes to your watch history… 0/${total}` : "Saving to your watch history…", "muted");
+
   try {
-    const result = await postManualWatchRecords(records);
+    const result = await postManualWatchRecords(records, (done, all) => {
+      if (all > 1) setMessage(`Saving ${all} episodes to your watch history… ${done}/${all}`, "muted");
+    });
+    state.savingWatchAction = null;
     clearDerivedUiCaches({ resetExplorer: false });
     const totalMarked = result.inserted + result.skipped;
     setMessage(
@@ -6764,6 +6794,7 @@ async function applyWatchDateChoice(choice) {
       await openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
     }
   } catch (error) {
+    state.savingWatchAction = null;
     rollbackOptimisticWatchedEpisodes(rollback);
     if (state.activeShowModalKey) {
       renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
@@ -7023,11 +7054,13 @@ async function renderMovieImmersiveModalContent(movie) {
   }
   const root = mediaDetailRoot();
 
+  const isSaving = state.savingWatchAction;
+
   const localPoster = posterUrlFor(movie) || "/favicon.svg";
   setMediaDetailActions(`
-    <button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
-    <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}">Edit Image</button>
-    <button class="action-pill media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
+    <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
+    <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}">Edit Image</button>
+    <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
   `);
   root.innerHTML = `
     <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(localPoster)}');"></div>
@@ -7102,7 +7135,7 @@ async function renderMovieImmersiveModalContent(movie) {
             <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
               <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase;">Sync Status:</span>
               ${syncStatusDotHtml}
-              ${!allSynced ? `<button class="retry-sync-btn action-pill" type="button" data-retry-sync-id="${escapeAttribute(movie.id)}" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Retry Sync</button>` : ""}
+              ${!allSynced ? `<button class="retry-sync-btn action-pill" type="button" ${isSaving ? "disabled" : ""} data-retry-sync-id="${escapeAttribute(movie.id)}" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Retry Sync</button>` : ""}
             </div>
   ` : "";
 
@@ -7110,9 +7143,9 @@ async function renderMovieImmersiveModalContent(movie) {
     ? `<a class="action-pill" href="${escapeAttribute(movie.youtube_url)}" target="_blank" rel="noopener noreferrer">Watch on YouTube</a>`
     : "";
   setMediaDetailActions(`
-    <button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
-    <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}">Edit Image</button>
-    <button class="action-pill media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
+    <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
+    <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}">Edit Image</button>
+    <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
     ${ytWatchBtn}
   `);
 
@@ -7138,7 +7171,7 @@ async function renderMovieImmersiveModalContent(movie) {
           <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
             <h3>Watch Status</h3>
             <div class="progress-label-row">
-              <span>Watched on ${formatDate(movie.watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(movie.id)}" data-watched-at="${escapeAttribute(movie.watched_at || "")}">✎</button></span>
+              <span>Watched on ${formatDate(movie.watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-watched-at="${escapeAttribute(movie.watched_at || "")}">✎</button></span>
               <span>100% complete</span>
             </div>
             <div class="progress-bar-track">
@@ -7181,9 +7214,25 @@ async function renderMovieImmersiveModalContent(movie) {
   hydratePosters(root);
 }
 
+// Authoritatively check whether a movie is already in watch history. state.history
+// is only the dashboard preview, so fall back to the server (which holds the full
+// history) to avoid showing a saved movie as unwatched after a refresh.
+async function fetchWatchedMovieByTmdb(tmdbId, title) {
+  try {
+    const url = new URL("/api/movies", window.location.origin);
+    url.searchParams.set("search", title || "");
+    url.searchParams.set("limit", "30");
+    const response = await fetch(url, { headers: authHeaders() });
+    const body = await response.json().catch(() => ({}));
+    const movies = Array.isArray(body.movies) ? body.movies : [];
+    return movies.find((movie) => String(movie.tmdb_id || "") === String(tmdbId)) || null;
+  } catch {
+    return null;
+  }
+}
+
 async function openMovieImmersiveModalByTmdbId(tmdbId) {
-  // If this movie is already logged locally, show its watched detail (watch date +
-  // unwatch controls) instead of the unwatched TMDB view.
+  // Fast path: if it's in the loaded preview, show its watched detail immediately.
   const existingWatched = state.history.find(
     (entry) => entry.media_type === "movie" && isWatchedHistoryAction(entry) && String(entry.tmdb_id || "") === String(tmdbId),
   );
@@ -7220,6 +7269,14 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
   }
 
   const movieTitle = tmdbData.title;
+  // state.history is only the dashboard preview; confirm against the server so a
+  // movie marked watched (especially with an old release date) still shows watched.
+  const persistedWatched = await fetchWatchedMovieByTmdb(tmdbId, movieTitle);
+  if (persistedWatched) return renderMovieImmersiveModalContent(persistedWatched);
+
+  const isSaving = state.savingWatchAction;
+  const isSavingThisMovie = isSaving && isSaving.scope === "movie" && String(isSaving.movie?.tmdbId || "") === String(tmdbId);
+
   let backdropUrl = tmdbData.cached_backdrop_url || (tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "");
   let posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path) || "/favicon.svg";
   let overview = tmdbData.overview || "No synopsis available.";
@@ -7265,11 +7322,11 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
               <div class="progress-bar-fill" style="width: 0%;"></div>
             </div>
             <div class="immersive-actions" style="margin-top: 0.75rem;">
-              <button class="action-pill" type="button"
+              <button class="action-pill" type="button" ${isSaving ? "disabled" : ""}
                 data-movie-mark-watched="${escapeAttribute(String(tmdbId))}"
                 data-movie-title="${escapeAttribute(movieTitle)}"
                 data-movie-poster="${escapeAttribute(posterUrl)}"
-                data-movie-release="${escapeAttribute(tmdbData.release_date || "")}">Mark watched</button>
+                data-movie-release="${escapeAttribute(tmdbData.release_date || "")}">${isSavingThisMovie ? "Saving watched state…" : "Mark watched"}</button>
             </div>
           </section>
         </div>
@@ -9210,6 +9267,13 @@ function attachEvents() {
     }
   });
 
+  // Browsers ignore autocomplete="off" and will dump the saved login username into
+  // the first text field on load. The search box ships read-only so the password
+  // manager can't autofill it; unlock it the moment the user actually interacts.
+  const unlockGlobalSearch = () => elements.globalSearchInput?.removeAttribute("readonly");
+  elements.globalSearchInput?.addEventListener("pointerdown", unlockGlobalSearch);
+  elements.globalSearchInput?.addEventListener("focus", unlockGlobalSearch);
+
   elements.globalSearchInput?.addEventListener("focus", () => {
     const query = elements.globalSearchInput.value.trim();
     if (query) renderGlobalSearchDropdown(query);
@@ -9993,11 +10057,17 @@ async function openShowImmersiveModalByTmdbId(tmdbId) {
     .sort((a, b) => Number(b.season_number) - Number(a.season_number));
 
   const seasonDetailsByNumber = new Map();
-  await Promise.all(seasons.map(async (season) => {
-    const seasonNumber = Number(season.season_number);
-    const details = await fetchTmdbSeasonDetails(tmdbData.id, seasonNumber);
-    if (details) seasonDetailsByNumber.set(seasonNumber, details);
-  }));
+  await Promise.all([
+    // Pull persisted watched state from the server so a fresh page load — where
+    // state.showsRaw/state.history aren't populated yet — still reflects what is
+    // already marked watched (otherwise the show looks unwatched after a refresh).
+    loadShowDetail({ title: showTitle }).catch(() => null),
+    ...seasons.map(async (season) => {
+      const seasonNumber = Number(season.season_number);
+      const details = await fetchTmdbSeasonDetails(tmdbData.id, seasonNumber);
+      if (details) seasonDetailsByNumber.set(seasonNumber, details);
+    }),
+  ]);
 
   const existingShow = state.showsRaw.find((show) => (
     String(show.tmdb_id || "") === String(tmdbData.id) || slug(show.title) === slug(showTitle)
