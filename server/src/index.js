@@ -64,6 +64,14 @@ import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
 import { cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, prewarmTmdbLibrary, searchTmdb } from "./utils/tmdbGateway.js";
 import { BACKUP_FORMAT, BACKUP_VERSION, backupManifest, exportCollectionPage, importCollectionBatch } from "./utils/backup.js";
+import {
+  createWatchHistoryBackup,
+  readWatchBackupFile,
+  restoreWatchHistoryBackup,
+  runScheduledWatchBackup,
+  saveWatchBackupConfig,
+  watchBackupStatus,
+} from "./utils/watchHistoryBackups.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -502,6 +510,53 @@ async function handleBackupImport(req, res) {
       ok: true,
       ...importCollectionBatch(String(body.collection || ""), body.documents, { reset: body.reset === true }),
     });
+  } catch (error) {
+    return sendJson(res, { error: error.message }, 400);
+  }
+}
+
+async function handleWatchBackups(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  if (req.method === "GET") {
+    const filename = String(req.query?.download || "").trim();
+    if (!filename) return sendJson(res, watchBackupStatus());
+    try {
+      const file = readWatchBackupFile(filename);
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "application/gzip");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", String(file.compressed.length));
+      res.setHeader("X-Content-SHA256", file.checksum);
+      return res.end(file.compressed);
+    } catch (error) {
+      return sendJson(res, { error: error.message }, 404);
+    }
+  }
+
+  if (req.method !== "POST") return methodNotAllowed(res);
+  const body = await readJson(req);
+  const action = String(body.action || "").trim();
+  try {
+    if (action === "configure") {
+      return sendJson(res, { ok: true, config: saveWatchBackupConfig(body.config || {}) });
+    }
+    if (action === "create") {
+      return sendJson(res, { ok: true, backup: createWatchHistoryBackup({ reason: "manual" }) });
+    }
+    if (action === "restore") {
+      const filename = String(body.filename || "").trim();
+      if (!filename) return sendJson(res, { error: "filename is required" }, 400);
+      return sendJson(res, {
+        ok: true,
+        restore: restoreWatchHistoryBackup(filename, {
+          mode: body.mode === "replace" ? "replace" : "merge",
+          dryRun: body.dryRun === true,
+        }),
+      });
+    }
+    return sendJson(res, { error: "Unknown watch backup action" }, 400);
   } catch (error) {
     return sendJson(res, { error: error.message }, 400);
   }
@@ -1900,6 +1955,7 @@ async function dispatch(req, res) {
     if (path === "import") return handleImport(req, res);
     if (path === "backup/export") return handleBackupExport(req, res);
     if (path === "backup/import") return handleBackupImport(req, res);
+    if (path === "watch-backups") return handleWatchBackups(req, res);
     if (path === "manual-watch") return handleManualWatch(req, res);
     if (path === "manual-unwatch") return handleManualUnwatch(req, res);
     if (path === "retry-sync") return handleRetrySync(req, res);
@@ -1945,5 +2001,6 @@ export { dispatch };
 // (replacing the scheduledSync Cloud Function).
 export async function runScheduledTick() {
   await runScheduledSync();
+  await Promise.resolve(runScheduledWatchBackup()).catch((error) => console.error("Scheduled watch-history backup failed", error));
   await prewarmTmdbLibrary({ limit: 4 }).catch((error) => console.error("TMDB prewarm failed", error));
 }

@@ -1619,6 +1619,121 @@ details[open] .tool-accordion-chevron::before {
   padding: var(--space-3) 0 0;
 }
 
+.backup-settings-panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.backup-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.backup-enable-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+}
+
+.backup-enable-row input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--yellow);
+}
+
+.backup-settings-actions {
+  justify-content: flex-start;
+}
+
+.backup-runtime {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.backup-runtime > div {
+  display: grid;
+  gap: 0.2rem;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-3);
+}
+
+.backup-runtime span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.backup-runtime-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--red);
+}
+
+.watch-backup-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.watch-backup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-3);
+}
+
+.watch-backup-copy {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.watch-backup-copy b,
+.watch-backup-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watch-backup-copy span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.watch-backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+@media (max-width: 860px) {
+  .backup-settings-grid,
+  .backup-runtime {
+    grid-template-columns: 1fr;
+  }
+
+  .watch-backup-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .watch-backup-actions {
+    justify-content: flex-start;
+  }
+}
+
 .settings-config-grid {
   display: grid;
   grid-template-columns: 1fr;
