@@ -1,7 +1,14 @@
 {
-  "version": "0.0.13",
-  "updatedAt": "2026-06-15T16:40:14+01:00",
+  "version": "0.0.14",
+  "updatedAt": "2026-06-15T17:03:36+01:00",
   "entries": [
+    {
+      "version": "0.0.14",
+      "date": "2026-06-15T17:03:36+01:00",
+      "commit": "6b058f1d84554cca3d8a1ad15fb84d991b04a5e1",
+      "message": "Redesign settings tab layout into 60/40 splits with contextual guides and compaction",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.13",
       "date": "2026-06-15T16:40:14+01:00",
