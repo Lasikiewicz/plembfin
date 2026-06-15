@@ -32,7 +32,11 @@ function s3Config(destination) {
   const accessKeyId = String(destination.settings?.accessKeyId || "").trim();
   const secretAccessKey = String(destination.secrets?.secretAccessKey || "").trim();
   if (!accessKeyId || !secretAccessKey) throw new Error("S3 access key and secret are required");
-  const endpoint = String(destination.settings?.endpoint || `https://s3.${region}.amazonaws.com`)
+  // Backblaze B2 endpoints follow s3.<region>.backblazeb2.com; AWS uses s3.<region>.amazonaws.com.
+  const defaultEndpoint = destination.type === "backblaze"
+    ? `https://s3.${region}.backblazeb2.com`
+    : `https://s3.${region}.amazonaws.com`;
+  const endpoint = String(destination.settings?.endpoint || defaultEndpoint)
     .trim()
     .replace(/\/+$/, "");
   // Default to path-style: required by MinIO and most non-AWS providers.
@@ -58,50 +62,56 @@ function buildUrl(cfg, key, query) {
   return { protocol: base.protocol, host, pathname, search, href: `${base.protocol}//${host}${pathname}${search}` };
 }
 
+// Pure AWS Signature V4 signer (exported for testing against AWS's documented
+// vectors). `headers` must include host and any x-amz-* headers to be signed.
+export function signV4({ method, pathname, canonicalQuery = "", payloadHash, amzDate, region, service = "s3", accessKeyId, secretAccessKey, headers }) {
+  const lowerHeaders = {};
+  for (const [key, value] of Object.entries(headers)) lowerHeaders[key.toLowerCase()] = String(value).trim();
+  const signedHeaderNames = Object.keys(lowerHeaders).sort();
+  const canonicalHeaders = `${signedHeaderNames.map((h) => `${h}:${lowerHeaders[h]}`).join("\n")}\n`;
+  const signedHeaders = signedHeaderNames.join(";");
+
+  const canonicalRequest = [method, pathname, canonicalQuery, canonicalHeaders, signedHeaders, payloadHash].join("\n");
+  const dateStamp = amzDate.slice(0, 8);
+  const scope = `${dateStamp}/${region}/${service}/aws4_request`;
+  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, scope, sha256Hex(canonicalRequest)].join("\n");
+
+  const kDate = hmac(`AWS4${secretAccessKey}`, dateStamp);
+  const kRegion = hmac(kDate, region);
+  const kService = hmac(kRegion, service);
+  const kSigning = hmac(kService, "aws4_request");
+  const signature = crypto.createHmac("sha256", kSigning).update(stringToSign).digest("hex");
+
+  return {
+    signature,
+    signedHeaders,
+    authorization: `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+  };
+}
+
 async function signedFetch(cfg, { method, key, query, body }) {
   const url = buildUrl(cfg, key, query);
-  const payload = body || "";
   const payloadHash = body ? sha256Hex(body) : EMPTY_SHA256;
-  const now = new Date();
-  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
-  const dateStamp = amzDate.slice(0, 8);
+  const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const canonicalQuery = url.search ? url.search.slice(1) : "";
 
-  const headers = {
+  const signHeaders = {
     host: url.host,
     "x-amz-content-sha256": payloadHash,
     "x-amz-date": amzDate,
   };
-  const signedHeaderNames = Object.keys(headers).sort();
-  const canonicalHeaders = `${signedHeaderNames.map((h) => `${h}:${headers[h]}`).join("\n")}\n`;
-  const signedHeaders = signedHeaderNames.join(";");
-  const canonicalQuery = url.search
-    ? url.search.slice(1)
-    : "";
-
-  const canonicalRequest = [
+  const { authorization } = signV4({
     method,
-    url.pathname,
+    pathname: url.pathname,
     canonicalQuery,
-    canonicalHeaders,
-    signedHeaders,
     payloadHash,
-  ].join("\n");
-
-  const scope = `${dateStamp}/${cfg.region}/s3/aws4_request`;
-  const stringToSign = [
-    "AWS4-HMAC-SHA256",
     amzDate,
-    scope,
-    sha256Hex(canonicalRequest),
-  ].join("\n");
-
-  const kDate = hmac(`AWS4${cfg.secretAccessKey}`, dateStamp);
-  const kRegion = hmac(kDate, cfg.region);
-  const kService = hmac(kRegion, "s3");
-  const kSigning = hmac(kService, "aws4_request");
-  const signature = crypto.createHmac("sha256", kSigning).update(stringToSign).digest("hex");
-
-  const authorization = `AWS4-HMAC-SHA256 Credential=${cfg.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+    region: cfg.region,
+    service: "s3",
+    accessKeyId: cfg.accessKeyId,
+    secretAccessKey: cfg.secretAccessKey,
+    headers: signHeaders,
+  });
 
   return fetch(url.href, {
     method,
@@ -153,6 +163,15 @@ export function createS3Adapter(destination) {
         throw new Error(`S3 upload failed (${response.status}): ${text.slice(0, 200)}`);
       }
       return { bytes: body.length, durationMs: Date.now() - started };
+    },
+
+    async download(remoteName) {
+      const response = await signedFetch(cfg, { method: "GET", key: `${cfg.prefix}${remoteName}` });
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`S3 download failed (${response.status}): ${text.slice(0, 200)}`);
+      }
+      return Buffer.from(await response.arrayBuffer());
     },
 
     async list() {

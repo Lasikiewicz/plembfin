@@ -68,6 +68,8 @@ import { BACKUP_FORMAT, BACKUP_VERSION, backupManifest, exportCollectionPage, im
 import {
   createWatchHistoryBackup,
   getBackupDestination,
+  listRemoteBackups,
+  pullRemoteBackupToLocal,
   readWatchBackupFile,
   removeBackupDestination,
   restoreWatchHistoryBackup,
@@ -666,6 +668,25 @@ async function handleWatchBackups(req, res) {
       const id = String(body.destinationId || "").trim();
       if (!id) return sendJson(res, { error: "destinationId is required" }, 400);
       return sendJson(res, { ok: true, ...removeBackupDestination(id) });
+    }
+    if (action === "list-remote-backups") {
+      const id = String(body.destinationId || "").trim();
+      if (!id) return sendJson(res, { error: "destinationId is required" }, 400);
+      return sendJson(res, { ok: true, files: await listRemoteBackups(id) });
+    }
+    if (action === "restore-remote-backup") {
+      const id = String(body.destinationId || "").trim();
+      const filename = String(body.filename || "").trim();
+      if (!id || !filename) return sendJson(res, { error: "destinationId and filename are required" }, 400);
+      const pulled = await pullRemoteBackupToLocal(id, filename);
+      return sendJson(res, {
+        ok: true,
+        pulled,
+        restore: restoreWatchHistoryBackup(pulled.name, {
+          mode: body.mode === "replace" ? "replace" : "merge",
+          dryRun: body.dryRun === true,
+        }),
+      });
     }
     if (["test-destination", "device-start", "device-poll", "oauth-url", "oauth-exchange"].includes(action)) {
       if (action === "device-poll") {

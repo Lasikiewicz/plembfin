@@ -108,6 +108,13 @@ export function createOneDriveAdapter(destination, { persistSecrets }) {
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     },
 
+    async download(remoteName) {
+      const headers = await authHeader();
+      const response = await fetch(`${approotPath(remoteName)}/content`, { headers });
+      if (!response.ok) throw new Error(`OneDrive download failed (${response.status})`);
+      return Buffer.from(await response.arrayBuffer());
+    },
+
     async delete(remoteName) {
       const headers = await authHeader();
       const response = await fetch(approotPath(remoteName), { method: "DELETE", headers });

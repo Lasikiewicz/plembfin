@@ -157,6 +157,40 @@ export async function testBackupDestination(destination) {
   return adapterFor(destination).testConnection();
 }
 
+export async function listRemoteBackups(id) {
+  const destination = getBackupDestination(id);
+  if (!destination) throw new Error("Destination not found");
+  return adapterFor(destination).list();
+}
+
+// Download a backup from a remote destination, verify it is an intact Plembfin
+// backup, and place it in the local store so the normal restore flow can use it.
+// This is what makes "restore from either local or cloud" work end to end.
+export async function pullRemoteBackupToLocal(id, filename) {
+  const destination = getBackupDestination(id);
+  if (!destination) throw new Error("Destination not found");
+  const name = path.basename(String(filename || ""));
+  if (!FILE_PATTERN.test(name)) throw new Error("Invalid backup filename");
+
+  const buffer = await adapterFor(destination).download(name);
+  let document;
+  try {
+    document = JSON.parse(zlib.gunzipSync(buffer).toString("utf8"));
+  } catch {
+    throw new Error("Downloaded file is not a valid gzip backup");
+  }
+  if (document?.format !== FORMAT || Number(document?.version) !== VERSION) {
+    throw new Error("Downloaded file is not a Plembfin watch-history backup");
+  }
+
+  fs.mkdirSync(WATCH_HISTORY_BACKUPS_DIR, { recursive: true });
+  const finalPath = backupPath(name);
+  const temporary = `${finalPath}.tmp-${process.pid}`;
+  fs.writeFileSync(temporary, buffer);
+  fs.renameSync(temporary, finalPath);
+  return { name, sizeBytes: buffer.length };
+}
+
 async function applyRemoteRetention(adapter, retention) {
   const files = await adapter.list();
   // Order by filename, not remote-reported mtimes: our names embed a sortable UTC
@@ -420,6 +454,7 @@ export function watchBackupStatus() {
     runtime: loadWatchBackupRuntime(),
     files: listWatchBackups(),
     destinations: loadBackupDestinationsRedacted(),
+    backupsDir: WATCH_HISTORY_BACKUPS_DIR,
   };
 }
 

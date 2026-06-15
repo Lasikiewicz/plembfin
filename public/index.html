@@ -655,7 +655,7 @@
                   <div class="section-heading sync-heading">
                     <div>
                       <p>Automatic Watch History Backups</p>
-                      <span>Small local backups containing watch history, playstate, and resume progress only</span>
+                      <span>A local backup is always kept; add Backblaze B2 or another destination below to also copy each backup off-box. Use either or both.</span>
                     </div>
                     <span id="watchBackupSummary" class="status-pill status-muted">Not loaded</span>
                   </div>
@@ -694,6 +694,7 @@
                     </div>
                     <div class="backup-destination-add">
                       <select id="watchBackupDestinationType" class="field">
+                        <option value="backblaze">Backblaze B2</option>
                         <option value="folder">Local / synced folder</option>
                         <option value="webdav">WebDAV</option>
                         <option value="s3">S3-compatible</option>
@@ -714,6 +715,40 @@
                     </div>
                   </div>
                   <div id="watchBackupList" class="watch-backup-list" aria-live="polite"></div>
+                </section>
+
+                <section class="glass-panel p-section backup-settings-panel">
+                  <div class="section-heading">
+                    <div>
+                      <p>Restore &amp; disaster recovery</p>
+                      <span>What to keep so you can restore from local or the cloud — even on a fresh install</span>
+                    </div>
+                  </div>
+                  <div class="recovery-guide">
+                    <p>Backups are <b>independent</b> — restoring from local or from the cloud both produce the same result. You can rely on either, or keep both for safety.</p>
+
+                    <details class="destination-help" open>
+                      <summary>Restore from a <b>local</b> backup</summary>
+                      <p>Local backups live on the Plembfin server at <code id="watchBackupLocalPath">data/backups/watch-history</code>. To restore, use the <b>Available Backups</b> list above → <b>Merge Restore</b> (keeps newest on conflict) or <b>Replace</b> (wipes current history first).</p>
+                      <p><b>To save for recovery:</b> back up that folder (it's just <code>.json.gz</code> files), or trust your normal server/volume backups. Dropping a valid <code>plembfin-watch-history-*.json.gz</code> file into that folder makes it appear in the list.</p>
+                    </details>
+
+                    <details class="destination-help">
+                      <summary>Restore from <b>Backblaze B2</b> (or any cloud destination)</summary>
+                      <p>Open the destination above → <b>Restore from here</b> → pick a backup → <b>Merge Restore</b> or <b>Replace</b>. Plembfin downloads it, verifies it, and restores it.</p>
+                      <p><b>To save for recovery</b> (write these down — the secret key is shown only once): <b>Region</b>, <b>Bucket</b> name, <b>Key prefix</b> (if you set one), <b>keyID</b>, and <b>applicationKey</b>. With those five you can re-add the destination on any fresh install and restore.</p>
+                    </details>
+
+                    <details class="destination-help">
+                      <summary>Restore onto a <b>brand-new install</b></summary>
+                      <ol>
+                        <li>Install Plembfin and log in.</li>
+                        <li>Settings → Backups → <b>Add destination</b> → re-enter the saved cloud details above → <b>Save</b> → <b>Test</b>.</li>
+                        <li><b>Restore from here</b> → choose the newest backup → <b>Replace</b> (a fresh install has nothing to merge with).</li>
+                      </ol>
+                      <p>That's it — watch history, playstate, and resume progress are back. (Artwork and caches rebuild on their own.)</p>
+                    </details>
+                  </div>
                 </section>
               </section>
 

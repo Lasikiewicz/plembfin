@@ -4,6 +4,7 @@
 //   testConnection()              -> { ok, detail }
 //   upload(localPath, remoteName) -> { bytes, durationMs }
 //   list()                        -> [{ name, sizeBytes, createdAt }]
+//   download(remoteName)          -> Buffer        (used to restore from a remote)
 //   delete(remoteName)            -> void
 //
 // Adapters receive the full destination record ({ id, type, label, settings, secrets })
@@ -15,17 +16,18 @@ import { createS3Adapter } from "./s3.js";
 import { createOneDriveAdapter } from "./onedrive.js";
 import { createDropboxAdapter } from "./dropbox.js";
 
-export const DESTINATION_TYPES = ["folder", "webdav", "s3", "onedrive", "dropbox"];
+export const DESTINATION_TYPES = ["folder", "backblaze", "webdav", "s3", "onedrive", "dropbox"];
 
 export function createAdapter(destination, hooks = {}) {
   const persistSecrets = typeof hooks.persistSecrets === "function" ? hooks.persistSecrets : () => {};
   switch (destination?.type) {
     case "folder":
       return createFolderAdapter(destination, { persistSecrets });
-    case "webdav":
-      return createWebdavAdapter(destination, { persistSecrets });
+    case "backblaze": // Backblaze B2 speaks the S3 API; the adapter derives its endpoint.
     case "s3":
       return createS3Adapter(destination, { persistSecrets });
+    case "webdav":
+      return createWebdavAdapter(destination, { persistSecrets });
     case "onedrive":
       return createOneDriveAdapter(destination, { persistSecrets });
     case "dropbox":
