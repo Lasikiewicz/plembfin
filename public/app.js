@@ -5658,6 +5658,7 @@ function renderShowModalContent(show, {
   tmdbData = null,
   seasonDetailsByNumber = new Map(),
   loading = false,
+  tmdbOnly = false,
 } = {}) {
   const root = mediaDetailRoot();
   show = mergeShowWithLoadedHistory(show);
@@ -5728,16 +5729,18 @@ function renderShowModalContent(show, {
                 </div>
                 <p>${escapeHtml(episode.overview)}</p>
                 <div class="immersive-episode-meta-row">
-                  <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
-                  ${episode.watched ? `<time>Watched ${formatDate(episode.watched.watched_at)} <button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(episode.watched.id)}" data-watched-at="${escapeAttribute(episode.watched.watched_at || "")}">✎</button></time>` : ""}
+                  <span class="immersive-episode-dates">
+                    <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
+                    ${episode.watched ? `<time>Watched ${formatDate(episode.watched.watched_at)} <button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(episode.watched.id)}" data-watched-at="${escapeAttribute(episode.watched.watched_at || "")}">✎</button></time>` : ""}
+                  </span>
+                  <span class="immersive-episode-actions">
+                    ${episodeIsUnreleased
+                      ? `<span class="unreleased-pill">Not yet released</span>`
+                      : !episode.watched
+                        ? `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}">Mark watched</button>`
+                        : `<button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
+                  </span>
                 </div>
-              </div>
-              <div class="immersive-episode-actions">
-                ${episodeIsUnreleased
-                  ? `<span class="unreleased-pill">Not yet released</span>`
-                  : !episode.watched
-                    ? `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}">Mark watched</button>`
-                    : `<button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
               </div>
             </article>
           `;
@@ -5781,9 +5784,11 @@ function renderShowModalContent(show, {
 
   setMediaDetailActions(`
     <button class="action-pill" type="button" data-watch-scope="show" ${unwatchedRows.length ? "" : "disabled"}>Mark whole show watched</button>
-    <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}">Edit Image</button>
-    <button class="action-pill media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">Fix Match</button>
-    <button class="action-pill media-merge-show-btn" type="button" data-show-title="${escapeAttribute(showTitle)}">Merge</button>
+    ${tmdbOnly ? "" : `
+      <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}">Edit Image</button>
+      <button class="action-pill media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">Fix Match</button>
+      <button class="action-pill media-merge-show-btn" type="button" data-show-title="${escapeAttribute(showTitle)}">Merge</button>
+    `}
   `);
 
   root.innerHTML = `
@@ -5986,6 +5991,7 @@ function watchActionFromButton(button) {
   return {
     scope,
     showTitle,
+    showTmdbId: episodes[0]?.showTmdbId || "",
     episodes,
     label,
     countLabel: `${episodes.length} episode${episodes.length === 1 ? "" : "s"}`,
@@ -6054,8 +6060,18 @@ function cloneShowRecord(show) {
 
 function applyOptimisticWatchedEpisodes(action, watchedRows) {
   const showKey = slug(action.showTitle);
-  const index = state.showsRaw.findIndex((show) => slug(show.title) === showKey);
-  if (index < 0) return null;
+  let index = state.showsRaw.findIndex((show) => slug(show.title) === showKey);
+  const created = index < 0;
+  if (created) {
+    state.showsRaw.push({
+      title: action.showTitle,
+      tmdb_id: action.showTmdbId || null,
+      episodes: [],
+      episode_count: 0,
+      season_count: 0,
+    });
+    index = state.showsRaw.length - 1;
+  }
 
   const previousShow = cloneShowRecord(state.showsRaw[index]);
   const show = cloneShowRecord(state.showsRaw[index]);
@@ -6073,13 +6089,17 @@ function applyOptimisticWatchedEpisodes(action, watchedRows) {
     if (watched) modalEpisode.watched = watched;
   }
   state.showModalEpisodeIndex = new Map(state.showModalEpisodes.map((episode) => [episode.key, episode]));
-  return { showKey, previousShow };
+  return { showKey, previousShow, created };
 }
 
 function rollbackOptimisticWatchedEpisodes(rollback) {
-  if (!rollback?.previousShow) return;
+  if (!rollback?.showKey) return;
   const index = state.showsRaw.findIndex((show) => slug(show.title) === rollback.showKey);
-  if (index >= 0) state.showsRaw[index] = rollback.previousShow;
+  if (rollback?.created) {
+    if (index >= 0) state.showsRaw.splice(index, 1);
+    return;
+  }
+  if (index >= 0 && rollback?.previousShow) state.showsRaw[index] = rollback.previousShow;
 }
 
 async function postManualWatchRecords(records) {
@@ -6145,11 +6165,15 @@ async function applyWatchDateChoice(choice) {
     await refreshShowAfterManualWatch(action.showTitle).catch((error) => setMessage(error.message, "error"));
     if (state.activeShowModalKey) {
       renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+    } else if (state.activeShowTmdbId) {
+      await openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
     }
   } catch (error) {
     rollbackOptimisticWatchedEpisodes(rollback);
     if (state.activeShowModalKey) {
       renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+    } else if (state.activeShowTmdbId) {
+      await openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
     }
     setMessage(`Manual watch update failed: ${error.message}`, "error");
     throw error;
@@ -6187,10 +6211,14 @@ async function confirmAndMarkUnwatched(button) {
     clearDerivedUiCaches({ resetExplorer: kind === "movie" });
     setMessage(`Marked "${label}" unwatched; pushed unplayed to media apps.`, "success");
 
-    if (kind === "episode" && state.activeShowModalKey) {
+    if (kind === "episode" && (state.activeShowModalKey || state.activeShowTmdbId)) {
       if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
       await loadHistory().catch(() => null);
-      renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+      if (state.activeShowModalKey) {
+        renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+      } else {
+        await openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+      }
     } else {
       // Movie (or no show context): the watched record is gone, so refresh history
       // and drop back out of the now-empty detail view.
@@ -9287,85 +9315,35 @@ async function openShowImmersiveModalByTmdbId(tmdbId) {
   }
 
   const showTitle = tmdbData.name || "Untitled TV Show";
-  let backdropUrl = tmdbData.cached_backdrop_url || (tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "");
-  let posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path) || "/favicon.svg";
-  let overview = tmdbData.overview || "No synopsis available.";
-  let released = tmdbData.first_air_date ? `First Aired ${formatTmdbDate(tmdbData.first_air_date)}` : "Unknown Air Date";
-  let rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "N/A";
-  const selectedSeason = state.activeShowModalSeason;
-  const seasonData = selectedSeason != null ? await fetchTmdbSeasonDetails(tmdbData.id, selectedSeason) : null;
-  const episodeHtml = [...(seasonData?.episodes || [])].sort((a, b) => Number(b.episode_number) - Number(a.episode_number)).map((episode) => `
-    <article class="immersive-episode-row">
-      ${episode.still_path ? `<img class="episode-thumb" src="${escapeAttribute(tmdbImage(episode.still_path, "w500"))}" alt="" loading="lazy" />` : ""}
-      <div class="immersive-episode-copy"><b>${escapeHtml(episodeCode(episode.season_number, episode.episode_number))} ${escapeHtml(episode.name || "Episode")}</b><p>${escapeHtml(episode.overview || "No synopsis available.")}</p><time>${escapeHtml(formatTmdbDate(episode.air_date))}</time></div>
-    </article>
-  `).join("");
-  const seasonList = [...(tmdbData.seasons || [])]
+  const seasons = [...(tmdbData.seasons || [])]
     .filter((season) => Number(season.season_number) > 0)
     .sort((a, b) => Number(b.season_number) - Number(a.season_number));
-  const seasonsHtml = seasonList.map((season) => {
+
+  const seasonDetailsByNumber = new Map();
+  await Promise.all(seasons.map(async (season) => {
     const seasonNumber = Number(season.season_number);
-    const isActive = seasonNumber === Number(selectedSeason);
-    const episodeCount = Number(season.episode_count) || "?";
-    const panelId = `tmdbSeasonAccordionPanel${seasonNumber}`;
-    return `
-      <article class="season-accordion ${isActive ? "is-open" : ""}">
-        <button class="season-accordion-trigger" type="button" data-season-accordion="${seasonNumber}" aria-expanded="${isActive}" aria-controls="${panelId}">
-          <span class="season-accordion-title">
-            <strong>${escapeHtml(season.name || seasonLabel(seasonNumber))}</strong>
-            <span class="season-episode-count">${episodeCount} episode${episodeCount === 1 ? "" : "s"}</span>
-          </span>
-          <svg class="season-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        ${isActive ? `<div class="season-accordion-panel" id="${panelId}"><div class="show-episode-list">${episodeHtml || `<div class="empty-log"><b>No episodes found</b></div>`}</div></div>` : ""}
-      </article>
-    `;
-  }).join("");
+    const details = await fetchTmdbSeasonDetails(tmdbData.id, seasonNumber);
+    if (details) seasonDetailsByNumber.set(seasonNumber, details);
+  }));
 
-  const ratingBadgeHtml = rating !== "N/A" ? `
-    <div class="rating-pill">
-      <span style="color: #10b981;">TMDB</span>
-      <span>${rating}</span>
-    </div>
-  ` : "";
+  const existingShow = state.showsRaw.find((show) => (
+    String(show.tmdb_id || "") === String(tmdbData.id) || slug(show.title) === slug(showTitle)
+  ));
+  const show = mergeShowWithLoadedHistory(existingShow || {
+    title: showTitle,
+    tmdb_id: String(tmdbData.id),
+    episodes: [],
+    episode_count: 0,
+    season_count: seasons.length,
+  });
 
-  root.innerHTML = `
-    <div class="modal-backdrop-image" style="background-image: url('${backdropUrl || posterUrl}');"></div>
-    <div class="immersive-container media-detail-page">
-      
-      <header class="immersive-header">
-        <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(showTitle)} poster" onerror="this.src='/favicon.svg';" />
-        <div class="immersive-meta">
-          <h2 class="immersive-title">${escapeHtml(showTitle)}</h2>
-          <p class="immersive-subtitle">${released}</p>
-          
-          <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-            ${ratingBadgeHtml}
-            <div class="avail-pills-row">
-              ${renderAvailabilityPills({})}
-            </div>
-          </div>
-          <p class="immersive-overview">${escapeHtml(overview)}</p>
-
-          <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
-            <h3>Watch Status</h3>
-            <div class="progress-label-row">
-              <span>Not in local library</span>
-              <span>0% complete</span>
-            </div>
-          </section>
-        </div>
-        ${renderMediaFacts(tmdbData, "tv", "sidebar")}
-      </header>
-
-      ${seasonsHtml ? `<section class="seasons-section season-accordions"><div class="show-section-title"><h3>Seasons</h3><span>${seasonList.length} season${seasonList.length === 1 ? "" : "s"}</span></div><div class="season-accordion-list">${seasonsHtml}</div></section>` : ""}
-
-      ${renderCastSection(tmdbData)}
-
-      ${renderRichTmdbDetails(tmdbData)}
-    </div>
-  `;
-  hydratePosters(root);
+  renderShowModalContent(show, {
+    activeSeasonNum: state.activeShowModalSeason,
+    tmdbData,
+    seasonDetailsByNumber,
+    loading: false,
+    tmdbOnly: !existingShow,
+  });
 }
 
 function findLibraryItem(mediaType, tmdbId, title) {

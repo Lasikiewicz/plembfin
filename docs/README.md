@@ -16,6 +16,7 @@ re-deriving the architecture from ~7000 lines of `app.js`.
 | [now-playing.md](now-playing.md) | "Now Playing" is wrong, empty, stale, or works locally but not on the live site. **This is the one that bit us before.** |
 | [webhooks.md](webhooks.md) | A watched/unwatched event didn't record or didn't propagate; understanding webhook phases. |
 | [scheduled-sync.md](scheduled-sync.md) | The every-minute background worker (`scheduledSync`): catch-up sync and live-session polling. |
+| [watch-history-backups.md](watch-history-backups.md) | Plan for scheduled watch-state backups and optional cloud uploads. |
 | [firestore-collections.md](firestore-collections.md) | You're poking around the Firestore console and need to know what a collection/field means — including the camelCase vs snake_case schema traps. |
 | [troubleshooting.md](troubleshooting.md) | Symptom-first index: "X is broken → look here." Start here if you don't know which doc you need. |
 
