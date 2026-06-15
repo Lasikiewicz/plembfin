@@ -63,6 +63,7 @@ import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
 import { cachePosterFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, prewarmTmdbLibrary, searchTmdb } from "./utils/tmdbGateway.js";
+import { BACKUP_FORMAT, BACKUP_VERSION, backupManifest, exportCollectionPage, importCollectionBatch } from "./utils/backup.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -466,6 +467,44 @@ async function handleImport(req, res) {
   if (!Array.isArray(records)) return sendJson(res, { error: "Expected an array of records" }, 400);
   if (records.length > 100) return sendJson(res, { error: "Batch size must be 100 records or fewer" }, 413);
   return sendJson(res, { ok: true, ...(await batchInsertWatchRecords(requireDb(), records)) });
+}
+
+async function handleBackupExport(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const collection = String(req.query?.collection || "").trim();
+  if (!collection) return sendJson(res, backupManifest(req.headers.origin || ""));
+
+  try {
+    return sendJson(res, exportCollectionPage(collection, {
+      cursor: req.query?.cursor,
+      limit: req.query?.limit,
+    }));
+  } catch (error) {
+    return sendJson(res, { error: error.message }, 400);
+  }
+}
+
+async function handleBackupImport(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  if (body.format !== BACKUP_FORMAT || Number(body.version) !== BACKUP_VERSION) {
+    return sendJson(res, { error: "Unsupported Plembfin backup format or version" }, 400);
+  }
+
+  try {
+    return sendJson(res, {
+      ok: true,
+      ...importCollectionBatch(String(body.collection || ""), body.documents, { reset: body.reset === true }),
+    });
+  } catch (error) {
+    return sendJson(res, { error: error.message }, 400);
+  }
 }
 
 function manualWatchMediaFromRecord(record = {}) {
@@ -1803,6 +1842,8 @@ async function dispatch(req, res) {
     if (path === "show") return handleShow(req, res);
     if (path === "full-sync-watchstates") return handleFullSyncWatchstates(req, res);
     if (path === "import") return handleImport(req, res);
+    if (path === "backup/export") return handleBackupExport(req, res);
+    if (path === "backup/import") return handleBackupImport(req, res);
     if (path === "manual-watch") return handleManualWatch(req, res);
     if (path === "manual-unwatch") return handleManualUnwatch(req, res);
     if (path === "retry-sync") return handleRetrySync(req, res);
