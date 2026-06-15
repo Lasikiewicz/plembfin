@@ -30,6 +30,15 @@ npm start            # http://localhost:5055
 # or: npm run dev    # auto-reload during development
 ```
 
+`npm install` configures the repository's pre-push hook. Every `git push` runs
+`npm run build`, which syntax-checks the JavaScript and starts the server on a
+temporary port and data directory. GitHub runs the same check before versioning
+and publishing the Docker image.
+
+If `npm start` reports that port `5055` is already in use, another Plembfin
+process is already running. Stop it or launch with another port, for example
+`PORT=5056 npm start` (PowerShell: `$env:PORT=5056; npm start`).
+
 ## Configuration
 
 | Variable | Default | Purpose |

@@ -9,6 +9,7 @@ ENV NODE_ENV=production \
 # Install production dependencies. better-sqlite3 and sharp ship prebuilt
 # binaries for linux/glibc, so no compiler is needed for the common case.
 COPY package.json package-lock.json* ./
+COPY scripts/install-git-hooks.js ./scripts/install-git-hooks.js
 RUN npm ci --omit=dev
 
 # Application code.
