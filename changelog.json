@@ -1,7 +1,14 @@
 {
-  "version": "0.0.12",
-  "updatedAt": "2026-06-15T16:27:34+01:00",
+  "version": "0.0.13",
+  "updatedAt": "2026-06-15T16:40:14+01:00",
   "entries": [
+    {
+      "version": "0.0.13",
+      "date": "2026-06-15T16:40:14+01:00",
+      "commit": "cb6b5c2cc60cc72d540503beae5867843d26cffb",
+      "message": "Fix filmography details back navigation, watch status contexts, and stale header action state leaks",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.12",
       "date": "2026-06-15T16:27:34+01:00",
