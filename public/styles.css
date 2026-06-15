@@ -1765,6 +1765,31 @@ details[open] .tool-accordion-chevron::before {
   gap: var(--space-2) var(--space-3);
 }
 
+.destination-help {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.destination-help summary {
+  cursor: pointer;
+  color: var(--accent, #4aa3ff);
+  user-select: none;
+}
+
+.destination-help p,
+.destination-help ol {
+  margin: var(--space-2) 0 0;
+  line-height: 1.45;
+}
+
+.destination-help ol {
+  padding-left: 1.2rem;
+}
+
+.destination-help a {
+  color: var(--accent, #4aa3ff);
+}
+
 .destination-feedback {
   color: var(--muted);
   font-size: 0.82rem;

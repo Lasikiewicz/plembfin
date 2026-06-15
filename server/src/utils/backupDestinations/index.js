@@ -9,16 +9,19 @@
 // Adapters receive the full destination record ({ id, type, label, settings, secrets })
 // plus a `persistSecrets(partial)` callback used to write back rotated OAuth refresh
 // tokens. Everything goes over the global fetch (undici) — no extra dependencies.
+import { createFolderAdapter } from "./folder.js";
 import { createWebdavAdapter } from "./webdav.js";
 import { createS3Adapter } from "./s3.js";
 import { createOneDriveAdapter } from "./onedrive.js";
 import { createDropboxAdapter } from "./dropbox.js";
 
-export const DESTINATION_TYPES = ["webdav", "s3", "onedrive", "dropbox"];
+export const DESTINATION_TYPES = ["folder", "webdav", "s3", "onedrive", "dropbox"];
 
 export function createAdapter(destination, hooks = {}) {
   const persistSecrets = typeof hooks.persistSecrets === "function" ? hooks.persistSecrets : () => {};
   switch (destination?.type) {
+    case "folder":
+      return createFolderAdapter(destination, { persistSecrets });
     case "webdav":
       return createWebdavAdapter(destination, { persistSecrets });
     case "s3":
