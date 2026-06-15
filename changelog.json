@@ -1,7 +1,14 @@
 {
-  "version": "0.0.15",
-  "updatedAt": "2026-06-15T17:29:22+01:00",
+  "version": "0.0.16",
+  "updatedAt": "2026-06-15T17:35:30+01:00",
   "entries": [
+    {
+      "version": "0.0.16",
+      "date": "2026-06-15T17:35:30+01:00",
+      "commit": "46222e1086f46a6138402569254dfde0a06ac6fe",
+      "message": "fix: filmography watched status now checks all server watched movies/shows instead of only partially-loaded explorer state and limited dashboard preview",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.15",
       "date": "2026-06-15T17:29:22+01:00",
