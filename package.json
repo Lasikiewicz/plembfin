@@ -1,6 +1,6 @@
 {
   "name": "plembfinfire",
-  "version": "2.0.0",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "server/server.js",
@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "node --watch server/server.js",
-    "migrate": "node scripts/migrate-firestore-to-sqlite.js"
+    "migrate": "node scripts/migrate-firestore-to-sqlite.js",
+    "changelog:update": "node scripts/update-changelog.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",

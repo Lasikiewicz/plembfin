@@ -61,7 +61,7 @@ import {
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
-import { cachePosterFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
+import { cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, prewarmTmdbLibrary, searchTmdb } from "./utils/tmdbGateway.js";
 import { BACKUP_FORMAT, BACKUP_VERSION, backupManifest, exportCollectionPage, importCollectionBatch } from "./utils/backup.js";
 
@@ -1231,6 +1231,62 @@ async function handlePoster(req, res) {
   }
 }
 
+async function handleTmdbPoster(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+
+  const posterPath = String(req.query.path || "").trim();
+  if (!/^\/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)$/i.test(posterPath)) {
+    return sendJson(res, { error: "Invalid TMDB poster path" }, 400);
+  }
+
+  const mediaKey = `tmdb:poster:${posterPath}`;
+  const cached = usableCachedPoster(await getPosterCache(mediaKey));
+  if (cached?.url) {
+    res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+    return res.redirect(302, cached.url);
+  }
+  if (cached?.cached) return res.redirect(302, "/favicon.svg");
+
+  const remoteUrl = `https://image.tmdb.org/t/p/w500${posterPath}`;
+  const stored = await cachePosterFromUrl(mediaKey, remoteUrl, "tmdb");
+  if (!stored?.url) {
+    await markPosterMissing(mediaKey, "tmdb", "TMDB poster download failed").catch(() => null);
+    return res.redirect(302, "/favicon.svg");
+  }
+
+  res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+  return res.redirect(302, stored.url);
+}
+
+async function handleTmdbProfile(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+
+  const profilePath = String(req.query.path || "").trim();
+  if (!/^\/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)$/i.test(profilePath)) {
+    return sendJson(res, { error: "Invalid TMDB profile path" }, 400);
+  }
+
+  const mediaKey = `tmdb:profile:${profilePath}`;
+  const cached = usableCachedPoster(await getPosterCache(mediaKey, "profile"));
+  if (cached?.url) {
+    res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+    return res.redirect(302, cached.url);
+  }
+  if (cached?.cached) return res.redirect(302, "/favicon.svg");
+
+  const remoteUrl = `https://image.tmdb.org/t/p/original${profilePath}`;
+  const stored = await cacheProfileFromUrl(mediaKey, remoteUrl, "tmdb");
+  if (!stored?.url) {
+    await markPosterMissing(mediaKey, "tmdb", "TMDB profile download failed", "profile").catch(() => null);
+    return res.redirect(302, "/favicon.svg");
+  }
+
+  res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+  return res.redirect(302, stored.url);
+}
+
 async function handleBackfillStatus(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!(await requireAdmin(req, res))) return;
@@ -1867,6 +1923,8 @@ async function dispatch(req, res) {
     if (path === "youtube-meta") return handleYoutubeMeta(req, res);
     if (path === "webhook") return handleWebhook(req, res);
     if (path === "test-connection") return handleTestConnection(req, res);
+    if (path === "tmdb-poster") return handleTmdbPoster(req, res);
+    if (path === "tmdb-profile") return handleTmdbProfile(req, res);
     if (path === "poster") return handlePoster(req, res);
     if (path === "admin-backfill-status") return handleBackfillStatus(req, res);
     if (path === "admin-backfill-trakt") return handleBackfillTrakt(req, res);

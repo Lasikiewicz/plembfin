@@ -3866,6 +3866,14 @@ h1 {
   gap: 0.15rem;
 }
 
+.app-version {
+  padding: 0.35rem 0.65rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
 .sidebar-footer .button-ghost {
   width: 100%;
   justify-content: flex-start;

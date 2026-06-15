@@ -28,6 +28,10 @@ app.all("/api/*", express.raw({ type: "*/*", limit: "15mb" }), (req, res) => {
 // Locally cached posters/backdrops.
 app.use("/media", express.static(MEDIA_DIR, { maxAge: "365d", immutable: true }));
 
+app.get("/changelog.json", (_req, res) => {
+  res.sendFile(path.resolve(PUBLIC_DIR, "..", "changelog.json"));
+});
+
 // Static SPA assets, then SPA fallback to index.html for client-side routes.
 app.use(express.static(PUBLIC_DIR, { extensions: ["html"] }));
 app.get("*", (req, res) => {
