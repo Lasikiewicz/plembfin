@@ -114,5 +114,16 @@ before OAuth, remote retention, and provider failure modes are introduced.
 
 Stage 1 is implemented with a dedicated **Settings -> Backups** page, local gzip
 files, daily scheduling, retention, authenticated downloads, checksum validation,
-and dry-run, merge, or replace restores. Remote destination adapters remain the
-next stage.
+and dry-run, merge, or replace restores.
+
+Remote destination adapters are now implemented under
+`server/src/utils/backupDestinations/` (WebDAV, S3-compatible, OneDrive, Dropbox),
+all sharing the `testConnection / upload / list / delete` contract. The local backup
+is always written and verified first; each enabled remote is then mirrored
+best-effort, with per-destination status recorded in the backup runtime and remote
+retention ordered by the sortable backup filename. A remote failure never
+invalidates or deletes the local backup. Credentials live server-side in the
+`watchBackupDestinations` settings row and are redacted to "is-set" flags in every
+API response. OneDrive uses the Microsoft device-code flow (user supplies an Azure
+app client ID); Dropbox uses the manual no-redirect OAuth code flow; both store a
+refresh token. Optional AES-256-GCM encryption (stage 5) is still pending.

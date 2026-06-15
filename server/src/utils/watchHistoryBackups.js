@@ -4,11 +4,15 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { bumpDataVersion, db, parseJson, toJson } from "../db.js";
 import { WATCH_HISTORY_BACKUPS_DIR } from "../paths.js";
+import { createAdapter, DESTINATION_TYPES } from "./backupDestinations/index.js";
 
 const FORMAT = "plembfin-watch-history-backup";
 const VERSION = 1;
 const CONFIG_ID = "watchHistoryBackups";
 const RUNTIME_ID = "watchHistoryBackups";
+const DESTINATIONS_ID = "watchBackupDestinations";
+// Secret fields that must never be returned to the browser, per destination type.
+const SECRET_FIELDS = ["password", "secretAccessKey", "appSecret", "refreshToken"];
 const FILE_PATTERN = /^plembfin-watch-history-(\d{8}T\d{6}Z)\.json\.gz$/;
 
 const selectSetting = db.prepare("SELECT data FROM settings WHERE id = ?");
@@ -50,6 +54,145 @@ function saveRuntime(values = {}) {
   const next = { ...current, ...values, updatedAt: Date.now() };
   upsertRuntime.run(RUNTIME_ID, toJson(next), Date.now());
   return next;
+}
+
+// ---- Remote backup destinations --------------------------------------------
+
+function safeDestination(value = {}) {
+  if (!DESTINATION_TYPES.includes(value.type)) throw new Error(`Unsupported destination type: ${value.type}`);
+  return {
+    id: String(value.id || crypto.randomUUID()),
+    type: value.type,
+    label: String(value.label || value.type).slice(0, 120),
+    enabled: Boolean(value.enabled),
+    settings: value.settings && typeof value.settings === "object" ? { ...value.settings } : {},
+    secrets: value.secrets && typeof value.secrets === "object" ? { ...value.secrets } : {},
+  };
+}
+
+export function loadBackupDestinations() {
+  const list = parseJson(selectSetting.get(DESTINATIONS_ID)?.data, []) || [];
+  return Array.isArray(list) ? list.map((item) => ({ ...item, secrets: item.secrets || {}, settings: item.settings || {} })) : [];
+}
+
+function writeBackupDestinations(list) {
+  upsertSetting.run(DESTINATIONS_ID, toJson(list), Date.now());
+}
+
+// Replace secrets with "is-set" boolean flags so the UI never receives credentials.
+function redactDestination(destination) {
+  const secretFlags = {};
+  for (const field of SECRET_FIELDS) {
+    if (destination.secrets?.[field]) secretFlags[field] = true;
+  }
+  return {
+    id: destination.id,
+    type: destination.type,
+    label: destination.label,
+    enabled: destination.enabled,
+    settings: destination.settings || {},
+    secretFlags,
+  };
+}
+
+export function loadBackupDestinationsRedacted() {
+  return loadBackupDestinations().map(redactDestination);
+}
+
+export function getBackupDestination(id) {
+  return loadBackupDestinations().find((item) => item.id === id) || null;
+}
+
+// Upsert a destination. Incoming secret fields overwrite when a non-empty value is
+// supplied, are removed when explicitly null, and are otherwise preserved — so the
+// UI can save settings without re-sending stored credentials.
+export function saveBackupDestination(input = {}) {
+  const list = loadBackupDestinations();
+  const index = list.findIndex((item) => item.id === input.id);
+  const existing = index >= 0 ? list[index] : null;
+  const next = safeDestination({ ...input, id: existing?.id || input.id });
+
+  next.secrets = { ...(existing?.secrets || {}) };
+  if (input.secrets && typeof input.secrets === "object") {
+    for (const [key, value] of Object.entries(input.secrets)) {
+      if (value === null) delete next.secrets[key];
+      else if (value !== undefined && value !== "") next.secrets[key] = value;
+    }
+  }
+
+  if (index >= 0) list[index] = next;
+  else list.push(next);
+  writeBackupDestinations(list);
+  return redactDestination(next);
+}
+
+export function removeBackupDestination(id) {
+  const list = loadBackupDestinations().filter((item) => item.id !== id);
+  writeBackupDestinations(list);
+  const runtime = loadWatchBackupRuntime();
+  if (runtime.destinations?.[id]) {
+    const destinations = { ...runtime.destinations };
+    delete destinations[id];
+    saveRuntime({ destinations });
+  }
+  return { ok: true };
+}
+
+// Merge rotated OAuth refresh tokens (or any secret) back into storage.
+export function updateDestinationSecrets(id, partial = {}) {
+  const list = loadBackupDestinations();
+  const index = list.findIndex((item) => item.id === id);
+  if (index < 0) return;
+  list[index].secrets = { ...(list[index].secrets || {}), ...partial };
+  writeBackupDestinations(list);
+}
+
+function adapterFor(destination) {
+  return createAdapter(destination, {
+    persistSecrets: (partial) => updateDestinationSecrets(destination.id, partial),
+  });
+}
+
+export async function testBackupDestination(destination) {
+  return adapterFor(destination).testConnection();
+}
+
+async function applyRemoteRetention(adapter, retention) {
+  const files = await adapter.list();
+  // Order by filename, not remote-reported mtimes: our names embed a sortable UTC
+  // timestamp, so this is newest-first regardless of how the remote reports dates.
+  const newestFirst = [...files].sort((a, b) => b.name.localeCompare(a.name));
+  for (const file of newestFirst.slice(Math.max(1, retention))) {
+    await adapter.delete(file.name);
+  }
+}
+
+// Mirror a freshly written local backup to every enabled remote. A remote failure is
+// recorded per-destination but never invalidates or deletes the local backup.
+async function pushBackupToRemotes(localAbsolutePath, filename, retention) {
+  const destinations = loadBackupDestinations().filter((item) => item.enabled);
+  if (!destinations.length) return [];
+
+  const statuses = [];
+  for (const destination of destinations) {
+    const lastAttemptAt = Date.now();
+    try {
+      const adapter = adapterFor(destination);
+      const { bytes, durationMs } = await adapter.upload(localAbsolutePath, filename);
+      await applyRemoteRetention(adapter, retention).catch(() => null);
+      statuses.push({ id: destination.id, status: "success", lastAttemptAt, lastSuccessAt: Date.now(), lastError: "", bytes, durationMs });
+    } catch (error) {
+      statuses.push({ id: destination.id, status: "error", lastAttemptAt, lastError: error.message || String(error) });
+    }
+  }
+
+  const runtime = loadWatchBackupRuntime();
+  const map = { ...(runtime.destinations || {}) };
+  for (const { id, ...rest } of statuses) {
+    map[id] = { ...(map[id] || {}), ...rest };
+  }
+  saveRuntime({ destinations: map });
+  return statuses;
 }
 
 function essentialWatchHistory() {
@@ -134,7 +277,7 @@ function applyRetention(retention) {
   }
 }
 
-export function createWatchHistoryBackup({ reason = "manual" } = {}) {
+export async function createWatchHistoryBackup({ reason = "manual" } = {}) {
   fs.mkdirSync(WATCH_HISTORY_BACKUPS_DIR, { recursive: true });
   const document = backupDocument();
   const json = Buffer.from(`${JSON.stringify(document)}\n`, "utf8");
@@ -160,6 +303,9 @@ export function createWatchHistoryBackup({ reason = "manual" } = {}) {
     reason,
   };
   saveRuntime({ lastSuccessAt: Date.now(), lastError: "", lastBackup: result, lastRunDate: localDateKey() });
+  // Local backup is verified and durable; remote mirroring is best-effort and must
+  // not throw back into the caller.
+  result.remotes = await pushBackupToRemotes(destination, filename, config.retention).catch(() => []);
   return result;
 }
 
@@ -273,10 +419,11 @@ export function watchBackupStatus() {
     config: loadWatchBackupConfig(),
     runtime: loadWatchBackupRuntime(),
     files: listWatchBackups(),
+    destinations: loadBackupDestinationsRedacted(),
   };
 }
 
-export function runScheduledWatchBackup() {
+export async function runScheduledWatchBackup() {
   const config = loadWatchBackupConfig();
   if (!config.enabled) return null;
   const now = new Date();
@@ -285,7 +432,7 @@ export function runScheduledWatchBackup() {
   const runtime = loadWatchBackupRuntime();
   if (runtime.lastRunDate === today || currentTime < config.time) return null;
   try {
-    return createWatchHistoryBackup({ reason: "scheduled" });
+    return await createWatchHistoryBackup({ reason: "scheduled" });
   } catch (error) {
     saveRuntime({ lastError: error.message || String(error), lastFailureAt: Date.now(), lastRunDate: today });
     throw error;

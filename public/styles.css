@@ -1718,6 +1718,69 @@ details[open] .tool-accordion-chevron::before {
   gap: var(--space-2);
 }
 
+.backup-destination-add {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.watch-backup-destinations {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.watch-backup-destination {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-3);
+}
+
+.destination-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.destination-badge {
+  font-weight: 600;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+}
+
+.destination-label {
+  flex: 1 1 160px;
+  min-width: 120px;
+}
+
+.destination-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-3);
+}
+
+.destination-feedback {
+  color: var(--muted);
+  font-size: 0.82rem;
+  min-height: 1rem;
+}
+
+.destination-feedback:empty {
+  display: none;
+}
+
+.destination-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 @media (max-width: 860px) {
   .backup-settings-grid,
   .backup-runtime {
@@ -1731,6 +1794,10 @@ details[open] .tool-accordion-chevron::before {
 
   .watch-backup-actions {
     justify-content: flex-start;
+  }
+
+  .destination-fields {
+    grid-template-columns: 1fr;
   }
 }
 

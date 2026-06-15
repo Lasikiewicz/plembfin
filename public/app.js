@@ -207,6 +207,9 @@ function bindElements() {
     refreshWatchBackupsButton: document.querySelector("#refreshWatchBackupsButton"),
     watchBackupRuntime: document.querySelector("#watchBackupRuntime"),
     watchBackupList: document.querySelector("#watchBackupList"),
+    watchBackupDestinations: document.querySelector("#watchBackupDestinations"),
+    watchBackupDestinationType: document.querySelector("#watchBackupDestinationType"),
+    addWatchBackupDestinationButton: document.querySelector("#addWatchBackupDestinationButton"),
     helpCanvas: document.querySelector("#helpCanvas"),
     helpMenu: document.querySelector("#helpMenu"),
     tvHistoryRow: document.querySelector("#tvHistoryRow"),
@@ -562,6 +565,233 @@ function renderWatchBackups() {
       </div>
     </article>
   `).join("") : `<div class="empty-log"><b>No watch-history backups yet</b><span>Use Back Up Now or enable the daily schedule.</span></div>`;
+
+  renderWatchBackupDestinations(data);
+}
+
+const DESTINATION_FORMS = {
+  webdav: {
+    label: "WebDAV",
+    settings: [
+      { key: "url", label: "Collection URL", placeholder: "https://cloud.example.com/remote.php/dav/files/me/plembfin/" },
+      { key: "username", label: "Username", placeholder: "username" },
+    ],
+    secrets: [{ key: "password", label: "Password" }],
+    oauth: null,
+  },
+  s3: {
+    label: "S3-compatible",
+    settings: [
+      { key: "endpoint", label: "Endpoint (blank for AWS)", placeholder: "http://localhost:9000" },
+      { key: "region", label: "Region", placeholder: "us-east-1" },
+      { key: "bucket", label: "Bucket", placeholder: "my-backups" },
+      { key: "prefix", label: "Key prefix (optional)", placeholder: "plembfin/" },
+      { key: "accessKeyId", label: "Access key ID", placeholder: "AKIA…" },
+      { key: "forcePathStyle", label: "Use path-style URLs (MinIO, B2, most non-AWS)", type: "checkbox", default: true },
+    ],
+    secrets: [{ key: "secretAccessKey", label: "Secret access key" }],
+    oauth: null,
+  },
+  onedrive: {
+    label: "OneDrive",
+    settings: [
+      { key: "clientId", label: "Azure app client ID", placeholder: "00000000-0000-0000-0000-000000000000" },
+      { key: "tenant", label: "Tenant (common / consumers / tenant ID)", placeholder: "common" },
+    ],
+    secrets: [],
+    oauth: "device",
+  },
+  dropbox: {
+    label: "Dropbox",
+    settings: [
+      { key: "appKey", label: "App key", placeholder: "abcd1234efgh5678" },
+      { key: "folder", label: "Folder", placeholder: "/Plembfin Backups" },
+    ],
+    secrets: [{ key: "appSecret", label: "App secret" }],
+    oauth: "code",
+  },
+};
+
+function destinationStatusPill(destination, status) {
+  const connected = !destination.secretFlags || destination.secretFlags.refreshToken;
+  const needsOauth = DESTINATION_FORMS[destination.type]?.oauth;
+  if (needsOauth && !destination.secretFlags?.refreshToken) {
+    return `<span class="status-pill status-warning">Not connected</span>`;
+  }
+  if (status?.status === "success") {
+    return `<span class="status-pill status-ready">Synced ${escapeHtml(watchBackupDate(status.lastSuccessAt))}</span>`;
+  }
+  if (status?.status === "error") {
+    return `<span class="status-pill status-danger">Last run failed</span>`;
+  }
+  return `<span class="status-pill status-muted">${connected ? "Not run yet" : "Not connected"}</span>`;
+}
+
+function renderDestinationField(destination, field) {
+  const value = destination.settings?.[field.key];
+  if (field.type === "checkbox") {
+    const checked = value === undefined ? field.default : Boolean(value);
+    return `<label class="checkbox-label"><input type="checkbox" data-dest-setting="${field.key}" ${checked ? "checked" : ""} /><span>${escapeHtml(field.label)}</span></label>`;
+  }
+  return `<label class="field-label">${escapeHtml(field.label)}
+    <input class="field" data-dest-setting="${field.key}" value="${escapeAttribute(value || "")}" placeholder="${escapeAttribute(field.placeholder || "")}" />
+  </label>`;
+}
+
+function renderDestinationSecret(destination, field) {
+  const isSet = destination.secretFlags?.[field.key];
+  return `<label class="field-label">${escapeHtml(field.label)}
+    <input class="field" type="password" autocomplete="new-password" data-dest-secret="${field.key}" placeholder="${isSet ? "•••••••• (saved — leave blank to keep)" : ""}" />
+  </label>`;
+}
+
+function renderWatchBackupDestinations(data) {
+  const host = elements.watchBackupDestinations;
+  if (!host) return;
+  if (!data) {
+    host.innerHTML = `<div class="empty-log"><b>Destinations not loaded</b></div>`;
+    return;
+  }
+  const destinations = Array.isArray(data.destinations) ? data.destinations : [];
+  const statusMap = data.runtime?.destinations || {};
+  if (!destinations.length) {
+    host.innerHTML = `<div class="empty-log"><b>No remote destinations</b><span>Pick a type above and choose Add destination to mirror backups off-box.</span></div>`;
+    return;
+  }
+  host.innerHTML = destinations.map((destination) => {
+    const form = DESTINATION_FORMS[destination.type] || { label: destination.type, settings: [], secrets: [], oauth: null };
+    const fields = form.settings.map((field) => renderDestinationField(destination, field)).join("");
+    const secrets = form.secrets.map((field) => renderDestinationSecret(destination, field)).join("");
+    const connected = destination.secretFlags?.refreshToken;
+    const status = statusMap[destination.id];
+    return `
+      <article class="watch-backup-destination" data-dest-id="${escapeAttribute(destination.id)}" data-dest-type="${escapeAttribute(destination.type)}">
+        <div class="destination-head">
+          <span class="destination-badge">${escapeHtml(form.label)}</span>
+          <input class="field destination-label" data-dest-meta="label" value="${escapeAttribute(destination.label || form.label)}" />
+          <label class="checkbox-label"><input type="checkbox" data-dest-meta="enabled" ${destination.enabled ? "checked" : ""} /><span>Enabled</span></label>
+          ${destinationStatusPill(destination, status)}
+        </div>
+        <div class="destination-fields">
+          ${fields}
+          ${secrets}
+        </div>
+        <div class="destination-feedback" data-dest-feedback>${status?.status === "error" && status.lastError ? escapeHtml(status.lastError) : ""}</div>
+        <div class="destination-actions">
+          <button class="button-primary" type="button" data-dest-action="save">Save</button>
+          <button class="button-ghost" type="button" data-dest-action="test">Test</button>
+          ${form.oauth ? `<button class="button-ghost" type="button" data-dest-action="connect">${connected ? "Reconnect" : "Connect"}</button>` : ""}
+          <button class="button-danger" type="button" data-dest-action="remove">Remove</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function collectDestination(card) {
+  const settings = {};
+  card.querySelectorAll("[data-dest-setting]").forEach((input) => {
+    settings[input.dataset.destSetting] = input.type === "checkbox" ? input.checked : input.value.trim();
+  });
+  const secrets = {};
+  card.querySelectorAll("[data-dest-secret]").forEach((input) => {
+    if (input.value) secrets[input.dataset.destSecret] = input.value;
+  });
+  return {
+    id: card.dataset.destId,
+    type: card.dataset.destType,
+    label: card.querySelector('[data-dest-meta="label"]')?.value?.trim() || card.dataset.destType,
+    enabled: Boolean(card.querySelector('[data-dest-meta="enabled"]')?.checked),
+    settings,
+    secrets,
+  };
+}
+
+async function addBackupDestination() {
+  const type = elements.watchBackupDestinationType?.value || "webdav";
+  const label = DESTINATION_FORMS[type]?.label || type;
+  await postWatchBackupAction({ action: "save-destination", destination: { type, label, enabled: false, settings: {}, secrets: {} } });
+  state.watchBackups = null;
+  await loadWatchBackups({ force: true });
+  setMessage(`Added ${label} destination — fill in the details and Save.`, "success");
+}
+
+async function saveBackupDestinationCard(card) {
+  await postWatchBackupAction({ action: "save-destination", destination: collectDestination(card) });
+  state.watchBackups = null;
+  await loadWatchBackups({ force: true });
+  setMessage("Destination saved.", "success");
+}
+
+async function testBackupDestinationCard(card) {
+  const destination = collectDestination(card);
+  // Persist first so the server tests exactly what is shown.
+  await postWatchBackupAction({ action: "save-destination", destination });
+  const result = await postWatchBackupAction({ action: "test-destination", destinationId: destination.id });
+  setMessage(`Connection OK — ${result.result?.detail || "reachable"}.`, "success");
+  state.watchBackups = null;
+  await loadWatchBackups({ force: true });
+}
+
+async function removeBackupDestinationCard(card) {
+  const approved = await openConfirmDialog({
+    title: "Remove destination?",
+    body: "Stop mirroring backups here? Files already uploaded to the remote are left untouched.",
+    confirmLabel: "Remove",
+    danger: true,
+  });
+  if (!approved) return;
+  await postWatchBackupAction({ action: "remove-destination", destinationId: card.dataset.destId });
+  state.watchBackups = null;
+  await loadWatchBackups({ force: true });
+  setMessage("Destination removed.", "success");
+}
+
+async function connectBackupDestinationCard(card) {
+  const destination = collectDestination(card);
+  // Persist client/app credentials before kicking off the OAuth handshake.
+  await postWatchBackupAction({ action: "save-destination", destination });
+  if (destination.type === "onedrive") return connectOneDriveDestination(destination.id, card);
+  if (destination.type === "dropbox") return connectDropboxDestination(destination.id, card);
+}
+
+async function connectOneDriveDestination(id, card) {
+  const feedback = card.querySelector("[data-dest-feedback]");
+  const start = await postWatchBackupAction({ action: "device-start", destinationId: id });
+  if (feedback) {
+    feedback.innerHTML = `Open <a href="${escapeAttribute(start.verificationUri)}" target="_blank" rel="noopener">${escapeHtml(start.verificationUri)}</a> and enter code <b>${escapeHtml(start.userCode)}</b>. Waiting for approval…`;
+  }
+  const deadline = Date.now() + (Number(start.expiresIn) || 900) * 1000;
+  const interval = Math.max(2, Number(start.interval) || 5) * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, interval));
+    const poll = await postWatchBackupAction({ action: "device-poll", pendingId: start.pendingId });
+    if (poll.status === "authorized") {
+      setMessage("OneDrive connected.", "success");
+      state.watchBackups = null;
+      await loadWatchBackups({ force: true });
+      return;
+    }
+    if (poll.status === "error") {
+      if (feedback) feedback.textContent = poll.error || "Authorization failed.";
+      setMessage(poll.error || "OneDrive authorization failed.", "error");
+      return;
+    }
+  }
+  if (feedback) feedback.textContent = "Login timed out — start again.";
+}
+
+async function connectDropboxDestination(id, card) {
+  const feedback = card.querySelector("[data-dest-feedback]");
+  const { url } = await postWatchBackupAction({ action: "oauth-url", destinationId: id });
+  window.open(url, "_blank", "noopener");
+  if (feedback) feedback.innerHTML = `A Dropbox tab opened. Approve access, then paste the code below.`;
+  const code = window.prompt("Dropbox: after approving access, paste the authorization code here:");
+  if (!code) return;
+  await postWatchBackupAction({ action: "oauth-exchange", destinationId: id, code });
+  setMessage("Dropbox connected.", "success");
+  state.watchBackups = null;
+  await loadWatchBackups({ force: true });
 }
 
 async function loadWatchBackups({ force = false } = {}) {
@@ -5745,9 +5975,50 @@ function showModalStatus(loading, hasTmdbKey, hasTmdbData) {
   return "";
 }
 
+function renderMovieWatchDatePrompt(action, customValue) {
+  const movie = action.movie || {};
+  const releaseLabel = movie.releaseDate ? formatTmdbDate(movie.releaseDate) : "Unknown release date";
+  return `
+    <div class="watch-date-overlay" role="dialog" aria-modal="true" aria-label="Choose watched date">
+      <div class="watch-date-dialog">
+        <div class="watch-date-head">
+          <div class="watch-date-head-text">
+            <h3>${escapeHtml(action.label)}</h3>
+            <p class="watch-date-sub">${escapeHtml(movie.title || "Movie")} &middot; Movie</p>
+          </div>
+          <button class="watch-date-close" type="button" data-watch-date-cancel="true" aria-label="Cancel">&times;</button>
+        </div>
+
+        <p class="watch-date-intro">Logs this movie to your watch history and marks it played on Plex, Emby, and Jellyfin. Pick which date to record.</p>
+
+        <div class="watch-date-section-label">Watched date</div>
+        <div class="watch-date-options">
+          <button class="watch-date-pick" type="button" data-watch-date-choice="release"${movie.releaseDate ? "" : " disabled"}>
+            <span class="watch-date-pick-title">Day of release</span>
+            <span class="watch-date-pick-sub">${escapeHtml(releaseLabel)}</span>
+          </button>
+          <button class="watch-date-pick" type="button" data-watch-date-choice="now">
+            <span class="watch-date-pick-title">Now</span>
+            <span class="watch-date-pick-sub">Today, ${escapeHtml(formatTmdbDate(customValue))}</span>
+          </button>
+        </div>
+
+        <div class="watch-date-custom">
+          <label for="watchDateCustomInput">Or pick a specific date</label>
+          <div class="watch-date-custom-row">
+            <input id="watchDateCustomInput" type="date" value="${escapeAttribute(customValue)}" max="${escapeAttribute(customValue)}" />
+            <button class="button-primary" type="button" data-watch-date-choice="custom">Use date</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderWatchDatePrompt(action) {
   if (!action) return "";
   const customValue = new Date().toISOString().slice(0, 10);
+  if (action.scope === "movie") return renderMovieWatchDatePrompt(action, customValue);
   const episodeCount = action.episodes.length;
   const them = episodeCount === 1 ? "this episode" : "these episodes";
   const episodesHtml = action.episodes
@@ -6197,6 +6468,61 @@ function watchRecordFromEpisode(episode, watchedAt) {
   };
 }
 
+function watchRecordFromMovie(movie, watchedAt) {
+  return {
+    media_type: "movie",
+    title: movie.title,
+    watched_at: watchedAt,
+    source: "manual",
+    tmdb_id: movie.tmdbId || null,
+    poster_url: movie.posterUrl || null,
+  };
+}
+
+function markMovieWatched(movie) {
+  if (!movie?.title) {
+    setMessage("Cannot mark this movie watched — missing details.", "error");
+    return;
+  }
+  openWatchDatePrompt({
+    scope: "movie",
+    movie,
+    label: `Mark ${movie.title} watched`,
+    showTitle: movie.title,
+    countLabel: "1 movie",
+  });
+}
+
+async function applyMovieWatchDateChoice(choice) {
+  const action = state.pendingWatchAction;
+  const movie = action?.movie;
+  if (!movie) return;
+
+  const root = mediaDetailRoot();
+  const customDate = root.querySelector("#watchDateCustomInput")?.value || "";
+  const watchedAt = watchedAtForChoice(choice, { airDate: movie.releaseDate }, customDate);
+  const record = watchRecordFromMovie(movie, watchedAt);
+
+  root.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]").forEach((button) => {
+    button.disabled = true;
+  });
+  closeWatchDatePrompt();
+
+  try {
+    const result = await postManualWatchRecords([record]);
+    clearDerivedUiCaches({ resetExplorer: false });
+    setMessage(
+      `Marked "${movie.title}" watched${result.skipped ? " (already logged)" : ""}; pushed ${result.propagated} to media apps.`,
+      result.rejected ? "error" : "success",
+    );
+    await loadHistory({ force: true }).catch(() => null);
+    if (movie.tmdbId) await openMovieImmersiveModalByTmdbId(movie.tmdbId);
+  } catch (error) {
+    setMessage(`Manual watch update failed: ${error.message}`, "error");
+    throw error;
+  }
+}
+
 function localWatchRowFromEpisode(episode, watchedAt) {
   return {
     id: `local-${episode.key}-${Date.now()}`,
@@ -6295,6 +6621,7 @@ async function refreshShowAfterManualWatch(showTitle) {
 
 async function applyWatchDateChoice(choice) {
   const action = state.pendingWatchAction;
+  if (action?.scope === "movie") return applyMovieWatchDateChoice(choice);
   if (!action?.episodes?.length) return;
 
   const root = mediaDetailRoot();
@@ -6745,6 +7072,13 @@ async function renderMovieImmersiveModalContent(movie) {
 }
 
 async function openMovieImmersiveModalByTmdbId(tmdbId) {
+  // If this movie is already logged locally, show its watched detail (watch date +
+  // unwatch controls) instead of the unwatched TMDB view.
+  const existingWatched = state.history.find(
+    (entry) => entry.media_type === "movie" && isWatchedHistoryAction(entry) && String(entry.tmdb_id || "") === String(tmdbId),
+  );
+  if (existingWatched) return renderMovieImmersiveModalContent(existingWatched);
+
   if (!state.mediaDetailInline) {
     elements.debugModal.classList.remove("hidden");
     document.body.style.overflow = "hidden";
@@ -6819,6 +7153,13 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
             </div>
             <div class="progress-bar-track">
               <div class="progress-bar-fill" style="width: 0%;"></div>
+            </div>
+            <div class="immersive-actions" style="margin-top: 0.75rem;">
+              <button class="action-pill" type="button"
+                data-movie-mark-watched="${escapeAttribute(String(tmdbId))}"
+                data-movie-title="${escapeAttribute(movieTitle)}"
+                data-movie-poster="${escapeAttribute(posterUrl)}"
+                data-movie-release="${escapeAttribute(tmdbData.release_date || "")}">Mark watched</button>
             </div>
           </section>
         </div>
@@ -8248,6 +8589,24 @@ function attachEvents() {
     }
   });
 
+  elements.addWatchBackupDestinationButton?.addEventListener("click", () => {
+    addBackupDestination().catch((error) => setMessage(error.message, "error"));
+  });
+  elements.watchBackupDestinations?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-dest-action]");
+    if (!button) return;
+    const card = button.closest("[data-dest-id]");
+    if (!card) return;
+    const actions = {
+      save: saveBackupDestinationCard,
+      test: testBackupDestinationCard,
+      remove: removeBackupDestinationCard,
+      connect: connectBackupDestinationCard,
+    };
+    const run = actions[button.dataset.destAction];
+    if (run) run(card).catch((error) => setMessage(error.message, "error"));
+  });
+
 
   elements.explorerButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -8505,6 +8864,17 @@ function attachEvents() {
     const watchButton = event.target.closest("[data-watch-scope]");
     if (watchButton) {
       openWatchDatePrompt(watchActionFromButton(watchButton));
+      return;
+    }
+
+    const movieWatchButton = event.target.closest("[data-movie-mark-watched]");
+    if (movieWatchButton) {
+      markMovieWatched({
+        tmdbId: movieWatchButton.dataset.movieMarkWatched,
+        title: movieWatchButton.dataset.movieTitle,
+        posterUrl: movieWatchButton.dataset.moviePoster,
+        releaseDate: movieWatchButton.dataset.movieRelease,
+      });
       return;
     }
 
