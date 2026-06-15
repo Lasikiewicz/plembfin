@@ -1,4 +1,4 @@
-﻿import { buildAuthHeaders, buildNowPlayingUrl, currentFirebaseUser, onFirebaseAuthChange, readStoredAdminToken, scrubTokenFromLocation, signInAdmin, signOutAdmin } from "./modules/auth.js";
+﻿import { buildAuthHeaders, buildNowPlayingUrl, currentFirebaseUser, onFirebaseAuthChange, readStoredAdminToken, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs } from "./modules/logs.js";
 import { connectionLabel, connectionPayloadFromElements } from "./modules/settings.js";
 import { fetchLocalActiveSessions } from "./modules/timeline.js";
@@ -152,6 +152,11 @@ function bindElements() {
     authPanel: document.querySelector("#authPanel"),
     adminToken: document.querySelector("#adminToken"),
     adminEmail: document.querySelector("#adminEmail"),
+    adminCredentialsForm: document.querySelector("#adminCredentialsForm"),
+    adminCredentialsStatus: document.querySelector("#adminCredentialsStatus"),
+    currentAdminPassword: document.querySelector("#currentAdminPassword"),
+    newAdminPassword: document.querySelector("#newAdminPassword"),
+    confirmAdminPassword: document.querySelector("#confirmAdminPassword"),
     clearImportButton: document.querySelector("#clearImportButton"),
     closeModalButton: document.querySelector("#closeModalButton"),
     confirmModal: document.querySelector("#confirmModal"),
@@ -230,7 +235,7 @@ function bindElements() {
     refreshMetadataButton: document.querySelector("#refreshMetadataButton"),
     refreshMetadataStatus: document.querySelector("#refreshMetadataStatus"),
     refreshMetadataLog: document.querySelector("#refreshMetadataLog"),
-    settingsToken: document.querySelector("#settingsToken"),
+    settingsUsername: document.querySelector("#settingsUsername"),
     settingsForm: document.querySelector("#settingsForm"),
     settingsStatus: document.querySelector("#settingsStatus"),
     settingsTabButtons: [...document.querySelectorAll("[data-settings-tab]")],
@@ -246,7 +251,8 @@ function bindElements() {
     trackingSpan: document.querySelector("#trackingSpan"),
     topShows: document.querySelector("#topShows"),
     saveConfigButton: document.querySelector("#saveConfigButton"),
-    updateTokenButton: document.querySelector("#updateTokenButton"),
+    saveAdminCredentialsButton: document.querySelector("#saveAdminCredentialsButton"),
+    checkSessionButton: document.querySelector("#checkSessionButton"),
     webhookUrl: document.querySelector("#webhookUrl"),
     runCompleteCheckButton: document.querySelector("#runCompleteCheckButton"),
     completeCheckResults: document.querySelector("#completeCheckResults"),
@@ -2782,6 +2788,57 @@ function renderSettingsStatus(text, tone = "muted") {
   if (!elements.settingsStatus) return;
   elements.settingsStatus.textContent = text;
   elements.settingsStatus.dataset.tone = tone;
+}
+
+function renderAdminCredentialsStatus(text, tone = "muted") {
+  if (!elements.adminCredentialsStatus) return;
+  elements.adminCredentialsStatus.textContent = text;
+  elements.adminCredentialsStatus.dataset.tone = tone;
+}
+
+async function saveAdminCredentials() {
+  const username = elements.settingsUsername.value.trim();
+  const currentPassword = elements.currentAdminPassword.value;
+  const newPassword = elements.newAdminPassword.value;
+  const confirmPassword = elements.confirmAdminPassword.value;
+
+  if (!username || !currentPassword) {
+    renderAdminCredentialsStatus("Enter a username and your current password.", "error");
+    return;
+  }
+  if (newPassword && newPassword.length < 8) {
+    renderAdminCredentialsStatus("New password must be at least 8 characters.", "error");
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    renderAdminCredentialsStatus("New password and confirmation do not match.", "error");
+    return;
+  }
+
+  const button = elements.saveAdminCredentialsButton;
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Saving...";
+  renderAdminCredentialsStatus("Updating login...", "muted");
+
+  try {
+    const result = await updateAdminCredentials({ username, currentPassword, newPassword });
+    state.firebaseUser = result.user;
+    state.token = result.token;
+    elements.adminEmail.value = username;
+    elements.currentAdminPassword.value = "";
+    elements.newAdminPassword.value = "";
+    elements.confirmAdminPassword.value = "";
+    localStorage.setItem("firebaseAdminEmail", username);
+    renderAdminCredentialsStatus("Login updated. Other dashboard sessions have been signed out.", "success");
+    setMessage(`Login updated for ${username}.`, "success");
+  } catch (error) {
+    renderAdminCredentialsStatus(error.message, "error");
+    setMessage(error.message, "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 }
 
 async function loadSavedConfig() {
@@ -6455,14 +6512,14 @@ async function unlockWithToken(password, email = elements.adminEmail?.value) {
   const cleanEmail = String(email || "").trim();
   const cleanPassword = String(password || "");
   if (!cleanEmail || !cleanPassword) {
-    setMessage("Enter your Firebase admin email or local username and password.", "error");
+    setMessage("Enter your admin username and password.", "error");
     return;
   }
 
   const result = await signInAdmin(cleanEmail, cleanPassword);
   state.firebaseUser = result.user;
   state.token = result.token;
-  if (elements.settingsToken) elements.settingsToken.value = cleanEmail;
+  if (elements.settingsUsername) elements.settingsUsername.value = cleanEmail;
   localStorage.setItem("firebaseAdminEmail", cleanEmail);
   if (result.token === "plembfin-local-admin") {
     localStorage.setItem(TOKEN_KEY, result.token);
@@ -6510,7 +6567,7 @@ async function lockDashboard() {
   localStorage.removeItem(LEGACY_TOKEN_KEY);
   await signOutAdmin().catch(() => {});
   elements.adminToken.value = "";
-  if (elements.settingsToken) elements.settingsToken.value = "";
+  if (elements.settingsUsername) elements.settingsUsername.value = "";
   populateConfigForm({});
   renderDashboard();
   renderActiveSessions();
@@ -8091,9 +8148,20 @@ function attachEvents() {
     openHistoryDebugModal(historyRow.dataset.historyId).catch((error) => setMessage(error.message, "error"));
   });
 
-  elements.updateTokenButton.addEventListener("click", async () => {
+  elements.adminCredentialsForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveAdminCredentials().catch((error) => {
+      renderAdminCredentialsStatus(error.message, "error");
+      setMessage(error.message, "error");
+    });
+  });
+
+  elements.checkSessionButton.addEventListener("click", async () => {
     const user = currentFirebaseUser();
-    setMessage(user ? `Signed in as ${user.email || "Firebase admin"}.` : "Sign in again from the lock screen.", user ? "success" : "error");
+    const text = user ? `Signed in as ${user.username || user.email || "admin"}.` : "Sign in again from the lock screen.";
+    const tone = user ? "success" : "error";
+    renderAdminCredentialsStatus(text, tone);
+    setMessage(text, tone);
   });
 
   elements.saveConfigButton.addEventListener("click", () => {
@@ -8364,7 +8432,7 @@ function initialize() {
   applyExplorerPosterWidth();
   elements.adminEmail.value = localStorage.getItem("firebaseAdminEmail") || "";
   elements.adminToken.value = "";
-  elements.settingsToken.value = elements.adminEmail.value;
+  elements.settingsUsername.value = elements.adminEmail.value;
   elements.webhookUrl.textContent = `${window.location.origin}/api/webhook`;
   if (elements.cronSyncUrl) {
     elements.cronSyncUrl.textContent = `${window.location.origin}/api/cron-sync`;
@@ -8411,7 +8479,7 @@ function initialize() {
       }
     }
     if (user && token && !state.configLoaded) {
-      elements.settingsToken.value = user.email || "";
+      elements.settingsUsername.value = user.username || user.email || "";
       localStorage.setItem("firebaseAdminEmail", user.email || "");
       setUnlocked(true);
       selectView(state.activeView);

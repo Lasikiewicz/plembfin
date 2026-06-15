@@ -225,51 +225,71 @@
                 <article class="glass-panel p-section settings-card">
                   <div class="section-heading">
                     <div>
-                      <p>Firebase Auth</p>
-                      <span>Email/password session managed by Firebase Auth</span>
+                      <p>Admin Login</p>
+                      <span>Local username and password session</span>
                     </div>
                   </div>
-                  <label class="field-label">
-                    Current admin email
-                    <input id="settingsToken" class="field" type="email" autocomplete="username" readonly />
-                  </label>
-                  <div class="settings-actions">
-                    <button id="updateTokenButton" class="button-ghost" type="button">Check Session</button>
-                  </div>
+                  <form id="adminCredentialsForm" class="admin-credentials-form">
+                    <label class="field-label" for="settingsUsername">
+                      Username
+                      <input id="settingsUsername" class="field" type="text" autocomplete="username" maxlength="128" required />
+                    </label>
+                    <div class="admin-credentials-grid">
+                      <label class="field-label" for="currentAdminPassword">
+                        Current password
+                        <input id="currentAdminPassword" class="field" type="password" autocomplete="current-password" required />
+                      </label>
+                      <label class="field-label" for="newAdminPassword">
+                        New password
+                        <input id="newAdminPassword" class="field" type="password" autocomplete="new-password" minlength="8" maxlength="256" placeholder="Leave blank to keep current" />
+                      </label>
+                      <label class="field-label" for="confirmAdminPassword">
+                        Confirm new password
+                        <input id="confirmAdminPassword" class="field" type="password" autocomplete="new-password" minlength="8" maxlength="256" />
+                      </label>
+                    </div>
+                    <p id="adminCredentialsStatus" class="message" role="status" aria-live="polite">Saving changes signs out other dashboard sessions.</p>
+                    <div class="settings-actions">
+                      <button id="checkSessionButton" class="button-ghost" type="button">Check Session</button>
+                      <button id="saveAdminCredentialsButton" class="button-primary" type="submit">Save Login</button>
+                    </div>
+                  </form>
                 </article>
 
                 <article class="glass-panel p-section settings-card">
                   <div class="section-heading">
-                    <p>Runtime Variables</p>
-                    <span>Firebase services used by the portal</span>
+                    <p>Login &amp; Security</p>
+                    <span>Environment options used by the self-hosted portal</span>
                   </div>
                   <div class="endpoint-box compact-endpoint">
-                    <code>ADMIN_EMAILS</code>
-                    <p>Comma-separated Firebase Auth admin emails allowed to call dashboard APIs.</p>
-                    <code>ADMIN_UIDS</code>
-                    <p>Optional comma-separated Firebase Auth UIDs allowed to call dashboard APIs.</p>
-                    <code>Cloud Firestore</code>
-                    <p>Stores canonical watch history, live cache rows, progress, settings, sync logs, and loop keys.</p>
+                    <code>ADMIN_USERNAME</code>
+                    <p>Sets the initial dashboard username. Saving the form above stores an app-managed replacement.</p>
+                    <code>ADMIN_PASSWORD</code>
+                    <p>Sets the initial dashboard password. Form changes are stored as a secure hash and are never shown.</p>
+                    <code>API_KEY</code>
+                    <p>Authenticates webhooks and external integrations. A random key is generated on first boot when omitted.</p>
+                    <code>SESSION_SECRET</code>
+                    <p>Signs the dashboard session cookie. A random secret is generated on first boot when omitted.</p>
                   </div>
                 </article>
 
                 <article class="glass-panel p-section settings-card">
                   <div class="section-heading">
                     <p>API Endpoints</p>
-                    <span>Webhook listener and scheduled background worker</span>
+                    <span>Webhook listener and in-process background worker</span>
                   </div>
                   <div class="endpoint-box">
                     <code id="webhookUrl">/api/webhook</code>
-                    <p>Point Plex, Emby, and Jellyfin played/scrobble webhooks here. Valid watched events are inserted into Firestore and synced to other platforms.</p>
+                    <p>Point Plex, Emby, and Jellyfin played/scrobble webhooks here. Valid watched events are saved to SQLite and synced to other platforms.</p>
                     <code id="cronSyncUrl">/api/cron-sync</code>
-                    <p>The <code>scheduledSync</code> function runs every minute via Cloud Scheduler. This endpoint is also available as an authenticated manual trigger for diagnostics.</p>
+                    <p>The background scheduler runs every minute inside Plembfin. This endpoint is also available as an authenticated manual trigger for diagnostics.</p>
                   </div>
                 </article>
 
                 <article class="glass-panel p-section settings-card">
                   <div class="section-heading">
                     <p>Database Status</p>
-                    <span>Cloud Firestore backend</span>
+                    <span>Local SQLite backend</span>
                   </div>
                   <div id="dbStatus" class="db-status"></div>
                 </article>

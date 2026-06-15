@@ -2,7 +2,7 @@ import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyf
 import { findPlexItem, markPlexPlayed, setPlexProgress } from "./utils/plexClient.js";
 import { markEmbyPlayed, setEmbyProgress } from "./utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress } from "./utils/jellyfinClient.js";
-import { requireAdmin, requireAdminStreaming, handleLogin, handleLogout, handleAuthStatus } from "./utils/auth.js";
+import { requireAdmin, requireAdminStreaming, handleLogin, handleLogout, handleAuthStatus, handleAuthCredentials } from "./utils/auth.js";
 import { readFormData, readJson } from "./utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed, notFound } from "./utils/http.js";
 import { appendSyncHistory, loadMediaConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "./utils/configStore.js";
@@ -1793,6 +1793,7 @@ async function dispatch(req, res) {
     if (path === "login") return handleLogin(req, res);
     if (path === "logout") return handleLogout(req, res);
     if (path === "auth/status" || path === "auth-status") return handleAuthStatus(req, res);
+    if (path === "auth/credentials") return handleAuthCredentials(req, res);
     if (path === "config") return handleConfig(req, res);
     if (path === "history") return handleHistory(req, res);
     if (path === "sync-jobs") return handleSyncJobs(req, res);

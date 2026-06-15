@@ -1820,6 +1820,17 @@ details[open] .tool-accordion-chevron::before {
   min-width: 0;
 }
 
+.admin-credentials-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.admin-credentials-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
 .endpoint-box,
 .empty-log,
 .drop-zone {
@@ -2639,6 +2650,7 @@ details[open] .tool-accordion-chevron::before {
 
   .insight-grid,
   .settings-config-grid,
+  .admin-credentials-grid,
   .apps-server-grid,
   .apps-secondary-grid,
   .explorer-overview-view,
