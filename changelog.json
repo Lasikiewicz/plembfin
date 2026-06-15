@@ -1,7 +1,14 @@
 {
-  "version": "0.0.11",
-  "updatedAt": "2026-06-15T16:15:46+01:00",
+  "version": "0.0.12",
+  "updatedAt": "2026-06-15T16:27:34+01:00",
   "entries": [
+    {
+      "version": "0.0.12",
+      "date": "2026-06-15T16:27:34+01:00",
+      "commit": "266c78204b793f100dd8bbd750e61842953d2497",
+      "message": "Update filmography to show all credits and display watched status",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.11",
       "date": "2026-06-15T16:15:46+01:00",
