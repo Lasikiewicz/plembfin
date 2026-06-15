@@ -1,7 +1,14 @@
 {
-  "version": "0.0.9",
-  "updatedAt": "2026-06-15T14:25:46+01:00",
+  "version": "0.0.10",
+  "updatedAt": "2026-06-15T14:48:01+01:00",
   "entries": [
+    {
+      "version": "0.0.10",
+      "date": "2026-06-15T14:48:01+01:00",
+      "commit": "9a2da3619855bbbf49acdd22962ef943da2b1627",
+      "message": "feat: Backblaze B2 backup option + restore from any destination",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.9",
       "date": "2026-06-15T14:25:46+01:00",
