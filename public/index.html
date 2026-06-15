@@ -45,6 +45,7 @@
           <div id="sidebarSettingsMenu" class="sidebar-sub-menu hidden">
             <button class="settings-tab active" type="button" data-settings-tab="general">General</button>
             <button class="settings-tab" type="button" data-settings-tab="apps">Apps</button>
+            <button class="settings-tab" type="button" data-settings-tab="api-keys">API Keys</button>
             <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
             <button class="settings-tab" type="button" data-settings-tab="backups">Backups</button>
             <button class="settings-tab" type="button" data-settings-tab="sync">Sync</button>
@@ -224,91 +225,89 @@
 
             <div class="settings-content">
               <section class="settings-pane" data-settings-panel="general">
-                <article class="glass-panel p-section settings-card">
-                  <div class="section-heading">
-                    <div>
-                      <p>Admin Login</p>
-                      <span>Local username and password session</span>
-                    </div>
+                <div class="settings-row">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Admin Login</p>
+                          <span>Local username and password session</span>
+                        </div>
+                      </div>
+                      <form id="adminCredentialsForm" class="admin-credentials-form">
+                        <label class="field-label" for="settingsUsername">
+                          Username
+                          <input id="settingsUsername" class="field" type="text" autocomplete="username" maxlength="128" required />
+                        </label>
+                        <div class="admin-credentials-grid">
+                          <label class="field-label" for="currentAdminPassword">
+                            Current password
+                            <input id="currentAdminPassword" class="field" type="password" autocomplete="current-password" required />
+                          </label>
+                          <label class="field-label" for="newAdminPassword">
+                            New password
+                            <input id="newAdminPassword" class="field" type="password" autocomplete="new-password" minlength="8" maxlength="256" placeholder="Leave blank to keep current" />
+                          </label>
+                          <label class="field-label" for="confirmAdminPassword">
+                            Confirm new password
+                            <input id="confirmAdminPassword" class="field" type="password" autocomplete="new-password" minlength="8" maxlength="256" />
+                          </label>
+                        </div>
+                        <p id="adminCredentialsStatus" class="message" role="status" aria-live="polite">Saving changes signs out other dashboard sessions.</p>
+                        <div class="settings-actions">
+                          <button id="checkSessionButton" class="button-ghost" type="button">Check Session</button>
+                          <button id="saveAdminCredentialsButton" class="button-primary" type="submit">Save Login</button>
+                        </div>
+                      </form>
+                    </article>
                   </div>
-                  <form id="adminCredentialsForm" class="admin-credentials-form">
-                    <label class="field-label" for="settingsUsername">
-                      Username
-                      <input id="settingsUsername" class="field" type="text" autocomplete="username" maxlength="128" required />
-                    </label>
-                    <div class="admin-credentials-grid">
-                      <label class="field-label" for="currentAdminPassword">
-                        Current password
-                        <input id="currentAdminPassword" class="field" type="password" autocomplete="current-password" required />
-                      </label>
-                      <label class="field-label" for="newAdminPassword">
-                        New password
-                        <input id="newAdminPassword" class="field" type="password" autocomplete="new-password" minlength="8" maxlength="256" placeholder="Leave blank to keep current" />
-                      </label>
-                      <label class="field-label" for="confirmAdminPassword">
-                        Confirm new password
-                        <input id="confirmAdminPassword" class="field" type="password" autocomplete="new-password" minlength="8" maxlength="256" />
-                      </label>
-                    </div>
-                    <p id="adminCredentialsStatus" class="message" role="status" aria-live="polite">Saving changes signs out other dashboard sessions.</p>
-                    <div class="settings-actions">
-                      <button id="checkSessionButton" class="button-ghost" type="button">Check Session</button>
-                      <button id="saveAdminCredentialsButton" class="button-primary" type="submit">Save Login</button>
-                    </div>
-                  </form>
-                </article>
 
-                <article class="glass-panel p-section settings-card">
-                  <div class="section-heading">
-                    <p>Login &amp; Security</p>
-                    <span>Environment options used by the self-hosted portal</span>
-                  </div>
-                  <div class="endpoint-box compact-endpoint">
-                    <code>ADMIN_USERNAME</code>
-                    <p>Sets the initial dashboard username. Saving the form above stores an app-managed replacement.</p>
-                    <code>ADMIN_PASSWORD</code>
-                    <p>Sets the initial dashboard password. Form changes are stored as a secure hash and are never shown.</p>
-                    <code>API_KEY</code>
-                    <p>Authenticates webhooks and external integrations. A random key is generated on first boot when omitted.</p>
-                    <code>SESSION_SECRET</code>
-                    <p>Signs the dashboard session cookie. A random secret is generated on first boot when omitted.</p>
-                  </div>
-                </article>
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>General Help</p>
+                        <span>Portal Security</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        Plembfin is a self-hosted watch-state bridge. Access to this dashboard is gated by a local username and password session.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Defaults:</b> <code>admin</code> / <code>admin</code> on first run. Override by setting <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> environment variables.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        Every <code>/api/*</code> request is verified server-side — unauthenticated requests are rejected. External integrations (webhooks) authenticate with the API key shown after sign-in.
+                      </p>
+                    </article>
 
-                <article class="glass-panel p-section settings-card">
-                  <div class="section-heading">
-                    <p>API Endpoints</p>
-                    <span>Webhook listener and in-process background worker</span>
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>API Endpoints</p>
+                        <span>Webhook listener and background worker</span>
+                      </div>
+                      <div class="endpoint-box">
+                        <code id="webhookUrl">/api/webhook</code>
+                        <p>Point Plex, Emby, and Jellyfin webhooks here to capture watched events.</p>
+                        <code id="cronSyncUrl">/api/cron-sync</code>
+                        <p>Background scheduler URL for syncing states between platforms.</p>
+                      </div>
+                    </article>
                   </div>
-                  <div class="endpoint-box">
-                    <code id="webhookUrl">/api/webhook</code>
-                    <p>Point Plex, Emby, and Jellyfin played/scrobble webhooks here. Valid watched events are saved to SQLite and synced to other platforms.</p>
-                    <code id="cronSyncUrl">/api/cron-sync</code>
-                    <p>The background scheduler runs every minute inside Plembfin. This endpoint is also available as an authenticated manual trigger for diagnostics.</p>
-                  </div>
-                </article>
-
-                <article class="glass-panel p-section settings-card">
-                  <div class="section-heading">
-                    <p>Database Status</p>
-                    <span>Local SQLite backend</span>
-                  </div>
-                  <div id="dbStatus" class="db-status"></div>
-                </article>
-
-                
+                </div>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="apps">
-                <div id="settingsForm">
-                  <div class="apps-server-grid">
+                <!-- Plex Row -->
+                <div class="settings-row">
+                  <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Plex Setup</p>
-                        <span>Server URL, token, and username</span>
+                        <div>
+                          <p>Plex Setup</p>
+                          <span>Server URL, token, and username</span>
+                        </div>
                       </div>
                       <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer; user-select: none;">
-                        <input id="plexEnabled" type="checkbox" checked style="width: 16px; height: 16px; accent-color: var(--blue); margin: 0;" />
+                        <input id="plexEnabled" type="checkbox" style="width: 16px; height: 16px; accent-color: var(--blue); margin: 0;" />
                         <span style="font-weight: 600; color: var(--text);">Enable Plex Integration</span>
                       </label>
                       <label class="field-label">
@@ -323,19 +322,46 @@
                         Plex Username
                         <input id="plexUsername" class="field" type="text" autocomplete="off" />
                       </label>
-                      <div class="connection-test-row">
+                      <div class="settings-actions">
+                        <button id="savePlexConfigButton" class="button-primary" type="button">Save Plex</button>
                         <button class="button-ghost test-connection-button" type="button" data-test-connection="plex">Test Connection</button>
+                        <span id="plexConfigStatus" class="message" role="status" aria-live="polite"></span>
                         <p class="connection-test-status" data-test-status="plex" aria-live="polite"></p>
                       </div>
                     </article>
+                  </div>
 
+                  <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Emby Setup</p>
-                        <span>API key, URL, and user ID</span>
+                        <p>Plex Integration Guide</p>
+                        <span>Server &amp; Token</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        <b>Plex URL:</b> Typically <code>http://127.0.0.1:32400</code> if local. Otherwise, use your server's IP address with port <code>32400</code>.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Plex Token:</b> Sign in to Plex Web, open <b>Get Info</b> on any library item, and click <b>View XML</b>. Copy the alphanumeric token value following <code>X-Plex-Token=</code> at the end of the URL.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Unwatched/Unscrobble Sync:</b> Plex does not support unscrobbling via webhooks. To sync unwatched status instantly, run our local daemon script: <code>node scripts/plexWebSocketMonitor.js</code>.
+                      </p>
+                    </article>
+                  </div>
+                </div>
+
+                <!-- Emby Row -->
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Emby Setup</p>
+                          <span>API key, URL, and user ID</span>
+                        </div>
                       </div>
                       <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer; user-select: none;">
-                        <input id="embyEnabled" type="checkbox" checked style="width: 16px; height: 16px; accent-color: var(--blue); margin: 0;" />
+                        <input id="embyEnabled" type="checkbox" style="width: 16px; height: 16px; accent-color: var(--blue); margin: 0;" />
                         <span style="font-weight: 600; color: var(--text);">Enable Emby Integration</span>
                       </label>
                       <label class="field-label">
@@ -350,19 +376,49 @@
                         Emby User ID
                         <input id="embyUserId" class="field" type="text" autocomplete="off" />
                       </label>
-                      <div class="connection-test-row">
+                      <div class="settings-actions">
+                        <button id="saveEmbyConfigButton" class="button-primary" type="button">Save Emby</button>
                         <button class="button-ghost test-connection-button" type="button" data-test-connection="emby">Test Connection</button>
+                        <span id="embyConfigStatus" class="message" role="status" aria-live="polite"></span>
                         <p class="connection-test-status" data-test-status="emby" aria-live="polite"></p>
                       </div>
                     </article>
+                  </div>
 
+                  <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Jellyfin Setup</p>
-                        <span>API key, URL, and user ID</span>
+                        <p>Emby Integration Guide</p>
+                        <span>API Key &amp; User ID</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        <b>Emby URL:</b> Typically <code>http://localhost:8096</code> or your secure reverse proxy domain (e.g. <code>https://emby.example.com</code>).
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>API Key:</b> Generate a key in Emby Settings ➔ <b>Advanced</b> ➔ <b>API Keys</b>.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>User ID:</b> Go to Emby settings ➔ <b>Users</b>, click your profile, and copy the string value following <code>?userId=</code> in the browser URL.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Webhook Setup:</b> Add our webhook endpoint in Emby webhooks settings, checking Playback (Start, Pause, Unpause, Stop) and Users (Mark Played, Mark Unplayed) events.
+                      </p>
+                    </article>
+                  </div>
+                </div>
+
+                <!-- Jellyfin Row -->
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Jellyfin Setup</p>
+                          <span>API key, URL, and user ID</span>
+                        </div>
                       </div>
                       <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer; user-select: none;">
-                        <input id="jellyfinEnabled" type="checkbox" checked style="width: 16px; height: 16px; accent-color: var(--blue); margin: 0;" />
+                        <input id="jellyfinEnabled" type="checkbox" style="width: 16px; height: 16px; accent-color: var(--blue); margin: 0;" />
                         <span style="font-weight: 600; color: var(--text);">Enable Jellyfin Integration</span>
                       </label>
                       <label class="field-label">
@@ -377,426 +433,562 @@
                         Jellyfin User ID
                         <input id="jellyfinUserId" class="field" type="text" autocomplete="off" />
                       </label>
-                      <div class="connection-test-row">
+                      <div class="settings-actions">
+                        <button id="saveJellyfinConfigButton" class="button-primary" type="button">Save Jellyfin</button>
                         <button class="button-ghost test-connection-button" type="button" data-test-connection="jellyfin">Test Connection</button>
+                        <span id="jellyfinConfigStatus" class="message" role="status" aria-live="polite"></span>
                         <p class="connection-test-status" data-test-status="jellyfin" aria-live="polite"></p>
                       </div>
                     </article>
                   </div>
 
-                  <div class="apps-secondary-grid">
+                  <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>TMDB</p>
-                        <span>Optional — enables poster artwork, cast, trailers, and metadata for movies and TV shows</span>
+                        <p>Jellyfin Integration Guide</p>
+                        <span>API Key &amp; User ID</span>
                       </div>
-                      <p class="tool-accordion-desc" style="margin-bottom:0.75rem;">
-                        TMDB (The Movie Database) is a free community database used to fetch posters, cast lists, trailers, and descriptions.
-                        To get an API key:
+                      <p class="tool-accordion-desc">
+                        <b>Jellyfin URL:</b> Typically <code>http://localhost:8096</code> or your secure reverse proxy domain.
                       </p>
-                      <ol class="tool-accordion-desc" style="margin:0 0 0.75rem 1.25rem;padding:0;list-style:decimal;">
-                        <li>Create a free account at <b>themoviedb.org</b></li>
-                        <li>Go to <b>Settings → API</b> in your account menu</li>
-                        <li>Click <b>Request an API Key</b> and choose <b>Developer</b></li>
-                        <li>Fill in the form (personal use is fine) — the key is issued instantly</li>
-                        <li>Copy the <b>API Key (v3 auth)</b> value and paste it below</li>
-                      </ol>
-                      <label class="field-label">
+                      <p class="tool-accordion-desc">
+                        <b>API Key:</b> In admin dashboard, go to <b>Advanced</b> ➔ <b>API Keys</b>, generate a new token named <code>Plembfin Bridge</code>.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>User ID:</b> Go to <b>Administration</b> ➔ <b>Users</b>, click your username, and copy the alphanumeric ID following <code>/users?userId=</code> in the address bar.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Webhook Setup:</b> Install the official Webhook plugin in Jellyfin. Create a Generic Webhook targeting <code>/api/webhook</code>, checking Playback Start/Progress/Stop and User Data Saved events. Check Send All Properties.
+                      </p>
+                    </article>
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-pane hidden" data-settings-panel="api-keys">
+                <!-- TMDB Row -->
+                <div class="settings-row">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>TMDB Setup</p>
+                          <span>Artwork, cast details, trailers, and metadata</span>
+                        </div>
+                      </div>
+                      <label class="field-label" for="tmdbApiKey">
                         TMDB API Key (v3)
                         <input id="tmdbApiKey" class="field" type="password" autocomplete="off" />
                       </label>
+                      <div class="settings-actions">
+                        <button id="saveTmdbConfigButton" class="button-primary" type="button">Save TMDB Key</button>
+                        <span id="tmdbConfigStatus" class="message" role="status" aria-live="polite"></span>
+                      </div>
                     </article>
+                  </div>
 
+                  <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>YouTube</p>
-                        <span>Optional — fetches descriptions, publish dates, and duration for YouTube-only content</span>
+                        <p>TMDB Help</p>
+                        <span>Metadata &amp; Posters</span>
                       </div>
-                      <p class="tool-accordion-desc" style="margin-bottom:0.75rem;">
-                        Without this key, YouTube thumbnails still work in Fix Match and Edit Image — only the description and video metadata require it.
-                        The free quota (10,000 units/day) is more than enough for personal use.
-                        To get a key:
+                      <p class="tool-accordion-desc">
+                        Provides poster artwork, cast directories, descriptions, and related recommendations. To obtain a free v3 API key:
                       </p>
-                      <ol class="tool-accordion-desc" style="margin:0 0 0.75rem 1.25rem;padding:0;list-style:decimal;">
-                        <li>Go to <b>console.cloud.google.com</b> and sign in with your Google account</li>
-                        <li>Create a new project (or select an existing one)</li>
-                        <li>In the left menu go to <b>APIs &amp; Services → Library</b></li>
-                        <li>Search for <b>YouTube Data API v3</b> and click <b>Enable</b></li>
-                        <li>Go to <b>APIs &amp; Services → Credentials</b> and click <b>Create Credentials → API Key</b></li>
-                        <li>Copy the generated key and paste it below</li>
-                        <li>Optionally click <b>Edit API Key</b> and restrict it to the YouTube Data API v3 for security</li>
+                      <ol class="tool-accordion-desc" style="margin: 0 0 var(--space-3) 1.25rem; padding: 0; list-style: decimal; font-size: 0.8rem;">
+                        <li>Create an account at <b>themoviedb.org</b></li>
+                        <li>Go to <b>Settings → API</b> in your profile menu</li>
+                        <li>Request a Developer key</li>
                       </ol>
-                      <label class="field-label">
+                    </article>
+                  </div>
+                </div>
+
+                <!-- YouTube Row -->
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>YouTube Setup</p>
+                          <span>Channel details, publish dates, and trailer durations</span>
+                        </div>
+                      </div>
+                      <label class="field-label" for="youtubeApiKey">
                         YouTube Data API Key
                         <input id="youtubeApiKey" class="field" type="password" autocomplete="off" />
                       </label>
+                      <div class="settings-actions">
+                        <button id="saveYoutubeConfigButton" class="button-primary" type="button">Save YouTube Key</button>
+                        <span id="youtubeConfigStatus" class="message" role="status" aria-live="polite"></span>
+                      </div>
                     </article>
+                  </div>
 
+                  <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Save Configuration</p>
-                        <span>Commits server fields to the server-only Firestore settings document</span>
+                        <p>YouTube Help</p>
+                        <span>Trailer Telemetry</span>
                       </div>
-                      <div class="settings-actions settings-actions-spread">
-                        <p id="settingsStatus" class="muted-copy">Configuration not loaded yet.</p>
-                        <button id="saveConfigButton" class="button-primary" type="button">Save Configuration</button>
-                      </div>
+                      <p class="tool-accordion-desc">
+                        Enables downloading trailer meta descriptions and length info. To create a key:
+                      </p>
+                      <ol class="tool-accordion-desc" style="margin: 0 0 var(--space-3) 1.25rem; padding: 0; list-style: decimal; font-size: 0.8rem;">
+                        <li>Go to <b>console.cloud.google.com</b></li>
+                        <li>Enable the <b>YouTube Data API v3</b> in your project</li>
+                        <li>Generate an API Key under Credentials</li>
+                      </ol>
                     </article>
                   </div>
                 </div>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="tools">
-
-                <details class="tool-accordion glass-panel">
-                  <summary class="tool-accordion-header">
-                    <div class="tool-accordion-title">
-                      <span class="tool-accordion-chevron" aria-hidden="true"></span>
-                      <div>
-                        <p>Backup &amp; Transfer</p>
-                        <span>Export this installation or import a Plembfin backup</span>
-                      </div>
-                      <span id="backupTransferStatus" class="status-pill status-muted">Idle</span>
-                    </div>
-                    <p class="tool-accordion-desc">Use Export on the old installation, then import the downloaded JSON file here. The backup includes watch data, settings, and cache metadata, but not stored artwork files. Treat it as sensitive because saved media-server credentials and API keys may be included.</p>
-                  </summary>
-                  <div class="tool-accordion-body">
-                    <div class="backup-transfer-grid">
-                      <div class="backup-transfer-card">
-                        <p class="muted-copy">Download all supported data from this installation.</p>
-                        <button id="backupExportButton" class="button-primary" type="button">Export Backup</button>
-                      </div>
-                      <label class="backup-transfer-card field-label" for="backupImportFile">
-                        Import backup file
-                        <input id="backupImportFile" class="field" type="file" accept=".json,application/json" />
-                        <button id="backupImportButton" class="button-primary" type="button" disabled>Import Backup</button>
-                      </label>
-                    </div>
-                    <p class="tool-accordion-desc backup-transfer-warning">Import replaces every collection included in the file. The local admin username, password, and active sessions are not changed.</p>
-                    <pre id="backupTransferLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Select Export or choose a backup file.</pre>
-                  </div>
-                </details>
-
-                <details class="tool-accordion glass-panel">
-                  <summary class="tool-accordion-header">
-                    <div class="tool-accordion-title">
-                      <span class="tool-accordion-chevron" aria-hidden="true"></span>
-                      <div>
-                        <p>Full Sync Watchstates</p>
-                        <span>Push your entire watch archive to every configured media server</span>
-                      </div>
-                      <span id="fullSyncStatus" class="status-pill status-muted">Idle</span>
-                    </div>
-                    <p class="tool-accordion-desc">Reads every record in your Firestore <code>watchHistory</code> collection and pushes the watched or unwatched state to each enabled media server. Use this after setting up a new Plex, Emby, or Jellyfin server, after a library rebuild that wiped playstates, or after restoring a server from backup. The sync respects your enabled and disabled flags from Apps settings. Progress is streamed to the log in real time and each server is processed independently, so a failure on one does not block the others.</p>
-                  </summary>
-                  <div class="tool-accordion-body">
-                    <div class="settings-actions settings-actions-spread">
-                      <button id="fullSyncButton" class="button-primary" type="button">Full Sync Watchstates</button>
-                    </div>
-                    <pre id="fullSyncLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for restore request.</pre>
-                  </div>
-                </details>
-
-                <details class="tool-accordion glass-panel">
-                  <summary class="tool-accordion-header">
-                    <div class="tool-accordion-title">
-                      <span class="tool-accordion-chevron" aria-hidden="true"></span>
-                      <div>
-                        <p>Trakt History Importer</p>
-                        <span>Bulk-import your Trakt watch history from exported files</span>
-                      </div>
-                      <span id="importProgress" class="status-pill status-muted">Idle</span>
-                    </div>
-                    <p class="tool-accordion-desc">Accepts the CSV and JSON files from a Trakt data export (unzipped). Files are parsed entirely in your browser and sent to <code>/api/import</code> in batches of 100 records. Each imported entry is written to <code>watchHistory</code> with the source field set to <code>trakt_import</code>, so it is always distinguishable from live webhook records. Duplicate detection is performed on the server — records that already exist are skipped, not overwritten. After importing, use Backfill Trakt Imports below to fetch poster artwork for the new rows.</p>
-                  </summary>
-                  <div class="tool-accordion-body">
-                    <label id="dropZone" class="drop-zone" for="importFile">
-                      <input id="importFile" type="file" accept=".csv,.json,application/json,text/csv" multiple />
-                      <b>Choose Trakt export files</b>
-                      <span>Drop CSV or JSON files here, or click to browse.</span>
-                    </label>
-                    <div class="import-actions">
-                      <button id="startImportButton" class="button-primary" type="button" disabled>Start Import</button>
-                      <button id="clearImportButton" class="button-ghost" type="button">Clear</button>
-                    </div>
-                    <section class="import-activity" aria-label="Import progress">
-                      <div class="import-progress-row">
-                        <div class="import-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                          <span id="importProgressFill"></span>
+                <!-- Migration & Import Row -->
+                <div class="settings-row">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Migration &amp; Import</p>
+                          <span>Transfer watch histories and configs</span>
                         </div>
-                        <span id="importProgressPercent">0%</span>
                       </div>
-                      <pre id="importTerminal" class="import-terminal" aria-live="polite">[idle] Waiting for files.</pre>
-                    </section>
-                    <div id="importPreview" class="import-preview"></div>
-                  </div>
-                </details>
-
-                <details class="tool-accordion glass-panel">
-                  <summary class="tool-accordion-header">
-                    <div class="tool-accordion-title">
-                      <span class="tool-accordion-chevron" aria-hidden="true"></span>
-                      <div>
-                        <p>System Integrity Check</p>
-                        <span>Health probe across Firestore, Functions, and every media server</span>
+                      
+                      <!-- Backup & Transfer -->
+                      <div class="tool-item-row">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Backup &amp; Transfer</b>
+                            <span>Export this setup or restore a Plembfin database archive</span>
+                          </div>
+                          <span id="backupTransferStatus" class="status-pill status-muted">Idle</span>
+                        </div>
+                        <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+                          <button id="backupExportButton" class="button-primary" type="button">Export Backup</button>
+                          <label class="button-ghost" style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: var(--space-2) var(--space-3); border-radius: var(--radius); font-weight: 700; font-size: 0.8rem; margin: 0; height: 100%;">
+                            Choose file
+                            <input id="backupImportFile" type="file" accept=".json,application/json" style="display: none;" />
+                          </label>
+                          <button id="backupImportButton" class="button-primary" type="button" disabled>Import Backup</button>
+                        </div>
+                        <pre id="backupTransferLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Select Export or choose a backup file.</pre>
                       </div>
-                    </div>
-                    <p class="tool-accordion-desc">Runs a live diagnostic against every backend dependency the dashboard relies on. Checks include: Firestore read and write access, the Firebase Functions API reachability, and a connection test against each configured Plex, Emby, and Jellyfin server using your saved credentials. Results show the latency and status of each probe individually so you can pinpoint which component is failing. Run this before making configuration changes, after a deployment, or when diagnosing unexpected sync failures or missing data.</p>
-                  </summary>
-                  <div class="tool-accordion-body">
-                    <div class="settings-actions">
-                      <button id="runCompleteCheckButton" class="button-primary" type="button">Run System Diagnostic</button>
-                    </div>
-                    <div id="completeCheckResults" class="complete-check-results hidden" style="margin-top: var(--space-3); display: grid; gap: var(--space-2);"></div>
-                  </div>
-                </details>
 
-                <details class="tool-accordion glass-panel">
-                  <summary class="tool-accordion-header">
-                    <div class="tool-accordion-title">
-                      <span class="tool-accordion-chevron" aria-hidden="true"></span>
-                      <div>
-                        <p>Repair History Rows</p>
-                        <span>Correct mislabelled media types and refresh missing poster URLs</span>
+                      <!-- Trakt Importer -->
+                      <div class="tool-item-row">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Trakt History Importer</b>
+                            <span>Bulk import records from a Trakt.tv export</span>
+                          </div>
+                          <span id="importProgress" class="status-pill status-muted">Idle</span>
+                        </div>
+                        <label id="dropZone" class="drop-zone" for="importFile" style="padding: 1.5rem; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); cursor: pointer; display: flex; flex-direction: column; gap: var(--space-1); background: rgba(0,0,0,0.2);">
+                          <input id="importFile" type="file" accept=".csv,.json,application/json,text/csv" multiple style="display: none;" />
+                          <b>Choose Trakt export files</b>
+                          <span style="font-size: 0.75rem; color: var(--muted);">Drop CSV or JSON files here, or click to browse.</span>
+                        </label>
+                        <div style="display: flex; gap: var(--space-2); align-items: center;">
+                          <button id="startImportButton" class="button-primary" type="button" disabled>Start Import</button>
+                          <button id="clearImportButton" class="button-ghost" type="button">Clear</button>
+                        </div>
+                        <div class="import-progress-row" style="display: flex; align-items: center; gap: var(--space-2);">
+                          <div class="import-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden;">
+                            <span id="importProgressFill" style="display: block; height: 100%; width: 0%; background: var(--blue); transition: width 0.2s;"></span>
+                          </div>
+                          <span id="importProgressPercent" style="font-size: 0.75rem;">0%</span>
+                        </div>
+                        <pre id="importTerminal" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for files.</pre>
+                        <div id="importPreview" class="import-preview"></div>
                       </div>
-                    </div>
-                    <p class="tool-accordion-desc">Queries TMDB for each record in <code>watchHistory</code> that may have an incorrect <code>type</code> value — for example, a movie that was stored as a TV episode because the webhook payload was ambiguous. When TMDB returns a different type, the stored record is updated and the poster URL cache is refreshed. Only rows where the lookup disagrees with the stored type are modified, so it is safe to run at any time without risk of data loss. The repair log streams each corrected row in real time.</p>
-                  </summary>
-                  <div class="tool-accordion-body">
-                    <div class="settings-actions">
-                      <button id="runRepairButton" class="button-primary" type="button">Repair History Now</button>
-                      <p id="repairStatus" class="muted-copy">Idle</p>
-                    </div>
-                    <div style="margin-top: var(--space-3);">
-                      <div id="repairLog" class="import-terminal" style="max-height: 220px; overflow:auto; padding: 8px; background: var(--panel-3); border: 1px solid var(--line);">Repair log will appear here.</div>
-                    </div>
+                    </article>
                   </div>
-                </details>
 
-                <details class="tool-accordion glass-panel">
-                  <summary class="tool-accordion-header">
-                    <div class="tool-accordion-title">
-                      <span class="tool-accordion-chevron" aria-hidden="true"></span>
-                      <div>
-                        <p>Backfill Trakt Imports</p>
-                        <span>Fetch missing poster artwork for imported Trakt rows via TMDB</span>
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Migration Help</p>
+                        <span>Data Operations</span>
                       </div>
-                    </div>
-                    <p class="tool-accordion-desc">Scans every <code>watchHistory</code> row where the source is <code>trakt_import</code> and the poster URL is empty, then looks up artwork from TMDB and writes the URL back to Firestore. Runs in configurable batches with a per-call rate-limit delay to stay within TMDB's free-tier request quota. Only imported rows are touched — live webhook records are never modified. Run this once after a Trakt import, or again if poster artwork is still missing after a previous partial run.</p>
-                  </summary>
-                  <div class="tool-accordion-body">
-                    <div style="display:grid; gap: var(--space-2); margin-bottom: var(--space-3);">
-                      <label class="field-label">
-                        Batch size (rows per run)
-                        <input id="traktBackfillLimit" class="field" type="number" min="1" max="2000" value="500" />
-                      </label>
-                      <label class="field-label">
-                        Rate limit ms (delay between TMDB API calls)
-                        <input id="traktBackfillRate" class="field" type="number" min="50" max="5000" value="300" />
-                      </label>
-                    </div>
-                    <div class="settings-actions">
-                      <button id="traktBackfillButton" class="button-primary" type="button">Backfill Trakt Imports</button>
-                      <p id="traktBackfillStatus" class="muted-copy">Idle</p>
-                    </div>
-                    <div style="margin-top: var(--space-3);">
-                      <div id="traktBackfillLog" class="import-terminal" style="max-height: 240px; overflow:auto; padding: 8px; background: var(--panel-3); border: 1px solid var(--line);">Trakt backfill log will appear here.</div>
-                    </div>
+                      <p class="tool-accordion-desc">
+                        <b>Backup &amp; Transfer:</b> Export native JSON database archives or import existing backups containing metadata, watch states, and user configurations.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Trakt Importer:</b> Drag and drop CSV or JSON logs exported from Trakt.tv to populate your local database in bulk.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Rebuild DB Tool:</b> Run <code>node scripts/rebuildPlaystateDatabase.js --trakt-dir "path" --write</code> to reset the database and load history from Trakt/Plex.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Force Push Tool:</b> Run <code>node scripts/forcePushHistory.js</code> to push all local history watch states to all connected media servers.
+                      </p>
+                    </article>
                   </div>
-                </details>
+                </div>
 
-                <details class="tool-accordion glass-panel">
-                  <summary class="tool-accordion-header">
-                    <div class="tool-accordion-title">
-                      <span class="tool-accordion-chevron" aria-hidden="true"></span>
-                      <div>
-                        <p>Refresh All TMDB Metadata</p>
-                        <span>Pre-cache cast, trailers, reviews, posters and artwork for every item in your library</span>
+                <!-- Integrity & Repairs Row -->
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Integrity &amp; Repairs</p>
+                          <span>Audit database records and repair anomalies</span>
+                        </div>
                       </div>
-                    </div>
-                    <p class="tool-accordion-desc">Fetches full TMDB detail pages — cast and crew, trailers, reviews, and related titles — for every movie and TV show currently in your <code>watchHistory</code>, writes the results into the <code>tmdbMetadataCache</code> Firestore collection, downloads each poster and backdrop into Storage, and stamps the canonical poster back onto every watch record. This brings existing media to full parity with newly-added media: both detail pages and grid thumbnails are instant rather than waiting for a live API call. Run this after a large import or periodically. The cache is also updated automatically when a title is added or first viewed.</p>
-                  </summary>
-                  <div class="tool-accordion-body">
-                    <div class="settings-actions">
-                      <button id="refreshMetadataButton" class="button-primary" type="button">Refresh Metadata Now</button>
-                      <p id="refreshMetadataStatus" class="muted-copy">Idle</p>
-                    </div>
-                    <div style="margin-top: var(--space-3);">
-                      <div id="refreshMetadataLog" class="import-terminal" style="max-height: 220px; overflow:auto; padding: 8px; background: var(--panel-3); border: 1px solid var(--line);">Refresh log will appear here.</div>
-                    </div>
-                  </div>
-                </details>
 
-                <details class="tool-accordion glass-panel">
-                  <summary class="tool-accordion-header">
-                    <div class="tool-accordion-title">
-                      <span class="tool-accordion-chevron" aria-hidden="true"></span>
-                      <div>
-                        <p>Clean Duplicate History Rows</p>
-                        <span>Remove redundant watchHistory records, keeping the newest per item</span>
+                      <!-- System Diagnostics -->
+                      <div class="tool-item-row">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>System Integrity Check</b>
+                            <span>Verify local database state and media server reachability</span>
+                          </div>
+                        </div>
+                        <button id="runCompleteCheckButton" class="button-primary" style="align-self: flex-start;" type="button">Run System Diagnostic</button>
+                        <div id="completeCheckResults" class="complete-check-results hidden" style="display: grid; gap: var(--space-2);"></div>
                       </div>
-                    </div>
-                    <p class="tool-accordion-desc">Scans every document in <code>watchHistory</code>, groups them by <code>mediaKey</code> (the canonical title and ID combination), and deletes all but the most recently logged entry for each unique item. Duplicates can accumulate when webhooks fire multiple times for a single watch event, after re-importing a Trakt export that partially overlaps existing records, or after a database migration that ran twice. No watched data is lost — only the older copies of an already-recorded item are removed. Safe to run at any time.</p>
-                  </summary>
-                  <div class="tool-accordion-body">
-                    <div class="settings-actions">
-                      <button id="dedupHistoryButton" class="button-primary" type="button">Clean Duplicates</button>
-                      <p id="dedupHistoryStatus" class="muted-copy">Idle</p>
-                    </div>
-                    <div style="margin-top: var(--space-3);">
-                      <div id="dedupHistoryLog" class="import-terminal" style="max-height: 220px; overflow:auto; padding: 8px; background: var(--panel-3); border: 1px solid var(--line);">Dedup log will appear here.</div>
-                    </div>
-                  </div>
-                </details>
 
+                      <!-- Repair Rows -->
+                      <div class="tool-item-row">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Repair History Rows</b>
+                            <span>Correct mislabelled media types and fetch missing posters</span>
+                          </div>
+                          <span id="repairStatus" class="status-pill status-muted">Idle</span>
+                        </div>
+                        <button id="runRepairButton" class="button-primary" style="align-self: flex-start;" type="button">Repair History Now</button>
+                        <div id="repairLog" class="import-terminal compact-terminal">Repair log will appear here.</div>
+                      </div>
+
+                      <!-- Clean Duplicates -->
+                      <div class="tool-item-row">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Clean Duplicate History Rows</b>
+                            <span>Safely remove redundant scrobble events</span>
+                          </div>
+                          <span id="dedupHistoryStatus" class="status-pill status-muted">Idle</span>
+                        </div>
+                        <button id="dedupHistoryButton" class="button-primary" style="align-self: flex-start;" type="button">Clean Duplicates</button>
+                        <div id="dedupHistoryLog" class="import-terminal compact-terminal">Dedup log will appear here.</div>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Integrity Help</p>
+                        <span>Database Care</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        <b>System Integrity Check:</b> Tests end-to-end database connectivity and verifies if configured media servers are accessible.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Repair History Rows:</b> Fixes rows containing wrong media types (TV vs Movie) and pulls missing posters.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Clean Duplicates:</b> Runs a deduplication routine over watch entries to keep the history database clean and fast.
+                      </p>
+                    </article>
+                  </div>
+                </div>
+
+                <!-- Sync & Cache Row -->
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Sync &amp; Cache Tools</p>
+                          <span>Ingest caching and server backfills</span>
+                        </div>
+                      </div>
+
+                      <!-- Full Sync -->
+                      <div class="tool-item-row">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Full Sync Watchstates</b>
+                            <span>Push your entire watched archive back to media server lists</span>
+                          </div>
+                          <span id="fullSyncStatus" class="status-pill status-muted">Idle</span>
+                        </div>
+                        <button id="fullSyncButton" class="button-primary" style="align-self: flex-start;" type="button">Full Sync Watchstates</button>
+                        <pre id="fullSyncLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for restore request.</pre>
+                      </div>
+
+                      <!-- Refresh TMDB -->
+                      <div class="tool-item-row">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Refresh All TMDB Metadata</b>
+                            <span>Pre-cache trailers, posters, cast, and summaries locally</span>
+                          </div>
+                          <span id="refreshMetadataStatus" class="status-pill status-muted">Idle</span>
+                        </div>
+                        <button id="refreshMetadataButton" class="button-primary" style="align-self: flex-start;" type="button">Refresh Metadata Now</button>
+                        <div id="refreshMetadataLog" class="import-terminal compact-terminal">Refresh log will appear here.</div>
+                      </div>
+
+                      <!-- Backfill Trakt -->
+                      <div class="tool-item-row">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Backfill Trakt Imports</b>
+                            <span>Fetch missing posters for imported Trakt events</span>
+                          </div>
+                          <span id="traktBackfillStatus" class="status-pill status-muted">Idle</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); max-width: 400px;">
+                          <label class="field-label" style="margin:0;">
+                            Batch size
+                            <input id="traktBackfillLimit" class="field" type="number" min="1" max="2000" value="500" />
+                          </label>
+                          <label class="field-label" style="margin:0;">
+                            Rate limit delay (ms)
+                            <input id="traktBackfillRate" class="field" type="number" min="50" max="5000" value="300" />
+                          </label>
+                        </div>
+                        <button id="traktBackfillButton" class="button-primary" style="align-self: flex-start;" type="button">Backfill Trakt Imports</button>
+                        <div id="traktBackfillLog" class="import-terminal compact-terminal">Trakt backfill log will appear here.</div>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Sync Help</p>
+                        <span>Caching &amp; Backfills</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        <b>Full Sync Watchstates:</b> Synchronizes all locally recorded watched status events back into Plex/Emby/Jellyfin active watchlists.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Refresh TMDB Metadata:</b> Forces an API fetch from TMDB to rebuild local descriptions, recommendations, and local image caches.
+                      </p>
+                    </article>
+                  </div>
+                </div>
               </section>
+
               <section class="settings-pane hidden" data-settings-panel="backups">
-                <section class="glass-panel p-section backup-settings-panel">
-                  <div class="section-heading sync-heading">
-                    <div>
-                      <p>Automatic Watch History Backups</p>
-                      <span>A local backup is always kept; add Backblaze B2 or another destination below to also copy each backup off-box. Use either or both.</span>
-                    </div>
-                    <span id="watchBackupSummary" class="status-pill status-muted">Not loaded</span>
+                <!-- Backup Schedule & Destinations Row -->
+                <div class="settings-row">
+                  <div class="settings-row-main">
+                    <!-- Automatic Backups -->
+                    <section class="glass-panel p-section backup-settings-panel">
+                      <div class="section-heading sync-heading">
+                        <div>
+                          <p>Automatic Backups</p>
+                          <span>Local watch history backup schedule settings</span>
+                        </div>
+                        <span id="watchBackupSummary" class="status-pill status-muted">Not loaded</span>
+                      </div>
+
+                      <div class="backup-settings-grid">
+                        <label class="checkbox-label backup-enable-row" style="cursor: pointer; user-select: none;">
+                          <input id="watchBackupEnabled" type="checkbox" />
+                          <span>Enable daily backups</span>
+                        </label>
+                        <label class="field-label">
+                          Backup time (local)
+                          <input id="watchBackupTime" class="field" type="time" value="03:00" />
+                        </label>
+                        <label class="field-label">
+                          Backups to retain
+                          <input id="watchBackupRetention" class="field" type="number" min="1" max="365" value="14" />
+                        </label>
+                      </div>
+
+                      <div class="settings-actions backup-settings-actions">
+                        <button id="saveWatchBackupConfigButton" class="button-primary" type="button">Save Schedule</button>
+                        <button id="createWatchBackupButton" class="button-ghost" type="button">Back Up Now</button>
+                        <button id="refreshWatchBackupsButton" class="button-ghost" type="button">Refresh List</button>
+                      </div>
+
+                      <div id="watchBackupRuntime" class="backup-runtime" aria-live="polite"></div>
+                    </section>
+
+                    <!-- Remote Destinations -->
+                    <section class="glass-panel p-section backup-settings-panel" style="margin-top: var(--space-4);">
+                      <div class="section-heading">
+                        <div>
+                          <p>Remote Destinations</p>
+                          <span>Mirror backups to OneDrive, Dropbox, WebDAV, or S3-compatible cloud storage</span>
+                        </div>
+                        <div class="backup-destination-add" style="display: flex; gap: var(--space-2); margin-top: var(--space-2);">
+                          <select id="watchBackupDestinationType" class="field" style="width: auto;">
+                            <option value="backblaze">Backblaze B2</option>
+                            <option value="folder">Local / synced folder</option>
+                            <option value="webdav">WebDAV</option>
+                            <option value="s3">S3-compatible</option>
+                            <option value="onedrive">OneDrive</option>
+                            <option value="dropbox">Dropbox</option>
+                          </select>
+                          <button id="addWatchBackupDestinationButton" class="button-primary" type="button">Add</button>
+                        </div>
+                      </div>
+                      <div id="watchBackupDestinations" class="watch-backup-destinations" aria-live="polite"></div>
+                    </section>
                   </div>
 
-                  <div class="backup-settings-grid">
-                    <label class="checkbox-label backup-enable-row">
-                      <input id="watchBackupEnabled" type="checkbox" />
-                      <span>Enable automatic daily backups</span>
-                    </label>
-                    <label class="field-label">
-                      Daily backup time (server local time)
-                      <input id="watchBackupTime" class="field" type="time" value="03:00" />
-                    </label>
-                    <label class="field-label">
-                      Backups to retain
-                      <input id="watchBackupRetention" class="field" type="number" min="1" max="365" value="14" />
-                    </label>
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Backup Guide</p>
+                        <span>Disaster Recovery</span>
+                      </div>
+                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Local &amp; Synced Folders</h4>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
+                        Backups are saved to <code id="watchBackupLocalPath">data/backups/watch-history</code>. You can point the folder destination to a OneDrive or Dropbox sync folder to automate off-host backups.
+                      </p>
+                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Backblaze B2 Mirror</h4>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
+                        Create a private B2 bucket on backblaze.com, locate its region code (e.g. <code>us-west-004</code>), generate an application key, and enter the credentials.
+                      </p>
+                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">OneDrive Mirror</h4>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
+                        Register an app in Entra portal (Accounts in any organizational directory and personal MS accounts), enable public client flows, and enter the Azure app client ID.
+                      </p>
+                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Dropbox Mirror</h4>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: 0;">
+                        Create an app in Dropbox App Console with <code>files.content.write/read</code> permissions and enter the App Key and App Secret.
+                      </p>
+                    </article>
+                  </div>
+                </div>
+
+                <!-- Available Backups Row -->
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <!-- Available Backups -->
+                    <section class="glass-panel p-section backup-settings-panel">
+                      <div class="section-heading">
+                        <div>
+                          <p>Available Backups</p>
+                          <span>Download or restore from local or remote locations</span>
+                        </div>
+                      </div>
+                      <div id="watchBackupList" class="watch-backup-list" aria-live="polite"></div>
+                    </section>
                   </div>
 
-                  <p class="tool-accordion-desc">Backups are always written to <code>data/backups/watch-history</code> first, then mirrored to any enabled remote destinations below. Artwork, TMDB caches, credentials, settings, logs, and active sessions are excluded.</p>
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Restore Guide</p>
+                        <span>History Restoration</span>
+                      </div>
+                      
+                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Restore Local Backup</h4>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
+                        Click <b>Merge Restore</b> (combines history, keeping newest on conflict) or <b>Replace</b> (wipes local db first) from the Available Backups list.
+                      </p>
 
-                  <div class="settings-actions backup-settings-actions">
-                    <button id="saveWatchBackupConfigButton" class="button-primary" type="button">Save Schedule</button>
-                    <button id="createWatchBackupButton" class="button-ghost" type="button">Back Up Now</button>
-                    <button id="refreshWatchBackupsButton" class="button-ghost" type="button">Refresh</button>
-                  </div>
-
-                  <div id="watchBackupRuntime" class="backup-runtime" aria-live="polite"></div>
-                </section>
-
-                <section class="glass-panel p-section backup-settings-panel">
-                  <div class="section-heading">
-                    <div>
-                      <p>Remote Destinations</p>
-                      <span>Mirror backups to OneDrive, Dropbox, WebDAV, or S3-compatible storage. The local copy is always kept.</span>
-                    </div>
-                    <div class="backup-destination-add">
-                      <select id="watchBackupDestinationType" class="field">
-                        <option value="backblaze">Backblaze B2</option>
-                        <option value="folder">Local / synced folder</option>
-                        <option value="webdav">WebDAV</option>
-                        <option value="s3">S3-compatible</option>
-                        <option value="onedrive">OneDrive</option>
-                        <option value="dropbox">Dropbox</option>
-                      </select>
-                      <button id="addWatchBackupDestinationButton" class="button-primary" type="button">Add destination</button>
-                    </div>
-                  </div>
-                  <div id="watchBackupDestinations" class="watch-backup-destinations" aria-live="polite"></div>
-                </section>
-
-                <section class="glass-panel p-section backup-settings-panel">
-                  <div class="section-heading">
-                    <div>
-                      <p>Available Backups</p>
-                      <span>Download or validate a backup before restoring it</span>
-                    </div>
-                  </div>
-                  <div id="watchBackupList" class="watch-backup-list" aria-live="polite"></div>
-                </section>
-
-                <section class="glass-panel p-section backup-settings-panel">
-                  <div class="section-heading">
-                    <div>
-                      <p>Restore &amp; disaster recovery</p>
-                      <span>What to keep so you can restore from local or the cloud — even on a fresh install</span>
-                    </div>
-                  </div>
-                  <div class="recovery-guide">
-                    <p>Backups are <b>independent</b> — restoring from local or from the cloud both produce the same result. You can rely on either, or keep both for safety.</p>
-
-                    <details class="destination-help" open>
-                      <summary>Restore from a <b>local</b> backup</summary>
-                      <p>Local backups live on the Plembfin server at <code id="watchBackupLocalPath">data/backups/watch-history</code>. To restore, use the <b>Available Backups</b> list above → <b>Merge Restore</b> (keeps newest on conflict) or <b>Replace</b> (wipes current history first).</p>
-                      <p><b>To save for recovery:</b> back up that folder (it's just <code>.json.gz</code> files), or trust your normal server/volume backups. Dropping a valid <code>plembfin-watch-history-*.json.gz</code> file into that folder makes it appear in the list.</p>
-                    </details>
-
-                    <details class="destination-help">
-                      <summary>Restore from <b>Backblaze B2</b> (or any cloud destination)</summary>
-                      <p>Open the destination above → <b>Restore from here</b> → pick a backup → <b>Merge Restore</b> or <b>Replace</b>. Plembfin downloads it, verifies it, and restores it.</p>
-                      <p><b>To save for recovery</b> (write these down — the secret key is shown only once): <b>Region</b>, <b>Bucket</b> name, <b>Key prefix</b> (if you set one), <b>keyID</b>, and <b>applicationKey</b>. With those five you can re-add the destination on any fresh install and restore.</p>
-                    </details>
-
-                    <details class="destination-help">
-                      <summary>Restore onto a <b>brand-new install</b></summary>
-                      <ol>
-                        <li>Install Plembfin and log in.</li>
-                        <li>Settings → Backups → <b>Add destination</b> → re-enter the saved cloud details above → <b>Save</b> → <b>Test</b>.</li>
-                        <li><b>Restore from here</b> → choose the newest backup → <b>Replace</b> (a fresh install has nothing to merge with).</li>
+                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Restore onto New Instance</h4>
+                      <ol class="tool-accordion-desc" style="margin: 0; padding-left: 1.2rem; font-size: 0.8rem; list-style: decimal;">
+                        <li>Install a fresh Plembfin.</li>
+                        <li>Re-add cloud credentials in Remote Destinations.</li>
+                        <li>Click Restore from the list of remote backups.</li>
                       </ol>
-                      <p>That's it — watch history, playstate, and resume progress are back. (Artwork and caches rebuild on their own.)</p>
-                    </details>
+                    </article>
                   </div>
-                </section>
+                </div>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="sync">
-                <section class="glass-panel p-section sync-panel">
-                  <div class="section-heading sync-heading">
-                    <div>
-                      <p>Sync</p>
-                      <span>Outstanding watched-state sync jobs and target diagnostics</span>
-                    </div>
-                    <div class="logs-actions">
-                      <span id="syncSummary" class="status-pill status-muted">Not loaded</span>
-                      <button id="runCronSyncButton" class="button-primary" type="button">Run Cron Sync</button>
-                      <button id="forceSyncButton" class="button-primary" type="button">Force Sync</button>
-                      <button id="stopSyncButton" class="button-danger hidden" type="button">Stop Sync</button>
-                      <button id="refreshSyncButton" class="button-ghost" type="button">Refresh</button>
-                    </div>
-                  </div>
-                  <pre id="forceSyncTerminal" class="import-terminal compact-terminal hidden" style="margin-top: 1rem;" aria-live="polite">[idle] Waiting for force sync.</pre>
-                  <div id="syncJobsPanel" class="sync-jobs-panel" aria-live="polite"></div>
-                </section>
+                <div class="settings-row">
+                  <div class="settings-row-main">
+                    <section class="glass-panel p-section sync-panel">
+                      <div class="section-heading sync-heading">
+                        <div>
+                          <p>Sync</p>
+                          <span>Outstanding watched-state sync jobs and target diagnostics</span>
+                        </div>
+                        <div class="logs-actions" style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+                          <span id="syncSummary" class="status-pill status-muted">Not loaded</span>
+                          <button id="runCronSyncButton" class="button-primary" type="button">Run Cron Sync</button>
+                          <button id="forceSyncButton" class="button-primary" type="button">Force Sync</button>
+                          <button id="stopSyncButton" class="button-danger hidden" type="button">Stop Sync</button>
+                          <button id="refreshSyncButton" class="button-ghost" type="button">Refresh</button>
+                        </div>
+                      </div>
+                      <pre id="forceSyncTerminal" class="import-terminal compact-terminal hidden" style="margin-top: 1rem;" aria-live="polite">[idle] Waiting for force sync.</pre>
+                      <div id="syncJobsPanel" class="sync-jobs-panel" aria-live="polite" style="margin-top: var(--space-3);"></div>
+                    </section>
 
-                <section class="glass-panel p-section sync-panel">
-                  <div class="section-heading sync-heading">
-                    <div>
-                      <p>Sync history</p>
-                      <span>Recent watched-state and resume propagation attempts</span>
-                    </div>
-                    <span id="syncHistorySummary" class="status-pill status-muted">Not loaded</span>
+                    <section class="glass-panel p-section sync-panel" style="margin-top: var(--space-4);">
+                      <div class="section-heading sync-heading">
+                        <div>
+                          <p>Sync history</p>
+                          <span>Recent watched-state and resume propagation attempts</span>
+                        </div>
+                        <span id="syncHistorySummary" class="status-pill status-muted">Not loaded</span>
+                      </div>
+                      <div id="syncHistoryPanel" class="sync-history-panel" aria-live="polite" style="margin-top: var(--space-3);"></div>
+                    </section>
                   </div>
-                  <div id="syncHistoryPanel" class="sync-history-panel" aria-live="polite"></div>
-                </section>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Synchronization Help</p>
+                        <span>Queues &amp; Jobs</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        <b>Background Worker:</b> Runs every 60 seconds to poll active playback sessions, commit watches above 90% progress, dispatch pending sync jobs, and poll Plex for unwatched removals.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Resume Progress Sync:</b> Playback stopped below 90% and above 1 minute stores the current resume offset tick count and replicates it to all other platforms.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Loop Prevention:</b> An in-memory <code>loopStore</code> tracks dispatched watch states to prevent feedback echo loops when media server webhooks trigger.
+                      </p>
+                    </article>
+                  </div>
+                </div>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="logs">
-                <section class="glass-panel p-section logs-panel">
-                  <div class="section-heading">
-                    <div>
-                      <p>Debug Logs</p>
-                      <span>Local diagnostic stream for connection tests and now-playing polling</span>
-                    </div>
-                    <div class="logs-actions">
-                      <button id="clearLogsButton" class="button-ghost" type="button">Clear Local Logs</button>
-                      <button id="copyLogsButton" class="button-primary" type="button">Copy Logs</button>
-                    </div>
+                <div class="settings-row">
+                  <div class="settings-row-main">
+                    <section class="glass-panel p-section logs-panel">
+                      <div class="section-heading">
+                        <div>
+                          <p>Debug Logs</p>
+                          <span>Local diagnostic stream for connection tests and now-playing polling</span>
+                        </div>
+                        <div class="logs-actions" style="display: flex; gap: var(--space-2);">
+                          <button id="clearLogsButton" class="button-ghost" type="button">Clear Local Logs</button>
+                          <button id="copyLogsButton" class="button-primary" type="button">Copy Logs</button>
+                        </div>
+                      </div>
+                      <pre id="logsTerminal" class="logs-terminal" aria-live="polite" style="margin-top: var(--space-3);"></pre>
+                    </section>
                   </div>
-                  <pre id="logsTerminal" class="logs-terminal" aria-live="polite"></pre>
-                </section>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Diagnostic Logs</p>
+                        <span>Troubleshooting</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        Logs represent real-time terminal output of the frontend and webhook ingestion telemetry.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        To download raw log files on the host system, navigate to the `data/logs` folder in the Plembfin root workspace.
+                      </p>
+                    </article>
+                  </div>
+                </div>
               </section>
             </div>
           </section>

@@ -5888,3 +5888,177 @@ h1 {
     justify-content: flex-start;
   }
 }
+
+/* ── Redesigned 60/40 Settings Layout ── */
+.settings-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.settings-row {
+  display: flex;
+  gap: var(--space-4);
+  align-items: start;
+  width: 100%;
+}
+
+.settings-row-main {
+  flex: 6;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.settings-row-help {
+  flex: 4;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Card adjustments */
+.settings-row-help .settings-card {
+  border-left: 2px solid var(--blue);
+  background: rgba(13, 20, 30, 0.4);
+}
+
+.settings-row-help .tool-accordion-desc {
+  line-height: 1.6;
+  color: var(--soft);
+  margin-bottom: var(--space-3);
+  font-size: 0.85rem;
+}
+
+/* Tools tab layout */
+.tool-section-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tool-item-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.tool-item-row:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.tool-item-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.tool-item-title-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-item-title-desc b {
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.tool-item-title-desc span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* Mobile responsive */
+@media (max-width: 900px) {
+  .settings-row {
+    flex-direction: column;
+  }
+  .settings-row-main,
+  .settings-row-help {
+    flex: none;
+    width: 100%;
+  }
+}
+
+/* Compact settings adjustments */
+.settings-pane .settings-row {
+  margin-top: var(--space-2) !important;
+  gap: var(--space-2) !important;
+}
+
+.settings-pane .settings-row-main,
+.settings-pane .settings-row-help {
+  gap: var(--space-2) !important;
+}
+
+.settings-pane .settings-card {
+  padding: 0.6rem 0.8rem !important;
+}
+
+.settings-pane .section-heading {
+  margin-bottom: var(--space-1) !important;
+}
+
+.settings-pane .section-heading p {
+  font-size: 0.88rem !important;
+  line-height: 1.2 !important;
+}
+
+.settings-pane .section-heading span {
+  font-size: 0.72rem !important;
+  line-height: 1.2 !important;
+}
+
+.settings-pane .field-label {
+  margin-bottom: 0.35rem !important;
+  font-size: 0.78rem !important;
+  gap: 0.15rem !important;
+}
+
+.settings-pane .field {
+  height: 1.85rem !important;
+  min-height: 1.85rem !important;
+  padding: 0.2rem 0.4rem !important;
+  font-size: 0.8rem !important;
+}
+
+.settings-pane button {
+  padding: 0.2rem 0.5rem !important;
+  font-size: 0.76rem !important;
+  min-height: 1.85rem !important;
+}
+
+.settings-pane .settings-actions {
+  margin-top: 0.4rem !important;
+  gap: 0.4rem !important;
+}
+
+.settings-pane .checkbox-label {
+  margin-bottom: 0.35rem !important;
+}
+
+.settings-pane p.tool-accordion-desc,
+.settings-pane ol.tool-accordion-desc,
+.settings-pane ul.tool-accordion-desc,
+.settings-pane .destination-help {
+  margin-bottom: var(--space-2) !important;
+  font-size: 0.76rem !important;
+  line-height: 1.35 !important;
+}
+
+.settings-pane .p-section[style*="margin-top"] {
+  margin-top: var(--space-2) !important;
+}
+
+.settings-pane .backup-settings-panel[style*="margin-top"],
+.settings-pane .sync-panel[style*="margin-top"] {
+  margin-top: var(--space-2) !important;
+}
