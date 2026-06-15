@@ -57,44 +57,48 @@ export function publicMediaConfig(config = {}) {
 
 export async function saveMediaConfig(config) {
   const existing = await loadMediaConfig().catch(() => normalizeStoredConfig({}));
-  const normalized = normalizeStoredConfig(config);
-  if (!normalized.tmdb.apiKey) normalized.tmdb.apiKey = existing.tmdb.apiKey;
-  // Merge with existing so partial saves preserve untouched sections.
-  const merged = { ...existing, ...normalized };
-  upsertSettingsStmt.run(SETTINGS_ID, toJson(merged), Date.now());
+  
+  // Merge incoming sections with existing sections
+  const merged = {
+    plex: config.plex ? { ...existing.plex, ...config.plex } : existing.plex,
+    emby: config.emby ? { ...existing.emby, ...config.emby } : existing.emby,
+    jellyfin: config.jellyfin ? { ...existing.jellyfin, ...config.jellyfin } : existing.jellyfin,
+    tmdb: config.tmdb ? { ...existing.tmdb, ...config.tmdb } : existing.tmdb,
+    youtube: config.youtube ? { ...existing.youtube, ...config.youtube } : existing.youtube,
+  };
+  
+  const normalized = normalizeStoredConfig(merged);
+  upsertSettingsStmt.run(SETTINGS_ID, toJson(normalized), Date.now());
 }
 
 export function validateConfig(config = {}) {
   const errors = [];
-  let enabledCount = 0;
 
-  const plexEnabled = !config?.plex?.disabled;
-  const embyEnabled = !config?.emby?.disabled;
-  const jellyfinEnabled = !config?.jellyfin?.disabled;
-
-  if (plexEnabled) {
-    enabledCount++;
-    if (!config?.plex?.baseUrl) errors.push("plex.baseUrl is required when Plex is enabled");
-    if (!config?.plex?.token) errors.push("plex.token is required when Plex is enabled");
-    if (!config?.plex?.username) errors.push("plex.username is required when Plex is enabled");
+  if (config.plex) {
+    const plexEnabled = !config.plex.disabled;
+    if (plexEnabled) {
+      if (!config.plex.baseUrl) errors.push("plex.baseUrl is required when Plex is enabled");
+      if (!config.plex.token) errors.push("plex.token is required when Plex is enabled");
+      if (!config.plex.username) errors.push("plex.username is required when Plex is enabled");
+    }
   }
 
-  if (embyEnabled) {
-    enabledCount++;
-    if (!config?.emby?.baseUrl) errors.push("emby.baseUrl is required when Emby is enabled");
-    if (!config?.emby?.apiKey) errors.push("emby.apiKey is required when Emby is enabled");
-    if (!config?.emby?.userId) errors.push("emby.userId is required when Emby is enabled");
+  if (config.emby) {
+    const embyEnabled = !config.emby.disabled;
+    if (embyEnabled) {
+      if (!config.emby.baseUrl) errors.push("emby.baseUrl is required when Emby is enabled");
+      if (!config.emby.apiKey) errors.push("emby.apiKey is required when Emby is enabled");
+      if (!config.emby.userId) errors.push("emby.userId is required when Emby is enabled");
+    }
   }
 
-  if (jellyfinEnabled) {
-    enabledCount++;
-    if (!config?.jellyfin?.baseUrl) errors.push("jellyfin.baseUrl is required when Jellyfin is enabled");
-    if (!config?.jellyfin?.apiKey) errors.push("jellyfin.apiKey is required when Jellyfin is enabled");
-    if (!config?.jellyfin?.userId) errors.push("jellyfin.userId is required when Jellyfin is enabled");
-  }
-
-  if (enabledCount < 2) {
-    errors.push("At least two media platforms must be enabled to sync watch states.");
+  if (config.jellyfin) {
+    const jellyfinEnabled = !config.jellyfin.disabled;
+    if (jellyfinEnabled) {
+      if (!config.jellyfin.baseUrl) errors.push("jellyfin.baseUrl is required when Jellyfin is enabled");
+      if (!config.jellyfin.apiKey) errors.push("jellyfin.apiKey is required when Jellyfin is enabled");
+      if (!config.jellyfin.userId) errors.push("jellyfin.userId is required when Jellyfin is enabled");
+    }
   }
 
   return errors;

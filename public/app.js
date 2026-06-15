@@ -56,7 +56,7 @@ const EXPLORER_SORT_KEY_SHOWS = "plembfin:explorerSort:shows";
 const EXPLORER_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_LIMIT = 24;
 const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help"];
-const SETTINGS_TABS = ["general", "apps", "tools", "backups", "sync", "logs"];
+const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs"];
 
 const state = {
   token: readStoredAdminToken([TOKEN_KEY, LEGACY_UPPER_TOKEN_KEY, LEGACY_TOKEN_KEY]),
@@ -279,6 +279,16 @@ function bindElements() {
     trackingSpan: document.querySelector("#trackingSpan"),
     topShows: document.querySelector("#topShows"),
     saveConfigButton: document.querySelector("#saveConfigButton"),
+    savePlexConfigButton: document.querySelector("#savePlexConfigButton"),
+    plexConfigStatus: document.querySelector("#plexConfigStatus"),
+    saveEmbyConfigButton: document.querySelector("#saveEmbyConfigButton"),
+    embyConfigStatus: document.querySelector("#embyConfigStatus"),
+    saveJellyfinConfigButton: document.querySelector("#saveJellyfinConfigButton"),
+    jellyfinConfigStatus: document.querySelector("#jellyfinConfigStatus"),
+    saveTmdbConfigButton: document.querySelector("#saveTmdbConfigButton"),
+    tmdbConfigStatus: document.querySelector("#tmdbConfigStatus"),
+    saveYoutubeConfigButton: document.querySelector("#saveYoutubeConfigButton"),
+    youtubeConfigStatus: document.querySelector("#youtubeConfigStatus"),
     saveAdminCredentialsButton: document.querySelector("#saveAdminCredentialsButton"),
     checkSessionButton: document.querySelector("#checkSessionButton"),
     webhookUrl: document.querySelector("#webhookUrl"),
@@ -3636,6 +3646,103 @@ async function saveSavedConfig() {
   }
 }
 
+async function saveSectionConfig(section) {
+  const buttonId = `save${section.charAt(0).toUpperCase() + section.slice(1)}ConfigButton`;
+  const statusId = `${section}ConfigStatus`;
+  
+  const button = elements[buttonId];
+  const statusEl = elements[statusId];
+  
+  const originalText = button ? button.textContent : "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Saving...";
+  }
+  if (statusEl) {
+    statusEl.textContent = "Saving...";
+    statusEl.className = "message muted";
+  }
+
+  try {
+    const payload = {};
+    if (section === "plex") {
+      payload.plex = {
+        baseUrl: elements.plexServerUrl.value.trim(),
+        token: elements.plexToken.value.trim(),
+        username: elements.plexUsername.value.trim(),
+        disabled: !elements.plexEnabled.checked,
+      };
+    } else if (section === "emby") {
+      payload.emby = {
+        baseUrl: elements.embyServerUrl.value.trim(),
+        apiKey: elements.embyApiKey.value.trim(),
+        userId: elements.embyUserId.value.trim(),
+        disabled: !elements.embyEnabled.checked,
+      };
+    } else if (section === "jellyfin") {
+      payload.jellyfin = {
+        baseUrl: elements.jellyfinServerUrl.value.trim(),
+        apiKey: elements.jellyfinApiKey.value.trim(),
+        userId: elements.jellyfinUserId.value.trim(),
+        disabled: !elements.jellyfinEnabled.checked,
+      };
+    } else if (section === "tmdb") {
+      payload.tmdb = {
+        apiKey: elements.tmdbApiKey.value.trim(),
+      };
+    } else if (section === "youtube") {
+      payload.youtube = {
+        apiKey: elements.youtubeApiKey.value.trim(),
+      };
+    }
+
+    const response = await fetch("/api/config", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Save failed with ${response.status}`);
+
+    // Update state.savedConfig with new section values
+    state.savedConfig = {
+      ...state.savedConfig,
+      [section]: payload[section],
+    };
+    if (section === "tmdb") {
+      state.savedConfig.tmdb = {
+        configured: Boolean(payload.tmdb.apiKey || state.savedConfig.tmdb?.configured)
+      };
+      elements.tmdbApiKey.value = "";
+      elements.tmdbApiKey.placeholder = state.savedConfig.tmdb.configured ? "Configured - enter a new key to replace it" : "TMDB API key";
+    }
+
+    state.configLoaded = true;
+    clearDerivedUiCaches();
+    
+    if (statusEl) {
+      statusEl.textContent = "Saved successfully.";
+      statusEl.className = "message success";
+    }
+    renderDashboard();
+    renderActiveSessions();
+    refreshHelpIfVisible();
+    setMessage(`Saved ${section} settings successfully.`, "success");
+    return body;
+  } catch (error) {
+    if (statusEl) {
+      statusEl.textContent = error.message;
+      statusEl.className = "message error";
+    }
+    setMessage(error.message, "error");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
 async function loadHistory({ force = false } = {}) {
   if (state.historyLoadPromise) return state.historyLoadPromise;
 
@@ -4937,6 +5044,7 @@ function emptyExplorer(message) {
 }
 
 function renderDbStatus(isOnline) {
+  if (!elements.dbStatus) return;
   elements.dbStatus.innerHTML = `
     <span class="target-pill" data-status="${isOnline ? "success" : "error"}">${isOnline ? "Connected" : "Unavailable"}</span>
     <p>Total rows visible to this query: ${formatNumber(state.stats.totalWatches || 0)}</p>
@@ -9215,11 +9323,27 @@ function attachEvents() {
     setMessage(text, tone);
   });
 
-  elements.saveConfigButton.addEventListener("click", () => {
+  elements.saveConfigButton?.addEventListener("click", () => {
     saveSavedConfig().catch((error) => {
       renderSettingsStatus(error.message, "error");
       setMessage(error.message, "error");
     });
+  });
+
+  elements.savePlexConfigButton?.addEventListener("click", () => {
+    saveSectionConfig("plex");
+  });
+  elements.saveEmbyConfigButton?.addEventListener("click", () => {
+    saveSectionConfig("emby");
+  });
+  elements.saveJellyfinConfigButton?.addEventListener("click", () => {
+    saveSectionConfig("jellyfin");
+  });
+  elements.saveTmdbConfigButton?.addEventListener("click", () => {
+    saveSectionConfig("tmdb");
+  });
+  elements.saveYoutubeConfigButton?.addEventListener("click", () => {
+    saveSectionConfig("youtube");
   });
 
   elements.plexEnabled?.addEventListener("change", syncSettingsInputsDisabledState);
