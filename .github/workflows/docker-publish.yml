@@ -33,7 +33,7 @@ jobs:
 
       - name: Read application version
         id: version
-        run: echo "version=$(node -p \"require('./changelog.json').version\")" >> "$GITHUB_OUTPUT"
+        run: node -e "const fs=require('fs'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./changelog.json').version + '\\n')"
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
