@@ -38,7 +38,7 @@ const NOW_PLAYING_POLL_MS = 10000;
 const NOW_PLAYING_EMPTY_POLL_MS = 2 * 60 * 1000;
 const NOW_PLAYING_REENTRY_CACHE_MS = 20 * 1000;
 const POSTER_LOOKUP_CONCURRENCY = 2;
-const POSTER_LOOKUP_PERSISTED_CACHE_KEY = "plembfin:posterLookupCache:v2";
+const POSTER_LOOKUP_PERSISTED_CACHE_KEY = "plembfin:posterLookupCache:v3";
 const POSTER_LOOKUP_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const POSTER_LOOKUP_PERSISTED_CACHE_LIMIT = 800;
 const TMDB_POSTER_SIZE = "w342";
@@ -1159,7 +1159,9 @@ function safeImageUrl(value) {
 }
 
 function compactPosterUrl(value) {
-  const url = safeImageUrl(value);
+  const raw = String(value || "").trim();
+  if (isCachedStorageImageUrl(raw)) return raw;
+  const url = safeImageUrl(raw);
   if (!url) return "";
   return url.replace(/(https:\/\/image\.tmdb\.org\/t\/p\/)original\//i, `$1${TMDB_POSTER_SIZE}/`);
 }
@@ -8972,6 +8974,9 @@ async function runRefreshMetadataWorkflow() {
     }
 
     const summaryMsg = `Done! Refreshed ${success} items (failed: ${failed}), ${posters} posters stored.`;
+    clearDerivedUiCaches();
+    state.historyVersion = "";
+    await loadHistory({ force: true });
     if (status) status.textContent = summaryMsg;
     if (logEl) {
       logEl.textContent += summaryMsg + "\n";

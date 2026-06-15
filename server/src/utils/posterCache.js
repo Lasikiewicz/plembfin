@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
@@ -80,7 +81,8 @@ export async function getPosterCache(mediaKey = "", variant = "poster") {
 }
 
 export function usableCachedPoster(cache = {}) {
-  if (cache?.status === "cached" && cache.url) {
+  const localFileExists = cache?.storagePath && existsSync(path.join(MEDIA_DIR, cache.storagePath));
+  if (cache?.status === "cached" && String(cache.url || "").startsWith("/media/") && localFileExists) {
     return { url: cache.url, cached: true, source: cache.source || "cache" };
   }
   if ((cache?.status === "missing" || cache?.status === "failed") && freshNegativeCache(cache)) {
