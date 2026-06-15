@@ -9871,8 +9871,7 @@ async function loadCastMemberDetails(personId, personName = null) {
     if (castCredits.length === 0) {
       creditsHtml = `<p class="muted-copy">No known filmography recorded.</p>`;
     } else {
-      const displayedCredits = castCredits.slice(0, 30);
-      creditsHtml = displayedCredits.map(credit => {
+      creditsHtml = castCredits.map(credit => {
         const isTv = credit.media_type === "tv";
         const title = credit.title || credit.name || "Untitled";
         const character = credit.character || "Unknown Character";
@@ -9880,7 +9879,24 @@ async function loadCastMemberDetails(personId, personName = null) {
         const dateStr = credit.release_date || credit.first_air_date || "";
         const year = dateStr ? `(${dateStr.split("-")[0]})` : "";
         
-        const libItem = findLibraryItem(credit.media_type, credit.id, title);
+        let libItem = findLibraryItem(credit.media_type, credit.id, title);
+        if (!libItem && credit.in_library) {
+          if (isTv) {
+            libItem = {
+              type: "show",
+              key: credit.library_key,
+              item: {
+                title: credit.show_title || title,
+                episode_count: credit.watched_count,
+              }
+            };
+          } else {
+            libItem = {
+              type: "movie",
+              id: credit.library_id
+            };
+          }
+        }
         
         if (libItem) {
           const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
@@ -9896,7 +9912,7 @@ async function loadCastMemberDetails(personId, personName = null) {
               </div>
               <span class="person-credit-badges">
                 <span class="library-badge">In Library</span>
-                ${isTv ? personWatchBadgeMarkup(watchProgress, credit.id) : ""}
+                ${isTv ? personWatchBadgeMarkup(watchProgress, credit.id) : `<span class="watch-state-badge is-complete">Watched</span>`}
               </span>
             </div>
           `;
@@ -9976,7 +9992,7 @@ async function loadCastMemberDetails(personId, personName = null) {
           })()}
 
           <div class="person-credits-section" style="margin-top: 2rem;">
-            <h3>Filmography (Top ${Math.min(castCredits.length, 30)})</h3>
+            <h3>Filmography (${castCredits.length})</h3>
             <div class="person-credits-grid">
               ${creditsHtml}
             </div>

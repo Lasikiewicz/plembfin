@@ -1972,7 +1972,110 @@ async function handleTmdbPerson(req, res) {
 
   try {
     const personData = await getTmdbPerson(personId);
-    return sendJson(res, personData, 200, { "Cache-Control": "private, max-age=86400" });
+    
+    // Deep clone the credits cast so we can enrich them without mutating the cached details
+    const responseData = {
+      ...personData,
+      combined_credits: personData.combined_credits ? {
+        ...personData.combined_credits,
+        cast: (personData.combined_credits.cast || []).map(credit => ({ ...credit }))
+      } : personData.combined_credits
+    };
+
+    if (responseData.combined_credits && Array.isArray(responseData.combined_credits.cast)) {
+      const cast = responseData.combined_credits.cast;
+      const creditTmdbIds = [];
+      const creditTitles = [];
+      for (const credit of cast) {
+        if (credit.id) creditTmdbIds.push(String(credit.id));
+        const title = credit.title || credit.name;
+        if (title) creditTitles.push(title.toLowerCase());
+      }
+
+      if (creditTmdbIds.length > 0) {
+        const dbInstance = requireDb();
+        const placeholdersTmdb = creditTmdbIds.map(() => "?").join(",");
+        const placeholdersTitle = creditTitles.map(() => "?").join(",");
+        
+        // Fetch all matching rows from watch_history
+        const query = `
+          SELECT id, tmdb_id, title, media_type, season, episode, show_title, title_lower, show_title_lower
+          FROM watch_history
+          WHERE (tmdb_id IS NOT NULL AND tmdb_id IN (${placeholdersTmdb}))
+             OR (title_lower IN (${placeholdersTitle}))
+             OR (show_title_lower IN (${placeholdersTitle}))
+        `;
+        const params = [...creditTmdbIds, ...creditTitles, ...creditTitles];
+        const rows = dbInstance.prepare(query).all(params);
+
+        // Group rows by tmdb_id and show_title_lower for easy lookup
+        const rowsByTmdbId = new Map();
+        const rowsByTitleLower = new Map();
+        
+        for (const row of rows) {
+          if (row.tmdb_id) {
+            const key = String(row.tmdb_id);
+            if (!rowsByTmdbId.has(key)) rowsByTmdbId.set(key, []);
+            rowsByTmdbId.get(key).push(row);
+          }
+          if (row.title_lower) {
+            const key = row.title_lower;
+            if (!rowsByTitleLower.has(key)) rowsByTitleLower.set(key, []);
+            rowsByTitleLower.get(key).push(row);
+          }
+          if (row.show_title_lower) {
+            const key = row.show_title_lower;
+            if (!rowsByTitleLower.has(key)) rowsByTitleLower.set(key, []);
+            rowsByTitleLower.get(key).push(row);
+          }
+        }
+
+        // Helper to slugify title
+        const slug = (str) => String(str || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+        // Map over each credit to check watched status
+        for (const credit of cast) {
+          const tmdbIdStr = String(credit.id);
+          const titleLower = (credit.title || credit.name || "").toLowerCase();
+          
+          let matchingRows = [];
+          if (rowsByTmdbId.has(tmdbIdStr)) {
+            matchingRows = rowsByTmdbId.get(tmdbIdStr);
+          } else if (rowsByTitleLower.has(titleLower)) {
+            matchingRows = rowsByTitleLower.get(titleLower);
+          }
+
+          if (matchingRows.length > 0) {
+            credit.in_library = true;
+            
+            if (credit.media_type === "tv") {
+              const tvRows = matchingRows.filter(r => r.media_type === "episode");
+              if (tvRows.length > 0) {
+                // Count unique episodes
+                const watchedKeys = new Set(tvRows.map(r => `${r.season}_${r.episode}`));
+                credit.watched_count = watchedKeys.size;
+                const representative = tvRows[0];
+                const showTitle = representative.show_title || representative.title || credit.name || credit.title;
+                credit.show_title = showTitle;
+                credit.library_key = slug(showTitle);
+                credit.library_id = representative.id;
+              } else {
+                credit.in_library = false;
+              }
+            } else {
+              const movieRows = matchingRows.filter(r => r.media_type === "movie");
+              if (movieRows.length > 0) {
+                credit.library_id = movieRows[0].id;
+              } else {
+                credit.in_library = false;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return sendJson(res, responseData, 200, { "Cache-Control": "private, max-age=86400" });
   } catch (error) {
     console.error("Failed handling TMDB person API", error);
     return sendJson(res, { error: error.message || "Failed to fetch TMDB person details" }, error.status || 500);
