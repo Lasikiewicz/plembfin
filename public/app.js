@@ -9996,9 +9996,23 @@ async function loadCastMemberDetails(personId, personName = null) {
   `;
   
   try {
-    const res = await fetch(`/api/tmdb-person?id=${personId}`, { headers: authHeaders() });
+    // Fetch person data and all watched movies/shows in parallel so filmography
+    // watched-status is accurate regardless of which explorer tabs have been visited.
+    const [res, moviesRes, showsRes] = await Promise.all([
+      fetch(`/api/tmdb-person?id=${personId}`, { headers: authHeaders() }),
+      fetch(`/api/movies?limit=5000&sort=title_asc`, { headers: authHeaders(), cache: "no-store" }),
+      fetch(`/api/shows?limit=5000&sort=title_asc`, { headers: authHeaders(), cache: "no-store" }),
+    ]);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    const moviesBody = await moviesRes.json().catch(() => ({}));
+    const showsBody = await showsRes.json().catch(() => ({}));
+
+    // Build filmography-local lookups by tmdb_id and slug so findLibraryItem can
+    // match even when the explorer hasn't been opened yet.
+    const allWatchedMovies = Array.isArray(moviesBody.movies) ? moviesBody.movies : [];
+    const allWatchedShows = Array.isArray(showsBody.shows) ? showsBody.shows : [];
+    const filmographyLookup = { allWatchedMovies, allWatchedShows };
     
     if (elements.explorerTitle) {
       elements.explorerTitle.textContent = data.name || "Cast Member Profile";
@@ -10144,7 +10158,7 @@ async function loadCastMemberDetails(personId, personName = null) {
           const dateStr = credit.release_date || credit.first_air_date || "";
           const year = dateStr ? `(${dateStr.split("-")[0]})` : "";
           
-          let libItem = findLibraryItem(credit.media_type, credit.id, title);
+          let libItem = findLibraryItem(credit.media_type, credit.id, title, filmographyLookup);
           if (!libItem && credit.in_library) {
             if (isTv) {
               libItem = {
@@ -10311,10 +10325,17 @@ async function openShowImmersiveModalByTmdbId(tmdbId) {
   });
 }
 
-function findLibraryItem(mediaType, tmdbId, title) {
+function findLibraryItem(mediaType, tmdbId, title, filmographyLookup = null) {
   const cleanTitle = slug(title);
   if (mediaType === "tv" || mediaType === "show") {
-    let found = state.showsRaw.find(s => String(s.tmdb_id || "") === String(tmdbId) || slug(s.title) === cleanTitle);
+    // Check the full server-fetched list first (filmography page), then fall back
+    // to the in-memory explorer state which may be only partially loaded.
+    let found = (filmographyLookup?.allWatchedShows || []).find(
+      s => String(s.tmdb_id || "") === String(tmdbId) || slug(s.title) === cleanTitle
+    );
+    if (!found) {
+      found = state.showsRaw.find(s => String(s.tmdb_id || "") === String(tmdbId) || slug(s.title) === cleanTitle);
+    }
     if (!found) {
       const historyRows = state.history.filter(h => h.media_type === "episode" && isWatchedHistoryAction(h) && (
         String(h.tmdb_id || "") === String(tmdbId) || slug(h.show_title || showTitleFrom(h.title)) === cleanTitle
@@ -10332,7 +10353,13 @@ function findLibraryItem(mediaType, tmdbId, title) {
     }
     return found ? { type: "show", key: slug(found.title), item: found } : null;
   } else {
-    let found = state.moviesRaw.find(m => String(m.tmdb_id) === String(tmdbId) || slug(m.title) === cleanTitle);
+    // Check the full server-fetched movies list first, then the partially-loaded explorer.
+    let found = (filmographyLookup?.allWatchedMovies || []).find(
+      m => String(m.tmdb_id || "") === String(tmdbId) || slug(m.title) === cleanTitle
+    );
+    if (!found) {
+      found = state.moviesRaw.find(m => String(m.tmdb_id) === String(tmdbId) || slug(m.title) === cleanTitle);
+    }
     if (!found) {
       found = state.history.find(h => h.media_type === "movie" && (String(h.tmdb_id) === String(tmdbId) || slug(h.title) === cleanTitle));
     }
