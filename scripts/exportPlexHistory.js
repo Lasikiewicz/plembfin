@@ -1,7 +1,13 @@
-const PLEX_URL = "https://plex.lasikie.co.uk";
-const PLEX_TOKEN = "eL3Yeq_SXJWj-r15zzzc";
-const ADMIN_TOKEN = "eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg1NGFhNGMyM2VkZTdiOGNhODc1OWZiMDZlNmExZDU4OTI0MjVkMDYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vcGxlbWJmaW4iLCJhdWQiOiJwbGVtYmZpbiIsImF1dGhfdGltZSI6MTc4MDMwOTkzMiwidXNlcl9pZCI6InBOZ2hKQlByVm1aV0Fna0JHOW93V093T094MTMiLCJzdWIiOiJwTmdoSkJQclZtWldBZ2tCRzlvd1dPd09PeDEzIiwiaWF0IjoxNzgwMzA5OTMzLCJleHAiOjE3ODAzMTM1MzMsImVtYWlsIjoibGFzaWtpZUBob3RtYWlsLmNvLnVrIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7ImVtYWlsIjpbImxhc2lraWVAaG90bWFpbC5jby51ayJdfSwic2lnbl9pbl9wcm92aWRlciI6InBhc3N3b3JkIn19.JpumEH0CkfXJxK30I_dsVtCLGbQqEFSU9rdXp4bwbUTnos_MMVbOTVdWJaYUMjBID9tKRqpUkfhmoiwhixBgzqBlIPPicCkRBPMIhHC6RQ4cTDkmGF_Qiig0B34OOvltTXmX4CmuW6cRsJfTeXXkT1lThjVm5zpfmPZCjQHUz0OoIeQJbv3ByoQY59YNasE_kvd1ifuEg8vM8uqn89o2Z6zDPuN1smZ67zcXPIHftNomRe3kEkbg7ffhx7saHlriWFqvQ2UXhPeG7jxDP2PjDd8eJDhk7415C0TtsR02spYeo3unPJLQMaBpCshIK_2KbkzvJ3Fs71JoqHbk8J-1QA";
-const IMPORT_ENDPOINT = "http://localhost:5000/api/import";
+function requiredEnv(name) {
+  const value = String(process.env[name] || "").trim();
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+
+const PLEX_URL = requiredEnv("PLEX_URL");
+const PLEX_TOKEN = requiredEnv("PLEX_TOKEN");
+const API_KEY = requiredEnv("API_KEY");
+const IMPORT_ENDPOINT = process.env.PLEMBFIN_IMPORT_ENDPOINT || "http://localhost:5055/api/import";
 const CHUNK_SIZE = 100;
 
 function trimTrailingSlash(value = "") {
@@ -93,7 +99,7 @@ async function uploadChunk(records, chunkNumber, totalChunks) {
   const response = await fetch(IMPORT_ENDPOINT, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${ADMIN_TOKEN}`,
+      "X-Api-Key": API_KEY,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ records }),
