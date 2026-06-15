@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "./utils/parsers.js";
 import { findPlexItem, markPlexPlayed, setPlexProgress } from "./utils/plexClient.js";
 import { markEmbyPlayed, setEmbyProgress } from "./utils/embyClient.js";
@@ -66,12 +67,18 @@ import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, prewarmTmd
 import { BACKUP_FORMAT, BACKUP_VERSION, backupManifest, exportCollectionPage, importCollectionBatch } from "./utils/backup.js";
 import {
   createWatchHistoryBackup,
+  getBackupDestination,
   readWatchBackupFile,
+  removeBackupDestination,
   restoreWatchHistoryBackup,
   runScheduledWatchBackup,
   saveWatchBackupConfig,
+  saveBackupDestination,
+  testBackupDestination,
+  updateDestinationSecrets,
   watchBackupStatus,
 } from "./utils/watchHistoryBackups.js";
+import { deviceCodeEndpoint, tokenEndpoint, ONEDRIVE_SCOPE } from "./utils/backupDestinations/onedrive.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -515,6 +522,102 @@ async function handleBackupImport(req, res) {
   }
 }
 
+// In-memory pending OneDrive device-code sessions (pendingId -> session). Short-lived
+// and intentionally not persisted; a server restart simply cancels an in-flight login.
+const deviceCodeSessions = new Map();
+
+async function startOneDriveDeviceAuth(destination) {
+  const clientId = destination.settings?.clientId;
+  if (!clientId) throw new Error("Enter and save the OneDrive client ID first");
+  const tenant = destination.settings?.tenant;
+  const params = new URLSearchParams({ client_id: clientId, scope: ONEDRIVE_SCOPE });
+  const response = await fetch(deviceCodeEndpoint(tenant), {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error_description || data.error || `Device code request failed (${response.status})`);
+
+  const pendingId = crypto.randomUUID();
+  deviceCodeSessions.set(pendingId, {
+    destinationId: destination.id,
+    clientId,
+    tenant,
+    deviceCode: data.device_code,
+    expiresAt: Date.now() + (Number(data.expires_in) || 900) * 1000,
+  });
+  return {
+    pendingId,
+    userCode: data.user_code,
+    verificationUri: data.verification_uri,
+    interval: Number(data.interval) || 5,
+    expiresIn: Number(data.expires_in) || 900,
+    message: data.message,
+  };
+}
+
+async function pollOneDriveDeviceAuth(pendingId) {
+  const session = deviceCodeSessions.get(pendingId);
+  if (!session) return { status: "error", error: "Login session expired — start again" };
+  if (session.expiresAt < Date.now()) {
+    deviceCodeSessions.delete(pendingId);
+    return { status: "error", error: "Login code expired — start again" };
+  }
+  const params = new URLSearchParams({
+    client_id: session.clientId,
+    grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+    device_code: session.deviceCode,
+  });
+  const response = await fetch(tokenEndpoint(session.tenant), {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (response.ok && data.refresh_token) {
+    updateDestinationSecrets(session.destinationId, { refreshToken: data.refresh_token });
+    deviceCodeSessions.delete(pendingId);
+    return { status: "authorized" };
+  }
+  if (data.error === "authorization_pending" || data.error === "slow_down") return { status: "pending" };
+  deviceCodeSessions.delete(pendingId);
+  return { status: "error", error: data.error_description || data.error || "Authorization failed" };
+}
+
+// Dropbox manual (no-redirect) OAuth: the authorize page shows a code the user pastes
+// back, so no public callback URL is required for self-hosted installs.
+function dropboxAuthorizeUrl(destination) {
+  const appKey = destination.settings?.appKey;
+  if (!appKey) throw new Error("Enter and save the Dropbox app key first");
+  const params = new URLSearchParams({
+    client_id: appKey,
+    response_type: "code",
+    token_access_type: "offline",
+  });
+  return `https://www.dropbox.com/oauth2/authorize?${params.toString()}`;
+}
+
+async function exchangeDropboxCode(destination, code) {
+  const appKey = destination.settings?.appKey;
+  const appSecret = destination.secrets?.appSecret;
+  if (!appKey || !appSecret) throw new Error("Save the Dropbox app key and secret first");
+  if (!code) throw new Error("Authorization code is required");
+  const basic = Buffer.from(`${appKey}:${appSecret}`).toString("base64");
+  const params = new URLSearchParams({ grant_type: "authorization_code", code: String(code).trim() });
+  const response = await fetch("https://api.dropbox.com/oauth2/token", {
+    method: "POST",
+    headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.refresh_token) {
+    throw new Error(data.error_description || data.error || "Dropbox authorization failed");
+  }
+  updateDestinationSecrets(destination.id, { refreshToken: data.refresh_token });
+  return { status: "authorized" };
+}
+
 async function handleWatchBackups(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!(await requireAdmin(req, res))) return;
@@ -543,7 +646,7 @@ async function handleWatchBackups(req, res) {
       return sendJson(res, { ok: true, config: saveWatchBackupConfig(body.config || {}) });
     }
     if (action === "create") {
-      return sendJson(res, { ok: true, backup: createWatchHistoryBackup({ reason: "manual" }) });
+      return sendJson(res, { ok: true, backup: await createWatchHistoryBackup({ reason: "manual" }) });
     }
     if (action === "restore") {
       const filename = String(body.filename || "").trim();
@@ -555,6 +658,33 @@ async function handleWatchBackups(req, res) {
           dryRun: body.dryRun === true,
         }),
       });
+    }
+    if (action === "save-destination") {
+      return sendJson(res, { ok: true, destination: saveBackupDestination(body.destination || {}) });
+    }
+    if (action === "remove-destination") {
+      const id = String(body.destinationId || "").trim();
+      if (!id) return sendJson(res, { error: "destinationId is required" }, 400);
+      return sendJson(res, { ok: true, ...removeBackupDestination(id) });
+    }
+    if (["test-destination", "device-start", "device-poll", "oauth-url", "oauth-exchange"].includes(action)) {
+      if (action === "device-poll") {
+        return sendJson(res, { ok: true, ...(await pollOneDriveDeviceAuth(String(body.pendingId || ""))) });
+      }
+      const destination = getBackupDestination(String(body.destinationId || "").trim());
+      if (!destination) return sendJson(res, { error: "Destination not found" }, 404);
+      if (action === "test-destination") {
+        return sendJson(res, { ok: true, result: await testBackupDestination(destination) });
+      }
+      if (action === "device-start") {
+        return sendJson(res, { ok: true, ...(await startOneDriveDeviceAuth(destination)) });
+      }
+      if (action === "oauth-url") {
+        return sendJson(res, { ok: true, url: dropboxAuthorizeUrl(destination) });
+      }
+      if (action === "oauth-exchange") {
+        return sendJson(res, { ok: true, ...(await exchangeDropboxCode(destination, body.code)) });
+      }
     }
     return sendJson(res, { error: "Unknown watch backup action" }, 400);
   } catch (error) {

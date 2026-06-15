@@ -673,15 +673,9 @@
                       Backups to retain
                       <input id="watchBackupRetention" class="field" type="number" min="1" max="365" value="14" />
                     </label>
-                    <label class="field-label">
-                      Destination
-                      <select id="watchBackupDestination" class="field" disabled>
-                        <option value="local">Local data folder</option>
-                      </select>
-                    </label>
                   </div>
 
-                  <p class="tool-accordion-desc">Backups are stored in <code>data/backups/watch-history</code>. Artwork, TMDB caches, credentials, settings, logs, and active sessions are excluded. Dropbox, OneDrive, WebDAV, and S3-compatible destinations will use this same verified local backup format.</p>
+                  <p class="tool-accordion-desc">Backups are always written to <code>data/backups/watch-history</code> first, then mirrored to any enabled remote destinations below. Artwork, TMDB caches, credentials, settings, logs, and active sessions are excluded.</p>
 
                   <div class="settings-actions backup-settings-actions">
                     <button id="saveWatchBackupConfigButton" class="button-primary" type="button">Save Schedule</button>
@@ -690,6 +684,25 @@
                   </div>
 
                   <div id="watchBackupRuntime" class="backup-runtime" aria-live="polite"></div>
+                </section>
+
+                <section class="glass-panel p-section backup-settings-panel">
+                  <div class="section-heading">
+                    <div>
+                      <p>Remote Destinations</p>
+                      <span>Mirror backups to OneDrive, Dropbox, WebDAV, or S3-compatible storage. The local copy is always kept.</span>
+                    </div>
+                    <div class="backup-destination-add">
+                      <select id="watchBackupDestinationType" class="field">
+                        <option value="webdav">WebDAV</option>
+                        <option value="s3">S3-compatible</option>
+                        <option value="onedrive">OneDrive</option>
+                        <option value="dropbox">Dropbox</option>
+                      </select>
+                      <button id="addWatchBackupDestinationButton" class="button-primary" type="button">Add destination</button>
+                    </div>
+                  </div>
+                  <div id="watchBackupDestinations" class="watch-backup-destinations" aria-live="polite"></div>
                 </section>
 
                 <section class="glass-panel p-section backup-settings-panel">
