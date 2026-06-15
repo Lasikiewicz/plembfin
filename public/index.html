@@ -451,6 +451,35 @@
                     <div class="tool-accordion-title">
                       <span class="tool-accordion-chevron" aria-hidden="true"></span>
                       <div>
+                        <p>Backup &amp; Transfer</p>
+                        <span>Export this installation or import a Plembfin backup</span>
+                      </div>
+                      <span id="backupTransferStatus" class="status-pill status-muted">Idle</span>
+                    </div>
+                    <p class="tool-accordion-desc">Use Export on the old installation, then import the downloaded JSON file here. The backup includes watch data, settings, and cache metadata, but not stored artwork files. Treat it as sensitive because saved media-server credentials and API keys may be included.</p>
+                  </summary>
+                  <div class="tool-accordion-body">
+                    <div class="backup-transfer-grid">
+                      <div class="backup-transfer-card">
+                        <p class="muted-copy">Download all supported data from this installation.</p>
+                        <button id="backupExportButton" class="button-primary" type="button">Export Backup</button>
+                      </div>
+                      <label class="backup-transfer-card field-label" for="backupImportFile">
+                        Import backup file
+                        <input id="backupImportFile" class="field" type="file" accept=".json,application/json" />
+                        <button id="backupImportButton" class="button-primary" type="button" disabled>Import Backup</button>
+                      </label>
+                    </div>
+                    <p class="tool-accordion-desc backup-transfer-warning">Import replaces every collection included in the file. The local admin username, password, and active sessions are not changed.</p>
+                    <pre id="backupTransferLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Select Export or choose a backup file.</pre>
+                  </div>
+                </details>
+
+                <details class="tool-accordion glass-panel">
+                  <summary class="tool-accordion-header">
+                    <div class="tool-accordion-title">
+                      <span class="tool-accordion-chevron" aria-hidden="true"></span>
+                      <div>
                         <p>Full Sync Watchstates</p>
                         <span>Push your entire watch archive to every configured media server</span>
                       </div>

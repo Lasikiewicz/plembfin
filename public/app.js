@@ -29,6 +29,10 @@ const ACTIVE_SETTINGS_TAB_KEY = "history_active_settings_tab";
 const IMPORT_BATCH_SIZE = 100;
 const IMPORT_MAX_ATTEMPTS = 4;
 const IMPORT_RETRY_BASE_MS = 1500;
+const BACKUP_BATCH_SIZE = 250;
+const BACKUP_FORMAT = "plembfin-backup";
+const BACKUP_VERSION = 1;
+const BACKUP_COLLECTIONS = ["watchHistory", "playstate", "playbackProgress", "activeSessions", "liveTrackingCache", "syncHistory", "settings", "runtimeState", "loopKeys", "posterCache", "tmdbMetadataCache", "tmdbSearchCache", "tmdbSeasonCache", "tmdbPersonCache"];
 const NOW_PLAYING_POLL_MS = 10000;
 const NOW_PLAYING_EMPTY_POLL_MS = 2 * 60 * 1000;
 const NOW_PLAYING_REENTRY_CACHE_MS = 20 * 1000;
@@ -141,6 +145,7 @@ const state = {
   nowPlayingLastFetchAt: 0,
   configLoaded: false,
   fullSyncActive: false,
+  backupImport: null,
 };
 
 const elements = {};
@@ -184,6 +189,11 @@ function bindElements() {
     fullSyncButton: document.querySelector("#fullSyncButton"),
     fullSyncLog: document.querySelector("#fullSyncLog"),
     fullSyncStatus: document.querySelector("#fullSyncStatus"),
+    backupExportButton: document.querySelector("#backupExportButton"),
+    backupImportButton: document.querySelector("#backupImportButton"),
+    backupImportFile: document.querySelector("#backupImportFile"),
+    backupTransferLog: document.querySelector("#backupTransferLog"),
+    backupTransferStatus: document.querySelector("#backupTransferStatus"),
     helpCanvas: document.querySelector("#helpCanvas"),
     helpMenu: document.querySelector("#helpMenu"),
     tvHistoryRow: document.querySelector("#tvHistoryRow"),
@@ -274,6 +284,160 @@ function bindElements() {
 
 function authHeaders() {
   return buildAuthHeaders(state.token);
+}
+
+function setBackupTransferState(label, tone = "muted", log = "") {
+  if (elements.backupTransferStatus) {
+    elements.backupTransferStatus.textContent = label;
+    elements.backupTransferStatus.className = `status-pill status-${tone}`;
+  }
+  if (log && elements.backupTransferLog) {
+    elements.backupTransferLog.textContent = log;
+    elements.backupTransferLog.scrollTop = elements.backupTransferLog.scrollHeight;
+  }
+}
+
+function downloadJsonFile(value, filename) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function validatePlembfinBackup(value) {
+  if (!value || value.format !== BACKUP_FORMAT || Number(value.version) !== BACKUP_VERSION) {
+    throw new Error("This is not a supported Plembfin backup file.");
+  }
+  if (!value.collections || Array.isArray(value.collections) || typeof value.collections !== "object") {
+    throw new Error("The backup does not contain a collections object.");
+  }
+  const included = BACKUP_COLLECTIONS.filter((name) => Object.hasOwn(value.collections, name));
+  if (!included.length) throw new Error("The backup contains no supported collections.");
+  for (const name of included) {
+    const documents = value.collections[name];
+    if (!Array.isArray(documents)) throw new Error(`${name} is not a valid document array.`);
+    for (const document of documents) {
+      if (!document || typeof document.id !== "string" || !document.id || typeof document.data !== "object" || document.data == null) {
+        throw new Error(`${name} contains an invalid document.`);
+      }
+    }
+  }
+  return { backup: value, included };
+}
+
+async function exportPlembfinBackup() {
+  const button = elements.backupExportButton;
+  if (!button) return;
+  button.disabled = true;
+  button.textContent = "Exporting...";
+  setBackupTransferState("Exporting", "warning", "Starting authenticated backup export...");
+
+  try {
+    const manifestResponse = await fetch("/api/backup/export", { headers: authHeaders() });
+    const manifest = await manifestResponse.json().catch(() => ({}));
+    if (!manifestResponse.ok) throw new Error(manifest.error || `Backup manifest failed with ${manifestResponse.status}`);
+
+    const collectionNames = Array.isArray(manifest.collections) ? manifest.collections : [];
+    const backup = { ...manifest, source: { ...manifest.source, origin: window.location.origin }, collections: {} };
+    let totalDocuments = 0;
+
+    for (const collection of collectionNames) {
+      const documents = [];
+      let cursor = "";
+      let hasMore = true;
+      while (hasMore) {
+        const params = new URLSearchParams({ collection, limit: String(BACKUP_BATCH_SIZE) });
+        if (cursor) params.set("cursor", cursor);
+        const response = await fetch(`/api/backup/export?${params}`, { headers: authHeaders() });
+        const page = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(page.error || `${collection} export failed with ${response.status}`);
+        documents.push(...(page.documents || []));
+        cursor = page.nextCursor || "";
+        hasMore = Boolean(page.hasMore && cursor);
+        setBackupTransferState("Exporting", "warning", `Exporting ${collection}: ${formatNumber(documents.length)} documents\nTotal collected: ${formatNumber(totalDocuments + documents.length)}`);
+      }
+      backup.collections[collection] = documents;
+      totalDocuments += documents.length;
+    }
+
+    downloadJsonFile(backup, `plembfin-backup-${new Date().toISOString().slice(0, 10)}.json`);
+    setBackupTransferState("Downloaded", "ready", `Backup complete: ${formatNumber(totalDocuments)} documents across ${formatNumber(collectionNames.length)} collections.\nKeep this file secure because it can contain saved credentials.`);
+    setMessage("Plembfin backup downloaded.", "success");
+  } catch (error) {
+    setBackupTransferState("Failed", "error", `Backup failed: ${error.message}`);
+    setMessage(error.message, "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Export Backup";
+  }
+}
+
+async function readPlembfinBackup(file) {
+  const parsed = JSON.parse(await file.text());
+  return validatePlembfinBackup(parsed);
+}
+
+async function importPlembfinBackup() {
+  if (!state.backupImport) return;
+  const approved = await openConfirmDialog({
+    title: "Replace Plembfin data?",
+    body: "This import replaces every collection included in the backup. Your local admin username and password will stay unchanged.",
+    confirmLabel: "Import Backup",
+    danger: true,
+  });
+  if (!approved) return;
+
+  const button = elements.backupImportButton;
+  const input = elements.backupImportFile;
+  const { backup, included } = state.backupImport;
+  button.disabled = true;
+  input.disabled = true;
+  button.textContent = "Importing...";
+  setBackupTransferState("Importing", "warning", "Starting backup import...");
+
+  let totalDocuments = 0;
+  try {
+    for (const collection of included) {
+      const documents = backup.collections[collection];
+      const batches = documents.length ? Math.ceil(documents.length / BACKUP_BATCH_SIZE) : 1;
+      for (let batchIndex = 0; batchIndex < batches; batchIndex += 1) {
+        const batch = documents.slice(batchIndex * BACKUP_BATCH_SIZE, (batchIndex + 1) * BACKUP_BATCH_SIZE);
+        const response = await fetch("/api/backup/import", {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ format: BACKUP_FORMAT, version: BACKUP_VERSION, collection, documents: batch, reset: batchIndex === 0 }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || `${collection} import failed with ${response.status}`);
+        totalDocuments += batch.length;
+        setBackupTransferState("Importing", "warning", `Imported ${collection}: batch ${batchIndex + 1} of ${batches}\nTotal imported: ${formatNumber(totalDocuments)} documents`);
+      }
+    }
+
+    clearDerivedUiCaches();
+    state.configLoaded = false;
+    state.syncJobsLoaded = false;
+    state.syncHistoryLoaded = false;
+    await Promise.all([
+      loadSavedConfig(),
+      loadHistory({ force: true }),
+      loadActiveSessions(),
+      loadStats({ force: true }),
+    ]);
+    setBackupTransferState("Complete", "ready", `Import complete: ${formatNumber(totalDocuments)} documents across ${formatNumber(included.length)} collections.`);
+    setMessage("Plembfin backup imported.", "success");
+  } catch (error) {
+    setBackupTransferState("Failed", "error", `Import failed: ${error.message}`);
+    setMessage(error.message, "error");
+  } finally {
+    input.disabled = false;
+    button.disabled = !state.backupImport;
+    button.textContent = "Import Backup";
+  }
 }
 
 async function apiUpdateWatch(id, fields) {
@@ -8263,6 +8427,33 @@ function attachEvents() {
     elements.importFile.value = "";
     renderImportPreview();
     setMessage("Import selection cleared.");
+  });
+
+  elements.backupExportButton?.addEventListener("click", () => {
+    exportPlembfinBackup().catch((error) => setMessage(error.message, "error"));
+  });
+
+  elements.backupImportFile?.addEventListener("change", async () => {
+    state.backupImport = null;
+    elements.backupImportButton.disabled = true;
+    const file = elements.backupImportFile.files?.[0];
+    if (!file) {
+      setBackupTransferState("Idle", "muted", "[idle] Select Export or choose a backup file.");
+      return;
+    }
+    try {
+      state.backupImport = await readPlembfinBackup(file);
+      const documentCount = state.backupImport.included.reduce((sum, name) => sum + state.backupImport.backup.collections[name].length, 0);
+      elements.backupImportButton.disabled = false;
+      setBackupTransferState("Ready", "ready", `${file.name}\n${formatNumber(documentCount)} documents across ${formatNumber(state.backupImport.included.length)} supported collections.`);
+    } catch (error) {
+      setBackupTransferState("Invalid", "error", `Backup file rejected: ${error.message}`);
+      setMessage(error.message, "error");
+    }
+  });
+
+  elements.backupImportButton?.addEventListener("click", () => {
+    importPlembfinBackup().catch((error) => setMessage(error.message, "error"));
   });
 
   if (elements.runCompleteCheckButton) {

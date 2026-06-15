@@ -1579,6 +1579,27 @@ details[open] .tool-accordion-chevron::before {
   margin-top: 0;
 }
 
+.backup-transfer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+}
+
+.backup-transfer-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.backup-transfer-card .button-primary {
+  justify-self: start;
+}
+
+.backup-transfer-warning {
+  padding: var(--space-3) 0 0;
+}
+
 .settings-config-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -3516,6 +3537,10 @@ details[open] .tool-accordion-chevron::before {
 }
 
 @media (max-width: 760px) {
+  .backup-transfer-grid {
+    grid-template-columns: 1fr;
+  }
+
   .immersive-episode-row {
     grid-template-columns: 1fr;
   }
