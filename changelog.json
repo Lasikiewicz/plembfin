@@ -1,7 +1,14 @@
 {
-  "version": "0.0.10",
-  "updatedAt": "2026-06-15T14:48:01+01:00",
+  "version": "0.0.11",
+  "updatedAt": "2026-06-15T16:15:46+01:00",
   "entries": [
+    {
+      "version": "0.0.11",
+      "date": "2026-06-15T16:15:46+01:00",
+      "commit": "41b9a96a5ada1c5b820e99a1ef9cb541ad261b28",
+      "message": "Fix watch history persistence and add UI saving indicators for TV shows and movies",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.10",
       "date": "2026-06-15T14:48:01+01:00",
