@@ -1,7 +1,14 @@
 {
-  "version": "0.0.14",
-  "updatedAt": "2026-06-15T17:03:36+01:00",
+  "version": "0.0.15",
+  "updatedAt": "2026-06-15T17:29:22+01:00",
   "entries": [
+    {
+      "version": "0.0.15",
+      "date": "2026-06-15T17:29:22+01:00",
+      "commit": "e49f2e2c4c7829e83f13e5c9f690a29e4c42400f",
+      "message": "fix: replace intermediate modal re-render with lightweight button state update when marking unwatched movie as watched - eliminates double TMDB fetch and loading flicker during save",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.14",
       "date": "2026-06-15T17:03:36+01:00",
