@@ -56,7 +56,7 @@ const EXPLORER_SORT_KEY_SHOWS = "plembfin:explorerSort:shows";
 const EXPLORER_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_LIMIT = 24;
 const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help"];
-const SETTINGS_TABS = ["general", "apps", "tools", "sync", "logs"];
+const SETTINGS_TABS = ["general", "apps", "tools", "backups", "sync", "logs"];
 
 const state = {
   token: readStoredAdminToken([TOKEN_KEY, LEGACY_UPPER_TOKEN_KEY, LEGACY_TOKEN_KEY]),
@@ -147,6 +147,8 @@ const state = {
   configLoaded: false,
   fullSyncActive: false,
   backupImport: null,
+  watchBackups: null,
+  watchBackupsLoading: false,
 };
 
 const elements = {};
@@ -196,6 +198,15 @@ function bindElements() {
     backupImportFile: document.querySelector("#backupImportFile"),
     backupTransferLog: document.querySelector("#backupTransferLog"),
     backupTransferStatus: document.querySelector("#backupTransferStatus"),
+    watchBackupSummary: document.querySelector("#watchBackupSummary"),
+    watchBackupEnabled: document.querySelector("#watchBackupEnabled"),
+    watchBackupTime: document.querySelector("#watchBackupTime"),
+    watchBackupRetention: document.querySelector("#watchBackupRetention"),
+    saveWatchBackupConfigButton: document.querySelector("#saveWatchBackupConfigButton"),
+    createWatchBackupButton: document.querySelector("#createWatchBackupButton"),
+    refreshWatchBackupsButton: document.querySelector("#refreshWatchBackupsButton"),
+    watchBackupRuntime: document.querySelector("#watchBackupRuntime"),
+    watchBackupList: document.querySelector("#watchBackupList"),
     helpCanvas: document.querySelector("#helpCanvas"),
     helpMenu: document.querySelector("#helpMenu"),
     tvHistoryRow: document.querySelector("#tvHistoryRow"),
@@ -504,6 +515,149 @@ async function importPlembfinBackup() {
     button.disabled = !state.backupImport;
     button.textContent = "Import Backup";
   }
+}
+
+function watchBackupDate(value) {
+  if (!value) return "Never";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Never" : date.toLocaleString();
+}
+
+function renderWatchBackups() {
+  if (!elements.watchBackupList) return;
+  const data = state.watchBackups;
+  if (!data) {
+    elements.watchBackupSummary.textContent = state.watchBackupsLoading ? "Loading" : "Not loaded";
+    elements.watchBackupSummary.className = `status-pill status-${state.watchBackupsLoading ? "warning" : "muted"}`;
+    elements.watchBackupList.innerHTML = `<div class="empty-log"><b>${state.watchBackupsLoading ? "Loading backups..." : "Backups not loaded"}</b></div>`;
+    return;
+  }
+
+  const config = data.config || {};
+  const runtime = data.runtime || {};
+  const files = Array.isArray(data.files) ? data.files : [];
+  elements.watchBackupEnabled.checked = Boolean(config.enabled);
+  elements.watchBackupTime.value = config.time || "03:00";
+  elements.watchBackupRetention.value = String(config.retention || 14);
+  elements.watchBackupSummary.textContent = config.enabled ? "Scheduled" : "Disabled";
+  elements.watchBackupSummary.className = `status-pill status-${config.enabled ? "ready" : "muted"}`;
+  elements.watchBackupRuntime.innerHTML = `
+    <div><span>Last successful backup</span><b>${escapeHtml(watchBackupDate(runtime.lastSuccessAt))}</b></div>
+    <div><span>Last restore</span><b>${escapeHtml(watchBackupDate(runtime.lastRestoreAt))}</b></div>
+    <div><span>Storage</span><b>${formatNumber(files.length)} file${files.length === 1 ? "" : "s"}</b></div>
+    ${runtime.lastError ? `<p class="backup-runtime-error">${escapeHtml(runtime.lastError)}</p>` : ""}
+  `;
+
+  elements.watchBackupList.innerHTML = files.length ? files.map((file) => `
+    <article class="watch-backup-row">
+      <div class="watch-backup-copy">
+        <b>${escapeHtml(file.name)}</b>
+        <span>${escapeHtml(watchBackupDate(file.createdAt))} · ${escapeHtml(formatBytes(file.sizeBytes))}</span>
+      </div>
+      <div class="watch-backup-actions">
+        <button class="button-ghost" type="button" data-watch-backup-download="${escapeAttribute(file.name)}">Download</button>
+        <button class="button-ghost" type="button" data-watch-backup-dry-run="${escapeAttribute(file.name)}">Validate</button>
+        <button class="button-primary" type="button" data-watch-backup-restore="${escapeAttribute(file.name)}" data-restore-mode="merge">Merge Restore</button>
+        <button class="button-danger" type="button" data-watch-backup-restore="${escapeAttribute(file.name)}" data-restore-mode="replace">Replace</button>
+      </div>
+    </article>
+  `).join("") : `<div class="empty-log"><b>No watch-history backups yet</b><span>Use Back Up Now or enable the daily schedule.</span></div>`;
+}
+
+async function loadWatchBackups({ force = false } = {}) {
+  if (!state.token || state.watchBackupsLoading || (state.watchBackups && !force)) return state.watchBackups;
+  state.watchBackupsLoading = true;
+  renderWatchBackups();
+  try {
+    const response = await fetch("/api/watch-backups", { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Backup status failed with ${response.status}`);
+    state.watchBackups = body;
+    return body;
+  } finally {
+    state.watchBackupsLoading = false;
+    renderWatchBackups();
+  }
+}
+
+async function postWatchBackupAction(payload) {
+  const response = await fetch("/api/watch-backups", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Backup action failed with ${response.status}`);
+  return body;
+}
+
+async function saveWatchBackupSettings() {
+  const config = {
+    enabled: elements.watchBackupEnabled.checked,
+    time: elements.watchBackupTime.value || "03:00",
+    retention: Number(elements.watchBackupRetention.value) || 14,
+  };
+  await postWatchBackupAction({ action: "configure", config });
+  state.watchBackups = null;
+  await loadWatchBackups({ force: true });
+  setMessage("Watch-history backup schedule saved.", "success");
+}
+
+async function createWatchBackupNow() {
+  const button = elements.createWatchBackupButton;
+  button.disabled = true;
+  button.textContent = "Backing up...";
+  try {
+    const result = await postWatchBackupAction({ action: "create" });
+    state.watchBackups = null;
+    await loadWatchBackups({ force: true });
+    setMessage(`Created ${result.backup?.name || "watch-history backup"}.`, "success");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Back Up Now";
+  }
+}
+
+async function downloadWatchBackup(filename) {
+  const response = await fetch(`/api/watch-backups?download=${encodeURIComponent(filename)}`, { headers: authHeaders() });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Backup download failed with ${response.status}`);
+  }
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function restoreWatchBackup(filename, mode, dryRun = false) {
+  if (!dryRun) {
+    const approved = await openConfirmDialog({
+      title: mode === "replace" ? "Replace watch history?" : "Merge watch history?",
+      body: mode === "replace"
+        ? `This will clear current watch history, playstate, and progress before restoring ${filename}.`
+        : `This will merge ${filename} into current watch history, keeping the newest record when keys conflict.`,
+      confirmLabel: mode === "replace" ? "Replace and Restore" : "Merge Restore",
+      danger: mode === "replace",
+    });
+    if (!approved) return;
+  }
+
+  const result = await postWatchBackupAction({ action: "restore", filename, mode, dryRun });
+  const summary = result.restore || {};
+  if (dryRun) {
+    setMessage(`Backup valid: ${summary.watchHistory || 0} history, ${summary.playstate || 0} playstate, ${summary.playbackProgress || 0} progress rows.`, "success");
+    return;
+  }
+  clearDerivedUiCaches();
+  await Promise.all([loadHistory({ force: true }), loadStats({ force: true })]);
+  state.watchBackups = null;
+  await loadWatchBackups({ force: true });
+  setMessage(`Watch history restored from ${filename}.`, "success");
 }
 
 async function apiUpdateWatch(id, fields) {
@@ -2935,6 +3089,10 @@ function applyActiveView() {
       renderSyncHistory();
       loadSyncJobs().catch((error) => setMessage(error.message, "error"));
       loadSyncHistory().catch((error) => setMessage(error.message, "error"));
+    }
+    if (state.activeSettingsTab === "backups") {
+      renderWatchBackups();
+      loadWatchBackups().catch((error) => setMessage(error.message, "error"));
     }
     if (state.activeSettingsTab === "logs") renderLogs();
     if (state.configLoaded) {
@@ -8063,6 +8221,33 @@ function attachEvents() {
     button.addEventListener("click", () => selectSettingsTab(button.dataset.settingsTab));
   });
 
+  elements.saveWatchBackupConfigButton?.addEventListener("click", () => {
+    saveWatchBackupSettings().catch((error) => setMessage(error.message, "error"));
+  });
+  elements.createWatchBackupButton?.addEventListener("click", () => {
+    createWatchBackupNow().catch((error) => setMessage(error.message, "error"));
+  });
+  elements.refreshWatchBackupsButton?.addEventListener("click", () => {
+    state.watchBackups = null;
+    loadWatchBackups({ force: true }).catch((error) => setMessage(error.message, "error"));
+  });
+  elements.watchBackupList?.addEventListener("click", (event) => {
+    const download = event.target.closest("[data-watch-backup-download]");
+    if (download) {
+      downloadWatchBackup(download.dataset.watchBackupDownload).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+    const dryRun = event.target.closest("[data-watch-backup-dry-run]");
+    if (dryRun) {
+      restoreWatchBackup(dryRun.dataset.watchBackupDryRun, "merge", true).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+    const restore = event.target.closest("[data-watch-backup-restore]");
+    if (restore) {
+      restoreWatchBackup(restore.dataset.watchBackupRestore, restore.dataset.restoreMode || "merge").catch((error) => setMessage(error.message, "error"));
+    }
+  });
+
 
   elements.explorerButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -8785,6 +8970,7 @@ function initialize() {
   renderHelp();
   renderLogs();
   renderImportPreview();
+  renderWatchBackups();
   renderDbStatus(false);
   renderSettingsStatus("Configuration not loaded yet.");
 

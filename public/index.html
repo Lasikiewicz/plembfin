@@ -46,6 +46,7 @@
             <button class="settings-tab active" type="button" data-settings-tab="general">General</button>
             <button class="settings-tab" type="button" data-settings-tab="apps">Apps</button>
             <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
+            <button class="settings-tab" type="button" data-settings-tab="backups">Backups</button>
             <button class="settings-tab" type="button" data-settings-tab="sync">Sync</button>
             <button class="settings-tab" type="button" data-settings-tab="logs">Logs</button>
           </div>
@@ -649,6 +650,59 @@
                 </details>
 
               </section>
+              <section class="settings-pane hidden" data-settings-panel="backups">
+                <section class="glass-panel p-section backup-settings-panel">
+                  <div class="section-heading sync-heading">
+                    <div>
+                      <p>Automatic Watch History Backups</p>
+                      <span>Small local backups containing watch history, playstate, and resume progress only</span>
+                    </div>
+                    <span id="watchBackupSummary" class="status-pill status-muted">Not loaded</span>
+                  </div>
+
+                  <div class="backup-settings-grid">
+                    <label class="checkbox-label backup-enable-row">
+                      <input id="watchBackupEnabled" type="checkbox" />
+                      <span>Enable automatic daily backups</span>
+                    </label>
+                    <label class="field-label">
+                      Daily backup time (server local time)
+                      <input id="watchBackupTime" class="field" type="time" value="03:00" />
+                    </label>
+                    <label class="field-label">
+                      Backups to retain
+                      <input id="watchBackupRetention" class="field" type="number" min="1" max="365" value="14" />
+                    </label>
+                    <label class="field-label">
+                      Destination
+                      <select id="watchBackupDestination" class="field" disabled>
+                        <option value="local">Local data folder</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <p class="tool-accordion-desc">Backups are stored in <code>data/backups/watch-history</code>. Artwork, TMDB caches, credentials, settings, logs, and active sessions are excluded. Dropbox, OneDrive, WebDAV, and S3-compatible destinations will use this same verified local backup format.</p>
+
+                  <div class="settings-actions backup-settings-actions">
+                    <button id="saveWatchBackupConfigButton" class="button-primary" type="button">Save Schedule</button>
+                    <button id="createWatchBackupButton" class="button-ghost" type="button">Back Up Now</button>
+                    <button id="refreshWatchBackupsButton" class="button-ghost" type="button">Refresh</button>
+                  </div>
+
+                  <div id="watchBackupRuntime" class="backup-runtime" aria-live="polite"></div>
+                </section>
+
+                <section class="glass-panel p-section backup-settings-panel">
+                  <div class="section-heading">
+                    <div>
+                      <p>Available Backups</p>
+                      <span>Download or validate a backup before restoring it</span>
+                    </div>
+                  </div>
+                  <div id="watchBackupList" class="watch-backup-list" aria-live="polite"></div>
+                </section>
+              </section>
+
               <section class="settings-pane hidden" data-settings-panel="sync">
                 <section class="glass-panel p-section sync-panel">
                   <div class="section-heading sync-heading">

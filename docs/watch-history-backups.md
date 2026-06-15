@@ -109,3 +109,10 @@ Add **Settings -> Tools -> Automatic Watch History Backups** with:
 
 The local-only stage should ship first. It proves the backup and restore format
 before OAuth, remote retention, and provider failure modes are introduced.
+
+## Implementation Status
+
+Stage 1 is implemented with a dedicated **Settings -> Backups** page, local gzip
+files, daily scheduling, retention, authenticated downloads, checksum validation,
+and dry-run, merge, or replace restores. Remote destination adapters remain the
+next stage.
