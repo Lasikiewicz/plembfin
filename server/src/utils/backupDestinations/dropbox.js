@@ -99,6 +99,16 @@ export function createDropboxAdapter(destination) {
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     },
 
+    async download(remoteName) {
+      const arg = JSON.stringify({ path: `${folderPath(destination)}/${remoteName}` });
+      const response = await fetch("https://content.dropboxapi.com/2/files/download", {
+        method: "POST",
+        headers: { Authorization: await bearer(), "Dropbox-API-Arg": arg },
+      });
+      if (!response.ok) throw new Error(`Dropbox download failed (${response.status})`);
+      return Buffer.from(await response.arrayBuffer());
+    },
+
     async delete(remoteName) {
       const response = await fetch("https://api.dropboxapi.com/2/files/delete_v2", {
         method: "POST",

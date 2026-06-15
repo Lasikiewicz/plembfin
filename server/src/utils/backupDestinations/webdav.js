@@ -79,6 +79,12 @@ export function createWebdavAdapter(destination) {
       return parsePropfind(xml);
     },
 
+    async download(remoteName) {
+      const response = await fetch(remoteUrl(destination, remoteName), { headers: authHeaders(destination) });
+      if (!response.ok) throw new Error(`WebDAV download failed (${response.status})`);
+      return Buffer.from(await response.arrayBuffer());
+    },
+
     async delete(remoteName) {
       const response = await fetch(remoteUrl(destination, remoteName), {
         method: "DELETE",

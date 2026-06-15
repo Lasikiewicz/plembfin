@@ -544,6 +544,8 @@ function renderWatchBackups() {
   elements.watchBackupRetention.value = String(config.retention || 14);
   elements.watchBackupSummary.textContent = config.enabled ? "Scheduled" : "Disabled";
   elements.watchBackupSummary.className = `status-pill status-${config.enabled ? "ready" : "muted"}`;
+  const localPathEl = document.querySelector("#watchBackupLocalPath");
+  if (localPathEl && data.backupsDir) localPathEl.textContent = data.backupsDir;
   elements.watchBackupRuntime.innerHTML = `
     <div><span>Last successful backup</span><b>${escapeHtml(watchBackupDate(runtime.lastSuccessAt))}</b></div>
     <div><span>Last restore</span><b>${escapeHtml(watchBackupDate(runtime.lastRestoreAt))}</b></div>
@@ -570,6 +572,26 @@ function renderWatchBackups() {
 }
 
 const DESTINATION_FORMS = {
+  backblaze: {
+    label: "Backblaze B2",
+    settings: [
+      { key: "region", label: "Region (from your bucket's endpoint, e.g. us-west-004)", placeholder: "us-west-004" },
+      { key: "bucket", label: "Bucket name", placeholder: "yourname-plembfin" },
+      { key: "accessKeyId", label: "keyID", placeholder: "0035…" },
+      { key: "prefix", label: "Key prefix (optional)", placeholder: "plembfin/" },
+    ],
+    secrets: [{ key: "secretAccessKey", label: "applicationKey" }],
+    oauth: null,
+    help: `<details class="destination-help"><summary>How to set up Backblaze B2 (free 10&nbsp;GB, ~5 min)</summary>
+      <ol>
+        <li>Create a free account at <a href="https://www.backblaze.com/sign-up/cloud-storage" target="_blank" rel="noopener">backblaze.com</a> and enable <b>B2 Cloud Storage</b>.</li>
+        <li><b>Buckets → Create a Bucket</b>: pick a globally-unique name, set files <b>Private</b>. After it's made, note the <b>Endpoint</b> shown (e.g. <code>s3.us-west-004.backblazeb2.com</code>) — the middle part is your <b>Region</b> (<code>us-west-004</code>).</li>
+        <li><b>Application Keys → Add a New Application Key</b>: restrict it to <i>that one bucket</i>, then create. Copy the <b>keyID</b> and <b>applicationKey</b> now — the applicationKey is shown only once.</li>
+        <li>Fill the fields above (Region, Bucket, keyID, applicationKey), <b>Save</b>, then <b>Test</b> (expect “Bucket … reachable”). Tick <b>Enabled</b> and click <b>Back Up Now</b>.</li>
+      </ol>
+      <p>The endpoint is derived from the region automatically. Backups are pruned to your retention count here too.</p>
+    </details>`,
+  },
   folder: {
     label: "Local / synced folder",
     settings: [
@@ -713,8 +735,10 @@ function renderWatchBackupDestinations(data) {
           <button class="button-primary" type="button" data-dest-action="save">Save</button>
           <button class="button-ghost" type="button" data-dest-action="test">Test</button>
           ${form.oauth ? `<button class="button-ghost" type="button" data-dest-action="connect">${connected ? "Reconnect" : "Connect"}</button>` : ""}
+          <button class="button-ghost" type="button" data-dest-action="restore-list">Restore from here</button>
           <button class="button-danger" type="button" data-dest-action="remove">Remove</button>
         </div>
+        <div class="destination-restore" data-dest-restore hidden></div>
       </article>
     `;
   }).join("");
@@ -777,6 +801,60 @@ async function removeBackupDestinationCard(card) {
   state.watchBackups = null;
   await loadWatchBackups({ force: true });
   setMessage("Destination removed.", "success");
+}
+
+async function listRemoteBackupsForCard(card) {
+  const panel = card.querySelector("[data-dest-restore]");
+  if (!panel) return;
+  if (!panel.hidden) { // toggle closed
+    panel.hidden = true;
+    panel.innerHTML = "";
+    return;
+  }
+  // Persist what's shown first so the listing uses the current credentials.
+  await postWatchBackupAction({ action: "save-destination", destination: collectDestination(card) });
+  panel.hidden = false;
+  panel.innerHTML = `<div class="empty-log"><b>Loading backups…</b></div>`;
+  const result = await postWatchBackupAction({ action: "list-remote-backups", destinationId: card.dataset.destId });
+  const files = Array.isArray(result.files) ? result.files : [];
+  if (!files.length) {
+    panel.innerHTML = `<div class="empty-log"><b>No backups found on this destination</b><span>Run “Back Up Now” first, or recheck the credentials.</span></div>`;
+    return;
+  }
+  panel.innerHTML = `
+    <div class="destination-restore-head">Backups on this destination — newest first</div>
+    ${files.map((file) => `
+      <div class="watch-backup-row">
+        <div class="watch-backup-copy">
+          <b>${escapeHtml(file.name)}</b>
+          <span>${escapeHtml(watchBackupDate(file.createdAt))} · ${escapeHtml(formatBytes(file.sizeBytes))}</span>
+        </div>
+        <div class="watch-backup-actions">
+          <button class="button-primary" type="button" data-dest-restore-file="${escapeAttribute(file.name)}" data-restore-mode="merge">Merge Restore</button>
+          <button class="button-danger" type="button" data-dest-restore-file="${escapeAttribute(file.name)}" data-restore-mode="replace">Replace</button>
+        </div>
+      </div>
+    `).join("")}
+  `;
+}
+
+async function restoreRemoteBackupFromCard(card, filename, mode) {
+  const approved = await openConfirmDialog({
+    title: mode === "replace" ? "Replace watch history?" : "Merge watch history?",
+    body: mode === "replace"
+      ? `Download ${filename} from this destination and clear current watch history, playstate, and progress before restoring it?`
+      : `Download ${filename} from this destination and merge it into current watch history, keeping the newest record when keys conflict?`,
+    confirmLabel: mode === "replace" ? "Replace and Restore" : "Merge Restore",
+    danger: mode === "replace",
+  });
+  if (!approved) return;
+  const result = await postWatchBackupAction({ action: "restore-remote-backup", destinationId: card.dataset.destId, filename, mode });
+  const summary = result.restore || {};
+  clearDerivedUiCaches();
+  await Promise.all([loadHistory({ force: true }), loadStats({ force: true })]);
+  state.watchBackups = null;
+  await loadWatchBackups({ force: true });
+  setMessage(`Restored from ${filename} (${mode}): ${summary.watchHistory || 0} history, ${summary.playstate || 0} playstate rows.`, "success");
 }
 
 async function connectBackupDestinationCard(card) {
@@ -8625,6 +8703,12 @@ function attachEvents() {
     addBackupDestination().catch((error) => setMessage(error.message, "error"));
   });
   elements.watchBackupDestinations?.addEventListener("click", (event) => {
+    const restoreFile = event.target.closest("[data-dest-restore-file]");
+    if (restoreFile) {
+      const card = restoreFile.closest("[data-dest-id]");
+      if (card) restoreRemoteBackupFromCard(card, restoreFile.dataset.destRestoreFile, restoreFile.dataset.restoreMode || "merge").catch((error) => setMessage(error.message, "error"));
+      return;
+    }
     const button = event.target.closest("[data-dest-action]");
     if (!button) return;
     const card = button.closest("[data-dest-id]");
@@ -8634,6 +8718,7 @@ function attachEvents() {
       test: testBackupDestinationCard,
       remove: removeBackupDestinationCard,
       connect: connectBackupDestinationCard,
+      "restore-list": listRemoteBackupsForCard,
     };
     const run = actions[button.dataset.destAction];
     if (run) run(card).catch((error) => setMessage(error.message, "error"));

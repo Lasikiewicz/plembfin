@@ -45,6 +45,12 @@ export function createFolderAdapter(destination) {
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     },
 
+    async download(remoteName) {
+      const target = path.join(targetDir(destination), remoteName);
+      if (!fs.existsSync(target)) throw new Error(`Backup not found in folder: ${remoteName}`);
+      return fs.readFileSync(target);
+    },
+
     async delete(remoteName) {
       const target = path.join(targetDir(destination), remoteName);
       if (fs.existsSync(target)) fs.unlinkSync(target);
