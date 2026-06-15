@@ -1,7 +1,14 @@
 {
-  "version": "0.0.7",
-  "updatedAt": "2026-06-15T14:03:10+01:00",
+  "version": "0.0.8",
+  "updatedAt": "2026-06-15T14:14:24+01:00",
   "entries": [
+    {
+      "version": "0.0.8",
+      "date": "2026-06-15T14:14:24+01:00",
+      "commit": "0514c4e4156d21fb8f3b651f411d1137b7fe433f",
+      "message": "feat: add local/synced-folder backup destination + simpler OneDrive setup",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.7",
       "date": "2026-06-15T14:03:10+01:00",
