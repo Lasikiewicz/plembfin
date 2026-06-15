@@ -1,7 +1,14 @@
 {
-  "version": "0.0.2",
-  "updatedAt": "2026-06-15T12:09:54+01:00",
+  "version": "0.0.3",
+  "updatedAt": "2026-06-15T12:27:27+01:00",
   "entries": [
+    {
+      "version": "0.0.3",
+      "date": "2026-06-15T12:27:27+01:00",
+      "commit": "e7ce20e52ac0d549a05d932b74cbab2061094431",
+      "message": "fix: restore local artwork and add demo content",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.2",
       "date": "2026-06-15T12:09:54+01:00",
