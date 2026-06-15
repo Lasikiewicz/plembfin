@@ -1,7 +1,14 @@
 {
-  "version": "0.0.8",
-  "updatedAt": "2026-06-15T14:14:24+01:00",
+  "version": "0.0.9",
+  "updatedAt": "2026-06-15T14:25:46+01:00",
   "entries": [
+    {
+      "version": "0.0.9",
+      "date": "2026-06-15T14:25:46+01:00",
+      "commit": "700ea92e3a124924366c1ab5f1765813754c1841",
+      "message": "docs: clarify OneDrive setup for personal accounts with no Azure directory",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.8",
       "date": "2026-06-15T14:14:24+01:00",
