@@ -1,7 +1,14 @@
 {
-  "version": "0.0.6",
-  "updatedAt": "2026-06-15T13:15:58+01:00",
+  "version": "0.0.7",
+  "updatedAt": "2026-06-15T14:03:10+01:00",
   "entries": [
+    {
+      "version": "0.0.7",
+      "date": "2026-06-15T14:03:10+01:00",
+      "commit": "b2236be21b2aa9cbc7e2df82e1c5dc7a555512d8",
+      "message": "feat: remote backup destinations + mark non-library movies watched",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.6",
       "date": "2026-06-15T13:15:58+01:00",
