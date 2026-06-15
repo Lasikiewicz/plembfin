@@ -1,25 +1,30 @@
-import { markPlexPlayed } from "../functions/src/utils/plexClient.js";
-import { markEmbyPlayed } from "../functions/src/utils/embyClient.js";
-import { markJellyfinPlayed } from "../functions/src/utils/jellyfinClient.js";
+import { markPlexPlayed } from "../server/src/utils/plexClient.js";
+import { markEmbyPlayed } from "../server/src/utils/embyClient.js";
+import { markJellyfinPlayed } from "../server/src/utils/jellyfinClient.js";
 
+function requiredEnv(name) {
+  const value = String(process.env[name] || "").trim();
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
 
-const HISTORY_ENDPOINT = "http://localhost:5000/api/history?limit=25000";
-const ADMIN_TOKEN = "eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg1NGFhNGMyM2VkZTdiOGNhODc1OWZiMDZlNmExZDU4OTI0MjVkMDYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vcGxlbWJmaW4iLCJhdWQiOiJwbGVtYmZpbiIsImF1dGhfdGltZSI6MTc4MDMwOTkzMiwidXNlcl9pZCI6InBOZ2hKQlByVm1aV0Fna0JHOW93V093T094MTMiLCJzdWIiOiJwTmdoSkJQclZtWldBZ2tCRzlvd1dPd09PeDEzIiwiaWF0IjoxNzgwMzA5OTMzLCJleHAiOjE3ODAzMTM1MzMsImVtYWlsIjoibGFzaWtpZUBob3RtYWlsLmNvLnVrIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7ImVtYWlsIjpbImxhc2lraWVAaG90bWFpbC5jby51ayJdfSwic2lnbl9pbl9wcm92aWRlciI6InBhc3N3b3JkIn19.JpumEH0CkfXJxK30I_dsVtCLGbQqEFSU9rdXp4bwbUTnos_MMVbOTVdWJaYUMjBID9tKRqpUkfhmoiwhixBgzqBlIPPicCkRBPMIhHC6RQ4cTDkmGF_Qiig0B34OOvltTXmX4CmuW6cRsJfTeXXkT1lThjVm5zpfmPZCjQHUz0OoIeQJbv3ByoQY59YNasE_kvd1ifuEg8vM8uqn89o2Z6zDPuN1smZ67zcXPIHftNomRe3kEkbg7ffhx7saHlriWFqvQ2UXhPeG7jxDP2PjDd8eJDhk7415C0TtsR02spYeo3unPJLQMaBpCshIK_2KbkzvJ3Fs71JoqHbk8J-1QA";
+const HISTORY_ENDPOINT = process.env.PLEMBFIN_HISTORY_ENDPOINT || "http://localhost:5055/api/history?limit=25000";
+const API_KEY = requiredEnv("API_KEY");
 
 const TARGET_CONFIG = {
   plex: {
-    baseUrl: "https://plex.lasikie.co.uk",
-    token: "eL3Yeq_SXJWj-r15zzzc",
+    baseUrl: requiredEnv("PLEX_URL"),
+    token: requiredEnv("PLEX_TOKEN"),
   },
   emby: {
-    baseUrl: "https://emby.example.com",
-    apiKey: "6b2e97f331174373ab74eee4d8925166",
-    userId: "dcacc7a88e134bb0a9183a11416ebd3c",
+    baseUrl: requiredEnv("EMBY_URL"),
+    apiKey: requiredEnv("EMBY_API_KEY"),
+    userId: requiredEnv("EMBY_USER_ID"),
   },
   jellyfin: {
-    baseUrl: "https://jellyfin.example.com",
-    apiKey: "1d5c6eeb685c4980933c7cd16d7e6bb4",
-    userId: "1ef4842933a44161a3641abfb9e78b3c",
+    baseUrl: requiredEnv("JELLYFIN_URL"),
+    apiKey: requiredEnv("JELLYFIN_API_KEY"),
+    userId: requiredEnv("JELLYFIN_USER_ID"),
   },
 };
 
@@ -32,7 +37,7 @@ function delay(ms) {
 async function fetchMasterHistory() {
   const response = await fetch(HISTORY_ENDPOINT, {
     headers: {
-      Authorization: `Bearer ${ADMIN_TOKEN}`,
+      "X-Api-Key": API_KEY,
       Accept: "application/json",
     },
   });

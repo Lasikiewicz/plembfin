@@ -11,6 +11,7 @@ service-account-key.json
 
 # Local editor/agent tooling
 .claude/
+.playwright-mcp/
 
 # Legacy Firebase emulator/export artifacts (kept out of the repo)
 .firebase/
