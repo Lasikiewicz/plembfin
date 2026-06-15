@@ -6741,8 +6741,12 @@ async function applyMovieWatchDateChoice(choice) {
   state.savingWatchAction = action;
   closeWatchDatePrompt();
 
-  if (movie.tmdbId) {
-    await openMovieImmersiveModalByTmdbId(movie.tmdbId).catch(() => null);
+  // Optimistically disable the mark-watched button in place (no full re-render needed).
+  // A full re-render happens after the POST completes below.
+  const markWatchedBtn = root.querySelector("[data-movie-mark-watched]");
+  if (markWatchedBtn) {
+    markWatchedBtn.disabled = true;
+    markWatchedBtn.textContent = "Saving watched state…";
   }
 
   setMessage(`Saving "${movie.title}" to your watch history…`, "muted");
