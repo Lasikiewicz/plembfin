@@ -1263,6 +1263,29 @@ function groupShowRows(rows = []) {
   }));
 }
 
+function dedupeShowSummaries(shows = []) {
+  const map = new Map();
+  for (const show of shows) {
+    const key = canonicalTitleKey(show.title) || normalizeKeyPart(show.title);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, show);
+      continue;
+    }
+    const latest = show.latest_watched_at || "";
+    const existingLatest = existing.latest_watched_at || "";
+    if (latest > existingLatest) {
+      map.set(key, {
+        ...existing,
+        ...show,
+        episode_count: Math.max(Number(existing.episode_count || 0), Number(show.episode_count || 0)),
+        season_count: Math.max(Number(existing.season_count || 0), Number(show.season_count || 0)),
+      });
+    }
+  }
+  return [...map.values()];
+}
+
 async function buildShowGroups(search = "") {
   const rows = dedupeHistory((await loadHistoryRowsByType({ mediaType: "episode", limit: MAX_HISTORY_LIMIT })).filter((row) => matchesSearch(row, search)));
   return groupShowRows(rows);
@@ -1295,7 +1318,7 @@ export async function queryShows({ search = "", sort = "title_asc", limit = 6, o
 
   const allShows = await getCachedShows();
   const needle = cleanString(search).toLowerCase();
-  const filtered = allShows.filter((show) => {
+  const filtered = dedupeShowSummaries(allShows).filter((show) => {
     if (!needle) return true;
     return titleContainsSearch(show.title, needle);
   });

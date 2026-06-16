@@ -356,6 +356,17 @@ export async function setPlexProgress(config, media) {
       return { platform: "plex", status: "skipped", detail: "No resume position supplied" };
     }
 
+    const unscrobbleUrl = new URL(`${trimTrailingSlash(config.baseUrl)}/:/unscrobble`);
+    unscrobbleUrl.searchParams.set("key", item.ratingKey);
+    unscrobbleUrl.searchParams.set("identifier", "com.plexapp.plugins.library");
+    unscrobbleUrl.searchParams.set("X-Plex-Token", config.token);
+    await addConfiguredPlexAccountId(unscrobbleUrl, config);
+
+    const unscrobbleResponse = await fetch(unscrobbleUrl, { headers: { Accept: "application/json" } });
+    if (!unscrobbleResponse.ok) {
+      throw new Error(`Plex progress unscrobble failed with status ${unscrobbleResponse.status}`);
+    }
+
     const url = new URL(`${trimTrailingSlash(config.baseUrl)}/:/progress`);
     url.searchParams.set("key", item.ratingKey);
     url.searchParams.set("identifier", "com.plexapp.plugins.library");

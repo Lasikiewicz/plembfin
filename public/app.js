@@ -48,7 +48,7 @@ const HISTORY_PREVIEW_LIMIT = 120;
 const DASHBOARD_HISTORY_ROWS = 2;
 const EXPLORER_PAGE_SIZE = 240;
 const EXPLORER_CACHE_TTL_MS = 30 * 60 * 1000;
-const EXPLORER_PERSISTED_CACHE_KEY = "plembfin:explorerPageCache:v2";
+const EXPLORER_PERSISTED_CACHE_KEY = "plembfin:explorerPageCache:v3";
 const EXPLORER_VIEW_KEY_MOVIES = "plembfin:explorerView:movies";
 const EXPLORER_VIEW_KEY_SHOWS = "plembfin:explorerView:shows";
 const EXPLORER_SORT_KEY_MOVIES = "plembfin:explorerSort:movies";
@@ -4054,6 +4054,53 @@ function getRowFitLimit(rowElement) {
   return Math.max(2, maxCards);
 }
 
+function stablePosterIdentity(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const lowered = raw.toLowerCase();
+  if (lowered.includes("favicon") || lowered.includes("placeholder") || lowered.includes("no-poster")) return "";
+  try {
+    const url = new URL(raw, window.location.origin);
+    if (url.hostname.toLowerCase().includes("image.tmdb.org")) {
+      return `tmdb-poster:${url.pathname.split("/").filter(Boolean).pop() || raw}`;
+    }
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return raw;
+  }
+}
+
+function mediaRecordIdentity(record = {}, mode = "") {
+  if (mode === "shows" || record.media_type === "episode") {
+    const title = record.show_title || record.title || "";
+    return `show:${slug(title)}`;
+  }
+  const poster = stablePosterIdentity(record.poster_url || record.posterUrl || record.imageUrl || record.thumb || "");
+  if (poster) return `movie:poster:${poster}`;
+  if (record.imdb_id) return `movie:imdb:${String(record.imdb_id).toLowerCase()}`;
+  if (record.tmdb_id) return `movie:tmdb:${String(record.tmdb_id).toLowerCase()}`;
+  if (record.tvdb_id) return `movie:tvdb:${String(record.tvdb_id).toLowerCase()}`;
+  return `movie:title:${slug(record.title)}`;
+}
+
+function dedupeMediaRecords(records = [], mode = "") {
+  const map = new Map();
+  for (const record of records) {
+    const key = mediaRecordIdentity(record, mode);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, record);
+      continue;
+    }
+    const existingDate = existing.latest_watched_at || existing.watched_at || "";
+    const recordDate = record.latest_watched_at || record.watched_at || "";
+    if (recordDate > existingDate) map.set(key, record);
+  }
+  return [...map.values()];
+}
+
 function prefetchDashboardHistoryTmdb(tvEntries, movieEntries) {
   if (!state.token) return;
   const seen = new Set();
@@ -4095,7 +4142,7 @@ function renderDashboard() {
 
   // Filter TV shows (episodes) and Movies
   const tvHistory = state.history.filter((entry) => entry.media_type === "episode");
-  const movieHistory = state.history.filter((entry) => entry.media_type === "movie");
+  const movieHistory = dedupeMediaRecords(state.history.filter((entry) => entry.media_type === "movie"), "movies");
 
   let visibleTv = [];
   let visibleMovies = [];
@@ -4814,7 +4861,7 @@ async function loadExplorerMovies() {
     }
 
     const movies = Array.isArray(body.movies) ? body.movies : [];
-    state.moviesRaw = [...state.moviesRaw, ...movies];
+    state.moviesRaw = dedupeMediaRecords([...state.moviesRaw, ...movies], "movies");
     state.moviesOffset += movies.length;
     state.moviesHasMore = movies.length === EXPLORER_PAGE_SIZE;
   } finally {
@@ -4880,7 +4927,7 @@ async function loadExplorerShows() {
     }
 
     const shows = Array.isArray(body.shows) ? body.shows : [];
-    state.showsRaw = [...state.showsRaw, ...shows];
+    state.showsRaw = dedupeMediaRecords([...state.showsRaw, ...shows], "shows");
     state.showsOffset += shows.length;
     state.showsHasMore = shows.length === EXPLORER_PAGE_SIZE;
   } finally {
