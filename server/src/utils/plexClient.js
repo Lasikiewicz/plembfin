@@ -464,6 +464,7 @@ export async function fetchPlexResumableItems(config, { limit = 0 } = {}) {
     if (accountId != null) allUrl.searchParams.set("accountID", String(accountId));
     allUrl.searchParams.set("sort", "lastViewedAt:desc");
     allUrl.searchParams.set("type", type === "movie" ? "1" : "4");
+    allUrl.searchParams.set("includeGuids", "1");
 
     try {
       const allRes = await fetch(allUrl, { headers: { Accept: "application/json" } });
