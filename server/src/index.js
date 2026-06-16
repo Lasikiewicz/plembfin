@@ -77,6 +77,7 @@ import {
   removeBackupDestination,
   clearRestoreStatus,
   pauseCronSync,
+  resumeCronSync,
   restoreWatchHistoryBackup,
   runScheduledWatchBackup,
   saveWatchBackupConfig,
@@ -706,19 +707,27 @@ async function handleWatchBackups(req, res) {
     if (action === "restore-remote-backup") {
       const id = String(body.destinationId || "").trim();
       const filename = String(body.filename || "").trim();
+      const remoteMode = body.mode === "replace" ? "replace" : "merge";
+      const remoteDryRun = body.dryRun === true;
       if (!id || !filename) return sendJson(res, { error: "destinationId and filename are required" }, 400);
       const pulled = await pullRemoteBackupToLocal(id, filename);
+      if (remoteMode === "replace" && !remoteDryRun) pauseCronSync(43200000); // Pause for 12 hours
       return sendJson(res, {
         ok: true,
         pulled,
-        restore: restoreWatchHistoryBackup(pulled.name, {
-          mode: body.mode === "replace" ? "replace" : "merge",
-          dryRun: body.dryRun === true,
-        }),
+        restore: restoreWatchHistoryBackup(pulled.name, { mode: remoteMode, dryRun: remoteDryRun }),
+        note: remoteMode === "replace" && !remoteDryRun ? "Cron sync paused for 12 hours to prevent re-importing from connected apps." : undefined,
       });
     }
     if (action === "clear-restore-status") {
       return sendJson(res, { ok: true, ...clearRestoreStatus() });
+    }
+    if (action === "pause-cron") {
+      const hours = Math.max(1, Math.min(48, Number(body.hours) || 12));
+      return sendJson(res, { ok: true, ...pauseCronSync(hours * 3600000) });
+    }
+    if (action === "resume-cron") {
+      return sendJson(res, { ok: true, ...resumeCronSync() });
     }
     if (["test-destination", "device-start", "device-poll", "oauth-url", "oauth-exchange"].includes(action)) {
       if (action === "device-poll") {

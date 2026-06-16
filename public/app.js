@@ -931,7 +931,7 @@ async function listRemoteBackupsForCard(card) {
 async function restoreRemoteBackupFromCard(card, filename, mode) {
   const approved = await openConfirmDialog({
     title: "⚠️ Watch History Wipe / Restore",
-    body: `This will DELETE all current watch history, playstate, and resume progress, then fully restore from:\n\n${filename}\n\nThis cannot be undone. Cron sync will be paused for 1 hour after restore.`,
+    body: `This will DELETE all current watch history, playstate, and resume progress, then fully restore from:\n\n${filename}\n\nThis cannot be undone. Cron sync will be paused for 12 hours after restore.`,
     confirmLabel: "Wipe and Restore",
     danger: true,
   });
