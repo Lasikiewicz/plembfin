@@ -65,6 +65,8 @@ const state = {
   activeView: localStorage.getItem(ACTIVE_VIEW_KEY) || "dashboard",
   activeSettingsTab: localStorage.getItem(ACTIVE_SETTINGS_TAB_KEY) || "general",
   activeBackupsTab: localStorage.getItem("activeBackupsTab") || "settings",
+  remoteBackupFiles: [],
+  remoteBackupFilesLoading: false,
   historyWeekStart: startOfWeek(new Date()),
   history: [],
   historyVersion: "",
@@ -545,8 +547,8 @@ function renderWatchBackups() {
   if (!elements.watchBackupList) return;
   const data = state.watchBackups;
   if (!data) {
-    elements.watchBackupSummary.textContent = state.watchBackupsLoading ? "Loading" : "Not loaded";
-    elements.watchBackupSummary.className = `status-pill status-${state.watchBackupsLoading ? "warning" : "muted"}`;
+    elements.watchBackupSummary && (elements.watchBackupSummary.textContent = state.watchBackupsLoading ? "Loading" : "Not loaded");
+    elements.watchBackupSummary && (elements.watchBackupSummary.className = `status-pill status-${state.watchBackupsLoading ? "warning" : "muted"}`);
     elements.watchBackupList.innerHTML = `<div class="empty-log"><b>${state.watchBackupsLoading ? "Loading backups..." : "Backups not loaded"}</b></div>`;
     return;
   }
@@ -554,41 +556,109 @@ function renderWatchBackups() {
   const config = data.config || {};
   const runtime = data.runtime || {};
   const files = Array.isArray(data.files) ? data.files : [];
-  elements.watchBackupEnabled.checked = Boolean(config.enabled);
-  elements.watchBackupTime.value = config.time || "03:00";
-  elements.watchBackupRetention.value = String(config.retention || 14);
-  elements.watchBackupSummary.textContent = config.enabled ? "Scheduled" : "Disabled";
-  elements.watchBackupSummary.className = `status-pill status-${config.enabled ? "ready" : "muted"}`;
-  const localPathEl = document.querySelector("#watchBackupLocalPath");
-  if (localPathEl && data.backupsDir) localPathEl.textContent = data.backupsDir;
-  elements.watchBackupRuntime.innerHTML = `
-    <div><span>Last successful backup</span><b>${escapeHtml(watchBackupDate(runtime.lastSuccessAt))}</b></div>
-    <div style="display: flex; gap: 1rem; align-items: center;">
-      <div style="flex: 1;"><span>Last restore</span><b>${escapeHtml(watchBackupDate(runtime.lastRestoreAt))}</b></div>
-      ${runtime.lastRestoreAt ? `<button class="button-ghost" type="button" data-clear-restore-status>Clear Status</button>` : ""}
-    </div>
-    <div><span>Storage</span><b>${formatNumber(files.length)} file${files.length === 1 ? "" : "s"}</b></div>
-    ${runtime.lastError ? `<p class="backup-runtime-error">${escapeHtml(runtime.lastError)}</p>` : ""}
-  `;
-
   const isRestoreTab = state.activeBackupsTab === "restore";
-  elements.watchBackupList.innerHTML = files.length ? files.map((file) => `
-    <article class="watch-backup-row">
-      <div class="watch-backup-copy">
-        <b>${escapeHtml(file.name)}</b>
-        <span>${escapeHtml(watchBackupDate(file.createdAt))} · ${escapeHtml(formatBytes(file.sizeBytes))}</span>
-      </div>
-      <div class="watch-backup-actions">
-        ${!isRestoreTab ? `<button class="button-ghost" type="button" data-watch-backup-download="${escapeAttribute(file.name)}">Download</button>` : ""}
-        ${!isRestoreTab ? `<button class="button-ghost" type="button" data-watch-backup-dry-run="${escapeAttribute(file.name)}">Validate</button>` : ""}
-        ${isRestoreTab ? `<button class="button-primary" type="button" data-watch-backup-restore="${escapeAttribute(file.name)}" data-restore-mode="replace">Watch History Wipe / Restore</button>` : ""}
-      </div>
-    </article>
-  `).join("") : `<div class="empty-log"><b>No watch-history backups yet</b><span>Use Back Up Now or enable the daily schedule.</span></div>`;
 
   if (!isRestoreTab) {
+    // Settings tab: render schedule/runtime info and destinations
+    elements.watchBackupEnabled && (elements.watchBackupEnabled.checked = Boolean(config.enabled));
+    elements.watchBackupTime && (elements.watchBackupTime.value = config.time || "03:00");
+    elements.watchBackupRetention && (elements.watchBackupRetention.value = String(config.retention || 14));
+    elements.watchBackupSummary && (elements.watchBackupSummary.textContent = config.enabled ? "Scheduled" : "Disabled");
+    elements.watchBackupSummary && (elements.watchBackupSummary.className = `status-pill status-${config.enabled ? "ready" : "muted"}`);
+    const localPathEl = document.querySelector("#watchBackupLocalPath");
+    if (localPathEl && data.backupsDir) localPathEl.textContent = data.backupsDir;
+    if (elements.watchBackupRuntime) {
+      elements.watchBackupRuntime.innerHTML = `
+        <div><span>Last successful backup</span><b>${escapeHtml(watchBackupDate(runtime.lastSuccessAt))}</b></div>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+          <div style="flex: 1;"><span>Last restore</span><b>${escapeHtml(watchBackupDate(runtime.lastRestoreAt))}</b></div>
+          ${runtime.lastRestoreAt ? `<button class="button-ghost" type="button" data-clear-restore-status>Clear Status</button>` : ""}
+        </div>
+        <div><span>Storage</span><b>${formatNumber(files.length)} file${files.length === 1 ? "" : "s"}</b></div>
+        ${runtime.lastError ? `<p class="backup-runtime-error">${escapeHtml(runtime.lastError)}</p>` : ""}
+      `;
+    }
+    // Settings tab: local file list (download/validate only)
+    elements.watchBackupList.innerHTML = files.length ? files.map((file) => `
+      <article class="watch-backup-row">
+        <div class="watch-backup-copy">
+          <b>${escapeHtml(file.name)}</b>
+          <span>${escapeHtml(watchBackupDate(file.createdAt))} · ${escapeHtml(formatBytes(file.sizeBytes))}</span>
+        </div>
+        <div class="watch-backup-actions">
+          <button class="button-ghost" type="button" data-watch-backup-download="${escapeAttribute(file.name)}">Download</button>
+          <button class="button-ghost" type="button" data-watch-backup-dry-run="${escapeAttribute(file.name)}">Validate</button>
+        </div>
+      </article>
+    `).join("") : `<div class="empty-log"><b>No local backups yet</b><span>Use Back Up Now or enable the daily schedule.</span></div>`;
     renderWatchBackupDestinations(data);
+    return;
   }
+
+  // Restore tab: show unified list of all backups (local + remote), sorted newest first
+  const localEntries = files.map((f) => ({ ...f, source: "local", destId: null, destLabel: "Local" }));
+  const remoteEntries = (state.remoteBackupFiles || []);
+  const allEntries = [...localEntries, ...remoteEntries].sort((a, b) => {
+    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+  });
+
+  const cronPausedUntil = runtime.cronSyncPausedUntil;
+  const cronPausedBanner = cronPausedUntil && Date.now() < cronPausedUntil
+    ? `<div class="backup-runtime" style="margin-bottom: var(--space-3); border-left: 3px solid var(--accent); padding: var(--space-2) var(--space-3); background: rgba(255,165,0,0.08);">
+        <span style="font-size: 0.85rem;">⏸ Cron sync paused until ${escapeHtml(new Date(cronPausedUntil).toLocaleTimeString())} to protect restore. No data will be re-imported from connected apps until then.</span>
+       </div>`
+    : "";
+
+  const remoteLoading = state.remoteBackupFilesLoading
+    ? `<div class="empty-log" style="padding: var(--space-2);"><span>Loading remote backups…</span></div>`
+    : "";
+
+  elements.watchBackupList.innerHTML = cronPausedBanner + remoteLoading + (allEntries.length ? allEntries.map((entry) => `
+    <article class="watch-backup-row">
+      <div class="watch-backup-copy">
+        <b>${escapeHtml(entry.name)}</b>
+        <span>
+          ${escapeHtml(watchBackupDate(entry.createdAt))} · ${escapeHtml(formatBytes(entry.sizeBytes))}
+          <span class="status-pill status-muted" style="font-size: 0.7rem; padding: 1px 6px; margin-left: 4px;">${escapeHtml(entry.destLabel || "Local")}</span>
+        </span>
+      </div>
+      <div class="watch-backup-actions">
+        <button class="button-primary" type="button"
+          data-watch-backup-restore="${escapeAttribute(entry.name)}"
+          data-restore-mode="replace"
+          ${entry.destId ? `data-restore-dest-id="${escapeAttribute(entry.destId)}"` : ""}>
+          Watch History Wipe / Restore
+        </button>
+      </div>
+    </article>
+  `).join("") : `<div class="empty-log"><b>No backups found</b><span>Backups will appear here once created or after remote destinations are configured.</span></div>`);
+}
+
+async function loadRemoteBackupsForRestoreTab() {
+  const data = state.watchBackups;
+  if (!data) return;
+  const destinations = Array.isArray(data.destinations) ? data.destinations : [];
+  if (!destinations.length) return;
+
+  state.remoteBackupFilesLoading = true;
+  state.remoteBackupFiles = [];
+  renderWatchBackups();
+
+  const results = await Promise.allSettled(
+    destinations.map(async (dest) => {
+      try {
+        const result = await postWatchBackupAction({ action: "list-remote-backups", destinationId: dest.id });
+        const files = Array.isArray(result.files) ? result.files : [];
+        return files.map((f) => ({ ...f, source: "remote", destId: dest.id, destLabel: dest.label || dest.type || "Remote" }));
+      } catch {
+        return [];
+      }
+    })
+  );
+
+  state.remoteBackupFiles = results.flatMap((r) => r.status === "fulfilled" ? r.value : []);
+  state.remoteBackupFilesLoading = false;
+  renderWatchBackups();
 }
 
 const DESTINATION_FORMS = {
@@ -860,12 +930,10 @@ async function listRemoteBackupsForCard(card) {
 
 async function restoreRemoteBackupFromCard(card, filename, mode) {
   const approved = await openConfirmDialog({
-    title: mode === "replace" ? "⚠️ Replace watch history?" : "Merge watch history?",
-    body: mode === "replace"
-      ? `⚠️ REPLACE (recommended for corrupted data):\n\nWill DELETE all current watch history, playstate, and progress, then restore from ${filename}.\n\nUse this if:\n• Your current data is corrupted or contains false entries\n• You want to completely reset to the backup state\n\nDo NOT use if you have new entries since the backup that you want to keep.`
-      : `MERGE RESTORE (advanced - keep recent entries):\n\nWill keep entries from both the backup AND current data, using the newest record when the same item appears in both.\n\nUse this only if:\n• Your backup is older\n• You have new legitimate watch entries since the backup\n• You're certain current data is NOT corrupted\n\nWARNING: If current data is corrupted, merge will re-introduce those false entries!`,
-    confirmLabel: mode === "replace" ? "Replace and Restore" : "Merge Restore",
-    danger: mode === "replace",
+    title: "⚠️ Watch History Wipe / Restore",
+    body: `This will DELETE all current watch history, playstate, and resume progress, then fully restore from:\n\n${filename}\n\nThis cannot be undone. Cron sync will be paused for 1 hour after restore.`,
+    confirmLabel: "Wipe and Restore",
+    danger: true,
   });
   if (!approved) return;
   const result = await postWatchBackupAction({ action: "restore-remote-backup", destinationId: card.dataset.destId, filename, mode });
@@ -3532,7 +3600,14 @@ function selectBackupsTab(tab) {
   const validTabs = ["settings", "restore"];
   state.activeBackupsTab = validTabs.includes(tab) ? tab : "settings";
   localStorage.setItem("activeBackupsTab", state.activeBackupsTab);
+  if (state.activeBackupsTab === "restore") {
+    state.remoteBackupFiles = [];
+    state.remoteBackupFilesLoading = false;
+  }
   applyActiveView();
+  if (state.activeBackupsTab === "restore") {
+    loadRemoteBackupsForRestoreTab().catch((error) => setMessage(error.message, "error"));
+  }
 }
 
 function applyActiveView() {
@@ -3604,6 +3679,9 @@ function applyActiveView() {
 
       renderWatchBackups();
       loadWatchBackups().catch((error) => setMessage(error.message, "error"));
+      if (state.activeBackupsTab === "restore" && !state.remoteBackupFilesLoading && !state.remoteBackupFiles.length) {
+        loadRemoteBackupsForRestoreTab().catch((error) => setMessage(error.message, "error"));
+      }
     } else {
       // Hide backup sub-tabs menu when not on backups
       const backupsSubMenu = document.querySelector("#sidebarBackupsMenu");
@@ -9112,7 +9190,12 @@ function attachEvents() {
     }
     const restore = event.target.closest("[data-watch-backup-restore]");
     if (restore) {
-      restoreWatchBackup(restore.dataset.watchBackupRestore, restore.dataset.restoreMode || "merge").catch((error) => setMessage(error.message, "error"));
+      const destId = restore.dataset.restoreDestId;
+      if (destId) {
+        restoreRemoteBackupFromCard({ dataset: { destId } }, restore.dataset.watchBackupRestore, restore.dataset.restoreMode || "replace").catch((error) => setMessage(error.message, "error"));
+      } else {
+        restoreWatchBackup(restore.dataset.watchBackupRestore, restore.dataset.restoreMode || "replace").catch((error) => setMessage(error.message, "error"));
+      }
     }
   });
 
