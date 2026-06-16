@@ -217,7 +217,7 @@ export function mediaToWatchRecord(media, source = media?.source || "webhook") {
     {
       title: media?.title,
       media_type: media?.type,
-      watched_at: new Date().toISOString(),
+      watched_at: media?.watched_at || new Date().toISOString(),
       source,
       imdb_id: media?.ids?.imdb,
       tmdb_id: media?.ids?.tmdb,
@@ -1097,6 +1097,15 @@ export async function getWatchRecordById(id) {
   return row;
 }
 
+export async function getWatchRecordByMediaKey(mediaKey, minWatchedAt = null) {
+  const rows = selectByMediaKeyStmt.all(mediaKey);
+  if (!rows.length) return null;
+  const sorted = rows.sort((a, b) => (b.watched_at || "").localeCompare(a.watched_at || ""));
+  const recent = sorted[0];
+  if (minWatchedAt && recent.watched_at < minWatchedAt) return null;
+  return rowToWatch(recent);
+}
+
 export async function updateWatchRecord(id, fields = {}) {
   if (!id) return { ok: false, error: "id is required" };
   const existing = selectByIdStmt.get(String(id));
@@ -1420,6 +1429,7 @@ export function watchRowToMedia(row = {}, source = "plex") {
     season: row.season == null ? undefined : Number(row.season),
     episode: row.episode == null ? undefined : Number(row.episode),
     posterUrl: row.poster_url || undefined,
+    watched_at: row.watched_at || undefined,
     isValid: Boolean(row.title && ["movie", "episode"].includes(row.media_type)),
   };
 }
