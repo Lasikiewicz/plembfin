@@ -56,6 +56,10 @@ function saveRuntime(values = {}) {
   return next;
 }
 
+function writeRuntime(data = {}) {
+  upsertRuntime.run(RUNTIME_ID, toJson({ ...data, updatedAt: Date.now() }), Date.now());
+}
+
 export function pauseCronSync(durationMs = 600000) {
   const pausedUntil = Date.now() + durationMs;
   saveRuntime({ cronSyncPausedUntil: pausedUntil });
@@ -65,9 +69,8 @@ export function pauseCronSync(durationMs = 600000) {
 
 export function resumeCronSync() {
   const runtime = loadWatchBackupRuntime();
-  const updated = { ...runtime };
-  delete updated.cronSyncPausedUntil;
-  saveRuntime(updated);
+  delete runtime.cronSyncPausedUntil;
+  writeRuntime(runtime);
   console.log("Cron sync resumed");
   return { resumed: true };
 }
@@ -502,9 +505,8 @@ export async function runScheduledWatchBackup() {
 
 export function clearRestoreStatus() {
   const runtime = loadWatchBackupRuntime();
-  const updated = { ...runtime };
-  delete updated.lastRestore;
-  delete updated.lastRestoreAt;
-  saveRuntime(updated);
+  delete runtime.lastRestore;
+  delete runtime.lastRestoreAt;
+  writeRuntime(runtime);
   return { cleared: true };
 }
