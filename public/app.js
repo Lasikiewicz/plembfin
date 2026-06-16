@@ -852,10 +852,10 @@ async function listRemoteBackupsForCard(card) {
 
 async function restoreRemoteBackupFromCard(card, filename, mode) {
   const approved = await openConfirmDialog({
-    title: mode === "replace" ? "Replace watch history?" : "Merge watch history?",
+    title: mode === "replace" ? "⚠️ Replace watch history?" : "Merge watch history?",
     body: mode === "replace"
-      ? `Download ${filename} from this destination and clear current watch history, playstate, and progress before restoring it?`
-      : `Download ${filename} from this destination and merge it into current watch history, keeping the newest record when keys conflict?`,
+      ? `⚠️ REPLACE (recommended for corrupted data):\n\nWill DELETE all current watch history, playstate, and progress, then restore from ${filename}.\n\nUse this if:\n• Your current data is corrupted or contains false entries\n• You want to completely reset to the backup state\n\nDo NOT use if you have new entries since the backup that you want to keep.`
+      : `MERGE RESTORE (advanced - keep recent entries):\n\nWill keep entries from both the backup AND current data, using the newest record when the same item appears in both.\n\nUse this only if:\n• Your backup is older\n• You have new legitimate watch entries since the backup\n• You're certain current data is NOT corrupted\n\nWARNING: If current data is corrupted, merge will re-introduce those false entries!`,
     confirmLabel: mode === "replace" ? "Replace and Restore" : "Merge Restore",
     danger: mode === "replace",
   });
@@ -989,10 +989,10 @@ async function downloadWatchBackup(filename) {
 async function restoreWatchBackup(filename, mode, dryRun = false) {
   if (!dryRun) {
     const approved = await openConfirmDialog({
-      title: mode === "replace" ? "Replace watch history?" : "Merge watch history?",
+      title: mode === "replace" ? "⚠️ Replace watch history?" : "Merge watch history?",
       body: mode === "replace"
-        ? `This will clear current watch history, playstate, and progress before restoring ${filename}.`
-        : `This will merge ${filename} into current watch history, keeping the newest record when keys conflict.`,
+        ? `⚠️ REPLACE (recommended for corrupted data):\n\nWill DELETE all current watch history, playstate, and progress, then restore from ${filename}.\n\nUse this if:\n• Your current data is corrupted or contains false entries\n• You want to completely reset to the backup state\n\nDo NOT use if you have new entries since the backup that you want to keep.`
+        : `MERGE RESTORE (advanced - keep recent entries):\n\nWill keep entries from both the backup AND current data, using the newest record when the same item appears in both.\n\nUse this only if:\n• Your backup is older\n• You have new legitimate watch entries since the backup\n• You're certain current data is NOT corrupted\n\nWARNING: If current data is corrupted, merge will re-introduce those false entries!`,
       confirmLabel: mode === "replace" ? "Replace and Restore" : "Merge Restore",
       danger: mode === "replace",
     });
