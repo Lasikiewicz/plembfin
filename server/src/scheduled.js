@@ -488,7 +488,7 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
   const existingPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
   const resumeUpdatedAt = Number(media.updatedAt || 0);
   const playstateUpdatedAt = Number(existingPlaystate?.updated_at || 0);
-  if (existingPlaystate && (!resumeUpdatedAt || playstateUpdatedAt >= resumeUpdatedAt)) {
+  if (existingPlaystate && resumeUpdatedAt > 0 && playstateUpdatedAt >= resumeUpdatedAt) {
     await deletePlaybackProgress(requireDb(), media).catch(() => null);
     logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (newer ${existingPlaystate.state} playstate)`);
     return false;
@@ -496,7 +496,7 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
 
   const existingProgress = await getPlaybackProgressForMedia(requireDb(), media).catch(() => null);
   const progressUpdatedAt = Number(existingProgress?.updated_at || 0);
-  if (existingProgress && (!resumeUpdatedAt || progressUpdatedAt >= resumeUpdatedAt)) {
+  if (existingProgress && resumeUpdatedAt > 0 && progressUpdatedAt >= resumeUpdatedAt) {
     logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (stale resume progress)`);
     return false;
   }
