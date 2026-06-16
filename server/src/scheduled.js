@@ -10,6 +10,7 @@ import {
   deletePlaybackProgress,
   deleteWatchRecordById,
   findExistingWatch,
+  findWatchedByAnyMediaKey,
   findWatchedByMediaKey,
   getCachedHistory,
   getPlaybackProgressForMedia,
@@ -822,7 +823,6 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
         isValid: true,
       };
 
-      const key = mediaKeyFor(media);
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item, pollTimestamp);
 
       if (!watchedAt) {
@@ -830,7 +830,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
         continue;
       }
 
-      const existing = await findWatchedByMediaKey(key);
+      const existing = await findWatchedByAnyMediaKey(media);
 
       if (!existing) {
         logger(`Emby: detected new watched item: ${media.title} (${watchedAtReason} ${watchedAt})`);
@@ -905,7 +905,6 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
         isValid: true,
       };
 
-      const key = mediaKeyFor(media);
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item, pollTimestamp);
 
       if (!watchedAt) {
@@ -913,7 +912,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
         continue;
       }
 
-      const existing = await findWatchedByMediaKey(key);
+      const existing = await findWatchedByAnyMediaKey(media);
 
       if (!existing) {
         logger(`Jellyfin: detected new watched item: ${media.title} (${watchedAtReason} ${watchedAt})`);
