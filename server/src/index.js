@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "./utils/parsers.js";
-import { findPlexItem, markPlexPlayed, setPlexProgress } from "./utils/plexClient.js";
-import { markEmbyPlayed, setEmbyProgress } from "./utils/embyClient.js";
-import { markJellyfinPlayed, setJellyfinProgress } from "./utils/jellyfinClient.js";
+import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems } from "./utils/plexClient.js";
+import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems } from "./utils/embyClient.js";
+import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems } from "./utils/jellyfinClient.js";
 import { requireAdmin, requireAdminStreaming, handleLogin, handleLogout, handleAuthStatus, handleAuthCredentials } from "./utils/auth.js";
 import { AUTH } from "./appConfig.js";
 import { getLogs as getDiagnosticLogs, clearLogs as clearDiagnosticLogs } from "./utils/diagnosticLogger.js";
@@ -78,6 +78,8 @@ import {
   clearRestoreStatus,
   pauseCronSync,
   resumeCronSync,
+  setLastRestoreAt,
+  loadWatchBackupRuntime,
   restoreWatchHistoryBackup,
   runScheduledWatchBackup,
   saveWatchBackupConfig,
@@ -626,13 +628,232 @@ async function exchangeDropboxCode(destination, code) {
   return { status: "authorized" };
 }
 
+// Small forward cushion so an app-recorded "viewedAt" stamped a moment after our push
+// can't land just past lastRestoreAt and get re-imported. See setLastRestoreAt().
+const RESTORE_SKEW_BUFFER_MS = 5000;
+
+// Batched runtime-log writer (mirrors the Force-Sync pattern): collect lines in memory and
+// flush to runtime_state every `intervalMs` so we don't write per line.
+function createBatchedRuntimeLogger(field, { intervalMs = 2000 } = {}) {
+  const buffer = [];
+  let timer = null;
+  const flush = async () => {
+    if (!buffer.length) return;
+    const batch = buffer.splice(0, buffer.length);
+    await appendRuntimeLog(field, batch).catch(() => null);
+  };
+  const log = (msg) => {
+    console.log(msg);
+    buffer.push(msg);
+    if (!timer) {
+      timer = setTimeout(async () => {
+        timer = null;
+        await flush();
+      }, intervalMs);
+    }
+  };
+  const stop = async () => {
+    if (timer) { clearTimeout(timer); timer = null; }
+    await flush();
+  };
+  return { log, stop };
+}
+
+function mediaFromPlaystateRow(row) {
+  const media = {
+    title: row.title,
+    type: row.media_type,
+    source: "restore",
+    isValid: true,
+    ids: {
+      imdb: row.imdb_id || undefined,
+      tmdb: row.tmdb_id || undefined,
+      tvdb: row.tvdb_id || undefined,
+    },
+  };
+  if (String(row.media_type) === "episode") {
+    media.season = row.season != null ? Number(row.season) : undefined;
+    media.episode = row.episode != null ? Number(row.episode) : undefined;
+  }
+  return media;
+}
+
+// Push the just-restored playstate to every connected app. `source: "restore"` makes
+// getTargetsForSource fan out to all three platforms.
+async function pushRestoredStateToApps(config, logLine) {
+  const loopStore = createLoopStore();
+  const rows = requireDb().prepare("SELECT * FROM playstate").all();
+  logLine(`Pushing ${rows.length} restored item(s) to connected apps...`);
+  let done = 0;
+  let watched = 0;
+  let unwatched = 0;
+  let failed = 0;
+  for (const row of rows) {
+    const media = mediaFromPlaystateRow(row);
+    const isWatched = String(row.state || "watched").toLowerCase() !== "unwatched";
+    try {
+      if (isWatched) {
+        await syncMediaPlaystate(media, config, loopStore);
+        watched++;
+      } else {
+        await syncMediaUnplayedPlaystate(media, config, loopStore);
+        unwatched++;
+      }
+    } catch (error) {
+      failed++;
+      logLine(`  ! Failed to push "${media.title}": ${error.message}`);
+    }
+    done++;
+    if (done % 25 === 0 || done === rows.length) {
+      logLine(`  Pushed ${done}/${rows.length} (watched ${watched}, unwatched ${unwatched}, failed ${failed})`);
+    }
+  }
+  return { total: rows.length, watched, unwatched, failed };
+}
+
+// Full-wipe clear pass: mark every item each app currently reports as watched as unwatched,
+// so that the subsequent push re-marks only the backup's watched set and the apps end up
+// matching the backup exactly. Operates on native item ids (no re-resolution).
+async function clearAppWatchstates(config, logLine) {
+  const summary = { plex: 0, emby: 0, jellyfin: 0, failed: 0 };
+  const plexActive = !config?.plex?.disabled && Boolean(config?.plex?.baseUrl && config?.plex?.token);
+  const embyActive = !config?.emby?.disabled && Boolean(config?.emby?.baseUrl && config?.emby?.apiKey && config?.emby?.userId);
+  const jellyfinActive = !config?.jellyfin?.disabled && Boolean(config?.jellyfin?.baseUrl && config?.jellyfin?.apiKey && config?.jellyfin?.userId);
+
+  if (plexActive) {
+    try {
+      const items = await fetchPlexWatchedItems(config.plex);
+      logLine(`Clearing ${items.length} watched item(s) on Plex...`);
+      for (const item of items) {
+        try {
+          await markPlexUnplayedByRatingKey(config.plex, item.ratingKey || item.key);
+          summary.plex++;
+        } catch (error) {
+          summary.failed++;
+        }
+      }
+    } catch (error) {
+      logLine(`  ! Plex clear failed: ${error.message}`);
+    }
+  }
+  if (embyActive) {
+    try {
+      const items = await fetchEmbyWatchedItems(config.emby);
+      logLine(`Clearing ${items.length} watched item(s) on Emby...`);
+      for (const item of items) {
+        try {
+          await markEmbyUnplayedById(config.emby, item.Id);
+          summary.emby++;
+        } catch (error) {
+          summary.failed++;
+        }
+      }
+    } catch (error) {
+      logLine(`  ! Emby clear failed: ${error.message}`);
+    }
+  }
+  if (jellyfinActive) {
+    try {
+      const items = await fetchJellyfinWatchedItems(config.jellyfin);
+      logLine(`Clearing ${items.length} watched item(s) on Jellyfin...`);
+      for (const item of items) {
+        try {
+          await markJellyfinUnplayedById(config.jellyfin, item.Id);
+          summary.jellyfin++;
+        } catch (error) {
+          summary.failed++;
+        }
+      }
+    } catch (error) {
+      logLine(`  ! Jellyfin clear failed: ${error.message}`);
+    }
+  }
+  return summary;
+}
+
+// Background reconcile job, kicked off after the synchronous DB restore. Optionally wipes app
+// watchstates, pushes the restored state to all apps, then stamps lastRestoreAt (AFTER the push
+// so the pushes themselves fall under the cron's pre-restore filter) and clears the active flag.
+async function runRestoreReconcileJob(clearMode) {
+  const { log, stop } = createBatchedRuntimeLogger("restoreSyncLog");
+  let result;
+  try {
+    const config = await loadMediaConfig();
+    if (clearMode === "wipe") {
+      log("Clear mode: full wipe — marking every watched item on each app as unwatched.");
+      const cleared = await clearAppWatchstates(config, log);
+      log(`Clear complete: Plex ${cleared.plex}, Emby ${cleared.emby}, Jellyfin ${cleared.jellyfin}, failed ${cleared.failed}.`);
+    } else {
+      log("Clear mode: reconcile — pushing only items tracked by the backup.");
+    }
+    const pushed = await pushRestoredStateToApps(config, log);
+    log(`Push complete: ${pushed.watched} watched, ${pushed.unwatched} unwatched, ${pushed.failed} failed.`);
+    result = { success: true, clearMode, pushed };
+  } catch (error) {
+    log(`ERROR: Restore reconcile failed: ${error.message}`);
+    result = { success: false, error: error.message };
+  } finally {
+    // Always advance the watermark: after a successful DB restore the local DB IS the backup,
+    // so the cron should ignore any app history at/before now regardless of push outcome.
+    const stampedAt = Date.now() + RESTORE_SKEW_BUFFER_MS;
+    setLastRestoreAt(stampedAt);
+    log(`Stamped lastRestoreAt = ${new Date(stampedAt).toISOString()}; cron will skip app history up to this point.`);
+    log("✓ Authoritative restore complete.");
+    await stop();
+    await setRuntimeState({ restoreSyncActive: false, restoreSyncResult: result || { success: false } }).catch(() => null);
+  }
+  return result;
+}
+
+// Run the synchronous DB restore, then kick off the background clear/push job. Shared by the
+// local "restore" and remote "restore-remote-backup" actions. Returns the response payload.
+async function startAuthoritativeRestore(filename, clearMode) {
+  const runtime = await loadRuntimeState();
+  const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+  if (runtime.restoreSyncActive === true && runtime.restoreSyncStartedAt && runtime.restoreSyncStartedAt > tenMinutesAgo) {
+    return { status: 409, body: { ok: false, error: "An authoritative restore is already running." } };
+  }
+
+  // Mark active BEFORE touching the DB so the cron + webhook stop importing immediately.
+  await setRuntimeState({
+    restoreSyncActive: true,
+    restoreSyncStartedAt: Date.now(),
+    restoreSyncResult: null,
+    restoreSyncLog: [`Authoritative restore started (${clearMode}) from ${filename}...`],
+  });
+
+  let restore;
+  try {
+    restore = restoreWatchHistoryBackup(filename, { mode: "replace", dryRun: false });
+  } catch (error) {
+    await setRuntimeState({ restoreSyncActive: false, restoreSyncResult: { success: false, error: error.message } }).catch(() => null);
+    return { status: 400, body: { error: error.message } };
+  }
+
+  // Fire-and-forget — the job stamps lastRestoreAt and clears the flag when it finishes.
+  runRestoreReconcileJob(clearMode);
+
+  return { status: 202, body: { ok: true, restore, clearMode, jobStarted: true } };
+}
+
 async function handleWatchBackups(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!(await requireAdmin(req, res))) return;
 
   if (req.method === "GET") {
     const filename = String(req.query?.download || "").trim();
-    if (!filename) return sendJson(res, watchBackupStatus());
+    if (!filename) {
+      const runtime = await loadRuntimeState();
+      return sendJson(res, {
+        ...watchBackupStatus(),
+        restoreSync: {
+          active: runtime.restoreSyncActive === true,
+          log: Array.isArray(runtime.restoreSyncLog) ? runtime.restoreSyncLog : [],
+          result: runtime.restoreSyncResult || null,
+          startedAt: runtime.restoreSyncStartedAt || null,
+        },
+      });
+    }
     try {
       const file = readWatchBackupFile(filename);
       res.statusCode = 200;
@@ -660,32 +881,18 @@ async function handleWatchBackups(req, res) {
       const filename = String(body.filename || "").trim();
       if (!filename) return sendJson(res, { error: "filename is required" }, 400);
 
-      const mode = body.mode === "replace" ? "replace" : "merge";
       const dryRun = body.dryRun === true;
-
       if (dryRun) {
+        // Replace-only: restore is always authoritative; merge is no longer offered.
         return sendJson(res, {
           ok: true,
-          restore: restoreWatchHistoryBackup(filename, { mode, dryRun: true }),
+          restore: restoreWatchHistoryBackup(filename, { mode: "replace", dryRun: true }),
         });
       }
 
-      // For Replace restores: the restore sets lastRestoreAt in runtime state, which the cron uses
-      // to permanently filter out any items played before the restore date. No pause needed.
-      if (mode === "replace") {
-        const result = restoreWatchHistoryBackup(filename, { mode, dryRun: false });
-
-        return sendJson(res, {
-          ok: true,
-          restore: result,
-        });
-      }
-
-      // For Merge restores, just restore without pausing cron
-      return sendJson(res, {
-        ok: true,
-        restore: restoreWatchHistoryBackup(filename, { mode, dryRun: false }),
-      });
+      const clearMode = body.clearMode === "wipe" ? "wipe" : "reconcile";
+      const { status, body: payload } = await startAuthoritativeRestore(filename, clearMode);
+      return sendJson(res, payload, status);
     }
     if (action === "save-destination") {
       return sendJson(res, { ok: true, destination: saveBackupDestination(body.destination || {}) });
@@ -703,15 +910,19 @@ async function handleWatchBackups(req, res) {
     if (action === "restore-remote-backup") {
       const id = String(body.destinationId || "").trim();
       const filename = String(body.filename || "").trim();
-      const remoteMode = body.mode === "replace" ? "replace" : "merge";
       const remoteDryRun = body.dryRun === true;
       if (!id || !filename) return sendJson(res, { error: "destinationId and filename are required" }, 400);
       const pulled = await pullRemoteBackupToLocal(id, filename);
-      return sendJson(res, {
-        ok: true,
-        pulled,
-        restore: restoreWatchHistoryBackup(pulled.name, { mode: remoteMode, dryRun: remoteDryRun }),
-      });
+      if (remoteDryRun) {
+        return sendJson(res, {
+          ok: true,
+          pulled,
+          restore: restoreWatchHistoryBackup(pulled.name, { mode: "replace", dryRun: true }),
+        });
+      }
+      const clearMode = body.clearMode === "wipe" ? "wipe" : "reconcile";
+      const { status, body: payload } = await startAuthoritativeRestore(pulled.name, clearMode);
+      return sendJson(res, { ...payload, pulled }, status);
     }
     if (action === "clear-restore-status") {
       return sendJson(res, { ok: true, ...clearRestoreStatus() });
@@ -1200,6 +1411,24 @@ async function handleWebhook(req, res) {
       reason: "Unsupported event or missing provider IDs",
       debug: media.rawPayloadDebug,
     });
+  }
+
+  // While an authoritative restore is pushing fresh state to the apps, ignore inbound
+  // webhooks — they are the apps echoing our own marks back and would re-record as
+  // watched-today. Real user plays resume the moment the restore job finishes.
+  const restoreRuntime = await loadRuntimeState();
+  if (restoreRuntime.restoreSyncActive === true) {
+    console.log("Webhook ignored: authoritative restore in progress (suppressing app echo)", {
+      source: media.source,
+      title: media.title,
+      phase: media.phase,
+    });
+    await recordSyncHistory(media, {
+      status: "skipped",
+      details: "Webhook ignored: authoritative restore in progress",
+      targetStates: [],
+    }, media.phase || "webhook").catch(() => null);
+    return sendJson(res, { ok: true, inserted: false, skipped: true, reason: "Authoritative restore in progress" });
   }
 
   const config = await loadMediaConfig();
