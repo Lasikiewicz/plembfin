@@ -6746,6 +6746,9 @@ function renderShowModalContent(show, {
     </section>
   ` : "";
 
+  const showImdbId = show.imdb_id || representativeEpisode(seasonsMap)?.imdb_id || "";
+  const showImdbLinkHtml = showImdbId ? `<a class="action-pill" href="https://www.imdb.com/title/${escapeAttribute(showImdbId)}" target="_blank" rel="noopener noreferrer">View on IMDb</a>` : "";
+
   setMediaDetailActions(`
     <button class="action-pill" type="button" data-watch-scope="show" ${(unwatchedRows.length && !isSaving) ? "" : "disabled"}>
       ${isSavingShow ? "Saving watched state…" : "Mark whole show watched"}
@@ -6756,6 +6759,7 @@ function renderShowModalContent(show, {
       <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">Fix Match</button>
       <button class="action-pill media-merge-show-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">Merge</button>
     `}
+    ${showImdbLinkHtml}
   `);
 
   root.innerHTML = `
@@ -7555,6 +7559,9 @@ async function renderMovieImmersiveModalContent(movie) {
     </div>
   ` : "";
 
+  const imdbId = movie.imdb_id || tmdbData?.imdb_id || "";
+  const imdbLinkHtml = imdbId ? `<a class="action-pill" href="https://www.imdb.com/title/${escapeAttribute(imdbId)}" target="_blank" rel="noopener noreferrer">View on IMDb</a>` : "";
+
   const sourceBadgeHtml = movie.source ? `
     <span class="source-badge ${sourceClass(movie.source)}" style="display: inline-flex;">${escapeHtml(platformBadge(movie.source))}</span>
   ` : "";
@@ -7578,6 +7585,7 @@ async function renderMovieImmersiveModalContent(movie) {
     <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}">Edit Image</button>
     <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
     ${ytWatchBtn}
+    ${imdbLinkHtml}
   `);
 
   root.innerHTML = `
