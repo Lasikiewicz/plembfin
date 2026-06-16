@@ -1,7 +1,14 @@
 {
-  "version": "0.0.46",
-  "updatedAt": "2026-06-16T17:02:45+01:00",
+  "version": "0.0.47",
+  "updatedAt": "2026-06-16T17:50:57+01:00",
   "entries": [
+    {
+      "version": "0.0.47",
+      "date": "2026-06-16T17:50:57+01:00",
+      "commit": "73a73f3f42ddc8e4a163a8dac66741f038df114c",
+      "message": "Merge pull request #2 from Lasikiewicz/fix/authoritative-restore-source-of-truth",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.46",
       "date": "2026-06-16T17:02:45+01:00",
