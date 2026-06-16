@@ -13,6 +13,10 @@ function normalizeType(value) {
   return undefined;
 }
 
+function firstDefined(...values) {
+  return values.find((value) => value != null && value !== "");
+}
+
 export function normalizeProviderIds(providerIds = {}) {
   const ids = { ...EMPTY_IDS };
   for (const [key, value] of Object.entries(providerIds || {})) {
@@ -43,8 +47,8 @@ function parsePlexGuids(metadata = {}) {
 }
 
 function extractTitle(type, metadata, source) {
-  const season = metadata.parentIndex ?? metadata.ParentIndexNumber;
-  const episode = metadata.index ?? metadata.IndexNumber;
+  const season = seasonNumberFrom(metadata);
+  const episode = episodeNumberFrom(metadata);
   const hasEpisodeCoordinates = season != null || episode != null;
 
   if (source === "plex") {
@@ -60,11 +64,39 @@ function extractTitle(type, metadata, source) {
   // Jellyfin / Emby
   if (type === "episode") {
     if (hasEpisodeCoordinates) {
-      return `${metadata.SeriesName || metadata.Name || "Unknown Show"} - S${String(season ?? "?").padStart(2, "0")}E${String(episode ?? "?").padStart(2, "0")}`;
+      return `${seriesTitleFrom(metadata) || "Unknown Show"} - S${String(season ?? "?").padStart(2, "0")}E${String(episode ?? "?").padStart(2, "0")}`;
     }
-    return metadata.SeriesName || metadata.Name || "Unknown Episode";
+    return seriesTitleFrom(metadata) || itemTitleFrom(metadata) || "Unknown Episode";
   }
-  return metadata.Name || "Unknown Movie";
+  return itemTitleFrom(metadata) || "Unknown Movie";
+}
+
+function itemTitleFrom(item = {}) {
+  return firstDefined(item.Name, item.name, item.Title, item.title, item.ItemName, item.itemName);
+}
+
+function seriesTitleFrom(item = {}) {
+  return firstDefined(item.SeriesName, item.seriesName, item.ShowTitle, item.showTitle, item.GrandparentTitle, item.grandparentTitle, item.ParentName, item.parentName, item.Name, item.name);
+}
+
+function seasonNumberFrom(item = {}) {
+  return firstDefined(item.ParentIndexNumber, item.parentIndexNumber, item.SeasonNumber, item.seasonNumber, item.Season, item.season, item.ParentIndex, item.parentIndex);
+}
+
+function episodeNumberFrom(item = {}) {
+  return firstDefined(item.IndexNumber, item.indexNumber, item.EpisodeNumber, item.episodeNumber, item.Episode, item.episode, item.Index, item.index);
+}
+
+function providerIdsFrom(item = {}, json = {}) {
+  return item.ProviderIds || item.providerIds || json.ProviderIds || json.providerIds || {};
+}
+
+function embyLikeTypeFrom(item = {}, json = {}) {
+  return normalizeType(firstDefined(item.Type, item.type, item.MediaType, item.mediaType, item.ItemType, item.itemType, json.Type, json.type, json.MediaType, json.mediaType, json.ItemType, json.itemType));
+}
+
+function embyLikeUserFrom(json = {}) {
+  return firstDefined(json.UserId, json.userId, json.User?.Id, json.User?.Name, json.UserName, json.Username, json.userName, json.username) || "";
 }
 
 function plexPosterInfo(metadata = {}, type = "unknown") {
@@ -212,7 +244,7 @@ function phaseFromJellyfinEvent(event, json, item) {
 }
 
 function pickWebhookItem(json = {}) {
-  return json.Item || json.Metadata || json.MediaItem || json.ItemInfo || {};
+  return json.Item || json.Metadata || json.MediaItem || json.ItemInfo || json.NowPlayingItem || json;
 }
 
 function buildPayload({
@@ -348,22 +380,26 @@ export function parseJellyfinWebhook(json) {
   try {
     const item = pickWebhookItem(json);
     const event = json?.NotificationType || "unknown";
-    const type = normalizeType(item.Type || item.MediaType);
+    const type = embyLikeTypeFrom(item, json);
     const phase = phaseFromJellyfinEvent(event, json, item);
     const title = extractTitle(type, item, "jellyfin");
     const progress = progressPercentFrom({ ...json, ...item });
     const offsetMs = positionMillisecondsFrom({ ...json, ...item });
     const durationMs = durationMillisecondsFrom({ ...json, ...item });
-    const user = json?.UserId || json?.User?.Id || json?.User?.Name || "";
+    const user = embyLikeUserFrom(json);
+    const providerIds = providerIdsFrom(item, json);
+    const season = seasonNumberFrom(item);
+    const episode = episodeNumberFrom(item);
+    const episodeTitle = type === "episode" ? itemTitleFrom(item) : null;
 
     if (phase === "ignored") {
       return buildPayload({
         type,
         source: "jellyfin",
-        ids: normalizeProviderIds(item.ProviderIds),
+        ids: normalizeProviderIds(providerIds),
         title: `Jellyfin Raw Event: ${event} - ${title}`,
-        season: item.ParentIndexNumber,
-        episode: item.IndexNumber,
+        season,
+        episode,
         event,
         phase,
         progress,
@@ -372,7 +408,7 @@ export function parseJellyfinWebhook(json) {
         user,
         itemId: item.Id,
         poster: embyLikePosterInfo(item, type),
-        episodeTitle: type === "episode" ? item.Name : null,
+        episodeTitle,
         rawPayloadDebug: {
           payloadKeys: Object.keys(json || {}),
           itemKeys: Object.keys(item || {}),
@@ -385,9 +421,9 @@ export function parseJellyfinWebhook(json) {
       type,
       source: "jellyfin",
       title,
-      ids: normalizeProviderIds(item.ProviderIds),
-      season: item.ParentIndexNumber,
-      episode: item.IndexNumber,
+      ids: normalizeProviderIds(providerIds),
+      season,
+      episode,
       event,
       phase,
       progress,
@@ -396,11 +432,11 @@ export function parseJellyfinWebhook(json) {
       user,
       itemId: item.Id,
       poster: embyLikePosterInfo(item, type),
-      episodeTitle: type === "episode" ? item.Name : null,
+      episodeTitle,
       rawPayloadDebug: {
         payloadKeys: Object.keys(json || {}),
         itemKeys: Object.keys(item),
-        providerKeys: Object.keys(item.ProviderIds || {}),
+        providerKeys: Object.keys(providerIds || {}),
         rawPayload: JSON.stringify(json),
       },
     });
@@ -420,22 +456,26 @@ export function parseEmbyWebhook(json) {
   try {
     const item = pickWebhookItem(json);
     const event = json?.Event || "unknown";
-    const type = normalizeType(item.Type || item.MediaType);
+    const type = embyLikeTypeFrom(item, json);
     const phase = phaseFromEmbyEvent(event, json, item);
     const title = extractTitle(type, item, "emby");
     const progress = progressPercentFrom({ ...json, ...item });
     const offsetMs = positionMillisecondsFrom({ ...json, ...item });
     const durationMs = durationMillisecondsFrom({ ...json, ...item });
-    const user = json?.UserId || json?.User?.Id || json?.User?.Name || "";
+    const user = embyLikeUserFrom(json);
+    const providerIds = providerIdsFrom(item, json);
+    const season = seasonNumberFrom(item);
+    const episode = episodeNumberFrom(item);
+    const episodeTitle = type === "episode" ? itemTitleFrom(item) : null;
 
     if (phase === "ignored") {
       return buildPayload({
         type,
         source: "emby",
-        ids: normalizeProviderIds(item.ProviderIds),
+        ids: normalizeProviderIds(providerIds),
         title: `Emby Raw Event: ${event} - ${title}`,
-        season: item.ParentIndexNumber,
-        episode: item.IndexNumber,
+        season,
+        episode,
         event,
         phase,
         progress,
@@ -444,7 +484,7 @@ export function parseEmbyWebhook(json) {
         user,
         itemId: item.Id,
         poster: embyLikePosterInfo(item, type),
-        episodeTitle: type === "episode" ? item.Name : null,
+        episodeTitle,
         rawPayloadDebug: {
           payloadKeys: Object.keys(json || {}),
           itemKeys: Object.keys(item || {}),
@@ -457,9 +497,9 @@ export function parseEmbyWebhook(json) {
       type,
       source: "emby",
       title,
-      ids: normalizeProviderIds(item.ProviderIds),
-      season: item.ParentIndexNumber,
-      episode: item.IndexNumber,
+      ids: normalizeProviderIds(providerIds),
+      season,
+      episode,
       event,
       phase,
       progress,
@@ -468,11 +508,11 @@ export function parseEmbyWebhook(json) {
       user,
       itemId: item.Id,
       poster: embyLikePosterInfo(item, type),
-      episodeTitle: type === "episode" ? item.Name : null,
+      episodeTitle,
       rawPayloadDebug: {
         payloadKeys: Object.keys(json || {}),
         itemKeys: Object.keys(item),
-        providerKeys: Object.keys(item.ProviderIds || {}),
+        providerKeys: Object.keys(providerIds || {}),
         rawPayload: JSON.stringify(json),
       },
     });
