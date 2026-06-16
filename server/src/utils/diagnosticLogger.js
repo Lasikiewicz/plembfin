@@ -1,3 +1,5 @@
+import util from "node:util";
+
 const MAX_LOGS = 1000;
 const logs = [];
 let isCapturing = false;
@@ -11,12 +13,11 @@ function addLog(level, args) {
 
   const timestamp = new Date().toISOString();
   const message = args.map((arg) => {
+    if (arg instanceof Error) {
+      return arg.stack || arg.message || String(arg);
+    }
     if (typeof arg === 'object') {
-      try {
-        return JSON.stringify(arg);
-      } catch {
-        return String(arg);
-      }
+      return util.inspect(arg, { depth: 6, breakLength: 120, compact: false });
     }
     return String(arg);
   }).join(' ');

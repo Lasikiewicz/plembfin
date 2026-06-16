@@ -157,6 +157,21 @@ function progressPercent(positionMs = 0, durationMs = 0) {
   return Math.max(0, Math.min(100, (Number(positionMs || 0) / Number(durationMs || 1)) * 100));
 }
 
+function resumePositionUnchanged(existingProgress = {}, media = {}) {
+  const existingPosition = Number(existingProgress.position_ms || 0);
+  const incomingPosition = Number(media.positionMs ?? media.offsetMs ?? 0);
+  const existingDuration = Number(existingProgress.duration_ms || 0);
+  const incomingDuration = Number(media.durationMs || 0);
+  const existingPercent = Number(existingProgress.progress || 0);
+  const incomingPercent = Number(media.progress || 0);
+
+  return (
+    Math.abs(existingPosition - incomingPosition) <= 2000 &&
+    (!existingDuration || !incomingDuration || Math.abs(existingDuration - incomingDuration) <= 2000) &&
+    Math.abs(existingPercent - incomingPercent) <= 0.25
+  );
+}
+
 function plexGuidIds(item = {}) {
   const ids = {};
   const guids = [item.guid, ...(item.Guid || []).map((g) => g.id || g)].filter(Boolean);
@@ -464,6 +479,19 @@ async function processStoppedSessionProgress(row, config, loopStore) {
   const media = cachedRowToMedia(row);
   if (!shouldSyncResumeProgress(media)) return null;
 
+  const existingPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
+  if (existingPlaystate?.state === "watched" || existingPlaystate?.state === "unwatched") {
+    await deletePlaybackProgress(requireDb(), media).catch(() => null);
+    console.log("Live tracking resume skipped because playstate is authoritative", {
+      title: media.title,
+      source: media.source,
+      playstateState: existingPlaystate.state,
+      playstateUpdatedAt: existingPlaystate.updated_at,
+      liveUpdatedAt: row.updated_at,
+    });
+    return null;
+  }
+
   const progressRecord = mediaToPlaybackProgressRecord(media, media.source);
   await upsertPlaybackProgress(requireDb(), {
     ...progressRecord,
@@ -524,8 +552,15 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
       resumeUpdatedAt,
       resumeHasTimestamp: resumeUpdatedAt > 0,
       skipDueToWatched: existingPlaystate.state === "watched",
+      skipDueToUnwatched: existingPlaystate.state === "unwatched" && (resumeUpdatedAt <= 0 || playstateUpdatedAt >= resumeUpdatedAt),
       skipDueToTimestamp: resumeUpdatedAt > 0 && playstateUpdatedAt >= resumeUpdatedAt,
     });
+  }
+
+  if (existingPlaystate?.state === "unwatched" && (resumeUpdatedAt <= 0 || playstateUpdatedAt >= resumeUpdatedAt)) {
+    await deletePlaybackProgress(requireDb(), media).catch(() => null);
+    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (item is unwatched)`);
+    return false;
   }
 
   if (existingPlaystate && (existingPlaystate.state === "watched" || (resumeUpdatedAt > 0 && playstateUpdatedAt >= resumeUpdatedAt))) {
@@ -542,8 +577,14 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
       progressUpdatedAt,
       resumeUpdatedAt,
       resumeHasTimestamp: resumeUpdatedAt > 0,
+      skipDueToUnchangedNoTimestamp: resumeUpdatedAt <= 0 && resumePositionUnchanged(existingProgress, media),
       skipDueToProgress: resumeUpdatedAt > 0 && progressUpdatedAt >= resumeUpdatedAt,
     });
+  }
+
+  if (existingProgress && resumeUpdatedAt <= 0 && resumePositionUnchanged(existingProgress, media)) {
+    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (unchanged resume progress without timestamp)`);
+    return false;
   }
 
   if (existingProgress && resumeUpdatedAt > 0 && progressUpdatedAt >= resumeUpdatedAt) {

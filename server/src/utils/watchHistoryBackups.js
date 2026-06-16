@@ -108,9 +108,68 @@ function safeDestination(value = {}) {
   };
 }
 
+function envValue(...names) {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value !== undefined && String(value).trim() !== "") return String(value).trim();
+  }
+  return "";
+}
+
+function envBackblazeDestination() {
+  const bucket = envValue("BACKBLAZE_BUCKET", "B2_BUCKET");
+  const region = envValue("BACKBLAZE_REGION", "B2_REGION");
+  const accessKeyId = envValue("BACKBLAZE_KEY_ID", "BACKBLAZE_ACCESS_KEY_ID", "B2_KEY_ID");
+  const secretAccessKey = envValue("BACKBLAZE_APPLICATION_KEY", "BACKBLAZE_SECRET_ACCESS_KEY", "B2_APPLICATION_KEY");
+  if (!bucket && !region && !accessKeyId && !secretAccessKey) return null;
+
+  return safeDestination({
+    id: "env-backblaze",
+    type: "backblaze",
+    label: "Backblaze B2",
+    enabled: false,
+    settings: {
+      region,
+      bucket,
+      accessKeyId,
+      prefix: envValue("BACKBLAZE_PREFIX", "B2_PREFIX"),
+    },
+    secrets: {
+      secretAccessKey,
+    },
+  });
+}
+
+function mergeEnvBackupDestinations(list = []) {
+  const envBackblaze = envBackblazeDestination();
+  if (!envBackblaze) return list;
+
+  const next = Array.isArray(list) ? [...list] : [];
+  const index = next.findIndex((item) => item.type === "backblaze");
+  if (index === -1) return [...next, envBackblaze];
+
+  const existing = next[index];
+  const settings = { ...envBackblaze.settings, ...(existing.settings || {}) };
+  const secrets = { ...envBackblaze.secrets, ...(existing.secrets || {}) };
+  for (const [key, value] of Object.entries(envBackblaze.settings || {})) {
+    if (!String(settings[key] || "").trim() && String(value || "").trim()) settings[key] = value;
+  }
+  for (const [key, value] of Object.entries(envBackblaze.secrets || {})) {
+    if (!String(secrets[key] || "").trim() && String(value || "").trim()) secrets[key] = value;
+  }
+
+  next[index] = {
+    ...existing,
+    settings,
+    secrets,
+  };
+  return next;
+}
+
 export function loadBackupDestinations() {
   const list = parseJson(selectSetting.get(DESTINATIONS_ID)?.data, []) || [];
-  return Array.isArray(list) ? list.map((item) => ({ ...item, secrets: item.secrets || {}, settings: item.settings || {} })) : [];
+  const stored = Array.isArray(list) ? list.map((item) => ({ ...item, secrets: item.secrets || {}, settings: item.settings || {} })) : [];
+  return mergeEnvBackupDestinations(stored);
 }
 
 function writeBackupDestinations(list) {
@@ -227,6 +286,48 @@ export async function pullRemoteBackupToLocal(id, filename) {
   fs.writeFileSync(temporary, buffer);
   fs.renameSync(temporary, finalPath);
   return { name, sizeBytes: buffer.length };
+}
+
+export function importWatchHistoryBackupFile({ filename = "", buffer }) {
+  const compressed = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || "");
+  if (!compressed.length) throw new Error("Backup file is empty");
+
+  let document;
+  try {
+    document = JSON.parse(zlib.gunzipSync(compressed).toString("utf8"));
+  } catch {
+    throw new Error("Uploaded file is not a valid gzip backup");
+  }
+  if (document?.format !== FORMAT || Number(document?.version) !== VERSION) {
+    throw new Error("Uploaded file is not a Plembfin watch-history backup");
+  }
+  for (const key of ["watchHistory", "playstate", "playbackProgress"]) {
+    if (!Array.isArray(document.data?.[key])) throw new Error(`Uploaded backup is missing ${key}`);
+  }
+  const actualChecksum = checksum(Buffer.from(JSON.stringify(document.data), "utf8"));
+  if (!document.dataChecksum || document.dataChecksum !== actualChecksum) {
+    throw new Error("Uploaded backup data checksum verification failed");
+  }
+
+  fs.mkdirSync(WATCH_HISTORY_BACKUPS_DIR, { recursive: true });
+  const uploadedName = path.basename(String(filename || ""));
+  let name = FILE_PATTERN.test(uploadedName) ? uploadedName : timestampName(new Date());
+  let collisionOffset = 1;
+  while (fs.existsSync(path.join(WATCH_HISTORY_BACKUPS_DIR, name))) {
+    name = timestampName(new Date(Date.now() + collisionOffset * 1000));
+    collisionOffset += 1;
+  }
+
+  const finalPath = backupPath(name);
+  const temporary = `${finalPath}.tmp-${process.pid}`;
+  fs.writeFileSync(temporary, compressed);
+  fs.renameSync(temporary, finalPath);
+  const stat = fs.statSync(finalPath);
+  return {
+    name,
+    sizeBytes: stat.size,
+    createdAt: stat.mtime.toISOString(),
+  };
 }
 
 async function applyRemoteRetention(adapter, retention) {

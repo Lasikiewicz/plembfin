@@ -71,6 +71,7 @@ import { BACKUP_FORMAT, BACKUP_VERSION, backupManifest, exportCollectionPage, im
 import {
   createWatchHistoryBackup,
   getBackupDestination,
+  importWatchHistoryBackupFile,
   listRemoteBackups,
   pullRemoteBackupToLocal,
   readWatchBackupFile,
@@ -631,10 +632,55 @@ async function exchangeDropboxCode(destination, code) {
 // Small forward cushion so an app-recorded "viewedAt" stamped a moment after our push
 // can't land just past lastRestoreAt and get re-imported. See setLastRestoreAt().
 const RESTORE_SKEW_BUFFER_MS = 5000;
+const POST_RESTORE_WEBHOOK_GUARD_MS = 24 * 60 * 60 * 1000;
 // How many items the restore push/clear processes at once, and the per-item timeout so a single
 // hung app call can't stall the whole job.
 const RESTORE_PUSH_CONCURRENCY = 8;
 const RESTORE_ITEM_TIMEOUT_MS = 30000;
+
+function normalizedTitlePart(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function mediaIdsOverlap(a = {}, b = {}) {
+  const idsA = a.ids || {};
+  const idsB = b.ids || {};
+  return Boolean(
+    (idsA.imdb && idsB.imdb && String(idsA.imdb) === String(idsB.imdb)) ||
+      (idsA.tmdb && idsB.tmdb && String(idsA.tmdb) === String(idsB.tmdb)) ||
+      (idsA.tvdb && idsB.tvdb && String(idsA.tvdb) === String(idsB.tvdb)),
+  );
+}
+
+function sameMediaCoordinates(a = {}, b = {}) {
+  if (String(a.source || "") !== String(b.source || "")) return false;
+  if (String(a.type || a.mediaType || "") !== String(b.type || b.mediaType || "")) return false;
+  if (String(a.type || a.mediaType || "") === "episode") {
+    if (Number(a.season ?? -1) !== Number(b.season ?? -1)) return false;
+    if (Number(a.episode ?? -1) !== Number(b.episode ?? -1)) return false;
+  }
+  return mediaIdsOverlap(a, b) || normalizedTitlePart(a.title) === normalizedTitlePart(b.title);
+}
+
+async function shouldSkipPostRestoreCompletedWebhook(media) {
+  if (media?.phase !== "completed") return false;
+  const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
+  if (!lastRestoreAt || Date.now() - lastRestoreAt > POST_RESTORE_WEBHOOK_GUARD_MS) return false;
+
+  const activeSessions = await listActiveSessions().catch(() => []);
+  const matchingActiveSession = activeSessions.find((session) => (
+    sameMediaCoordinates(media, {
+      title: session.title,
+      type: session.mediaType,
+      source: session.source,
+      ids: session.ids,
+      season: session.season,
+      episode: session.episode,
+    }) && Number(session.updatedAt || 0) > lastRestoreAt
+  ));
+
+  return !matchingActiveSession;
+}
 
 function withTimeout(promise, ms, label) {
   const p = Promise.resolve(promise);
@@ -910,6 +956,16 @@ async function handleWatchBackups(req, res) {
   }
 
   if (req.method !== "POST") return methodNotAllowed(res);
+  if (String(req.query?.upload || "") === "1") {
+    try {
+      const uploaded = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || "");
+      const filename = String(req.query?.filename || "");
+      return sendJson(res, { ok: true, file: importWatchHistoryBackupFile({ filename, buffer: uploaded }) });
+    } catch (error) {
+      return sendJson(res, { error: error.message }, 400);
+    }
+  }
+
   const body = await readJson(req);
   const action = String(body.action || "").trim();
   try {
@@ -1600,6 +1656,15 @@ async function handleWebhook(req, res) {
             results.push({ episodeId: ep.Id, title: episodeMedia.title, success: summary.status === "success" || summary.status === "partial" });
           } else {
             await deleteActiveSession(null, episodeMedia).catch(() => null);
+            const existingPlaystate = await getPlaystateForMedia(requireDb(), episodeMedia).catch(() => null);
+            if (existingPlaystate?.state === "watched") {
+              results.push({ episodeId: ep.Id, title: episodeMedia.title, success: true, skipped: true, reason: "Already marked watched" });
+              return;
+            }
+            if (await shouldSkipPostRestoreCompletedWebhook(episodeMedia)) {
+              results.push({ episodeId: ep.Id, title: episodeMedia.title, success: true, skipped: true, reason: "Post-restore completed webhook without active playback evidence" });
+              return;
+            }
             const watchRecord = mediaToWatchRecord(episodeMedia, episodeMedia.source);
             watchRecord.sync_action = "watched";
             watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, episodeMedia, "watched");
@@ -1712,6 +1777,33 @@ async function handleWebhook(req, res) {
         existingWatchedAt: existingRecord.watched_at,
       });
       return sendJson(res, { ok: true, inserted: false, id: existingRecord.id, reason: "Watch record already exists from recent full sync" });
+    }
+
+    const existingPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
+    if (existingPlaystate?.state === "watched") {
+      console.log("Webhook: skipped watched echo because playstate is already watched", {
+        source: media.source,
+        title: media.title,
+        playstateUpdatedAt: existingPlaystate.updated_at,
+      });
+      await deletePlaybackProgress(requireDb(), media).catch(() => null);
+      await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+      return sendJson(res, { ok: true, inserted: false, id: existingPlaystate.id, reason: "Already marked watched" });
+    }
+
+    if (await shouldSkipPostRestoreCompletedWebhook(media)) {
+      console.log("Webhook: skipped post-restore completed event without active playback evidence", {
+        source: media.source,
+        title: media.title,
+        type: media.type,
+      });
+      await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+      return sendJson(res, {
+        ok: true,
+        inserted: false,
+        skipped: true,
+        reason: "Post-restore completed webhook without active playback evidence",
+      });
     }
 
     const watchRecord = mediaToWatchRecord(media, media.source);
@@ -2221,15 +2313,15 @@ function handlePing(req, res) {
   return sendJson(res, { ok: true, ts: Date.now() }, 200, { "Cache-Control": "no-store" });
 }
 
-function handleDiagnosticLogs(req, res) {
+async function handleDiagnosticLogs(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method === "DELETE") {
-    if (!(requireAdminSync(req))) return sendJson(res, { error: "Unauthorized" }, 401);
+    if (!(await requireAdmin(req, res))) return;
     clearDiagnosticLogs();
     return sendJson(res, { ok: true }, 200, { "Cache-Control": "no-store" });
   }
   if (req.method !== "GET") return methodNotAllowed(res);
-  if (!requireAdminSync(req)) return sendJson(res, { error: "Unauthorized" }, 401);
+  if (!(await requireAdmin(req, res))) return;
 
   const limit = Math.min(Number(req.query?.limit || 500), 1000);
   const data = getDiagnosticLogs({ limit });
