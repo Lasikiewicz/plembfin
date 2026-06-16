@@ -1,7 +1,14 @@
 {
-  "version": "0.0.35",
-  "updatedAt": "2026-06-16T14:05:00+01:00",
+  "version": "0.0.36",
+  "updatedAt": "2026-06-16T14:25:58+01:00",
   "entries": [
+    {
+      "version": "0.0.36",
+      "date": "2026-06-16T14:25:58+01:00",
+      "commit": "0e7d45d7e9e26e1be672d7f7dd513e3185a2da68",
+      "message": "Merge branch 'main' of https://github.com/Lasikiewicz/plembfin",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.35",
       "date": "2026-06-16T14:05:00+01:00",
