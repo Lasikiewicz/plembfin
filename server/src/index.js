@@ -1938,7 +1938,6 @@ async function handleTestPlexNotifications(req, res) {
 const inflight = new Map();
 
 async function handlePoster(req, res) {
-  console.log(`[POSTER] Request started: method=${req.method}, id=${req.query.id}`);
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
@@ -1946,13 +1945,8 @@ async function handlePoster(req, res) {
 
   try {
     const rowId = String(req.query.id || "");
-    console.log(`[POSTER] Fetching watch record: rowId=${rowId}`);
     const row = await getWatchRecordByIdLight(rowId);
-    if (!row) {
-      console.log(`[POSTER] Watch record not found: rowId=${rowId}`);
-      return sendJson(res, { error: "not found" }, 404);
-    }
-    console.log(`[POSTER] Got row: ${row.title}`);
+    if (!row) return sendJson(res, { error: "not found" }, 404);
 
     const fallbackRequested = ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase());
     const config = await loadMediaConfig().catch(() => ({}));
@@ -1964,14 +1958,11 @@ async function handlePoster(req, res) {
 
     // If another request is already processing this mediaKey, wait for it to complete.
     if (inflight.has(mediaKey)) {
-      console.log(`Poster request waiting for inflight: rowId=${rowId}, mediaKey=${mediaKey}`);
       await inflight.get(mediaKey);
       const recheck = usableCachedPoster(await getPosterCache(mediaKey));
       if (recheck?.url || recheck?.cached) return sendJson(res, recheck, 200, cacheHeaders);
       return sendJson(res, { url: null, cached: true, source: "missing" }, 200, cacheHeaders);
     }
-
-    console.log(`Poster request processing: rowId=${rowId}, mediaKey=${mediaKey}`);
 
     // Mark this mediaKey as inflight and process it.
     // Other concurrent requests will wait for this to complete.
@@ -2027,6 +2018,15 @@ async function handlePoster(req, res) {
         for (const candidate of candidates) {
           if (!candidate.url || seen.has(candidate.url)) continue;
           seen.add(candidate.url);
+
+          // If the URL is already a cached storage image, return it directly
+          if (isCachedStorageUrl(candidate.url)) {
+            await updateWatchPosterUrl(rowId, candidate.url).catch((error) => {
+              console.error("Failed to persist poster URL", { id: row.id, title: row.title, error: error.message || String(error) });
+            });
+            return { url: candidate.url, cached: true, source: candidate.source };
+          }
+
           const cachedPoster = await cachePosterFromUrl(mediaKey, candidate.url, candidate.source);
           if (cachedPoster?.url) {
             await updateWatchPosterUrl(rowId, cachedPoster.url).catch((error) => {
@@ -2035,7 +2035,6 @@ async function handlePoster(req, res) {
             return cachedPoster;
           }
         }
-
         await markPosterMissing(mediaKey, "poster", "No usable poster candidate").catch(() => null);
         return { url: null, cached: true, source: "missing" };
       } catch (error) {
