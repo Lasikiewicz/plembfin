@@ -1126,6 +1126,11 @@ async function handleWebhook(req, res) {
   }).catch(() => null);
 
   if (!media.isValid) {
+    await recordSyncHistory(media, {
+      status: "skipped",
+      details: `Webhook ignored: ${media.phase === "ignored" ? "unsupported event" : "missing required media fields"}`,
+      targetStates: [],
+    }, media.phase || "webhook").catch(() => null);
     return sendJson(res, {
       ok: true,
       inserted: false,
@@ -1141,15 +1146,35 @@ async function handleWebhook(req, res) {
 
   if (config) {
     if (config[media.source]?.disabled) {
+      await recordSyncHistory(media, {
+        status: "skipped",
+        details: "Webhook ignored because source platform is disabled",
+        targetStates: [],
+      }, media.phase || "webhook").catch(() => null);
       return sendJson(res, { ok: true, ignored: true, reason: "Source platform is disabled" });
     }
     if (media.source === "plex" && shouldIgnoreWebhookUser(media.user, config.plex?.username, { strictName: true })) {
+      await recordSyncHistory(media, {
+        status: "skipped",
+        details: "Webhook ignored because Plex user did not match configured user",
+        targetStates: [],
+      }, media.phase || "webhook").catch(() => null);
       return sendJson(res, { ok: true, ignored: true, reason: "User mismatch" });
     }
     if (media.source === "emby" && shouldIgnoreWebhookUser(media.user, config.emby?.userId)) {
+      await recordSyncHistory(media, {
+        status: "skipped",
+        details: "Webhook ignored because Emby user did not match configured user",
+        targetStates: [],
+      }, media.phase || "webhook").catch(() => null);
       return sendJson(res, { ok: true, ignored: true, reason: "User mismatch" });
     }
     if (media.source === "jellyfin" && shouldIgnoreWebhookUser(media.user, config.jellyfin?.userId)) {
+      await recordSyncHistory(media, {
+        status: "skipped",
+        details: "Webhook ignored because Jellyfin user did not match configured user",
+        targetStates: [],
+      }, media.phase || "webhook").catch(() => null);
       return sendJson(res, { ok: true, ignored: true, reason: "User mismatch" });
     }
   }

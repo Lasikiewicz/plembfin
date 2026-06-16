@@ -1076,19 +1076,75 @@ function openEditDateDialog(_container, id, currentWatchedAt, onSaved) {
   document.body.appendChild(overlay);
 }
 
+function fullShowWatchedRows(showTitle = "", fallbackRows = []) {
+  const showKey = slug(showTitle);
+  const show = state.showsRaw.find((item) => slug(item.title) === showKey);
+  const rows = [];
+  const seen = new Set();
+
+  const addRow = (row) => {
+    if (!row?.id || !isWatchedHistoryAction(row) || seen.has(row.id)) return;
+    seen.add(row.id);
+    rows.push(row);
+  };
+
+  for (const episode of show?.episodes || []) addRow(episode);
+  for (const episode of fallbackRows || []) addRow(episode);
+  for (const row of state.history || []) {
+    if (row.media_type !== "episode") continue;
+    const rowShowTitle = row.show_title || showTitleFrom(row.title);
+    if (slug(rowShowTitle) === showKey) addRow(row);
+  }
+
+  return rows;
+}
+
 function openEditShowDateDialog(showTitle, watchedRows = []) {
-  const rows = watchedRows.filter((row) => row?.id);
+  const rows = fullShowWatchedRows(showTitle, watchedRows);
   if (!rows.length) {
     setMessage("There are no watched episodes to update.", "error");
     return;
   }
 
   const latest = rows.reduce((value, row) => row.watched_at > value ? row.watched_at : value, rows[0].watched_at || "");
-  openEditDateDialog(null, rows[0].id, latest, async ({ watched_at }) => {
-    const remaining = rows.slice(1);
+  document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
+
+  const overlay = document.createElement("div");
+  overlay.className = "edit-dialog-overlay";
+  overlay.addEventListener("click", (event) => { if (event.target === overlay) overlay.remove(); });
+  overlay.innerHTML = `
+    <div class="edit-dialog glass-panel">
+      <h3>Edit Show Watch Date</h3>
+      <p class="muted-copy">Updates ${rows.length} watched episode date${rows.length === 1 ? "" : "s"} for ${escapeHtml(showTitle || "this show")}.</p>
+      <label class="field-label">
+        Watched at
+        <input type="datetime-local" class="field edit-date-input" value="${escapeAttribute(watchedAtToInputValue(latest))}" />
+      </label>
+      <div class="edit-dialog-actions">
+        <button class="button-primary edit-dialog-save" type="button">Save</button>
+        <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
+      </div>
+      <p class="edit-dialog-status"></p>
+    </div>
+  `;
+
+  overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
+  overlay.querySelector(".edit-dialog-save").addEventListener("click", async () => {
+    const input = overlay.querySelector(".edit-date-input");
+    const status = overlay.querySelector(".edit-dialog-status");
+    const saveButton = overlay.querySelector(".edit-dialog-save");
+    const value = input.value;
+    if (!value) { status.textContent = "Please enter a date."; return; }
+
+    const watched_at = new Date(value).toISOString();
+    saveButton.disabled = true;
+    status.textContent = `Saving 0/${rows.length}...`;
     try {
-      for (const row of remaining) {
+      let saved = 0;
+      for (const row of rows) {
         await apiUpdateWatch(row.id, { watched_at });
+        saved += 1;
+        status.textContent = `Saving ${saved}/${rows.length}...`;
       }
 
       for (const row of rows) row.watched_at = watched_at;
@@ -1110,11 +1166,16 @@ function openEditShowDateDialog(showTitle, watchedRows = []) {
       } else if (state.activeShowTmdbId) {
         await openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
       }
+      overlay.remove();
       setMessage(`Updated ${rows.length} watched episode date${rows.length === 1 ? "" : "s"}.`, "success");
     } catch (error) {
+      saveButton.disabled = false;
       setMessage(`Show watch date update failed: ${error.message}`, "error");
+      status.textContent = `Error: ${error.message}`;
     }
   });
+
+  document.body.appendChild(overlay);
 }
 
 function openConfirmDialog({ title = "Are you sure?", body = "", confirmLabel = "Confirm", cancelLabel = "Cancel", danger = false } = {}) {
@@ -9136,8 +9197,8 @@ function attachEvents() {
 
     const editShowDateBtn = event.target.closest(".media-edit-show-date-btn");
     if (editShowDateBtn) {
-      const watchedRows = state.showModalEpisodes.map((episode) => episode.watched).filter(Boolean);
-      openEditShowDateDialog(editShowDateBtn.dataset.showTitle || "", watchedRows);
+      const fallbackRows = state.showModalEpisodes.map((episode) => episode.watched).filter(Boolean);
+      openEditShowDateDialog(editShowDateBtn.dataset.showTitle || "", fallbackRows);
       return;
     }
 

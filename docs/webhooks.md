@@ -35,6 +35,10 @@ Phase determination highlights:
   `completed`; `markunplayed`/`played=false` → `unplayed`; `playbackstop` →
   `completed` if ≥ 90 else `ended`; configured progress events → `active`.
 
+For Emby, enable **Send All Properties** on the webhook. Without the full item
+payload, Plembfin may receive an event without enough title/type/progress data to
+record a watched item.
+
 ## Propagation (sync)
 
 For watched/unwatched events, `syncMediaPlaystate()` (and the unplayed/progress
