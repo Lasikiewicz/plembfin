@@ -299,7 +299,8 @@ export async function setJellyfinProgress(config, media) {
 
     const apiKey = jellyfinApiKey(config);
     const positionMs = Math.max(0, Math.round(Number(media.positionMs ?? media.offsetMs ?? 0)));
-    if (!positionMs) {
+    const hasPosition = media.positionMs !== undefined || media.offsetMs !== undefined;
+    if (!hasPosition) {
       return { platform: "jellyfin", status: "skipped", detail: "No resume position supplied" };
     }
 

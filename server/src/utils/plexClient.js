@@ -352,7 +352,8 @@ export async function setPlexProgress(config, media) {
     }
 
     const positionMs = Math.max(0, Math.round(Number(media.positionMs ?? media.offsetMs ?? 0)));
-    if (!positionMs) {
+    const hasPosition = media.positionMs !== undefined || media.offsetMs !== undefined;
+    if (!hasPosition) {
       return { platform: "plex", status: "skipped", detail: "No resume position supplied" };
     }
 
