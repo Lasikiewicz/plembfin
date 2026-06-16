@@ -1,7 +1,14 @@
 {
-  "version": "0.0.23",
-  "updatedAt": "2026-06-16T10:12:53+01:00",
+  "version": "0.0.24",
+  "updatedAt": "2026-06-16T11:11:26+01:00",
   "entries": [
+    {
+      "version": "0.0.24",
+      "date": "2026-06-16T11:11:26+01:00",
+      "commit": "859ff32123b7e9e977b1e062d71dba08fe55a9ab",
+      "message": "chore: commit pending changes",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.23",
       "date": "2026-06-16T10:12:53+01:00",
