@@ -609,20 +609,25 @@ function renderWatchBackups() {
        </div>`
     : "";
 
-  const remoteLoading = state.remoteBackupFilesLoading
-    ? `<div class="empty-log" style="padding: var(--space-2);"><span>Loading remote backups…</span></div>`
-    : "";
+  let remoteLoading = "";
+  if (state.remoteBackupFilesLoading) {
+    const destNames = Array.isArray(state.watchBackups?.destinations)
+      ? state.watchBackups.destinations.map((d) => d.label || d.type).filter(Boolean)
+      : [];
+    const destText = destNames.length ? ` (${destNames.map(escapeHtml).join(", ")})` : "";
+    remoteLoading = `<div class="remote-search-banner"><span class="remote-search-spinner"></span><span>Searching remote destinations${destText} for backups…</span></div>`;
+  }
 
   const clearMode = state.restoreClearMode || "reconcile";
   const clearModeSelector = `
-    <div class="restore-clear-mode backup-runtime" style="margin-bottom: var(--space-3); display: grid; gap: var(--space-2);">
-      <div style="font-weight: 600;">Restoring makes this backup the source of truth — it is pushed to every connected app. Choose how to clear the apps first:</div>
-      <label style="display: flex; gap: var(--space-2); align-items: flex-start; cursor: pointer;">
-        <input type="radio" name="restoreClearMode" value="reconcile" ${clearMode === "reconcile" ? "checked" : ""} data-restore-clear-mode style="margin-top: 3px;">
+    <div class="restore-clear-mode" style="margin-bottom: var(--space-3);">
+      <div class="restore-clear-intro">Restoring makes this backup the source of truth — it is pushed to every connected app. Choose how to clear the apps first:</div>
+      <label>
+        <input type="radio" name="restoreClearMode" value="reconcile" ${clearMode === "reconcile" ? "checked" : ""} data-restore-clear-mode>
         <span><b>Reconcile tracked items</b> — push only the items this backup knows about. Fast. Apps keep any extra watched items the backup never tracked.</span>
       </label>
-      <label style="display: flex; gap: var(--space-2); align-items: flex-start; cursor: pointer;">
-        <input type="radio" name="restoreClearMode" value="wipe" ${clearMode === "wipe" ? "checked" : ""} data-restore-clear-mode style="margin-top: 3px;">
+      <label>
+        <input type="radio" name="restoreClearMode" value="wipe" ${clearMode === "wipe" ? "checked" : ""} data-restore-clear-mode>
         <span><b>Full wipe then push</b> — mark every currently-watched item on each app as unwatched, then re-apply only the backup's watched set. Apps end up matching the backup exactly. Slower.</span>
       </label>
     </div>`;
@@ -644,7 +649,7 @@ function renderWatchBackups() {
         </button>
       </div>
     </article>
-  `).join("") : `<div class="empty-log"><b>No backups found</b><span>Backups will appear here once created or after remote destinations are configured.</span></div>`);
+  `).join("") : (state.remoteBackupFilesLoading ? "" : `<div class="empty-log"><b>No backups found</b><span>Backups will appear here once created or after remote destinations are configured.</span></div>`));
 }
 
 async function loadRemoteBackupsForRestoreTab() {
@@ -1129,11 +1134,13 @@ async function runAuthoritativeRestore(payload) {
 }
 
 // Poll the watch-backups status endpoint, appending new restore-job log lines to the terminal
-// until the job is no longer active. Returns the job result.
+// until the job is actually finished (restoreSync.active === false). A large restore can run a
+// long time, so we keep following it (high safety cap ~3h) instead of giving up early.
 async function pollRestoreProgress(terminal) {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const MAX_TICKS = 5400; // ~3h at 2s
   let printed = 0;
-  for (let i = 0; i < 600; i++) {
+  for (let i = 0; i < MAX_TICKS; i++) {
     let data;
     try {
       const response = await fetch("/api/watch-backups", { headers: authHeaders(), cache: "no-store" });
@@ -1157,6 +1164,7 @@ async function pollRestoreProgress(terminal) {
     }
     await sleep(2000);
   }
+  if (terminal) terminal.textContent += "[Note] Still running — stopped following the log. Check the server logs for completion.\n";
   return null;
 }
 
