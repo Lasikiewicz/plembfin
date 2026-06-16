@@ -4,7 +4,7 @@ import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/
 import { appendSyncHistory, loadMediaConfig, loadRuntimeState, setRuntimeState } from "./utils/configStore.js";
 import { createLoopStore } from "./utils/loopStore.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
-import { isCronSyncPaused } from "./utils/watchHistoryBackups.js";
+import { isCronSyncPaused, loadWatchBackupRuntime } from "./utils/watchHistoryBackups.js";
 import {
   deleteLiveTrackingCacheRows,
   deletePlaybackProgress,
@@ -750,6 +750,11 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       const existing = await findExistingWatch(key, watchedAt);
 
       if (!existing) {
+        const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
+        if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
+          logger(`Plex: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
+          continue;
+        }
         logger(`Plex: detected new watched item: ${media.title} (watched at ${watchedAt})`);
         const watchRecord = mediaToWatchRecord(media, "plex");
         watchRecord.watched_at = watchedAt;
@@ -833,6 +838,11 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
       const existing = await findWatchedByAnyMediaKey(media);
 
       if (!existing) {
+        const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
+        if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
+          logger(`Emby: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
+          continue;
+        }
         logger(`Emby: detected new watched item: ${media.title} (${watchedAtReason} ${watchedAt})`);
         const watchRecord = mediaToWatchRecord(media, "emby");
         watchRecord.watched_at = watchedAt;
@@ -915,6 +925,11 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       const existing = await findWatchedByAnyMediaKey(media);
 
       if (!existing) {
+        const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
+        if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
+          logger(`Jellyfin: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
+          continue;
+        }
         logger(`Jellyfin: detected new watched item: ${media.title} (${watchedAtReason} ${watchedAt})`);
         const watchRecord = mediaToWatchRecord(media, "jellyfin");
         watchRecord.watched_at = watchedAt;
