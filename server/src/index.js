@@ -1933,7 +1933,12 @@ async function handleTestPlexNotifications(req, res) {
   return sendJson(res, result, result.ok ? 200 : 502);
 }
 
+// Deduplicate concurrent poster requests by mediaKey to prevent race conditions.
+// Maps mediaKey -> Promise that resolves when poster processing is complete.
+const inflight = new Map();
+
 async function handlePoster(req, res) {
+  console.log(`[POSTER] Request started: method=${req.method}, id=${req.query.id}`);
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
@@ -1941,77 +1946,120 @@ async function handlePoster(req, res) {
 
   try {
     const rowId = String(req.query.id || "");
+    console.log(`[POSTER] Fetching watch record: rowId=${rowId}`);
     const row = await getWatchRecordByIdLight(rowId);
-    if (!row) return sendJson(res, { error: "not found" }, 404);
+    if (!row) {
+      console.log(`[POSTER] Watch record not found: rowId=${rowId}`);
+      return sendJson(res, { error: "not found" }, 404);
+    }
+    console.log(`[POSTER] Got row: ${row.title}`);
 
     const fallbackRequested = ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase());
     const config = await loadMediaConfig().catch(() => ({}));
     const mediaKey = row.media_key || mediaKeyFor(row);
+
+    // Check for fresh cached result first (before deduplication check).
     const cached = usableCachedPoster(await getPosterCache(mediaKey));
     if (cached?.url || cached?.cached) return sendJson(res, cached, 200, cacheHeaders);
 
-    if (row.poster_url && !fallbackRequested && isCachedStorageUrl(row.poster_url)) {
-      return sendJson(res, { url: row.poster_url, cached: true, source: "storage" }, 200, cacheHeaders);
+    // If another request is already processing this mediaKey, wait for it to complete.
+    if (inflight.has(mediaKey)) {
+      console.log(`Poster request waiting for inflight: rowId=${rowId}, mediaKey=${mediaKey}`);
+      await inflight.get(mediaKey);
+      const recheck = usableCachedPoster(await getPosterCache(mediaKey));
+      if (recheck?.url || recheck?.cached) return sendJson(res, recheck, 200, cacheHeaders);
+      return sendJson(res, { url: null, cached: true, source: "missing" }, 200, cacheHeaders);
     }
 
-    const candidates = [];
-    if (row.poster_url && !fallbackRequested) {
-      if (/^https?:\/\//i.test(row.poster_url)) candidates.push({ url: row.poster_url, source: "stored" });
-      const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
-      if (configuredUrl) candidates.push({ url: configuredUrl, source: configForPosterSource(config, row.source).source || "configured" });
-    }
+    console.log(`Poster request processing: rowId=${rowId}, mediaKey=${mediaKey}`);
 
-    if (String(row.source || "").toLowerCase().includes("plex") && config.plex?.baseUrl && config.plex?.token) {
-      const item = await findPlexItem(config.plex, {
-        title: row.title,
-        type: row.media_type,
-        ids: { imdb: row.imdb_id || null, tmdb: row.tmdb_id || null, tvdb: row.tvdb_id || null },
-        season: row.season || null,
-        episode: row.episode || null,
-      }).catch((error) => {
-        console.error("Poster Plex lookup failed", { id: row.id, title: row.title, error: error.message || String(error) });
+    // Mark this mediaKey as inflight and process it.
+    // Other concurrent requests will wait for this to complete.
+    const processingPromise = (async () => {
+      try {
+        if (row.poster_url && !fallbackRequested && isCachedStorageUrl(row.poster_url)) {
+          return { url: row.poster_url, cached: true, source: "storage" };
+        }
+
+        const candidates = [];
+        if (row.poster_url && !fallbackRequested) {
+          if (/^https?:\/\//i.test(row.poster_url)) candidates.push({ url: row.poster_url, source: "stored" });
+          const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
+          if (configuredUrl) candidates.push({ url: configuredUrl, source: configForPosterSource(config, row.source).source || "configured" });
+        }
+
+        if (String(row.source || "").toLowerCase().includes("plex") && config.plex?.baseUrl && config.plex?.token) {
+          const item = await findPlexItem(config.plex, {
+            title: row.title,
+            type: row.media_type,
+            ids: { imdb: row.imdb_id || null, tmdb: row.tmdb_id || null, tvdb: row.tvdb_id || null },
+            season: row.season || null,
+            episode: row.episode || null,
+          }).catch((error) => {
+            console.error("Poster Plex lookup failed", { id: row.id, title: row.title, error: error.message || String(error) });
+            return null;
+          });
+          const path = row.media_type === "episode"
+            ? item?.grandparentThumb || item?.parentThumb || item?.thumb || item?.grandparentArt || item?.parentArt || item?.art || ""
+            : item?.thumb || item?.parentThumb || item?.grandparentThumb || item?.art || item?.parentArt || item?.grandparentArt || "";
+          if (path) {
+            const configuredUrl = configuredPosterUrl(path, "plex", config);
+            if (configuredUrl) candidates.push({ url: configuredUrl, source: "plex" });
+          }
+        }
+
+        if (row.poster_url) {
+          const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
+          if (configuredUrl && !fallbackRequested) candidates.push({ url: configuredUrl, source: configForPosterSource(config, row.source).source || "configured" });
+        }
+
+        if (config.tmdb?.apiKey && (fallbackRequested || !row.poster_url || isHttpUrl(row.poster_url) || !/^https?:\/\//i.test(row.poster_url))) {
+          const tmdbPoster = await fetchPosterFromTmdb(row, config.tmdb.apiKey).catch((error) => {
+            console.error("Poster TMDB fallback failed", { id: row.id, title: row.title, error: error.message || String(error) });
+            return null;
+          });
+          if (tmdbPoster) {
+            candidates.push({ url: tmdbPoster, source: "tmdb" });
+          }
+        }
+
+        const seen = new Set();
+        for (const candidate of candidates) {
+          if (!candidate.url || seen.has(candidate.url)) continue;
+          seen.add(candidate.url);
+          const cachedPoster = await cachePosterFromUrl(mediaKey, candidate.url, candidate.source);
+          if (cachedPoster?.url) {
+            await updateWatchPosterUrl(rowId, cachedPoster.url).catch((error) => {
+              console.error("Failed to persist cached poster URL", { id: row.id, title: row.title, error: error.message || String(error) });
+            });
+            return cachedPoster;
+          }
+        }
+
+        await markPosterMissing(mediaKey, "poster", "No usable poster candidate").catch(() => null);
+        return { url: null, cached: true, source: "missing" };
+      } catch (error) {
+        console.error("Poster processing failed", { id: rowId, mediaKey, error: error.message || String(error) });
         return null;
-      });
-      const path = row.media_type === "episode"
-        ? item?.grandparentThumb || item?.parentThumb || item?.thumb || item?.grandparentArt || item?.parentArt || item?.art || ""
-        : item?.thumb || item?.parentThumb || item?.grandparentThumb || item?.art || item?.parentArt || item?.grandparentArt || "";
-      if (path) {
-        const configuredUrl = configuredPosterUrl(path, "plex", config);
-        if (configuredUrl) candidates.push({ url: configuredUrl, source: "plex" });
       }
+    })();
+
+    inflight.set(mediaKey, processingPromise);
+    const result = await processingPromise;
+    inflight.delete(mediaKey);
+
+    if (result) {
+      return sendJson(res, result, 200, cacheHeaders);
     }
 
-    if (row.poster_url) {
-      const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
-      if (configuredUrl && !fallbackRequested) candidates.push({ url: configuredUrl, source: configForPosterSource(config, row.source).source || "configured" });
+    // If result is null (error occurred), try to return cached result or error response.
+    const fallback = usableCachedPoster(await getPosterCache(mediaKey));
+    if (fallback?.url || fallback?.cached) {
+      return sendJson(res, fallback, 200, cacheHeaders);
     }
-
-    if (config.tmdb?.apiKey && (fallbackRequested || !row.poster_url || isHttpUrl(row.poster_url) || !/^https?:\/\//i.test(row.poster_url))) {
-      const tmdbPoster = await fetchPosterFromTmdb(row, config.tmdb.apiKey).catch((error) => {
-        console.error("Poster TMDB fallback failed", { id: row.id, title: row.title, error: error.message || String(error) });
-        return null;
-      });
-      if (tmdbPoster) {
-        candidates.push({ url: tmdbPoster, source: "tmdb" });
-      }
-    }
-
-    const seen = new Set();
-    for (const candidate of candidates) {
-      if (!candidate.url || seen.has(candidate.url)) continue;
-      seen.add(candidate.url);
-      const cachedPoster = await cachePosterFromUrl(mediaKey, candidate.url, candidate.source);
-      if (cachedPoster?.url) {
-        await updateWatchPosterUrl(rowId, cachedPoster.url).catch((error) => {
-          console.error("Failed to persist cached poster URL", { id: row.id, title: row.title, error: error.message || String(error) });
-        });
-        return sendJson(res, cachedPoster, 200, cacheHeaders);
-      }
-    }
-
-    await markPosterMissing(mediaKey, "poster", "No usable poster candidate").catch(() => null);
-    return sendJson(res, { url: null, cached: true, source: "missing" }, 200, cacheHeaders);
+    return sendJson(res, { url: null, cached: false, source: "error" }, 200, cacheHeaders);
   } catch (error) {
+    inflight.delete(String(req.query.id || ""));
     console.error("Poster lookup failed", { id: String(req.query.id || ""), error: error.message || String(error) });
     return sendJson(res, { url: null, cached: false, source: "error" }, 200, cacheHeaders);
   }
