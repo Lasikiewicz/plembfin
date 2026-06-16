@@ -11,6 +11,7 @@ import {
   findExistingWatch,
   findWatchedByMediaKey,
   getCachedHistory,
+  getPlaybackProgressForMedia,
   getPlaystateForMedia,
   insertWatchRecord,
   invalidateHistoryDerivedCaches,
@@ -490,6 +491,13 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
   if (existingPlaystate && (!resumeUpdatedAt || playstateUpdatedAt >= resumeUpdatedAt)) {
     await deletePlaybackProgress(requireDb(), media).catch(() => null);
     logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (newer ${existingPlaystate.state} playstate)`);
+    return false;
+  }
+
+  const existingProgress = await getPlaybackProgressForMedia(requireDb(), media).catch(() => null);
+  const progressUpdatedAt = Number(existingProgress?.updated_at || 0);
+  if (existingProgress && (!resumeUpdatedAt || progressUpdatedAt >= resumeUpdatedAt)) {
+    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (stale resume progress)`);
     return false;
   }
 

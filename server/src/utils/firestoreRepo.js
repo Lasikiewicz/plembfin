@@ -573,6 +573,7 @@ const updateProgressTelemetryStmt = db.prepare(
    ON CONFLICT(media_key) DO UPDATE SET sync_dispatch_telemetry=excluded.sync_dispatch_telemetry, updated_at=excluded.updated_at`,
 );
 const deleteProgressStmt = db.prepare("DELETE FROM playback_progress WHERE media_key = ?");
+const selectProgressStmt = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?");
 const selectProgressReplayStmt = db.prepare("SELECT * FROM playback_progress ORDER BY updated_at DESC LIMIT ? OFFSET ?");
 const countProgressStmt = db.prepare("SELECT COUNT(*) AS c FROM playback_progress");
 
@@ -674,6 +675,12 @@ export async function upsertPlaybackProgress(_unusedDb, record) {
 export async function updatePlaybackProgressTelemetry(_unusedDb, mediaOrRecord, telemetry) {
   const normalized = normalizePlaybackProgressRecord(mediaOrRecord, mediaOrRecord?.source);
   updateProgressTelemetryStmt.run(normalized.media_key, String(telemetry || ""), Date.now());
+}
+
+export async function getPlaybackProgressForMedia(_unusedDb, mediaOrRecord) {
+  const normalized = normalizePlaybackProgressRecord(mediaOrRecord, mediaOrRecord?.source);
+  const row = selectProgressStmt.get(normalized.media_key);
+  return row ? playbackProgressFromRow(row) : null;
 }
 
 export async function deletePlaybackProgress(_unusedDb, mediaOrRecord) {
