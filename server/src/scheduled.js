@@ -35,6 +35,11 @@ import {
 const SCHEDULED_RECENT_WATCH_LIMIT = 50;
 const SCHEDULED_RESUME_LIMIT = 50;
 
+// Fallback cadence for the legacy Plex unwatch poll. Primary detection is the realtime
+// notification listener; this poll only backstops events missed while the socket was down.
+const PLEX_UNWATCHED_POLL_INTERVAL_MS = 10 * 60 * 1000;
+let lastPlexUnwatchedPollAt = 0;
+
 function buildTelemetry(media, summary) {
   const targetStates = summary?.targetStates || [];
   return [
@@ -369,7 +374,12 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
   const records = (await listRecentTrackedWatchRows({ limit: 100 })).filter(
     (record) =>
       record.watched_at < threeMinutesAgo &&
-      (["plex", "plex_initial_sync"].includes(record.source) || String(record.sync_dispatch_telemetry || "").includes("Target Plex status: success")),
+      // Source originated on Plex, OR a previous sync successfully marked Plex watched.
+      // Telemetry is written in two formats ("Target plex status: success" by the cron,
+      // "Plex status: success" by the webhook path), so match case-insensitively on the
+      // common "plex status: success" suffix rather than a single exact string.
+      (["plex", "plex_initial_sync"].includes(record.source) ||
+        String(record.sync_dispatch_telemetry || "").toLowerCase().includes("plex status: success")),
   ).slice(0, 30);
 
   for (const record of records) {
@@ -1216,8 +1226,13 @@ export async function runScheduledSync(logger = console.log) {
     return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true };
   }
 
-  if (plexActive) {
-    logger("Scheduled Sync: checking Plex unwatched status...");
+  // Plex unwatch detection is now primarily event-driven via the notification WebSocket
+  // (see startPlexNotificationListener in index.js). This poll is kept as a safety net for
+  // events missed while the socket was disconnected, but throttled to ~every 10 minutes so
+  // it no longer drives detection or re-scans every tick.
+  if (plexActive && Date.now() - lastPlexUnwatchedPollAt >= PLEX_UNWATCHED_POLL_INTERVAL_MS) {
+    lastPlexUnwatchedPollAt = Date.now();
+    logger("Scheduled Sync: checking Plex unwatched status (fallback poll)...");
     await checkPlexUnwatchedStatus(config, loopStore).catch((error) => {
       logger(`Scheduled Sync ERROR: checkPlexUnwatchedStatus failed: ${error.message}`);
     });

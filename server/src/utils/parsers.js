@@ -376,6 +376,34 @@ export async function parsePlexWebhook(formData) {
   }
 }
 
+// Builds a normalized media object from a Plex `/library/metadata/{ratingKey}` item
+// (i.e. without a webhook event payload). Plex never emits a webhook when an item is
+// marked unwatched, so the real-time notification listener resolves the changed
+// ratingKey to its metadata and runs it through this builder. It reuses the exact same
+// GUID/title/coordinate extraction as the webhook path, so `media.ids`, `media.title`,
+// `media.season` and `media.episode` are identical to a Plex webhook — which is what
+// lets the Emby and Jellyfin clients match the item the same way they do for any sync.
+export function buildPlexMediaFromMetadata(metadata = {}, { phase = "unplayed" } = {}) {
+  const type = normalizeType(metadata.type);
+  const ids = parsePlexGuids(metadata);
+  const title = extractTitle(type, metadata, "plex");
+  return buildPayload({
+    type,
+    source: "plex",
+    title,
+    ids,
+    season: metadata.parentIndex,
+    episode: metadata.index,
+    event: "notification.viewstate",
+    phase,
+    user: "",
+    itemId: metadata.ratingKey,
+    poster: plexPosterInfo(metadata, type),
+    episodeTitle: type === "episode" ? metadata.title : null,
+    rawPayloadDebug: { source: "plex_notification", ratingKey: metadata.ratingKey },
+  });
+}
+
 export function parseJellyfinWebhook(json) {
   try {
     const item = pickWebhookItem(json);

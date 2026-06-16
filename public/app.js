@@ -8834,6 +8834,29 @@ async function runSystemIntegrityCheck() {
     results.push({ name: "Plex Media Server", status: "skipped", detail: "Skipped - URL or token not provided." });
   }
 
+  // 6b. Plex Realtime Notifications (event-driven unwatch detection)
+  if (plexUrl && plexToken) {
+    try {
+      const startTime = Date.now();
+      const response = await fetch("/api/test-plex-notifications", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ url: plexUrl, token: plexToken }),
+      });
+      const body = await response.json().catch(() => ({}));
+      const elapsed = Date.now() - startTime;
+      if (response.ok && body.ok) {
+        results.push({ name: "Plex Realtime Notifications", status: "success", detail: `Notification WebSocket connected in ${body.elapsedMs || elapsed}ms. Event-driven unwatch detection is active.` });
+      } else {
+        results.push({ name: "Plex Realtime Notifications", status: "warning", detail: `${body.error || `Unavailable (HTTP ${response.status})`}. Unwatch sync falls back to the periodic poll.` });
+      }
+    } catch (error) {
+      results.push({ name: "Plex Realtime Notifications", status: "warning", detail: `Check failed: ${error.message}. Unwatch sync falls back to the periodic poll.` });
+    }
+  } else {
+    results.push({ name: "Plex Realtime Notifications", status: "skipped", detail: "Skipped - Plex URL or token not provided." });
+  }
+
   // 7. Check Emby
   if (embyUrl && embyApiKey) {
     try {
@@ -8917,6 +8940,9 @@ async function runSystemIntegrityCheck() {
         fixInstruction = "Fix: Open the latest history row debug details, review sync_dispatch_telemetry, then correct the failed platform credentials or provider-ID match.";
       } else if (res.name === "Plex Media Server") {
         fixInstruction = "Fix: Enter the Plex Server URL and Plex Token in Settings, then confirm the server is reachable from Firebase Functions.";
+      } else if (res.name === "Plex Realtime Notifications") {
+        fixInstruction = "Fix: Ensure any reverse proxy / Cloudflare in front of Plex forwards WebSocket upgrades on /:/websockets/notifications, or set the Plex Server URL to the direct LAN address (e.g. http://192.168.x.x:32400). Unwatch sync still works via the fallback poll until this is fixed.";
+        helpTopic = "webhooks";
       } else if (res.name === "Emby Media Server") {
         fixInstruction = "Fix: Enter the Emby Server URL, API Key, and User ID in Settings, then confirm the server is reachable from Firebase Functions.";
       } else if (res.name === "Jellyfin Media Server") {

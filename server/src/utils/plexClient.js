@@ -409,6 +409,27 @@ export async function markPlexUnplayedByRatingKey(config, ratingKey) {
   return { platform: "plex", status: "fulfilled", itemId: ratingKey, httpStatus: response.status };
 }
 
+// Fetches a single library item by its native ratingKey, including provider GUIDs and
+// the requesting token's user data (viewCount / viewOffset). Used by the notification
+// listener to resolve a changed ratingKey into a media object and decide whether the
+// item transitioned to unwatched. Returns null when the item no longer exists.
+export async function fetchPlexMetadataItem(config, ratingKey) {
+  requirePlexConfig(config);
+  if (!ratingKey) return null;
+
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/library/metadata/${encodeURIComponent(ratingKey)}`);
+  url.searchParams.set("includeGuids", "1");
+  url.searchParams.set("X-Plex-Token", config.token);
+
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`Plex metadata lookup failed with status ${response.status} for ratingKey ${ratingKey}`);
+  }
+  const body = await response.json();
+  return body?.MediaContainer?.Metadata?.[0] || null;
+}
+
 export async function fetchPlexWatchedItems(config) {
   requirePlexConfig(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
