@@ -413,6 +413,13 @@ async function processCompletedSession(row, config, loopStore) {
     return null;
   }
 
+  // Invariant: never re-date an already-watched item to today. If plembfin already has this title
+  // marked watched, don't post a fresh Date.now() record from the live tracker.
+  const knownPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
+  if (knownPlaystate?.state === "watched") {
+    return null;
+  }
+
   await markLiveTrackingComplete(requireDb(), row.session_id, Date.now());
 
   const watchRecord = mediaToWatchRecord(
@@ -766,6 +773,14 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       const existing = await findExistingWatch(key, watchedAt);
 
       if (!existing) {
+        // Invariant: never re-date an already-watched item to today. If plembfin already has it
+        // marked watched, preserve the earlier date and skip — the app reporting it watched (e.g.
+        // because a restore just scrobbled it) must not create a today-dated record.
+        const knownPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
+        if (knownPlaystate?.state === "watched") {
+          logger(`Plex: ${media.title} already watched; preserving earlier date (no today-dated record)`);
+          continue;
+        }
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
         if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
           logger(`Plex: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
@@ -854,6 +869,12 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
       const existing = await findWatchedByAnyMediaKey(media);
 
       if (!existing) {
+        // Invariant: never re-date an already-watched item to today (see Plex path above).
+        const knownPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
+        if (knownPlaystate?.state === "watched") {
+          logger(`Emby: ${media.title} already watched; preserving earlier date (no today-dated record)`);
+          continue;
+        }
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
         if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
           logger(`Emby: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
@@ -941,6 +962,12 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       const existing = await findWatchedByAnyMediaKey(media);
 
       if (!existing) {
+        // Invariant: never re-date an already-watched item to today (see Plex path above).
+        const knownPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
+        if (knownPlaystate?.state === "watched") {
+          logger(`Jellyfin: ${media.title} already watched; preserving earlier date (no today-dated record)`);
+          continue;
+        }
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
         if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
           logger(`Jellyfin: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
@@ -1115,11 +1142,16 @@ export async function runScheduledSync(logger = console.log) {
     runtime.forceSyncActive = false;
   }
 
-  // Reset a restore-reconcile flag that got stuck (e.g. process crashed mid-job) so the cron
-  // isn't blocked forever.
-  const isRestoreSyncStale = runtime.restoreSyncStartedAt ? Number(runtime.restoreSyncStartedAt) < tenMinutesAgo : true;
+  // Only reset the restore-reconcile flag if the job's heartbeat has gone cold (i.e. the process
+  // actually died mid-job). A long-but-alive restore refreshes restoreSyncHeartbeat continuously,
+  // so it is NEVER un-blocked here — that prevents the cron from running mid-push and re-importing
+  // freshly-pushed items as watched-today. (Do NOT use restoreSyncStartedAt: a big push runs far
+  // longer than any fixed timeout.)
+  const RESTORE_HEARTBEAT_STALE_MS = 3 * 60 * 1000;
+  const restoreHeartbeat = Number(runtime.restoreSyncHeartbeat || runtime.restoreSyncStartedAt || 0);
+  const isRestoreSyncStale = !restoreHeartbeat || restoreHeartbeat < Date.now() - RESTORE_HEARTBEAT_STALE_MS;
   if (runtime.restoreSyncActive === true && isRestoreSyncStale) {
-    logger("Scheduled Sync: detected stale restoreSyncActive flag, resetting...");
+    logger("Scheduled Sync: restore heartbeat is cold (>3m); resetting stale restoreSyncActive flag...");
     await setRuntimeState({ restoreSyncActive: false }).catch(() => null);
     runtime.restoreSyncActive = false;
   }
