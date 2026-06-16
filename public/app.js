@@ -1076,6 +1076,47 @@ function openEditDateDialog(_container, id, currentWatchedAt, onSaved) {
   document.body.appendChild(overlay);
 }
 
+function openEditShowDateDialog(showTitle, watchedRows = []) {
+  const rows = watchedRows.filter((row) => row?.id);
+  if (!rows.length) {
+    setMessage("There are no watched episodes to update.", "error");
+    return;
+  }
+
+  const latest = rows.reduce((value, row) => row.watched_at > value ? row.watched_at : value, rows[0].watched_at || "");
+  openEditDateDialog(null, rows[0].id, latest, async ({ watched_at }) => {
+    const remaining = rows.slice(1);
+    try {
+      for (const row of remaining) {
+        await apiUpdateWatch(row.id, { watched_at });
+      }
+
+      for (const row of rows) row.watched_at = watched_at;
+      const showKey = slug(showTitle);
+      const show = state.showsRaw.find((item) => slug(item.title) === showKey);
+      if (show?.episodes) {
+        const ids = new Set(rows.map((row) => row.id));
+        for (const episode of show.episodes) {
+          if (ids.has(episode.id)) episode.watched_at = watched_at;
+        }
+        show.latest_watched_at = show.episodes.reduce((value, episode) => episode.watched_at > value ? episode.watched_at : value, "");
+        show.earliest_watched_at = show.episodes.reduce((value, episode) => !value || episode.watched_at < value ? episode.watched_at : value, "");
+      }
+
+      clearDerivedUiCaches({ resetExplorer: false });
+      if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
+      if (state.activeShowModalKey) {
+        renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+      } else if (state.activeShowTmdbId) {
+        await openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+      }
+      setMessage(`Updated ${rows.length} watched episode date${rows.length === 1 ? "" : "s"}.`, "success");
+    } catch (error) {
+      setMessage(`Show watch date update failed: ${error.message}`, "error");
+    }
+  });
+}
+
 function openConfirmDialog({ title = "Are you sure?", body = "", confirmLabel = "Confirm", cancelLabel = "Cancel", danger = false } = {}) {
   return new Promise((resolve) => {
     document.querySelectorAll(".confirm-dialog-overlay").forEach((el) => el.remove());
@@ -6444,6 +6485,7 @@ function renderShowModalContent(show, {
     <button class="action-pill" type="button" data-watch-scope="show" ${(unwatchedRows.length && !isSaving) ? "" : "disabled"}>
       ${isSavingShow ? "Saving watched state…" : "Mark whole show watched"}
     </button>
+    ${watchedRows.length ? `<button class="action-pill media-edit-show-date-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">Edit Show Watch Date</button>` : ""}
     ${tmdbOnly ? "" : `
       <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}">Edit Image</button>
       <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">Fix Match</button>
@@ -6755,8 +6797,11 @@ async function applyMovieWatchDateChoice(choice) {
     const result = await postManualWatchRecords([record]);
     state.savingWatchAction = null;
     clearDerivedUiCaches({ resetExplorer: false });
+    const syncText = result.syncQueued
+      ? `sync queued for ${result.syncQueued} item${result.syncQueued === 1 ? "" : "s"}`
+      : `pushed ${result.propagated} to media apps`;
     setMessage(
-      `Marked "${movie.title}" watched${result.skipped ? " (already logged)" : ""}; pushed ${result.propagated} to media apps.`,
+      `Marked "${movie.title}" watched${result.skipped ? " (already logged)" : ""}; ${syncText}.`,
       result.rejected ? "error" : "success",
     );
     await loadHistory({ force: true }).catch(() => null);
@@ -6837,6 +6882,7 @@ async function postManualWatchRecords(records, onProgress) {
   let skipped = 0;
   let rejected = 0;
   let propagated = 0;
+  let syncQueued = 0;
 
   for (let index = 0; index < records.length; index += IMPORT_BATCH_SIZE) {
     const batch = records.slice(index, index + IMPORT_BATCH_SIZE);
@@ -6851,10 +6897,11 @@ async function postManualWatchRecords(records, onProgress) {
     skipped += Number(body.skipped || 0);
     rejected += Array.isArray(body.rejected) ? body.rejected.length : Number(body.rejected || 0);
     propagated += Number(body.propagated || 0);
+    syncQueued += Number(body.syncQueued || 0);
     onProgress?.(Math.min(index + batch.length, records.length), records.length);
   }
 
-  return { inserted, skipped, rejected, propagated };
+  return { inserted, skipped, rejected, propagated, syncQueued };
 }
 
 async function refreshShowAfterManualWatch(showTitle) {
@@ -6899,8 +6946,11 @@ async function applyWatchDateChoice(choice) {
     state.savingWatchAction = null;
     clearDerivedUiCaches({ resetExplorer: false });
     const totalMarked = result.inserted + result.skipped;
+    const syncText = result.syncQueued
+      ? `sync queued for ${result.syncQueued} item${result.syncQueued === 1 ? "" : "s"}`
+      : `pushed ${result.propagated} to media apps`;
     setMessage(
-      `Marked ${totalMarked} episode${totalMarked === 1 ? "" : "s"} watched; pushed ${result.propagated} to media apps${result.skipped ? `, ${result.skipped} already logged` : ""}.`,
+      `Marked ${totalMarked} episode${totalMarked === 1 ? "" : "s"} watched; ${syncText}${result.skipped ? `, ${result.skipped} already logged` : ""}.`,
       result.rejected ? "error" : "success",
     );
     await refreshShowAfterManualWatch(action.showTitle).catch((error) => setMessage(error.message, "error"));
@@ -9084,6 +9134,13 @@ function attachEvents() {
       return;
     }
 
+    const editShowDateBtn = event.target.closest(".media-edit-show-date-btn");
+    if (editShowDateBtn) {
+      const watchedRows = state.showModalEpisodes.map((episode) => episode.watched).filter(Boolean);
+      openEditShowDateDialog(editShowDateBtn.dataset.showTitle || "", watchedRows);
+      return;
+    }
+
     const fixMatchBtn = event.target.closest(".media-fix-match-btn");
     if (fixMatchBtn) {
       const container = fixMatchBtn.closest(".immersive-container, .modal-body") || document.body;
@@ -10176,8 +10233,18 @@ async function loadCastMemberDetails(personId, personName = null) {
               };
             }
           }
+
+          // "In Library" = on a media server. "Watched" = in watch history but not on a server.
+          // The server provides credit.in_library / credit.in_watch_history as authoritative signals.
+          // findLibraryItem may also find items via the local watched-movies lookup — those are
+          // watched but not necessarily server-sourced, so we rely on credit.in_library for the badge.
+          const isInLibrary = !!credit.in_library;
+          const isWatched = !!(credit.in_watch_history || credit.in_library ||
+            (!isTv && filmographyLookup.allWatchedMovies.some(m => String(m.tmdb_id||"")=== String(credit.id))) ||
+            (isTv && filmographyLookup.allWatchedShows.some(s => String(s.tmdb_id||"")=== String(credit.id))));
           
-          if (libItem) {
+          if (libItem && isInLibrary) {
+            // In Library card: item is physically on a media server
             const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
             const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
             if (isTv) libraryTvCredits.push({ credit, libItem, title });
@@ -10191,6 +10258,24 @@ async function loadCastMemberDetails(personId, personName = null) {
                 </div>
                 <span class="person-credit-badges">
                   <span class="library-badge">In Library</span>
+                  ${isTv ? personWatchBadgeMarkup(watchProgress, credit.id) : `<span class="watch-state-badge is-complete">Watched</span>`}
+                </span>
+              </div>
+            `;
+          } else if (libItem && isWatched) {
+            // Watched card: item is in watch history but NOT on a media server
+            const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
+            const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
+            if (isTv) libraryTvCredits.push({ credit, libItem, title });
+            return `
+              <div class="person-credit-card in-library" onclick="window.openLibraryItem('${libItem.type}', '${escapeAttribute(libItem.id || libItem.key)}', '${escapeAttribute(title)}', true, null);">
+                <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
+                <div class="person-credit-info">
+                  <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
+                  <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
+                  <span class="person-credit-year">${isTv ? 'TV Show' : 'Movie'}</span>
+                </div>
+                <span class="person-credit-badges">
                   ${isTv ? personWatchBadgeMarkup(watchProgress, credit.id) : `<span class="watch-state-badge is-complete">Watched</span>`}
                 </span>
               </div>

@@ -514,6 +514,7 @@ export async function batchInsertWatchRecords(_unusedDb, records) {
 }
 
 const updateTelemetryStmt = db.prepare("UPDATE watch_history SET sync_dispatch_telemetry = ?, updated_at = ? WHERE id = ?");
+const updatePlaystateWatchedAtStmt = db.prepare("UPDATE playstate SET watched_at = ?, updated_at = ? WHERE media_key = ?");
 
 export async function updateWatchTelemetry(_unusedDb, id, telemetry, { skipInvalidate = false } = {}) {
   if (!id) return;
@@ -1031,12 +1032,15 @@ export async function getWatchRecordById(id) {
 
 export async function updateWatchRecord(id, fields = {}) {
   if (!id) return { ok: false, error: "id is required" };
+  const existing = selectByIdStmt.get(String(id));
+  if (!existing) return { ok: false, error: "Watch record not found" };
   const sets = [];
   const params = [];
+  let normalizedWatchedAt = "";
   if (fields.watched_at != null) {
-    const normalized = normalizeWatchedAt(fields.watched_at);
-    if (!normalized) return { ok: false, error: "Invalid watched_at value" };
-    sets.push("watched_at = ?"); params.push(normalized);
+    normalizedWatchedAt = normalizeWatchedAt(fields.watched_at);
+    if (!normalizedWatchedAt) return { ok: false, error: "Invalid watched_at value" };
+    sets.push("watched_at = ?"); params.push(normalizedWatchedAt);
   }
   if (fields.poster_url != null) { sets.push("poster_url = ?"); params.push(String(fields.poster_url).trim()); }
   if (fields.tmdb_id != null) { sets.push("tmdb_id = ?"); params.push(String(fields.tmdb_id).trim()); }
@@ -1049,6 +1053,9 @@ export async function updateWatchRecord(id, fields = {}) {
   sets.push("updated_at = ?"); params.push(Date.now());
   params.push(String(id));
   db.prepare(`UPDATE watch_history SET ${sets.join(", ")} WHERE id = ?`).run(...params);
+  if (normalizedWatchedAt && existing.media_key) {
+    updatePlaystateWatchedAtStmt.run(normalizedWatchedAt, Date.now(), existing.media_key);
+  }
   await invalidateHistoryDerivedCaches();
   return { ok: true };
 }

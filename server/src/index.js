@@ -877,7 +877,7 @@ async function handleManualWatch(req, res) {
     })().catch((error) => console.error("Background manual watch sync loop crashed:", error));
   }
 
-  return sendJson(res, { ok: true, inserted, skipped, rejected, propagated: 0, results });
+  return sendJson(res, { ok: true, inserted, skipped, rejected, propagated: 0, syncQueued: syncTasks.length, results });
 }
 
 async function handleRetrySync(req, res) {
@@ -1999,7 +1999,7 @@ async function handleTmdbPerson(req, res) {
         
         // Fetch all matching rows from watch_history
         const query = `
-          SELECT id, tmdb_id, title, media_type, season, episode, show_title, title_lower, show_title_lower
+          SELECT id, tmdb_id, title, media_type, season, episode, show_title, title_lower, show_title_lower, source
           FROM watch_history
           WHERE (tmdb_id IS NOT NULL AND tmdb_id IN (${placeholdersTmdb}))
              OR (title_lower IN (${placeholdersTitle}))
@@ -2007,6 +2007,12 @@ async function handleTmdbPerson(req, res) {
         `;
         const params = [...creditTmdbIds, ...creditTitles, ...creditTitles];
         const rows = dbInstance.prepare(query).all(params);
+
+        // Sources that mean the item is physically on a connected media server.
+        const isMediaServerSource = (src) => {
+          const s = String(src || "").toLowerCase();
+          return s.startsWith("plex") || s.startsWith("emby") || s.startsWith("jellyfin") || s.startsWith("webhook");
+        };
 
         // Group rows by tmdb_id and show_title_lower for easy lookup
         const rowsByTmdbId = new Map();
@@ -2046,7 +2052,9 @@ async function handleTmdbPerson(req, res) {
           }
 
           if (matchingRows.length > 0) {
-            credit.in_library = true;
+            // "In Library" = physically on a connected media server (Plex/Emby/Jellyfin).
+            // Manually-watched or imported items are tracked but not "in library".
+            const serverRows = matchingRows.filter(r => isMediaServerSource(r.source));
             
             if (credit.media_type === "tv") {
               const tvRows = matchingRows.filter(r => r.media_type === "episode");
@@ -2059,15 +2067,18 @@ async function handleTmdbPerson(req, res) {
                 credit.show_title = showTitle;
                 credit.library_key = slug(showTitle);
                 credit.library_id = representative.id;
-              } else {
-                credit.in_library = false;
+                // Only mark in_library if there's a media-server source row
+                const serverTvRows = serverRows.filter(r => r.media_type === "episode");
+                credit.in_library = serverTvRows.length > 0;
+                credit.in_watch_history = true;
               }
             } else {
               const movieRows = matchingRows.filter(r => r.media_type === "movie");
               if (movieRows.length > 0) {
                 credit.library_id = movieRows[0].id;
-              } else {
-                credit.in_library = false;
+                const serverMovieRows = serverRows.filter(r => r.media_type === "movie");
+                credit.in_library = serverMovieRows.length > 0;
+                credit.in_watch_history = true;
               }
             }
           }
