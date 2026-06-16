@@ -1,7 +1,14 @@
 {
-  "version": "0.0.50",
-  "updatedAt": "2026-06-16T20:45:50+01:00",
+  "version": "0.0.51",
+  "updatedAt": "2026-06-16T21:46:11+01:00",
   "entries": [
+    {
+      "version": "0.0.51",
+      "date": "2026-06-16T21:46:11+01:00",
+      "commit": "880532442877d1bcf02dc259e59d7263251cec05",
+      "message": "Dedup movies, add media delete, enrich cast pages",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.50",
       "date": "2026-06-16T20:45:50+01:00",
