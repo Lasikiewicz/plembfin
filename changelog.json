@@ -1,7 +1,14 @@
 {
-  "version": "0.0.48",
-  "updatedAt": "2026-06-16T18:37:55+01:00",
+  "version": "0.0.49",
+  "updatedAt": "2026-06-16T20:37:19+01:00",
   "entries": [
+    {
+      "version": "0.0.49",
+      "date": "2026-06-16T20:37:19+01:00",
+      "commit": "0e770eab507b8d0b39da76b00aa736af287c00a3",
+      "message": "fix: stabilize backup restore sync",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.48",
       "date": "2026-06-16T18:37:55+01:00",
