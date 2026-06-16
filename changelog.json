@@ -1,7 +1,14 @@
 {
-  "version": "0.0.25",
-  "updatedAt": "2026-06-16T11:27:23+01:00",
+  "version": "0.0.26",
+  "updatedAt": "2026-06-16T11:37:31+01:00",
   "entries": [
+    {
+      "version": "0.0.26",
+      "date": "2026-06-16T11:37:31+01:00",
+      "commit": "d797737b561e4898cde8a691059087e5142272ec",
+      "message": "chore: add comprehensive logging for sync debugging",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.25",
       "date": "2026-06-16T11:27:23+01:00",
