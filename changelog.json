@@ -1,7 +1,14 @@
 {
-  "version": "0.0.44",
-  "updatedAt": "2026-06-16T15:56:42+01:00",
+  "version": "0.0.45",
+  "updatedAt": "2026-06-16T16:54:06+01:00",
   "entries": [
+    {
+      "version": "0.0.45",
+      "date": "2026-06-16T16:54:06+01:00",
+      "commit": "7f0e1a2c22db637841aa6d34557d9e60b696918e",
+      "message": "Fix media detail page to 3-column layout (poster | meta | facts)",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.44",
       "date": "2026-06-16T15:56:42+01:00",
