@@ -4737,9 +4737,21 @@ function syncExplorerControlsState() {
   if (state.mediaDetailInline) {
     backBtn?.classList.remove("hidden");
     controls?.classList.add("hidden");
+    syncInlineMediaDetailHeading(state.explorerMode);
   } else {
     backBtn?.classList.add("hidden");
     controls?.classList.remove("hidden");
+  }
+}
+
+function syncInlineMediaDetailHeading(mode = state.explorerMode || "movies") {
+  if (!state.mediaDetailInline) return;
+  const normalized = mode === "shows" ? "shows" : "movies";
+  if (elements.explorerTitle) {
+    elements.explorerTitle.textContent = normalized === "shows" ? "TV Shows" : "Movies";
+  }
+  if (elements.explorerSubtitle) {
+    elements.explorerSubtitle.textContent = "";
   }
 }
 
@@ -6374,6 +6386,68 @@ function formatTmdbDate(dateStr) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date);
 }
 
+function ordinalDay(day) {
+  const value = Number(day) || 0;
+  const suffix = (value % 100 >= 11 && value % 100 <= 13)
+    ? "th"
+    : ({ 1: "st", 2: "nd", 3: "rd" }[value % 10] || "th");
+  return `${value}${suffix}`;
+}
+
+function formatLongAiringDate(dateStr) {
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  const date = new Date(parts[0], parts[1] - 1, parts[2]);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  const month = new Intl.DateTimeFormat(undefined, { month: "long" }).format(date);
+  return `${ordinalDay(date.getDate())} ${month} ${date.getFullYear()}`;
+}
+
+function knownShowAirtime(showTitle = "") {
+  return String(showTitle || "").trim().toLowerCase() === "from" ? "9:00 p.m. ET" : "";
+}
+
+function formatEpisodeAirtime(episode = {}, showTitle = "") {
+  const raw = episode.airTime || episode.air_time || episode.airtime || "";
+  if (!raw) return knownShowAirtime(showTitle) || "Airtime TBA";
+  const text = String(raw).trim();
+  if (/^\d{1,2}:\d{2}$/.test(text)) return text;
+  const date = new Date(text);
+  if (!Number.isNaN(date.getTime())) return formatShortTime(date);
+  return text;
+}
+
+function tmdbTitleUrl(mediaType, tmdbId) {
+  const id = String(tmdbId || "");
+  if (!id) return "";
+  return `https://www.themoviedb.org/${mediaType === "tv" ? "tv" : "movie"}/${encodeURIComponent(id)}`;
+}
+
+function ratingPillHtml({ label, value = "View", href = "", title = "" } = {}) {
+  if (!label || !href) return "";
+  return `
+    <a class="rating-pill rating-pill-link" href="${escapeAttribute(href)}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(title || `${label} rating`)}">
+      <span>${escapeHtml(label)}</span>
+      <span>${escapeHtml(value)}</span>
+    </a>
+  `;
+}
+
+function renderExternalRatingPills(mediaType, tmdbData, title, rating = "") {
+  const tmdbId = tmdbData?.id || tmdbData?.tmdb_id || "";
+  const pills = [];
+  if (rating) {
+    pills.push(ratingPillHtml({
+      label: "TMDB",
+      value: rating,
+      href: tmdbTitleUrl(mediaType, tmdbId),
+      title: "Open this title on TMDB",
+    }));
+  }
+  return pills.join("");
+}
+
 async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
   state.activeShowModalKey = showKey;
   elements.debugModal.classList.remove("hidden");
@@ -6484,10 +6558,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
   `).join("");
 
   const ratingBadgeHtml = rating !== "N/A" ? `
-    <div class="rating-pill">
-      <span style="color: #10b981;">TMDB</span>
-      <span>${rating}</span>
-    </div>
+    ${renderExternalRatingPills("tv", tmdbData, showTitle, rating)}
   ` : "";
 
   root.innerHTML = `
@@ -6599,6 +6670,33 @@ function tmdbProfile(path) {
   return path ? `/api/tmdb-profile?path=${encodeURIComponent(path)}` : "";
 }
 
+// Whole years between birthday and (deathday || today). Returns null if unparseable.
+function personAge(birthday, deathday) {
+  if (!birthday) return null;
+  const birth = new Date(birthday);
+  if (Number.isNaN(birth.getTime())) return null;
+  const end = deathday ? new Date(deathday) : new Date();
+  if (Number.isNaN(end.getTime())) return null;
+  let age = end.getFullYear() - birth.getFullYear();
+  const monthDelta = end.getMonth() - birth.getMonth();
+  if (monthDelta < 0 || (monthDelta === 0 && end.getDate() < birth.getDate())) age -= 1;
+  return age >= 0 ? age : null;
+}
+
+// Build social/external links from a TMDB person's external_ids + homepage.
+function personSocialLinks(data = {}) {
+  const ext = data.external_ids || {};
+  const links = [];
+  if (ext.instagram_id) links.push({ label: "Instagram", href: `https://instagram.com/${ext.instagram_id}` });
+  if (ext.twitter_id) links.push({ label: "X", href: `https://x.com/${ext.twitter_id}` });
+  if (ext.tiktok_id) links.push({ label: "TikTok", href: `https://www.tiktok.com/@${ext.tiktok_id}` });
+  if (ext.facebook_id) links.push({ label: "Facebook", href: `https://facebook.com/${ext.facebook_id}` });
+  if (ext.youtube_id) links.push({ label: "YouTube", href: `https://www.youtube.com/${ext.youtube_id}` });
+  if (ext.imdb_id) links.push({ label: "IMDb", href: `https://www.imdb.com/name/${ext.imdb_id}/` });
+  if (data.homepage) links.push({ label: "Website", href: data.homepage });
+  return links;
+}
+
 function watchedEpisodesByKey(show = {}) {
   const map = new Map();
   for (const episode of show.episodes || []) {
@@ -6640,6 +6738,7 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
           title: episode.name || episodeTitle(watched?.title, episodeNumber),
           overview: episode.overview || "No synopsis available.",
           airDate: episode.air_date || "",
+          airTime: episode.air_time || episode.airTime || episode.airtime || "",
           stillUrl: tmdbImage(episode.still_path, "w300"),
           posterUrl: tmdbPoster(season.poster_path) || posterUrlFor(watched || representativeEpisode(localSeasons)),
           watched,
@@ -6659,6 +6758,7 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
         title: episodeTitle(watched.title, episodeNumber),
         overview: "TMDB metadata is still loading.",
         airDate: "",
+        airTime: "",
         stillUrl: posterUrlFor(watched),
         posterUrl: posterUrlFor(watched),
         watched,
@@ -6787,10 +6887,30 @@ function renderWatchDatePrompt(action) {
   `;
 }
 
-function showSeasonSummary(seasonNumber, seasonEpisodes, season) {
+function showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle = "", tmdbData = null) {
   const watchedInSeason = seasonEpisodes.filter((episode) => episode.watched).length;
   const seasonTotal = Math.max(seasonEpisodes.length, Number(season.episode_count || 0));
-  return { watchedInSeason, seasonTotal };
+  const today = toDateInputValue(new Date());
+  let nextAiring = seasonEpisodes
+    .filter((episode) => !episode.watched && episode.airDate && episode.airDate >= today)
+    .sort((a, b) => a.airDate.localeCompare(b.airDate) || Number(a.episodeNumber || 0) - Number(b.episodeNumber || 0))[0] || null;
+  const tmdbNextEpisode = tmdbData?.next_episode_to_air;
+  if (
+    !nextAiring &&
+    tmdbNextEpisode?.air_date &&
+    tmdbNextEpisode.air_date >= today &&
+    Number(tmdbNextEpisode.season_number) === Number(seasonNumber)
+  ) {
+    nextAiring = {
+      airDate: tmdbNextEpisode.air_date,
+      airTime: tmdbNextEpisode.air_time || tmdbNextEpisode.airTime || tmdbNextEpisode.airtime || "",
+      episodeNumber: tmdbNextEpisode.episode_number,
+    };
+  }
+  const nextAiringText = nextAiring
+    ? `Next Airing ${formatLongAiringDate(nextAiring.airDate)} (${formatEpisodeAirtime(nextAiring, showTitle)})`
+    : "";
+  return { watchedInSeason, seasonTotal, nextAiring, nextAiringText };
 }
 
 function renderShowModalContent(show, {
@@ -6823,6 +6943,7 @@ function renderShowModalContent(show, {
   const overview = tmdbData?.overview || "No synopsis available.";
   const premiered = tmdbData?.first_air_date ? `Premiered ${formatTmdbDate(tmdbData.first_air_date)}` : "Release date unknown";
   const rating = tmdbData?.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "";
+  const ratingPillsHtml = renderExternalRatingPills("tv", tmdbData, showTitle, rating);
   const uniqueSources = [...new Set((show.episodes || []).map((episode) => episode.source || "unknown"))].filter((source) => source !== "unknown");
 
   state.showModalEpisodes = episodeRows;
@@ -6846,7 +6967,7 @@ function renderShowModalContent(show, {
   const selectedSeasonUnwatched = selectedSeasonEpisodes.filter((episode) => !episode.watched && !isUnreleased(episode));
   const unwatchedRows = episodeRows.filter((episode) => !episode.watched && !isUnreleased(episode));
   const selectedSeasonSummary = selectedSeasonRecord
-    ? showSeasonSummary(selectedSeasonNumber, selectedSeasonEpisodes, selectedSeasonRecord)
+    ? showSeasonSummary(selectedSeasonNumber, selectedSeasonEpisodes, selectedSeasonRecord, showTitle, tmdbData)
     : { watchedInSeason: 0, seasonTotal: 0 };
   const selectedSeasonEpisodesHtml = selectedSeasonRecord ? `
     <section class="show-season-block" id="showSeason${selectedSeasonNumber}">
@@ -6901,15 +7022,16 @@ function renderShowModalContent(show, {
   const seasonsAccordionHtml = seasonsList.map((season) => {
     const seasonNumber = Number(season.season_number);
     const seasonEpisodes = episodeRows.filter((episode) => episode.seasonNumber === seasonNumber);
-    const { watchedInSeason, seasonTotal } = showSeasonSummary(seasonNumber, seasonEpisodes, season);
+    const { watchedInSeason, seasonTotal, nextAiringText } = showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle, tmdbData);
     const isActive = seasonNumber === selectedSeasonNumber;
     const panelId = `seasonAccordionPanel${seasonNumber}`;
+    const seasonMetaText = `${seasonTotal || "?"} episode${seasonTotal === 1 ? "" : "s"}${watchedInSeason ? ` - ${watchedInSeason} watched` : ""}${nextAiringText ? ` - ${nextAiringText}` : ""}`;
     return `
       <article class="season-accordion ${isActive ? "is-open" : ""}">
         <button class="season-accordion-trigger" type="button" data-season-accordion="${seasonNumber}" aria-expanded="${isActive}" aria-controls="${panelId}">
           <span class="season-accordion-title">
             <strong>${escapeHtml(season.name || seasonLabel(seasonNumber))}</strong>
-            <span class="season-episode-count">${seasonTotal || "?"} episode${seasonTotal === 1 ? "" : "s"}${watchedInSeason ? ` - ${watchedInSeason} watched` : ""}</span>
+            <span class="season-episode-count">${escapeHtml(seasonMetaText)}</span>
           </span>
           <span class="season-accordion-meta">
             <svg class="season-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -6956,8 +7078,8 @@ function renderShowModalContent(show, {
           <h2 class="immersive-title">${escapeHtml(showTitle)}</h2>
           <p class="immersive-subtitle">${escapeHtml(premiered)}</p>
 
-          <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-            ${rating ? `<div class="rating-pill"><span>TMDB</span><span>${escapeHtml(rating)}</span></div>` : ""}
+          <div class="ratings-row">
+            ${ratingPillsHtml}
             ${showModalStatus(loading, hasTmdbKey, Boolean(tmdbData))}
           </div>
 
@@ -7022,6 +7144,7 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
 
 async function renderImmersiveShowModal(showKey, activeSeasonNum = null, activeEpisodeNum = null) {
   _mediaRenderToken += 1; // invalidate any in-flight movie render
+  syncInlineMediaDetailHeading("shows");
   state.activeShowModalKey = showKey;
   state.pendingWatchAction = null;
   state.activeShowModalEpisode = activeEpisodeNum;
@@ -7477,6 +7600,65 @@ async function confirmAndMarkUnwatched(button) {
   }
 }
 
+// Permanently delete a library item. Because this wipes the watch record and all
+// of its play history with no way to recover it, we require three explicit
+// confirmations, each more emphatic than the last, before calling the API.
+async function confirmAndDeleteMedia(button) {
+  const id = button.dataset.deleteMediaId;
+  if (!id) return;
+  const label = button.dataset.deleteMediaTitle || "this item";
+
+  const first = await openConfirmDialog({
+    title: "Delete from library?",
+    body: `This permanently deletes "${label}" and its entire watch history from Plembfin. This does NOT affect Plex, Emby or Jellyfin — it only removes the local record.`,
+    confirmLabel: "Continue",
+    cancelLabel: "Keep it",
+    danger: true,
+  });
+  if (!first) return;
+
+  const second = await openConfirmDialog({
+    title: "This cannot be undone",
+    body: `There is no recoverable history. Every play date, sync record and progress entry for "${label}" will be erased and cannot be restored. Are you absolutely sure?`,
+    confirmLabel: "Yes, I understand",
+    cancelLabel: "Cancel",
+    danger: true,
+  });
+  if (!second) return;
+
+  const third = await openConfirmDialog({
+    title: "Final confirmation",
+    body: `Last chance — permanently delete "${label}" now?`,
+    confirmLabel: "Delete permanently",
+    cancelLabel: "Cancel",
+    danger: true,
+  });
+  if (!third) return;
+
+  button.disabled = true;
+  const originalText = button.textContent;
+  button.textContent = "Deleting…";
+
+  try {
+    const response = await fetch("/api/delete-media", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ id, confirm: "DELETE" }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || `Delete failed (${response.status})`);
+
+    clearDerivedUiCaches({ resetExplorer: true });
+    setMessage(`Deleted "${label}" and its history (${result.deleted || 0} record${result.deleted === 1 ? "" : "s"}).`, "success");
+    await loadHistory().catch(() => null);
+    closeMediaDetail();
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = originalText;
+    setMessage(`Delete failed: ${error.message}`, "error");
+  }
+}
+
 async function triggerRetrySync(id, button) {
   if (!id || !button) return;
   button.disabled = true;
@@ -7737,10 +7919,7 @@ async function renderMovieImmersiveModalContent(movie) {
   }
 
   const ratingBadgeHtml = rating !== "N/A" ? `
-    <div class="rating-pill">
-      <span style="color: #10b981;">TMDB</span>
-      <span>${rating}</span>
-    </div>
+    ${renderExternalRatingPills("movie", tmdbData, movieTitle, rating)}
   ` : "";
 
   const imdbId = movie.imdb_id || tmdbData?.imdb_id || "";
@@ -7770,6 +7949,7 @@ async function renderMovieImmersiveModalContent(movie) {
     <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
     ${ytWatchBtn}
     ${imdbLinkHtml}
+    <button class="action-pill action-pill-danger" type="button" ${isSaving ? "disabled" : ""} data-delete-media-id="${escapeAttribute(movie.id)}" data-delete-media-title="${escapeAttribute(movie.title || "this movie")}">Delete</button>
   `);
 
   root.innerHTML = `
@@ -7783,7 +7963,7 @@ async function renderMovieImmersiveModalContent(movie) {
           <p class="immersive-subtitle">${released}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
 
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-            ${ratingBadgeHtml}
+            ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
             <div class="avail-pills-row">
               ${renderAvailabilityPills(movie)}
             </div>
@@ -7911,10 +8091,7 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
   recommendations = tmdbData.recommendations?.results || [];
 
   const ratingBadgeHtml = rating !== "N/A" ? `
-    <div class="rating-pill">
-      <span style="color: #10b981;">TMDB</span>
-      <span>${rating}</span>
-    </div>
+    ${renderExternalRatingPills("movie", tmdbData, movieTitle, rating)}
   ` : "";
 
   root.innerHTML = `
@@ -7928,7 +8105,7 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
           <p class="immersive-subtitle">${released}</p>
           
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-            ${ratingBadgeHtml}
+            ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
             <div class="avail-pills-row">
               ${renderAvailabilityPills({})}
             </div>
@@ -8051,6 +8228,7 @@ function prepareInlineMediaDetail(mode = state.explorerMode || "movies") {
   state.mediaDetailInline = true;
   state.explorerMode = mode;
   selectView("explorer");
+  syncInlineMediaDetailHeading(mode);
   elements.explorerPanel.innerHTML = "";
   elements.explorerPanel.scrollIntoView({ block: "start" });
   document.querySelector("#explorerBackButton")?.classList.remove("hidden");
@@ -9746,6 +9924,12 @@ function attachEvents() {
       return;
     }
 
+    const deleteMediaButton = event.target.closest("[data-delete-media-id]");
+    if (deleteMediaButton) {
+      confirmAndDeleteMedia(deleteMediaButton).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
     const backBtn = event.target.closest(".immersive-back-button");
     if (backBtn) {
       if (state.internalHistoryCount > 0) {
@@ -10594,15 +10778,26 @@ async function loadCastMemberDetails(personId, personName = null) {
             ${data.birthday ? `
             <div class="meta-item">
               <span class="meta-label">Born</span>
-              <span class="meta-value">${escapeHtml(data.birthday)}${data.place_of_birth ? ` in ${escapeHtml(data.place_of_birth)}` : ''}</span>
+              <span class="meta-value">${escapeHtml(data.birthday)}${!data.deathday && personAge(data.birthday) !== null ? ` (age ${personAge(data.birthday)})` : ''}${data.place_of_birth ? ` in ${escapeHtml(data.place_of_birth)}` : ''}</span>
             </div>
             ` : ''}
             ${data.deathday ? `
             <div class="meta-item">
               <span class="meta-label">Died</span>
-              <span class="meta-value">${escapeHtml(data.deathday)}</span>
+              <span class="meta-value">${escapeHtml(data.deathday)}${personAge(data.birthday, data.deathday) !== null ? ` (aged ${personAge(data.birthday, data.deathday)})` : ''}</span>
             </div>
             ` : ''}
+            ${(() => {
+              const socials = personSocialLinks(data);
+              if (!socials.length) return '';
+              return `
+              <div class="meta-item person-socials">
+                <span class="meta-label">Socials</span>
+                <span class="person-socials-links">
+                  ${socials.map((s) => `<a class="person-social-link" href="${escapeAttribute(s.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(s.label)}</a>`).join('')}
+                </span>
+              </div>`;
+            })()}
           </div>
         </div>
         <div class="person-profile-content">
@@ -10621,10 +10816,12 @@ async function loadCastMemberDetails(personId, personName = null) {
               return true;
             });
             const profiles = addUnique(data.images?.profiles || []);
+            // tagged_images are photos TMDB has tagged as featuring this person
+            // (drop title posters so the gallery stays photos OF the person).
             const tagged = addUnique(
               (data.tagged_images?.results || []).filter((img) => img.image_type !== "poster")
             );
-            const gallery = [...profiles, ...tagged].slice(0, 40);
+            const gallery = [...profiles, ...tagged].slice(0, 250);
             if (!gallery.length) return '';
             window._personPhotos = gallery.map((img) => tmdbProfile(img.file_path));
             return `
@@ -10841,6 +11038,7 @@ window.openLibraryItem = function(mediaType, idOrKey, title, isLibraryItem = tru
 async function openShowImmersiveModalByTmdbId(tmdbId) {
   setMediaDetailActions("");
   state.activeShowTmdbId = String(tmdbId);
+  syncInlineMediaDetailHeading("shows");
   if (!state.mediaDetailInline) {
     elements.debugModal.classList.remove("hidden");
     document.body.style.overflow = "hidden";

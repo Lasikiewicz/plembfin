@@ -877,7 +877,10 @@ function historyDedupeKey(row = {}) {
   if (mediaType === "movie") {
     const title = canonicalTitleKey(row.title);
     const poster = stablePosterKey(row.poster_url);
-    return `movie|${poster ? `poster:${poster}` : imdb ? `imdb:${imdb}` : tmdb ? `tmdb:${tmdb}` : tvdb ? `tvdb:${tvdb}` : `title:${title}`}`;
+    // Prefer a stable content identifier so the same movie watched more than once
+    // (and re-fetched with a different poster URL each time) collapses to one entry.
+    // Poster/title are only a fallback when no external ID is present.
+    return `movie|${imdb ? `imdb:${imdb}` : tmdb ? `tmdb:${tmdb}` : tvdb ? `tvdb:${tvdb}` : poster ? `poster:${poster}` : `title:${title}`}`;
   }
 
   return `${mediaType || "unknown"}|${canonicalTitleKey(row.title)}|${row.watched_at || ""}`;
@@ -1267,6 +1270,48 @@ export function loadWatchKeyGroupsForDedup() {
   return groups;
 }
 
+const deletePlaystateByKeyStmt = db.prepare("DELETE FROM playstate WHERE media_key = ?");
+
+// Permanently delete a single library item and every trace of its history:
+// all watch_history plays that collapse into the same card, plus the matching
+// playstate and playback_progress rows. Matching is by shared external ID
+// (imdb/tmdb/tvdb); only when the anchor has no IDs do we fall back to title.
+export async function deleteMovieByWatchId(id, { skipInvalidate = false } = {}) {
+  const anchor = selectByIdStmt.get(String(id || ""));
+  if (!anchor) return { found: false, deleted: 0 };
+
+  const imdb = cleanString(anchor.imdb_id);
+  const tmdb = cleanString(anchor.tmdb_id);
+  const tvdb = cleanString(anchor.tvdb_id);
+  const titleKey = canonicalTitleKey(anchor.title);
+  const hasId = Boolean(imdb || tmdb || tvdb);
+
+  const matches = selectMoviesStmt.all().filter((row) => {
+    if (hasId) {
+      return (imdb && cleanString(row.imdb_id) === imdb)
+        || (tmdb && cleanString(row.tmdb_id) === tmdb)
+        || (tvdb && cleanString(row.tvdb_id) === tvdb);
+    }
+    return canonicalTitleKey(row.title) === titleKey;
+  });
+  if (!matches.some((row) => row.id === anchor.id)) matches.push(anchor);
+
+  const mediaKeys = new Set();
+  transaction(() => {
+    for (const row of matches) {
+      deleteByIdStmt.run(row.id);
+      if (row.media_key) mediaKeys.add(row.media_key);
+    }
+    for (const key of mediaKeys) {
+      deletePlaystateByKeyStmt.run(key);
+      deleteProgressStmt.run(key);
+    }
+  });
+
+  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
+  return { found: true, deleted: matches.length, title: anchor.title };
+}
+
 export function deleteWatchRecordsByIds(ids = []) {
   let deleted = 0;
   transaction(() => {
@@ -1295,9 +1340,92 @@ export async function queryMovies({ search = "", sort = "title_asc", limit = 100
   const safeOffset = Number(offset) || 0;
   const movies = await getCachedMovies();
   const filtered = movies.filter((row) => titleContainsSearch(row.title, search));
-  const deduped = dedupeHistory(filtered);
+  const deduped = dedupeMovies(filtered);
   const sorted = sortRows(deduped, sort);
   return sorted.slice(safeOffset, safeOffset + safeLimit);
+}
+
+// Collapse a cluster of watch_history rows for one film into a single card:
+// newest watched record as the base, every play date gathered into playHistory,
+// and any missing id/poster backfilled from a sibling row.
+function collapseMovieCluster(clusterRows = []) {
+  const playHistory = [...new Set(clusterRows.map((r) => r.watched_at).filter(Boolean))]
+    .sort((a, b) => String(a).localeCompare(String(b)));
+  const newest = clusterRows
+    .slice()
+    .sort((a, b) => String(a.watched_at || "").localeCompare(String(b.watched_at || "")))
+    .pop();
+  const base = { ...newest, playHistory };
+  for (const row of clusterRows) {
+    if (!base.imdb_id && row.imdb_id) base.imdb_id = row.imdb_id;
+    if (!base.tmdb_id && row.tmdb_id) base.tmdb_id = row.tmdb_id;
+    if (!base.tvdb_id && row.tvdb_id) base.tvdb_id = row.tvdb_id;
+    if (!base.poster_url && row.poster_url) base.poster_url = row.poster_url;
+  }
+  return base;
+}
+
+// Dedupe movies by clustering rows that refer to the same film. Rows are linked
+// (union-find) when they share ANY external id (imdb/tmdb/tvdb) — this collapses
+// records that carry different id subsets, e.g. one row with only tmdb and
+// another with imdb+tmdb. Rows with no ids at all (e.g. plex_initial_sync title-
+// only imports) fold into the unique id cluster sharing their canonical title;
+// when two distinct films share a title (remakes), there is no unique target so
+// the id-less row keeps its own cluster rather than guessing.
+function dedupeMovies(rows = []) {
+  const parent = new Map();
+  const find = (x) => {
+    while (parent.get(x) !== x) {
+      parent.set(x, parent.get(parent.get(x)));
+      x = parent.get(x);
+    }
+    return x;
+  };
+  const union = (a, b) => { parent.set(find(a), find(b)); };
+  const ensure = (x) => { if (!parent.has(x)) parent.set(x, x); };
+  const idNodesFor = (row) => {
+    const nodes = [];
+    const imdb = cleanString(row.imdb_id); if (imdb) nodes.push(`imdb:${imdb}`);
+    const tmdb = cleanString(row.tmdb_id); if (tmdb) nodes.push(`tmdb:${tmdb}`);
+    const tvdb = cleanString(row.tvdb_id); if (tvdb) nodes.push(`tvdb:${tvdb}`);
+    return nodes;
+  };
+
+  for (const row of rows) {
+    const nodes = idNodesFor(row);
+    nodes.forEach(ensure);
+    for (let i = 1; i < nodes.length; i += 1) union(nodes[0], nodes[i]);
+  }
+
+  const clusters = new Map();
+  const titleClusterKeys = new Map();
+  const idless = [];
+  for (const row of rows) {
+    const nodes = idNodesFor(row);
+    if (!nodes.length) { idless.push(row); continue; }
+    const clusterKey = find(nodes[0]);
+    if (!clusters.has(clusterKey)) clusters.set(clusterKey, []);
+    clusters.get(clusterKey).push(row);
+    const titleKey = canonicalTitleKey(row.title);
+    if (titleKey) {
+      if (!titleClusterKeys.has(titleKey)) titleClusterKeys.set(titleKey, new Set());
+      titleClusterKeys.get(titleKey).add(clusterKey);
+    }
+  }
+
+  for (const row of idless) {
+    const titleKey = canonicalTitleKey(row.title);
+    const matches = titleClusterKeys.get(titleKey);
+    if (matches && matches.size === 1) {
+      clusters.get([...matches][0]).push(row);
+    } else {
+      const clusterKey = `title:${titleKey}`;
+      if (!clusters.has(clusterKey)) clusters.set(clusterKey, []);
+      clusters.get(clusterKey).push(row);
+    }
+  }
+
+  return [...clusters.values()].map(collapseMovieCluster);
 }
 
 function groupShowRows(rows = []) {

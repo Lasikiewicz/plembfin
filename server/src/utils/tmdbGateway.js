@@ -7,7 +7,7 @@ const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DETAILS_SCHEMA_VERSION = 3;
-const PERSON_SCHEMA_VERSION = 2;
+const PERSON_SCHEMA_VERSION = 4;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const MISSING_TTL_MS = DAY_MS;
 const PERSON_TTL_MS = 7 * DAY_MS;
@@ -311,7 +311,7 @@ export async function getTmdbPerson(personId) {
     const cached = row ? { details: parseJson(row.details), schemaVersion: row.schema_version, updatedAtMs: row.updated_at_ms } : null;
     if (cached?.details && cached.schemaVersion >= PERSON_SCHEMA_VERSION && fresh(cached, PERSON_TTL_MS)) return cached.details;
     try {
-      const fetched = await upstream(`person/${id}`, { append_to_response: "combined_credits,images,tagged_images" });
+      const fetched = await upstream(`person/${id}`, { append_to_response: "combined_credits,images,tagged_images,external_ids" });
       const details = {
         ...fetched,
         combined_credits: {
@@ -319,8 +319,8 @@ export async function getTmdbPerson(personId) {
           cast: (fetched.combined_credits?.cast || []).slice(0, 120),
           crew: (fetched.combined_credits?.crew || []).slice(0, 80),
         },
-        images: { profiles: (fetched.images?.profiles || []).slice(0, 60) },
-        tagged_images: boundedResults(fetched.tagged_images, 80) || { results: [] },
+        images: { profiles: (fetched.images?.profiles || []).slice(0, 200) },
+        tagged_images: boundedResults(fetched.tagged_images, 250) || { results: [] },
       };
       personSetStmt.run({ id: `person_${id}`, person_id: id, details: toJson(details), schema_version: PERSON_SCHEMA_VERSION, updated_at_ms: Date.now() });
       return details;

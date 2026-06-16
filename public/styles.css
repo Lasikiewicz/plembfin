@@ -352,6 +352,56 @@ h2 {
   }
 }
 
+@media (max-width: 640px) {
+  .media-detail-page {
+    padding: var(--space-3);
+  }
+
+  .media-detail-page .immersive-header,
+  .media-detail-page .immersive-header:has(.media-facts-rail--sidebar) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    margin-top: var(--space-2);
+  }
+
+  .media-detail-page .immersive-poster-img,
+  .media-detail-page .immersive-meta,
+  .media-detail-page .immersive-header .media-facts-rail--sidebar {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .media-detail-page .immersive-poster-img {
+    width: min(68vw, 240px);
+    justify-self: start;
+  }
+
+  .media-detail-page .immersive-title {
+    font-size: 2rem;
+  }
+
+  .ratings-row {
+    gap: 0.4rem;
+  }
+
+  .rating-pill {
+    min-height: 2.25rem;
+    padding: 0.35rem 0.6rem;
+  }
+
+  .media-facts-rail--sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .season-accordion-trigger {
+    align-items: flex-start;
+  }
+
+  .season-accordion-title {
+    flex-wrap: wrap;
+  }
+}
+
 @media (min-width: 761px) and (max-width: 1180px) {
   .media-detail-page .immersive-header:has(.media-facts-rail--sidebar) {
     grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
@@ -3334,6 +3384,7 @@ details[open] .tool-accordion-chevron::before {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .rating-pill {
@@ -3348,9 +3399,29 @@ details[open] .tool-accordion-chevron::before {
   font-weight: 800;
 }
 
+.rating-pill-link {
+  min-height: 2rem;
+  color: var(--text);
+  text-decoration: none;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.rating-pill-link:hover {
+  background: #1e2936;
+  border-color: color-mix(in srgb, var(--accent), transparent 35%);
+  color: #ffffff;
+}
+
 .rating-pill img {
   height: 14px;
   width: auto;
+}
+
+@media (max-width: 640px) {
+  .rating-pill {
+    min-height: 2.25rem;
+    padding: 0.35rem 0.6rem;
+  }
 }
 
 .actions-row {
@@ -3922,6 +3993,19 @@ details[open] .tool-accordion-chevron::before {
   background: #2a1416;
   border-color: #b4474f;
   color: #fca5a5;
+}
+
+/* Strong destructive variant for the permanent "Delete" action. */
+.action-pill-danger {
+  background: #3a1518;
+  border-color: #b4474f;
+  color: #fca5a5;
+}
+
+.action-pill-danger:hover {
+  background: #b4474f;
+  border-color: #b4474f;
+  color: #fff;
 }
 
 .confirm-dialog-body {
@@ -5531,6 +5615,30 @@ h1 {
   color: var(--text);
 }
 
+.person-socials .person-socials-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.person-social-link {
+  display: inline-block;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: #1e2936;
+  border: 1px solid var(--line);
+  color: var(--soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.person-social-link:hover {
+  background: #2a3a4d;
+  color: #fff;
+}
+
 .person-biography-section h3 {
   font-size: 1.1rem;
   margin-bottom: 0.5rem;
@@ -5609,8 +5717,8 @@ h1 {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  width: min(80vw, 600px);
-  height: min(88vh, 860px);
+  width: min(94vw, 1200px);
+  height: min(90vh, 1100px);
   cursor: grab;
 }
 
@@ -5920,7 +6028,8 @@ h1 {
   padding: 0.2rem 0.5rem;
   font-size: 0.68rem;
   font-weight: 800;
-  white-space: nowrap;
+  line-height: 1.25;
+  white-space: normal;
 }
 
 .season-accordion-meta {
