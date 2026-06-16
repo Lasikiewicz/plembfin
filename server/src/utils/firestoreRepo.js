@@ -378,6 +378,7 @@ function playstateFromRow(row) {
     season: row.season ?? null,
     episode: row.episode ?? null,
     poster_url: row.poster_url || null,
+    updated_at: Number(row.updated_at || 0),
   };
 }
 
@@ -433,6 +434,12 @@ export async function upsertPlaystate(_unusedDb, record, stateOverride = undefin
 
 export async function upsertPlaystateForMedia(_unusedDb, media, state = "watched", watchedAt = undefined, options = {}) {
   return upsertPlaystate(_unusedDb, playstateRecordFromMedia(media, state, watchedAt), state, options);
+}
+
+export async function getPlaystateForMedia(_unusedDb, media) {
+  const record = playstateRecordFromMedia(media, media?.syncAction || "watched");
+  const row = selectPlaystateStmt.get(mediaKeyFor(record));
+  return row ? playstateFromRow(row) : null;
 }
 
 export async function listWatchedPlaystateRowsForReplay({ limit = 25, offset = 0 } = {}) {
@@ -629,6 +636,7 @@ export function mediaToPlaybackProgressRecord(media, source = media?.source || "
       position_ms: media?.positionMs ?? media?.offsetMs,
       duration_ms: media?.durationMs,
       progress: media?.progress,
+      updated_at: media?.updatedAt,
       sync_dispatch_telemetry: media?.syncDispatchTelemetry,
     },
     source,

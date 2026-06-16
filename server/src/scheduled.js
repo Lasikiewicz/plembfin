@@ -11,6 +11,7 @@ import {
   findExistingWatch,
   findWatchedByMediaKey,
   getCachedHistory,
+  getPlaystateForMedia,
   insertWatchRecord,
   invalidateHistoryDerivedCaches,
   listRecentTrackedWatchRows,
@@ -137,6 +138,17 @@ function millisecondsFrom(value) {
   return Number.isFinite(number) && number > 0 ? Math.round(number) : 0;
 }
 
+function epochMsFromSeconds(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) && number > 0 ? Math.round(number * 1000) : 0;
+}
+
+function timestampMsFromDate(value = "") {
+  const date = new Date(value);
+  const time = date.getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
 function progressPercent(positionMs = 0, durationMs = 0) {
   if (!durationMs) return 0;
   return Math.max(0, Math.min(100, (Number(positionMs || 0) / Number(durationMs || 1)) * 100));
@@ -175,8 +187,22 @@ function mediaFromPlexResumableItem(item = {}) {
     offsetMs: positionMs,
     durationMs,
     progress: progressPercent(positionMs, durationMs),
+    updatedAt: epochMsFromSeconds(item.lastViewedAt || item.viewedAt || item.updatedAt),
     isValid: true,
   };
+}
+
+function embyLikeResumeUpdatedAt(item = {}) {
+  return timestampMsFromDate(
+    item.UserData?.LastPlayedDate ||
+      item.UserData?.PlayedDate ||
+      item.UserData?.DatePlayed ||
+      item.LastPlayedDate ||
+      item.PlayedDate ||
+      item.DatePlayed ||
+      item.DateLastSaved ||
+      item.DateCreated,
+  );
 }
 
 function mediaFromEmbyLikeResumableItem(item = {}, source = "emby", normalizeProviderIds = (ids) => ids || {}) {
@@ -204,6 +230,7 @@ function mediaFromEmbyLikeResumableItem(item = {}, source = "emby", normalizePro
     offsetMs: positionMs,
     durationMs,
     progress: progressPercent(positionMs, durationMs),
+    updatedAt: embyLikeResumeUpdatedAt(item),
     isValid: true,
   };
 }
@@ -358,6 +385,7 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
           });
           const inserted = await insertWatchRecord(requireDb(), unplayedRecord, { skipInvalidate: true });
           await upsertPlaystateForMedia(requireDb(), unplayedMedia, "unwatched", inserted.record.watched_at, { skipInvalidate: true });
+          await deletePlaybackProgress(requireDb(), unplayedMedia).catch(() => null);
           const summary = await syncMediaUnplayedPlaystate(unplayedMedia, config, loopStore);
           await updateWatchTelemetry(requireDb(), inserted.id, buildTelemetry(unplayedMedia, summary), { skipInvalidate: true });
           await recordSyncHistory(unplayedMedia, summary, "unwatched");
@@ -455,6 +483,15 @@ async function processStoppedSessionProgress(row, config, loopStore) {
 
 async function syncResumableMedia(media, config, loopStore, logger = console.log) {
   if (!shouldSyncResumeProgress(media)) return false;
+
+  const existingPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
+  const resumeUpdatedAt = Number(media.updatedAt || 0);
+  const playstateUpdatedAt = Number(existingPlaystate?.updated_at || 0);
+  if (existingPlaystate && (!resumeUpdatedAt || playstateUpdatedAt >= resumeUpdatedAt)) {
+    await deletePlaybackProgress(requireDb(), media).catch(() => null);
+    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (newer ${existingPlaystate.state} playstate)`);
+    return false;
+  }
 
   const progressRecord = mediaToPlaybackProgressRecord(media, media.source);
   await upsertPlaybackProgress(requireDb(), {
