@@ -605,7 +605,7 @@ function renderWatchBackups() {
   const cronPausedUntil = runtime.cronSyncPausedUntil;
   const cronPausedBanner = cronPausedUntil && Date.now() < cronPausedUntil
     ? `<div class="backup-runtime" style="margin-bottom: var(--space-3); border-left: 3px solid var(--accent); padding: var(--space-2) var(--space-3); background: rgba(255,165,0,0.08);">
-        <span style="font-size: 0.85rem;">⏸ Cron sync paused until ${escapeHtml(new Date(cronPausedUntil).toLocaleTimeString())} to protect restore. No data will be re-imported from connected apps until then.</span>
+        <span style="font-size: 0.85rem;">⏸ Cron sync manually paused until ${escapeHtml(new Date(cronPausedUntil).toLocaleTimeString())}.</span>
        </div>`
     : "";
 
@@ -931,7 +931,7 @@ async function listRemoteBackupsForCard(card) {
 async function restoreRemoteBackupFromCard(card, filename, mode) {
   const approved = await openConfirmDialog({
     title: "⚠️ Watch History Wipe / Restore",
-    body: `This will DELETE all current watch history, playstate, and resume progress, then fully restore from:\n\n${filename}\n\nThis cannot be undone. Cron sync will be paused for 12 hours after restore.`,
+    body: `This will DELETE all current watch history, playstate, and resume progress, then fully restore from:\n\n${filename}\n\nThis cannot be undone. After restore, the cron will permanently ignore items played before the restore date.`,
     confirmLabel: "Wipe and Restore",
     danger: true,
   });
@@ -1067,7 +1067,7 @@ async function restoreWatchBackup(filename, mode, dryRun = false) {
     const approved = await openConfirmDialog({
       title: mode === "replace" ? "⚠️ Wipe and restore watch history?" : "Merge watch history?",
       body: mode === "replace"
-        ? `⚠️ WATCH HISTORY WIPE / RESTORE:\n\nWill DELETE all current watch history and restore from ${filename}.\n\nPlembfin will then sync the restored data to Plex, Emby, and Jellyfin so they all match.\n\nUse this if:\n• Your current data is corrupted or contains false entries\n• You want to completely reset to the backup state\n• You want to restore to a previous point in time\n\nDuring restore:\n1. Cron sync is paused to prevent re-importing stale data\n2. All restored items are synced to your connected apps\n3. Cron sync resumes after completion`
+        ? `⚠️ WATCH HISTORY WIPE / RESTORE:\n\nWill DELETE all current watch history and restore from ${filename}.\n\nUse this if:\n• Your current data is corrupted or contains false entries\n• You want to completely reset to the backup state\n• You want to restore to a previous point in time\n\nAfter restore, the cron will skip any items from connected apps that were played before the restore date, so stale data cannot re-enter.`
         : `MERGE RESTORE (keep both old and new):\n\nWill keep entries from both the backup AND current data.\n\nUse this only if:\n• Your backup is older\n• You have new legitimate watch entries since the backup\n• You're certain current data is NOT corrupted`,
       confirmLabel: mode === "replace" ? "Wipe and Restore" : "Merge Restore",
       danger: mode === "replace",

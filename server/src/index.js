@@ -670,18 +670,14 @@ async function handleWatchBackups(req, res) {
         });
       }
 
-      // For Replace restores: pause cron sync to prevent re-importing stale data from platforms.
-      // We do NOT sync to connected apps here because that would trigger webhooks back to Plembfin,
-      // creating new watch records dated today and undoing the restore.
-      // Platform state is assumed to already reflect the backup (or will naturally reconcile).
+      // For Replace restores: the restore sets lastRestoreAt in runtime state, which the cron uses
+      // to permanently filter out any items played before the restore date. No pause needed.
       if (mode === "replace") {
-        pauseCronSync(43200000); // Pause for 12 hours
         const result = restoreWatchHistoryBackup(filename, { mode, dryRun: false });
 
         return sendJson(res, {
           ok: true,
           restore: result,
-          note: "Cron sync paused for 12 hours to prevent re-importing from connected apps.",
         });
       }
 
@@ -711,12 +707,10 @@ async function handleWatchBackups(req, res) {
       const remoteDryRun = body.dryRun === true;
       if (!id || !filename) return sendJson(res, { error: "destinationId and filename are required" }, 400);
       const pulled = await pullRemoteBackupToLocal(id, filename);
-      if (remoteMode === "replace" && !remoteDryRun) pauseCronSync(43200000); // Pause for 12 hours
       return sendJson(res, {
         ok: true,
         pulled,
         restore: restoreWatchHistoryBackup(pulled.name, { mode: remoteMode, dryRun: remoteDryRun }),
-        note: remoteMode === "replace" && !remoteDryRun ? "Cron sync paused for 12 hours to prevent re-importing from connected apps." : undefined,
       });
     }
     if (action === "clear-restore-status") {
