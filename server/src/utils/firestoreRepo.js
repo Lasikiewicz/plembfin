@@ -351,6 +351,7 @@ export async function getCachedShows() {
 
 // --- Playstate -------------------------------------------------------------
 const selectPlaystateStmt = db.prepare("SELECT * FROM playstate WHERE media_key = ?");
+const selectPlaystateByTitleStmt = db.prepare("SELECT * FROM playstate WHERE media_type = ? AND title_lower = ?");
 const upsertPlaystateStmt = db.prepare(
   `INSERT INTO playstate (media_key, title, title_lower, media_type, state, watched_at, last_source, sources, imdb_id, tmdb_id, tvdb_id, season, episode, poster_url, updated_at)
    VALUES (@media_key, @title, @title_lower, @media_type, @state, @watched_at, @last_source, @sources, @imdb_id, @tmdb_id, @tvdb_id, @season, @episode, @poster_url, @updated_at)
@@ -436,9 +437,24 @@ export async function upsertPlaystateForMedia(_unusedDb, media, state = "watched
   return upsertPlaystate(_unusedDb, playstateRecordFromMedia(media, state, watchedAt), state, options);
 }
 
+function sameEpisodeCoordinates(a = {}, b = {}) {
+  if (normalizeMediaType(a.media_type || a.mediaType) !== "episode") return true;
+  return Number(a.season ?? -1) === Number(b.season ?? -1) && Number(a.episode ?? -1) === Number(b.episode ?? -1);
+}
+
+function newestByUpdatedAt(rows = []) {
+  return rows
+    .filter(Boolean)
+    .sort((a, b) => Number(b.updated_at || b.updatedAt || 0) - Number(a.updated_at || a.updatedAt || 0))[0] || null;
+}
+
 export async function getPlaystateForMedia(_unusedDb, media) {
   const record = playstateRecordFromMedia(media, media?.syncAction || "watched");
-  const row = selectPlaystateStmt.get(mediaKeyFor(record));
+  const exact = selectPlaystateStmt.get(mediaKeyFor(record));
+  const related = selectPlaystateByTitleStmt
+    .all(record.media_type, record.title.toLowerCase())
+    .filter((row) => sameEpisodeCoordinates(record, row));
+  const row = newestByUpdatedAt([exact, ...related]);
   return row ? playstateFromRow(row) : null;
 }
 
@@ -574,6 +590,7 @@ const updateProgressTelemetryStmt = db.prepare(
 );
 const deleteProgressStmt = db.prepare("DELETE FROM playback_progress WHERE media_key = ?");
 const selectProgressStmt = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?");
+const selectProgressByTitleStmt = db.prepare("SELECT * FROM playback_progress WHERE media_type = ? AND LOWER(title) = ?");
 const selectProgressReplayStmt = db.prepare("SELECT * FROM playback_progress ORDER BY updated_at DESC LIMIT ? OFFSET ?");
 const countProgressStmt = db.prepare("SELECT COUNT(*) AS c FROM playback_progress");
 
@@ -679,7 +696,11 @@ export async function updatePlaybackProgressTelemetry(_unusedDb, mediaOrRecord, 
 
 export async function getPlaybackProgressForMedia(_unusedDb, mediaOrRecord) {
   const normalized = normalizePlaybackProgressRecord(mediaOrRecord, mediaOrRecord?.source);
-  const row = selectProgressStmt.get(normalized.media_key);
+  const exact = selectProgressStmt.get(normalized.media_key);
+  const related = selectProgressByTitleStmt
+    .all(normalized.media_type, normalized.title.toLowerCase())
+    .filter((row) => sameEpisodeCoordinates(normalized, row));
+  const row = newestByUpdatedAt([exact, ...related]);
   return row ? playbackProgressFromRow(row) : null;
 }
 

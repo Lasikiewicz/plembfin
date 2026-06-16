@@ -1,0 +1,280 @@
+﻿diff --git a/public/app.js b/public/app.js
+index 5ca1299..2f93d81 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -150,6 +150,7 @@ const state = {
+   backupImport: null,
+   watchBackups: null,
+   watchBackupsLoading: false,
++  internalHistoryCount: 0,
+ };
+ 
+ const elements = {};
+@@ -3329,6 +3330,7 @@ function navigateTo(url) {
+   const currentUrl = window.location.pathname + window.location.hash;
+   if (currentUrl !== url) {
+     history.pushState(null, "", url);
++    state.internalHistoryCount = (state.internalHistoryCount || 0) + 1;
+   }
+   handleRouting(url);
+   applyActiveView();
+@@ -7238,6 +7240,8 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
+   );
+   if (existingWatched) return renderMovieImmersiveModalContent(existingWatched);
+ 
++  setMediaDetailActions("");
++
+   if (!state.mediaDetailInline) {
+     elements.debugModal.classList.remove("hidden");
+     document.body.style.overflow = "hidden";
+@@ -9060,7 +9064,12 @@ function attachEvents() {
+ 
+     const backBtn = event.target.closest(".immersive-back-button");
+     if (backBtn) {
+-      closeMediaDetail();
++      if (state.internalHistoryCount > 0) {
++        state.internalHistoryCount -= 1;
++        window.history.back();
++      } else {
++        closeMediaDetail();
++      }
+       return;
+     }
+ 
+@@ -9863,73 +9872,12 @@ async function loadCastMemberDetails(personId, personName = null) {
+       elements.explorerTitle.textContent = data.name || "Cast Member Profile";
+     }
+     
+-    const castCredits = (data.combined_credits?.cast || []).sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
++    const castCredits = (data.combined_credits?.cast || []);
+     const profileUrl = tmdbProfile(data.profile_path) || '/favicon.svg';
+     
+-    let creditsHtml = "";
+-    const libraryTvCredits = [];
+-    if (castCredits.length === 0) {
+-      creditsHtml = `<p class="muted-copy">No known filmography recorded.</p>`;
+-    } else {
+-      creditsHtml = castCredits.map(credit => {
+-        const isTv = credit.media_type === "tv";
+-        const title = credit.title || credit.name || "Untitled";
+-        const character = credit.character || "Unknown Character";
+-        const posterUrl = tmdbPoster(credit.poster_path) || '/favicon.svg';
+-        const dateStr = credit.release_date || credit.first_air_date || "";
+-        const year = dateStr ? `(${dateStr.split("-")[0]})` : "";
+-        
+-        let libItem = findLibraryItem(credit.media_type, credit.id, title);
+-        if (!libItem && credit.in_library) {
+-          if (isTv) {
+-            libItem = {
+-              type: "show",
+-              key: credit.library_key,
+-              item: {
+-                title: credit.show_title || title,
+-                episode_count: credit.watched_count,
+-              }
+-            };
+-          } else {
+-            libItem = {
+-              type: "movie",
+-              id: credit.library_id
+-            };
+-          }
+-        }
+-        
+-        if (libItem) {
+-          const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
+-          const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
+-          if (isTv) libraryTvCredits.push({ credit, libItem, title });
+-          return `
+-            <div class="person-credit-card in-library" onclick="window.openLibraryItem('${libItem.type}', '${escapeAttribute(libItem.id || libItem.key)}', '${escapeAttribute(title)}', true, null);">
+-              <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
+-              <div class="person-credit-info">
+-                <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
+-                <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
+-                <span class="person-credit-year">${isTv ? 'TV Show' : 'Movie'}</span>
+-              </div>
+-              <span class="person-credit-badges">
+-                <span class="library-badge">In Library</span>
+-                ${isTv ? personWatchBadgeMarkup(watchProgress, credit.id) : `<span class="watch-state-badge is-complete">Watched</span>`}
+-              </span>
+-            </div>
+-          `;
+-        } else {
+-          return `
+-            <div class="person-credit-card" onclick="window.openLibraryItem('${credit.media_type}', null, '${escapeAttribute(title)}', false, '${credit.id}');">
+-              <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
+-              <div class="person-credit-info">
+-                <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
+-                <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
+-                <span class="person-credit-year">${isTv ? 'TV Show' : 'Movie'}</span>
+-              </div>
+-            </div>
+-          `;
+-        }
+-      }).join("");
+-    }
++    // Initialize temporary filter/sort preferences on state if not set
++    state.personCreditsFilter = state.personCreditsFilter || "all";
++    state.personCreditsSort = state.personCreditsSort || "popularity";
+     
+     root.innerHTML = `
+       <div class="person-profile-container" style="padding-top: var(--space-4);">
+@@ -9970,10 +9918,7 @@ async function loadCastMemberDetails(personId, personName = null) {
+               seen.add(img.file_path);
+               return true;
+             });
+-            // Headshots/portraits of the person.
+             const profiles = addUnique(data.images?.profiles || []);
+-            // Photos the person is tagged in (scenes, premieres, stills) ÔÇö these add
+-            // variety beyond headshots. Exclude posters so no show/movie art appears.
+             const tagged = addUnique(
+               (data.tagged_images?.results || []).filter((img) => img.image_type !== "poster")
+             );
+@@ -9992,15 +9937,143 @@ async function loadCastMemberDetails(personId, personName = null) {
+           })()}
+ 
+           <div class="person-credits-section" style="margin-top: 2rem;">
+-            <h3>Filmography (${castCredits.length})</h3>
+-            <div class="person-credits-grid">
+-              ${creditsHtml}
++            <div class="person-credits-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4); border-bottom: 1px solid var(--line-strong); padding-bottom: var(--space-3);">
++              <h3 style="margin: 0;">Filmography (<span id="personCreditsCount">${castCredits.length}</span>)</h3>
++              <div class="person-credits-controls" style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
++                <select id="personCreditsFilter" class="field" style="width: auto; min-width: 120px; font-size: 0.85rem; padding: var(--space-1) var(--space-2);">
++                  <option value="all" ${state.personCreditsFilter === "all" ? "selected" : ""}>All Media</option>
++                  <option value="movie" ${state.personCreditsFilter === "movie" ? "selected" : ""}>Movies</option>
++                  <option value="tv" ${state.personCreditsFilter === "tv" ? "selected" : ""}>TV Shows</option>
++                </select>
++                <select id="personCreditsSort" class="field" style="width: auto; min-width: 150px; font-size: 0.85rem; padding: var(--space-1) var(--space-2);">
++                  <option value="popularity" ${state.personCreditsSort === "popularity" ? "selected" : ""}>Popularity</option>
++                  <option value="date_desc" ${state.personCreditsSort === "date_desc" ? "selected" : ""}>Date (Newest)</option>
++                  <option value="date_asc" ${state.personCreditsSort === "date_asc" ? "selected" : ""}>Date (Oldest)</option>
++                </select>
++              </div>
++            </div>
++            <div class="person-credits-grid" id="personCreditsGrid">
++              <div style="display: flex; justify-content: center; align-items: center; min-height: 100px; grid-column: 1 / -1;">
++                <span style="color: var(--muted); font-size: 0.9rem;">Sorting filmography...</span>
++              </div>
+             </div>
+           </div>
+         </div>
+       </div>
+     `;
+-    hydratePersonFilmographyWatchStatuses(personId, libraryTvCredits);
++
++    const filterSelect = root.querySelector("#personCreditsFilter");
++    const sortSelect = root.querySelector("#personCreditsSort");
++    const gridEl = root.querySelector("#personCreditsGrid");
++    const countEl = root.querySelector("#personCreditsCount");
++
++    const updateGrid = () => {
++      state.personCreditsFilter = filterSelect.value;
++      state.personCreditsSort = sortSelect.value;
++      
++      let filtered = [...castCredits];
++      if (state.personCreditsFilter === "movie") {
++        filtered = filtered.filter(c => c.media_type === "movie");
++      } else if (state.personCreditsFilter === "tv") {
++        filtered = filtered.filter(c => c.media_type === "tv");
++      }
++
++      if (state.personCreditsSort === "popularity") {
++        filtered.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
++      } else if (state.personCreditsSort === "date_desc") {
++        filtered.sort((a, b) => {
++          const dateA = a.release_date || a.first_air_date || "";
++          const dateB = b.release_date || b.first_air_date || "";
++          if (!dateA) return 1;
++          if (!dateB) return -1;
++          return dateB.localeCompare(dateA);
++        });
++      } else if (state.personCreditsSort === "date_asc") {
++        filtered.sort((a, b) => {
++          const dateA = a.release_date || a.first_air_date || "";
++          const dateB = b.release_date || b.first_air_date || "";
++          if (!dateA) return 1;
++          if (!dateB) return -1;
++          return dateA.localeCompare(dateB);
++        });
++      }
++
++      countEl.textContent = filtered.length;
++
++      const libraryTvCredits = [];
++      if (filtered.length === 0) {
++        gridEl.innerHTML = `<p class="muted-copy" style="grid-column: 1 / -1; text-align: center; padding: 2rem 0;">No matching filmography items found.</p>`;
++      } else {
++        gridEl.innerHTML = filtered.map(credit => {
++          const isTv = credit.media_type === "tv";
++          const title = credit.title || credit.name || "Untitled";
++          const character = credit.character || "Unknown Character";
++          const posterUrl = tmdbPoster(credit.poster_path) || '/favicon.svg';
++          const dateStr = credit.release_date || credit.first_air_date || "";
++          const year = dateStr ? `(${dateStr.split("-")[0]})` : "";
++          
++          let libItem = findLibraryItem(credit.media_type, credit.id, title);
++          if (!libItem && credit.in_library) {
++            if (isTv) {
++              libItem = {
++                type: "show",
++                key: credit.library_key,
++                item: {
++                  title: credit.show_title || title,
++                  episode_count: credit.watched_count,
++                }
++              };
++            } else {
++              libItem = {
++                type: "movie",
++                id: credit.library_id
++              };
++            }
++          }
++          
++          if (libItem) {
++            const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
++            const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
++            if (isTv) libraryTvCredits.push({ credit, libItem, title });
++            return `
++              <div class="person-credit-card in-library" onclick="window.openLibraryItem('${libItem.type}', '${escapeAttribute(libItem.id || libItem.key)}', '${escapeAttribute(title)}', true, null);">
++                <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
++                <div class="person-credit-info">
++                  <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
++                  <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
++                  <span class="person-credit-year">${isTv ? 'TV Show' : 'Movie'}</span>
++                </div>
++                <span class="person-credit-badges">
++                  <span class="library-badge">In Library</span>
++                  ${isTv ? personWatchBadgeMarkup(watchProgress, credit.id) : `<span class="watch-state-badge is-complete">Watched</span>`}
++                </span>
++              </div>
++            `;
++          } else {
++            return `
++              <div class="person-credit-card" onclick="window.openLibraryItem('${credit.media_type}', null, '${escapeAttribute(title)}', false, '${credit.id}');">
++                <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
++                <div class="person-credit-info">
++                  <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
++                  <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
++                  <span class="person-credit-year">${isTv ? 'TV Show' : 'Movie'}</span>
++                </div>
++              </div>
++            `;
++          }
++        }).join("");
++      }
++
++      if (libraryTvCredits.length > 0) {
++        hydratePersonFilmographyWatchStatuses(personId, libraryTvCredits);
++      }
++    };
++
++    filterSelect?.addEventListener("change", updateGrid);
++    sortSelect?.addEventListener("change", updateGrid);
++
++    // Initial render of the grid
++    updateGrid();
+     
+   } catch (err) {
+     root.innerHTML = `
