@@ -130,14 +130,26 @@ h2 {
 
 .media-detail-page .immersive-header {
   display: grid;
-  grid-template-columns: minmax(150px, 230px) minmax(0, 760px);
-  gap: clamp(1rem, 3vw, 2rem);
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(1rem, 2.5vw, 2rem);
   align-items: start;
+  align-content: start;
   margin-top: clamp(1rem, 3vh, 2.5rem);
 }
 
 .media-detail-page .immersive-poster-img {
+  grid-column: 1;
+  grid-row: 1 / -1;
+}
+
+.media-detail-page .immersive-meta {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.media-detail-page .immersive-poster-img {
   width: 100%;
+  max-width: 280px;
   aspect-ratio: 2 / 3;
   object-fit: cover;
   border-radius: 5px;
@@ -149,6 +161,10 @@ h2 {
   gap: 0.8rem;
   align-content: start;
   padding-top: 0.2rem;
+}
+
+.media-detail-page .immersive-overview {
+  display: block;
 }
 
 .media-kicker {
@@ -164,6 +180,12 @@ h2 {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--space-4) calc(var(--space-4) + var(--space-2));
   margin-top: 1.25rem;
+}
+
+.media-detail-page .media-facts-rail {
+  grid-template-columns: 1fr;
+  margin-top: 0.75rem;
+  gap: 0.5rem;
 }
 
 .media-fact {
@@ -188,16 +210,29 @@ h2 {
 }
 
 .media-detail-page .immersive-header:has(.media-facts-rail--sidebar) {
-  grid-template-columns: minmax(150px, 230px) minmax(0, 760px) minmax(15rem, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
   gap: clamp(1rem, 2.5vw, 2rem);
+}
+
+.media-detail-page .immersive-header .media-facts-rail--sidebar {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.media-detail-page .media-facts-rail--sidebar {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-4);
+  align-self: start;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .media-facts-rail--sidebar {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4) calc(var(--space-4) + var(--space-2));
+  gap: var(--space-4) var(--space-4);
   align-self: start;
-  margin-top: 0.25rem;
-  padding-top: 0.25rem;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .media-facts-rail--sidebar .media-fact:last-child:nth-child(odd) {
@@ -297,16 +332,17 @@ h2 {
 }
 
 @media (max-width: 760px) {
-  .media-detail-page .immersive-header {
-    grid-template-columns: minmax(96px, 34vw) minmax(0, 1fr);
+  .media-detail-page .immersive-header,
+  .media-detail-page .immersive-header:has(.media-facts-rail--sidebar) {
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .media-detail-page .immersive-header:has(.media-facts-rail--sidebar) {
-    grid-template-columns: minmax(96px, 34vw) minmax(0, 1fr);
+  .media-detail-page .immersive-header .media-facts-rail--sidebar {
+    grid-column: 2;
+    grid-row: 2;
   }
 
   .media-facts-rail--sidebar {
-    grid-column: 1 / -1;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-top: var(--space-2);
   }
@@ -318,13 +354,11 @@ h2 {
 
 @media (min-width: 761px) and (max-width: 1180px) {
   .media-detail-page .immersive-header:has(.media-facts-rail--sidebar) {
-    grid-template-columns: minmax(150px, 230px) minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .media-facts-rail--sidebar {
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    margin-top: var(--space-2);
+    grid-template-columns: 1fr;
   }
 }
 
@@ -3138,7 +3172,7 @@ details[open] .tool-accordion-chevron::before {
 
 .immersive-header {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 2rem;
   align-items: start;
 }
@@ -3152,7 +3186,8 @@ details[open] .tool-accordion-chevron::before {
 }
 
 .immersive-poster-img {
-  width: 200px;
+  width: 100%;
+  max-width: 400px;
   aspect-ratio: 2 / 3;
   object-fit: cover;
   border-radius: 12px;

@@ -1281,6 +1281,84 @@ function openEditShowDateDialog(showTitle, watchedRows = []) {
   document.body.appendChild(overlay);
 }
 
+function openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes = []) {
+  if (!watchedEpisodes.length) {
+    setMessage("There are no watched episodes in this season to update.", "error");
+    return;
+  }
+
+  const latest = watchedEpisodes.reduce((value, row) => row.watched_at > value ? row.watched_at : value, watchedEpisodes[0].watched_at || "");
+  document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
+
+  const overlay = document.createElement("div");
+  overlay.className = "edit-dialog-overlay";
+  overlay.addEventListener("click", (event) => { if (event.target === overlay) overlay.remove(); });
+  overlay.innerHTML = `
+    <div class="edit-dialog glass-panel">
+      <h3>Edit Season Watch Date</h3>
+      <p class="muted-copy">Updates ${watchedEpisodes.length} watched episode date${watchedEpisodes.length === 1 ? "" : "s"} for Season ${seasonNum} of ${escapeHtml(showTitle || "this show")}.</p>
+      <label class="field-label">
+        Watched at
+        <input type="datetime-local" class="field edit-date-input" value="${escapeAttribute(watchedAtToInputValue(latest))}" />
+      </label>
+      <div class="edit-dialog-actions">
+        <button class="button-primary edit-dialog-save" type="button">Save</button>
+        <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
+      </div>
+      <p class="edit-dialog-status"></p>
+    </div>
+  `;
+
+  overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
+  overlay.querySelector(".edit-dialog-save").addEventListener("click", async () => {
+    const input = overlay.querySelector(".edit-date-input");
+    const status = overlay.querySelector(".edit-dialog-status");
+    const saveButton = overlay.querySelector(".edit-dialog-save");
+    const value = input.value;
+    if (!value) { status.textContent = "Please enter a date."; return; }
+
+    const watched_at = new Date(value).toISOString();
+    saveButton.disabled = true;
+    status.textContent = `Saving 0/${watchedEpisodes.length}...`;
+    try {
+      let saved = 0;
+      for (const row of watchedEpisodes) {
+        await apiUpdateWatch(row.id, { watched_at });
+        saved += 1;
+        status.textContent = `Saving ${saved}/${watchedEpisodes.length}...`;
+      }
+
+      for (const row of watchedEpisodes) row.watched_at = watched_at;
+      const showKey = slug(showTitle);
+      const show = state.showsRaw.find((item) => slug(item.title) === showKey);
+      if (show?.episodes) {
+        const ids = new Set(watchedEpisodes.map((row) => row.id));
+        for (const episode of show.episodes) {
+          if (ids.has(episode.id)) episode.watched_at = watched_at;
+        }
+        show.latest_watched_at = show.episodes.reduce((value, episode) => episode.watched_at > value ? episode.watched_at : value, "");
+        show.earliest_watched_at = show.episodes.reduce((value, episode) => !value || episode.watched_at < value ? episode.watched_at : value, "");
+      }
+
+      clearDerivedUiCaches({ resetExplorer: false });
+      if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
+      if (state.activeShowModalKey) {
+        renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+      } else if (state.activeShowTmdbId) {
+        await openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+      }
+      overlay.remove();
+      setMessage(`Updated ${watchedEpisodes.length} episode date${watchedEpisodes.length === 1 ? "" : "s"} for Season ${seasonNum}.`, "success");
+    } catch (error) {
+      saveButton.disabled = false;
+      setMessage(`Season watch date update failed: ${error.message}`, "error");
+      status.textContent = `Error: ${error.message}`;
+    }
+  });
+
+  document.body.appendChild(overlay);
+}
+
 function openConfirmDialog({ title = "Are you sure?", body = "", confirmLabel = "Confirm", cancelLabel = "Cancel", danger = false } = {}) {
   return new Promise((resolve) => {
     document.querySelectorAll(".confirm-dialog-overlay").forEach((el) => el.remove());
@@ -4603,10 +4681,11 @@ function renderExplorer() {
     }
   }
   if (elements.explorerTitle) {
-    elements.explorerTitle.textContent = state.explorerMode === "shows" ? "TV Shows" : "Movies";
+    const mode = state.mediaDetailInline && state.activeShowModalKey ? "shows" : state.explorerMode;
+    elements.explorerTitle.textContent = mode === "shows" ? "TV Shows" : "Movies";
   }
   if (elements.explorerSubtitle) {
-    elements.explorerSubtitle.textContent = state.savedConfig?.plex?.username || "Watched history library";
+    elements.explorerSubtitle.textContent = state.mediaDetailInline ? "" : (state.savedConfig?.plex?.username || "Watched history library");
   }
 
   const search = elements.explorerSearchInput ? elements.explorerSearchInput.value.trim() : state.explorerSearch;
@@ -6670,9 +6749,12 @@ function renderShowModalContent(show, {
     <section class="show-season-block" id="showSeason${selectedSeasonNumber}">
       <div class="show-season-head">
         <span class="show-season-label">${selectedSeasonSummary.watchedInSeason} of ${selectedSeasonSummary.seasonTotal || "?"} episodes watched</span>
-        <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${selectedSeasonNumber}" ${(selectedSeasonUnwatched.length && !isSaving) ? "" : "disabled"}>
-          ${isSaving && isSaving.scope === "season" && Number(isSaving.episodes[0]?.seasonNumber) === Number(selectedSeasonNumber) ? "Saving…" : "Mark season watched"}
-        </button>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          ${selectedSeasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${selectedSeasonNumber}" ${isSaving ? "disabled" : ""}>Edit season date</button>` : ""}
+          <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${selectedSeasonNumber}" ${(selectedSeasonUnwatched.length && !isSaving) ? "" : "disabled"}>
+            ${isSaving && isSaving.scope === "season" && Number(isSaving.episodes[0]?.seasonNumber) === Number(selectedSeasonNumber) ? "Saving…" : "Mark season watched"}
+          </button>
+        </div>
       </div>
       <div class="show-episode-list">
         ${selectedSeasonEpisodes.length ? selectedSeasonEpisodes.map((episode) => {
@@ -6724,10 +6806,9 @@ function renderShowModalContent(show, {
         <button class="season-accordion-trigger" type="button" data-season-accordion="${seasonNumber}" aria-expanded="${isActive}" aria-controls="${panelId}">
           <span class="season-accordion-title">
             <strong>${escapeHtml(season.name || seasonLabel(seasonNumber))}</strong>
-            <span class="season-episode-count">${seasonTotal || "?"} episode${seasonTotal === 1 ? "" : "s"}</span>
+            <span class="season-episode-count">${seasonTotal || "?"} episode${seasonTotal === 1 ? "" : "s"}${watchedInSeason ? ` - ${watchedInSeason} watched` : ""}</span>
           </span>
           <span class="season-accordion-meta">
-            ${watchedInSeason ? `<span>${watchedInSeason} watched</span>` : ""}
             <svg class="season-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </span>
         </button>
@@ -7619,9 +7700,8 @@ async function renderMovieImmersiveModalContent(movie) {
           </section>
 
         </div>
+        ${renderMediaFacts(tmdbData, "movie", "sidebar")}
       </header>
-
-      ${renderMediaFacts(tmdbData, "movie")}
 
       ${renderCastSection(tmdbData)}
 
@@ -9508,6 +9588,20 @@ function attachEvents() {
       return;
     }
 
+    const editSeasonDateBtn = event.target.closest("[data-edit-season-date]");
+    if (editSeasonDateBtn) {
+      const seasonNum = Number(editSeasonDateBtn.dataset.editSeasonDate);
+      const seasonEpisodes = state.showModalEpisodes.filter((ep) => ep.seasonNumber === seasonNum);
+      const watchedEpisodes = seasonEpisodes.map((ep) => ep.watched).filter(Boolean);
+      if (!watchedEpisodes.length) {
+        setMessage("No watched episodes in this season to update.", "error");
+        return;
+      }
+      const showTitle = seasonEpisodes[0]?.showTitle || "";
+      openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes);
+      return;
+    }
+
     const movieWatchButton = event.target.closest("[data-movie-mark-watched]");
     if (movieWatchButton) {
       markMovieWatched({
@@ -9596,21 +9690,8 @@ function attachEvents() {
             showObj = { title: canonicalShowName, id: entry.tvdb_id || entry.tmdb_id || canonicalShowName };
             state.showsRaw.push(showObj);
           }
-          
-          const titleMatch = String(entry.title || "").match(/S(\d{1,2})E(\d{1,2})/i);
-          const parsedSeason = titleMatch ? Number(titleMatch[1]) : null;
-          const parsedEpisode = titleMatch ? Number(titleMatch[2]) : null;
-          const seasonNum = entry.season != null ? Number(entry.season) : parsedSeason;
-          const episodeNum = entry.episode != null ? Number(entry.episode) : parsedEpisode;
 
-          let url = `/tvshow/${showKeySlug}`;
-          if (seasonNum !== null) {
-            url += `#season${seasonNum}`;
-            if (episodeNum !== null) {
-              url += `ep${episodeNum}`;
-            }
-          }
-          navigateTo(url);
+          navigateTo(`/tvshow/${showKeySlug}`);
         }
       } else {
         const isMovieCard = event.target.closest(".movie-card");
