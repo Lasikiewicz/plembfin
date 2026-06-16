@@ -1161,10 +1161,10 @@ h2 {
 .now-card-large {
   display: grid;
   grid-template-columns: var(--poster-width, 160px) 1fr;
-  gap: var(--space-3);
-  min-height: 8.5rem;
+  gap: var(--space-4);
+  min-height: calc(var(--poster-width, 160px) * 1.5 + var(--space-3) * 2);
   align-items: center;
-  padding: var(--space-3);
+  padding: var(--space-4) var(--space-4);
 }
 
 .now-poster-large {
