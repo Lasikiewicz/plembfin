@@ -1,7 +1,14 @@
 {
-  "version": "0.0.26",
-  "updatedAt": "2026-06-16T11:37:31+01:00",
+  "version": "0.0.27",
+  "updatedAt": "2026-06-16T11:44:39+01:00",
   "entries": [
+    {
+      "version": "0.0.27",
+      "date": "2026-06-16T11:44:39+01:00",
+      "commit": "d66ac4b9de34005ce284c7a8c6b9675c5fb6e12a",
+      "message": "fix: prevent resume progress sync when item is marked watched",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.26",
       "date": "2026-06-16T11:37:31+01:00",
