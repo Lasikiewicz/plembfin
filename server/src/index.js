@@ -23,6 +23,7 @@ import {
   mergeShows,
   getWatchRecordById,
   getWatchRecordByIdLight,
+  getWatchRecordByMediaKey,
   getHistoryCacheVersion,
   getWatchStats,
   invalidateHistoryDerivedCaches,
@@ -1382,6 +1383,20 @@ async function handleWebhook(req, res) {
       positionMs: media.positionMs,
     });
     await deleteActiveSession(null, media);
+
+    // Check if a recent watch record already exists (e.g., from full sync)
+    // to avoid creating duplicates. Look for records watched in the last hour.
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const existingRecord = await getWatchRecordByMediaKey(mediaKeyFor(media), oneHourAgo).catch(() => null);
+    if (existingRecord) {
+      console.log("Webhook: skipped duplicate watch record", {
+        source: media.source,
+        title: media.title,
+        existingWatchedAt: existingRecord.watched_at,
+      });
+      return sendJson(res, { ok: true, inserted: false, id: existingRecord.id, reason: "Watch record already exists from recent full sync" });
+    }
+
     const watchRecord = mediaToWatchRecord(media, media.source);
     watchRecord.sync_action = "watched";
     watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, media, "watched");
