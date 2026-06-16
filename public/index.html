@@ -48,6 +48,10 @@
             <button class="settings-tab" type="button" data-settings-tab="api-keys">API Keys</button>
             <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
             <button class="settings-tab" type="button" data-settings-tab="backups">Backups</button>
+            <div id="sidebarBackupsMenu" class="sidebar-sub-menu hidden">
+              <button class="backups-sub-tab active" type="button" data-backups-tab="settings">Settings</button>
+              <button class="backups-sub-tab" type="button" data-backups-tab="restore">Restore</button>
+            </div>
             <button class="settings-tab" type="button" data-settings-tab="sync">Sync</button>
             <button class="settings-tab" type="button" data-settings-tab="logs">Logs</button>
           </div>
@@ -778,8 +782,8 @@
                 </div>
               </section>
 
-              <section class="settings-pane hidden" data-settings-panel="backups">
-                <!-- Backup Schedule & Destinations Row -->
+              <!-- Backups Settings Panel -->
+              <section class="settings-pane hidden" data-settings-panel="backups" data-backups-panel="settings">
                 <div class="settings-row">
                   <div class="settings-row-main">
                     <!-- Automatic Backups -->
@@ -810,7 +814,6 @@
                       <div class="settings-actions backup-settings-actions">
                         <button id="saveWatchBackupConfigButton" class="button-primary" type="button">Save Schedule</button>
                         <button id="createWatchBackupButton" class="button-ghost" type="button">Back Up Now</button>
-                        <button id="refreshWatchBackupsButton" class="button-ghost" type="button">Refresh List</button>
                       </div>
 
                       <div id="watchBackupRuntime" class="backup-runtime" aria-live="polite"></div>
@@ -864,19 +867,22 @@
                     </article>
                   </div>
                 </div>
+              </section>
 
-                <!-- Available Backups Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+              <!-- Backups Restore Panel -->
+              <section class="settings-pane hidden" data-settings-panel="backups" data-backups-panel="restore">
+                <div class="settings-row">
                   <div class="settings-row-main">
                     <!-- Available Backups -->
                     <section class="glass-panel p-section backup-settings-panel">
                       <div class="section-heading">
                         <div>
-                          <p>Available Backups</p>
-                          <span>Download or restore from local or remote locations</span>
+                          <p>Restore Watch History</p>
+                          <span>Select a backup to restore. Plembfin will become the source of truth and sync to all connected apps.</span>
                         </div>
                       </div>
                       <div id="watchBackupList" class="watch-backup-list" aria-live="polite"></div>
+                      <pre id="restoreProgressTerminal" class="import-terminal compact-terminal hidden" aria-live="polite" style="margin-top: var(--space-3);"></pre>
                     </section>
                   </div>
 
@@ -884,19 +890,19 @@
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
                         <p>Restore Guide</p>
-                        <span>History Restoration</span>
+                        <span>How to restore</span>
                       </div>
-                      
-                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Restore Local Backup</h4>
+
+                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Watch History Wipe / Restore</h4>
                       <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
-                        Click <b>Merge Restore</b> (combines history, keeping newest on conflict) or <b>Replace</b> (wipes local db first) from the Available Backups list.
+                        Clears Plembfin's local database and replaces it with the selected backup. During restore, the cron sync is paused to prevent re-importing from connected apps. Once complete, all items are synced to Plex, Emby, and Jellyfin so Plembfin becomes the source of truth.
                       </p>
 
                       <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Restore onto New Instance</h4>
                       <ol class="tool-accordion-desc" style="margin: 0; padding-left: 1.2rem; font-size: 0.8rem; list-style: decimal;">
                         <li>Install a fresh Plembfin.</li>
-                        <li>Re-add cloud credentials in Remote Destinations.</li>
-                        <li>Click Restore from the list of remote backups.</li>
+                        <li>Go to Backups → Settings and configure remote destinations.</li>
+                        <li>Go to Backups → Restore and click "Watch History Wipe / Restore" on a backup from your remote destination.</li>
                       </ol>
                     </article>
                   </div>

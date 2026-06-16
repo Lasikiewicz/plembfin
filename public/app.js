@@ -64,6 +64,7 @@ const state = {
   firebaseUser: undefined,
   activeView: localStorage.getItem(ACTIVE_VIEW_KEY) || "dashboard",
   activeSettingsTab: localStorage.getItem(ACTIVE_SETTINGS_TAB_KEY) || "general",
+  activeBackupsTab: localStorage.getItem("activeBackupsTab") || "settings",
   historyWeekStart: startOfWeek(new Date()),
   history: [],
   historyVersion: "",
@@ -268,6 +269,8 @@ function bindElements() {
     settingsStatus: document.querySelector("#settingsStatus"),
     settingsTabButtons: [...document.querySelectorAll("[data-settings-tab]")],
     settingsPanels: [...document.querySelectorAll("[data-settings-panel]")],
+    backupsSubTabButtons: [...document.querySelectorAll("[data-backups-tab]")],
+    backupsPanels: [...document.querySelectorAll("[data-backups-panel]")],
     sourceRanking: document.querySelector("#sourceRanking"),
     startImportButton: document.querySelector("#startImportButton"),
     statusPill: document.querySelector("#statusPill"),
@@ -568,6 +571,7 @@ function renderWatchBackups() {
     ${runtime.lastError ? `<p class="backup-runtime-error">${escapeHtml(runtime.lastError)}</p>` : ""}
   `;
 
+  const isRestoreTab = state.activeBackupsTab === "restore";
   elements.watchBackupList.innerHTML = files.length ? files.map((file) => `
     <article class="watch-backup-row">
       <div class="watch-backup-copy">
@@ -575,15 +579,16 @@ function renderWatchBackups() {
         <span>${escapeHtml(watchBackupDate(file.createdAt))} · ${escapeHtml(formatBytes(file.sizeBytes))}</span>
       </div>
       <div class="watch-backup-actions">
-        <button class="button-ghost" type="button" data-watch-backup-download="${escapeAttribute(file.name)}">Download</button>
-        <button class="button-ghost" type="button" data-watch-backup-dry-run="${escapeAttribute(file.name)}">Validate</button>
-        <button class="button-primary" type="button" data-watch-backup-restore="${escapeAttribute(file.name)}" data-restore-mode="merge">Merge Restore</button>
-        <button class="button-danger" type="button" data-watch-backup-restore="${escapeAttribute(file.name)}" data-restore-mode="replace">Replace</button>
+        ${!isRestoreTab ? `<button class="button-ghost" type="button" data-watch-backup-download="${escapeAttribute(file.name)}">Download</button>` : ""}
+        ${!isRestoreTab ? `<button class="button-ghost" type="button" data-watch-backup-dry-run="${escapeAttribute(file.name)}">Validate</button>` : ""}
+        ${isRestoreTab ? `<button class="button-primary" type="button" data-watch-backup-restore="${escapeAttribute(file.name)}" data-restore-mode="replace">Watch History Wipe / Restore</button>` : ""}
       </div>
     </article>
   `).join("") : `<div class="empty-log"><b>No watch-history backups yet</b><span>Use Back Up Now or enable the daily schedule.</span></div>`;
 
-  renderWatchBackupDestinations(data);
+  if (!isRestoreTab) {
+    renderWatchBackupDestinations(data);
+  }
 }
 
 const DESTINATION_FORMS = {
@@ -992,27 +997,54 @@ async function downloadWatchBackup(filename) {
 async function restoreWatchBackup(filename, mode, dryRun = false) {
   if (!dryRun) {
     const approved = await openConfirmDialog({
-      title: mode === "replace" ? "⚠️ Replace watch history?" : "Merge watch history?",
+      title: mode === "replace" ? "⚠️ Wipe and restore watch history?" : "Merge watch history?",
       body: mode === "replace"
-        ? `⚠️ REPLACE (recommended for corrupted data):\n\nWill DELETE all current watch history, playstate, and progress, then restore from ${filename}.\n\nUse this if:\n• Your current data is corrupted or contains false entries\n• You want to completely reset to the backup state\n\nDo NOT use if you have new entries since the backup that you want to keep.`
-        : `MERGE RESTORE (advanced - keep recent entries):\n\nWill keep entries from both the backup AND current data, using the newest record when the same item appears in both.\n\nUse this only if:\n• Your backup is older\n• You have new legitimate watch entries since the backup\n• You're certain current data is NOT corrupted\n\nWARNING: If current data is corrupted, merge will re-introduce those false entries!`,
-      confirmLabel: mode === "replace" ? "Replace and Restore" : "Merge Restore",
+        ? `⚠️ WATCH HISTORY WIPE / RESTORE:\n\nWill DELETE all current watch history and restore from ${filename}.\n\nPlembfin will then sync the restored data to Plex, Emby, and Jellyfin so they all match.\n\nUse this if:\n• Your current data is corrupted or contains false entries\n• You want to completely reset to the backup state\n• You want to restore to a previous point in time\n\nDuring restore:\n1. Cron sync is paused to prevent re-importing stale data\n2. All restored items are synced to your connected apps\n3. Cron sync resumes after completion`
+        : `MERGE RESTORE (keep both old and new):\n\nWill keep entries from both the backup AND current data.\n\nUse this only if:\n• Your backup is older\n• You have new legitimate watch entries since the backup\n• You're certain current data is NOT corrupted`,
+      confirmLabel: mode === "replace" ? "Wipe and Restore" : "Merge Restore",
       danger: mode === "replace",
     });
     if (!approved) return;
   }
 
-  const result = await postWatchBackupAction({ action: "restore", filename, mode, dryRun });
-  const summary = result.restore || {};
-  if (dryRun) {
-    setMessage(`Backup valid: ${summary.watchHistory || 0} history, ${summary.playstate || 0} playstate, ${summary.playbackProgress || 0} progress rows.`, "success");
-    return;
+  const terminal = document.querySelector("#restoreProgressTerminal");
+  if (terminal && !dryRun && mode === "replace") {
+    terminal.classList.remove("hidden");
+    terminal.textContent = "[Starting] Preparing to restore watch history...\n";
   }
-  clearDerivedUiCaches();
-  await Promise.all([loadHistory({ force: true }), loadStats({ force: true })]);
-  state.watchBackups = null;
-  await loadWatchBackups({ force: true });
-  setMessage(`Watch history restored from ${filename}.`, "success");
+
+  try {
+    const result = await postWatchBackupAction({ action: "restore", filename, mode, dryRun });
+    const summary = result.restore || {};
+
+    if (dryRun) {
+      setMessage(`Backup valid: ${summary.watchHistory || 0} history, ${summary.playstate || 0} playstate, ${summary.playbackProgress || 0} progress rows.`, "success");
+      return;
+    }
+
+    if (terminal && mode === "replace") {
+      terminal.textContent += `[${new Date().toLocaleTimeString()}] Restored ${summary.watchHistory || 0} watch history records\n`;
+      terminal.textContent += `[${new Date().toLocaleTimeString()}] Restored ${summary.playstate || 0} playstate records\n`;
+      terminal.textContent += `[${new Date().toLocaleTimeString()}] Restored ${summary.playbackProgress || 0} progress records\n`;
+      terminal.textContent += `[${new Date().toLocaleTimeString()}] Syncing to connected apps...\n`;
+    }
+
+    clearDerivedUiCaches();
+    await Promise.all([loadHistory({ force: true }), loadStats({ force: true })]);
+    state.watchBackups = null;
+    await loadWatchBackups({ force: true });
+
+    if (terminal && mode === "replace") {
+      terminal.textContent += `[${new Date().toLocaleTimeString()}] ✓ Restore complete!\n`;
+    }
+
+    setMessage(`Watch history restored from ${filename}.`, "success");
+  } catch (error) {
+    if (terminal && mode === "replace") {
+      terminal.textContent += `[ERROR] ${error.message}\n`;
+    }
+    throw error;
+  }
 }
 
 async function apiUpdateWatch(id, fields) {
@@ -3496,6 +3528,13 @@ function selectSettingsTab(tab) {
   navigateTo(`/settings/${targetTab}`);
 }
 
+function selectBackupsTab(tab) {
+  const validTabs = ["settings", "restore"];
+  state.activeBackupsTab = validTabs.includes(tab) ? tab : "settings";
+  localStorage.setItem("activeBackupsTab", state.activeBackupsTab);
+  applyActiveView();
+}
+
 function applyActiveView() {
   localStorage.setItem(ACTIVE_VIEW_KEY, state.activeView);
 
@@ -3550,8 +3589,25 @@ function applyActiveView() {
       loadSyncHistory().catch((error) => setMessage(error.message, "error"));
     }
     if (state.activeSettingsTab === "backups") {
+      // Show/hide backup sub-tabs menu
+      const backupsSubMenu = document.querySelector("#sidebarBackupsMenu");
+      if (backupsSubMenu) backupsSubMenu.classList.remove("hidden");
+
+      // Update backup sub-tab buttons and panels
+      for (const button of elements.backupsSubTabButtons || []) {
+        button.classList.toggle("active", button.dataset.backupsTab === state.activeBackupsTab);
+      }
+      for (const panel of elements.backupsPanels || []) {
+        const isVisible = panel.dataset.backupsPanel === state.activeBackupsTab;
+        panel.classList.toggle("hidden", !isVisible);
+      }
+
       renderWatchBackups();
       loadWatchBackups().catch((error) => setMessage(error.message, "error"));
+    } else {
+      // Hide backup sub-tabs menu when not on backups
+      const backupsSubMenu = document.querySelector("#sidebarBackupsMenu");
+      if (backupsSubMenu) backupsSubMenu.classList.add("hidden");
     }
     if (state.activeSettingsTab === "logs") renderLogs().catch(() => {});
     if (state.configLoaded) {
@@ -9027,6 +9083,10 @@ function attachEvents() {
 
   elements.settingsTabButtons.forEach((button) => {
     button.addEventListener("click", () => selectSettingsTab(button.dataset.settingsTab));
+  });
+
+  elements.backupsSubTabButtons.forEach((button) => {
+    button.addEventListener("click", () => selectBackupsTab(button.dataset.backupsTab));
   });
 
   elements.saveWatchBackupConfigButton?.addEventListener("click", () => {
