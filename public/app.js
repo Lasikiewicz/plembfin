@@ -613,7 +613,21 @@ function renderWatchBackups() {
     ? `<div class="empty-log" style="padding: var(--space-2);"><span>Loading remote backups…</span></div>`
     : "";
 
-  elements.watchBackupList.innerHTML = cronPausedBanner + remoteLoading + (allEntries.length ? allEntries.map((entry) => `
+  const clearMode = state.restoreClearMode || "reconcile";
+  const clearModeSelector = `
+    <div class="restore-clear-mode backup-runtime" style="margin-bottom: var(--space-3); display: grid; gap: var(--space-2);">
+      <div style="font-weight: 600;">Restoring makes this backup the source of truth — it is pushed to every connected app. Choose how to clear the apps first:</div>
+      <label style="display: flex; gap: var(--space-2); align-items: flex-start; cursor: pointer;">
+        <input type="radio" name="restoreClearMode" value="reconcile" ${clearMode === "reconcile" ? "checked" : ""} data-restore-clear-mode style="margin-top: 3px;">
+        <span><b>Reconcile tracked items</b> — push only the items this backup knows about. Fast. Apps keep any extra watched items the backup never tracked.</span>
+      </label>
+      <label style="display: flex; gap: var(--space-2); align-items: flex-start; cursor: pointer;">
+        <input type="radio" name="restoreClearMode" value="wipe" ${clearMode === "wipe" ? "checked" : ""} data-restore-clear-mode style="margin-top: 3px;">
+        <span><b>Full wipe then push</b> — mark every currently-watched item on each app as unwatched, then re-apply only the backup's watched set. Apps end up matching the backup exactly. Slower.</span>
+      </label>
+    </div>`;
+
+  elements.watchBackupList.innerHTML = cronPausedBanner + (allEntries.length ? clearModeSelector : "") + remoteLoading + (allEntries.length ? allEntries.map((entry) => `
     <article class="watch-backup-row">
       <div class="watch-backup-copy">
         <b>${escapeHtml(entry.name)}</b>
@@ -625,7 +639,6 @@ function renderWatchBackups() {
       <div class="watch-backup-actions">
         <button class="button-primary" type="button"
           data-watch-backup-restore="${escapeAttribute(entry.name)}"
-          data-restore-mode="replace"
           ${entry.destId ? `data-restore-dest-id="${escapeAttribute(entry.destId)}"` : ""}>
           Watch History Wipe / Restore
         </button>
@@ -920,29 +933,25 @@ async function listRemoteBackupsForCard(card) {
           <span>${escapeHtml(watchBackupDate(file.createdAt))} · ${escapeHtml(formatBytes(file.sizeBytes))}</span>
         </div>
         <div class="watch-backup-actions">
-          <button class="button-primary" type="button" data-dest-restore-file="${escapeAttribute(file.name)}" data-restore-mode="merge">Merge Restore</button>
-          <button class="button-danger" type="button" data-dest-restore-file="${escapeAttribute(file.name)}" data-restore-mode="replace">Replace</button>
+          <button class="button-danger" type="button" data-dest-restore-file="${escapeAttribute(file.name)}">Wipe / Restore</button>
         </div>
       </div>
     `).join("")}
   `;
 }
 
-async function restoreRemoteBackupFromCard(card, filename, mode) {
+async function restoreRemoteBackupFromCard(card, filename, clearMode = "reconcile") {
+  const wipe = clearMode === "wipe";
   const approved = await openConfirmDialog({
     title: "⚠️ Watch History Wipe / Restore",
-    body: `This will DELETE all current watch history, playstate, and resume progress, then fully restore from:\n\n${filename}\n\nThis cannot be undone. After restore, the cron will permanently ignore items played before the restore date.`,
-    confirmLabel: "Wipe and Restore",
+    body: `⚠️ AUTHORITATIVE RESTORE — this backup becomes the source of truth.\n\nWill DELETE all current watch history, playstate and resume progress, restore from:\n\n${filename}\n\nand push that state to every connected app.\n\n${wipe
+      ? "Clear mode: FULL WIPE — every currently-watched item on each app is first marked unwatched."
+      : "Clear mode: RECONCILE — only items tracked by the backup are pushed."}\n\nThis cannot be undone.`,
+    confirmLabel: wipe ? "Wipe Apps and Restore" : "Restore and Push",
     danger: true,
   });
   if (!approved) return;
-  const result = await postWatchBackupAction({ action: "restore-remote-backup", destinationId: card.dataset.destId, filename, mode });
-  const summary = result.restore || {};
-  clearDerivedUiCaches();
-  await Promise.all([loadHistory({ force: true }), loadStats({ force: true })]);
-  state.watchBackups = null;
-  await loadWatchBackups({ force: true });
-  setMessage(`Restored from ${filename} (${mode}): ${summary.watchHistory || 0} history, ${summary.playstate || 0} playstate rows.`, "success");
+  await runAuthoritativeRestore({ action: "restore-remote-backup", destinationId: card.dataset.destId, filename, clearMode });
 }
 
 async function connectBackupDestinationCard(card) {
@@ -1062,57 +1071,93 @@ async function downloadWatchBackup(filename) {
   URL.revokeObjectURL(url);
 }
 
-async function restoreWatchBackup(filename, mode, dryRun = false) {
-  if (!dryRun) {
-    const approved = await openConfirmDialog({
-      title: mode === "replace" ? "⚠️ Wipe and restore watch history?" : "Merge watch history?",
-      body: mode === "replace"
-        ? `⚠️ WATCH HISTORY WIPE / RESTORE:\n\nWill DELETE all current watch history and restore from ${filename}.\n\nUse this if:\n• Your current data is corrupted or contains false entries\n• You want to completely reset to the backup state\n• You want to restore to a previous point in time\n\nAfter restore, the cron will skip any items from connected apps that were played before the restore date, so stale data cannot re-enter.`
-        : `MERGE RESTORE (keep both old and new):\n\nWill keep entries from both the backup AND current data.\n\nUse this only if:\n• Your backup is older\n• You have new legitimate watch entries since the backup\n• You're certain current data is NOT corrupted`,
-      confirmLabel: mode === "replace" ? "Wipe and Restore" : "Merge Restore",
-      danger: mode === "replace",
-    });
-    if (!approved) return;
+async function restoreWatchBackup(filename, clearMode = "reconcile", dryRun = false) {
+  if (dryRun) {
+    const result = await postWatchBackupAction({ action: "restore", filename, dryRun: true });
+    const summary = result.restore || {};
+    setMessage(`Backup valid: ${summary.watchHistory || 0} history, ${summary.playstate || 0} playstate, ${summary.playbackProgress || 0} progress rows.`, "success");
+    return;
   }
 
+  const wipe = clearMode === "wipe";
+  const approved = await openConfirmDialog({
+    title: "⚠️ Wipe and restore watch history?",
+    body: `⚠️ AUTHORITATIVE RESTORE — this backup becomes the source of truth.\n\nWill DELETE all current watch history, playstate and resume progress, restore from ${filename}, and push that state to every connected app (Plex/Emby/Jellyfin).\n\n${wipe
+      ? "Clear mode: FULL WIPE — every currently-watched item on each app is first marked unwatched, so the apps end up matching the backup exactly."
+      : "Clear mode: RECONCILE — only items tracked by the backup are pushed; extra watched items on the apps are left as-is."}\n\nThis cannot be undone.`,
+    confirmLabel: wipe ? "Wipe Apps and Restore" : "Restore and Push",
+    danger: true,
+  });
+  if (!approved) return;
+
+  await runAuthoritativeRestore({ action: "restore", filename, clearMode });
+}
+
+// Shared driver for both local and remote authoritative restores: kick off the background job,
+// stream its log into the restore terminal, then refresh the UI.
+async function runAuthoritativeRestore(payload) {
   const terminal = document.querySelector("#restoreProgressTerminal");
-  if (terminal && !dryRun && mode === "replace") {
+  if (terminal) {
     terminal.classList.remove("hidden");
-    terminal.textContent = "[Starting] Preparing to restore watch history...\n";
+    terminal.textContent = "[Starting] Preparing authoritative restore...\n";
   }
 
   try {
-    const result = await postWatchBackupAction({ action: "restore", filename, mode, dryRun });
+    const result = await postWatchBackupAction(payload);
     const summary = result.restore || {};
-
-    if (dryRun) {
-      setMessage(`Backup valid: ${summary.watchHistory || 0} history, ${summary.playstate || 0} playstate, ${summary.playbackProgress || 0} progress rows.`, "success");
-      return;
+    if (terminal) {
+      terminal.textContent += `[${new Date().toLocaleTimeString()}] Restored ${summary.watchHistory || 0} history, ${summary.playstate || 0} playstate, ${summary.playbackProgress || 0} progress records\n`;
+      terminal.textContent += `[${new Date().toLocaleTimeString()}] Pushing to connected apps (clear mode: ${result.clearMode || payload.clearMode || "reconcile"})...\n`;
     }
 
-    if (terminal && mode === "replace") {
-      terminal.textContent += `[${new Date().toLocaleTimeString()}] Restored ${summary.watchHistory || 0} watch history records\n`;
-      terminal.textContent += `[${new Date().toLocaleTimeString()}] Restored ${summary.playstate || 0} playstate records\n`;
-      terminal.textContent += `[${new Date().toLocaleTimeString()}] Restored ${summary.playbackProgress || 0} progress records\n`;
-      terminal.textContent += `[${new Date().toLocaleTimeString()}] Syncing to connected apps...\n`;
-    }
+    const jobResult = await pollRestoreProgress(terminal);
 
     clearDerivedUiCaches();
     await Promise.all([loadHistory({ force: true }), loadStats({ force: true })]);
     state.watchBackups = null;
     await loadWatchBackups({ force: true });
 
-    if (terminal && mode === "replace") {
-      terminal.textContent += `[${new Date().toLocaleTimeString()}] ✓ Restore complete!\n`;
+    if (jobResult && jobResult.success === false) {
+      setMessage(`Restore finished with errors: ${jobResult.error || "see terminal"}.`, "error");
+    } else {
+      setMessage(`Watch history restored from ${payload.filename} and pushed to connected apps.`, "success");
     }
-
-    setMessage(`Watch history restored from ${filename}.`, "success");
   } catch (error) {
-    if (terminal && mode === "replace") {
-      terminal.textContent += `[ERROR] ${error.message}\n`;
-    }
+    if (terminal) terminal.textContent += `[ERROR] ${error.message}\n`;
     throw error;
   }
+}
+
+// Poll the watch-backups status endpoint, appending new restore-job log lines to the terminal
+// until the job is no longer active. Returns the job result.
+async function pollRestoreProgress(terminal) {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  let printed = 0;
+  for (let i = 0; i < 600; i++) {
+    let data;
+    try {
+      const response = await fetch("/api/watch-backups", { headers: authHeaders(), cache: "no-store" });
+      data = await response.json().catch(() => ({}));
+    } catch {
+      await sleep(2000);
+      continue;
+    }
+    const rs = data.restoreSync || {};
+    const log = Array.isArray(rs.log) ? rs.log : [];
+    if (terminal && log.length > printed) {
+      for (let j = printed; j < log.length; j++) terminal.textContent += `${log[j]}\n`;
+      terminal.scrollTop = terminal.scrollHeight;
+      printed = log.length;
+    }
+    if (rs.active !== true) {
+      if (terminal && rs.result && rs.result.success === false) {
+        terminal.textContent += `[ERROR] ${rs.result.error || "Restore reconcile failed"}\n`;
+      }
+      return rs.result || null;
+    }
+    await sleep(2000);
+  }
+  return null;
 }
 
 async function apiUpdateWatch(id, fields) {
@@ -9273,17 +9318,25 @@ function attachEvents() {
     }
     const dryRun = event.target.closest("[data-watch-backup-dry-run]");
     if (dryRun) {
-      restoreWatchBackup(dryRun.dataset.watchBackupDryRun, "merge", true).catch((error) => setMessage(error.message, "error"));
+      restoreWatchBackup(dryRun.dataset.watchBackupDryRun, "reconcile", true).catch((error) => setMessage(error.message, "error"));
       return;
     }
     const restore = event.target.closest("[data-watch-backup-restore]");
     if (restore) {
+      const clearMode = state.restoreClearMode || "reconcile";
       const destId = restore.dataset.restoreDestId;
       if (destId) {
-        restoreRemoteBackupFromCard({ dataset: { destId } }, restore.dataset.watchBackupRestore, restore.dataset.restoreMode || "replace").catch((error) => setMessage(error.message, "error"));
+        restoreRemoteBackupFromCard({ dataset: { destId } }, restore.dataset.watchBackupRestore, clearMode).catch((error) => setMessage(error.message, "error"));
       } else {
-        restoreWatchBackup(restore.dataset.watchBackupRestore, restore.dataset.restoreMode || "replace").catch((error) => setMessage(error.message, "error"));
+        restoreWatchBackup(restore.dataset.watchBackupRestore, clearMode).catch((error) => setMessage(error.message, "error"));
       }
+    }
+  });
+
+  elements.watchBackupList?.addEventListener("change", (event) => {
+    const clearModeInput = event.target.closest("[data-restore-clear-mode]");
+    if (clearModeInput) {
+      state.restoreClearMode = clearModeInput.value === "wipe" ? "wipe" : "reconcile";
     }
   });
 
@@ -9303,7 +9356,7 @@ function attachEvents() {
     const restoreFile = event.target.closest("[data-dest-restore-file]");
     if (restoreFile) {
       const card = restoreFile.closest("[data-dest-id]");
-      if (card) restoreRemoteBackupFromCard(card, restoreFile.dataset.destRestoreFile, restoreFile.dataset.restoreMode || "merge").catch((error) => setMessage(error.message, "error"));
+      if (card) restoreRemoteBackupFromCard(card, restoreFile.dataset.destRestoreFile, state.restoreClearMode || "reconcile").catch((error) => setMessage(error.message, "error"));
       return;
     }
     const button = event.target.closest("[data-dest-action]");

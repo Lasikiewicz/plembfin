@@ -405,6 +405,14 @@ async function processCompletedSession(row, config, loopStore) {
   const media = cachedRowToMedia(row);
   if (!media.isValid || Number(media.progress || 0) < 90) return null;
 
+  // After an authoritative restore, drop stale cached sessions whose last update predates the
+  // restore — they would otherwise post a watch record dated today. Sessions still genuinely
+  // active get re-cached with a fresh timestamp each tick, so real playback still completes.
+  const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
+  if (lastRestoreAt && Number(row.updated_at || 0) <= lastRestoreAt) {
+    return null;
+  }
+
   await markLiveTrackingComplete(requireDb(), row.session_id, Date.now());
 
   const watchRecord = mediaToWatchRecord(
@@ -493,6 +501,14 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
   const existingPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
   const resumeUpdatedAt = Number(media.updatedAt || 0);
   const playstateUpdatedAt = Number(existingPlaystate?.updated_at || 0);
+
+  // After an authoritative restore, ignore resume positions whose app-side timestamp predates
+  // the restore — they are pre-restore state the backup has already superseded.
+  const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
+  if (lastRestoreAt && resumeUpdatedAt > 0 && resumeUpdatedAt <= lastRestoreAt) {
+    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (pre-restore resume position)`);
+    return false;
+  }
 
   if (existingPlaystate) {
     logger(`Resume Sync: ${media.title} from ${media.source} - checking playstate`, {
@@ -1099,8 +1115,17 @@ export async function runScheduledSync(logger = console.log) {
     runtime.forceSyncActive = false;
   }
 
-  if (runtime.rebuildActive === true || runtime.forceSyncActive === true) {
-    logger("Scheduled Sync: skipped because a database rebuild or force sync is currently active.");
+  // Reset a restore-reconcile flag that got stuck (e.g. process crashed mid-job) so the cron
+  // isn't blocked forever.
+  const isRestoreSyncStale = runtime.restoreSyncStartedAt ? Number(runtime.restoreSyncStartedAt) < tenMinutesAgo : true;
+  if (runtime.restoreSyncActive === true && isRestoreSyncStale) {
+    logger("Scheduled Sync: detected stale restoreSyncActive flag, resetting...");
+    await setRuntimeState({ restoreSyncActive: false }).catch(() => null);
+    runtime.restoreSyncActive = false;
+  }
+
+  if (runtime.rebuildActive === true || runtime.forceSyncActive === true || runtime.restoreSyncActive === true) {
+    logger("Scheduled Sync: skipped because a database rebuild, force sync, or authoritative restore is currently active.");
     return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true };
   }
   await setRuntimeState({ lastCronExecution: Date.now() }).catch(() => null);

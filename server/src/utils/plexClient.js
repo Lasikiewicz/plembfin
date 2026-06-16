@@ -389,6 +389,26 @@ export async function setPlexProgress(config, media) {
   }
 }
 
+// Mark unplayed directly by ratingKey, skipping the search/match step. Used by the
+// authoritative restore clear pass, which already has the native ratingKey from
+// fetchPlexWatchedItems and doesn't need to re-resolve the item.
+export async function markPlexUnplayedByRatingKey(config, ratingKey) {
+  requirePlexConfig(config);
+  if (!ratingKey) return { platform: "plex", status: "not_found" };
+
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/:/unscrobble`);
+  url.searchParams.set("key", String(ratingKey));
+  url.searchParams.set("identifier", "com.plexapp.plugins.library");
+  url.searchParams.set("X-Plex-Token", config.token);
+  await addConfiguredPlexAccountId(url, config);
+
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!response.ok) {
+    throw new Error(`Plex unscrobble failed with status ${response.status} for ratingKey ${ratingKey}`);
+  }
+  return { platform: "plex", status: "fulfilled", itemId: ratingKey, httpStatus: response.status };
+}
+
 export async function fetchPlexWatchedItems(config) {
   requirePlexConfig(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
