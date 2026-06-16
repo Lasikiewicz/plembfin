@@ -631,6 +631,36 @@ async function exchangeDropboxCode(destination, code) {
 // Small forward cushion so an app-recorded "viewedAt" stamped a moment after our push
 // can't land just past lastRestoreAt and get re-imported. See setLastRestoreAt().
 const RESTORE_SKEW_BUFFER_MS = 5000;
+// How many items the restore push/clear processes at once, and the per-item timeout so a single
+// hung app call can't stall the whole job.
+const RESTORE_PUSH_CONCURRENCY = 8;
+const RESTORE_ITEM_TIMEOUT_MS = 30000;
+
+function withTimeout(promise, ms, label) {
+  const p = Promise.resolve(promise);
+  // If the timeout wins the race, the underlying promise may still reject later with nobody
+  // awaiting it — absorb that so it doesn't surface as an unhandledRejection.
+  p.catch(() => {});
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`timed out after ${ms}ms${label ? `: ${label}` : ""}`)), ms);
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
+}
+
+// Run `worker(item)` over `items` with at most `limit` in flight. The worker is expected to handle
+// (count) its own errors; this resolves once every item has been processed.
+async function runWithConcurrency(items, limit, worker) {
+  let index = 0;
+  const runnerCount = Math.max(1, Math.min(limit, items.length));
+  const runners = Array.from({ length: runnerCount }, async () => {
+    while (index < items.length) {
+      const current = index++;
+      await worker(items[current], current);
+    }
+  });
+  await Promise.all(runners);
+}
 
 // Batched runtime-log writer (mirrors the Force-Sync pattern): collect lines in memory and
 // flush to runtime_state every `intervalMs` so we don't write per line.
@@ -683,20 +713,20 @@ function mediaFromPlaystateRow(row) {
 async function pushRestoredStateToApps(config, logLine) {
   const loopStore = createLoopStore();
   const rows = requireDb().prepare("SELECT * FROM playstate").all();
-  logLine(`Pushing ${rows.length} restored item(s) to connected apps...`);
+  logLine(`Pushing ${rows.length} restored item(s) to connected apps (concurrency ${RESTORE_PUSH_CONCURRENCY})...`);
   let done = 0;
   let watched = 0;
   let unwatched = 0;
   let failed = 0;
-  for (const row of rows) {
+  await runWithConcurrency(rows, RESTORE_PUSH_CONCURRENCY, async (row) => {
     const media = mediaFromPlaystateRow(row);
     const isWatched = String(row.state || "watched").toLowerCase() !== "unwatched";
     try {
       if (isWatched) {
-        await syncMediaPlaystate(media, config, loopStore);
+        await withTimeout(syncMediaPlaystate(media, config, loopStore), RESTORE_ITEM_TIMEOUT_MS, media.title);
         watched++;
       } else {
-        await syncMediaUnplayedPlaystate(media, config, loopStore);
+        await withTimeout(syncMediaUnplayedPlaystate(media, config, loopStore), RESTORE_ITEM_TIMEOUT_MS, media.title);
         unwatched++;
       }
     } catch (error) {
@@ -707,7 +737,7 @@ async function pushRestoredStateToApps(config, logLine) {
     if (done % 25 === 0 || done === rows.length) {
       logLine(`  Pushed ${done}/${rows.length} (watched ${watched}, unwatched ${unwatched}, failed ${failed})`);
     }
-  }
+  });
   return { total: rows.length, watched, unwatched, failed };
 }
 
@@ -720,18 +750,28 @@ async function clearAppWatchstates(config, logLine) {
   const embyActive = !config?.emby?.disabled && Boolean(config?.emby?.baseUrl && config?.emby?.apiKey && config?.emby?.userId);
   const jellyfinActive = !config?.jellyfin?.disabled && Boolean(config?.jellyfin?.baseUrl && config?.jellyfin?.apiKey && config?.jellyfin?.userId);
 
+  // Mark one platform's watched items unplayed, in parallel with a per-item timeout.
+  const clearPlatform = async (items, getId, unmark) => {
+    let cleared = 0;
+    let failed = 0;
+    await runWithConcurrency(items, RESTORE_PUSH_CONCURRENCY, async (item) => {
+      try {
+        await withTimeout(unmark(getId(item)), RESTORE_ITEM_TIMEOUT_MS);
+        cleared++;
+      } catch (error) {
+        failed++;
+      }
+    });
+    return { cleared, failed };
+  };
+
   if (plexActive) {
     try {
       const items = await fetchPlexWatchedItems(config.plex);
       logLine(`Clearing ${items.length} watched item(s) on Plex...`);
-      for (const item of items) {
-        try {
-          await markPlexUnplayedByRatingKey(config.plex, item.ratingKey || item.key);
-          summary.plex++;
-        } catch (error) {
-          summary.failed++;
-        }
-      }
+      const r = await clearPlatform(items, (i) => i.ratingKey || i.key, (id) => markPlexUnplayedByRatingKey(config.plex, id));
+      summary.plex = r.cleared;
+      summary.failed += r.failed;
     } catch (error) {
       logLine(`  ! Plex clear failed: ${error.message}`);
     }
@@ -740,14 +780,9 @@ async function clearAppWatchstates(config, logLine) {
     try {
       const items = await fetchEmbyWatchedItems(config.emby);
       logLine(`Clearing ${items.length} watched item(s) on Emby...`);
-      for (const item of items) {
-        try {
-          await markEmbyUnplayedById(config.emby, item.Id);
-          summary.emby++;
-        } catch (error) {
-          summary.failed++;
-        }
-      }
+      const r = await clearPlatform(items, (i) => i.Id, (id) => markEmbyUnplayedById(config.emby, id));
+      summary.emby = r.cleared;
+      summary.failed += r.failed;
     } catch (error) {
       logLine(`  ! Emby clear failed: ${error.message}`);
     }
@@ -756,14 +791,9 @@ async function clearAppWatchstates(config, logLine) {
     try {
       const items = await fetchJellyfinWatchedItems(config.jellyfin);
       logLine(`Clearing ${items.length} watched item(s) on Jellyfin...`);
-      for (const item of items) {
-        try {
-          await markJellyfinUnplayedById(config.jellyfin, item.Id);
-          summary.jellyfin++;
-        } catch (error) {
-          summary.failed++;
-        }
-      }
+      const r = await clearPlatform(items, (i) => i.Id, (id) => markJellyfinUnplayedById(config.jellyfin, id));
+      summary.jellyfin = r.cleared;
+      summary.failed += r.failed;
     } catch (error) {
       logLine(`  ! Jellyfin clear failed: ${error.message}`);
     }
@@ -776,6 +806,14 @@ async function clearAppWatchstates(config, logLine) {
 // so the pushes themselves fall under the cron's pre-restore filter) and clears the active flag.
 async function runRestoreReconcileJob(clearMode) {
   const { log, stop } = createBatchedRuntimeLogger("restoreSyncLog");
+  // Keep the restore guard's heartbeat fresh for the entire job so the cron never treats a
+  // long-but-alive restore as stale and un-blocks itself mid-push. Fires independently of where
+  // the job is (even inside a long library fetch).
+  await setRuntimeState({ restoreSyncHeartbeat: Date.now() }).catch(() => null);
+  const heartbeat = setInterval(() => {
+    setRuntimeState({ restoreSyncHeartbeat: Date.now() }).catch(() => null);
+  }, 30000);
+  if (typeof heartbeat.unref === "function") heartbeat.unref();
   let result;
   try {
     const config = await loadMediaConfig();
@@ -793,6 +831,7 @@ async function runRestoreReconcileJob(clearMode) {
     log(`ERROR: Restore reconcile failed: ${error.message}`);
     result = { success: false, error: error.message };
   } finally {
+    clearInterval(heartbeat);
     // Always advance the watermark: after a successful DB restore the local DB IS the backup,
     // so the cron should ignore any app history at/before now regardless of push outcome.
     const stampedAt = Date.now() + RESTORE_SKEW_BUFFER_MS;
@@ -800,6 +839,8 @@ async function runRestoreReconcileJob(clearMode) {
     log(`Stamped lastRestoreAt = ${new Date(stampedAt).toISOString()}; cron will skip app history up to this point.`);
     log("✓ Authoritative restore complete.");
     await stop();
+    // Clear the active flag LAST (after lastRestoreAt is stamped) so the first allowed cron tick
+    // already sees the watermark.
     await setRuntimeState({ restoreSyncActive: false, restoreSyncResult: result || { success: false } }).catch(() => null);
   }
   return result;
@@ -818,6 +859,7 @@ async function startAuthoritativeRestore(filename, clearMode) {
   await setRuntimeState({
     restoreSyncActive: true,
     restoreSyncStartedAt: Date.now(),
+    restoreSyncHeartbeat: Date.now(),
     restoreSyncResult: null,
     restoreSyncLog: [`Authoritative restore started (${clearMode}) from ${filename}...`],
   });
