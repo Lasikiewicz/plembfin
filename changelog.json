@@ -1,7 +1,14 @@
 {
-  "version": "0.0.38",
-  "updatedAt": "2026-06-16T14:50:30+01:00",
+  "version": "0.0.39",
+  "updatedAt": "2026-06-16T15:00:53+01:00",
   "entries": [
+    {
+      "version": "0.0.39",
+      "date": "2026-06-16T15:00:53+01:00",
+      "commit": "1c53cfa42ff46e581740a01f9acbbbf455fe2c0a",
+      "message": "feat: complete remote backups on restore tab",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.38",
       "date": "2026-06-16T14:50:30+01:00",
