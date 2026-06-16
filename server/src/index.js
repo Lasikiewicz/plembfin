@@ -1109,6 +1109,14 @@ async function handleWebhook(req, res) {
   let media;
   try {
     media = await normalizeWebhook(req);
+    console.log("Webhook received", {
+      source: media.source,
+      title: media.title,
+      phase: media.phase,
+      type: media.type,
+      isValid: media.isValid,
+      ids: media.ids,
+    });
   } catch (error) {
     console.error("Webhook body parsing failed", error);
     return sendJson(res, { error: "Invalid webhook body", details: error.message }, 400);
@@ -1126,6 +1134,12 @@ async function handleWebhook(req, res) {
   }).catch(() => null);
 
   if (!media.isValid) {
+    console.log("Webhook skipped: invalid media", {
+      source: media.source,
+      title: media.title,
+      phase: media.phase,
+      reason: media.phase === "ignored" ? "unsupported event" : "missing required media fields",
+    });
     await recordSyncHistory(media, {
       status: "skipped",
       details: `Webhook ignored: ${media.phase === "ignored" ? "unsupported event" : "missing required media fields"}`,
@@ -1324,9 +1338,20 @@ async function handleWebhook(req, res) {
 
   if (media.phase === "unplayed") {
     try {
+      console.log("Webhook: marking as unwatched", {
+        source: media.source,
+        title: media.title,
+        type: media.type,
+      });
       await deleteActiveSession(null, media);
       await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
       const { wasDeleted, id } = await applyManualUnwatch(media, config, loopStore);
+      console.log("Webhook: unwatched sync completed", {
+        source: media.source,
+        title: media.title,
+        wasDeleted,
+        id,
+      });
       return sendJson(res, { ok: true, deleted: wasDeleted, unplayed: true, inserted: true, id, ...(wasDeleted ? {} : { reason: "No previous watched record found to delete" }) });
     } finally {
       await invalidateHistoryDerivedCaches().catch(() => null);
@@ -1334,11 +1359,24 @@ async function handleWebhook(req, res) {
   }
 
   try {
+    console.log("Webhook: marking as watched", {
+      source: media.source,
+      title: media.title,
+      type: media.type,
+      progress: media.progress,
+      positionMs: media.positionMs,
+    });
     await deleteActiveSession(null, media);
     const watchRecord = mediaToWatchRecord(media, media.source);
     watchRecord.sync_action = "watched";
     watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, media, "watched");
     const result = await insertWatchRecord(requireDb(), watchRecord, { skipInvalidate: true });
+    console.log("Webhook: inserted watch record", {
+      source: media.source,
+      title: media.title,
+      recordId: result.id,
+      watchedAt: result.record.watched_at,
+    });
     await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at, { skipInvalidate: true });
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
     const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
@@ -1347,6 +1385,13 @@ async function handleWebhook(req, res) {
       details: `Propagation failed: ${error.message || String(error)}`,
       targetStates: [],
     }));
+    console.log("Webhook: sync result", {
+      source: media.source,
+      title: media.title,
+      status: summary.status,
+      details: summary.details,
+      targetStates: summary.targetStates,
+    });
     await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "watched"), { skipInvalidate: true });
     await recordSyncHistory(media, summary, "watched");
     await deletePlaybackProgress(requireDb(), media).catch(() => null);
