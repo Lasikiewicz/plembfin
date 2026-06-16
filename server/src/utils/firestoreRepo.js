@@ -99,6 +99,36 @@ export function canonicalTitleKey(value) {
     .replace(/^-+|-+$/g, "");
 }
 
+function stablePosterKey(value) {
+  const poster = cleanString(value);
+  if (!poster) return "";
+  const lowered = poster.toLowerCase();
+  if (lowered.includes("favicon") || lowered.includes("placeholder") || lowered.includes("no-poster")) return "";
+  try {
+    const url = new URL(poster);
+    if (url.hostname.toLowerCase().includes("image.tmdb.org")) {
+      return `tmdb-poster:${url.pathname.split("/").filter(Boolean).pop() || poster}`;
+    }
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    // Non-URL poster references are still useful when the exact value matches.
+  }
+  return poster;
+}
+
+function preferredShowTitle(current, candidate) {
+  const existing = cleanString(current);
+  const next = cleanString(candidate);
+  if (!existing) return next || "Unknown Show";
+  if (!next) return existing;
+  const existingIsAllCaps = existing === existing.toUpperCase() && /[A-Z]/.test(existing);
+  const nextIsAllCaps = next === next.toUpperCase() && /[A-Z]/.test(next);
+  if (existingIsAllCaps && !nextIsAllCaps) return next;
+  return existing;
+}
+
 function showTitleFrom(title = "") {
   const text = cleanString(decodeBasicHtmlEntities(title)) || "Unknown Show";
   const seasonMatch = text.match(/^(.*?)(?:\s+-\s+S\d{1,2}E\d{1,2})(?:\s+-\s+.*)?$/i);
@@ -802,7 +832,8 @@ function historyDedupeKey(row = {}) {
 
   if (mediaType === "movie") {
     const title = canonicalTitleKey(row.title);
-    return `movie|${title ? `title:${title}` : imdb ? `imdb:${imdb}` : tmdb ? `tmdb:${tmdb}` : `tvdb:${tvdb}`}`;
+    const poster = stablePosterKey(row.poster_url);
+    return `movie|${poster ? `poster:${poster}` : imdb ? `imdb:${imdb}` : tmdb ? `tmdb:${tmdb}` : tvdb ? `tvdb:${tvdb}` : `title:${title}`}`;
   }
 
   return `${mediaType || "unknown"}|${canonicalTitleKey(row.title)}|${row.watched_at || ""}`;
@@ -1198,8 +1229,9 @@ export async function queryMovies({ search = "", sort = "title_asc", limit = 100
 function groupShowRows(rows = []) {
   const groups = new Map();
   rows.forEach((row) => {
-    const title = showTitleFrom(row.title);
-    const group = groups.get(title) || {
+    const title = showTitleFrom(row.show_title || row.title);
+    const key = canonicalTitleKey(title) || normalizeKeyPart(title);
+    const group = groups.get(key) || {
       title,
       episode_count: 0,
       season_count: 0,
@@ -1209,21 +1241,25 @@ function groupShowRows(rows = []) {
       seasons: new Set(),
       representative_episode: null,
     };
+    group.title = preferredShowTitle(group.title, title);
     group.episode_count += 1;
     if (row.season != null) group.seasons.add(row.season);
     if (row.watched_at > group.latest_watched_at) group.latest_watched_at = row.watched_at;
     if (row.watched_at < group.earliest_watched_at) group.earliest_watched_at = row.watched_at;
-    group.episodes.push({ ...row, show_title: title });
+    group.episodes.push({ ...row, show_title: group.title });
     if (!group.representative_episode || row.watched_at > group.representative_episode.watched_at) {
-      group.representative_episode = { ...row, show_title: title };
+      group.representative_episode = { ...row, show_title: group.title };
     }
-    groups.set(title, group);
+    groups.set(key, group);
   });
   return [...groups.values()].map((group) => ({
     ...group,
     season_count: group.seasons.size,
     seasons: undefined,
-    episodes: group.episodes.sort((a, b) => Number(a.season || 0) - Number(b.season || 0) || Number(a.episode || 0) - Number(b.episode || 0)),
+    representative_episode: group.representative_episode ? { ...group.representative_episode, show_title: group.title } : null,
+    episodes: group.episodes
+      .map((episode) => ({ ...episode, show_title: group.title }))
+      .sort((a, b) => Number(a.season || 0) - Number(b.season || 0) || Number(a.episode || 0) - Number(b.episode || 0)),
   }));
 }
 
@@ -1284,7 +1320,7 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
   if (!resolvedTitle && id) resolvedTitle = String(id).replace(/-/g, " ");
   const key = canonicalTitleKey(resolvedTitle);
   const rows = dedupeHistory(await loadHistoryRowsByType({ mediaType: "episode", limit: MAX_HISTORY_LIMIT }))
-    .filter((row) => canonicalTitleKey(showTitleFrom(row.title)) === key);
+    .filter((row) => canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === key);
   const [show] = groupShowRows(rows);
   return show || null;
 }
