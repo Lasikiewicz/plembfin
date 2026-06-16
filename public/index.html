@@ -893,9 +893,27 @@
                         <span>How to restore</span>
                       </div>
 
-                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Watch History Wipe / Restore</h4>
+                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">What a restore does</h4>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-2);">
+                        The selected backup becomes the single source of truth. Plembfin runs an authoritative restore:
+                      </p>
+                      <ol class="tool-accordion-desc" style="margin: 0 0 var(--space-3); padding-left: 1.2rem; font-size: 0.8rem; list-style: decimal;">
+                        <li>Wipes the local watch history, playstate and resume progress, and reloads them from the backup.</li>
+                        <li>Pushes that state out to every connected app (Plex, Emby, Jellyfin).</li>
+                        <li>Stamps a restore watermark so the background sync can never re-import the apps' state afterwards.</li>
+                      </ol>
                       <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
-                        Clears Plembfin's local database and replaces it with the selected backup. During restore, the cron sync is paused to prevent re-importing from connected apps. Once complete, all items are synced to Plex, Emby, and Jellyfin so Plembfin becomes the source of truth.
+                        While the restore is running, the cron sync and incoming webhooks are ignored, so nothing is written to watch history mid-restore. <b>Watch dates are always preserved</b> — an item already watched on an earlier date is never re-added as watched today.
+                      </p>
+
+                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Reconcile tracked items</h4>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
+                        Pushes only the items the backup knows about. Fast. Any extra items the apps have marked watched but the backup never tracked are left untouched. Choose this for a normal point-in-time restore.
+                      </p>
+
+                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Full wipe then push</h4>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
+                        First marks every currently-watched item on each app as unwatched, then re-applies only the backup's watched set, so the apps end up matching the backup exactly. Slower (it touches every watched item on every app). Choose this when the apps contain watched state you want removed.
                       </p>
 
                       <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Restore onto New Instance</h4>
