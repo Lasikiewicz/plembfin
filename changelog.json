@@ -1,7 +1,14 @@
 {
-  "version": "0.0.22",
-  "updatedAt": "2026-06-16T09:58:46+01:00",
+  "version": "0.0.23",
+  "updatedAt": "2026-06-16T10:12:53+01:00",
   "entries": [
+    {
+      "version": "0.0.23",
+      "date": "2026-06-16T10:12:53+01:00",
+      "commit": "4aab4e274829dda12b383e8c24060d51170f602f",
+      "message": "fix: ignore stale resume progress polls",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.22",
       "date": "2026-06-16T09:58:46+01:00",
