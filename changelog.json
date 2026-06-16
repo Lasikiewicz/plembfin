@@ -1,7 +1,14 @@
 {
-  "version": "0.0.53",
-  "updatedAt": "2026-06-16T22:53:51+01:00",
+  "version": "0.0.54",
+  "updatedAt": "2026-06-16T23:06:41+01:00",
   "entries": [
+    {
+      "version": "0.0.54",
+      "date": "2026-06-16T23:06:41+01:00",
+      "commit": "651243c8ab99ae8b75eda89cdd1c28374adf08f9",
+      "message": "fix: handle cached storage image URLs in poster processing",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.53",
       "date": "2026-06-16T22:53:51+01:00",
