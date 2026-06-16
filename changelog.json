@@ -1,7 +1,14 @@
 {
-  "version": "0.0.49",
-  "updatedAt": "2026-06-16T20:37:19+01:00",
+  "version": "0.0.50",
+  "updatedAt": "2026-06-16T20:45:50+01:00",
   "entries": [
+    {
+      "version": "0.0.50",
+      "date": "2026-06-16T20:45:50+01:00",
+      "commit": "034fa2711e6f72b2fcf608d079e2fc7c3820d7a1",
+      "message": "fix: increase restore push concurrency",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.49",
       "date": "2026-06-16T20:37:19+01:00",
