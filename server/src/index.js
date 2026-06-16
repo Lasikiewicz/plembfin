@@ -62,7 +62,7 @@ import {
   deleteWatchRecordsByIds,
   deletePosterCacheByMediaKey,
 } from "./utils/firestoreRepo.js";
-import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
+import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
 import { cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
@@ -768,10 +768,17 @@ async function applyManualUnwatch(media, config, loopStore) {
   await upsertPlaystateForMedia(requireDb(), media, "unwatched", result.record.watched_at, { skipInvalidate: true });
 
   // Clear resume progress on all target platforms to prevent re-import on next sync
-  const progressClearMedia = { ...media, positionMs: 0, progress: 0 };
-  await syncMediaProgress(progressClearMedia, config, loopStore).catch((error) => {
-    console.log("Resume progress clear during unwatch failed (non-fatal)", error.message);
-  });
+  // Use direct platform calls since shouldSyncResumeProgress blocks position 0
+  const targets = getTargetsForSource(media.source, config);
+  for (const target of targets) {
+    try {
+      if (target === "plex") await setPlexProgress(config.plex, { ...media, positionMs: 0 });
+      if (target === "emby") await setEmbyProgress(config.emby, { ...media, positionMs: 0 });
+      if (target === "jellyfin") await setJellyfinProgress(config.jellyfin, { ...media, positionMs: 0 });
+    } catch (error) {
+      console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
+    }
+  }
 
   const summary = await syncMediaUnplayedPlaystate(media, config, loopStore).catch((error) => ({
     skipped: false,
@@ -1261,10 +1268,17 @@ async function handleWebhook(req, res) {
             await deletePlaybackProgress(requireDb(), episodeMedia).catch(() => null);
 
             // Clear resume progress on target platforms to prevent re-import on next sync
-            const progressClearMedia = { ...episodeMedia, positionMs: 0, progress: 0 };
-            await syncMediaProgress(progressClearMedia, config, loopStore).catch((error) => {
-              console.log("Resume progress clear during webhook unwatch failed (non-fatal)", error.message);
-            });
+            // Use direct platform calls since shouldSyncResumeProgress blocks position 0
+            const episodeTargets = getTargetsForSource(episodeMedia.source, config);
+            for (const target of episodeTargets) {
+              try {
+                if (target === "plex") await setPlexProgress(config.plex, { ...episodeMedia, positionMs: 0 });
+                if (target === "emby") await setEmbyProgress(config.emby, { ...episodeMedia, positionMs: 0 });
+                if (target === "jellyfin") await setJellyfinProgress(config.jellyfin, { ...episodeMedia, positionMs: 0 });
+              } catch (error) {
+                console.log(`Resume progress clear on ${target} during webhook unwatch failed (non-fatal)`, error.message);
+              }
+            }
 
             const pendingSummary = { skipped: false, status: "pending", details: "Unwatched propagation queued", targetStates: [] };
             const unplayedRecord = mediaToWatchRecord({ ...episodeMedia, syncAction: "unwatched" }, episodeMedia.source);
