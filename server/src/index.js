@@ -4,6 +4,8 @@ import { findPlexItem, markPlexPlayed, setPlexProgress } from "./utils/plexClien
 import { markEmbyPlayed, setEmbyProgress } from "./utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress } from "./utils/jellyfinClient.js";
 import { requireAdmin, requireAdminStreaming, handleLogin, handleLogout, handleAuthStatus, handleAuthCredentials } from "./utils/auth.js";
+import { AUTH } from "./appConfig.js";
+import { getLogs as getDiagnosticLogs, clearLogs as clearDiagnosticLogs } from "./utils/diagnosticLogger.js";
 import { readFormData, readJson } from "./utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed, notFound } from "./utils/http.js";
 import { appendSyncHistory, loadMediaConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "./utils/configStore.js";
@@ -1874,6 +1876,50 @@ function handlePing(req, res) {
   return sendJson(res, { ok: true, ts: Date.now() }, 200, { "Cache-Control": "no-store" });
 }
 
+function handleDiagnosticLogs(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method === "DELETE") {
+    if (!(requireAdminSync(req))) return sendJson(res, { error: "Unauthorized" }, 401);
+    clearDiagnosticLogs();
+    return sendJson(res, { ok: true }, 200, { "Cache-Control": "no-store" });
+  }
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!requireAdminSync(req)) return sendJson(res, { error: "Unauthorized" }, 401);
+
+  const limit = Math.min(Number(req.query?.limit || 500), 1000);
+  const data = getDiagnosticLogs({ limit });
+  return sendJson(res, data, 200, { "Cache-Control": "no-store" });
+}
+
+function verifyApiKey(token) {
+  if (!token || !AUTH?.apiKey) return false;
+  const a = Buffer.from(String(token));
+  const b = Buffer.from(AUTH.apiKey);
+  try {
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
+function requireAdminSync(req) {
+  // Check query parameter first (easiest to debug)
+  if (verifyApiKey(String(req.query?.api_key || ""))) return true;
+
+  // Check X-Api-Key header (case-insensitive)
+  const xApiKey = Object.entries(req.headers || {}).find(([key]) => key.toLowerCase() === "x-api-key");
+  if (xApiKey && verifyApiKey(xApiKey[1])) return true;
+
+  // Check Bearer token in Authorization header
+  const authHeader = Object.entries(req.headers || {}).find(([key]) => key.toLowerCase() === "authorization");
+  if (authHeader) {
+    const bearerToken = String(authHeader[1]).replace(/^Bearer\s+/i, "").trim();
+    if (verifyApiKey(bearerToken)) return true;
+  }
+
+  return false;
+}
+
 // Paginated bulk refresh of the whole library's TMDB metadata + artwork. Mirrors
 // the ingest prefetch (full details cached to tmdbMetadataCache + poster/backdrop
 // to Storage) AND stamps the canonical poster back onto every watch record, so
@@ -2289,6 +2335,7 @@ async function dispatch(req, res) {
   try {
     const path = routePath(req);
     if (path === "ping") return handlePing(req, res);
+    if (path === "diagnostic-logs") return handleDiagnosticLogs(req, res);
     if (path === "login") return handleLogin(req, res);
     if (path === "logout") return handleLogout(req, res);
     if (path === "auth/status" || path === "auth-status") return handleAuthStatus(req, res);

@@ -1,5 +1,5 @@
 import { buildAuthHeaders, buildNowPlayingUrl, currentFirebaseUser, onFirebaseAuthChange, readStoredAdminToken, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
-import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs } from "./modules/logs.js";
+import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs } from "./modules/logs.js";
 import { connectionLabel, connectionPayloadFromElements } from "./modules/settings.js";
 import { fetchLocalActiveSessions } from "./modules/timeline.js";
 
@@ -1702,7 +1702,7 @@ function openMergeShowDialog(targetTitle) {
 
 function logDebug(message, details) {
   state.debugLogs = appendDebugLog(state.debugLogs, message, details);
-  renderLogs();
+  renderLogs().catch(() => {});
   return state.debugLogs.at(-1);
 }
 
@@ -3550,7 +3550,7 @@ function applyActiveView() {
       renderWatchBackups();
       loadWatchBackups().catch((error) => setMessage(error.message, "error"));
     }
-    if (state.activeSettingsTab === "logs") renderLogs();
+    if (state.activeSettingsTab === "logs") renderLogs().catch(() => {});
     if (state.configLoaded) {
       renderSettingsStatus("Configuration ready.", "success");
     }
@@ -5274,9 +5274,29 @@ function openHelpTopic(topicId) {
   window.setTimeout(() => elements.helpCanvas?.scrollIntoView({ block: "start" }), 0);
 }
 
-function renderLogs() {
+async function renderLogs() {
   if (!elements.logsTerminal) return;
-  elements.logsTerminal.textContent = logsText() || "[no local diagnostic logs captured yet]";
+
+  const localLogs = logsText();
+  const apiKey = readStoredAdminToken();
+
+  try {
+    const backendLogs = await fetchDiagnosticLogs(apiKey);
+    if (backendLogs.length > 0) {
+      const allLogs = [
+        "=== BACKEND DIAGNOSTIC LOGS ===",
+        ...backendLogs,
+        "",
+        "=== FRONTEND DEBUG LOGS ===",
+        localLogs || "[no frontend logs]"
+      ].join("\n");
+      elements.logsTerminal.textContent = allLogs;
+    } else {
+      elements.logsTerminal.textContent = localLogs || "[no diagnostic logs captured yet]";
+    }
+  } catch (error) {
+    elements.logsTerminal.textContent = localLogs || "[no diagnostic logs captured yet]";
+  }
 }
 
 function setConnectionStatus(type, text, tone = "muted") {
@@ -8995,7 +9015,7 @@ function attachEvents() {
 
   elements.clearLogsButton.addEventListener("click", () => {
     state.debugLogs = clearDebugLogs();
-    renderLogs();
+    renderLogs().catch(() => {});
   });
 
   elements.copyLogsButton.addEventListener("click", () => {
@@ -9824,7 +9844,7 @@ function initialize() {
   renderStats();
   renderExplorer();
   renderHelp();
-  renderLogs();
+  renderLogs().catch(() => {});
   renderImportPreview();
   renderWatchBackups();
   renderDbStatus(false);

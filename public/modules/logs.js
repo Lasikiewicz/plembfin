@@ -26,3 +26,20 @@ export function clearDebugLogs(storage = localStorage) {
 export function logsToText(logs) {
   return logs.join("\n");
 }
+
+export async function fetchDiagnosticLogs(apiKey) {
+  try {
+    const url = new URL("/api/diagnostic-logs", window.location.origin);
+    url.searchParams.set("limit", "500");
+    if (apiKey) {
+      url.searchParams.set("api_key", apiKey);
+    }
+    const res = await fetch(url, { headers: { "Cache-Control": "no-store" } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.logs || [];
+  } catch (error) {
+    console.error("Failed to fetch diagnostic logs", error);
+    return [];
+  }
+}
