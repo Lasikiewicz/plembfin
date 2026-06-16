@@ -72,6 +72,43 @@ function dateOnlyIso(value = "") {
   return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`).toISOString();
 }
 
+function isoDateTime(value = "") {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
+function embyLikePlayedDate(item = {}) {
+  return isoDateTime(
+    item.UserData?.LastPlayedDate ||
+      item.UserData?.PlayedDate ||
+      item.UserData?.DatePlayed ||
+      item.LastPlayedDate ||
+      item.PlayedDate ||
+      item.DatePlayed ||
+      item.LastWatchedDate,
+  );
+}
+
+function isEmbyLikePlayed(item = {}) {
+  const value = item.UserData?.Played ?? item.UserData?.IsPlayed ?? item.Played ?? item.IsPlayed;
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
+function watchedAtForEmbyLikeItem(item = {}, fallbackTimestamp = Date.now()) {
+  const playedAt = embyLikePlayedDate(item);
+  if (playedAt) return { watchedAt: playedAt, reason: "played" };
+
+  const releaseDate = releaseDateForItem(item);
+  if (releaseDate) return { watchedAt: releaseDate, reason: "release date" };
+
+  if (isEmbyLikePlayed(item)) {
+    return { watchedAt: new Date(fallbackTimestamp).toISOString(), reason: "poll time" };
+  }
+
+  return { watchedAt: "", reason: "" };
+}
+
 function releaseDateForItem(item = {}) {
   return dateOnlyIso(
     item.PremiereDate ||
@@ -514,6 +551,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
     const { fetchEmbyWatchedItems } = await import("./utils/embyClient.js");
     const { normalizeProviderIds } = await import("./utils/parsers.js");
     const raw = await fetchEmbyWatchedItems(config.emby, { limit: SCHEDULED_RECENT_WATCH_LIMIT });
+    const pollTimestamp = Date.now();
     
     for (const item of raw) {
       const ids = normalizeProviderIds(item.ProviderIds);
@@ -533,11 +571,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
       };
 
       const key = mediaKeyFor(media);
-      const hasLastPlayed = Boolean(item.UserData?.LastPlayedDate);
-      const releaseDate = releaseDateForItem(item);
-      const watchedAt = hasLastPlayed
-        ? new Date(item.UserData.LastPlayedDate).toISOString()
-        : releaseDate;
+      const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item, pollTimestamp);
 
       if (!watchedAt) {
         logger(`Emby: skipped watched item without played or release date: ${media.title}`);
@@ -547,7 +581,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
       const existing = await findWatchedByMediaKey(key);
 
       if (!existing) {
-        logger(`Emby: detected new watched item: ${media.title} (${hasLastPlayed ? `played at ${watchedAt}` : `release date ${watchedAt}`})`);
+        logger(`Emby: detected new watched item: ${media.title} (${watchedAtReason} ${watchedAt})`);
         const watchRecord = mediaToWatchRecord(media, "emby");
         watchRecord.watched_at = watchedAt;
         watchRecord.sync_action = "watched";
@@ -600,6 +634,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
     const { fetchJellyfinWatchedItems } = await import("./utils/jellyfinClient.js");
     const { normalizeProviderIds } = await import("./utils/parsers.js");
     const raw = await fetchJellyfinWatchedItems(config.jellyfin, { limit: SCHEDULED_RECENT_WATCH_LIMIT });
+    const pollTimestamp = Date.now();
     
     for (const item of raw) {
       const ids = normalizeProviderIds(item.ProviderIds);
@@ -619,11 +654,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       };
 
       const key = mediaKeyFor(media);
-      const hasLastPlayed = Boolean(item.UserData?.LastPlayedDate);
-      const releaseDate = releaseDateForItem(item);
-      const watchedAt = hasLastPlayed
-        ? new Date(item.UserData.LastPlayedDate).toISOString()
-        : releaseDate;
+      const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item, pollTimestamp);
 
       if (!watchedAt) {
         logger(`Jellyfin: skipped watched item without played or release date: ${media.title}`);
@@ -633,7 +664,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       const existing = await findWatchedByMediaKey(key);
 
       if (!existing) {
-        logger(`Jellyfin: detected new watched item: ${media.title} (${hasLastPlayed ? `played at ${watchedAt}` : `release date ${watchedAt}`})`);
+        logger(`Jellyfin: detected new watched item: ${media.title} (${watchedAtReason} ${watchedAt})`);
         const watchRecord = mediaToWatchRecord(media, "jellyfin");
         watchRecord.watched_at = watchedAt;
         watchRecord.sync_action = "watched";
@@ -1033,9 +1064,11 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
         const { fetchEmbyWatchedItems } = await import("./utils/embyClient.js");
         const { normalizeProviderIds } = await import("./utils/parsers.js");
         const raw = await fetchEmbyWatchedItems(config.emby);
+        const pollTimestamp = Date.now();
         logger(`Emby: fetched ${raw.length} played library items.`);
         return raw.map((item) => {
           const ids = normalizeProviderIds(item.ProviderIds);
+          const { watchedAt } = watchedAtForEmbyLikeItem(item, pollTimestamp);
           return {
             title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
             type: item.Type === "Episode" ? "episode" : "movie",
@@ -1046,9 +1079,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
             tvdb: ids.tvdb || null,
             episodeTitle: item.Type === "Episode" ? item.Name : null,
             source: "emby",
-            timestamp: item.UserData?.LastPlayedDate
-              ? new Date(item.UserData.LastPlayedDate)
-              : releaseDateForItem(item) ? new Date(releaseDateForItem(item)) : null,
+            timestamp: watchedAt ? new Date(watchedAt) : null,
           };
         });
       })().catch((err) => {
@@ -1067,9 +1098,11 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
         const { fetchJellyfinWatchedItems } = await import("./utils/jellyfinClient.js");
         const { normalizeProviderIds } = await import("./utils/parsers.js");
         const raw = await fetchJellyfinWatchedItems(config.jellyfin);
+        const pollTimestamp = Date.now();
         logger(`Jellyfin: fetched ${raw.length} played library items.`);
         return raw.map((item) => {
           const ids = normalizeProviderIds(item.ProviderIds);
+          const { watchedAt } = watchedAtForEmbyLikeItem(item, pollTimestamp);
           return {
             title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
             type: item.Type === "Episode" ? "episode" : "movie",
@@ -1080,9 +1113,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
             tvdb: ids.tvdb || null,
             episodeTitle: item.Type === "Episode" ? item.Name : null,
             source: "jellyfin",
-            timestamp: item.UserData?.LastPlayedDate
-              ? new Date(item.UserData.LastPlayedDate)
-              : releaseDateForItem(item) ? new Date(releaseDateForItem(item)) : null,
+            timestamp: watchedAt ? new Date(watchedAt) : null,
           };
         });
       })().catch((err) => {
