@@ -1,7 +1,14 @@
 {
-  "version": "0.0.41",
-  "updatedAt": "2026-06-16T15:16:31+01:00",
+  "version": "0.0.42",
+  "updatedAt": "2026-06-16T15:42:05+01:00",
   "entries": [
+    {
+      "version": "0.0.42",
+      "date": "2026-06-16T15:42:05+01:00",
+      "commit": "83dff4ffdeed68069839d784bddb24b123ef7ced",
+      "message": "fix: pause cron sync after remote backup restore + add manual pause/resume API",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.41",
       "date": "2026-06-16T15:16:31+01:00",
