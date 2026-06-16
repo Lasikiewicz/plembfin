@@ -1,7 +1,14 @@
 {
-  "version": "0.0.42",
-  "updatedAt": "2026-06-16T15:42:05+01:00",
+  "version": "0.0.43",
+  "updatedAt": "2026-06-16T15:52:19+01:00",
   "entries": [
+    {
+      "version": "0.0.43",
+      "date": "2026-06-16T15:52:19+01:00",
+      "commit": "08e8bcba9dfabce6a8aea8f74816f6b93f9c8d68",
+      "message": "fix: skip cron-imported items played before the last restore date",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.42",
       "date": "2026-06-16T15:42:05+01:00",
