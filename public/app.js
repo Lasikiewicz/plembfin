@@ -560,7 +560,10 @@ function renderWatchBackups() {
   if (localPathEl && data.backupsDir) localPathEl.textContent = data.backupsDir;
   elements.watchBackupRuntime.innerHTML = `
     <div><span>Last successful backup</span><b>${escapeHtml(watchBackupDate(runtime.lastSuccessAt))}</b></div>
-    <div><span>Last restore</span><b>${escapeHtml(watchBackupDate(runtime.lastRestoreAt))}</b></div>
+    <div style="display: flex; gap: 1rem; align-items: center;">
+      <div style="flex: 1;"><span>Last restore</span><b>${escapeHtml(watchBackupDate(runtime.lastRestoreAt))}</b></div>
+      ${runtime.lastRestoreAt ? `<button class="button-ghost" type="button" data-clear-restore-status>Clear Status</button>` : ""}
+    </div>
     <div><span>Storage</span><b>${formatNumber(files.length)} file${files.length === 1 ? "" : "s"}</b></div>
     ${runtime.lastError ? `<p class="backup-runtime-error">${escapeHtml(runtime.lastError)}</p>` : ""}
   `;
@@ -9050,6 +9053,17 @@ function attachEvents() {
     const restore = event.target.closest("[data-watch-backup-restore]");
     if (restore) {
       restoreWatchBackup(restore.dataset.watchBackupRestore, restore.dataset.restoreMode || "merge").catch((error) => setMessage(error.message, "error"));
+    }
+  });
+
+  elements.watchBackupRuntime?.addEventListener("click", (event) => {
+    const clearBtn = event.target.closest("[data-clear-restore-status]");
+    if (clearBtn) {
+      apiCall("POST", "/api/watch-backups", { action: "clear-restore-status" })
+        .then(() => {
+          loadWatchBackups({ force: true }).catch((error) => setMessage(error.message, "error"));
+        })
+        .catch((error) => setMessage(error.message, "error"));
     }
   });
 
