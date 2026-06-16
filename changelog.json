@@ -1,7 +1,14 @@
 {
-  "version": "0.0.16",
-  "updatedAt": "2026-06-15T17:35:30+01:00",
+  "version": "0.0.17",
+  "updatedAt": "2026-06-16T08:18:02+01:00",
   "entries": [
+    {
+      "version": "0.0.17",
+      "date": "2026-06-16T08:18:02+01:00",
+      "commit": "33533ec9bc7bf06bf480baf2900adbcb179eac98",
+      "message": "fix: sync show watch state edits",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.16",
       "date": "2026-06-15T17:35:30+01:00",
