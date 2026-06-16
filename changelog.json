@@ -1,7 +1,14 @@
 {
-  "version": "0.0.20",
-  "updatedAt": "2026-06-16T09:24:38+01:00",
+  "version": "0.0.21",
+  "updatedAt": "2026-06-16T09:43:25+01:00",
   "entries": [
+    {
+      "version": "0.0.21",
+      "date": "2026-06-16T09:43:25+01:00",
+      "commit": "5b3d724de18eb07b5bfbe5215e8043d97f454671",
+      "message": "fix: dedupe media cards and sync plex resume state",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.20",
       "date": "2026-06-16T09:24:38+01:00",
