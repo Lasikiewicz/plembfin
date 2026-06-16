@@ -56,6 +56,32 @@ function saveRuntime(values = {}) {
   return next;
 }
 
+export function pauseCronSync(durationMs = 600000) {
+  const pausedUntil = Date.now() + durationMs;
+  saveRuntime({ cronSyncPausedUntil: pausedUntil });
+  console.log(`Cron sync paused until ${new Date(pausedUntil).toISOString()}`);
+  return { pausedUntil };
+}
+
+export function resumeCronSync() {
+  const runtime = loadWatchBackupRuntime();
+  const updated = { ...runtime };
+  delete updated.cronSyncPausedUntil;
+  saveRuntime(updated);
+  console.log("Cron sync resumed");
+  return { resumed: true };
+}
+
+export function isCronSyncPaused() {
+  const runtime = loadWatchBackupRuntime();
+  if (!runtime.cronSyncPausedUntil) return false;
+  if (Date.now() >= runtime.cronSyncPausedUntil) {
+    resumeCronSync();
+    return false;
+  }
+  return true;
+}
+
 // ---- Remote backup destinations --------------------------------------------
 
 function safeDestination(value = {}) {
