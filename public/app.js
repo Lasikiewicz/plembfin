@@ -9059,10 +9059,8 @@ function attachEvents() {
   elements.watchBackupRuntime?.addEventListener("click", (event) => {
     const clearBtn = event.target.closest("[data-clear-restore-status]");
     if (clearBtn) {
-      apiCall("POST", "/api/watch-backups", { action: "clear-restore-status" })
-        .then(() => {
-          loadWatchBackups({ force: true }).catch((error) => setMessage(error.message, "error"));
-        })
+      postWatchBackupAction({ action: "clear-restore-status" })
+        .then(() => loadWatchBackups({ force: true }))
         .catch((error) => setMessage(error.message, "error"));
     }
   });
