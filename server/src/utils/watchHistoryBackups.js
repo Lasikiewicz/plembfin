@@ -85,6 +85,15 @@ export function isCronSyncPaused() {
   return true;
 }
 
+// Stamp the restore watermark. The scheduled sync permanently skips any item whose
+// app-side play timestamp is <= lastRestoreAt, so this MUST be set *after* the
+// authoritative restore has finished pushing fresh state to the apps — otherwise the
+// pushes (stamped "now" by the apps) would be re-imported as watched-today.
+export function setLastRestoreAt(timestamp = Date.now()) {
+  saveRuntime({ lastRestoreAt: timestamp });
+  return { lastRestoreAt: timestamp };
+}
+
 // ---- Remote backup destinations --------------------------------------------
 
 function safeDestination(value = {}) {
@@ -473,7 +482,10 @@ export function restoreWatchHistoryBackup(filename, { mode = "merge", dryRun = f
     for (const row of document.data.playbackProgress) insertProgress.run(row);
   })();
   bumpDataVersion();
-  saveRuntime({ lastRestoreAt: Date.now(), lastRestore: { filename, ...summary } });
+  // NOTE: lastRestoreAt is intentionally NOT set here. The authoritative restore job
+  // (handleWatchBackups in index.js) stamps it via setLastRestoreAt() only *after* it has
+  // finished pushing the restored state to the connected apps. See setLastRestoreAt above.
+  saveRuntime({ lastRestore: { filename, ...summary } });
   return { ...summary, dryRun: false };
 }
 

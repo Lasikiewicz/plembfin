@@ -335,6 +335,22 @@ export async function fetchEmbyEpisodes(config, parentId) {
   return data?.Items || [];
 }
 
+// Mark unplayed directly by native item Id, skipping the search/match step. Used by the
+// authoritative restore clear pass, which already has the Id from fetchEmbyWatchedItems.
+export async function markEmbyUnplayedById(config, itemId) {
+  requireEmbyConfig(config);
+  if (!itemId) return { platform: "emby", status: "not_found" };
+
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${itemId}`);
+  url.searchParams.set("api_key", config.apiKey);
+
+  const response = await fetch(url, { method: "DELETE", headers: authHeaders(config) });
+  if (!response.ok) {
+    throw new Error(`Emby mark unplayed failed with status ${response.status} for item ${itemId}`);
+  }
+  return { platform: "emby", status: "fulfilled", itemId, httpStatus: response.status };
+}
+
 export async function fetchEmbyWatchedItems(config, { limit = 0 } = {}) {
   requireEmbyConfig(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);

@@ -351,6 +351,26 @@ export async function fetchJellyfinEpisodes(config, parentId) {
   return data?.Items || [];
 }
 
+// Mark unplayed directly by native item Id, skipping the search/match step. Used by the
+// authoritative restore clear pass, which already has the Id from fetchJellyfinWatchedItems.
+export async function markJellyfinUnplayedById(config, itemId) {
+  requireJellyfinConfig(config);
+  if (!itemId) return { platform: "jellyfin", status: "not_found" };
+
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${itemId}`);
+  url.searchParams.set("api_key", jellyfinApiKey(config));
+
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: { ...authHeaders(config), "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!response.ok) {
+    throw new Error(`Jellyfin mark unplayed failed with status ${response.status} for item ${itemId}`);
+  }
+  return { platform: "jellyfin", status: "fulfilled", itemId, httpStatus: response.status };
+}
+
 export async function fetchJellyfinWatchedItems(config, { limit = 0 } = {}) {
   requireJellyfinConfig(config);
   const apiKey = jellyfinApiKey(config);
