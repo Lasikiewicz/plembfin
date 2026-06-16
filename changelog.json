@@ -1,7 +1,14 @@
 {
-  "version": "0.0.24",
-  "updatedAt": "2026-06-16T11:11:26+01:00",
+  "version": "0.0.25",
+  "updatedAt": "2026-06-16T11:27:23+01:00",
   "entries": [
+    {
+      "version": "0.0.25",
+      "date": "2026-06-16T11:27:23+01:00",
+      "commit": "6b446553c1b5993ce48863cabf1fd8874bf5f513",
+      "message": "fix: allow resume progress sync even when timestamp is missing",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.24",
       "date": "2026-06-16T11:11:26+01:00",
