@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
-import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "./utils/parsers.js";
-import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems } from "./utils/plexClient.js";
+import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook, buildPlexMediaFromMetadata } from "./utils/parsers.js";
+import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem } from "./utils/plexClient.js";
+import { createPlexNotificationListener, probePlexNotificationSocket } from "./utils/plexNotificationListener.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems } from "./utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems } from "./utils/jellyfinClient.js";
 import { requireAdmin, requireAdminStreaming, handleLogin, handleLogout, handleAuthStatus, handleAuthCredentials } from "./utils/auth.js";
@@ -54,6 +55,8 @@ import {
   getCachedMovies,
   getCachedHistory,
   findExistingWatch,
+  findWatchedByAnyMediaKey,
+  getPlaystateForMedia,
   countMissingPosterTraktRows,
   listMissingPosterTraktRows,
   stampWatchPoster,
@@ -281,6 +284,9 @@ async function handleConfig(req, res) {
     const errors = validateConfig(config);
     if (errors.length) return sendJson(res, { error: "Invalid configuration", details: errors }, 400);
     await saveMediaConfig(config);
+    // Reconnect the Plex notification listener so a newly added/changed server or token
+    // takes effect immediately (event-driven unwatch detection).
+    restartPlexNotificationListener();
     return sendJson(res, { ok: true });
   }
 
@@ -1901,6 +1907,32 @@ async function handleTestConnection(req, res) {
   }
 }
 
+// Probes the Plex realtime notification WebSocket — the channel that powers event-driven
+// unwatch detection. Accepts URL/token in the body (so the integrity check can test the
+// values currently entered in Settings), falling back to the saved Plex config.
+async function handleTestPlexNotifications(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req).catch(() => ({}));
+  let baseUrl = String(body.url || body.baseUrl || "").replace(/\/+$/, "");
+  let token = String(body.token || body.apiKey || "");
+
+  if (!baseUrl || !token) {
+    const config = await loadMediaConfig().catch(() => null);
+    baseUrl = baseUrl || config?.plex?.baseUrl || "";
+    token = token || config?.plex?.token || "";
+  }
+
+  if (!baseUrl || !token) {
+    return sendJson(res, { ok: false, error: "Plex URL and token are required" }, 400);
+  }
+
+  const result = await probePlexNotificationSocket({ baseUrl, token });
+  return sendJson(res, result, result.ok ? 200 : 502);
+}
+
 async function handlePoster(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -2838,6 +2870,7 @@ async function dispatch(req, res) {
     if (path === "youtube-meta") return handleYoutubeMeta(req, res);
     if (path === "webhook") return handleWebhook(req, res);
     if (path === "test-connection") return handleTestConnection(req, res);
+    if (path === "test-plex-notifications") return handleTestPlexNotifications(req, res);
     if (path === "tmdb-poster") return handleTmdbPoster(req, res);
     if (path === "tmdb-profile") return handleTmdbProfile(req, res);
     if (path === "poster") return handlePoster(req, res);
@@ -2862,4 +2895,86 @@ export async function runScheduledTick() {
   await runScheduledSync();
   await Promise.resolve(runScheduledWatchBackup()).catch((error) => console.error("Scheduled watch-history backup failed", error));
   await prewarmTmdbLibrary({ limit: 4 }).catch((error) => console.error("TMDB prewarm failed", error));
+}
+
+// ---------------------------------------------------------------------------
+// Plex real-time unwatch detection
+//
+// Plex never sends a webhook when an item is marked unwatched, so we listen on its
+// notification WebSocket. When a movie/episode timeline event arrives, we resolve the
+// ratingKey to its current metadata, confirm it actually went to unwatched, and (if we
+// previously tracked it as watched) run the same propagation as a manual unwatch — which
+// fans out to Emby and Jellyfin via the configured ID/title matching.
+// ---------------------------------------------------------------------------
+
+let plexNotificationListener = null;
+
+async function handlePlexLibraryItemChange(ratingKey) {
+  if (!watchedPlayedSyncEnabled()) return;
+
+  const config = await loadMediaConfig().catch(() => null);
+  if (!config?.plex?.baseUrl || !config.plex.token || config.plex.disabled) return;
+
+  const metadata = await fetchPlexMetadataItem(config.plex, ratingKey).catch((error) => {
+    console.error(`Plex notification: metadata lookup failed for ratingKey ${ratingKey}: ${error.message}`);
+    return null;
+  });
+  if (!metadata) return;
+
+  // Only movies and episodes carry a watch state we sync.
+  const media = buildPlexMediaFromMetadata(metadata);
+  if (!media?.isValid || !["movie", "episode"].includes(media.type)) return;
+
+  // Still watched or only partially watched → this isn't an unwatch event.
+  const viewCount = Number(metadata.viewCount || 0);
+  const viewOffset = Number(metadata.viewOffset || 0);
+  if (viewCount > 0 || viewOffset > 0) return;
+
+  // Only propagate if our store currently considers this item watched. This avoids
+  // reacting to items we never tracked and short-circuits the echo when an unwatch that
+  // originated on Emby/Jellyfin was just propagated *into* Plex (the originating flow has
+  // already flipped our playstate to "unwatched").
+  const playstate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
+  if (playstate?.state === "unwatched") return;
+  if (playstate?.state !== "watched") {
+    const watched = await findWatchedByAnyMediaKey({ ...media, syncAction: "watched" }).catch(() => null);
+    if (!watched) return;
+  }
+
+  console.log("Plex notifications: item marked unwatched, propagating to Emby/Jellyfin", {
+    title: media.title,
+    ratingKey,
+    type: media.type,
+  });
+
+  const loopStore = createLoopStore();
+  try {
+    await applyManualUnwatch(media, config, loopStore);
+  } catch (error) {
+    console.error(`Plex notification unwatch propagation failed for "${media.title}"`, error);
+  } finally {
+    await invalidateHistoryDerivedCaches().catch(() => null);
+  }
+}
+
+export function startPlexNotificationListener() {
+  if (!plexNotificationListener) {
+    plexNotificationListener = createPlexNotificationListener({
+      getPlexConfig: async () => {
+        const config = await loadMediaConfig().catch(() => null);
+        return config?.plex || null;
+      },
+      onLibraryItemChange: handlePlexLibraryItemChange,
+      logger: console.log,
+    });
+  }
+  plexNotificationListener.start();
+}
+
+export function restartPlexNotificationListener() {
+  if (!plexNotificationListener) {
+    startPlexNotificationListener();
+    return;
+  }
+  plexNotificationListener.restart();
 }

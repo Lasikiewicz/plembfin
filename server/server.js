@@ -7,7 +7,7 @@ import { loadLocalEnv } from "./src/env.js";
 loadLocalEnv();
 
 const { PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
-const { dispatch, runScheduledTick } = await import("./src/index.js");
+const { dispatch, runScheduledTick, startPlexNotificationListener } = await import("./src/index.js");
 
 ensureDataDirs();
 
@@ -74,6 +74,8 @@ server.on("listening", () => {
   // Kick once shortly after boot, then every minute.
   setTimeout(tick, 10_000);
   setInterval(tick, 60_000);
+  // Connect the Plex real-time notification listener for event-driven unwatch detection.
+  startPlexNotificationListener();
 });
 
 server.on("error", (error) => {
