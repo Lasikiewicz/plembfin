@@ -1,7 +1,14 @@
 {
-  "version": "0.0.52",
-  "updatedAt": "2026-06-16T22:22:44+01:00",
+  "version": "0.0.53",
+  "updatedAt": "2026-06-16T22:53:51+01:00",
   "entries": [
+    {
+      "version": "0.0.53",
+      "date": "2026-06-16T22:53:51+01:00",
+      "commit": "89639feca466b0d362698b06872f7ccf12eece4b",
+      "message": "fix: add request deduplication to prevent concurrent poster processing race conditions",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.52",
       "date": "2026-06-16T22:22:44+01:00",
