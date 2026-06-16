@@ -498,13 +498,14 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
       playstateUpdatedAt,
       resumeUpdatedAt,
       resumeHasTimestamp: resumeUpdatedAt > 0,
-      skipDueToPlaystate: resumeUpdatedAt > 0 && playstateUpdatedAt >= resumeUpdatedAt,
+      skipDueToWatched: existingPlaystate.state === "watched",
+      skipDueToTimestamp: resumeUpdatedAt > 0 && playstateUpdatedAt >= resumeUpdatedAt,
     });
   }
 
-  if (existingPlaystate && resumeUpdatedAt > 0 && playstateUpdatedAt >= resumeUpdatedAt) {
+  if (existingPlaystate && (existingPlaystate.state === "watched" || (resumeUpdatedAt > 0 && playstateUpdatedAt >= resumeUpdatedAt))) {
     await deletePlaybackProgress(requireDb(), media).catch(() => null);
-    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (newer ${existingPlaystate.state} playstate)`);
+    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (${existingPlaystate.state === "watched" ? "item is watched" : "newer playstate"})`);
     return false;
   }
 
