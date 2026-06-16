@@ -425,3 +425,49 @@ export async function fetchPlexWatchedItems(config) {
 
   return watchedItems;
 }
+
+export async function fetchPlexResumableItems(config, { limit = 0 } = {}) {
+  requirePlexConfig(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const accountId = await resolvePlexAccountId(config);
+
+  const sectionsUrl = new URL(`${baseUrl}/library/sections`);
+  sectionsUrl.searchParams.set("X-Plex-Token", config.token);
+  const sectionsRes = await fetch(sectionsUrl, { headers: { Accept: "application/json" } });
+  if (!sectionsRes.ok) {
+    throw new Error(`Plex failed to fetch library sections: ${sectionsRes.status}`);
+  }
+
+  const sectionsData = await sectionsRes.json();
+  const directories = sectionsData?.MediaContainer?.Directory || [];
+  const resumableItems = [];
+  const maxItems = Math.max(0, Math.round(Number(limit) || 0));
+
+  for (const dir of directories) {
+    const sectionId = dir.key;
+    const type = dir.type;
+    if (type !== "movie" && type !== "show") continue;
+
+    const allUrl = new URL(`${baseUrl}/library/sections/${sectionId}/all`);
+    allUrl.searchParams.set("X-Plex-Token", config.token);
+    if (accountId != null) allUrl.searchParams.set("accountID", String(accountId));
+    allUrl.searchParams.set("sort", "lastViewedAt:desc");
+    allUrl.searchParams.set("type", type === "movie" ? "1" : "4");
+
+    try {
+      const allRes = await fetch(allUrl, { headers: { Accept: "application/json" } });
+      if (!allRes.ok) continue;
+      const allData = await allRes.json();
+      const metadata = allData?.MediaContainer?.Metadata || [];
+      for (const item of metadata) {
+        if (Number(item.viewOffset || 0) <= 0) continue;
+        resumableItems.push(item);
+        if (maxItems && resumableItems.length >= maxItems) return resumableItems;
+      }
+    } catch (err) {
+      console.error(`Plex failed to fetch resumable items for section ${sectionId}`, err);
+    }
+  }
+
+  return resumableItems;
+}

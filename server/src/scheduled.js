@@ -29,6 +29,7 @@ import {
 } from "./utils/firestoreRepo.js";
 
 const SCHEDULED_RECENT_WATCH_LIMIT = 50;
+const SCHEDULED_RESUME_LIMIT = 50;
 
 function buildTelemetry(media, summary) {
   const targetStates = summary?.targetStates || [];
@@ -124,6 +125,87 @@ function releaseDateForPlexItem(item = {}) {
       item.OriginallyAvailableAt ||
       (item.year ? `${item.year}-01-01T00:00:00.000Z` : ""),
   );
+}
+
+function ticksToMilliseconds(value) {
+  const ticks = Number(value || 0);
+  return Number.isFinite(ticks) && ticks > 0 ? Math.round(ticks / 10000) : 0;
+}
+
+function millisecondsFrom(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) && number > 0 ? Math.round(number) : 0;
+}
+
+function progressPercent(positionMs = 0, durationMs = 0) {
+  if (!durationMs) return 0;
+  return Math.max(0, Math.min(100, (Number(positionMs || 0) / Number(durationMs || 1)) * 100));
+}
+
+function plexGuidIds(item = {}) {
+  const ids = {};
+  const guids = [item.guid, ...(item.Guid || []).map((g) => g.id || g)].filter(Boolean);
+  for (const guid of guids) {
+    const guidStr = String(guid);
+    const value = guidStr.split(/:\/\/|\//).pop();
+    if (guidStr.includes("imdb")) ids.imdb = value;
+    if (guidStr.includes("tmdb") || guidStr.includes("themoviedb")) ids.tmdb = value;
+    if (guidStr.includes("tvdb") || guidStr.includes("thetvdb")) ids.tvdb = value;
+  }
+  return ids;
+}
+
+function mediaFromPlexResumableItem(item = {}) {
+  const type = item.type === "episode" ? "episode" : "movie";
+  const positionMs = millisecondsFrom(item.viewOffset);
+  const durationMs = millisecondsFrom(item.duration);
+  const season = item.parentIndex != null ? Number(item.parentIndex) : null;
+  const episode = item.index != null ? Number(item.index) : null;
+  return {
+    title: type === "episode"
+      ? `${item.grandparentTitle || item.title || "Unknown Show"} - S${String(season ?? "?").padStart(2, "0")}E${String(episode ?? "?").padStart(2, "0")}`
+      : item.title || "Unknown Movie",
+    type,
+    source: "plex",
+    season,
+    episode,
+    ids: plexGuidIds(item),
+    episodeTitle: type === "episode" ? item.title : null,
+    positionMs,
+    offsetMs: positionMs,
+    durationMs,
+    progress: progressPercent(positionMs, durationMs),
+    isValid: true,
+  };
+}
+
+function mediaFromEmbyLikeResumableItem(item = {}, source = "emby", normalizeProviderIds = (ids) => ids || {}) {
+  const ids = normalizeProviderIds(item.ProviderIds);
+  const type = item.Type === "Episode" ? "episode" : "movie";
+  const season = item.ParentIndexNumber != null ? Number(item.ParentIndexNumber) : null;
+  const episode = item.IndexNumber != null ? Number(item.IndexNumber) : null;
+  const positionMs = ticksToMilliseconds(item.UserData?.PlaybackPositionTicks || item.PlaybackPositionTicks || item.PositionTicks);
+  const durationMs = ticksToMilliseconds(item.RunTimeTicks || item.DurationTicks);
+  return {
+    title: type === "episode"
+      ? `${item.SeriesName || item.ParentName || item.Name || "Unknown Show"} - S${String(season ?? "?").padStart(2, "0")}E${String(episode ?? "?").padStart(2, "0")}`
+      : item.Name || item.Title || "Unknown Movie",
+    type,
+    source,
+    season,
+    episode,
+    ids: {
+      imdb: ids.imdb || undefined,
+      tmdb: ids.tmdb || undefined,
+      tvdb: ids.tvdb || undefined,
+    },
+    episodeTitle: type === "episode" ? item.Name : null,
+    positionMs,
+    offsetMs: positionMs,
+    durationMs,
+    progress: progressPercent(positionMs, durationMs),
+    isValid: true,
+  };
 }
 
 function normalizePlexIdentity(value = "") {
@@ -369,6 +451,105 @@ async function processStoppedSessionProgress(row, config, loopStore) {
   await recordSyncHistory(media, syncSummary, "progress");
 
   return { media, telemetry, status: syncSummary.status };
+}
+
+async function syncResumableMedia(media, config, loopStore, logger = console.log) {
+  if (!shouldSyncResumeProgress(media)) return false;
+
+  const progressRecord = mediaToPlaybackProgressRecord(media, media.source);
+  await upsertPlaybackProgress(requireDb(), {
+    ...progressRecord,
+    sync_dispatch_telemetry: buildProgressTelemetry(media, {
+      skipped: false,
+      status: "pending",
+      details: "Resume propagation queued from server continue-watching list",
+      targetStates: [],
+    }),
+  }).catch((error) => {
+    logger(`Resume Sync: failed to store progress for ${media.title}: ${error.message}`);
+  });
+
+  let summary;
+  try {
+    summary = await syncMediaProgress(media, config, loopStore);
+  } catch (error) {
+    summary = {
+      status: "error",
+      details: `Resume propagation failed: ${error.message || String(error)}`,
+      skipped: false,
+      targetStates: [],
+    };
+  }
+
+  await updatePlaybackProgressTelemetry(requireDb(), progressRecord, buildProgressTelemetry(media, summary)).catch(() => null);
+  await recordSyncHistory(media, summary, "progress");
+  logger(`Resume Sync: ${media.title} from ${media.source} -> ${summary.status}`);
+  return summary.status === "success" || summary.status === "partial";
+}
+
+async function syncRecentlyResumableFromPlex(config, loopStore, logger = console.log) {
+  if (!watchedPlayedSyncEnabled()) {
+    logger("Plex resume library sync is disabled.");
+    return 0;
+  }
+  if (!config.plex?.baseUrl || !config.plex?.token) return 0;
+
+  let syncedCount = 0;
+  try {
+    const { fetchPlexResumableItems } = await import("./utils/plexClient.js");
+    const raw = await fetchPlexResumableItems(config.plex, { limit: SCHEDULED_RESUME_LIMIT });
+    logger(`Plex: fetched ${raw.length} resumable library items.`);
+    for (const item of raw) {
+      if (await syncResumableMedia(mediaFromPlexResumableItem(item), config, loopStore, logger)) syncedCount++;
+    }
+  } catch (error) {
+    logger(`Plex resume sync failed: ${error.message}`);
+  }
+  return syncedCount;
+}
+
+async function syncRecentlyResumableFromEmby(config, loopStore, logger = console.log) {
+  if (!watchedPlayedSyncEnabled()) {
+    logger("Emby resume library sync is disabled.");
+    return 0;
+  }
+  if (!config.emby?.baseUrl || !config.emby?.apiKey || !config.emby?.userId) return 0;
+
+  let syncedCount = 0;
+  try {
+    const { fetchEmbyResumableItems } = await import("./utils/embyClient.js");
+    const { normalizeProviderIds } = await import("./utils/parsers.js");
+    const raw = await fetchEmbyResumableItems(config.emby, { limit: SCHEDULED_RESUME_LIMIT });
+    logger(`Emby: fetched ${raw.length} resumable library items.`);
+    for (const item of raw) {
+      if (await syncResumableMedia(mediaFromEmbyLikeResumableItem(item, "emby", normalizeProviderIds), config, loopStore, logger)) syncedCount++;
+    }
+  } catch (error) {
+    logger(`Emby resume sync failed: ${error.message}`);
+  }
+  return syncedCount;
+}
+
+async function syncRecentlyResumableFromJellyfin(config, loopStore, logger = console.log) {
+  if (!watchedPlayedSyncEnabled()) {
+    logger("Jellyfin resume library sync is disabled.");
+    return 0;
+  }
+  if (!config.jellyfin?.baseUrl || !config.jellyfin?.apiKey || !config.jellyfin?.userId) return 0;
+
+  let syncedCount = 0;
+  try {
+    const { fetchJellyfinResumableItems } = await import("./utils/jellyfinClient.js");
+    const { normalizeProviderIds } = await import("./utils/parsers.js");
+    const raw = await fetchJellyfinResumableItems(config.jellyfin, { limit: SCHEDULED_RESUME_LIMIT });
+    logger(`Jellyfin: fetched ${raw.length} resumable library items.`);
+    for (const item of raw) {
+      if (await syncResumableMedia(mediaFromEmbyLikeResumableItem(item, "jellyfin", normalizeProviderIds), config, loopStore, logger)) syncedCount++;
+    }
+  } catch (error) {
+    logger(`Jellyfin resume sync failed: ${error.message}`);
+  }
+  return syncedCount;
 }
 
 async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.log) {
@@ -857,6 +1038,9 @@ export async function runScheduledSync(logger = console.log) {
   let plexSynced = 0;
   let embySynced = 0;
   let jellyfinSynced = 0;
+  let plexResumeSynced = 0;
+  let embyResumeSynced = 0;
+  let jellyfinResumeSynced = 0;
   let manualSynced = 0;
 
   if (plexActive) {
@@ -883,6 +1067,33 @@ export async function runScheduledSync(logger = console.log) {
       jellyfinSynced = await syncRecentlyWatchedFromJellyfin(config, loopStore, logger);
     } catch (error) {
       logger(`Scheduled Sync ERROR: Jellyfin sync failed: ${error.message}`);
+    }
+  }
+
+  if (plexActive) {
+    try {
+      logger("Scheduled Sync: checking Plex continue watching...");
+      plexResumeSynced = await syncRecentlyResumableFromPlex(config, loopStore, logger);
+    } catch (error) {
+      logger(`Scheduled Sync ERROR: Plex resume sync failed: ${error.message}`);
+    }
+  }
+
+  if (embyActive) {
+    try {
+      logger("Scheduled Sync: checking Emby continue watching...");
+      embyResumeSynced = await syncRecentlyResumableFromEmby(config, loopStore, logger);
+    } catch (error) {
+      logger(`Scheduled Sync ERROR: Emby resume sync failed: ${error.message}`);
+    }
+  }
+
+  if (jellyfinActive) {
+    try {
+      logger("Scheduled Sync: checking Jellyfin continue watching...");
+      jellyfinResumeSynced = await syncRecentlyResumableFromJellyfin(config, loopStore, logger);
+    } catch (error) {
+      logger(`Scheduled Sync ERROR: Jellyfin resume sync failed: ${error.message}`);
     }
   }
 
@@ -933,11 +1144,11 @@ export async function runScheduledSync(logger = console.log) {
   await deleteLiveTrackingCacheRows(requireDb(), staleIds);
   await purgeCompletedLiveTrackingCache(requireDb());
 
-  if (currentRows.length || completions.length || progressUpdates.length || staleIds.length || plexSynced || embySynced || jellyfinSynced || manualSynced) {
+  if (currentRows.length || completions.length || progressUpdates.length || staleIds.length || plexSynced || embySynced || jellyfinSynced || plexResumeSynced || embyResumeSynced || jellyfinResumeSynced || manualSynced) {
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
   }
 
-  logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Manual: ${manualSynced}`);
+  logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Resume Plex: ${plexResumeSynced}, Resume Emby: ${embyResumeSynced}, Resume Jellyfin: ${jellyfinResumeSynced}, Manual: ${manualSynced}`);
   return {
     sessions: currentRows.length,
     completions: completions.length,
@@ -947,6 +1158,9 @@ export async function runScheduledSync(logger = console.log) {
     plexHistorySynced: plexSynced,
     embyHistorySynced: embySynced,
     jellyfinHistorySynced: jellyfinSynced,
+    plexResumeSynced,
+    embyResumeSynced,
+    jellyfinResumeSynced,
     manualDispatchesSynced: manualSynced,
   };
 }
