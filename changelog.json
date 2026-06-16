@@ -1,7 +1,14 @@
 {
-  "version": "0.0.45",
-  "updatedAt": "2026-06-16T16:54:06+01:00",
+  "version": "0.0.46",
+  "updatedAt": "2026-06-16T17:02:45+01:00",
   "entries": [
+    {
+      "version": "0.0.46",
+      "date": "2026-06-16T17:02:45+01:00",
+      "commit": "79d7f7bf837b3ced775d6152133b17f0bf265fea",
+      "message": "Fix now playing card height - expand to fit full poster",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.45",
       "date": "2026-06-16T16:54:06+01:00",
