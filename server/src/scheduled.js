@@ -483,11 +483,25 @@ async function processStoppedSessionProgress(row, config, loopStore) {
 }
 
 async function syncResumableMedia(media, config, loopStore, logger = console.log) {
-  if (!shouldSyncResumeProgress(media)) return false;
+  if (!shouldSyncResumeProgress(media)) {
+    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (not actionable)`);
+    return false;
+  }
 
   const existingPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
   const resumeUpdatedAt = Number(media.updatedAt || 0);
   const playstateUpdatedAt = Number(existingPlaystate?.updated_at || 0);
+
+  if (existingPlaystate) {
+    logger(`Resume Sync: ${media.title} from ${media.source} - checking playstate`, {
+      playstateState: existingPlaystate.state,
+      playstateUpdatedAt,
+      resumeUpdatedAt,
+      resumeHasTimestamp: resumeUpdatedAt > 0,
+      skipDueToPlaystate: resumeUpdatedAt > 0 && playstateUpdatedAt >= resumeUpdatedAt,
+    });
+  }
+
   if (existingPlaystate && resumeUpdatedAt > 0 && playstateUpdatedAt >= resumeUpdatedAt) {
     await deletePlaybackProgress(requireDb(), media).catch(() => null);
     logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (newer ${existingPlaystate.state} playstate)`);
@@ -496,6 +510,16 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
 
   const existingProgress = await getPlaybackProgressForMedia(requireDb(), media).catch(() => null);
   const progressUpdatedAt = Number(existingProgress?.updated_at || 0);
+
+  if (existingProgress) {
+    logger(`Resume Sync: ${media.title} from ${media.source} - checking existing progress`, {
+      progressUpdatedAt,
+      resumeUpdatedAt,
+      resumeHasTimestamp: resumeUpdatedAt > 0,
+      skipDueToProgress: resumeUpdatedAt > 0 && progressUpdatedAt >= resumeUpdatedAt,
+    });
+  }
+
   if (existingProgress && resumeUpdatedAt > 0 && progressUpdatedAt >= resumeUpdatedAt) {
     logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (stale resume progress)`);
     return false;

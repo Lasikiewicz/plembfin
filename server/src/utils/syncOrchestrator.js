@@ -237,6 +237,7 @@ function formatTargets(targets) {
 
 export async function syncMediaPlaystate(media, config, kv) {
   if (!watchedPlayedSyncEnabled()) {
+    console.log("Sync playstate skipped: watched/played syncing is disabled");
     return { skipped: true, status: "skipped", details: "Watched/played syncing is disabled.", targetStates: [], results: [] };
   }
 
@@ -246,6 +247,7 @@ export async function syncMediaPlaystate(media, config, kv) {
   }
 
   if (await wasRecentlyTargeted(media, media.source, kv)) {
+    console.log("Sync playstate skipped: echo loop detected", { source: media.source, title: media.title });
     return {
       skipped: true,
       status: "skipped",
@@ -258,8 +260,9 @@ export async function syncMediaPlaystate(media, config, kv) {
   const targets = getTargetsForSource(media.source, config);
   await primeTargetCache(media, targets, kv);
 
-  console.log("Sync dispatch started", {
+  console.log("Sync playstate dispatch started", {
     source: media.source,
+    title: media.title,
     targets,
     type: media.type,
     ids: media.ids,
@@ -272,8 +275,10 @@ export async function syncMediaPlaystate(media, config, kv) {
 
   const results = await Promise.allSettled(jobs);
   const summary = summarizeResults(targets, results);
-  console.log("Sync dispatch completed", {
+  console.log("Sync playstate dispatch completed", {
     source: media.source,
+    title: media.title,
+    status: summary.status,
     results: results.map((result, index) => ({
       target: targets[index],
       status: result.status,
@@ -335,11 +340,19 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
 
 export async function syncMediaProgress(media, config, kv) {
   if (!shouldSyncResumeProgress(media)) {
-    console.log("Sync progress skipped; resume payload is not actionable", media);
+    console.log("Sync progress skipped: resume payload is not actionable", {
+      source: media.source,
+      title: media.title,
+      isValid: media.isValid,
+      type: media.type,
+      positionMs: media.positionMs ?? media.offsetMs,
+      progress: media.progress,
+    });
     return { skipped: true, status: "skipped", details: "Resume progress is not actionable", results: [] };
   }
 
   if (await wasRecentlyTargeted(media, media.source, kv, "progress_loop")) {
+    console.log("Sync progress skipped: echo loop detected", { source: media.source, title: media.title });
     return {
       skipped: true,
       status: "skipped",
@@ -354,6 +367,7 @@ export async function syncMediaProgress(media, config, kv) {
 
   console.log("Sync progress dispatch started", {
     source: media.source,
+    title: media.title,
     targets,
     type: media.type,
     positionMs: media.positionMs ?? media.offsetMs,
@@ -370,6 +384,8 @@ export async function syncMediaProgress(media, config, kv) {
   const summary = summarizeProgressResults(targets, results);
   console.log("Sync progress dispatch completed", {
     source: media.source,
+    title: media.title,
+    status: summary.status,
     results: results.map((result, index) => ({
       target: targets[index],
       status: result.status,
