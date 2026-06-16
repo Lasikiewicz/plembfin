@@ -635,7 +635,7 @@ const RESTORE_SKEW_BUFFER_MS = 5000;
 const POST_RESTORE_WEBHOOK_GUARD_MS = 24 * 60 * 60 * 1000;
 // How many items the restore push/clear processes at once, and the per-item timeout so a single
 // hung app call can't stall the whole job.
-const RESTORE_PUSH_CONCURRENCY = 8;
+const RESTORE_PUSH_CONCURRENCY = Math.min(Math.max(Number(process.env.PLEMBFIN_RESTORE_CONCURRENCY || 24), 1), 64);
 const RESTORE_ITEM_TIMEOUT_MS = 30000;
 
 function normalizedTitlePart(value = "") {
