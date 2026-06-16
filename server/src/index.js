@@ -674,13 +674,13 @@ async function handleWatchBackups(req, res) {
       // creating new watch records dated today and undoing the restore.
       // Platform state is assumed to already reflect the backup (or will naturally reconcile).
       if (mode === "replace") {
-        pauseCronSync(3600000); // Pause for 1 hour
+        pauseCronSync(43200000); // Pause for 12 hours
         const result = restoreWatchHistoryBackup(filename, { mode, dryRun: false });
 
         return sendJson(res, {
           ok: true,
           restore: result,
-          note: "Cron sync paused for 1 hour to prevent re-importing from connected apps.",
+          note: "Cron sync paused for 12 hours to prevent re-importing from connected apps.",
         });
       }
 

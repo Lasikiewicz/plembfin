@@ -1204,6 +1204,27 @@ export async function findWatchedByMediaKey(mediaKey) {
   return rowToWatch(findWatchedByKeyStmt.get(mediaKey));
 }
 
+// Checks all possible key formats for the same media item (IMDB, TMDB, TVDB, title).
+// Prevents false "not found" results when backup records were keyed by a different ID type
+// than the one returned by the platform API (e.g. Plex stored TMDB, Emby returns IMDB).
+export async function findWatchedByAnyMediaKey(media) {
+  const ids = media.ids || {};
+  const seen = new Set();
+  const candidates = [
+    mediaKeyFor(media),
+    ids.imdb ? mediaKeyFor({ ...media, ids: { imdb: ids.imdb } }) : null,
+    ids.tmdb ? mediaKeyFor({ ...media, ids: { tmdb: ids.tmdb } }) : null,
+    ids.tvdb ? mediaKeyFor({ ...media, ids: { tvdb: ids.tvdb } }) : null,
+  ];
+  for (const key of candidates) {
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const row = findWatchedByKeyStmt.get(key);
+    if (row) return rowToWatch(row);
+  }
+  return null;
+}
+
 const countMissingPosterStmt = db.prepare("SELECT COUNT(*) AS c FROM watch_history WHERE source = 'trakt_import' AND (poster_url IS NULL OR poster_url = '')");
 const listMissingPosterStmt = db.prepare("SELECT * FROM watch_history WHERE source = 'trakt_import' AND (poster_url IS NULL OR poster_url = '') LIMIT ?");
 
