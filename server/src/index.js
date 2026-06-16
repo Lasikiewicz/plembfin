@@ -76,6 +76,8 @@ import {
   readWatchBackupFile,
   removeBackupDestination,
   clearRestoreStatus,
+  pauseCronSync,
+  resumeCronSync,
   restoreWatchHistoryBackup,
   runScheduledWatchBackup,
   saveWatchBackupConfig,
@@ -154,6 +156,48 @@ function isCachedStorageUrl(value = "") {
   const raw = String(value || "").trim();
   // Locally cached artwork is served from /media/posters or /media/backdrops.
   return raw.startsWith("/media/posters/") || raw.startsWith("/media/backdrops/");
+}
+
+async function syncRestoredItemsToApps(config = {}) {
+  try {
+    console.log("Starting sync of restored items to connected apps...");
+    const db = requireDb();
+    const loopStore = createLoopStore();
+    const allRecords = db.prepare("SELECT * FROM watch_history ORDER BY watched_at DESC").all();
+
+    let syncedCount = 0;
+    for (const record of allRecords) {
+      const isWatched = record.sync_action !== "unwatched";
+      const media = {
+        title: record.title,
+        type: record.media_type,
+        source: "restore",
+        season: record.season,
+        episode: record.episode,
+        ids: {
+          imdb: record.imdb_id,
+          tmdb: record.tmdb_id,
+          tvdb: record.tvdb_id,
+        },
+        isValid: true,
+      };
+
+      try {
+        if (isWatched) {
+          await syncMediaPlaystate(media, config, loopStore).catch(() => null);
+        } else {
+          await syncMediaUnplayedPlaystate(media, config, loopStore).catch(() => null);
+        }
+        syncedCount++;
+      } catch (error) {
+        console.error(`Failed to sync "${media.title}" to apps:`, error.message);
+      }
+    }
+
+    console.log(`Restored items sync complete: ${syncedCount} items synced to connected apps`);
+  } catch (error) {
+    console.error("Error syncing restored items to apps:", error);
+  }
 }
 
 async function normalizeWebhook(req) {
@@ -657,12 +701,36 @@ async function handleWatchBackups(req, res) {
     if (action === "restore") {
       const filename = String(body.filename || "").trim();
       if (!filename) return sendJson(res, { error: "filename is required" }, 400);
+
+      const mode = body.mode === "replace" ? "replace" : "merge";
+      const dryRun = body.dryRun === true;
+
+      if (dryRun) {
+        return sendJson(res, {
+          ok: true,
+          restore: restoreWatchHistoryBackup(filename, { mode, dryRun: true }),
+        });
+      }
+
+      // For Replace restores, pause cron, restore, then sync to apps
+      if (mode === "replace") {
+        pauseCronSync(1200000); // Pause for 20 minutes
+        const result = restoreWatchHistoryBackup(filename, { mode, dryRun: false });
+
+        // Queue async sync to all connected apps
+        syncRestoredItemsToApps(config).finally(() => resumeCronSync());
+
+        return sendJson(res, {
+          ok: true,
+          restore: result,
+          note: "Cron sync paused during restore. Will resume after syncing to connected apps.",
+        });
+      }
+
+      // For Merge restores, just restore without pausing cron
       return sendJson(res, {
         ok: true,
-        restore: restoreWatchHistoryBackup(filename, {
-          mode: body.mode === "replace" ? "replace" : "merge",
-          dryRun: body.dryRun === true,
-        }),
+        restore: restoreWatchHistoryBackup(filename, { mode, dryRun: false }),
       });
     }
     if (action === "save-destination") {

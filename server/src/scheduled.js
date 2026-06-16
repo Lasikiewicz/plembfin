@@ -4,6 +4,7 @@ import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/
 import { appendSyncHistory, loadMediaConfig, loadRuntimeState, setRuntimeState } from "./utils/configStore.js";
 import { createLoopStore } from "./utils/loopStore.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
+import { isCronSyncPaused } from "./utils/watchHistoryBackups.js";
 import {
   deleteLiveTrackingCacheRows,
   deletePlaybackProgress,
@@ -1067,6 +1068,11 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
 }
 
 export async function runScheduledSync(logger = console.log) {
+  if (isCronSyncPaused()) {
+    logger("Scheduled Sync: skipped because cron sync is paused (likely due to restore in progress).");
+    return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true };
+  }
+
   logger("Scheduled Sync: starting background sync workflow...");
   const runtime = await loadRuntimeState();
   
