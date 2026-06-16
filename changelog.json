@@ -1,7 +1,14 @@
 {
-  "version": "0.0.51",
-  "updatedAt": "2026-06-16T21:46:11+01:00",
+  "version": "0.0.52",
+  "updatedAt": "2026-06-16T22:22:44+01:00",
   "entries": [
+    {
+      "version": "0.0.52",
+      "date": "2026-06-16T22:22:44+01:00",
+      "commit": "eed5864a7a6bfb01b3835f060ab26fd7b419c218",
+      "message": "feat: event-driven Plex unwatch detection via notification WebSocket",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.51",
       "date": "2026-06-16T21:46:11+01:00",
