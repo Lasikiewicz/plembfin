@@ -1,7 +1,14 @@
 {
-  "version": "0.0.40",
-  "updatedAt": "2026-06-16T15:12:31+01:00",
+  "version": "0.0.41",
+  "updatedAt": "2026-06-16T15:16:31+01:00",
   "entries": [
+    {
+      "version": "0.0.41",
+      "date": "2026-06-16T15:16:31+01:00",
+      "commit": "a653cdad92787f44ca824b8e7e0329bb8073ed1d",
+      "message": "feat: add View on IMDb links to movie and TV show detail pages",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.40",
       "date": "2026-06-16T15:12:31+01:00",
