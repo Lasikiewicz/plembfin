@@ -7,6 +7,83 @@ function trimTrailingSlash(value = "") {
   return String(value || "").trim().replace(/\/+$/, "");
 }
 
+function envValue(...names) {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value !== undefined && String(value).trim() !== "") return String(value).trim();
+  }
+  return "";
+}
+
+function envEnabled(name) {
+  const value = process.env[name];
+  if (value === undefined || String(value).trim() === "") return undefined;
+  return ["1", "true", "yes", "on"].includes(String(value).trim().toLowerCase());
+}
+
+function envMediaConfig() {
+  const plexEnabled = envEnabled("PLEX_ENABLED");
+  const embyEnabled = envEnabled("EMBY_ENABLED");
+  const jellyfinEnabled = envEnabled("JELLYFIN_ENABLED");
+
+  return normalizeStoredConfig({
+    plex: {
+      baseUrl: envValue("PLEX_SERVER_URL", "PLEX_BASE_URL", "PLEX_URL"),
+      token: envValue("PLEX_TOKEN", "PLEX_API_KEY"),
+      username: envValue("PLEX_USERNAME"),
+      disabled: plexEnabled === undefined ? false : !plexEnabled,
+    },
+    emby: {
+      baseUrl: envValue("EMBY_SERVER_URL", "EMBY_BASE_URL", "EMBY_URL"),
+      apiKey: envValue("EMBY_API_KEY"),
+      userId: envValue("EMBY_USER_ID"),
+      disabled: embyEnabled === undefined ? false : !embyEnabled,
+    },
+    jellyfin: {
+      baseUrl: envValue("JELLYFIN_SERVER_URL", "JELLYFIN_BASE_URL", "JELLYFIN_URL"),
+      apiKey: envValue("JELLYFIN_API_KEY"),
+      userId: envValue("JELLYFIN_USER_ID"),
+      disabled: jellyfinEnabled === undefined ? false : !jellyfinEnabled,
+    },
+    tmdb: {
+      apiKey: envValue("TMDB_API_KEY", "TMDB_KEY"),
+    },
+    youtube: {
+      apiKey: envValue("YOUTUBE_API_KEY", "YOUTUBE_DATA_API_KEY"),
+    },
+  });
+}
+
+function hasConfiguredFields(section = {}) {
+  return Object.entries(section).some(([key, value]) => key !== "disabled" && String(value || "").trim() !== "");
+}
+
+function mergeEnvDefaults(stored = {}) {
+  const normalized = normalizeStoredConfig(stored);
+  const defaults = envMediaConfig();
+  const merged = {};
+
+  for (const section of ["plex", "emby", "jellyfin", "tmdb", "youtube"]) {
+    merged[section] = { ...defaults[section], ...normalized[section] };
+    for (const [key, value] of Object.entries(defaults[section])) {
+      if (key === "disabled") continue;
+      if (!String(merged[section][key] || "").trim() && String(value || "").trim()) {
+        merged[section][key] = value;
+      }
+    }
+  }
+
+  for (const section of ["plex", "emby", "jellyfin"]) {
+    if (hasConfiguredFields(normalized[section])) {
+      merged[section].disabled = normalized[section].disabled;
+    } else {
+      merged[section].disabled = defaults[section].disabled;
+    }
+  }
+
+  return normalizeStoredConfig(merged);
+}
+
 export function normalizeStoredConfig(stored = {}) {
   return {
     plex: {
@@ -44,7 +121,7 @@ const upsertSettingsStmt = db.prepare(
 
 export async function loadMediaConfig() {
   const row = selectSettingsStmt.get(SETTINGS_ID);
-  return normalizeStoredConfig(parseJson(row?.data, {}) || {});
+  return mergeEnvDefaults(parseJson(row?.data, {}) || {});
 }
 
 export function publicMediaConfig(config = {}) {

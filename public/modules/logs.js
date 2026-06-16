@@ -27,19 +27,37 @@ export function logsToText(logs) {
   return logs.join("\n");
 }
 
-export async function fetchDiagnosticLogs(apiKey) {
+export async function fetchDiagnosticLogs(headers = {}) {
   try {
     const url = new URL("/api/diagnostic-logs", window.location.origin);
     url.searchParams.set("limit", "500");
-    if (apiKey) {
-      url.searchParams.set("api_key", apiKey);
+    if (headers["X-Api-Key"]) url.searchParams.set("api_key", headers["X-Api-Key"]);
+    const res = await fetch(url, {
+      credentials: "same-origin",
+      headers: { ...headers, "Cache-Control": "no-store" },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return [`Diagnostic logs request failed (${res.status}): ${data.error || res.statusText || "unknown error"}`];
     }
-    const res = await fetch(url, { headers: { "Cache-Control": "no-store" } });
-    if (!res.ok) return [];
-    const data = await res.json();
     return data.logs || [];
   } catch (error) {
     console.error("Failed to fetch diagnostic logs", error);
-    return [];
+    return [`Diagnostic logs request failed: ${error.message || String(error)}`];
   }
+}
+
+export async function clearDiagnosticLogs(headers = {}) {
+  const url = new URL("/api/diagnostic-logs", window.location.origin);
+  if (headers["X-Api-Key"]) url.searchParams.set("api_key", headers["X-Api-Key"]);
+  const res = await fetch(url, {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: { ...headers, "Cache-Control": "no-store" },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Clear logs failed with ${res.status}`);
+  }
+  return true;
 }

@@ -1,5 +1,5 @@
 import { buildAuthHeaders, buildNowPlayingUrl, currentFirebaseUser, onFirebaseAuthChange, readStoredAdminToken, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
-import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs } from "./modules/logs.js";
+import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./modules/logs.js";
 import { connectionLabel, connectionPayloadFromElements } from "./modules/settings.js";
 import { fetchLocalActiveSessions } from "./modules/timeline.js";
 
@@ -143,6 +143,8 @@ const state = {
   importProgressValue: 0,
   importActive: false,
   debugLogs: readStoredDebugLogs(),
+  renderedLogsText: "",
+  logsRefreshInterval: undefined,
   nowPlayingInterval: undefined,
   nowPlayingRequestActive: false,
   nowPlayingRefreshToken: "",
@@ -209,6 +211,9 @@ function bindElements() {
     watchBackupRetention: document.querySelector("#watchBackupRetention"),
     saveWatchBackupConfigButton: document.querySelector("#saveWatchBackupConfigButton"),
     createWatchBackupButton: document.querySelector("#createWatchBackupButton"),
+    chooseWatchBackupFileButton: document.querySelector("#chooseWatchBackupFileButton"),
+    watchBackupUploadFile: document.querySelector("#watchBackupUploadFile"),
+    watchBackupUploadStatus: document.querySelector("#watchBackupUploadStatus"),
     refreshWatchBackupsButton: document.querySelector("#refreshWatchBackupsButton"),
     watchBackupRuntime: document.querySelector("#watchBackupRuntime"),
     watchBackupList: document.querySelector("#watchBackupList"),
@@ -1074,6 +1079,32 @@ async function downloadWatchBackup(filename) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+async function uploadWatchBackupFile(file) {
+  if (!file) return;
+  const name = String(file.name || "");
+  if (!name.toLowerCase().endsWith(".gz")) {
+    throw new Error("Choose a Plembfin watch-history .json.gz backup file.");
+  }
+
+  if (elements.watchBackupUploadStatus) elements.watchBackupUploadStatus.textContent = `Uploading ${name}...`;
+  const response = await fetch(`/api/watch-backups?upload=1&filename=${encodeURIComponent(name)}`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(),
+      "Content-Type": "application/gzip",
+    },
+    body: file,
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Backup upload failed with ${response.status}`);
+
+  state.watchBackups = null;
+  await loadWatchBackups({ force: true });
+  if (elements.watchBackupUploadStatus) elements.watchBackupUploadStatus.textContent = `Ready: ${body.file?.name || name}`;
+  setMessage(`Backup file added: ${body.file?.name || name}.`, "success");
+  return body.file;
 }
 
 async function restoreWatchBackup(filename, clearMode = "reconcile", dryRun = false) {
@@ -3823,6 +3854,7 @@ function applyActiveView() {
       renderSettingsStatus("Configuration ready.", "success");
     }
   }
+  syncLogsRefresh();
 
   if (state.token) {
     syncNowPlayingPolling();
@@ -5547,10 +5579,9 @@ async function renderLogs() {
   if (!elements.logsTerminal) return;
 
   const localLogs = logsText();
-  const apiKey = readStoredAdminToken();
 
   try {
-    const backendLogs = await fetchDiagnosticLogs(apiKey);
+    const backendLogs = await fetchDiagnosticLogs(authHeaders());
     if (backendLogs.length > 0) {
       const allLogs = [
         "=== BACKEND DIAGNOSTIC LOGS ===",
@@ -5559,12 +5590,31 @@ async function renderLogs() {
         "=== FRONTEND DEBUG LOGS ===",
         localLogs || "[no frontend logs]"
       ].join("\n");
+      state.renderedLogsText = allLogs;
       elements.logsTerminal.textContent = allLogs;
     } else {
-      elements.logsTerminal.textContent = localLogs || "[no diagnostic logs captured yet]";
+      state.renderedLogsText = localLogs || "[no diagnostic logs captured yet]";
+      elements.logsTerminal.textContent = state.renderedLogsText;
     }
   } catch (error) {
-    elements.logsTerminal.textContent = localLogs || "[no diagnostic logs captured yet]";
+    state.renderedLogsText = localLogs || "[no diagnostic logs captured yet]";
+    elements.logsTerminal.textContent = state.renderedLogsText;
+  }
+  elements.logsTerminal.scrollTop = elements.logsTerminal.scrollHeight;
+}
+
+function syncLogsRefresh() {
+  const shouldRefresh = state.activeView === "settings" && state.activeSettingsTab === "logs" && state.token;
+  if (shouldRefresh && !state.logsRefreshInterval) {
+    renderLogs().catch(() => {});
+    state.logsRefreshInterval = window.setInterval(() => {
+      if (state.activeView === "settings" && state.activeSettingsTab === "logs") {
+        renderLogs().catch(() => {});
+      }
+    }, 3000);
+  } else if (!shouldRefresh && state.logsRefreshInterval) {
+    window.clearInterval(state.logsRefreshInterval);
+    state.logsRefreshInterval = undefined;
   }
 }
 
@@ -9293,11 +9343,13 @@ function attachEvents() {
 
   elements.clearLogsButton.addEventListener("click", () => {
     state.debugLogs = clearDebugLogs();
-    renderLogs().catch(() => {});
+    clearBackendDiagnosticLogs(authHeaders())
+      .catch((error) => setMessage(error.message, "error"))
+      .finally(() => renderLogs().catch(() => {}));
   });
 
   elements.copyLogsButton.addEventListener("click", () => {
-    copyToClipboard(logsText() || "[no local diagnostic logs captured yet]");
+    copyToClipboard(state.renderedLogsText || logsText() || "[no diagnostic logs captured yet]");
   });
 
   elements.settingsTabButtons.forEach((button) => {
@@ -9313,6 +9365,20 @@ function attachEvents() {
   });
   elements.createWatchBackupButton?.addEventListener("click", () => {
     createWatchBackupNow().catch((error) => setMessage(error.message, "error"));
+  });
+  elements.chooseWatchBackupFileButton?.addEventListener("click", () => {
+    elements.watchBackupUploadFile?.click();
+  });
+  elements.watchBackupUploadFile?.addEventListener("change", () => {
+    const file = elements.watchBackupUploadFile.files?.[0];
+    uploadWatchBackupFile(file)
+      .catch((error) => {
+        if (elements.watchBackupUploadStatus) elements.watchBackupUploadStatus.textContent = "Upload failed";
+        setMessage(error.message, "error");
+      })
+      .finally(() => {
+        if (elements.watchBackupUploadFile) elements.watchBackupUploadFile.value = "";
+      });
   });
   elements.refreshWatchBackupsButton?.addEventListener("click", () => {
     state.watchBackups = null;

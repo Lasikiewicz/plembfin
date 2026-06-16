@@ -2,8 +2,12 @@ import path from "node:path";
 import express from "express";
 import cookieParser from "cookie-parser";
 import { setGlobalDispatcher, Agent } from "undici";
-import { PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } from "./src/paths.js";
-import { dispatch, runScheduledTick } from "./src/index.js";
+import { loadLocalEnv } from "./src/env.js";
+
+loadLocalEnv();
+
+const { PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
+const { dispatch, runScheduledTick } = await import("./src/index.js");
 
 ensureDataDirs();
 

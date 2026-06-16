@@ -707,8 +707,16 @@ export async function getPlaybackProgressForMedia(_unusedDb, mediaOrRecord) {
 export async function deletePlaybackProgress(_unusedDb, mediaOrRecord) {
   const normalized = normalizePlaybackProgressRecord(mediaOrRecord, mediaOrRecord?.source);
   if (!normalized.media_key) return false;
-  deleteProgressStmt.run(normalized.media_key);
-  return true;
+  const related = normalized.title
+    ? selectProgressByTitleStmt
+        .all(normalized.media_type, normalized.title.toLowerCase())
+        .filter((row) => sameEpisodeCoordinates(normalized, row))
+    : [];
+  const keys = new Set([normalized.media_key, ...related.map((row) => row.media_key).filter(Boolean)]);
+  for (const key of keys) {
+    deleteProgressStmt.run(key);
+  }
+  return keys.size > 0;
 }
 
 export async function listPlaybackProgressRowsForReplay({ limit = 25, offset = 0 } = {}) {

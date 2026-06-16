@@ -881,6 +881,11 @@
                           <span>Select a backup to restore. Plembfin will become the source of truth and sync to all connected apps.</span>
                         </div>
                       </div>
+                      <div class="restore-upload-panel">
+                        <input id="watchBackupUploadFile" type="file" accept=".gz,application/gzip,application/x-gzip" hidden />
+                        <button id="chooseWatchBackupFileButton" class="button-ghost" type="button">Choose Backup File</button>
+                        <span id="watchBackupUploadStatus">No PC file selected</span>
+                      </div>
                       <div id="watchBackupList" class="watch-backup-list" aria-live="polite"></div>
                       <pre id="restoreProgressTerminal" class="import-terminal compact-terminal hidden" aria-live="polite" style="margin-top: var(--space-3);"></pre>
                     </section>
@@ -986,11 +991,11 @@
                     <section class="glass-panel p-section logs-panel">
                       <div class="section-heading">
                         <div>
-                          <p>Debug Logs</p>
-                          <span>Local diagnostic stream for connection tests and now-playing polling</span>
+                          <p>Server Logs</p>
+                          <span>Terminal output from the local server, plus frontend diagnostics</span>
                         </div>
                         <div class="logs-actions" style="display: flex; gap: var(--space-2);">
-                          <button id="clearLogsButton" class="button-ghost" type="button">Clear Local Logs</button>
+                          <button id="clearLogsButton" class="button-ghost" type="button">Clear Logs</button>
                           <button id="copyLogsButton" class="button-primary" type="button">Copy Logs</button>
                         </div>
                       </div>
@@ -1001,11 +1006,11 @@
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Diagnostic Logs</p>
+                        <p>Server Logs</p>
                         <span>Troubleshooting</span>
                       </div>
                       <p class="tool-accordion-desc">
-                        Logs represent real-time terminal output of the frontend and webhook ingestion telemetry.
+                        Logs include recent local server terminal output, scheduler messages, restore progress, sync warnings, and frontend diagnostics.
                       </p>
                       <p class="tool-accordion-desc">
                         To download raw log files on the host system, navigate to the `data/logs` folder in the Plembfin root workspace.
