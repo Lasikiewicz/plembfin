@@ -60,6 +60,7 @@ import {
   setWatchMediaType,
   loadWatchKeyGroupsForDedup,
   deleteWatchRecordsByIds,
+  deleteMovieByWatchId,
   deletePosterCacheByMediaKey,
 } from "./utils/firestoreRepo.js";
 import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
@@ -351,6 +352,30 @@ async function handleMovies(req, res) {
   if (!(await requireAdmin(req, res))) return;
   const movies = await queryMovies({ search: req.query.search || "", sort: req.query.sort || "title_asc", limit: req.query.limit || 100, offset: req.query.offset || 0 });
   return sendJson(res, { movies }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=300", Vary: "Authorization" });
+}
+
+// Permanently delete a library item (all its plays + playstate + progress).
+// Destructive and irreversible — the client must send confirm: "DELETE".
+async function handleDeleteMedia(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST" && req.method !== "DELETE") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const id = String(body.id || "").trim();
+  if (!id) return sendJson(res, { error: "id is required" }, 400);
+  if (String(body.confirm || "") !== "DELETE") {
+    return sendJson(res, { error: "Confirmation required" }, 400);
+  }
+
+  try {
+    const result = await deleteMovieByWatchId(id);
+    if (!result.found) return sendJson(res, { error: "Media item not found" }, 404);
+    return sendJson(res, { ok: true, deleted: result.deleted, title: result.title }, 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    console.error("Failed to delete media item", error);
+    return sendJson(res, { error: error.message || "Failed to delete media item" }, 500);
+  }
 }
 
 async function handleShows(req, res) {
@@ -2782,6 +2807,7 @@ async function dispatch(req, res) {
     if (path === "sync-jobs") return handleSyncJobs(req, res);
     if (path === "sync-history") return handleSyncHistory(req, res);
     if (path === "movies") return handleMovies(req, res);
+    if (path === "delete-media") return handleDeleteMedia(req, res);
     if (path === "shows") return handleShows(req, res);
     if (path === "show") return handleShow(req, res);
     if (path === "full-sync-watchstates") return handleFullSyncWatchstates(req, res);
