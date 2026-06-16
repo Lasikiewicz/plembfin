@@ -473,3 +473,12 @@ export async function runScheduledWatchBackup() {
     throw error;
   }
 }
+
+export function clearRestoreStatus() {
+  const runtime = loadWatchBackupRuntime();
+  const updated = { ...runtime };
+  delete updated.lastRestore;
+  delete updated.lastRestoreAt;
+  saveRuntime(updated);
+  return { cleared: true };
+}

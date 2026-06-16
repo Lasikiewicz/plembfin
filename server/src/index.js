@@ -75,6 +75,7 @@ import {
   pullRemoteBackupToLocal,
   readWatchBackupFile,
   removeBackupDestination,
+  clearRestoreStatus,
   restoreWatchHistoryBackup,
   runScheduledWatchBackup,
   saveWatchBackupConfig,
@@ -690,6 +691,9 @@ async function handleWatchBackups(req, res) {
           dryRun: body.dryRun === true,
         }),
       });
+    }
+    if (action === "clear-restore-status") {
+      return sendJson(res, { ok: true, ...clearRestoreStatus() });
     }
     if (["test-destination", "device-start", "device-poll", "oauth-url", "oauth-exchange"].includes(action)) {
       if (action === "device-poll") {
