@@ -1,7 +1,14 @@
 {
-  "version": "0.0.18",
-  "updatedAt": "2026-06-16T08:48:10+01:00",
+  "version": "0.0.19",
+  "updatedAt": "2026-06-16T09:00:48+01:00",
   "entries": [
+    {
+      "version": "0.0.19",
+      "date": "2026-06-16T09:00:48+01:00",
+      "commit": "0df29ba07d9f7a6aed8c3f28ac5fd79868d74a52",
+      "message": "fix: backfill played emby items without dates",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.18",
       "date": "2026-06-16T08:48:10+01:00",
