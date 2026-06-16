@@ -766,6 +766,12 @@ async function applyManualUnwatch(media, config, loopStore) {
   const result = await insertWatchRecord(requireDb(), unplayedRecord, { skipInvalidate: true });
   await upsertPlaystateForMedia(requireDb(), media, "unwatched", result.record.watched_at, { skipInvalidate: true });
 
+  // Clear resume progress on all target platforms to prevent re-import on next sync
+  const progressClearMedia = { ...media, positionMs: 0, progress: 0 };
+  await syncMediaProgress(progressClearMedia, config, loopStore).catch((error) => {
+    console.log("Resume progress clear during unwatch failed (non-fatal)", error.message);
+  });
+
   const summary = await syncMediaUnplayedPlaystate(media, config, loopStore).catch((error) => ({
     skipped: false,
     status: "error",
@@ -1252,6 +1258,13 @@ async function handleWebhook(req, res) {
               return false;
             });
             await deletePlaybackProgress(requireDb(), episodeMedia).catch(() => null);
+
+            // Clear resume progress on target platforms to prevent re-import on next sync
+            const progressClearMedia = { ...episodeMedia, positionMs: 0, progress: 0 };
+            await syncMediaProgress(progressClearMedia, config, loopStore).catch((error) => {
+              console.log("Resume progress clear during webhook unwatch failed (non-fatal)", error.message);
+            });
+
             const pendingSummary = { skipped: false, status: "pending", details: "Unwatched propagation queued", targetStates: [] };
             const unplayedRecord = mediaToWatchRecord({ ...episodeMedia, syncAction: "unwatched" }, episodeMedia.source);
             unplayedRecord.sync_action = "unwatched";
