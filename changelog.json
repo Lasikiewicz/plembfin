@@ -1,7 +1,14 @@
 {
-  "version": "0.0.43",
-  "updatedAt": "2026-06-16T15:52:19+01:00",
+  "version": "0.0.44",
+  "updatedAt": "2026-06-16T15:56:42+01:00",
   "entries": [
+    {
+      "version": "0.0.44",
+      "date": "2026-06-16T15:56:42+01:00",
+      "commit": "d2da1116dec92d9d6aa1eeeaa35b74102d65fe14",
+      "message": "fix: remove post-restore cron pause; rely on lastRestoreAt filter instead",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.43",
       "date": "2026-06-16T15:52:19+01:00",
