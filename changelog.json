@@ -1,7 +1,14 @@
 {
-  "version": "0.0.21",
-  "updatedAt": "2026-06-16T09:43:25+01:00",
+  "version": "0.0.22",
+  "updatedAt": "2026-06-16T09:58:46+01:00",
   "entries": [
+    {
+      "version": "0.0.22",
+      "date": "2026-06-16T09:58:46+01:00",
+      "commit": "0916e465d5b35e66c134e4983e13aa171cf9fa46",
+      "message": "fix: prefer newer playstate over resume progress",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.21",
       "date": "2026-06-16T09:43:25+01:00",
