@@ -1,7 +1,14 @@
 {
-  "version": "0.0.63",
-  "updatedAt": "2026-06-17T16:02:41+01:00",
+  "version": "0.0.64",
+  "updatedAt": "2026-06-17T16:11:28+01:00",
   "entries": [
+    {
+      "version": "0.0.64",
+      "date": "2026-06-17T16:11:28+01:00",
+      "commit": "60f4b0e77f90a7a519b99d1135c1a49027210ac5",
+      "message": "fix: refine sidebar layout copy",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.63",
       "date": "2026-06-17T16:02:41+01:00",
