@@ -6379,6 +6379,11 @@ details[open] > .tool-section-summary::before {
   margin-bottom: 0.5rem;
 }
 
+.explorer-heading-sticky.is-media-detail {
+  background: transparent !important;
+  border-bottom: none !important;
+}
+
 .explorer-with-alpha {
   display: flex;
   align-items: flex-start;

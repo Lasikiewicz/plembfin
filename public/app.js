@@ -137,6 +137,7 @@ const state = {
   pendingWatchAction: null,
   savingWatchAction: null,
   activeMovieModalId: null,
+  activeMovieTmdbId: null,
   activeHelpTopic: "getting-started",
   importRecords: [],
   importFileNames: [],
@@ -3585,6 +3586,7 @@ function handleRouting(path) {
     state.explorerMode = "movies";
     state.mediaDetailInline = true;
     state.activeMovieModalId = null;
+    state.activeMovieTmdbId = String(tmdbId);
     openMovieImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
   } else if (tvshowTmdbMatch) {
     const tmdbId = tvshowTmdbMatch[1];
@@ -3609,7 +3611,7 @@ function handleRouting(path) {
     state.explorerMode = "shows";
     state.mediaDetailInline = true;
     state.activeShowModalKey = null;
-    state.activeShowTmdbId = null;
+    state.activeShowTmdbId = String(tmdbId);
     state.activeShowModalSeason = seasonNum;
     state.activeShowModalEpisode = episodeNum;
     openShowImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
@@ -3733,8 +3735,18 @@ function selectView(view) {
           url += `ep${state.activeShowModalEpisode}`;
         }
       }
+    } else if (state.explorerMode === "shows" && state.activeShowTmdbId) {
+      url = `/tvshow/tmdb/${state.activeShowTmdbId}`;
+      if (state.activeShowModalSeason !== null) {
+        url += `#season${state.activeShowModalSeason}`;
+        if (state.activeShowModalEpisode !== null) {
+          url += `ep${state.activeShowModalEpisode}`;
+        }
+      }
     } else if (state.explorerMode === "movies" && state.activeMovieModalId) {
       url = `/movie/${state.activeMovieModalId}`;
+    } else if (state.explorerMode === "movies" && state.activeMovieTmdbId) {
+      url = `/movie/tmdb/${state.activeMovieTmdbId}`;
     } else {
       url = state.explorerMode === "shows" ? "/tvshows" : "/movies";
     }
@@ -4750,13 +4762,16 @@ function renderMonthChart() {
 function syncExplorerControlsState() {
   const backBtn = document.querySelector("#explorerBackButton");
   const controls = document.querySelector(".explorer-controls");
+  const heading = document.querySelector(".explorer-heading-sticky");
   if (state.mediaDetailInline) {
     backBtn?.classList.remove("hidden");
     controls?.classList.add("hidden");
+    heading?.classList.add("is-media-detail");
     syncInlineMediaDetailHeading(state.explorerMode);
   } else {
     backBtn?.classList.add("hidden");
     controls?.classList.remove("hidden");
+    heading?.classList.remove("is-media-detail");
   }
 }
 
@@ -4772,8 +4787,8 @@ function syncInlineMediaDetailHeading(mode = state.explorerMode || "movies") {
 }
 
 function renderExplorer() {
-  if (state.mediaDetailInline) return;
   syncExplorerControlsState();
+  if (state.mediaDetailInline) return;
   for (const button of elements.explorerButtons) {
     button.classList.toggle("active", button.dataset.explorerMode === state.explorerMode);
   }
@@ -7997,6 +8012,7 @@ async function renderMovieImmersiveModalContent(movie) {
   const renderToken = ++_mediaRenderToken;
   state.showModalRequestToken += 1; // invalidate any in-flight show hydrate
   state.activeMovieModalId = movie.id;
+  state.activeMovieTmdbId = movie.tmdb_id ? String(movie.tmdb_id) : null;
   if (!state.mediaDetailInline) {
     elements.debugModal.classList.remove("hidden");
     document.body.style.overflow = "hidden";
@@ -8186,6 +8202,7 @@ async function fetchWatchedMovieByTmdb(tmdbId, title) {
 }
 
 async function openMovieImmersiveModalByTmdbId(tmdbId) {
+  state.activeMovieTmdbId = String(tmdbId);
   // Fast path: if it's in the loaded preview, show its watched detail immediately.
   const existingWatched = state.history.find(
     (entry) => entry.media_type === "movie" && isWatchedHistoryAction(entry) && String(entry.tmdb_id || "") === String(tmdbId),
@@ -8403,6 +8420,7 @@ function clearMediaDetailState() {
   state.showModalEpisodeIndex = new Map();
   state.pendingWatchAction = null;
   state.activeMovieModalId = null;
+  state.activeMovieTmdbId = null;
   setMediaDetailActions("");
 }
 
@@ -10314,6 +10332,11 @@ function attachEvents() {
     }
     if (event.key !== "Enter") return;
     event.preventDefault();
+    const firstResult = document.querySelector(".global-search-result");
+    if (firstResult) {
+      firstResult.click();
+      return;
+    }
     closeGlobalSearchDropdown();
     state.explorerSearch = elements.globalSearchInput.value.trim();
     if (elements.explorerSearchInput) elements.explorerSearchInput.value = state.explorerSearch;
