@@ -1,7 +1,14 @@
 {
-  "version": "0.0.58",
-  "updatedAt": "2026-06-17T10:04:18+01:00",
+  "version": "0.0.59",
+  "updatedAt": "2026-06-17T11:18:39+01:00",
   "entries": [
+    {
+      "version": "0.0.59",
+      "date": "2026-06-17T11:18:39+01:00",
+      "commit": "eea3c5eadab6a76aa810d5fe69fc52d330363c9d",
+      "message": "Fix navbar search enter key, sticky controls background, and refresh redirects on detail views",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.58",
       "date": "2026-06-17T10:04:18+01:00",
