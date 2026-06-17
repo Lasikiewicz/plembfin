@@ -117,6 +117,7 @@ const state = {
   globalSearchRemoteTimer: undefined,
   explorerPageCache: new Map(),
   explorerLoadObserver: undefined,
+  dashboardPosterObserver: undefined,
   explorerScrollArmed: false,
   posterHydrateScrollScheduled: false,
   expandedShows: new Set(),
@@ -3811,6 +3812,11 @@ function applyActiveView() {
     state.explorerLoadObserver = undefined;
   }
 
+  if (state.activeView !== "dashboard") {
+    state.dashboardPosterObserver?.disconnect();
+    state.dashboardPosterObserver = undefined;
+  }
+
   if (state.activeView === "settings") {
     localStorage.setItem(ACTIVE_SETTINGS_TAB_KEY, state.activeSettingsTab);
     for (const button of elements.settingsTabButtons || []) {
@@ -4488,6 +4494,8 @@ function renderDashboard() {
   if (visibleTv.length || visibleMovies.length) {
     prefetchDashboardHistoryTmdb(visibleTv, visibleMovies);
   }
+
+  observeDashboardPosters();
 }
 
 function renderHistoryCard(entry) {
@@ -4519,7 +4527,7 @@ function renderHistoryCard(entry) {
 
     const canonicalShowName = showName(entry.title);
     const showKeySlug = slug(canonicalShowName);
-    const href = `/tvshow/${showKeySlug}`;
+    const href = entry.tmdb_id ? `/tvshow/tmdb/${entry.tmdb_id}` : `/tvshow/${showKeySlug}`;
 
     return `
       <a class="movie-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}">
@@ -4539,7 +4547,7 @@ function renderHistoryCard(entry) {
     `;
   } else {
     // Movie
-    const href = `/movie/${entry.id}`;
+    const href = entry.tmdb_id ? `/movie/tmdb/${entry.tmdb_id}` : `/movie/${entry.id}`;
     return `
       <a class="movie-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}">
         ${posterMarkup(entry, "movie-poster")}
@@ -4856,6 +4864,58 @@ function observeExplorerSentinel(mode) {
     { rootMargin: "1200px 0px 1200px 0px" },
   );
   state.explorerLoadObserver.observe(sentinel);
+}
+
+function observeDashboardPosters() {
+  state.dashboardPosterObserver?.disconnect();
+  if (!("IntersectionObserver" in window)) return;
+
+  state.dashboardPosterObserver = new IntersectionObserver(
+    async (entries) => {
+      const fallbacks = entries
+        .filter((entry) => entry.isIntersecting && entry.target.classList.contains("poster-fallback"))
+        .map((entry) => entry.target);
+
+      if (!fallbacks.length) return;
+
+      const hydrateOne = async (fallback) => {
+        const posterId = fallback.dataset.posterId;
+        if (!posterId || state.posterLookupCache.has(posterId)) return;
+
+        const posterUrl = await lookupPosterUrl(posterId);
+        if (!posterUrl || !fallback.isConnected || !fallback.classList.contains("poster-fallback")) return;
+
+        const image = document.createElement("img");
+        image.className = fallback.className.replace(/\bposter-fallback\b/g, "").trim() || fallback.className;
+        bindPosterImageErrorHandler(image);
+        image.src = posterUrl;
+        image.alt = `${fallback.getAttribute("aria-label") || "Media poster"}`;
+        image.loading = "lazy";
+        image.decoding = "async";
+        image.referrerPolicy = "no-referrer";
+        image.dataset.posterId = posterId;
+        fallback.replaceWith(image);
+      };
+
+      for (const fallback of fallbacks) {
+        await hydrateOne(fallback);
+      }
+    },
+    { rootMargin: "200px" },
+  );
+
+  const tvRow = elements.tvHistoryRow;
+  const movieRow = elements.movieHistoryRow;
+  if (tvRow) {
+    for (const fallback of tvRow.querySelectorAll("[data-poster-id].poster-fallback")) {
+      state.dashboardPosterObserver.observe(fallback);
+    }
+  }
+  if (movieRow) {
+    for (const fallback of movieRow.querySelectorAll("[data-poster-id].poster-fallback")) {
+      state.dashboardPosterObserver.observe(fallback);
+    }
+  }
 }
 
 let _explorerPrefetchObserver = null;
@@ -10017,6 +10077,20 @@ function attachEvents() {
       return;
     }
 
+    const libraryItemCard = event.target.closest("a[data-library-item-type]");
+    if (libraryItemCard && event.button === 0 && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      window.openLibraryItem(libraryItemCard.dataset.libraryItemType, libraryItemCard.dataset.libraryItemId, libraryItemCard.dataset.libraryItemTitle, true, null);
+      return;
+    }
+
+    const tmdbItemCard = event.target.closest("a[data-tmdb-id]");
+    if (tmdbItemCard && event.button === 0 && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      window.openLibraryItem(tmdbItemCard.dataset.tmdbMediaType, null, tmdbItemCard.dataset.tmdbTitle, false, tmdbItemCard.dataset.tmdbId);
+      return;
+    }
+
     const historyRow = event.target.closest("[data-history-id]");
     if (historyRow) {
       if (event.target.closest("[data-sync-status-dot]")) {
@@ -10976,8 +11050,9 @@ async function loadCastMemberDetails(personId, personName = null) {
             const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
             const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
             if (isTv) libraryTvCredits.push({ credit, libItem, title });
+            const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : `/movie/${libItem.id}`;
             return `
-              <div class="person-credit-card in-library" onclick="window.openLibraryItem('${libItem.type}', '${escapeAttribute(libItem.id || libItem.key)}', '${escapeAttribute(title)}', true, null);">
+              <a class="person-credit-card in-library" href="${escapeAttribute(href)}" data-library-item-type="${libItem.type}" data-library-item-id="${escapeAttribute(libItem.id || libItem.key)}" data-library-item-title="${escapeAttribute(title)}">
                 <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
                 <div class="person-credit-info">
                   <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
@@ -10988,15 +11063,16 @@ async function loadCastMemberDetails(personId, personName = null) {
                   <span class="library-badge">In Library</span>
                   ${isTv ? personWatchBadgeMarkup(watchProgress, credit.id) : `<span class="watch-state-badge is-complete">Watched</span>`}
                 </span>
-              </div>
+              </a>
             `;
           } else if (libItem && isWatched) {
             // Watched card: item is in watch history but NOT on a media server
             const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
             const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
             if (isTv) libraryTvCredits.push({ credit, libItem, title });
+            const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : `/movie/${libItem.id}`;
             return `
-              <div class="person-credit-card in-library" onclick="window.openLibraryItem('${libItem.type}', '${escapeAttribute(libItem.id || libItem.key)}', '${escapeAttribute(title)}', true, null);">
+              <a class="person-credit-card in-library" href="${escapeAttribute(href)}" data-library-item-type="${libItem.type}" data-library-item-id="${escapeAttribute(libItem.id || libItem.key)}" data-library-item-title="${escapeAttribute(title)}">
                 <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
                 <div class="person-credit-info">
                   <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
@@ -11006,18 +11082,19 @@ async function loadCastMemberDetails(personId, personName = null) {
                 <span class="person-credit-badges">
                   ${isTv ? personWatchBadgeMarkup(watchProgress, credit.id) : `<span class="watch-state-badge is-complete">Watched</span>`}
                 </span>
-              </div>
+              </a>
             `;
           } else {
+            const href = isTv ? `/tvshow/tmdb/${credit.id}` : `/movie/tmdb/${credit.id}`;
             return `
-              <div class="person-credit-card" onclick="window.openLibraryItem('${credit.media_type}', null, '${escapeAttribute(title)}', false, '${credit.id}');">
+              <a class="person-credit-card" href="${escapeAttribute(href)}" data-tmdb-id="${credit.id}" data-tmdb-media-type="${credit.media_type}" data-tmdb-title="${escapeAttribute(title)}">
                 <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
                 <div class="person-credit-info">
                   <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
                   <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
                   <span class="person-credit-year">${isTv ? 'TV Show' : 'Movie'}</span>
                 </div>
-              </div>
+              </a>
             `;
           }
         }).join("");
