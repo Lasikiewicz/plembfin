@@ -1,7 +1,14 @@
 {
-  "version": "0.0.54",
-  "updatedAt": "2026-06-16T23:06:41+01:00",
+  "version": "0.0.55",
+  "updatedAt": "2026-06-17T08:20:41+01:00",
   "entries": [
+    {
+      "version": "0.0.55",
+      "date": "2026-06-17T08:20:41+01:00",
+      "commit": "30432908e6b6fb05f4c0f2620fc32399869720aa",
+      "message": "enhance: handle local cached storage URLs in cacheArtworkFromUrl",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.54",
       "date": "2026-06-16T23:06:41+01:00",
