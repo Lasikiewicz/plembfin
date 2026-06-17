@@ -3546,9 +3546,11 @@ function setUnlocked(isUnlocked) {
   elements.authPanel.classList.toggle("hidden", isUnlocked);
   elements.appShell.classList.toggle("hidden", !isUnlocked);
   elements.lockButton.classList.toggle("hidden", !isUnlocked);
-  elements.statusPill.className = `session-dot ${isUnlocked ? "unlocked" : "locked"}`;
-  elements.statusPill.setAttribute("aria-label", isUnlocked ? "Unlocked session" : "Locked session");
-  elements.statusPill.title = isUnlocked ? "Unlocked" : "Locked";
+  if (elements.statusPill) {
+    elements.statusPill.className = `session-dot ${isUnlocked ? "unlocked" : "locked"}`;
+    elements.statusPill.setAttribute("aria-label", isUnlocked ? "Unlocked session" : "Locked session");
+    elements.statusPill.title = isUnlocked ? "Unlocked" : "Locked";
+  }
 }
 
 function handleRouting(path) {

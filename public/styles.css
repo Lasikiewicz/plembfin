@@ -4105,6 +4105,22 @@ body {
   gap: 0.45rem;
 }
 
+.brand-link {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.brand-logo {
+  display: block;
+  width: auto;
+  height: 3rem;
+  max-width: 15.5rem;
+  object-fit: contain;
+}
+
 h1 {
   font-size: 1.35rem;
   font-weight: 900;
