@@ -179,7 +179,7 @@
 
         <section class="view-panel hidden" data-view-panel="explorer">
           <section class="glass-panel p-section">
-            <div class="section-heading explorer-heading" style="padding-top: 0.25rem; padding-bottom: 0.25rem;">
+            <div class="section-heading explorer-heading explorer-heading-sticky" style="padding-top: 0.25rem; padding-bottom: 0.25rem;">
               <div class="explorer-heading-title" style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; min-width: 0; flex: 1;">
                 <button id="explorerBackButton" class="immersive-back-button hidden" type="button" style="border: 1px solid var(--line-strong); border-radius: 999px; background: rgba(7, 10, 13, 0.72); color: var(--text); padding: 0.35rem 0.65rem; font-weight: 800; display: flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.75rem; min-height: 1.8rem; align-self: center; margin-bottom: 0;">&larr; Back</button>
                 <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
@@ -220,7 +220,10 @@
                 </div>
               </div>
             </div>
-            <div id="explorerPanel" class="explorer-panel"></div>
+            <div class="explorer-with-alpha">
+              <div id="explorerPanel" class="explorer-panel"></div>
+              <nav id="alphaFilterNav" class="alpha-filter-nav hidden" aria-label="Jump to letter"></nav>
+            </div>
           </section>
         </section>
 
@@ -550,236 +553,267 @@
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="tools">
+                <!-- System Integrity Check -->
+                <details open style="margin-bottom: var(--space-4);">
+                  <summary class="tool-section-summary">
+                    <span class="tool-section-summary-text">
+                      <b>System Integrity Check</b>
+                      <span>Verify local database state and media server reachability</span>
+                    </span>
+                  </summary>
+                  <div class="settings-row" style="margin-top: var(--space-3);">
+                    <div class="settings-row-main">
+                      <article class="glass-panel p-section settings-card">
+                        <div class="tool-item-row">
+                          <div class="tool-item-meta">
+                            <div class="tool-item-title-desc">
+                              <b>System Integrity Check</b>
+                              <span>Verify local database state and media server reachability</span>
+                            </div>
+                          </div>
+                          <button id="runCompleteCheckButton" class="button-primary" style="align-self: flex-start;" type="button">Run System Diagnostic</button>
+                          <div id="completeCheckResults" class="complete-check-results hidden" style="display: grid; gap: var(--space-2);"></div>
+                        </div>
+                      </article>
+                    </div>
+                    <div class="settings-row-help">
+                      <article class="glass-panel p-section settings-card">
+                        <div class="section-heading">
+                          <p>Integrity Help</p>
+                          <span>Database Care</span>
+                        </div>
+                        <p class="tool-accordion-desc">
+                          <b>System Integrity Check:</b> Tests end-to-end database connectivity and verifies if configured media servers are accessible.
+                        </p>
+                        <p class="tool-accordion-desc">
+                          <b>Repair History Rows:</b> Fixes rows containing wrong media types (TV vs Movie) and pulls missing posters.
+                        </p>
+                        <p class="tool-accordion-desc">
+                          <b>Clean Duplicates:</b> Runs a deduplication routine over watch entries to keep the history database clean and fast.
+                        </p>
+                      </article>
+                    </div>
+                  </div>
+                </details>
+
                 <!-- Migration & Import Row -->
-                <div class="settings-row">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card tool-section-card">
-                      <div class="section-heading">
-                        <div>
-                          <p>Migration &amp; Import</p>
-                          <span>Transfer watch histories and configs</span>
-                        </div>
-                      </div>
-                      
-                      <!-- Backup & Transfer -->
-                      <div class="tool-item-row">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Backup &amp; Transfer</b>
-                            <span>Export this setup or restore a Plembfin database archive</span>
+                <details style="margin-bottom: var(--space-4);">
+                  <summary class="tool-section-summary">
+                    <span class="tool-section-summary-text">
+                      <b>Migration &amp; Import</b>
+                      <span>Transfer watch histories and configs</span>
+                    </span>
+                  </summary>
+                  <div class="settings-row" style="margin-top: var(--space-3);">
+                    <div class="settings-row-main">
+                      <article class="glass-panel p-section settings-card tool-section-card">
+                        <!-- Backup & Transfer -->
+                        <div class="tool-item-row">
+                          <div class="tool-item-meta">
+                            <div class="tool-item-title-desc">
+                              <b>Backup &amp; Transfer</b>
+                              <span>Export this setup or restore a Plembfin database archive</span>
+                            </div>
+                            <span id="backupTransferStatus" class="status-pill status-muted">Idle</span>
                           </div>
-                          <span id="backupTransferStatus" class="status-pill status-muted">Idle</span>
+                          <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+                            <button id="backupExportButton" class="button-primary" type="button">Export Backup</button>
+                            <label class="button-ghost" style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: var(--space-2) var(--space-3); border-radius: var(--radius); font-weight: 700; font-size: 0.8rem; margin: 0; height: 100%;">
+                              Choose file
+                              <input id="backupImportFile" type="file" accept=".json,application/json" style="display: none;" />
+                            </label>
+                            <button id="backupImportButton" class="button-primary" type="button" disabled>Import Backup</button>
+                          </div>
+                          <pre id="backupTransferLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Select Export or choose a backup file.</pre>
                         </div>
-                        <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
-                          <button id="backupExportButton" class="button-primary" type="button">Export Backup</button>
-                          <label class="button-ghost" style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: var(--space-2) var(--space-3); border-radius: var(--radius); font-weight: 700; font-size: 0.8rem; margin: 0; height: 100%;">
-                            Choose file
-                            <input id="backupImportFile" type="file" accept=".json,application/json" style="display: none;" />
+
+                        <!-- Trakt Importer -->
+                        <div class="tool-item-row">
+                          <div class="tool-item-meta">
+                            <div class="tool-item-title-desc">
+                              <b>Trakt History Importer</b>
+                              <span>Bulk import records from a Trakt.tv export</span>
+                            </div>
+                            <span id="importProgress" class="status-pill status-muted">Idle</span>
+                          </div>
+                          <label id="dropZone" class="drop-zone" for="importFile" style="padding: 1.5rem; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); cursor: pointer; display: flex; flex-direction: column; gap: var(--space-1); background: rgba(0,0,0,0.2);">
+                            <input id="importFile" type="file" accept=".csv,.json,application/json,text/csv" multiple style="display: none;" />
+                            <b>Choose Trakt export files</b>
+                            <span style="font-size: 0.75rem; color: var(--muted);">Drop CSV or JSON files here, or click to browse.</span>
                           </label>
-                          <button id="backupImportButton" class="button-primary" type="button" disabled>Import Backup</button>
-                        </div>
-                        <pre id="backupTransferLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Select Export or choose a backup file.</pre>
-                      </div>
-
-                      <!-- Trakt Importer -->
-                      <div class="tool-item-row">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Trakt History Importer</b>
-                            <span>Bulk import records from a Trakt.tv export</span>
+                          <div style="display: flex; gap: var(--space-2); align-items: center;">
+                            <button id="startImportButton" class="button-primary" type="button" disabled>Start Import</button>
+                            <button id="clearImportButton" class="button-ghost" type="button">Clear</button>
                           </div>
-                          <span id="importProgress" class="status-pill status-muted">Idle</span>
-                        </div>
-                        <label id="dropZone" class="drop-zone" for="importFile" style="padding: 1.5rem; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); cursor: pointer; display: flex; flex-direction: column; gap: var(--space-1); background: rgba(0,0,0,0.2);">
-                          <input id="importFile" type="file" accept=".csv,.json,application/json,text/csv" multiple style="display: none;" />
-                          <b>Choose Trakt export files</b>
-                          <span style="font-size: 0.75rem; color: var(--muted);">Drop CSV or JSON files here, or click to browse.</span>
-                        </label>
-                        <div style="display: flex; gap: var(--space-2); align-items: center;">
-                          <button id="startImportButton" class="button-primary" type="button" disabled>Start Import</button>
-                          <button id="clearImportButton" class="button-ghost" type="button">Clear</button>
-                        </div>
-                        <div class="import-progress-row" style="display: flex; align-items: center; gap: var(--space-2);">
-                          <div class="import-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden;">
-                            <span id="importProgressFill" style="display: block; height: 100%; width: 0%; background: var(--blue); transition: width 0.2s;"></span>
+                          <div class="import-progress-row" style="display: flex; align-items: center; gap: var(--space-2);">
+                            <div class="import-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden;">
+                              <span id="importProgressFill" style="display: block; height: 100%; width: 0%; background: var(--blue); transition: width 0.2s;"></span>
+                            </div>
+                            <span id="importProgressPercent" style="font-size: 0.75rem;">0%</span>
                           </div>
-                          <span id="importProgressPercent" style="font-size: 0.75rem;">0%</span>
+                          <pre id="importTerminal" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for files.</pre>
+                          <div id="importPreview" class="import-preview"></div>
                         </div>
-                        <pre id="importTerminal" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for files.</pre>
-                        <div id="importPreview" class="import-preview"></div>
-                      </div>
-                    </article>
+                      </article>
+                    </div>
+                    <div class="settings-row-help">
+                      <article class="glass-panel p-section settings-card">
+                        <div class="section-heading">
+                          <p>Migration Help</p>
+                          <span>Data Operations</span>
+                        </div>
+                        <p class="tool-accordion-desc">
+                          <b>Backup &amp; Transfer:</b> Export native JSON database archives or import existing backups containing metadata, watch states, and user configurations.
+                        </p>
+                        <p class="tool-accordion-desc">
+                          <b>Trakt Importer:</b> Drag and drop CSV or JSON logs exported from Trakt.tv to populate your local database in bulk.
+                        </p>
+                        <p class="tool-accordion-desc">
+                          <b>Rebuild DB Tool:</b> Run <code>node scripts/rebuildPlaystateDatabase.js --trakt-dir "path" --write</code> to reset the database and load history from Trakt/Plex.
+                        </p>
+                        <p class="tool-accordion-desc">
+                          <b>Force Push Tool:</b> Run <code>node scripts/forcePushHistory.js</code> to push all local history watch states to all connected media servers.
+                        </p>
+                      </article>
+                    </div>
                   </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Migration Help</p>
-                        <span>Data Operations</span>
-                      </div>
-                      <p class="tool-accordion-desc">
-                        <b>Backup &amp; Transfer:</b> Export native JSON database archives or import existing backups containing metadata, watch states, and user configurations.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Trakt Importer:</b> Drag and drop CSV or JSON logs exported from Trakt.tv to populate your local database in bulk.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Rebuild DB Tool:</b> Run <code>node scripts/rebuildPlaystateDatabase.js --trakt-dir "path" --write</code> to reset the database and load history from Trakt/Plex.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Force Push Tool:</b> Run <code>node scripts/forcePushHistory.js</code> to push all local history watch states to all connected media servers.
-                      </p>
-                    </article>
-                  </div>
-                </div>
+                </details>
 
                 <!-- Integrity & Repairs Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card tool-section-card">
-                      <div class="section-heading">
-                        <div>
-                          <p>Integrity &amp; Repairs</p>
-                          <span>Audit database records and repair anomalies</span>
-                        </div>
-                      </div>
-
-                      <!-- System Diagnostics -->
-                      <div class="tool-item-row">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>System Integrity Check</b>
-                            <span>Verify local database state and media server reachability</span>
+                <details style="margin-bottom: var(--space-4);">
+                  <summary class="tool-section-summary">
+                    <span class="tool-section-summary-text">
+                      <b>Integrity &amp; Repairs</b>
+                      <span>Audit database records and repair anomalies</span>
+                    </span>
+                  </summary>
+                  <div class="settings-row" style="margin-top: var(--space-3);">
+                    <div class="settings-row-main">
+                      <article class="glass-panel p-section settings-card tool-section-card">
+                        <!-- Repair Rows -->
+                        <div class="tool-item-row">
+                          <div class="tool-item-meta">
+                            <div class="tool-item-title-desc">
+                              <b>Repair History Rows</b>
+                              <span>Correct mislabelled media types and fetch missing posters</span>
+                            </div>
+                            <span id="repairStatus" class="status-pill status-muted">Idle</span>
                           </div>
+                          <button id="runRepairButton" class="button-primary" style="align-self: flex-start;" type="button">Repair History Now</button>
+                          <div id="repairLog" class="import-terminal compact-terminal">Repair log will appear here.</div>
                         </div>
-                        <button id="runCompleteCheckButton" class="button-primary" style="align-self: flex-start;" type="button">Run System Diagnostic</button>
-                        <div id="completeCheckResults" class="complete-check-results hidden" style="display: grid; gap: var(--space-2);"></div>
-                      </div>
 
-                      <!-- Repair Rows -->
-                      <div class="tool-item-row">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Repair History Rows</b>
-                            <span>Correct mislabelled media types and fetch missing posters</span>
+                        <!-- Clean Duplicates -->
+                        <div class="tool-item-row">
+                          <div class="tool-item-meta">
+                            <div class="tool-item-title-desc">
+                              <b>Clean Duplicate History Rows</b>
+                              <span>Safely remove redundant scrobble events</span>
+                            </div>
+                            <span id="dedupHistoryStatus" class="status-pill status-muted">Idle</span>
                           </div>
-                          <span id="repairStatus" class="status-pill status-muted">Idle</span>
+                          <button id="dedupHistoryButton" class="button-primary" style="align-self: flex-start;" type="button">Clean Duplicates</button>
+                          <div id="dedupHistoryLog" class="import-terminal compact-terminal">Dedup log will appear here.</div>
                         </div>
-                        <button id="runRepairButton" class="button-primary" style="align-self: flex-start;" type="button">Repair History Now</button>
-                        <div id="repairLog" class="import-terminal compact-terminal">Repair log will appear here.</div>
-                      </div>
-
-                      <!-- Clean Duplicates -->
-                      <div class="tool-item-row">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Clean Duplicate History Rows</b>
-                            <span>Safely remove redundant scrobble events</span>
-                          </div>
-                          <span id="dedupHistoryStatus" class="status-pill status-muted">Idle</span>
+                      </article>
+                    </div>
+                    <div class="settings-row-help">
+                      <article class="glass-panel p-section settings-card">
+                        <div class="section-heading">
+                          <p>Integrity Help</p>
+                          <span>Database Care</span>
                         </div>
-                        <button id="dedupHistoryButton" class="button-primary" style="align-self: flex-start;" type="button">Clean Duplicates</button>
-                        <div id="dedupHistoryLog" class="import-terminal compact-terminal">Dedup log will appear here.</div>
-                      </div>
-                    </article>
+                        <p class="tool-accordion-desc">
+                          <b>System Integrity Check:</b> Tests end-to-end database connectivity and verifies if configured media servers are accessible.
+                        </p>
+                        <p class="tool-accordion-desc">
+                          <b>Repair History Rows:</b> Fixes rows containing wrong media types (TV vs Movie) and pulls missing posters.
+                        </p>
+                        <p class="tool-accordion-desc">
+                          <b>Clean Duplicates:</b> Runs a deduplication routine over watch entries to keep the history database clean and fast.
+                        </p>
+                      </article>
+                    </div>
                   </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Integrity Help</p>
-                        <span>Database Care</span>
-                      </div>
-                      <p class="tool-accordion-desc">
-                        <b>System Integrity Check:</b> Tests end-to-end database connectivity and verifies if configured media servers are accessible.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Repair History Rows:</b> Fixes rows containing wrong media types (TV vs Movie) and pulls missing posters.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Clean Duplicates:</b> Runs a deduplication routine over watch entries to keep the history database clean and fast.
-                      </p>
-                    </article>
-                  </div>
-                </div>
+                </details>
 
                 <!-- Sync & Cache Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card tool-section-card">
-                      <div class="section-heading">
-                        <div>
-                          <p>Sync &amp; Cache Tools</p>
-                          <span>Ingest caching and server backfills</span>
-                        </div>
-                      </div>
-
-                      <!-- Full Sync -->
-                      <div class="tool-item-row">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Full Sync Watchstates</b>
-                            <span>Push your entire watched archive back to media server lists</span>
+                <details style="margin-bottom: var(--space-4);">
+                  <summary class="tool-section-summary">
+                    <span class="tool-section-summary-text">
+                      <b>Sync &amp; Cache Tools</b>
+                      <span>Ingest caching and server backfills</span>
+                    </span>
+                  </summary>
+                  <div class="settings-row" style="margin-top: var(--space-3);">
+                    <div class="settings-row-main">
+                      <article class="glass-panel p-section settings-card tool-section-card">
+                        <!-- Full Sync -->
+                        <div class="tool-item-row">
+                          <div class="tool-item-meta">
+                            <div class="tool-item-title-desc">
+                              <b>Full Sync Watchstates</b>
+                              <span>Push your entire watched archive back to media server lists</span>
+                            </div>
+                            <span id="fullSyncStatus" class="status-pill status-muted">Idle</span>
                           </div>
-                          <span id="fullSyncStatus" class="status-pill status-muted">Idle</span>
+                          <button id="fullSyncButton" class="button-primary" style="align-self: flex-start;" type="button">Full Sync Watchstates</button>
+                          <pre id="fullSyncLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for restore request.</pre>
                         </div>
-                        <button id="fullSyncButton" class="button-primary" style="align-self: flex-start;" type="button">Full Sync Watchstates</button>
-                        <pre id="fullSyncLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for restore request.</pre>
-                      </div>
 
-                      <!-- Refresh TMDB -->
-                      <div class="tool-item-row">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Refresh All TMDB Metadata</b>
-                            <span>Pre-cache trailers, posters, cast, and summaries locally</span>
+                        <!-- Refresh TMDB -->
+                        <div class="tool-item-row">
+                          <div class="tool-item-meta">
+                            <div class="tool-item-title-desc">
+                              <b>Refresh All TMDB Metadata</b>
+                              <span>Pre-cache trailers, posters, cast, and summaries locally</span>
+                            </div>
+                            <span id="refreshMetadataStatus" class="status-pill status-muted">Idle</span>
                           </div>
-                          <span id="refreshMetadataStatus" class="status-pill status-muted">Idle</span>
+                          <button id="refreshMetadataButton" class="button-primary" style="align-self: flex-start;" type="button">Refresh Metadata Now</button>
+                          <div id="refreshMetadataLog" class="import-terminal compact-terminal">Refresh log will appear here.</div>
                         </div>
-                        <button id="refreshMetadataButton" class="button-primary" style="align-self: flex-start;" type="button">Refresh Metadata Now</button>
-                        <div id="refreshMetadataLog" class="import-terminal compact-terminal">Refresh log will appear here.</div>
-                      </div>
 
-                      <!-- Backfill Trakt -->
-                      <div class="tool-item-row">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Backfill Trakt Imports</b>
-                            <span>Fetch missing posters for imported Trakt events</span>
+                        <!-- Backfill Trakt -->
+                        <div class="tool-item-row">
+                          <div class="tool-item-meta">
+                            <div class="tool-item-title-desc">
+                              <b>Backfill Trakt Imports</b>
+                              <span>Fetch missing posters for imported Trakt events</span>
+                            </div>
+                            <span id="traktBackfillStatus" class="status-pill status-muted">Idle</span>
                           </div>
-                          <span id="traktBackfillStatus" class="status-pill status-muted">Idle</span>
+                          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); max-width: 400px;">
+                            <label class="field-label" style="margin:0;">
+                              Batch size
+                              <input id="traktBackfillLimit" class="field" type="number" min="1" max="2000" value="500" />
+                            </label>
+                            <label class="field-label" style="margin:0;">
+                              Rate limit delay (ms)
+                              <input id="traktBackfillRate" class="field" type="number" min="50" max="5000" value="300" />
+                            </label>
+                          </div>
+                          <button id="traktBackfillButton" class="button-primary" style="align-self: flex-start;" type="button">Backfill Trakt Imports</button>
+                          <div id="traktBackfillLog" class="import-terminal compact-terminal">Trakt backfill log will appear here.</div>
                         </div>
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); max-width: 400px;">
-                          <label class="field-label" style="margin:0;">
-                            Batch size
-                            <input id="traktBackfillLimit" class="field" type="number" min="1" max="2000" value="500" />
-                          </label>
-                          <label class="field-label" style="margin:0;">
-                            Rate limit delay (ms)
-                            <input id="traktBackfillRate" class="field" type="number" min="50" max="5000" value="300" />
-                          </label>
+                      </article>
+                    </div>
+                    <div class="settings-row-help">
+                      <article class="glass-panel p-section settings-card">
+                        <div class="section-heading">
+                          <p>Sync Help</p>
+                          <span>Caching &amp; Backfills</span>
                         </div>
-                        <button id="traktBackfillButton" class="button-primary" style="align-self: flex-start;" type="button">Backfill Trakt Imports</button>
-                        <div id="traktBackfillLog" class="import-terminal compact-terminal">Trakt backfill log will appear here.</div>
-                      </div>
-                    </article>
+                        <p class="tool-accordion-desc">
+                          <b>Full Sync Watchstates:</b> Synchronizes all locally recorded watched status events back into Plex/Emby/Jellyfin active watchlists.
+                        </p>
+                        <p class="tool-accordion-desc">
+                          <b>Refresh TMDB Metadata:</b> Forces an API fetch from TMDB to rebuild local descriptions, recommendations, and local image caches.
+                        </p>
+                      </article>
+                    </div>
                   </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Sync Help</p>
-                        <span>Caching &amp; Backfills</span>
-                      </div>
-                      <p class="tool-accordion-desc">
-                        <b>Full Sync Watchstates:</b> Synchronizes all locally recorded watched status events back into Plex/Emby/Jellyfin active watchlists.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Refresh TMDB Metadata:</b> Forces an API fetch from TMDB to rebuild local descriptions, recommendations, and local image caches.
-                      </p>
-                    </article>
-                  </div>
-                </div>
+                </details>
               </section>
 
               <!-- Backups Settings Panel -->

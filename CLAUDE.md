@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Agent Guidelines
+
+> These rules are absolute constraints. Adhere to them strictly under all circumstances.
+
+- **No Git Pushes** — Never execute `git push` or push commits to any remote repository unless the user explicitly instructs you to push in their request.
+- **No Deployments** — Never deploy the application or run deployment commands (e.g., `firebase deploy`) unless explicitly instructed by the user. Exception: if the user simply says `Deploy`, treat that as explicit instruction to deploy the entire site to Firebase and push the current Git branch to its remote.
+- **No Unsolicited Actions** — Do only exactly what the user asks. Do not perform unsolicited refactorings, add extra features, or modify files outside the direct scope of the request.
+- **No Tests or Browser Actions** — Never run test commands (e.g., `npm test`, `pytest`) or open web browsers/browser tools unless the user has explicitly requested it.
+
 ## Commands
 
 ```bash

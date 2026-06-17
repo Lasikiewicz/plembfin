@@ -6189,6 +6189,51 @@ h1 {
   font-size: 0.85rem;
 }
 
+/* Tools tab collapsible sections */
+.tool-section-summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  user-select: none;
+}
+
+.tool-section-summary::-webkit-details-marker { display: none; }
+
+.tool-section-summary::before {
+  content: "▶";
+  font-size: 0.7rem;
+  color: var(--muted);
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+
+details[open] > .tool-section-summary::before {
+  transform: rotate(90deg);
+}
+
+.tool-section-summary-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.tool-section-summary-text b {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.tool-section-summary-text span {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 400;
+}
+
 /* Tools tab layout */
 .tool-section-card {
   display: flex;
@@ -6317,4 +6362,120 @@ h1 {
 .settings-pane .backup-settings-panel[style*="margin-top"],
 .settings-pane .sync-panel[style*="margin-top"] {
   margin-top: var(--space-2) !important;
+}
+
+/* Alpha filter sidebar */
+
+/*
+ * Pull heading flush against the topbar with a negative margin equal to the
+ * page-shell padding-top (1.05rem). padding-top compensates visually.
+ * top: 3.5rem = topbar height → heading sticks immediately, zero movement.
+ */
+.explorer-heading-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--bg);
+  margin-bottom: 0.5rem;
+}
+
+.explorer-with-alpha {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.explorer-with-alpha .explorer-panel {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.alpha-filter-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-evenly;
+  position: sticky;
+  top: 0;
+  flex: 0 0 1.8rem;
+  width: 1.8rem;
+  height: 65vh;
+  max-height: 65vh;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.15rem;
+  z-index: 10;
+  user-select: none;
+  overflow-y: auto;
+  scrollbar-width: none;
+  box-sizing: border-box;
+}
+
+.alpha-filter-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.alpha-filter-nav button {
+  display: block;
+  width: 1.5rem;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0.15rem 0;
+  transition: background 0.1s, color 0.1s;
+  text-align: center;
+}
+
+.alpha-filter-nav button:hover:not(:disabled) {
+  background: var(--blue);
+  color: #fff;
+}
+
+.alpha-filter-nav button.alpha-empty {
+  color: var(--muted);
+  opacity: 0.35;
+  cursor: default;
+}
+
+.alpha-filter-nav button.alpha-current {
+  background: var(--blue);
+  color: #fff;
+}
+
+@media (max-width: 700px) {
+  .alpha-filter-nav {
+    display: none;
+  }
+}
+
+/*
+ * Large-screen layout: topbar = 3.5rem, page-shell padding-top = 1.05rem.
+ * margin-top: -1.05rem pulls heading up so its top edge sits right at the
+ * topbar bottom — no gap for content to scroll through.
+ * padding-top: calc(1.05rem + 0.25rem) restores the visual internal spacing.
+ * top: 3.5rem = heading sticks at topbar bottom with zero movement.
+ */
+@media (min-width: 761px) {
+  .explorer-heading-sticky {
+    top: 3.5rem;
+    margin-top: -1.05rem;
+    padding-top: calc(1.05rem + 0.25rem) !important;
+    padding-bottom: 0.5rem !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .alpha-filter-nav {
+    /* Heading is ~4.2rem tall once padding is applied, topbar = 3.5rem.
+       Strip sticks below heading at 3.5 + 4.2 = 7.7rem ≈ 8rem. */
+    top: 8rem;
+    height: 65vh;
+    max-height: 65vh;
+  }
 }
