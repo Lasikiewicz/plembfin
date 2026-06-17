@@ -20,6 +20,7 @@
   --space-3: 0.75rem;
   --space-4: 1rem;
   --sidebar-width: 16rem;
+  --top-control-padding: 0.65rem;
   font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -605,7 +606,7 @@ h2 {
   flex: 1;
   height: 100%;
   margin: 0;
-  padding: 1.5rem 2rem 2rem;
+  padding: var(--top-control-padding) 2rem 2rem;
   background: var(--bg);
   overflow-y: auto;
 }
@@ -4114,7 +4115,7 @@ body {
   flex: 0 0 auto;
   gap: 0.45rem;
   margin: 0 -0.55rem;
-  padding: 0.65rem 0.7rem 0;
+  padding: var(--top-control-padding) 0.7rem 0;
 }
 
 .brand-link {
@@ -6507,10 +6508,14 @@ details[open] > .tool-section-summary::before {
  * top: 3.5rem = heading sticks at topbar bottom with zero movement.
  */
 @media (min-width: 761px) {
+  .page-shell[data-active-view="explorer"] {
+    padding-top: 0;
+  }
+
   .explorer-heading-sticky {
-    top: 3.5rem;
-    margin-top: -1.05rem;
-    padding-top: calc(1.05rem + 0.25rem) !important;
+    top: 0;
+    margin-top: 0;
+    padding-top: var(--top-control-padding) !important;
     padding-bottom: 0.5rem !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
@@ -6518,7 +6523,7 @@ details[open] > .tool-section-summary::before {
   .alpha-filter-nav {
     /* Heading is ~4.2rem tall once padding is applied, topbar = 3.5rem.
        Strip sticks below heading at 3.5 + 4.2 = 7.7rem ≈ 8rem. */
-    top: 8rem;
+    top: 4rem;
     height: 65vh;
     max-height: 65vh;
   }
