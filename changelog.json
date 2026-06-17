@@ -1,7 +1,14 @@
 {
-  "version": "0.0.64",
-  "updatedAt": "2026-06-17T16:11:28+01:00",
+  "version": "0.0.65",
+  "updatedAt": "2026-06-17T16:39:50+01:00",
   "entries": [
+    {
+      "version": "0.0.65",
+      "date": "2026-06-17T16:39:50+01:00",
+      "commit": "9c717ef5ccecfd05107dfba3ffe48efc659dbae0",
+      "message": "fix: align explorer header and clear search",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.64",
       "date": "2026-06-17T16:11:28+01:00",
