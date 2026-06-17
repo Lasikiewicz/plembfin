@@ -124,6 +124,37 @@ export async function cacheProfileFromUrl(mediaKey = "", remoteUrl = "", source 
 export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source = "unknown", { variant = "poster", width = 340, quality = 80 } = {}) {
   if (!mediaKey || !remoteUrl) return null;
 
+  // Handle local cached storage URLs directly without fetching.
+  if (String(remoteUrl).startsWith("/media/")) {
+    const storagePath = remoteUrl.replace(/^\/media\//, "");
+    const absolutePath = path.join(MEDIA_DIR, storagePath);
+    if (existsSync(absolutePath)) {
+      try {
+        const stat = await fs.stat(absolutePath).catch(() => null);
+        const cacheId = cacheIdFor(mediaKey, variant);
+        const extension = path.extname(storagePath).replace(/^\./, "");
+        const contentType = extension === "webp" ? "image/webp" : extension === "png" ? "image/png" : "image/jpeg";
+        upsertStmt.run({
+          id: cacheId,
+          media_key: mediaKey,
+          variant,
+          status: "cached",
+          source,
+          detail: null,
+          original_url: sanitizedRemoteUrl(remoteUrl),
+          storage_path: storagePath,
+          content_type: contentType,
+          size_bytes: stat ? stat.size : null,
+          url: remoteUrl,
+          updated_at_ms: Date.now(),
+        });
+        return { url: remoteUrl, cached: true, source };
+      } catch (error) {
+        console.error("Local poster cache update failed", error);
+      }
+    }
+  }
+
   try {
     const response = await fetch(remoteUrl, { headers: { Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8" } });
     if (!response.ok) {
