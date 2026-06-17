@@ -15,7 +15,7 @@
   </head>
   <body>
     <div class="app-chassis">
-      <header class="topbar">
+      <nav class="topnav" aria-label="Primary navigation">
         <div class="brand-search">
           <div class="brand-block">
             <h1><a id="brandLink" class="brand-link" href="/"><img class="brand-logo" src="/plembfin_header_logo_dark.png" alt="Plembfin" /></a></h1>
@@ -26,10 +26,6 @@
           </label>
         </div>
 
-        <div class="topbar-actions"></div>
-      </header>
-
-      <nav class="topnav" aria-label="Primary navigation">
         <div class="sidebar-primary">
           <button class="nav-tab active" type="button" data-view="dashboard">Dashboard</button>
           <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="movies">Movies</button>
@@ -88,9 +84,7 @@
             <div class="section-heading">
               <div>
                 <p>Now Playing</p>
-                <span>Live playback sessions across Plex, Emby, and Jellyfin</span>
               </div>
-              <span id="nowPlayingStatus" class="status-pill status-ready">Smart polling</span>
             </div>
             <div id="nowPlayingGrid" class="now-playing-grid" aria-live="polite"></div>
           </section>
@@ -99,7 +93,6 @@
             <div class="section-heading">
               <div>
                 <p>Watch history</p>
-                <span>Recently watched TV shows and movies</span>
               </div>
             </div>
             
