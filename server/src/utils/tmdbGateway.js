@@ -7,7 +7,7 @@ const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DETAILS_SCHEMA_VERSION = 3;
-const PERSON_SCHEMA_VERSION = 4;
+const PERSON_SCHEMA_VERSION = 5;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const MISSING_TTL_MS = DAY_MS;
 const PERSON_TTL_MS = 7 * DAY_MS;
@@ -316,8 +316,8 @@ export async function getTmdbPerson(personId) {
         ...fetched,
         combined_credits: {
           ...(fetched.combined_credits || {}),
-          cast: (fetched.combined_credits?.cast || []).slice(0, 120),
-          crew: (fetched.combined_credits?.crew || []).slice(0, 80),
+          cast: fetched.combined_credits?.cast || [],
+          crew: fetched.combined_credits?.crew || [],
         },
         images: { profiles: (fetched.images?.profiles || []).slice(0, 200) },
         tagged_images: boundedResults(fetched.tagged_images, 250) || { results: [] },
