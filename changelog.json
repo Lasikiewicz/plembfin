@@ -1,7 +1,14 @@
 {
-  "version": "0.0.61",
-  "updatedAt": "2026-06-17T14:38:15+01:00",
+  "version": "0.0.62",
+  "updatedAt": "2026-06-17T15:27:37+01:00",
   "entries": [
+    {
+      "version": "0.0.62",
+      "date": "2026-06-17T15:27:37+01:00",
+      "commit": "85f8d48fbfbb1eca6898dfba5da1b1cdc4713e5f",
+      "message": "fix: update header logo",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.61",
       "date": "2026-06-17T14:38:15+01:00",
