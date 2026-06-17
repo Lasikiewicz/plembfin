@@ -187,6 +187,7 @@ function bindElements() {
     dbStatus: document.querySelector("#dbStatus"),
     debugModal: document.querySelector("#debugModal"),
     explorerPanel: document.querySelector("#explorerPanel"),
+    alphaFilterNav: document.querySelector("#alphaFilterNav"),
     explorerSearchInput: document.querySelector("#explorerSearchInput"),
     explorerPosterSize: document.querySelector("#explorerPosterSize"),
     explorerPosterSizeLabel: document.querySelector(".explorer-size-slider"),
@@ -3710,6 +3711,7 @@ function navigateTo(url) {
     const nextIndex = (history.state?.index || 0) + 1;
     history.pushState({ index: nextIndex }, "", url);
     state.internalHistoryCount = nextIndex;
+    window.scrollTo({ top: 0, behavior: "instant" });
   }
   handleRouting(url);
   applyActiveView();
@@ -3810,6 +3812,7 @@ function applyActiveView() {
   if (state.activeView !== "explorer") {
     state.explorerLoadObserver?.disconnect();
     state.explorerLoadObserver = undefined;
+    updateAlphaFilter();
   }
 
   if (state.activeView !== "dashboard") {
@@ -4820,6 +4823,88 @@ function explorerQueryKey(mode) {
   return [mode, currentExplorerSort(), state.explorerSearch].join("|");
 }
 
+function firstAlphaLetter(title) {
+  if (!title) return "#";
+  const stripped = String(title).replace(/^(the |a |an )/i, "").trim();
+  const ch = stripped.charAt(0).toUpperCase();
+  return /[A-Z]/.test(ch) ? ch : "#";
+}
+
+const ALPHA_LETTERS = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")];
+
+function updateAlphaFilter() {
+  const nav = elements.alphaFilterNav;
+  if (!nav) return;
+
+  if (state.mediaDetailInline || state.activeView !== "explorer") {
+    nav.classList.add("hidden");
+    return;
+  }
+
+  const items = state.explorerMode === "movies" ? state.moviesRaw : state.showsRaw;
+  const hasItems = items.length > 0;
+  nav.classList.toggle("hidden", !hasItems);
+  if (!hasItems) return;
+
+  const hasMore = state.explorerMode === "movies" ? state.moviesHasMore : state.showsHasMore;
+  const loaded = new Set(items.map((it) => firstAlphaLetter(it.title)));
+
+  nav.innerHTML = ALPHA_LETTERS.map((letter) => {
+    const definitivelyEmpty = !hasMore && !loaded.has(letter);
+    return `<button class="${definitivelyEmpty ? "alpha-empty" : ""}" data-alpha="${letter}" title="${letter === "#" ? "Numbers / symbols" : letter}" ${definitivelyEmpty ? "disabled" : ""}>${letter}</button>`;
+  }).join("");
+}
+
+let alphaScrolling = false;
+
+async function handleAlphaFilterClick(e) {
+  const btn = e.target.closest("[data-alpha]");
+  if (!btn || btn.disabled || alphaScrolling) return;
+
+  const letter = btn.dataset.alpha;
+  const panel = elements.explorerPanel;
+  const nav = elements.alphaFilterNav;
+  if (!panel || !nav) return;
+
+  for (const b of nav.querySelectorAll("[data-alpha]")) b.classList.remove("alpha-current");
+  btn.classList.add("alpha-current");
+
+  function scrollToTarget(el) {
+    const headingEl = document.querySelector(".explorer-heading-sticky");
+    const topOffset = headingEl ? headingEl.getBoundingClientRect().bottom + 8 : 60;
+    const rect = el.getBoundingClientRect();
+    window.scrollTo({ top: window.scrollY + rect.top - topOffset, behavior: "smooth" });
+  }
+
+  let target = panel.querySelector(`[data-alpha-letter="${letter}"]`);
+  if (target) {
+    scrollToTarget(target);
+    return;
+  }
+
+  alphaScrolling = true;
+  try {
+    const mode = state.explorerMode;
+    const loadFn = mode === "movies" ? loadExplorerMovies : loadExplorerShows;
+    const hasMore = () => (mode === "movies" ? state.moviesHasMore : state.showsHasMore);
+
+    while (hasMore() && !panel.querySelector(`[data-alpha-letter="${letter}"]`)) {
+      await loadFn();
+    }
+
+    target = panel.querySelector(`[data-alpha-letter="${letter}"]`);
+    if (target) {
+      scrollToTarget(target);
+    } else {
+      btn.classList.remove("alpha-current");
+      btn.classList.add("alpha-empty");
+      btn.disabled = true;
+    }
+  } finally {
+    alphaScrolling = false;
+  }
+}
+
 function resetMovieExplorer(key = explorerQueryKey("movies")) {
   state.moviesRaw = [];
   state.moviesOffset = 0;
@@ -5110,7 +5195,7 @@ function renderMovieCard(movie) {
   if (currentExplorerView() === "list") return renderMovieListCard(movie);
   if (currentExplorerView() === "overview") return renderMovieOverviewCard(movie);
   return `
-    <div class="movie-card" data-history-id="${movie.id}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}">
+    <div class="movie-card" data-history-id="${movie.id}" data-alpha-letter="${firstAlphaLetter(movie.title)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}">
       ${posterMarkup(movie, "movie-poster")}
       <div class="movie-card-body">
         <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; min-width: 0; width: 100%;">
@@ -5159,7 +5244,7 @@ function renderMovieListCard(movie) {
   const runtime = tmdb?.runtime ? `${tmdb.runtime} min` : "";
   const year = tmdb?.release_date?.slice(0, 4) || "";
   return `
-    <div class="movie-card explorer-list-card" data-history-id="${movie.id}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}">
+    <div class="movie-card explorer-list-card" data-history-id="${movie.id}" data-alpha-letter="${firstAlphaLetter(movie.title)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}">
       ${posterMarkup(movie, "list-thumb-poster")}
       <span class="list-card-title" title="${escapeAttribute(movie.title)}">${escapeHtml(movie.title)}</span>
       <div class="list-card-col list-card-platform">${sourceBadge}</div>
@@ -5179,7 +5264,7 @@ function renderMovieOverviewCard(movie) {
   const overview = tmdb?.overview || "";
   const sourceBadge = movie.source ? `<span class="source-badge ${sourceClass(movie.source)}">${escapeHtml(platformBadge(movie.source))}</span>` : "";
   return `
-    <div class="movie-card explorer-overview-card" data-history-id="${movie.id}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}">
+    <div class="movie-card explorer-overview-card" data-history-id="${movie.id}" data-alpha-letter="${firstAlphaLetter(movie.title)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}">
       ${posterMarkup(movie, "overview-thumb-poster")}
       <div class="overview-card-meta">
         <div class="overview-card-header">
@@ -5215,6 +5300,7 @@ function renderMovieExplorer() {
   hydratePosters(elements.explorerPanel);
   observeExplorerSentinel("movies");
   observeExplorerTmdbPrefetch(elements.explorerPanel);
+  updateAlphaFilter();
 }
 
 async function loadExplorerMovies() {
@@ -5281,6 +5367,7 @@ function renderShowExplorer() {
   hydratePosters(elements.explorerPanel);
   observeExplorerSentinel("shows");
   observeExplorerTmdbPrefetch(elements.explorerPanel);
+  updateAlphaFilter();
 }
 
 async function loadExplorerShows() {
@@ -5469,7 +5556,7 @@ function renderShowRecord(show = {}) {
       : `<span class="list-card-col" data-list-eps data-watched="${episodeCount}" data-total="0">${episodeCount}</span>`;
     const sourceEl = latestEpisode?.source ? `<span class="source-badge ${sourceClass(latestEpisode.source)}">${escapeHtml(platformBadge(latestEpisode.source))}</span>` : "";
     return `
-      <article class="explorer-list-card explorer-list-show-card" data-show-key="${escapeAttribute(showKey)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
+      <article class="explorer-list-card explorer-list-show-card" data-show-key="${escapeAttribute(showKey)}" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
         ${posterMarkup(latestEpisode, "list-thumb-poster")}
         <span class="list-card-title">${escapeHtml(displayTitle)}</span>
         <div class="list-card-col list-card-platform">${sourceEl}</div>
@@ -5488,7 +5575,7 @@ function renderShowRecord(show = {}) {
     const overview = tmdb?.overview || "";
     const firstYear = tmdb?.first_air_date?.slice(0, 4) || "";
     return `
-      <article class="explorer-overview-card explorer-overview-show-card" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
+      <article class="explorer-overview-card explorer-overview-show-card" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
         <button class="folder-trigger overview-show-poster-btn" type="button" data-show-key="${escapeAttribute(showKey)}" style="border:0;background:transparent;padding:0;display:block;">
           ${posterMarkup(latestEpisode, "overview-thumb-poster")}
         </button>
@@ -5504,7 +5591,7 @@ function renderShowRecord(show = {}) {
   }
 
   return `
-    <article class="folder-card" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
+    <article class="folder-card" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
       <button class="folder-trigger" type="button" data-show-key="${escapeAttribute(showKey)}" style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block;">
         ${posterMarkup(latestEpisode, "explorer-folder-poster")}
         <div class="movie-card-body" style="margin-top: 0.5rem;">
@@ -9736,6 +9823,8 @@ function attachEvents() {
     if (!header) return;
     applyListHeaderSort(header.dataset.sortKey);
   });
+
+  elements.alphaFilterNav?.addEventListener("click", handleAlphaFilterClick);
 
   elements.helpMenu.addEventListener("click", (event) => {
     const topicButton = event.target.closest("[data-help-topic]");
