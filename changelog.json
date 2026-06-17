@@ -1,7 +1,14 @@
 {
-  "version": "0.0.59",
-  "updatedAt": "2026-06-17T11:18:39+01:00",
+  "version": "0.0.60",
+  "updatedAt": "2026-06-17T11:56:40+01:00",
   "entries": [
+    {
+      "version": "0.0.60",
+      "date": "2026-06-17T11:56:40+01:00",
+      "commit": "296d1abcaab6e89a6e8f00d5e7f81f1a767e03b7",
+      "message": "fix: list all credits on biography page and fix refresh redirect bug",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.59",
       "date": "2026-06-17T11:18:39+01:00",
