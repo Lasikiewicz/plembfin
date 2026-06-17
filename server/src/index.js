@@ -1953,8 +1953,10 @@ async function handlePoster(req, res) {
     const mediaKey = row.media_key || mediaKeyFor(row);
 
     // Check for fresh cached result first (before deduplication check).
+    // However, ignore negative cache for items without poster_url - these should retry TMDB fallback.
     const cached = usableCachedPoster(await getPosterCache(mediaKey));
-    if (cached?.url || cached?.cached) return sendJson(res, cached, 200, cacheHeaders);
+    if (cached?.url) return sendJson(res, cached, 200, cacheHeaders);
+    if (cached?.cached && row.poster_url) return sendJson(res, cached, 200, cacheHeaders);
 
     // If another request is already processing this mediaKey, wait for it to complete.
     if (inflight.has(mediaKey)) {
@@ -1997,11 +1999,6 @@ async function handlePoster(req, res) {
             const configuredUrl = configuredPosterUrl(path, "plex", config);
             if (configuredUrl) candidates.push({ url: configuredUrl, source: "plex" });
           }
-        }
-
-        if (row.poster_url) {
-          const configuredUrl = configuredPosterUrl(row.poster_url, row.source, config);
-          if (configuredUrl && !fallbackRequested) candidates.push({ url: configuredUrl, source: configForPosterSource(config, row.source).source || "configured" });
         }
 
         if (config.tmdb?.apiKey && (fallbackRequested || !row.poster_url || isHttpUrl(row.poster_url) || !/^https?:\/\//i.test(row.poster_url))) {
