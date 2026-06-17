@@ -4591,10 +4591,10 @@ function renderActiveSessions() {
   if (!state.activeSessions.length) {
     elements.nowPlayingGrid.innerHTML = `
       <div class="idle-state">
-        <b>Entire media ecosystem is idle.</b>
+        <b>No Media currently playing</b>
       </div>
     `;
-    if (elements.nowPlayingStatus) elements.nowPlayingStatus.textContent = "Live cache";
+    if (elements.nowPlayingStatus) elements.nowPlayingStatus.textContent = "";
     return;
   }
 
@@ -4621,7 +4621,7 @@ function renderActiveSessions() {
     .join("");
 
   if (elements.nowPlayingStatus) {
-    elements.nowPlayingStatus.textContent = "Live cache";
+    elements.nowPlayingStatus.textContent = "";
   }
 }
 

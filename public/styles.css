@@ -19,6 +19,7 @@
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
+  --sidebar-width: 24rem;
   font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -28,22 +29,31 @@
 
 html {
   background: var(--bg);
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  min-height: 100vh;
+  height: 100%;
   margin: 0;
+  padding: 0;
   background: var(--bg);
   color: var(--text);
   font-size: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-chassis {
   display: flex;
-  width: 80%;
-  margin: var(--space-4) auto 2rem;
-  flex-direction: column;
-  gap: var(--space-4);
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  flex-direction: row;
+  gap: 0;
 }
 
 button,
@@ -69,6 +79,7 @@ h1,
 h2,
 p {
   margin: 0;
+  padding: 0;
 }
 
 h1 {
@@ -76,6 +87,9 @@ h1 {
   font-size: 1.15rem;
   font-weight: 800;
   letter-spacing: 0;
+  margin: 0;
+  padding: 0;
+  line-height: 1;
 }
 
 h2 {
@@ -108,8 +122,8 @@ h2 {
 
 .modal-backdrop-image {
   position: fixed;
-  top: 3.5rem;
-  left: 13.5rem;
+  top: 0;
+  left: var(--sidebar-width);
   right: 0;
   bottom: 0;
   height: auto;
@@ -431,18 +445,7 @@ h2 {
 }
 
 .topbar {
-  position: sticky;
-  top: var(--space-3);
-  z-index: 20;
-  display: grid;
-  grid-template-columns: minmax(160px, max-content) minmax(0, 1fr) auto;
-  gap: var(--space-3);
-  align-items: center;
-  border-bottom: 1px solid var(--line);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: #0b0f12;
-  padding: var(--space-2) var(--space-4);
+  display: none;
 }
 
 .brand-block,
@@ -488,13 +491,21 @@ h2 {
 }
 
 .topnav {
-  min-width: 0;
-  justify-content: flex-start;
-  overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-width);
+  height: 100%;
+  min-width: var(--sidebar-width);
+  flex-shrink: 0;
+  overflow-y: auto;
+  border: none;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
   background: var(--panel-3);
-  padding: 0.2rem;
+  padding: 0;
+  margin: 0;
+  position: relative;
+  z-index: 5;
 }
 
 .nav-tab,
@@ -591,8 +602,12 @@ h2 {
 }
 
 .page-shell {
+  flex: 1;
+  height: 100%;
   margin: 0;
-  padding: 0 0 2rem;
+  padding: 1.5rem 2rem 2rem;
+  background: var(--bg);
+  overflow-y: auto;
 }
 
 .app-shell,
@@ -4065,34 +4080,29 @@ body {
 }
 
 .app-chassis {
-  display: grid;
-  grid-template-columns: 13.5rem minmax(0, 1fr);
-  grid-template-rows: 3.5rem minmax(calc(100vh - 3.5rem), auto);
+  display: flex;
+  flex-direction: row;
   width: 100%;
-  min-height: 100vh;
+  height: 100%;
   margin: 0;
   gap: 0;
 }
 
 .topbar {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  grid-column: 1 / -1;
-  display: flex;
-  min-width: 0;
-  height: 3.5rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 0;
-  background: #0f0f0f;
-  padding: 0 1rem;
+  display: none !important;
 }
 
-.brand-search,
+.brand-search {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0 0 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
 .topbar-actions {
   display: flex;
   min-width: 0;
@@ -4103,21 +4113,27 @@ body {
 .brand-block {
   flex: 0 0 auto;
   gap: 0.45rem;
+  margin: 0 -0.55rem;
+  padding: 0.35rem 0.45rem 0;
 }
 
 .brand-link {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   align-items: center;
   color: inherit;
   text-decoration: none;
   cursor: pointer;
+  margin: 0;
+  padding: 0;
+  line-height: 1;
 }
 
 .brand-logo {
   display: block;
-  width: auto;
-  height: 3rem;
-  max-width: 15.5rem;
+  width: 100%;
+  height: auto;
+  max-height: none;
   object-fit: contain;
 }
 
@@ -4130,8 +4146,9 @@ h1 {
 .global-search {
   position: relative;
   display: block;
-  width: min(34rem, 36vw);
-  min-width: 18rem;
+  width: 100%;
+  min-width: auto;
+  padding: 0 0.45rem;
 }
 
 .global-search > span {
@@ -4340,12 +4357,12 @@ h1 {
 
 .topnav {
   position: sticky;
-  top: 3.5rem;
+  top: 0;
   z-index: 30;
   grid-column: 1;
   grid-row: 2;
   display: flex;
-  height: calc(100vh - 3.5rem);
+  height: 100vh;
   min-width: 0;
   flex-direction: column;
   align-items: stretch;
@@ -4356,19 +4373,22 @@ h1 {
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 0;
   background: #1a1a1a;
-  padding: 0.9rem 0.55rem;
+  padding: 0 0.55rem 0.9rem;
 }
 
 .sidebar-primary,
 .sidebar-secondary {
   display: grid;
-  gap: 0.15rem;
+  gap: 0;
+  padding: var(--space-3) 0;
 }
 
 .sidebar-footer {
   margin-top: auto;
   display: grid;
-  gap: 0.15rem;
+  gap: 0;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
 }
 
 .app-version {
@@ -4437,18 +4457,12 @@ h1 {
   color: #fff;
 }
 
-.page-shell {
-  grid-column: 2;
-  grid-row: 2;
-  min-width: 0;
-  margin: 0;
-  padding: 1.05rem clamp(1.2rem, 2vw, 2.4rem) 3rem;
-}
-
 .app-shell,
 .view-panel {
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 2.1rem;
+  width: 100%;
 }
 
 .glass-panel {
@@ -4749,7 +4763,8 @@ h1 {
 
 @media (max-width: 1100px) {
   .app-chassis {
-    grid-template-columns: 11rem minmax(0, 1fr);
+    display: flex;
+    flex-direction: row;
   }
 
   .global-search {
@@ -4768,8 +4783,8 @@ h1 {
 
 @media (max-width: 760px) {
   .app-chassis {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto 1fr;
+    display: flex;
+    flex-direction: column;
   }
 
   .topbar {
