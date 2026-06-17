@@ -3559,6 +3559,11 @@ function handleRouting(path) {
   const hashPart = parts[1] || "";
 
   const pathname = pathPart.endsWith("/") && pathPart.length > 1 ? pathPart.slice(0, -1) : pathPart;
+  const previousExplorerListRoute = state.activeView === "explorer" && !state.mediaDetailInline
+    ? (state.explorerMode === "shows" ? "/tvshows" : "/movies")
+    : "";
+  const isExplorerListRoute = pathname === "/movies" || pathname === "/tvshows";
+  if (!isExplorerListRoute || (previousExplorerListRoute && previousExplorerListRoute !== pathname)) clearSearchInputs();
   
   if (!pathname.startsWith("/person")) {
     if (elements.personModal) {
@@ -3709,6 +3714,16 @@ function handleRouting(path) {
   }
 }
 
+function clearSearchInputs() {
+  window.clearTimeout(state.explorerSearchTimer);
+  window.clearTimeout(state.globalSearchDropdownTimer);
+  window.clearTimeout(state.globalSearchRemoteTimer);
+  state.explorerSearch = "";
+  if (elements.explorerSearchInput) elements.explorerSearchInput.value = "";
+  if (elements.globalSearchInput) elements.globalSearchInput.value = "";
+  closeGlobalSearchDropdown();
+}
+
 function navigateTo(url) {
   const currentUrl = window.location.pathname + window.location.hash;
   if (currentUrl !== url) {
@@ -3794,6 +3809,7 @@ function selectBackupsTab(tab) {
 
 function applyActiveView() {
   localStorage.setItem(ACTIVE_VIEW_KEY, state.activeView);
+  document.querySelector(".page-shell")?.setAttribute("data-active-view", state.activeView);
 
   for (const button of elements.tabButtons || []) {
     const explorerMode = button.dataset.explorerNav;
@@ -9687,6 +9703,9 @@ function attachEvents() {
   elements.tabButtons.forEach((button) => {
     button.addEventListener("click", () => {
       if (button.dataset.explorerNav) {
+        if (state.activeView === "explorer" && !state.mediaDetailInline && state.explorerMode !== button.dataset.explorerNav) {
+          clearSearchInputs();
+        }
         state.explorerMode = button.dataset.explorerNav;
       }
       if (state.mediaDetailInline) {
