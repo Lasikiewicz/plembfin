@@ -19,7 +19,7 @@
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
-  --sidebar-width: 24rem;
+  --sidebar-width: 16rem;
   font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -4097,9 +4097,9 @@ body {
   flex-direction: column;
   min-width: 0;
   align-items: stretch;
-  gap: 0.5rem;
+  gap: 0.8rem;
   margin: 0;
-  padding: 0 0 0.5rem;
+  padding: 0 0 0.7rem;
   border-bottom: 1px solid var(--line);
 }
 
@@ -4114,7 +4114,7 @@ body {
   flex: 0 0 auto;
   gap: 0.45rem;
   margin: 0 -0.55rem;
-  padding: 0.35rem 0.45rem 0;
+  padding: 0.65rem 0.7rem 0;
 }
 
 .brand-link {
@@ -4383,8 +4383,12 @@ h1 {
   padding: var(--space-3) 0;
 }
 
-.sidebar-footer {
+.sidebar-secondary {
   margin-top: auto;
+}
+
+.sidebar-footer {
+  margin-top: 0;
   display: grid;
   gap: 0;
   padding: var(--space-3) 0;
@@ -4408,7 +4412,7 @@ h1 {
 .nav-label {
   padding: 0 0.65rem 0.35rem;
   color: #b8b8b8;
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
@@ -4424,7 +4428,7 @@ h1 {
   background: transparent;
   padding: 0.48rem 0.65rem;
   color: #c8c8c8;
-  font-size: 0.84rem;
+  font-size: 0.94rem;
   font-weight: 700;
 }
 
@@ -4829,6 +4833,10 @@ h1 {
     display: flex;
     flex: 0 0 auto;
     gap: 0.25rem;
+  }
+
+  .sidebar-secondary {
+    margin-top: 0;
   }
 
   .nav-label {

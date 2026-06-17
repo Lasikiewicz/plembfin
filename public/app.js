@@ -4591,7 +4591,7 @@ function renderActiveSessions() {
   if (!state.activeSessions.length) {
     elements.nowPlayingGrid.innerHTML = `
       <div class="idle-state">
-        <b>No Media currently playing</b>
+        <b>No media currently playing.</b>
       </div>
     `;
     if (elements.nowPlayingStatus) elements.nowPlayingStatus.textContent = "";
