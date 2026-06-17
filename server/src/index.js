@@ -2743,7 +2743,7 @@ async function handleTmdbPerson(req, res) {
       }
     }
 
-    return sendJson(res, responseData, 200, { "Cache-Control": "private, max-age=86400" });
+    return sendJson(res, responseData, 200, { "Cache-Control": "private, max-age=300, stale-while-revalidate=86400", Vary: "Authorization" });
   } catch (error) {
     console.error("Failed handling TMDB person API", error);
     return sendJson(res, { error: error.message || "Failed to fetch TMDB person details" }, error.status || 500);

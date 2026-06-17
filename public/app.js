@@ -3727,7 +3727,10 @@ function selectView(view) {
   
   let url = "/";
   if (state.mediaDetailInline) {
-    if (state.explorerMode === "shows" && state.activeShowModalKey) {
+    const personMatch = window.location.pathname.match(/^\/person\/(\d+)$/);
+    if (personMatch) {
+      url = window.location.pathname + window.location.hash;
+    } else if (state.explorerMode === "shows" && state.activeShowModalKey) {
       url = `/tvshow/${state.activeShowModalKey}`;
       if (state.activeShowModalSeason !== null) {
         url += `#season${state.activeShowModalSeason}`;
