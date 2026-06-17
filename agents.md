@@ -4,12 +4,6 @@
 > The following rules are absolute constraints. You must adhere to them strictly under all circumstances.
 
 <details>
-<summary><strong>System Integrity Check</strong></summary>
-Verify local database state and media server reachability
-Run System Diagnostic
-</details>
-
-<details>
 <summary><strong>NO Git Pushes</strong></summary>
 Never execute `git push` or push commits to any remote repository unless the user explicitly instructs you to push in their request.
 </details>
