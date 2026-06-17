@@ -4517,8 +4517,12 @@ function renderHistoryCard(entry) {
       }, 50);
     }
 
+    const canonicalShowName = showName(entry.title);
+    const showKeySlug = slug(canonicalShowName);
+    const href = `/tvshow/${showKeySlug}`;
+
     return `
-      <div class="movie-card" data-history-id="${entry.id}">
+      <a class="movie-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}">
         ${posterMarkup(entry, "movie-poster")}
         <div class="movie-card-body">
           <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.15rem; min-width: 0; width: 100%; flex-direction: column;">
@@ -4531,12 +4535,13 @@ function renderHistoryCard(entry) {
             </div>
           </div>
         </div>
-      </div>
+      </a>
     `;
   } else {
     // Movie
+    const href = `/movie/${entry.id}`;
     return `
-      <div class="movie-card" data-history-id="${entry.id}">
+      <a class="movie-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}">
         ${posterMarkup(entry, "movie-poster")}
         <div class="movie-card-body">
           <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.15rem; min-width: 0; width: 100%; flex-direction: column;">
@@ -4547,7 +4552,7 @@ function renderHistoryCard(entry) {
             </div>
           </div>
         </div>
-      </div>
+      </a>
     `;
   }
 }
@@ -6282,10 +6287,10 @@ function renderRelatedShowsSection(tmdbData) {
           const poster = tmdbPoster(item.poster_path) || "/favicon.svg";
           const year = (item.first_air_date || "").slice(0, 4);
           return `
-            <div class="season-poster-card related-show-card" data-immersive-related-tmdb="${item.id}" style="cursor:pointer;">
+            <a class="season-poster-card related-show-card" data-immersive-related-tmdb="${item.id}" href="/tvshow/tmdb/${item.id}">
               <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(item.name || "")}" onerror="this.src='/favicon.svg';" />
               <span class="season-poster-name">${escapeHtml(item.name || "")}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
-            </div>
+            </a>
           `;
         }).join("")}
       </div>
@@ -8001,10 +8006,10 @@ async function renderMovieImmersiveModalContent(movie) {
                   ? tmdbPoster(rec.poster_path)
                   : "/favicon.svg";
                 return `
-                  <div class="season-poster-card" data-immersive-movie-id="${rec.id}">
+                  <a class="season-poster-card" data-immersive-movie-id="${rec.id}" href="/movie/tmdb/${rec.id}">
                     <img class="season-poster-img" src="${recPoster}" alt="${escapeHtml(rec.title)}" onerror="this.src='/favicon.svg';" />
                     <span class="season-poster-name">${escapeHtml(rec.title)}</span>
-                  </div>
+                  </a>
                 `;
               })
               .join("")}
@@ -8150,10 +8155,10 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
                   ? tmdbPoster(rec.poster_path)
                   : "/favicon.svg";
                 return `
-                  <div class="season-poster-card" data-immersive-movie-id="${rec.id}">
+                  <a class="season-poster-card" data-immersive-movie-id="${rec.id}" href="/movie/tmdb/${rec.id}">
                     <img class="season-poster-img" src="${recPoster}" alt="${escapeHtml(rec.title)}" onerror="this.src='/favicon.svg';" />
                     <span class="season-poster-name">${escapeHtml(rec.title)}</span>
-                  </div>
+                  </a>
                 `;
               })
               .join("")}
@@ -9999,13 +10004,15 @@ function attachEvents() {
     }
 
     const recMovieCard = event.target.closest("[data-immersive-movie-id]");
-    if (recMovieCard) {
+    if (recMovieCard && event.button === 0 && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
       navigateTo(`/movie/tmdb/${recMovieCard.dataset.immersiveMovieId}`);
       return;
     }
 
     const relatedShowCard = event.target.closest("[data-immersive-related-tmdb]");
-    if (relatedShowCard) {
+    if (relatedShowCard && event.button === 0 && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
       navigateTo(`/tvshow/tmdb/${relatedShowCard.dataset.immersiveRelatedTmdb}`);
       return;
     }
@@ -10017,7 +10024,8 @@ function attachEvents() {
         return;
       }
       const isTvRow = event.target.closest("#tvHistoryRow");
-      if (isTvRow) {
+      if (isTvRow && event.button === 0 && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault();
         const entry = state.history.find(e => e.id === historyRow.dataset.historyId);
         if (entry) {
           const canonicalShowName = showName(entry.title);
@@ -10030,13 +10038,11 @@ function attachEvents() {
 
           navigateTo(`/tvshow/${showKeySlug}`);
         }
-      } else {
-        const isMovieCard = event.target.closest(".movie-card");
-        if (isMovieCard) {
-          navigateTo(`/movie/${historyRow.dataset.historyId}`);
-        } else {
-          openHistoryDebugModal(historyRow.dataset.historyId).catch((error) => setMessage(error.message, "error"));
-        }
+      } else if (event.target.closest(".movie-card") && event.button === 0 && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault();
+        navigateTo(`/movie/${historyRow.dataset.historyId}`);
+      } else if (!event.target.closest(".movie-card")) {
+        openHistoryDebugModal(historyRow.dataset.historyId).catch((error) => setMessage(error.message, "error"));
       }
       return;
     }
