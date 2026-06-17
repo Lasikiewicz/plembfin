@@ -1,7 +1,14 @@
 {
-  "version": "0.0.62",
-  "updatedAt": "2026-06-17T15:27:37+01:00",
+  "version": "0.0.63",
+  "updatedAt": "2026-06-17T16:02:41+01:00",
   "entries": [
+    {
+      "version": "0.0.63",
+      "date": "2026-06-17T16:02:41+01:00",
+      "commit": "03d810ec9b7c6a9abdfc56fff7ebe825a2af48c2",
+      "message": "fix: update dashboard sidebar and playback copy",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.62",
       "date": "2026-06-17T15:27:37+01:00",
