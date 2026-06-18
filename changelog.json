@@ -1,7 +1,14 @@
 {
-  "version": "0.1.4",
-  "updatedAt": "2026-06-18T20:13:51+01:00",
+  "version": "0.1.5",
+  "updatedAt": "2026-06-18T21:01:19+01:00",
   "entries": [
+    {
+      "version": "0.1.5",
+      "date": "2026-06-18T21:01:19+01:00",
+      "commit": "25e1504cbd3d05598d1bb0d90a6e4dcbbb782781",
+      "message": "fix: enhance seerr request controls",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.4",
       "date": "2026-06-18T20:13:51+01:00",
