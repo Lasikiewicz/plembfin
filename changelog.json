@@ -1,7 +1,14 @@
 {
-  "version": "0.1.1",
-  "updatedAt": "2026-06-18T16:25:44+01:00",
+  "version": "0.1.2",
+  "updatedAt": "2026-06-18T16:28:19+01:00",
   "entries": [
+    {
+      "version": "0.1.2",
+      "date": "2026-06-18T16:28:19+01:00",
+      "commit": "ad6f9f255eb886232a8b453f271e336f32d7962b",
+      "message": "chore: clean up temporary scratch files",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.1",
       "date": "2026-06-18T16:25:44+01:00",
