@@ -5298,10 +5298,9 @@ function renderListHeader(isShows) {
       <div class="explorer-list-header">
         <span></span>
         <span class="list-header-sortable" data-sort-key="title">Series Title${sortArrow("title")}</span>
-        <span>Source</span>
         <span class="list-header-sortable" data-sort-key="next_air">Next Airing${sortArrow("next_air")}</span>
-        <span>Seasons</span>
         <span>Episodes</span>
+        <span>Seasons</span>
         <span class="list-header-sortable" data-sort-key="watched">Last Watched${sortArrow("watched")}</span>
         <span>Year</span>
       </div>
@@ -5645,10 +5644,9 @@ function renderShowRecord(show = {}) {
       <article class="explorer-list-card explorer-list-show-card" data-show-key="${escapeAttribute(showKey)}" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
         ${posterMarkup(latestEpisode, "list-thumb-poster")}
         <span class="list-card-title">${escapeHtml(displayTitle)}</span>
-        <div class="list-card-col list-card-platform">${sourceEl}</div>
         <span class="list-card-col${nextAiring.isStatus && nextAiring.text ? " list-next-air-status" : ""}" data-list-next-air>${escapeHtml(nextAiring.text)}</span>
-        <span class="list-card-col">${escapeHtml(String(seasonCount || ""))}</span>
         ${episodeProgressHtml}
+        <span class="list-card-col">${escapeHtml(String(seasonCount || ""))}</span>
         <span class="list-card-col">${latestEpisode?.watched_at ? escapeHtml(formatDate(latestEpisode.watched_at)) : ""}</span>
         <span class="list-card-col list-card-year" data-list-year>${escapeHtml(year)}</span>
       </article>
