@@ -73,6 +73,9 @@ function mergeEnvDefaults(stored = {}) {
     }
   }
 
+  // Seerr has no env-var defaults — carry stored values through as-is.
+  merged.seerr = normalized.seerr;
+
   for (const section of ["plex", "emby", "jellyfin"]) {
     if (hasConfiguredFields(normalized[section])) {
       merged[section].disabled = normalized[section].disabled;
@@ -104,6 +107,11 @@ export function normalizeStoredConfig(stored = {}) {
       userId: String(stored.jellyfin?.userId || "").trim(),
       disabled: Boolean(stored.jellyfin?.disabled),
     },
+    seerr: {
+      baseUrl: trimTrailingSlash(stored.seerr?.baseUrl || ""),
+      apiKey: String(stored.seerr?.apiKey || "").trim(),
+      disabled: Boolean(stored.seerr?.disabled),
+    },
     tmdb: {
       apiKey: String(stored.tmdb?.apiKey || stored.tmdbApiKey || "").trim(),
     },
@@ -129,6 +137,7 @@ export function publicMediaConfig(config = {}) {
   return {
     ...normalized,
     tmdb: { configured: Boolean(normalized.tmdb.apiKey) },
+    seerr: { configured: Boolean(normalized.seerr.apiKey && normalized.seerr.baseUrl && !normalized.seerr.disabled) },
   };
 }
 
@@ -140,6 +149,7 @@ export async function saveMediaConfig(config) {
     plex: config.plex ? { ...existing.plex, ...config.plex } : existing.plex,
     emby: config.emby ? { ...existing.emby, ...config.emby } : existing.emby,
     jellyfin: config.jellyfin ? { ...existing.jellyfin, ...config.jellyfin } : existing.jellyfin,
+    seerr: config.seerr ? { ...existing.seerr, ...config.seerr } : existing.seerr,
     tmdb: config.tmdb ? { ...existing.tmdb, ...config.tmdb } : existing.tmdb,
     youtube: config.youtube ? { ...existing.youtube, ...config.youtube } : existing.youtube,
   };

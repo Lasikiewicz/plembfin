@@ -4047,6 +4047,24 @@ details[open] .tool-accordion-chevron::before {
   color: #fff;
 }
 
+/* Seerr request button variant */
+.seerr-request-btn {
+  background: rgba(229, 168, 39, 0.1);
+  border-color: rgba(229, 168, 39, 0.35);
+  color: #e5a827;
+}
+
+.seerr-request-btn:hover {
+  background: rgba(229, 168, 39, 0.2);
+  border-color: #e5a827;
+  color: #fcd34d;
+}
+
+.seerr-request-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .confirm-dialog-body {
   color: var(--muted);
   font-size: 0.88rem;

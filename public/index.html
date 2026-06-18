@@ -483,6 +483,56 @@
                     </article>
                   </div>
                 </div>
+
+                <!-- Seerr Row -->
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Seerr Setup</p>
+                          <span>Media request management integration</span>
+                        </div>
+                      </div>
+                      <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer; user-select: none;">
+                        <input id="seerrEnabled" type="checkbox" style="width: 16px; height: 16px; accent-color: var(--blue); margin: 0;" />
+                        <span style="font-weight: 600; color: var(--text);">Enable Seerr Integration</span>
+                      </label>
+                      <label class="field-label">
+                        Seerr Server URL
+                        <input id="seerrServerUrl" class="field" type="url" placeholder="http://localhost:5055" />
+                      </label>
+                      <label class="field-label">
+                        Seerr API Key
+                        <input id="seerrApiKey" class="field" type="password" autocomplete="off" />
+                      </label>
+                      <div class="settings-actions">
+                        <button id="saveSeerrConfigButton" class="button-primary" type="button">Save Seerr</button>
+                        <button class="button-ghost test-connection-button" type="button" data-test-connection="seerr">Test Connection</button>
+                        <span id="seerrConfigStatus" class="message" role="status" aria-live="polite"></span>
+                        <p class="connection-test-status" data-test-status="seerr" aria-live="polite"></p>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Seerr Integration Guide</p>
+                        <span>URL &amp; API Key</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        <b>Seerr URL:</b> The base URL of your Seerr instance, typically <code>http://localhost:5055</code>.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>API Key:</b> Open Seerr → <b>Settings → General</b> and copy the <b>API Key</b> shown at the top of the page.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        Once configured, a <b>"Request on Seerr"</b> button will appear on every movie and TV show detail page, letting you submit media requests directly without leaving Plembfin.
+                      </p>
+                    </article>
+                  </div>
+                </div>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="api-keys">
