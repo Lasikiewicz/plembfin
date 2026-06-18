@@ -154,7 +154,9 @@ export async function saveMediaConfig(config) {
     ? {
         ...existing.seerr,
         ...config.seerr,
-        apiKey: String(config.seerr.apiKey || "").trim() ? config.seerr.apiKey : existing.seerr.apiKey,
+        apiKey: Object.prototype.hasOwnProperty.call(config.seerr, "apiKey") && String(config.seerr.apiKey || "").trim()
+          ? config.seerr.apiKey
+          : existing.seerr.apiKey,
       }
     : existing.seerr;
   
