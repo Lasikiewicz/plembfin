@@ -162,6 +162,8 @@ const state = {
   nowPlayingLastFetchAt: 0,
   configLoaded: false,
   seerrConfigured: false,
+  seerrSupports4k: { movie: false, tv: false },
+  seerrMediaStatusCache: new Map(),
   fullSyncActive: false,
   backupImport: null,
   watchBackups: null,
@@ -4215,11 +4217,27 @@ async function loadSavedConfig() {
   state.posterLookupCache.clear();
   state.posterLookupInflight.clear();
   renderSettingsStatus("Configuration loaded from Firestore.", "success");
+  await refreshSeerrCapabilities().catch(() => null);
   renderDashboard();
   renderActiveSessions();
   renderSyncHistory();
   refreshHelpIfVisible();
   return body.config || {};
+}
+
+async function refreshSeerrCapabilities() {
+  if (!state.seerrConfigured) {
+    state.seerrSupports4k = { movie: false, tv: false };
+    return state.seerrSupports4k;
+  }
+  const response = await fetch("/api/seerr/status", { headers: authHeaders() });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.ok) throw new Error(body.error || `Seerr status failed with ${response.status}`);
+  state.seerrSupports4k = {
+    movie: Boolean(body.capabilities?.movie4k),
+    tv: Boolean(body.capabilities?.tv4k),
+  };
+  return state.seerrSupports4k;
 }
 
 async function saveSavedConfig() {
@@ -4312,9 +4330,10 @@ async function saveSectionConfig(section) {
     } else if (section === "seerr") {
       payload.seerr = {
         baseUrl: elements.seerrServerUrl?.value.trim() || "",
-        apiKey: elements.seerrApiKey?.value.trim() || "",
         disabled: !(elements.seerrEnabled?.checked ?? true),
       };
+      const seerrApiKey = elements.seerrApiKey?.value.trim() || "";
+      if (seerrApiKey) payload.seerr.apiKey = seerrApiKey;
     }
 
     const response = await fetch("/api/config", {
@@ -4363,6 +4382,9 @@ async function saveSectionConfig(section) {
         if (elements.seerrApiKey) elements.seerrApiKey.value = "";
         if (elements.seerrApiKey) elements.seerrApiKey.placeholder = state.seerrConfigured ? "Configured - enter a new key to replace it" : "Seerr API key";
       }
+      await refreshSeerrCapabilities().catch(() => {
+        state.seerrSupports4k = { movie: false, tv: false };
+      });
     }
 
     state.configLoaded = true;
@@ -6339,6 +6361,10 @@ async function testConnection(type, button) {
       button.disabled = false;
     }
     if (seerrTestRes.ok && seerrTestBody.ok) {
+      state.seerrSupports4k = {
+        movie: Boolean(seerrTestBody.capabilities?.movie4k),
+        tv: Boolean(seerrTestBody.capabilities?.tv4k),
+      };
       const title = seerrTestBody.applicationTitle || "Seerr";
       setConnectionButton(button, "✔ Connected", "success");
       setConnectionStatus(type, `✔ Connected to "${title}"`, "success");
@@ -7140,6 +7166,67 @@ function ratingPillHtml({ label, value = "View", href = "", title = "" } = {}) {
   `;
 }
 
+function renderSeerrRequestPill(mediaType, tmdbId) {
+  if (!state.seerrConfigured || !tmdbId) return "";
+  const status = state.seerrMediaStatusCache.get(`${mediaType}:${tmdbId}`) || {};
+  if (status.available && status.available4k) {
+    return `<span class="rating-pill seerr-owned-pill">Already in Seerr</span>`;
+  }
+  const supports4k = mediaType === "movie" ? state.seerrSupports4k.movie : state.seerrSupports4k.tv;
+  const seerrBaseUrl = String(state.savedConfig?.seerr?.baseUrl || "").replace(/\/+$/, "");
+  const seerrIconHtml = seerrBaseUrl
+    ? `<img class="seerr-request-icon" src="${escapeAttribute(`${seerrBaseUrl}/favicon.ico`)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-grid';" />`
+    : "";
+  const iconAndFallback = `${seerrIconHtml}<span class="seerr-request-fallback" aria-hidden="true">S</span>`;
+  return `
+    ${status.available ? `<span class="rating-pill seerr-owned-pill">Available</span>` : `
+      <button class="rating-pill seerr-request-btn" type="button"
+        data-seerr-media-type="${escapeAttribute(mediaType)}"
+        data-seerr-media-id="${escapeAttribute(String(tmdbId))}">
+        ${iconAndFallback}
+        <span>${status.pending ? "Requested on Seerr" : "Request on Seerr"}</span>
+      </button>
+    `}
+    ${supports4k && !status.available4k ? `
+      <button class="rating-pill seerr-request-btn seerr-request-btn-4k" type="button"
+        data-seerr-media-type="${escapeAttribute(mediaType)}"
+        data-seerr-media-id="${escapeAttribute(String(tmdbId))}"
+        data-seerr-request-4k="true">
+        ${iconAndFallback}
+        <span>${status.pending4k ? "4K Requested" : "Request 4K"}</span>
+      </button>
+    ` : status.available4k ? `
+      <span class="rating-pill seerr-owned-pill seerr-owned-pill-4k">4K Available</span>
+    ` : ""}
+  `;
+}
+
+function fetchSeerrMediaStatus(mediaType, tmdbId) {
+  if (!state.seerrConfigured || !tmdbId) return Promise.resolve(null);
+  const cacheKey = `${mediaType}:${tmdbId}`;
+  if (state.seerrMediaStatusCache.get(cacheKey)?.loading) return Promise.resolve(null);
+  state.seerrMediaStatusCache.set(cacheKey, { ...(state.seerrMediaStatusCache.get(cacheKey) || {}), loading: true });
+  return fetch(`/api/seerr/media-status?mediaType=${encodeURIComponent(mediaType)}&mediaId=${encodeURIComponent(tmdbId)}`, { headers: authHeaders() })
+    .then((response) => response.json().then((body) => ({ response, body })).catch(() => ({ response, body: {} })))
+    .then(({ response, body }) => {
+      if (!response.ok || !body.ok) throw new Error(body.error || `Seerr status failed with ${response.status}`);
+      state.seerrMediaStatusCache.set(cacheKey, { ...body, loading: false });
+      return body;
+    })
+    .catch(() => {
+      state.seerrMediaStatusCache.set(cacheKey, { loading: false });
+      return null;
+    });
+}
+
+function refreshActiveMediaDetailAfterSeerrStatus(mediaType, tmdbId) {
+  if (mediaType === "movie" && String(state.activeMovieTmdbId || "") === String(tmdbId)) {
+    openMovieImmersiveModalByTmdbId(tmdbId).catch(() => null);
+  } else if (mediaType === "tv" && String(state.activeShowTmdbId || "") === String(tmdbId)) {
+    openShowImmersiveModalByTmdbId(tmdbId).catch(() => null);
+  }
+}
+
 function renderExternalRatingPills(mediaType, tmdbData, title, rating = "") {
   const tmdbId = tmdbData?.id || tmdbData?.tmdb_id || "";
   const pills = [];
@@ -7281,6 +7368,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
           
           <div class="ratings-row">
             ${ratingBadgeHtml}
+            ${renderSeerrRequestPill("tv", show.tmdb_id)}
             ${sourceBadgesHtml ? `
               <div style="display: flex; gap: 0.25rem; align-items: center; margin-left: 0.5rem;">
                 <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase;">Platforms:</span>
@@ -7290,12 +7378,6 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
           </div>
 
           <p class="immersive-overview">${escapeHtml(overview)}</p>
-          ${state.seerrConfigured && show.tmdb_id ? `
-            <div class="immersive-actions" style="margin-top: 0.75rem;">
-              <button class="action-pill seerr-request-btn" type="button"
-                data-seerr-media-type="tv"
-                data-seerr-media-id="${escapeAttribute(String(show.tmdb_id))}">Request on Seerr</button>
-            </div>` : ""}
         </div>
       </header>
 
@@ -7355,6 +7437,8 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
       </section>
     </div>
   `;
+  fetchSeerrMediaStatus("tv", show.tmdb_id)
+    .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus("tv", show.tmdb_id); });
   hydratePosters(root);
 }
 
@@ -8045,6 +8129,7 @@ async function submitSeerrRequest(mediaType, mediaId, button) {
     setMessage("Cannot send Seerr request — missing media info.", "error");
     return;
   }
+  const is4k = button?.dataset?.seerrRequest4k === "true";
   const originalText = button?.textContent;
   if (button) {
     button.disabled = true;
@@ -8054,12 +8139,15 @@ async function submitSeerrRequest(mediaType, mediaId, button) {
     const res = await fetch("/api/seerr/request", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ mediaType, mediaId }),
+      body: JSON.stringify({ mediaType, mediaId, is4k }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok) {
-      setMessage("✔ Request submitted to Seerr!", "success");
+      setMessage(`✔ ${is4k ? "4K request" : "Request"} submitted to Seerr!`, "success");
       if (button) button.textContent = "✔ Requested";
+      state.seerrMediaStatusCache.delete(`${mediaType}:${mediaId}`);
+      fetchSeerrMediaStatus(mediaType, mediaId)
+        .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus(mediaType, mediaId); });
     } else {
       const errMsg = data.error || `Seerr returned ${res.status}`;
       setMessage(`Seerr error: ${errMsg}`, "error");
@@ -8718,6 +8806,7 @@ async function renderMovieImmersiveModalContent(movie) {
 
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
+            ${renderSeerrRequestPill("movie", movie.tmdb_id || tmdbData?.id)}
             <div class="avail-pills-row">
               ${renderAvailabilityPills(movie)}
             </div>
@@ -8767,6 +8856,9 @@ async function renderMovieImmersiveModalContent(movie) {
       ` : ""}
     </div>
   `;
+  const movieSeerrTmdbId = movie.tmdb_id || tmdbData?.id;
+  fetchSeerrMediaStatus("movie", movieSeerrTmdbId)
+    .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus("movie", movieSeerrTmdbId); });
   hydratePosters(root);
 }
 
@@ -8861,6 +8953,7 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
           
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
+            ${renderSeerrRequestPill("movie", tmdbId)}
             <div class="avail-pills-row">
               ${renderAvailabilityPills({})}
             </div>
@@ -8883,9 +8976,6 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
                 data-movie-title="${escapeAttribute(movieTitle)}"
                 data-movie-poster="${escapeAttribute(posterUrl)}"
                 data-movie-release="${escapeAttribute(tmdbData.release_date || "")}">${isSavingThisMovie ? "Saving watched state…" : "Mark watched"}</button>
-              ${state.seerrConfigured && tmdbId ? `<button class="action-pill seerr-request-btn" type="button"
-                data-seerr-media-type="movie"
-                data-seerr-media-id="${escapeAttribute(String(tmdbId))}">Request on Seerr</button>` : ""}
             </div>
           </section>
         </div>
@@ -8920,6 +9010,8 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
       ` : ""}
     </div>
   `;
+  fetchSeerrMediaStatus("movie", tmdbId)
+    .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus("movie", tmdbId); });
   hydratePosters(root);
 }
 

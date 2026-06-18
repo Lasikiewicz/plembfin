@@ -307,8 +307,9 @@ async function handleSeerrStatus(req, res) {
   }
 
   try {
+    const seerrHeaders = { "X-Api-Key": apiKey, Accept: "application/json" };
     const seerrRes = await fetch(`${baseUrl}/api/v1/auth/me`, {
-      headers: { "X-Api-Key": apiKey, Accept: "application/json" },
+      headers: seerrHeaders,
       signal: AbortSignal.timeout(8000),
     });
     if (!seerrRes.ok) {
@@ -316,7 +317,23 @@ async function handleSeerrStatus(req, res) {
       return sendJson(res, { ok: false, configured: true, error: `Seerr returned ${seerrRes.status}: ${text.slice(0, 200)}` }, 502);
     }
     const data = await seerrRes.json().catch(() => ({}));
-    return sendJson(res, { ok: true, configured: true, applicationTitle: data.displayName || data.username || "Seerr" });
+    const [radarrSettings, sonarrSettings] = await Promise.all([
+      fetch(`${baseUrl}/api/v1/settings/radarr`, {
+        headers: seerrHeaders,
+        signal: AbortSignal.timeout(8000),
+      }).then((response) => response.ok ? response.json() : []).catch(() => []),
+      fetch(`${baseUrl}/api/v1/settings/sonarr`, {
+        headers: seerrHeaders,
+        signal: AbortSignal.timeout(8000),
+      }).then((response) => response.ok ? response.json() : []).catch(() => []),
+    ]);
+    const radarrServers = Array.isArray(radarrSettings) ? radarrSettings : (radarrSettings?.radarrServers || radarrSettings?.servers || []);
+    const sonarrServers = Array.isArray(sonarrSettings) ? sonarrSettings : (sonarrSettings?.sonarrServers || sonarrSettings?.servers || []);
+    const capabilities = {
+      movie4k: Array.isArray(radarrServers) && radarrServers.some((server) => Boolean(server?.is4k)),
+      tv4k: Array.isArray(sonarrServers) && sonarrServers.some((server) => Boolean(server?.is4k)),
+    };
+    return sendJson(res, { ok: true, configured: true, applicationTitle: data.displayName || data.username || "Seerr", capabilities });
   } catch (err) {
     return sendJson(res, { ok: false, configured: true, error: err.message || "Connection failed" }, 502);
   }
@@ -344,6 +361,7 @@ async function handleSeerrRequest(req, res) {
 
   try {
     const payload = { mediaType, mediaId };
+    if (body.is4k) payload.is4k = true;
     if (mediaType === "tv" && body.seasons) payload.seasons = body.seasons;
 
     const seerrRes = await fetch(`${baseUrl}/api/v1/request`, {
@@ -361,6 +379,71 @@ async function handleSeerrRequest(req, res) {
     }
 
     return sendJson(res, { ok: true, requestId: responseBody?.id || null });
+  } catch (err) {
+    return sendJson(res, { ok: false, error: err.message || "Connection to Seerr failed" }, 502);
+  }
+}
+
+async function handleSeerrMediaStatus(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const config = await loadMediaConfig();
+  const { baseUrl, apiKey, disabled } = config.seerr || {};
+
+  if (disabled || !baseUrl || !apiKey) {
+    return sendJson(res, { ok: false, error: "Seerr is not configured or disabled." }, 503);
+  }
+
+  const mediaType = String(req.query.mediaType || "").trim();
+  const mediaId = Number(req.query.mediaId);
+  if (!mediaType || !mediaId) {
+    return sendJson(res, { ok: false, error: "mediaType and mediaId are required." }, 400);
+  }
+
+  const headers = { "X-Api-Key": apiKey, Accept: "application/json" };
+  const paths = [
+    `/api/v1/media/${mediaType}/${mediaId}`,
+    `/api/v1/${mediaType}/${mediaId}`,
+  ];
+
+  try {
+    let media = null;
+    for (const path of paths) {
+      const seerrRes = await fetch(`${baseUrl}${path}`, {
+        headers,
+        signal: AbortSignal.timeout(8000),
+      });
+      if (seerrRes.status === 404) continue;
+      const body = await seerrRes.json().catch(() => ({}));
+      if (!seerrRes.ok) {
+        const errMsg = body?.message || body?.error || `Seerr returned ${seerrRes.status}`;
+        return sendJson(res, { ok: false, error: errMsg }, 502);
+      }
+      media = body?.mediaInfo || body;
+      break;
+    }
+
+    const status = Number(media?.status ?? media?.mediaStatus ?? 0);
+    const status4k = Number(media?.status4k ?? media?.mediaStatus4k ?? 0);
+    const requested = Boolean(media?.requests?.length || media?.request || media?.requested);
+    const requested4k = Boolean(media?.requests?.some?.((request) => request?.is4k) || media?.request4k || media?.requested4k);
+    const available = Boolean(media?.available || status === 5);
+    const available4k = Boolean(media?.available4k || status4k === 5);
+    const pending = Boolean(requested || [2, 3, 4].includes(status));
+    const pending4k = Boolean(requested4k || [2, 3, 4].includes(status4k));
+
+    return sendJson(res, {
+      ok: true,
+      found: Boolean(media),
+      available,
+      available4k,
+      pending,
+      pending4k,
+      status,
+      status4k,
+    });
   } catch (err) {
     return sendJson(res, { ok: false, error: err.message || "Connection to Seerr failed" }, 502);
   }
@@ -2997,6 +3080,7 @@ async function dispatch(req, res) {
     if (path === "test-connection") return handleTestConnection(req, res);
     if (path === "test-plex-notifications") return handleTestPlexNotifications(req, res);
     if (path === "seerr/status") return handleSeerrStatus(req, res);
+    if (path === "seerr/media-status") return handleSeerrMediaStatus(req, res);
     if (path === "seerr/request") return handleSeerrRequest(req, res);
     if (path === "tmdb-poster") return handleTmdbPoster(req, res);
     if (path === "tmdb-profile") return handleTmdbProfile(req, res);

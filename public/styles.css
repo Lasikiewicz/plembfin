@@ -4079,20 +4079,69 @@ details[open] .tool-accordion-chevron::before {
 
 /* Seerr request button variant */
 .seerr-request-btn {
-  background: rgba(229, 168, 39, 0.1);
-  border-color: rgba(229, 168, 39, 0.35);
-  color: #e5a827;
+  min-height: 2rem;
+  background: rgba(88, 101, 242, 0.16);
+  border-color: rgba(94, 234, 212, 0.38);
+  color: #c7d2fe;
 }
 
 .seerr-request-btn:hover {
-  background: rgba(229, 168, 39, 0.2);
-  border-color: #e5a827;
-  color: #fcd34d;
+  background: rgba(88, 101, 242, 0.26);
+  border-color: #5eead4;
+  color: #ffffff;
+}
+
+.seerr-request-btn-4k {
+  background: rgba(20, 184, 166, 0.18);
+  border-color: rgba(94, 234, 212, 0.55);
+  color: #99f6e4;
+}
+
+.seerr-request-btn-4k:hover {
+  background: rgba(20, 184, 166, 0.28);
+  border-color: #99f6e4;
 }
 
 .seerr-request-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.seerr-request-icon,
+.seerr-request-fallback {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  border-radius: 3px;
+}
+
+.seerr-request-icon {
+  object-fit: contain;
+}
+
+.seerr-request-fallback {
+  display: inline-grid;
+  place-items: center;
+  background: #5865f2;
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+
+.seerr-request-icon + .seerr-request-fallback {
+  display: none;
+}
+
+.seerr-owned-pill {
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.14);
+  color: #86efac;
+}
+
+.seerr-owned-pill-4k {
+  border-color: rgba(94, 234, 212, 0.5);
+  background: rgba(20, 184, 166, 0.16);
+  color: #99f6e4;
 }
 
 .confirm-dialog-body {
@@ -4158,6 +4207,22 @@ body {
   height: 100%;
   margin: 0;
   gap: 0;
+}
+
+@media (min-width: 1024px) and (max-height: 1200px) {
+  .app-chassis {
+    width: 114.286vw;
+    height: 114.286vh;
+    zoom: 0.875;
+  }
+}
+
+@media (min-width: 1024px) and (max-height: 1080px) {
+  .app-chassis {
+    width: 133.333vw;
+    height: 133.333vh;
+    zoom: 0.75;
+  }
 }
 
 .topbar {
