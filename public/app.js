@@ -4910,10 +4910,14 @@ async function handleAlphaFilterClick(e) {
   btn.classList.add("alpha-current");
 
   function scrollToTarget(el) {
+    const pageShell = document.querySelector(".page-shell");
+    if (!pageShell) return;
     const headingEl = document.querySelector(".explorer-heading-sticky");
-    const topOffset = headingEl ? headingEl.getBoundingClientRect().bottom + 8 : 60;
-    const rect = el.getBoundingClientRect();
-    window.scrollTo({ top: window.scrollY + rect.top - topOffset, behavior: "smooth" });
+    const relativeTop = el.getBoundingClientRect().top - pageShell.getBoundingClientRect().top;
+    const isSticky = window.getComputedStyle(headingEl).position === "sticky";
+    const headingHeight = (headingEl && isSticky) ? headingEl.offsetHeight : 0;
+    const targetScrollTop = pageShell.scrollTop + relativeTop - headingHeight - 8;
+    pageShell.scrollTo({ top: targetScrollTop, behavior: "smooth" });
   }
 
   let target = panel.querySelector(`[data-alpha-letter="${letter}"]`);
@@ -5125,7 +5129,7 @@ function observeExplorerTmdbPrefetch(container) {
                   }
                 }
               }
-              const progressPill = el.querySelector(".show-progress-pill");
+              const progressPill = el.querySelector(".show-progress-bar-attached");
               if (progressPill && data?.number_of_episodes) {
                 const watched = parseInt(progressPill.dataset.watched || "0") || 0;
                 const total = data.number_of_episodes;
@@ -5643,11 +5647,11 @@ function renderShowRecord(show = {}) {
   return `
     <article class="folder-card" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
       <button class="folder-trigger" type="button" data-show-key="${escapeAttribute(showKey)}" style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block;">
-        <div style="position: relative; display: block; width: 100%;">
-          ${posterMarkup(latestEpisode, "explorer-folder-poster")}
-          <span class="show-progress-pill" data-watched="${episodeCount}" data-total="${totalEps}">
+        <div style="display: flex; flex-direction: column; width: 100%;">
+          <div class="show-progress-bar-attached" data-watched="${episodeCount}" data-total="${totalEps}">
             ${totalEps ? `${episodeCount}/${totalEps} Watched` : `${episodeCount} Watched`}
-          </span>
+          </div>
+          ${posterMarkup(latestEpisode, "explorer-folder-poster show-poster-attached")}
         </div>
         <div class="movie-card-body" style="margin-top: 0.5rem;">
           <b>${escapeHtml(displayTitle)}</b>

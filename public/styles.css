@@ -4843,6 +4843,10 @@ h1 {
     transition: max-height 300ms ease;
   }
 
+  .explorer-heading-sticky {
+    position: static !important;
+  }
+
   .topnav.nav-open {
     max-height: 100vh;
     overflow-y: auto;
@@ -5114,8 +5118,8 @@ h1 {
   /* Cast members - optimize for mobile */
   .cast-compact-row {
     display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 0.5rem !important;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)) !important;
+    gap: 0.75rem 0.5rem !important;
   }
 
   .cast-member-card {
@@ -5127,9 +5131,9 @@ h1 {
   .cast-avatar-img {
     width: 100% !important;
     height: auto !important;
-    max-height: 120px !important;
+    aspect-ratio: 2 / 3 !important;
     object-fit: cover !important;
-    border-radius: 4px !important;
+    border-radius: 6px !important;
   }
 
   .cast-actor-name,
@@ -6814,21 +6818,27 @@ details[open] > .tool-section-summary::before {
   }
 }
 
-.show-progress-pill {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  background: rgba(7, 10, 13, 0.72);
-  color: #fff;
-  padding: 0.2rem 0.5rem;
-  font-size: 0.72rem;
+.show-progress-bar-attached {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(14, 18, 22, 0.88);
+  color: #e5a00d;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.7rem;
   font-weight: 800;
-  border-radius: 999px;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  text-align: center;
+  border-radius: 10px 10px 0 0;
+  border: 1px solid var(--line);
+  border-bottom: none;
+  font-family: inherit;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   z-index: 2;
   pointer-events: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  font-family: inherit;
+}
+
+.show-poster-attached {
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
 }
