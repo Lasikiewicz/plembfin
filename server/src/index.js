@@ -2586,9 +2586,10 @@ async function handleMediaSearch(req, res) {
   const query = String(req.query.query || req.query.q || "").trim();
   if (query.length < 2) return sendJson(res, { error: "A search query of at least two characters is required" }, 400);
   try {
+    const localLimit = Math.min(Math.max(Number(req.query.limit || req.query.localLimit || 50), 1), 250);
     const [movies, shows, discovery] = await Promise.all([
-      queryMovies({ search: query, limit: 8 }),
-      queryShows({ search: query, limit: 8 }),
+      queryMovies({ search: query, limit: localLimit }),
+      queryShows({ search: query, limit: localLimit }),
       searchTmdb({ query, page: req.query.page, mediaType: req.query.mediaType || "multi" }),
     ]);
     return sendJson(res, { local: { movies, shows }, discovery });

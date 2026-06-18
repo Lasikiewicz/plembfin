@@ -10,7 +10,7 @@ import { fetchLocalActiveSessions } from "./modules/timeline.js";
 const BACKEND_KEEPALIVE_MS = 4 * 60 * 1000;
 function warmUpBackend() {
   try {
-    fetch("/api/ping", { cache: "no-store", keepalive: true }).catch(() => {});
+    fetch("/api/ping", { cache: "no-store", keepalive: true }).catch(() => { });
   } catch { /* non-fatal */ }
 }
 warmUpBackend();
@@ -57,7 +57,7 @@ const HIDE_WATCHED_KEY_SHOWS = "plembfin:hideWatched:shows";
 const HIDE_ENDED_KEY_SHOWS = "plembfin:hideEnded:shows";
 const EXPLORER_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_LIMIT = 24;
-const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help"];
+const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "search"];
 const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs"];
 
 const state = {
@@ -118,6 +118,10 @@ const state = {
   tmdbSeasonCache: new Map(),
   globalDiscoveryResults: new Map(),
   globalSearchRequestToken: 0,
+  searchQuery: "",
+  searchFilter: "all",
+  searchResults: [],
+  searchLoading: false,
   globalSearchRemoteTimer: undefined,
   explorerPageCache: new Map(),
   explorerLoadObserver: undefined,
@@ -1491,39 +1495,59 @@ function closeGlobalSearchDropdown() {
 function renderGlobalSearchDropdown(query) {
   closeGlobalSearchDropdown();
   const q = query.toLowerCase();
-  const results = [];
-  const seenShows = new Set();
-  const seenMovies = new Set();
 
-  // TV shows (deduplicated by title)
+  const movies = [];
+  const shows = [];
+  const people = [];
+
+  const seenMovies = new Set();
+  const seenShows = new Set();
+  const seenPeople = new Set();
+
+  // 1. Local TV shows (deduplicated by title)
   for (const s of (state.showsRaw || [])) {
-    if (results.length >= 4) break;
+    if (shows.length >= 5) break;
     if (!(s.title || "").toLowerCase().includes(q)) continue;
-    if (seenShows.has(s.title)) continue;
-    seenShows.add(s.title);
-    results.push({ _type: "show", title: s.title, poster: s.poster_url || s.posterUrl || "", href: `/tvshow/${slug(s.title)}`, sub: "TV Show" });
+    if (seenShows.has(s.title.toLowerCase())) continue;
+    seenShows.add(s.title.toLowerCase());
+    shows.push({
+      _type: "show",
+      title: s.title,
+      poster: s.poster_url || s.posterUrl || "",
+      href: `/tvshow/${slug(s.title)}`,
+      sub: "TV Show",
+      overview: "",
+      isLocal: true
+    });
   }
 
-  // Movies
+  // 2. Local Movies
   for (const m of (state.history || [])) {
-    if (results.length >= 7) break;
+    if (movies.length >= 5) break;
     if (m.media_type !== "movie") continue;
     if (!(m.title || "").toLowerCase().includes(q)) continue;
-    if (seenMovies.has(m.title)) continue;
-    seenMovies.add(m.title);
-    results.push({ _type: "movie", title: m.title, poster: m.poster_url || "", href: `/movie/${m.id}`, sub: "Movie" });
+    if (seenMovies.has(m.title.toLowerCase())) continue;
+    seenMovies.add(m.title.toLowerCase());
+    movies.push({
+      _type: "movie",
+      title: m.title,
+      poster: m.poster_url || "",
+      href: `/movie/${m.id}`,
+      sub: "Movie",
+      overview: "",
+      isLocal: true
+    });
   }
 
-  // Episodes (search episode title)
-  const seenEps = new Set();
+  // 3. Local Episodes (search episode title)
   for (const e of (state.history || [])) {
-    if (results.length >= 8) break;
+    if (shows.length >= 5) break;
     if (e.media_type !== "episode") continue;
     const epTitle = e.title || "";
     if (!epTitle.toLowerCase().includes(q)) continue;
-    const key = `${e.show_title}|${epTitle}`;
-    if (seenEps.has(key)) continue;
-    seenEps.add(key);
+    const key = `${e.show_title}|${epTitle}`.toLowerCase();
+    if (seenShows.has(key)) continue;
+    seenShows.add(key);
     const showTitle = e.show_title || showTitleFrom(epTitle);
     const showEntry = (state.showsRaw || []).find((s) => slug(s.title) === slug(showTitle));
     const poster = showEntry?.poster_url || showEntry?.posterUrl || e.poster_url || "";
@@ -1531,43 +1555,132 @@ function renderGlobalSearchDropdown(query) {
     const eNum = e.episode ? `E${String(e.episode).padStart(2, "0")}` : "";
     const coord = [sNum, eNum].filter(Boolean).join("·");
     const sub = [showTitle, coord, "Episode"].filter(Boolean).join(" · ");
-    results.push({ _type: "episode", title: epTitle, poster, href: `/tvshow/${slug(showTitle)}`, sub });
-  }
-
-  const discoveryState = state.globalDiscoveryResults.get(q);
-  for (const item of (discoveryState?.results || [])) {
-    if (results.length >= 14) break;
-    const mediaType = item.media_type || (item.title ? "movie" : "tv");
-    const title = item.title || item.name || "Unknown title";
-    const duplicate = results.some((result) => result._type !== "episode" && result.title.toLowerCase() === title.toLowerCase());
-    if (duplicate || !["movie", "tv"].includes(mediaType)) continue;
-    const year = (item.release_date || item.first_air_date || "").slice(0, 4);
-    results.push({
-      _type: mediaType === "movie" ? "movie" : "show",
-      title,
-      poster: tmdbPoster(item.poster_path),
-      href: mediaType === "movie" ? `/movie/tmdb/${item.id}` : `/tvshow/tmdb/${item.id}`,
-      sub: `${mediaType === "movie" ? "Movie" : "TV Show"}${year ? ` · ${year}` : ""} · TMDB`,
+    shows.push({
+      _type: "episode",
+      title: epTitle,
+      poster,
+      href: `/tvshow/${slug(showTitle)}`,
+      sub,
+      overview: "",
+      isLocal: true
     });
   }
 
-  if (!results.length && !discoveryState?.loading) return;
+  // 4. TMDB Discovery
+  const discoveryState = state.globalDiscoveryResults.get(q.trim());
+  for (const item of (discoveryState?.results || [])) {
+    const mediaType = item.media_type || (item.title ? "movie" : "tv");
+    if (!["movie", "tv", "person"].includes(mediaType)) continue;
+
+    const title = item.title || item.name || "Unknown title";
+    const overview = item.overview || (item.known_for ? `Known for: ${item.known_for.map(x => x.title || x.name).filter(Boolean).join(", ")}` : "");
+    const year = (item.release_date || item.first_air_date || "").slice(0, 4);
+
+    if (mediaType === "movie") {
+      if (movies.length >= 5) continue;
+      if (seenMovies.has(title.toLowerCase())) {
+        const existing = movies.find(m => m.title.toLowerCase() === title.toLowerCase());
+        if (existing && !existing.overview && overview) existing.overview = overview;
+        continue;
+      }
+      seenMovies.add(title.toLowerCase());
+      movies.push({
+        _type: "movie",
+        title,
+        poster: tmdbPoster(item.poster_path),
+        href: `/movie/tmdb/${item.id}`,
+        sub: `Movie${year ? ` · ${year}` : ""} · TMDB`,
+        overview,
+        isLocal: false
+      });
+    } else if (mediaType === "tv") {
+      if (shows.length >= 5) continue;
+      if (seenShows.has(title.toLowerCase())) {
+        const existing = shows.find(s => s.title.toLowerCase() === title.toLowerCase());
+        if (existing && !existing.overview && overview) existing.overview = overview;
+        continue;
+      }
+      seenShows.add(title.toLowerCase());
+      shows.push({
+        _type: "show",
+        title,
+        poster: tmdbPoster(item.poster_path),
+        href: `/tvshow/tmdb/${item.id}`,
+        sub: `TV Show${year ? ` · ${year}` : ""} · TMDB`,
+        overview,
+        isLocal: false
+      });
+    } else if (mediaType === "person") {
+      if (seenPeople.has(title.toLowerCase())) continue;
+      seenPeople.add(title.toLowerCase());
+      people.push({
+        _type: "person",
+        title,
+        poster: tmdbProfile(item.profile_path) || tmdbPoster(item.profile_path),
+        href: `/person/${item.id}`,
+        sub: "Cast Member",
+        overview,
+        isLocal: false
+      });
+    }
+  }
+
+  // Prioritize actor matching query at the top of the people list
+  people.sort((a, b) => {
+    const aIsMatch = a.title.toLowerCase() === q;
+    const bIsMatch = b.title.toLowerCase() === q;
+    if (aIsMatch && !bIsMatch) return -1;
+    if (!aIsMatch && bIsMatch) return 1;
+
+    const aIsPartial = a.title.toLowerCase().includes(q);
+    const bIsPartial = b.title.toLowerCase().includes(q);
+    if (aIsPartial && !bIsPartial) return -1;
+    if (!aIsPartial && bIsPartial) return 1;
+
+    return 0; // Maintain original order
+  });
+
+  const finalPeople = people.slice(0, 5);
+
+  if (!movies.length && !shows.length && !finalPeople.length && !discoveryState?.loading) return;
 
   const anchor = document.querySelector(".global-search");
   if (!anchor) return;
+
+  const renderItem = (r) => `
+    <button class="global-search-result" data-href="${escapeAttribute(r.href)}" tabindex="0">
+      ${r.poster ? `<img src="${escapeAttribute(r.poster)}" alt="" class="gsr-thumb" loading="lazy">` : `<span class="gsr-thumb gsr-thumb--empty"></span>`}
+      <span class="gsr-text">
+        <span class="gsr-title">${escapeHtml(r.title)}</span>
+        <span class="gsr-sub">${escapeHtml(r.sub)}</span>
+        ${r.overview ? `<span class="gsr-overview">${escapeHtml(r.overview)}</span>` : ""}
+      </span>
+    </button>`;
 
   const dd = document.createElement("div");
   dd.id = "globalSearchDropdown";
   dd.innerHTML = `
     <div class="gsd-header">Top Results for "<strong>${escapeHtml(query)}</strong>"</div>
-    ${results.map((r) => `
-      <button class="global-search-result" data-href="${escapeAttribute(r.href)}" tabindex="0">
-        ${r.poster ? `<img src="${escapeAttribute(r.poster)}" alt="" class="gsr-thumb" loading="lazy">` : `<span class="gsr-thumb gsr-thumb--empty"></span>`}
-        <span class="gsr-text">
-          <span class="gsr-title">${escapeHtml(r.title)}</span>
-          <span class="gsr-sub">${escapeHtml(r.sub)}</span>
-        </span>
-      </button>`).join("")}
+    <div class="gsd-columns">
+      <div class="gsd-column">
+        <div class="gsd-column-header">Movies</div>
+        <div class="gsd-column-list">
+          ${movies.length ? movies.map(renderItem).join("") : '<div class="gsd-column-empty">No matching movies</div>'}
+        </div>
+      </div>
+      <div class="gsd-column">
+        <div class="gsd-column-header">TV Shows</div>
+        <div class="gsd-column-list">
+          ${shows.length ? shows.map(renderItem).join("") : '<div class="gsd-column-empty">No matching TV shows</div>'}
+        </div>
+      </div>
+      <div class="gsd-column">
+        <div class="gsd-column-header">People</div>
+        <div class="gsd-column-list">
+          ${finalPeople.length ? finalPeople.map(renderItem).join("") : '<div class="gsd-column-empty">No matching people</div>'}
+        </div>
+      </div>
+    </div>
     ${discoveryState?.loading ? `<div class="gsd-loading">Searching TMDB…</div>` : ""}
     <button class="gsd-more" data-search="${escapeAttribute(query)}">View All Results</button>
   `;
@@ -1578,9 +1691,7 @@ function renderGlobalSearchDropdown(query) {
     const more = e.target.closest(".gsd-more");
     if (more) {
       closeGlobalSearchDropdown();
-      state.explorerSearch = more.dataset.search;
-      if (elements.explorerSearchInput) elements.explorerSearchInput.value = state.explorerSearch;
-      selectView("explorer");
+      navigateTo(`/search?q=${encodeURIComponent(more.dataset.search)}`);
       return;
     }
     const btn = e.target.closest(".global-search-result");
@@ -1978,7 +2089,7 @@ function openMergeShowDialog(targetTitle) {
 
 function logDebug(message, details) {
   state.debugLogs = appendDebugLog(state.debugLogs, message, details);
-  renderLogs().catch(() => {});
+  renderLogs().catch(() => { });
   return state.debugLogs.at(-1);
 }
 
@@ -2114,7 +2225,7 @@ function clearPersistentPosterLookupCache() {
   posterCacheMirror = null;
   try {
     localStorage.removeItem(persistentPosterCacheKey());
-  } catch (error) {}
+  } catch (error) { }
 }
 
 function cachedPosterLookup(posterId) {
@@ -2235,7 +2346,7 @@ function writePersistentExplorerCache(entries) {
 function clearPersistentExplorerPageCache() {
   try {
     localStorage.removeItem(persistentExplorerCacheKey());
-  } catch (error) {}
+  } catch (error) { }
 }
 
 function cachedExplorerPage(key) {
@@ -2466,7 +2577,7 @@ function hydratePosterImages(container = document.body) {
 
 function hydratePosters(container = document.body) {
   hydratePosterImages(container);
-  hydratePosterFallbacks(container).catch(() => {});
+  hydratePosterFallbacks(container).catch(() => { });
 }
 
 function snippet(code, language = "text") {
@@ -2584,15 +2695,15 @@ function sharedLibraryAvailability(entry = {}, states = telemetryTargetStates(en
 function getMediaTargetSyncStatus(entry = {}) {
   const activeTargets = getActiveTargets();
   const telemetry = String(entry.sync_dispatch_telemetry || entry.syncDispatchTelemetry || "");
-  
+
   if (telemetry.includes("Force Sync resolved status to success")) {
     return activeTargets.map(target => ({ target, status: "success" }));
   }
-  
+
   const states = telemetryTargetStates(telemetry);
   const source = String(entry.source || "").toLowerCase();
   const available = hasConfirmedMediaAvailability(entry, states);
-  
+
   return activeTargets.map((target) => {
     if (source === target || source.startsWith(`${target}_`)) {
       return { target, status: "success" };
@@ -2614,11 +2725,11 @@ function getMediaTargetSyncStatus(entry = {}) {
       }
       return { target, status: "skipped", detail: match.detail };
     }
-    
+
     if (telemetry.includes("Details: Historical import stored locally") || telemetry.includes("Origin: import")) {
       return { target, status: "skipped", hidden: true };
     }
-    
+
     if (!available) {
       return { target, status: "skipped", hidden: true };
     }
@@ -2715,16 +2826,16 @@ function showAvailIssuePopup(anchorEl) {
 function renderAvailabilityPills(entry = {}) {
   const activeTargets = getActiveTargets();
   if (!activeTargets.length) return "";
-  
+
   const telemetry = String(entry.sync_dispatch_telemetry || entry.syncDispatchTelemetry || "");
   const states = telemetryTargetStates(telemetry);
   const source = String(entry.source || "").toLowerCase();
   const sharedAvailability = sharedLibraryAvailability(entry, states);
-  
+
   return activeTargets.map((target) => {
     let statusClass = "pending";
     let issueDetail = "";
-    
+
     if (sharedAvailability) {
       statusClass = sharedAvailability.statusClass;
     } else if (source === target || source.startsWith(`${target}_`)) {
@@ -2760,7 +2871,7 @@ function renderAvailabilityPills(entry = {}) {
         }
       }
     }
-    
+
     const displayTarget = platformBadge(target);
     const issueAttr = (statusClass !== "success" && issueDetail) ? ` data-avail-issue="${escapeAttribute(issueDetail)}" role="button" tabindex="0" style="cursor:pointer;"` : "";
     return `<span class="target-pill avail-pill" data-status="${statusClass}"${issueAttr} title="${escapeAttribute(displayTarget)}">${escapeHtml(displayTarget)}</span>`;
@@ -2770,19 +2881,19 @@ function renderAvailabilityPills(entry = {}) {
 function renderShowAvailabilityPills(show = {}) {
   const activeTargets = getActiveTargets();
   if (!activeTargets.length) return "";
-  
+
   const episodes = show.episodes || [];
   const watchedEpisodes = episodes.filter(e => isWatchedHistoryAction(e));
   const sharedAvailable = watchedEpisodes.some((episode) => sharedLibraryAvailability(episode));
-  
+
   return activeTargets.map((target) => {
     let statusClass = "pending";
     let issueDetail = "";
-    
+
     let anyAvailable = false;
     let anyChecked = false;
     let allUnavailable = true;
-    
+
     for (const ep of watchedEpisodes) {
       const source = String(ep.source || "").toLowerCase();
       if (source === target || source.startsWith(`${target}_`)) {
@@ -2791,7 +2902,7 @@ function renderShowAvailabilityPills(show = {}) {
         allUnavailable = false;
         break;
       }
-      
+
       const telemetry = String(ep.sync_dispatch_telemetry || ep.syncDispatchTelemetry || "");
       const states = telemetryTargetStates(telemetry);
       const match = states.find((s) => s.target === target);
@@ -2810,7 +2921,7 @@ function renderShowAvailabilityPills(show = {}) {
         allUnavailable = false;
       }
     }
-    
+
     if (sharedAvailable || anyAvailable) {
       statusClass = "success";
     } else if (anyChecked && allUnavailable && watchedEpisodes.length > 0) {
@@ -2820,7 +2931,7 @@ function renderShowAvailabilityPills(show = {}) {
       statusClass = "pending";
       issueDetail = `${platformBadge(target)} availability is still being determined. Steps to fix:\n1. Use Force Sync to push watched-state to all platforms.\n2. Check the Sync Jobs panel for details.\n3. Verify ${platformBadge(target)} credentials in Settings.`;
     }
-    
+
     const displayTarget = platformBadge(target);
     const issueAttr = (statusClass !== "success" && issueDetail) ? ` data-avail-issue="${escapeAttribute(issueDetail)}" role="button" tabindex="0" style="cursor:pointer;"` : "";
     return `<span class="target-pill avail-pill" data-status="${statusClass}"${issueAttr} title="${escapeAttribute(displayTarget)}">${escapeHtml(displayTarget)}</span>`;
@@ -2830,22 +2941,22 @@ function renderShowAvailabilityPills(show = {}) {
 function renderMediaSyncPills(entry = {}, showRetry = true) {
   const activeTargets = getActiveTargets();
   if (!activeTargets.length) return "";
-  
+
   const statuses = getMediaTargetSyncStatus(entry).filter((s) => !s.hidden);
   if (!statuses.length) return "";
   const allSynced = statuses.every((s) => s.status === "success" || s.status === "skipped");
-  
+
   const pillsHtml = statuses
     .map((s) => {
       const statusClass = s.status === "success" ? "success" : s.status === "pending" ? "pending" : "error";
       return `<span class="target-pill" data-status="${statusClass}" style="font-size: 0.62rem; padding: 0.1rem 0.35rem; margin-right: 0.2rem;" title="${escapeAttribute(`${platformBadge(s.target)}: ${s.status}`)}">${escapeHtml(platformBadge(s.target))}</span>`;
     })
     .join("");
-    
+
   const retryButtonHtml = (showRetry && !allSynced)
     ? `<button class="retry-sync-btn" type="button" data-retry-sync-id="${escapeAttribute(entry.id)}" title="Retry syncing watched state to all platforms">Retry</button>`
     : "";
-    
+
   return `
     <div class="media-sync-row">
       <div class="media-sync-pills">
@@ -3282,8 +3393,8 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
   `;
 }
 
-      function rebuildPlaystateGuide() {
-        return `
+function rebuildPlaystateGuide() {
+  return `
           <p><b>scripts/rebuildPlaystateDatabase.js</b> is the one-time database reset tool for rebuilding Plembfin from a Trakt export and the latest live Plex state. It preserves saved server/admin settings, clears media history and sync state, imports Trakt and Plex history, writes canonical playstate rows, then converges Plex, Emby, and Jellyfin.</p>
           <p>Run the dry run first. It reads the Trakt export folder and configured media server APIs, but does not write because <code>--write</code> is omitted. Only run the write command after the convergence plan looks safe.</p>
           <section class="guide-callout">
@@ -3312,10 +3423,10 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
             </div>
           </section>
         `;
-      }
+}
 
-      function exportPlexHistoryGuide() {
-        return `
+function exportPlexHistoryGuide() {
+  return `
           <p><b>scripts/exportPlexHistory.js</b> can be adapted for this Firebase repo if you later choose to seed old Plex history. Webhooks and live session polling only see future activity, while this Firebase version intentionally starts with an empty Firestore archive.</p>
           <p>Use it once when you want to bootstrap a fresh deployment, or again if you are migrating an existing Plex library and need the cloud history to reflect years of prior viewing. The script does not need the browser open after launch; it reads the local configuration block, streams rows to the import API in batches, and finishes with a deterministic summary.</p>
           <section class="guide-callout">
@@ -3354,10 +3465,10 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
       Ecosystem is fully synchronized and ready for live playback tracking.`)}
           </section>
         `;
-      }
+}
 
-      function forcePushHistoryGuide() {
-        return `
+function forcePushHistoryGuide() {
+  return `
           <p><b>scripts/forcePushHistory.js</b> is the ecosystem equalizer if you later add it to this Firebase repo. It reads the master Firestore-backed history archive from your website, resolves each row against Plex, Emby, and Jellyfin, and replays the played state back out through their APIs so all three servers converge on the same watch record.</p>
           <p>It is meant for catch-up and repair, not for routine polling. Use it when you want to reconcile a clean server, recover from a migration, or make a newly joined platform match the canonical watch archive with no manual checkbox clicking.</p>
           <section class="guide-callout">
@@ -3393,17 +3504,17 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
       🎉 [SUCCESS] Outward catch-up synchronization task completed across all servers!`)}
           </section>
         `;
-      }
+}
 
-      const HELP_TOPICS = [
-        // ── Overview ──────────────────────────────────────────────────────
-        {
-          id: "getting-started",
-          category: "Overview",
-          title: "Getting Started",
-          description: "Initial setup from Firebase auth to first webhook",
-          badges: ["FIREBASE_AUTH", "PLEX_URL", "EMBY_API_KEY", "JELLYFIN_API_KEY"],
-          body: () => `
+const HELP_TOPICS = [
+  // ── Overview ──────────────────────────────────────────────────────
+  {
+    id: "getting-started",
+    category: "Overview",
+    title: "Getting Started",
+    description: "Initial setup from Firebase auth to first webhook",
+    badges: ["FIREBASE_AUTH", "PLEX_URL", "EMBY_API_KEY", "JELLYFIN_API_KEY"],
+    body: () => `
             <p>Plembfin is a self-hosted watch-state bridge. It listens for playback events from Plex, Emby, and Jellyfin via webhooks, records them in a local SQLite database, and propagates the watched or unwatched state to every other connected platform automatically. A background worker runs every minute so sync continues even when the dashboard is closed.</p>
             <p>Follow these steps to get from zero to a fully synchronised setup:</p>
             <ol>
@@ -3417,82 +3528,82 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
             <p>When a webhook event arrives at <code>/api/webhook</code>, Plembfin normalises the payload from whichever server sent it into a unified media object. The <code>phase</code> field drives the response: active playback upserts a live session; a completed watch inserts a <code>watch_history</code> record and triggers immediate propagation to the other platforms; an unplayed event deletes the record and marks it unwatched everywhere. A loop-detection store prevents echo loops when the propagation itself fires a webhook back.</p>
             <p>The scheduled worker runs every minute in-process. It polls active sessions, detects completed watches that crossed the 90% threshold, dispatches any outstanding sync jobs, and checks recent Plex items for unwatched removals — even when the dashboard is closed.</p>
           `,
-        },
+  },
 
-        // ── Credentials ───────────────────────────────────────────────────
-        {
-          id: "firebase-auth",
-          category: "Credentials",
-          title: "Admin Sign-In",
-          description: "Local username/password and API key",
-          badges: ["FIREBASE_AUTH"],
-          body: () => `
+  // ── Credentials ───────────────────────────────────────────────────
+  {
+    id: "firebase-auth",
+    category: "Credentials",
+    title: "Admin Sign-In",
+    description: "Local username/password and API key",
+    badges: ["FIREBASE_AUTH"],
+    body: () => `
             <p>Plembfin uses a local username and password to gate access to the dashboard, and an API key to gate webhooks and external integrations. Every <code>/api/*</code> request is verified server-side — unauthenticated requests are rejected before they touch the database.</p>
             ${adminTokenGuide()}
           `,
-        },
-        {
-          id: "plex",
-          category: "Credentials",
-          title: "Plex",
-          description: "Server URL and token extraction",
-          badges: ["PLEX_URL", "PLEX_TOKEN"],
-          body: () => `
+  },
+  {
+    id: "plex",
+    category: "Credentials",
+    title: "Plex",
+    description: "Server URL and token extraction",
+    badges: ["PLEX_URL", "PLEX_TOKEN"],
+    body: () => `
             <p>Plembfin connects to your Plex server directly using its local or remote URL and a user token. The token identifies the account whose watch state is read and updated. Enter both in <b>Settings → Apps → Plex Setup</b> and click Save Configuration.</p>
             ${plexCredentialGuide()}
           `,
-        },
-        {
-          id: "emby",
-          category: "Credentials",
-          title: "Emby",
-          description: "API key, server URL, and user ID",
-          badges: ["EMBY_API_KEY", "EMBY_USER_ID"],
-          body: () => `
+  },
+  {
+    id: "emby",
+    category: "Credentials",
+    title: "Emby",
+    description: "API key, server URL, and user ID",
+    badges: ["EMBY_API_KEY", "EMBY_USER_ID"],
+    body: () => `
             <p>Plembfin uses the Emby HTTP API to read and write watch states. You need a server-level API key (not a user password) and the internal user ID of the account whose playstate should be synchronised. Enter these in <b>Settings → Apps → Emby Setup</b> and click Save Configuration.</p>
             ${embyCredentialGuide()}
           `,
-        },
-        {
-          id: "jellyfin",
-          category: "Credentials",
-          title: "Jellyfin",
-          description: "API key, server URL, and user ID",
-          badges: ["JELLYFIN_API_KEY", "JELLYFIN_USER_ID"],
-          body: () => `
+  },
+  {
+    id: "jellyfin",
+    category: "Credentials",
+    title: "Jellyfin",
+    description: "API key, server URL, and user ID",
+    badges: ["JELLYFIN_API_KEY", "JELLYFIN_USER_ID"],
+    body: () => `
             <p>Plembfin uses the Jellyfin HTTP API to read and write watch states. You need a server-level API key generated in the Jellyfin admin dashboard and the internal user ID of the account whose playstate should be synchronised. Enter these in <b>Settings → Apps → Jellyfin Setup</b> and click Save Configuration.</p>
             ${jellyfinCredentialGuide()}
           `,
-        },
+  },
 
-        // ── Webhooks ──────────────────────────────────────────────────────
-        {
-          id: "webhooks",
-          category: "Webhooks",
-          title: "Webhook Setup",
-          description: "Configuring Plex, Emby, and Jellyfin to send events",
-          badges: ["FIREBASE_AUTH"],
-          body: () => {
-            const url = `${window.location.origin}/api/webhook`;
-            return `
+  // ── Webhooks ──────────────────────────────────────────────────────
+  {
+    id: "webhooks",
+    category: "Webhooks",
+    title: "Webhook Setup",
+    description: "Configuring Plex, Emby, and Jellyfin to send events",
+    badges: ["FIREBASE_AUTH"],
+    body: () => {
+      const url = `${window.location.origin}/api/webhook`;
+      return `
               <p>Webhooks are how your media servers notify Plembfin the moment something is watched, paused, stopped, or marked as unplayed. Each server needs to be told where to send events — that is your unique webhook URL below. Plembfin accepts events from all three platforms on the same endpoint and normalises them into a single internal format.</p>
               <p>Your webhook URL:</p>
               ${snippet(url, "url")}
               ${webhookWarning()}
             `;
-          },
-        },
+    },
+  },
 
-        // ── Sync ──────────────────────────────────────────────────────────
-        {
-          id: "sync-worker",
-          category: "Sync",
-          title: "Background Sync Worker",
-          description: "Cron schedule, resume sync, and loop detection",
-          badges: ["FIREBASE_AUTH"],
-          body: () => {
-            const url = `${window.location.origin}/api/webhook`;
-            return `
+  // ── Sync ──────────────────────────────────────────────────────────
+  {
+    id: "sync-worker",
+    category: "Sync",
+    title: "Background Sync Worker",
+    description: "Cron schedule, resume sync, and loop detection",
+    badges: ["FIREBASE_AUTH"],
+    body: () => {
+      const url = `${window.location.origin}/api/webhook`;
+      return `
               <p>Plembfin keeps your watch states converged through two complementary mechanisms: immediate webhook propagation for real-time events, and a scheduled background worker for polling, catch-up, and recovery.</p>
               <h3>What the worker does each minute</h3>
               <ul>
@@ -3508,15 +3619,15 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
               <p>When Plembfin propagates a watch event to Emby or Jellyfin, that server fires its own webhook back to Plembfin. The <code>loopStore</code> in-memory map tracks recently-processed events keyed by platform and media identifier. Any incoming webhook that matches a recently-dispatched event is detected as an echo and dropped before it can trigger another propagation round.</p>
               ${cronSyncGuide()}
             `;
-          },
-        },
-        {
-          id: "sync-dashboard",
-          category: "Sync",
-          title: "Sync Dashboard",
-          description: "Reading the job queue and sync history panels",
-          badges: [],
-          body: () => `
+    },
+  },
+  {
+    id: "sync-dashboard",
+    category: "Sync",
+    title: "Sync Dashboard",
+    description: "Reading the job queue and sync history panels",
+    badges: [],
+    body: () => `
             <p>The <b>Settings → Sync</b> tab shows the current state of the sync queue and a log of recent propagation attempts. Use it to diagnose failures, check whether outstanding jobs are backed up, or confirm that a specific watched item was sent successfully.</p>
             <h3>Job queue</h3>
             <p>Each row in the sync jobs panel represents a <code>watchHistory</code> record that has at least one platform it still needs to reach. The row shows the media title, the target platform, the last attempt timestamp, and the current status. Rows clear automatically once all targets confirm success.</p>
@@ -3524,26 +3635,26 @@ Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
             <h3>Sync history</h3>
             <p>The history panel shows the most recent sync dispatch results in reverse chronological order. Each row records the media title, the target platform, the HTTP status the platform returned, and whether the dispatch succeeded or failed. Persistent failures on a specific platform usually indicate a credential or connectivity problem — open <b>Settings → Tools → System Integrity Check</b> to probe that server directly.</p>
           `,
-        },
+  },
 
-        // ── Scripts ───────────────────────────────────────────────────────
-        {
-          id: "rebuild-playstate",
-          category: "Scripts",
-          title: "Rebuild Playstate Database",
-          description: "Full reset and reimport from a Trakt export + live Plex state",
-          badges: ["FIREBASE_AUTH", "PLEX_TOKEN", "EMBY_API_KEY", "JELLYFIN_API_KEY"],
-          body: () => rebuildPlaystateGuide(),
-        },
-        {
-          id: "force-push-history",
-          category: "Scripts",
-          title: "Force Push History",
-          description: "Replay the Firestore archive to Emby and Jellyfin",
-          badges: ["EMBY_API_KEY", "EMBY_USER_ID", "JELLYFIN_API_KEY", "JELLYFIN_USER_ID"],
-          body: () => forcePushHistoryGuide(),
-        },
-      ];
+  // ── Scripts ───────────────────────────────────────────────────────
+  {
+    id: "rebuild-playstate",
+    category: "Scripts",
+    title: "Rebuild Playstate Database",
+    description: "Full reset and reimport from a Trakt export + live Plex state",
+    badges: ["FIREBASE_AUTH", "PLEX_TOKEN", "EMBY_API_KEY", "JELLYFIN_API_KEY"],
+    body: () => rebuildPlaystateGuide(),
+  },
+  {
+    id: "force-push-history",
+    category: "Scripts",
+    title: "Force Push History",
+    description: "Replay the Firestore archive to Emby and Jellyfin",
+    badges: ["EMBY_API_KEY", "EMBY_USER_ID", "JELLYFIN_API_KEY", "JELLYFIN_USER_ID"],
+    body: () => forcePushHistoryGuide(),
+  },
+];
 
 function setMessage(text, tone = "muted") {
   elements.message.textContent = text;
@@ -3566,13 +3677,14 @@ function handleRouting(path) {
   const pathPart = parts[0];
   const hashPart = parts[1] || "";
 
-  const pathname = pathPart.endsWith("/") && pathPart.length > 1 ? pathPart.slice(0, -1) : pathPart;
+  const pathPartNoQuery = pathPart.split('?')[0];
+  const pathname = pathPartNoQuery.endsWith("/") && pathPartNoQuery.length > 1 ? pathPartNoQuery.slice(0, -1) : pathPartNoQuery;
   const previousExplorerListRoute = state.activeView === "explorer" && !state.mediaDetailInline
     ? (state.explorerMode === "shows" ? "/tvshows" : "/movies")
     : "";
   const isExplorerListRoute = pathname === "/movies" || pathname === "/tvshows";
   if (!isExplorerListRoute || (previousExplorerListRoute && previousExplorerListRoute !== pathname)) clearSearchInputs();
-  
+
   if (!pathname.startsWith("/person")) {
     if (elements.personModal) {
       elements.personModal.classList.add("hidden");
@@ -3685,6 +3797,19 @@ function handleRouting(path) {
     state.activeView = "stats";
     state.mediaDetailInline = false;
     clearMediaDetailState();
+  } else if (pathname === "/search") {
+    state.activeView = "search";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
+    let query = "";
+    try {
+      const u = new URL(path, window.location.origin);
+      query = u.searchParams.get("q") || u.searchParams.get("query") || "";
+    } catch {
+      const searchParams = new URLSearchParams(window.location.search);
+      query = searchParams.get("q") || searchParams.get("query") || "";
+    }
+    triggerSearchPage(query);
   } else if (pathname === "/sync") {
     state.activeView = "settings";
     state.activeSettingsTab = "sync";
@@ -3759,7 +3884,7 @@ function selectView(view) {
   const requestedView = legacyImporterView ? "settings" : view;
   const legacySettingsTab = legacyImporterView ? "tools" : null;
   const targetView = PRIMARY_VIEWS.includes(requestedView) ? requestedView : "dashboard";
-  
+
   let url = "/";
   if (state.mediaDetailInline) {
     const personMatch = window.location.pathname.match(/^\/person\/(\d+)$/);
@@ -3794,10 +3919,13 @@ function selectView(view) {
     url = `/settings/${legacySettingsTab || state.activeSettingsTab}`;
   } else if (targetView === "help") {
     url = `/help/${state.activeHelpTopic}`;
+  } else if (targetView === "search") {
+    const q = state.searchQuery || new URLSearchParams(window.location.search).get("q") || "";
+    url = `/search${q ? `?q=${encodeURIComponent(q)}` : ""}`;
   } else if (targetView !== "dashboard") {
     url = `/${targetView}`;
   }
-  
+
   const currentUrl = window.location.pathname + window.location.hash;
   if (currentUrl !== url) {
     navigateTo(url);
@@ -3860,6 +3988,7 @@ function applyActiveView() {
     loadStats().catch((error) => setMessage(error.message, "error"));
   }
   if (state.activeView === "explorer") renderExplorer();
+  if (state.activeView === "search") renderSearchPage();
   if (state.activeView !== "explorer") {
     state.explorerLoadObserver?.disconnect();
     state.explorerLoadObserver = undefined;
@@ -3909,7 +4038,7 @@ function applyActiveView() {
       const backupsSubMenu = document.querySelector("#sidebarBackupsMenu");
       if (backupsSubMenu) backupsSubMenu.classList.add("hidden");
     }
-    if (state.activeSettingsTab === "logs") renderLogs().catch(() => {});
+    if (state.activeSettingsTab === "logs") renderLogs().catch(() => { });
     if (state.configLoaded) {
       renderSettingsStatus("Configuration ready.", "success");
     }
@@ -3986,7 +4115,7 @@ function populateConfigForm(config = {}) {
   elements.tmdbApiKey.value = "";
   elements.tmdbApiKey.placeholder = config.tmdb?.configured ? "Configured - enter a new key to replace it" : "TMDB API key";
   if (elements.youtubeApiKey) elements.youtubeApiKey.value = config.youtube?.apiKey || "";
-  
+
   syncSettingsInputsDisabledState();
 }
 
@@ -4111,10 +4240,10 @@ async function saveSavedConfig() {
 async function saveSectionConfig(section) {
   const buttonId = `save${section.charAt(0).toUpperCase() + section.slice(1)}ConfigButton`;
   const statusId = `${section}ConfigStatus`;
-  
+
   const button = elements[buttonId];
   const statusEl = elements[statusId];
-  
+
   const originalText = button ? button.textContent : "";
   if (button) {
     button.disabled = true;
@@ -4181,7 +4310,7 @@ async function saveSectionConfig(section) {
 
     state.configLoaded = true;
     clearDerivedUiCaches();
-    
+
     if (statusEl) {
       statusEl.textContent = "Saved successfully.";
       statusEl.className = "message success";
@@ -4762,8 +4891,8 @@ function renderRankingTable(container, rows = [], labelKey) {
         <span>Watch count</span>
       </div>
       ${rows
-        .map(
-          (row, index) => `
+      .map(
+        (row, index) => `
             <article class="ranking-row">
               <span>${index + 1}</span>
               <b>${escapeHtml(labelKey === "platform" ? platformName(row.source) : row.title)}</b>
@@ -4771,8 +4900,8 @@ function renderRankingTable(container, rows = [], labelKey) {
               <em>${formatNumber(row.count)}</em>
             </article>
           `,
-        )
-        .join("")}
+      )
+      .join("")}
     </div>
   `;
 }
@@ -4822,6 +4951,231 @@ function syncInlineMediaDetailHeading(mode = state.explorerMode || "movies") {
   }
   if (elements.explorerSubtitle) {
     elements.explorerSubtitle.textContent = "";
+  }
+}
+
+function triggerSearchPage(query) {
+  state.searchQuery = query;
+  state.searchLoading = true;
+  state.searchResults = [];
+
+  const titleEl = document.getElementById("searchViewTitle");
+  if (titleEl) titleEl.textContent = `Search Results for "${query}"`;
+
+  const loadingEl = document.getElementById("searchViewLoading");
+  const emptyEl = document.getElementById("searchViewEmpty");
+  const resultsEl = document.getElementById("searchViewResults");
+
+  loadingEl?.classList.remove("hidden");
+  emptyEl?.classList.add("hidden");
+  if (resultsEl) resultsEl.innerHTML = "";
+
+  fetch(`/api/media-search?q=${encodeURIComponent(query)}&limit=100`, { headers: authHeaders() })
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then((body) => {
+      state.searchLoading = false;
+      const results = [];
+      const seenTitles = new Set();
+
+      // Local Shows
+      const localShows = body.local?.shows || [];
+      for (const s of localShows) {
+        const title = s.title || "";
+        const slugTitle = slug(title);
+        seenTitles.add(slugTitle);
+        results.push({
+          _type: "show",
+          title,
+          poster: s.poster_url || "",
+          href: `/tvshow/${slugTitle}`,
+          sub: "TV Show (Local)",
+          overview: "",
+          isLocal: true,
+          mediaType: "tv"
+        });
+      }
+
+      // Local Movies
+      const localMovies = body.local?.movies || [];
+      for (const m of localMovies) {
+        const title = m.title || "";
+        const slugTitle = slug(title);
+        seenTitles.add(slugTitle);
+        results.push({
+          _type: "movie",
+          title,
+          poster: m.poster_url || "",
+          href: `/movie/${m.id}`,
+          sub: "Movie (Local)",
+          overview: "",
+          isLocal: true,
+          mediaType: "movie"
+        });
+      }
+
+      // TMDB Discovery results (Movies, Shows, People)
+      const discovery = body.discovery?.results || [];
+      for (const item of discovery) {
+        const mediaType = item.media_type || (item.title ? "movie" : "tv");
+        if (!["movie", "tv", "person"].includes(mediaType)) continue;
+
+        const title = item.title || item.name || "Unknown title";
+        const slugTitle = slug(title);
+        const overview = item.overview || (item.known_for ? `Known for: ${item.known_for.map(x => x.title || x.name).filter(Boolean).join(", ")}` : "");
+
+        const existing = results.find((result) => result.mediaType === mediaType && result.title.toLowerCase() === title.toLowerCase());
+        if (existing) {
+          if (!existing.overview && overview) {
+            existing.overview = overview;
+          }
+          continue;
+        }
+
+        const year = (item.release_date || item.first_air_date || "").slice(0, 4);
+        results.push({
+          _type: mediaType === "person" ? "person" : (mediaType === "movie" ? "movie" : "show"),
+          title,
+          poster: mediaType === "person" ? (tmdbProfile(item.profile_path) || tmdbPoster(item.profile_path)) : tmdbPoster(item.poster_path),
+          href: mediaType === "person" ? `/person/${item.id}` : (mediaType === "movie" ? `/movie/tmdb/${item.id}` : `/tvshow/tmdb/${item.id}`),
+          sub: mediaType === "person" ? "Cast Member" : `${mediaType === "movie" ? "Movie" : "TV Show"}${year ? ` · ${year}` : ""} · TMDB`,
+          overview,
+          isLocal: false,
+          mediaType
+        });
+      }
+
+      // Prioritize actor matching query at the top
+      const qLower = query.toLowerCase();
+      results.sort((a, b) => {
+        const aIsPersonMatch = a.mediaType === "person" && a.title.toLowerCase() === qLower;
+        const bIsPersonMatch = b.mediaType === "person" && b.title.toLowerCase() === qLower;
+        if (aIsPersonMatch && !bIsPersonMatch) return -1;
+        if (!aIsPersonMatch && bIsPersonMatch) return 1;
+
+        const aIsPersonPartial = a.mediaType === "person" && a.title.toLowerCase().includes(qLower);
+        const bIsPersonPartial = b.mediaType === "person" && b.title.toLowerCase().includes(qLower);
+        if (aIsPersonPartial && !bIsPersonPartial) return -1;
+        if (!aIsPersonPartial && bIsPersonPartial) return 1;
+
+        return 0; // Maintain original order
+      });
+
+      state.searchResults = results;
+      renderSearchPage();
+    })
+    .catch((error) => {
+      state.searchLoading = false;
+      console.error("Search failed", error);
+      loadingEl?.classList.add("hidden");
+      emptyEl?.classList.remove("hidden");
+      if (emptyEl) emptyEl.textContent = `Search failed: ${error.message}`;
+    });
+}
+
+function renderSearchPage() {
+  const loadingEl = document.getElementById("searchViewLoading");
+  const emptyEl = document.getElementById("searchViewEmpty");
+  const resultsEl = document.getElementById("searchViewResults");
+
+  if (state.searchLoading) {
+    loadingEl?.classList.remove("hidden");
+    emptyEl?.classList.add("hidden");
+    if (resultsEl) resultsEl.innerHTML = "";
+    return;
+  }
+
+  loadingEl?.classList.add("hidden");
+
+  const allResults = state.searchResults || [];
+  if (!allResults.length) {
+    emptyEl?.classList.remove("hidden");
+    if (resultsEl) resultsEl.innerHTML = "";
+    return;
+  }
+
+  emptyEl?.classList.add("hidden");
+
+  const renderCard = (r) => {
+    const posterHtml = r.poster 
+      ? `<img src="${escapeAttribute(r.poster)}" alt="" class="overview-thumb-poster" loading="lazy">`
+      : `<div class="overview-thumb-poster poster-fallback" style="display: flex; align-items: center; justify-content: center; color: var(--muted); height: 100%; min-height: 160px;"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg></div>`;
+
+    const badgesHtml = r.isLocal 
+      ? `<span class="status-pill status-success" style="font-size: 0.65rem; padding: 0.1rem 0.3rem;">Local</span>`
+      : `<span class="status-pill status-muted" style="font-size: 0.65rem; padding: 0.1rem 0.3rem;">TMDB</span>`;
+
+    return `
+      <article class="explorer-overview-card" data-href="${escapeAttribute(r.href)}">
+        <div style="width: 100%; height: 100%; position: relative;">
+          ${posterHtml}
+        </div>
+        <div class="overview-card-meta">
+          <div class="overview-card-header">
+            <b style="font-size: 0.95rem; font-weight: 800;">${escapeHtml(r.title)}</b>
+            <div class="overview-card-badges">
+              ${badgesHtml}
+            </div>
+          </div>
+          <div class="overview-card-attrs">${escapeHtml(r.sub)}</div>
+          <p class="overview-card-text" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-top: 0.25rem;">${escapeHtml(r.overview || "No synopsis available.")}</p>
+        </div>
+      </article>
+    `;
+  };
+
+  if (state.searchFilter === "all") {
+    const movies = allResults.filter(r => r.mediaType === "movie");
+    const shows = allResults.filter(r => r.mediaType === "tv");
+    const people = allResults.filter(r => r.mediaType === "person");
+
+    if (resultsEl) {
+      resultsEl.className = ""; // clear default grid class for flex columns
+      resultsEl.innerHTML = `
+        <div class="search-columns">
+          <div class="search-column">
+            <h3 class="search-column-title">Movies (${movies.length})</h3>
+            <div class="search-column-grid">
+              ${movies.length ? movies.map(renderCard).join("") : '<div class="gsd-column-empty">No matching movies</div>'}
+            </div>
+          </div>
+          <div class="search-column">
+            <h3 class="search-column-title">TV Shows (${shows.length})</h3>
+            <div class="search-column-grid">
+              ${shows.length ? shows.map(renderCard).join("") : '<div class="gsd-column-empty">No matching TV shows</div>'}
+            </div>
+          </div>
+          <div class="search-column">
+            <h3 class="search-column-title">People (${people.length})</h3>
+            <div class="search-column-grid">
+              ${people.length ? people.map(renderCard).join("") : '<div class="gsd-column-empty">No matching people</div>'}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  } else {
+    let filtered = allResults;
+    if (state.searchFilter === "movies") {
+      filtered = allResults.filter((r) => r.mediaType === "movie");
+    } else if (state.searchFilter === "shows") {
+      filtered = allResults.filter((r) => r.mediaType === "tv");
+    } else if (state.searchFilter === "people") {
+      filtered = allResults.filter((r) => r.mediaType === "person");
+    }
+
+    if (!filtered.length) {
+      emptyEl?.classList.remove("hidden");
+      if (resultsEl) resultsEl.innerHTML = "";
+      return;
+    }
+
+    if (resultsEl) {
+      resultsEl.className = "explorer-overview-view"; // restore default grid layout
+      resultsEl.innerHTML = filtered.map(renderCard).join("");
+    }
   }
 }
 
@@ -5184,7 +5538,7 @@ function observeExplorerTmdbPrefetch(container) {
                   textEl.textContent = data.overview;
                 }
               }
-            }).catch(() => {});
+            }).catch(() => { });
             _explorerPrefetchObserver?.unobserve(el);
           }
         } else {
@@ -5433,15 +5787,15 @@ function renderShowExplorer() {
 
   const showsToRender = state.explorerSortShows === "next_air_asc"
     ? [...state.showsRaw].sort((a, b) => {
-        const tmdbA = resolvedTmdbCache("tv", a.tmdb_id, a.title);
-        const tmdbB = resolvedTmdbCache("tv", b.tmdb_id, b.title);
-        const dateA = tmdbA?.next_episode_to_air?.air_date;
-        const dateB = tmdbB?.next_episode_to_air?.air_date;
-        if (dateA && dateB) return dateA.localeCompare(dateB);
-        if (dateA) return -1;
-        if (dateB) return 1;
-        return String(a.title).localeCompare(String(b.title));
-      })
+      const tmdbA = resolvedTmdbCache("tv", a.tmdb_id, a.title);
+      const tmdbB = resolvedTmdbCache("tv", b.tmdb_id, b.title);
+      const dateA = tmdbA?.next_episode_to_air?.air_date;
+      const dateB = tmdbB?.next_episode_to_air?.air_date;
+      if (dateA && dateB) return dateA.localeCompare(dateB);
+      if (dateA) return -1;
+      if (dateB) return 1;
+      return String(a.title).localeCompare(String(b.title));
+    })
     : state.showsRaw;
 
   elements.explorerPanel.innerHTML = showsToRender.length
@@ -5724,8 +6078,8 @@ function renderSeasonFolder(showKey, season, episodes) {
       </button>
       <div class="episode-list ${expanded ? "" : "hidden"}">
         ${sortedEpisodes
-          .map((episode) => {
-            return `
+      .map((episode) => {
+        return `
               <article class="episode-row" style="display: flex; flex-direction: column; align-items: stretch; gap: 0.5rem; padding: 0.5rem;">
                 <div style="display: flex; align-items: center; gap: 0.5rem; min-width: 0;">
                   ${posterMarkup(episode, "explorer-episode-poster")}
@@ -5738,8 +6092,8 @@ function renderSeasonFolder(showKey, season, episodes) {
                 </div>
               </article>
             `;
-          })
-          .join("")}
+      })
+      .join("")}
       </div>
     </article>
   `;
@@ -5799,15 +6153,15 @@ function renderHelp() {
         <section class="help-menu-group">
           <p>${escapeHtml(category)}</p>
           ${HELP_TOPICS.filter((topic) => topic.category === category)
-            .map(
-              (topic) => `
+          .map(
+            (topic) => `
                 <button class="help-menu-item ${topic.id === state.activeHelpTopic ? "active" : ""}" type="button" data-help-topic="${topic.id}">
                   <span class="help-menu-item-title">${escapeHtml(topic.title)}</span>
                   ${topic.description ? `<span class="help-menu-item-desc">${escapeHtml(topic.description)}</span>` : ""}
                 </button>
               `,
-            )
-            .join("")}
+          )
+          .join("")}
         </section>
       `,
     )
@@ -5862,10 +6216,10 @@ async function renderLogs() {
 function syncLogsRefresh() {
   const shouldRefresh = state.activeView === "settings" && state.activeSettingsTab === "logs" && state.token;
   if (shouldRefresh && !state.logsRefreshInterval) {
-    renderLogs().catch(() => {});
+    renderLogs().catch(() => { });
     state.logsRefreshInterval = window.setInterval(() => {
       if (state.activeView === "settings" && state.activeSettingsTab === "logs") {
-        renderLogs().catch(() => {});
+        renderLogs().catch(() => { });
       }
     }, 3000);
   } else if (!shouldRefresh && state.logsRefreshInterval) {
@@ -6093,8 +6447,8 @@ function historyById(id) {
 
 function movieById(id) {
   return state.history.find((entry) => String(entry.id) === String(id)) ||
-         state.moviesRaw.find((entry) => String(entry.id) === String(id)) ||
-         state.activeSessions.find((entry) => String(entry.id || entry.key) === String(id));
+    state.moviesRaw.find((entry) => String(entry.id) === String(id)) ||
+    state.activeSessions.find((entry) => String(entry.id || entry.key) === String(id));
 }
 
 function nowPlayingHref(session = {}) {
@@ -6182,7 +6536,7 @@ function mergeShowWithLoadedHistory(show = {}) {
 async function openShowImmersiveModalByTitleLegacy(showTitle) {
   const showKey = slug(showTitle);
   let show = state.showsRaw.find((s) => slug(s.title) === showKey);
-  
+
   if (!show) {
     elements.debugModal.classList.remove("hidden");
     document.body.style.overflow = "hidden";
@@ -6200,8 +6554,8 @@ async function openShowImmersiveModalByTitleLegacy(showTitle) {
     `;
 
     try {
-        const response = await fetch(`/api/show?title=${encodeURIComponent(showTitle)}`, { headers: authHeaders() });
-        const body = await response.json().catch(() => ({}));
+      const response = await fetch(`/api/show?title=${encodeURIComponent(showTitle)}`, { headers: authHeaders() });
+      const body = await response.json().catch(() => ({}));
       if (response.ok && body.show) {
         const found = body.show;
         if (found) {
@@ -6450,15 +6804,15 @@ function renderCastSection(tmdbData) {
       <div class="show-section-title"><h3>Cast</h3></div>
       <div class="cast-compact-row">
         ${cast.slice(0, 20).map((actor) => {
-          const avatarUrl = tmdbProfile(actor.profile_path) || "/favicon.svg";
-          return `
+    const avatarUrl = tmdbProfile(actor.profile_path) || "/favicon.svg";
+    return `
             <div class="cast-member-card" style="cursor: pointer;" onclick="window.showCastMemberDetails('${actor.id}', '${escapeAttribute(actor.name)}')">
               <img class="cast-avatar-img" src="${escapeAttribute(avatarUrl)}" alt="${escapeAttribute(actor.name)}" onerror="this.src='/favicon.svg';" />
               <span class="cast-actor-name">${escapeHtml(actor.name)}</span>
               <span class="cast-character-name">${escapeHtml(actor.character)}</span>
             </div>
           `;
-        }).join("")}
+  }).join("")}
       </div>
     </section>
   `;
@@ -6495,8 +6849,8 @@ function renderTrailersReviewsSection(tmdbData) {
         <div class="show-section-title"><h3>Reviews</h3><span>${reviews.length} reviews</span></div>
         <div class="review-list" style="margin-top: 0.5rem;">
           ${reviews.slice(0, 3).map((review) => {
-            const hasLong = review.content?.length > 300;
-            return `
+      const hasLong = review.content?.length > 300;
+      return `
               <div class="review-card">
                 <div class="review-header">
                   <span class="review-author">${escapeHtml(review.author)}</span>
@@ -6506,7 +6860,7 @@ function renderTrailersReviewsSection(tmdbData) {
                 ${hasLong ? `<button class="action-pill review-toggle-btn" type="button" onclick="const p=this.previousElementSibling.querySelector('.review-content');p.classList.toggle('expanded');this.textContent=p.classList.contains('expanded')?'Show Less':'Read More';">Read More</button>` : ""}
               </div>
             `;
-          }).join("")}
+    }).join("")}
         </div>
       </section>
     `;
@@ -6523,15 +6877,15 @@ function renderRelatedShowsSection(tmdbData) {
       <div class="show-section-title"><h3>Related Shows</h3></div>
       <div class="horizontal-scroll-row" style="margin-top: 0.5rem;">
         ${related.slice(0, 20).map((item) => {
-          const poster = tmdbPoster(item.poster_path) || "/favicon.svg";
-          const year = (item.first_air_date || "").slice(0, 4);
-          return `
+    const poster = tmdbPoster(item.poster_path) || "/favicon.svg";
+    const year = (item.first_air_date || "").slice(0, 4);
+    return `
             <a class="season-poster-card related-show-card" data-immersive-related-tmdb="${item.id}" href="/tvshow/tmdb/${item.id}">
               <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(item.name || "")}" onerror="this.src='/favicon.svg';" />
               <span class="season-poster-name">${escapeHtml(item.name || "")}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
             </a>
           `;
-        }).join("")}
+  }).join("")}
       </div>
     </section>
   `;
@@ -6737,7 +7091,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
   }
 
   const seasonsMap = seasonsFromShowRecord(show);
-  
+
   if (activeSeasonNum === null) {
     const sortedSeasonNums = [...seasonsMap.keys()].sort((a, b) => b - a);
     activeSeasonNum = sortedSeasonNums[0] || 1;
@@ -6850,8 +7204,8 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
         </button>
         <div id="immersiveEpisodeList" class="episode-list hidden" style="margin-top: 0.75rem;">
           ${[...watchedEpisodes].sort((a, b) => Number(b.episode || 0) - Number(a.episode || 0))
-            .map(
-              (episode) => `
+      .map(
+        (episode) => `
                 <article class="episode-row" style="background: #0d1216;">
                   ${posterMarkup(episode, "explorer-episode-poster")}
                   <span class="episode-code">[ E${String(episode.episode || "?").padStart(2, "0")} ]</span>
@@ -6859,8 +7213,8 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
                   <button class="debug-badge" type="button" data-history-id="${episode.id}">${formatDate(episode.watched_at)}</button>
                 </article>
               `,
-            )
-            .join("")}
+      )
+      .join("")}
         </div>
       </section>
 
@@ -6868,21 +7222,21 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
         <h3>Other seasons</h3>
         <div class="horizontal-scroll-row">
           ${[...seasonsList]
-            .filter((s) => s.season_number > 0)
-            .sort((a, b) => Number(b.season_number) - Number(a.season_number))
-            .map((s) => {
-              const isActive = s.season_number === activeSeasonNum;
-              const seasonPoster = s.poster_path
-                ? tmdbPoster(s.poster_path)
-                : posterUrl;
-              return `
+      .filter((s) => s.season_number > 0)
+      .sort((a, b) => Number(b.season_number) - Number(a.season_number))
+      .map((s) => {
+        const isActive = s.season_number === activeSeasonNum;
+        const seasonPoster = s.poster_path
+          ? tmdbPoster(s.poster_path)
+          : posterUrl;
+        return `
                 <div class="season-poster-card ${isActive ? "active" : ""}" data-immersive-season-num="${s.season_number}">
                   <img class="season-poster-img" src="${seasonPoster}" alt="${escapeHtml(s.name)}" onerror="this.src='/favicon.svg';" />
                   <span class="season-poster-name">${escapeHtml(s.name || `Season ${s.season_number}`)}</span>
                 </div>
               `;
-            })
-            .join("")}
+      })
+      .join("")}
         </div>
       </section>
     </div>
@@ -7226,10 +7580,10 @@ function renderShowModalContent(show, {
       </div>
       <div class="show-episode-list">
         ${selectedSeasonEpisodes.length ? selectedSeasonEpisodes.map((episode) => {
-          const isHighlighted = (Number(episode.seasonNumber) === Number(selectedSeasonNumber)) && (Number(episode.episodeNumber) === Number(state.activeShowModalEpisode));
-          const syncStatusDotHtml = episode.watched ? renderSyncStatusDot(episode.watched) : "";
-          const episodeIsUnreleased = isUnreleased(episode);
-          return `
+    const isHighlighted = (Number(episode.seasonNumber) === Number(selectedSeasonNumber)) && (Number(episode.episodeNumber) === Number(state.activeShowModalEpisode));
+    const syncStatusDotHtml = episode.watched ? renderSyncStatusDot(episode.watched) : "";
+    const episodeIsUnreleased = isUnreleased(episode);
+    return `
             <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
               ${episodeThumbMarkup(episode)}
               <div class="immersive-episode-copy">
@@ -7247,18 +7601,18 @@ function renderShowModalContent(show, {
                   </span>
                   <span class="immersive-episode-actions">
                     ${episodeIsUnreleased
-                      ? `<span class="unreleased-pill">Not yet released</span>`
-                      : !episode.watched
-                        ? `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}" ${isSaving ? "disabled" : ""}>
+        ? `<span class="unreleased-pill">Not yet released</span>`
+        : !episode.watched
+          ? `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}" ${isSaving ? "disabled" : ""}>
                             ${isSaving && isSaving.scope === "episode" && isSaving.episodes[0]?.key === episode.key ? "Saving…" : "Mark watched"}
                            </button>`
-                        : `<button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
+          : `<button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
                   </span>
                 </div>
               </div>
             </article>
           `;
-        }).join("") : `<div class="empty-log"><b>No episode rows yet</b><span>${loading ? "Episode metadata is loading." : "No local or TMDB episodes were found for this season."}</span></div>`}
+  }).join("") : `<div class="empty-log"><b>No episode rows yet</b><span>${loading ? "Episode metadata is loading." : "No local or TMDB episodes were found for this season."}</span></div>`}
       </div>
     </section>
   ` : "";
@@ -8007,7 +8361,7 @@ async function triggerRetrySync(id, button) {
           termLog(`\n[DIAGNOSTICS & FIX FOR ${err.target.toUpperCase()}]:`, "warn");
           const telLine = telemetry.split("\n").find(l => l.toLowerCase().includes(err.target) && l.toLowerCase().includes("error"));
           termLog(`Details: ${telLine || "Connection failed"}`, "info");
-          
+
           const errLower = (telLine || "").toLowerCase();
           if (errLower.includes("unauthorized") || errLower.includes("401") || errLower.includes("token") || errLower.includes("auth")) {
             termLog("👉 FIX: Go to the settings tab for this app (Settings -> Apps) and verify that the API Key or Token is correct, valid, and not expired.", "success");
@@ -8244,19 +8598,19 @@ async function renderMovieImmersiveModalContent(movie) {
           <h3>Recommended movies</h3>
           <div class="horizontal-scroll-row">
             ${recommendations
-              .slice(0, 15)
-              .map((rec) => {
-                const recPoster = rec.poster_path
-                  ? tmdbPoster(rec.poster_path)
-                  : "/favicon.svg";
-                return `
+        .slice(0, 15)
+        .map((rec) => {
+          const recPoster = rec.poster_path
+            ? tmdbPoster(rec.poster_path)
+            : "/favicon.svg";
+          return `
                   <a class="season-poster-card" data-immersive-movie-id="${rec.id}" href="/movie/tmdb/${rec.id}">
                     <img class="season-poster-img" src="${recPoster}" alt="${escapeHtml(rec.title)}" onerror="this.src='/favicon.svg';" />
                     <span class="season-poster-name">${escapeHtml(rec.title)}</span>
                   </a>
                 `;
-              })
-              .join("")}
+        })
+        .join("")}
           </div>
         </section>
       ` : ""}
@@ -8394,19 +8748,19 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
           <h3>Recommended movies</h3>
           <div class="horizontal-scroll-row">
             ${recommendations
-              .slice(0, 15)
-              .map((rec) => {
-                const recPoster = rec.poster_path
-                  ? tmdbPoster(rec.poster_path)
-                  : "/favicon.svg";
-                return `
+        .slice(0, 15)
+        .map((rec) => {
+          const recPoster = rec.poster_path
+            ? tmdbPoster(rec.poster_path)
+            : "/favicon.svg";
+          return `
                   <a class="season-poster-card" data-immersive-movie-id="${rec.id}" href="/movie/tmdb/${rec.id}">
                     <img class="season-poster-img" src="${recPoster}" alt="${escapeHtml(rec.title)}" onerror="this.src='/favicon.svg';" />
                     <span class="season-poster-name">${escapeHtml(rec.title)}</span>
                   </a>
                 `;
-              })
-              .join("")}
+        })
+        .join("")}
           </div>
         </section>
       ` : ""}
@@ -8590,7 +8944,7 @@ async function lockDashboard() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(LEGACY_UPPER_TOKEN_KEY);
   localStorage.removeItem(LEGACY_TOKEN_KEY);
-  await signOutAdmin().catch(() => {});
+  await signOutAdmin().catch(() => { });
   elements.adminToken.value = "";
   if (elements.settingsUsername) elements.settingsUsername.value = "";
   populateConfigForm({});
@@ -8947,16 +9301,16 @@ async function startImport() {
 async function runSystemIntegrityCheck() {
   const button = elements.runCompleteCheckButton;
   const container = elements.completeCheckResults;
-  
+
   if (!button || !container) return;
-  
+
   button.disabled = true;
   button.textContent = "Running diagnostics...";
   container.classList.remove("hidden");
   container.innerHTML = `<div class="idle-state"><b>Running integrity checks...</b></div>`;
-  
+
   const results = [];
-  
+
   // 1. Check Firestore-backed history API
   try {
     const startTime = Date.now();
@@ -8970,7 +9324,7 @@ async function runSystemIntegrityCheck() {
   } catch (error) {
     results.push({ name: "Cloud Firestore History", status: "error", detail: `Connection failed: ${error.message}` });
   }
-  
+
   // 2. Check Firestore settings document
   try {
     await loadSavedConfig();
@@ -9052,7 +9406,7 @@ async function runSystemIntegrityCheck() {
       results.push({ name: "Outbound Playstate Sync", status: "success", detail: `All ${totalChecked} recent outbound syncs completed successfully.` });
     }
   }
-  
+
   // Fetch values from inputs
   const plexUrl = elements.plexServerUrl.value.trim();
   const plexToken = elements.plexToken.value.trim();
@@ -9162,7 +9516,7 @@ async function runSystemIntegrityCheck() {
     let pillStyle = "border-color: var(--line); background: var(--panel-3); color: var(--muted);";
     let fixInstruction = "";
     let helpTopic = "";
-    
+
     if (res.status === "success") {
       statusLabel = "Online";
       pillStyle = "border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.12); color: #a7f3d0;";
@@ -9200,7 +9554,7 @@ async function runSystemIntegrityCheck() {
         fixInstruction = "Fix: Enter the Jellyfin Server URL, API Key, and User ID in Settings, then confirm the server is reachable from Firebase Functions.";
       }
     }
-    
+
     return `
       <div class="ranking-row" style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3); width: 100%;">
         <div style="display: grid; gap: 2px;">
@@ -9213,7 +9567,7 @@ async function runSystemIntegrityCheck() {
       </div>
     `;
   }).join("");
-  
+
   button.disabled = false;
   button.textContent = "Run System Diagnostic";
 }
@@ -9276,7 +9630,7 @@ async function runRepairWorkflow() {
   button.textContent = "Repair History Now";
   // refresh history / settings view
   clearDerivedUiCaches();
-  await loadHistory().catch(() => {});
+  await loadHistory().catch(() => { });
   return { converted: totalConverted, backfilled: totalBackfilled };
 }
 
@@ -9314,7 +9668,7 @@ async function runDedupHistory() {
         const trimmed = line.trim();
         if (!trimmed) continue;
         if (trimmed.startsWith("RESULT: ")) {
-          try { finalResult = JSON.parse(trimmed.substring(8)); } catch (_) {}
+          try { finalResult = JSON.parse(trimmed.substring(8)); } catch (_) { }
         } else {
           if (logEl) logEl.textContent += trimmed + "\n";
         }
@@ -9701,7 +10055,7 @@ async function triggerForceSync() {
           for (let i = seenLines; i < log.length; i++) {
             const line = log[i];
             if (line && line.startsWith("RESULT: ")) {
-              try { finalResult = JSON.parse(line.substring(8)); } catch (_) {}
+              try { finalResult = JSON.parse(line.substring(8)); } catch (_) { }
             } else if (terminal && line) {
               terminal.textContent += `${line}\n`;
               terminal.scrollTop = terminal.scrollHeight;
@@ -9843,7 +10197,7 @@ function attachEvents() {
     state.debugLogs = clearDebugLogs();
     clearBackendDiagnosticLogs(authHeaders())
       .catch((error) => setMessage(error.message, "error"))
-      .finally(() => renderLogs().catch(() => {}));
+      .finally(() => renderLogs().catch(() => { }));
   });
 
   elements.copyLogsButton.addEventListener("click", () => {
@@ -10157,10 +10511,10 @@ function attachEvents() {
         state.tmdbDetailsCache.clear();
         if (mediaType === "movie") {
           const movie = state.history.find((h) => h.id === fixMatchBtn.dataset.editId);
-          if (movie) { movie.tmdb_id = tmdb_id; renderMovieImmersiveModalContent(movie).catch(() => {}); }
+          if (movie) { movie.tmdb_id = tmdb_id; renderMovieImmersiveModalContent(movie).catch(() => { }); }
         } else if (state.activeShowModalKey) {
           const show = state.showsRaw.find((s) => slug(s.title) === state.activeShowModalKey);
-          if (show) { show.tmdb_id = tmdb_id; openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason, state.activeShowModalEpisode).catch(() => {}); }
+          if (show) { show.tmdb_id = tmdb_id; openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason, state.activeShowModalEpisode).catch(() => { }); }
         }
       });
       return;
@@ -10472,9 +10826,10 @@ function attachEvents() {
       return;
     }
     closeGlobalSearchDropdown();
-    state.explorerSearch = elements.globalSearchInput.value.trim();
-    if (elements.explorerSearchInput) elements.explorerSearchInput.value = state.explorerSearch;
-    selectView("explorer");
+    const query = elements.globalSearchInput.value.trim();
+    if (query) {
+      navigateTo(`/search?q=${encodeURIComponent(query)}`);
+    }
   });
 
   elements.globalSearchInput?.addEventListener("input", () => {
@@ -10516,6 +10871,22 @@ function attachEvents() {
 
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".global-search")) closeGlobalSearchDropdown();
+  });
+
+  document.querySelectorAll(".search-filter-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".search-filter-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.searchFilter = btn.dataset.filter;
+      renderSearchPage();
+    });
+  });
+
+  document.getElementById("searchViewResults")?.addEventListener("click", (e) => {
+    const card = e.target.closest(".explorer-overview-card");
+    if (card && card.dataset.href) {
+      navigateTo(card.dataset.href);
+    }
   });
 
   elements.importFile.addEventListener("change", async () => {
@@ -10617,13 +10988,13 @@ function attachEvents() {
 
   if (elements.fullSyncButton) {
     elements.fullSyncButton.addEventListener("click", () => {
-      runFullSyncWatchstates().catch(() => {});
+      runFullSyncWatchstates().catch(() => { });
     });
   }
 
   if (elements.runCronSyncButton) {
     elements.runCronSyncButton.addEventListener("click", () => {
-      triggerCronSync().catch(() => {});
+      triggerCronSync().catch(() => { });
     });
   }
 
@@ -10636,13 +11007,13 @@ function attachEvents() {
 
   if (elements.forceSyncButton) {
     elements.forceSyncButton.addEventListener("click", () => {
-      triggerForceSync().catch(() => {});
+      triggerForceSync().catch(() => { });
     });
   }
 
   if (elements.stopSyncButton) {
     elements.stopSyncButton.addEventListener("click", () => {
-      triggerStopSync().catch(() => {});
+      triggerStopSync().catch(() => { });
     });
   }
 
@@ -10756,7 +11127,7 @@ function initialize() {
   renderStats();
   renderExplorer();
   renderHelp();
-  renderLogs().catch(() => {});
+  renderLogs().catch(() => { });
   renderImportPreview();
   renderWatchBackups();
   renderDbStatus(false);
@@ -10784,10 +11155,10 @@ function initialize() {
             }
           }
         }
-      } catch (e) {}
+      } catch (e) { }
 
       const fullPath = window.location.pathname + window.location.hash;
-      if (fullPath.startsWith("/movie/") || fullPath.startsWith("/tvshow/") || fullPath.startsWith("/person/")) {
+      if (fullPath.startsWith("/movie/") || fullPath.startsWith("/tvshow/") || fullPath.startsWith("/person/") || fullPath.startsWith("/search")) {
         handleRouting(fullPath);
       }
     }
@@ -10849,7 +11220,7 @@ function showCopyToast() {
   }, 1300);
 }
 
-window.playTrailer = function(el, videoKey, videoName) {
+window.playTrailer = function (el, videoKey, videoName) {
   const container = el.closest('.trailer-scroll-row');
   if (container) {
     container.querySelectorAll('.trailer-thumb-container').forEach(thumbCont => {
@@ -10870,7 +11241,7 @@ window.playTrailer = function(el, videoKey, videoName) {
 };
 
 // Photo lightbox
-(function() {
+(function () {
   let photos = [];
   let current = 0;
   let scale = 1;
@@ -10950,7 +11321,7 @@ window.playTrailer = function(el, videoKey, videoName) {
     if (e.key === 'ArrowRight') { current = (current + 1) % photos.length; render(); }
   });
 
-  window.openPhotoLightbox = function(srcs, index) { open(srcs, index); };
+  window.openPhotoLightbox = function (srcs, index) { open(srcs, index); };
 })();
 
 async function runRefreshMetadataWorkflow() {
@@ -11040,7 +11411,7 @@ async function runRefreshMetadataWorkflow() {
   }
 }
 
-window.showCastMemberDetails = function(personId, personName) {
+window.showCastMemberDetails = function (personId, personName) {
   state.personReturnUrl = window.location.pathname + window.location.hash;
   navigateTo(`/person/${personId}`);
 };
@@ -11091,7 +11462,7 @@ async function loadCastMemberDetails(personId, personName = null) {
       <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading profile...</span>
     </div>
   `;
-  
+
   try {
     // Fetch person data and all watched movies/shows in parallel so filmography
     // watched-status is accurate regardless of which explorer tabs have been visited.
@@ -11110,18 +11481,18 @@ async function loadCastMemberDetails(personId, personName = null) {
     const allWatchedMovies = Array.isArray(moviesBody.movies) ? moviesBody.movies : [];
     const allWatchedShows = Array.isArray(showsBody.shows) ? showsBody.shows : [];
     const filmographyLookup = { allWatchedMovies, allWatchedShows };
-    
+
     if (elements.explorerTitle) {
       elements.explorerTitle.textContent = data.name || "Cast Member Profile";
     }
-    
+
     const castCredits = (data.combined_credits?.cast || []);
     const profileUrl = tmdbProfile(data.profile_path) || '/favicon.svg';
-    
+
     // Initialize temporary filter/sort preferences on state if not set
     state.personCreditsFilter = state.personCreditsFilter || "all";
     state.personCreditsSort = state.personCreditsSort || "popularity";
-    
+
     root.innerHTML = `
       <div class="person-profile-container" style="padding-top: var(--space-4);">
         <div class="person-profile-sidebar">
@@ -11145,16 +11516,16 @@ async function loadCastMemberDetails(personId, personName = null) {
             </div>
             ` : ''}
             ${(() => {
-              const socials = personSocialLinks(data);
-              if (!socials.length) return '';
-              return `
+        const socials = personSocialLinks(data);
+        if (!socials.length) return '';
+        return `
               <div class="meta-item person-socials">
                 <span class="meta-label">Socials</span>
                 <span class="person-socials-links">
                   ${socials.map((s) => `<a class="person-social-link" href="${escapeAttribute(s.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(s.label)}</a>`).join('')}
                 </span>
               </div>`;
-            })()}
+      })()}
           </div>
         </div>
         <div class="person-profile-content">
@@ -11166,22 +11537,22 @@ async function loadCastMemberDetails(personId, personName = null) {
           ` : '<p class="muted-copy">No biography available for this cast member.</p>'}
           
           ${(() => {
-            const seen = new Set();
-            const addUnique = (list) => list.filter((img) => {
-              if (!img.file_path || seen.has(img.file_path)) return false;
-              seen.add(img.file_path);
-              return true;
-            });
-            const profiles = addUnique(data.images?.profiles || []);
-            // tagged_images are photos TMDB has tagged as featuring this person
-            // (drop title posters so the gallery stays photos OF the person).
-            const tagged = addUnique(
-              (data.tagged_images?.results || []).filter((img) => img.image_type !== "poster")
-            );
-            const gallery = [...profiles, ...tagged].slice(0, 250);
-            if (!gallery.length) return '';
-            window._personPhotos = gallery.map((img) => tmdbProfile(img.file_path));
-            return `
+        const seen = new Set();
+        const addUnique = (list) => list.filter((img) => {
+          if (!img.file_path || seen.has(img.file_path)) return false;
+          seen.add(img.file_path);
+          return true;
+        });
+        const profiles = addUnique(data.images?.profiles || []);
+        // tagged_images are photos TMDB has tagged as featuring this person
+        // (drop title posters so the gallery stays photos OF the person).
+        const tagged = addUnique(
+          (data.tagged_images?.results || []).filter((img) => img.image_type !== "poster")
+        );
+        const gallery = [...profiles, ...tagged].slice(0, 250);
+        if (!gallery.length) return '';
+        window._personPhotos = gallery.map((img) => tmdbProfile(img.file_path));
+        return `
             <div class="person-photos-section" style="margin-top: 2rem;">
               <h3>Photos <span class="person-photos-count">${gallery.length}</span></h3>
               <div class="person-photos-grid">
@@ -11190,7 +11561,7 @@ async function loadCastMemberDetails(personId, personName = null) {
                 `).join('')}
               </div>
             </div>`;
-          })()}
+      })()}
 
           <div class="person-credits-section" style="margin-top: 2rem;">
             <div class="person-credits-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4); border-bottom: 1px solid var(--line-strong); padding-bottom: var(--space-3);">
@@ -11226,7 +11597,7 @@ async function loadCastMemberDetails(personId, personName = null) {
     const updateGrid = () => {
       state.personCreditsFilter = filterSelect.value;
       state.personCreditsSort = sortSelect.value;
-      
+
       let filtered = [...castCredits];
       if (state.personCreditsFilter === "movie") {
         filtered = filtered.filter(c => c.media_type === "movie");
@@ -11267,7 +11638,7 @@ async function loadCastMemberDetails(personId, personName = null) {
           const posterUrl = tmdbPoster(credit.poster_path) || '/favicon.svg';
           const dateStr = credit.release_date || credit.first_air_date || "";
           const year = dateStr ? `(${dateStr.split("-")[0]})` : "";
-          
+
           let libItem = findLibraryItem(credit.media_type, credit.id, title, filmographyLookup);
           if (!libItem && credit.in_library) {
             if (isTv) {
@@ -11293,9 +11664,9 @@ async function loadCastMemberDetails(personId, personName = null) {
           // watched but not necessarily server-sourced, so we rely on credit.in_library for the badge.
           const isInLibrary = !!credit.in_library;
           const isWatched = !!(credit.in_watch_history || credit.in_library ||
-            (!isTv && filmographyLookup.allWatchedMovies.some(m => String(m.tmdb_id||"")=== String(credit.id))) ||
-            (isTv && filmographyLookup.allWatchedShows.some(s => String(s.tmdb_id||"")=== String(credit.id))));
-          
+            (!isTv && filmographyLookup.allWatchedMovies.some(m => String(m.tmdb_id || "") === String(credit.id))) ||
+            (isTv && filmographyLookup.allWatchedShows.some(s => String(s.tmdb_id || "") === String(credit.id))));
+
           if (libItem && isInLibrary) {
             // In Library card: item is physically on a media server
             const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
@@ -11361,7 +11732,7 @@ async function loadCastMemberDetails(personId, personName = null) {
 
     // Initial render of the grid
     updateGrid();
-    
+
   } catch (err) {
     root.innerHTML = `
       <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 200px; gap: 1rem;">
@@ -11372,10 +11743,10 @@ async function loadCastMemberDetails(personId, personName = null) {
   }
 }
 
-window.openLibraryItem = function(mediaType, idOrKey, title, isLibraryItem = true, tmdbId = null) {
+window.openLibraryItem = function (mediaType, idOrKey, title, isLibraryItem = true, tmdbId = null) {
   const modal = elements.personModal;
   if (modal) modal.classList.add("hidden");
-  
+
   if (isLibraryItem) {
     if (mediaType === "show" || mediaType === "tv") {
       navigateTo(`/tvshow/${idOrKey}`);

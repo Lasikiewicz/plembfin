@@ -271,7 +271,7 @@ export async function searchTmdb({ query, page = 1, mediaType = "multi" }) {
     if (cached && fresh(cached, ttl)) return cached.response;
     try {
       const response = await upstream(`search/${type}`, { query, page: safePage, include_adult: false });
-      const cleaned = { ...response, results: (response.results || []).filter((item) => ["movie", "tv"].includes(item.media_type || type)) };
+      const cleaned = { ...response, results: (response.results || []).filter((item) => ["movie", "tv", "person"].includes(item.media_type || type)) };
       searchSetStmt.run({ id: cacheKey, query, media_type: type, page: safePage, response: toJson(cleaned), missing: cleaned.results.length ? 0 : 1, updated_at_ms: Date.now() });
       return cleaned;
     } catch (error) {
