@@ -5198,9 +5198,9 @@ function currentPosterWidthKey() {
 }
 
 function applyExplorerPosterWidth() {
-  const saved = localStorage.getItem(currentPosterWidthKey()) || "160px";
+  const saved = localStorage.getItem(currentPosterWidthKey()) || "80px";
   document.documentElement.style.setProperty("--poster-width", saved);
-  if (elements.explorerPosterSize) elements.explorerPosterSize.value = parseInt(saved) || 160;
+  if (elements.explorerPosterSize) elements.explorerPosterSize.value = parseInt(saved) || 80;
 }
 
 function explorerGridClass(isShows = false) {
