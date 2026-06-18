@@ -5198,13 +5198,16 @@ function setCurrentExplorerSort(value) {
 function currentPosterWidthKey() {
   const mode = state.explorerMode === "shows" ? "shows" : "movies";
   const view = currentExplorerView();
-  return `plembfin:posterWidth:${mode}:${view}`;
+  const isMobile = window.innerWidth <= 760;
+  return `plembfin:posterWidthV2:${mode}:${view}${isMobile ? ":mobile" : ""}`;
 }
 
 function applyExplorerPosterWidth() {
-  const saved = localStorage.getItem(currentPosterWidthKey()) || "80px";
+  const isMobile = window.innerWidth <= 760;
+  const defaultSize = isMobile ? "80px" : "160px";
+  const saved = localStorage.getItem(currentPosterWidthKey()) || defaultSize;
   document.documentElement.style.setProperty("--poster-width", saved);
-  if (elements.explorerPosterSize) elements.explorerPosterSize.value = parseInt(saved) || 80;
+  if (elements.explorerPosterSize) elements.explorerPosterSize.value = parseInt(saved) || (isMobile ? 80 : 160);
 }
 
 function explorerGridClass(isShows = false) {
@@ -10615,6 +10618,7 @@ function attachEvents() {
   });
 
   window.addEventListener("resize", () => {
+    applyExplorerPosterWidth();
     window.clearTimeout(state.dashboardHistoryResizeTimer);
     state.dashboardHistoryResizeTimer = window.setTimeout(() => {
       if (state.activeView === "dashboard") renderDashboard();
