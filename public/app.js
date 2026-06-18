@@ -53,6 +53,8 @@ const EXPLORER_VIEW_KEY_MOVIES = "plembfin:explorerView:movies";
 const EXPLORER_VIEW_KEY_SHOWS = "plembfin:explorerView:shows";
 const EXPLORER_SORT_KEY_MOVIES = "plembfin:explorerSort:movies";
 const EXPLORER_SORT_KEY_SHOWS = "plembfin:explorerSort:shows";
+const HIDE_WATCHED_KEY_SHOWS = "plembfin:hideWatched:shows";
+const HIDE_ENDED_KEY_SHOWS = "plembfin:hideEnded:shows";
 const EXPLORER_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_LIMIT = 24;
 const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help"];
@@ -106,6 +108,8 @@ const state = {
   showsQueryKey: "",
   explorerSortMovies: localStorage.getItem(EXPLORER_SORT_KEY_MOVIES) || "title_asc",
   explorerSortShows: localStorage.getItem(EXPLORER_SORT_KEY_SHOWS) || "title_asc",
+  hideWatchedShows: localStorage.getItem(HIDE_WATCHED_KEY_SHOWS) === "true",
+  hideEndedShows: localStorage.getItem(HIDE_ENDED_KEY_SHOWS) === "true",
   explorerViewMovies: localStorage.getItem(EXPLORER_VIEW_KEY_MOVIES) || "posters",
   explorerViewShows: localStorage.getItem(EXPLORER_VIEW_KEY_SHOWS) || "posters",
   posterLookupCache: new Map(),
@@ -193,6 +197,10 @@ function bindElements() {
     explorerPosterSize: document.querySelector("#explorerPosterSize"),
     explorerPosterSizeLabel: document.querySelector(".explorer-size-slider"),
     explorerSort: document.querySelector("#explorerSort"),
+    explorerHideWatchedLabel: document.querySelector("#explorerHideWatchedLabel"),
+    explorerHideWatched: document.querySelector("#explorerHideWatched"),
+    explorerHideEndedLabel: document.querySelector("#explorerHideEndedLabel"),
+    explorerHideEnded: document.querySelector("#explorerHideEnded"),
     explorerViewButtons: [...document.querySelectorAll("[data-explorer-view]")],
     explorerSubtitle: document.querySelector("#explorerSubtitle"),
     explorerTitle: document.querySelector("#explorerTitle"),
@@ -4839,6 +4847,19 @@ function renderExplorer() {
       if (opt.value === "next_air_asc") opt.hidden = state.explorerMode !== "shows";
     }
   }
+  const isShows = state.explorerMode === "shows";
+  if (elements.explorerHideWatchedLabel) {
+    elements.explorerHideWatchedLabel.style.display = isShows ? "" : "none";
+  }
+  if (elements.explorerHideEndedLabel) {
+    elements.explorerHideEndedLabel.style.display = isShows ? "" : "none";
+  }
+  if (elements.explorerHideWatched) {
+    elements.explorerHideWatched.checked = state.hideWatchedShows;
+  }
+  if (elements.explorerHideEnded) {
+    elements.explorerHideEnded.checked = state.hideEndedShows;
+  }
   if (elements.explorerTitle) {
     const mode = state.mediaDetailInline && state.activeShowModalKey ? "shows" : state.explorerMode;
     elements.explorerTitle.textContent = mode === "shows" ? "TV Shows" : "Movies";
@@ -4866,6 +4887,9 @@ function renderExplorer() {
 }
 
 function explorerQueryKey(mode) {
+  if (mode === "shows") {
+    return [mode, currentExplorerSort(), state.explorerSearch, state.hideWatchedShows, state.hideEndedShows].join("|");
+  }
   return [mode, currentExplorerSort(), state.explorerSearch].join("|");
 }
 
@@ -5441,6 +5465,8 @@ async function loadExplorerShows() {
     url.searchParams.set("offset", String(state.showsOffset));
     url.searchParams.set("sort", state.explorerSortShows === "next_air_asc" ? "title_asc" : state.explorerSortShows);
     if (state.explorerSearch) url.searchParams.set("search", state.explorerSearch);
+    if (state.hideWatchedShows) url.searchParams.set("hideWatched", "true");
+    if (state.hideEndedShows) url.searchParams.set("hideEnded", "true");
 
     const cacheKey = url.toString();
     let body = cachedExplorerPage(cacheKey);
@@ -9933,6 +9959,16 @@ function attachEvents() {
 
   elements.explorerSort?.addEventListener("change", () => {
     setCurrentExplorerSort(elements.explorerSort.value || "title_asc");
+    renderExplorer();
+  });
+  elements.explorerHideWatched?.addEventListener("change", () => {
+    state.hideWatchedShows = elements.explorerHideWatched.checked;
+    localStorage.setItem(HIDE_WATCHED_KEY_SHOWS, String(state.hideWatchedShows));
+    renderExplorer();
+  });
+  elements.explorerHideEnded?.addEventListener("change", () => {
+    state.hideEndedShows = elements.explorerHideEnded.checked;
+    localStorage.setItem(HIDE_ENDED_KEY_SHOWS, String(state.hideEndedShows));
     renderExplorer();
   });
 

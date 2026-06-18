@@ -388,7 +388,14 @@ async function handleShows(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
-  const shows = await queryShows({ search: req.query.search || "", sort: req.query.sort || "title_asc", limit: req.query.limit || 6, offset: req.query.offset || 0 });
+  const shows = await queryShows({
+    search: req.query.search || "",
+    sort: req.query.sort || "title_asc",
+    limit: req.query.limit || 6,
+    offset: req.query.offset || 0,
+    hideWatched: req.query.hideWatched === "true",
+    hideEnded: req.query.hideEnded === "true",
+  });
   return sendJson(res, { shows }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=300", Vary: "Authorization" });
 }
 

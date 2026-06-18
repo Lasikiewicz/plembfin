@@ -52,6 +52,7 @@ const deleteByIdStmt = db.prepare("DELETE FROM watch_history WHERE id = ?");
 const deleteByMediaKeyStmt = db.prepare("DELETE FROM watch_history WHERE media_key = ?");
 const findExistingStmt = db.prepare("SELECT * FROM watch_history WHERE media_key = ? AND watched_at = ? LIMIT 1");
 const findWatchedByKeyStmt = db.prepare("SELECT * FROM watch_history WHERE media_key = ? AND sync_action = 'watched' LIMIT 1");
+const getTmdbShowDetailsStmt = db.prepare("SELECT details FROM tmdb_metadata_cache WHERE id = ?");
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -351,9 +352,24 @@ export async function getCachedShows() {
   const shows = groups.map((group) => {
     const showKey = canonicalTitleKey(group.title) || normalizeKeyPart(group.title);
     const cachedProgress = getCachedShowProgress(showKey);
+    const tmdbId = group.representative_episode?.tmdb_id || cachedProgress?.tmdb_id || "";
+    let status = "";
+    if (tmdbId) {
+      try {
+        const row = getTmdbShowDetailsStmt.get(`tv_${tmdbId}`);
+        if (row) {
+          const details = parseJson(row.details);
+          status = details?.status || "";
+        }
+      } catch (err) {
+        console.error(`Failed to get TV show details for tv_${tmdbId}`, err);
+      }
+    }
     return {
       id: showKey,
       title: group.title,
+      tmdb_id: tmdbId,
+      status,
       episode_count: group.episode_count,
       season_count: group.season_count,
       latest_watched_at: group.latest_watched_at,
@@ -1572,15 +1588,23 @@ function compactEpisode(row = {}) {
   };
 }
 
-export async function queryShows({ search = "", sort = "title_asc", limit = 6, offset = 0 } = {}) {
+export async function queryShows({ search = "", sort = "title_asc", limit = 6, offset = 0, hideWatched = false, hideEnded = false } = {}) {
   const safeLimit = Math.min(Number(limit) || 6, 5000);
   const safeOffset = Number(offset) || 0;
 
   const allShows = await getCachedShows();
   const needle = cleanString(search).toLowerCase();
   const filtered = dedupeShowSummaries(allShows).filter((show) => {
-    if (!needle) return true;
-    return titleContainsSearch(show.title, needle);
+    if (needle && !titleContainsSearch(show.title, needle)) return false;
+    if (hideWatched) {
+      const isWatched = show.total_episodes > 0 && show.episode_count >= show.total_episodes;
+      if (isWatched) return false;
+    }
+    if (hideEnded) {
+      const isEnded = ["Ended", "Canceled"].includes(show.status);
+      if (isEnded) return false;
+    }
+    return true;
   });
   const sorted = sortShowRows(filtered, sort);
   return sorted.slice(safeOffset, safeOffset + safeLimit);
