@@ -37,34 +37,36 @@
           </button>
         </div>
 
-        <div class="sidebar-primary">
-          <button class="nav-tab active" type="button" data-view="dashboard">Dashboard</button>
-          <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="movies">Movies</button>
-          <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="shows">TV Shows</button>
-        </div>
-        <div class="sidebar-secondary">
-          <span class="nav-label">More</span>
-          <button class="nav-tab" type="button" data-view="stats">Stats</button>
-          <button class="nav-tab" type="button" data-view="help">Help</button>
-          <nav id="helpMenu" class="sidebar-sub-menu hidden" aria-label="Help topics"></nav>
-          <button class="nav-tab" type="button" data-view="settings">Settings</button>
-          <div id="sidebarSettingsMenu" class="sidebar-sub-menu hidden">
-            <button class="settings-tab active" type="button" data-settings-tab="general">General</button>
-            <button class="settings-tab" type="button" data-settings-tab="apps">Apps</button>
-            <button class="settings-tab" type="button" data-settings-tab="api-keys">API Keys</button>
-            <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
-            <button class="settings-tab" type="button" data-settings-tab="backups">Backups</button>
-            <div id="sidebarBackupsMenu" class="sidebar-sub-menu hidden">
-              <button class="backups-sub-tab active" type="button" data-backups-tab="settings">Settings</button>
-              <button class="backups-sub-tab" type="button" data-backups-tab="restore">Restore</button>
-            </div>
-            <button class="settings-tab" type="button" data-settings-tab="sync">Sync</button>
-            <button class="settings-tab" type="button" data-settings-tab="logs">Logs</button>
+        <div class="sidebar-scrollable">
+          <div class="sidebar-primary">
+            <button class="nav-tab active" type="button" data-view="dashboard">Dashboard</button>
+            <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="movies">Movies</button>
+            <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="shows">TV Shows</button>
           </div>
-        </div>
-        <div class="sidebar-footer">
-          <span id="appVersion" class="app-version">v0.0.0</span>
-          <button id="lockButton" class="button-ghost hidden" type="button">Sign out</button>
+          <div class="sidebar-secondary">
+            <span class="nav-label">More</span>
+            <button class="nav-tab" type="button" data-view="stats">Stats</button>
+            <button class="nav-tab" type="button" data-view="help">Help</button>
+            <nav id="helpMenu" class="sidebar-sub-menu hidden" aria-label="Help topics"></nav>
+            <button class="nav-tab" type="button" data-view="settings">Settings</button>
+            <div id="sidebarSettingsMenu" class="sidebar-sub-menu hidden">
+              <button class="settings-tab active" type="button" data-settings-tab="general">General</button>
+              <button class="settings-tab" type="button" data-settings-tab="apps">Apps</button>
+              <button class="settings-tab" type="button" data-settings-tab="api-keys">API Keys</button>
+              <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
+              <button class="settings-tab" type="button" data-settings-tab="backups">Backups</button>
+              <div id="sidebarBackupsMenu" class="sidebar-sub-menu hidden">
+                <button class="backups-sub-tab active" type="button" data-backups-tab="settings">Settings</button>
+                <button class="backups-sub-tab" type="button" data-backups-tab="restore">Restore</button>
+              </div>
+              <button class="settings-tab" type="button" data-settings-tab="sync">Sync</button>
+              <button class="settings-tab" type="button" data-settings-tab="logs">Logs</button>
+            </div>
+          </div>
+          <div class="sidebar-footer">
+            <span id="appVersion" class="app-version">v0.0.0</span>
+            <button id="lockButton" class="button-ghost hidden" type="button">Sign out</button>
+          </div>
         </div>
       </nav>
 
@@ -1071,6 +1073,27 @@
         <section class="view-panel hidden" data-view-panel="help">
           <section class="help-layout">
             <article id="helpCanvas" class="help-canvas glass-panel" aria-live="polite"></article>
+          </section>
+        </section>
+
+        <section class="view-panel hidden" data-view-panel="search">
+          <section class="glass-panel p-section">
+            <div class="section-heading explorer-heading search-results-heading" style="padding-top: 0.25rem; padding-bottom: 0.25rem;">
+              <div class="search-results-heading-left" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0;">
+                <p id="searchViewTitle" style="margin: 0; font-weight: 850; font-size: 0.95rem; line-height: 1.2;">Search Results</p>
+                <span id="searchViewSubtitle" style="color: var(--muted); font-size: 0.74rem; line-height: 1.2;">Local and global database search results</span>
+              </div>
+              <div class="explorer-view-toggle search-view-filters" style="display: flex; gap: 0.5rem;">
+                <button class="explorer-view-btn search-filter-btn active" data-filter="all" type="button" style="padding: 0.35rem 0.75rem; font-weight: 800; font-size: 0.75rem; min-height: auto;">All</button>
+                <button class="explorer-view-btn search-filter-btn" data-filter="movies" type="button" style="padding: 0.35rem 0.75rem; font-weight: 800; font-size: 0.75rem; min-height: auto;">Movies</button>
+                <button class="explorer-view-btn search-filter-btn" data-filter="shows" type="button" style="padding: 0.35rem 0.75rem; font-weight: 800; font-size: 0.75rem; min-height: auto;">TV Shows</button>
+                <button class="explorer-view-btn search-filter-btn" data-filter="people" type="button" style="padding: 0.35rem 0.75rem; font-weight: 800; font-size: 0.75rem; min-height: auto;">People</button>
+              </div>
+              <div class="search-results-heading-right"></div>
+            </div>
+            <div id="searchViewResults" class="explorer-overview-view" style="margin-top: 1rem;"></div>
+            <div id="searchViewLoading" class="gsd-loading hidden" style="padding: 3rem 1rem; text-align: center; font-size: 0.9rem;">Searching TMDB and local database…</div>
+            <div id="searchViewEmpty" class="gsd-loading hidden" style="padding: 3rem 1rem; text-align: center; font-size: 0.9rem; color: var(--muted);">No results found.</div>
           </section>
         </section>
 

@@ -352,7 +352,8 @@ export async function getCachedShows() {
   const shows = groups.map((group) => {
     const showKey = canonicalTitleKey(group.title) || normalizeKeyPart(group.title);
     const cachedProgress = getCachedShowProgress(showKey);
-    const tmdbId = group.representative_episode?.tmdb_id || cachedProgress?.tmdb_id || "";
+    const tmdbId = group.tmdb_id || group.representative_episode?.tmdb_id || cachedProgress?.tmdb_id || "";
+    let posterUrl = group.poster_url || group.representative_episode?.poster_url || "";
     let status = "";
     if (tmdbId) {
       try {
@@ -360,6 +361,9 @@ export async function getCachedShows() {
         if (row) {
           const details = parseJson(row.details);
           status = details?.status || "";
+          if (!posterUrl && details?.poster_path) {
+            posterUrl = `/api/tmdb-poster?path=${encodeURIComponent(details.poster_path)}`;
+          }
         }
       } catch (err) {
         console.error(`Failed to get TV show details for tv_${tmdbId}`, err);
@@ -370,6 +374,7 @@ export async function getCachedShows() {
       title: group.title,
       tmdb_id: tmdbId,
       status,
+      poster_url: posterUrl || null,
       episode_count: group.episode_count,
       season_count: group.season_count,
       latest_watched_at: group.latest_watched_at,
@@ -1516,6 +1521,8 @@ function groupShowRows(rows = []) {
       episodes: [],
       seasons: new Set(),
       representative_episode: null,
+      poster_url: null,
+      tmdb_id: null,
     };
     group.title = preferredShowTitle(group.title, title);
     group.episode_count += 1;
@@ -1526,12 +1533,20 @@ function groupShowRows(rows = []) {
     if (!group.representative_episode || row.watched_at > group.representative_episode.watched_at) {
       group.representative_episode = { ...row, show_title: group.title };
     }
+    if (row.poster_url && !group.poster_url) {
+      group.poster_url = row.poster_url;
+    }
+    if (row.tmdb_id && !group.tmdb_id) {
+      group.tmdb_id = row.tmdb_id;
+    }
     groups.set(key, group);
   });
   return [...groups.values()].map((group) => ({
     ...group,
     season_count: group.seasons.size,
     seasons: undefined,
+    poster_url: group.poster_url || group.representative_episode?.poster_url || null,
+    tmdb_id: group.tmdb_id || group.representative_episode?.tmdb_id || null,
     representative_episode: group.representative_episode ? { ...group.representative_episode, show_title: group.title } : null,
     episodes: group.episodes
       .map((episode) => ({ ...episode, show_title: group.title }))
