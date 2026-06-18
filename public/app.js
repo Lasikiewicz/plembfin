@@ -3680,6 +3680,10 @@ function setUnlocked(isUnlocked) {
   }
 }
 
+function isConfigSensitiveRoute(path = "") {
+  return path.startsWith("/movie/") || path.startsWith("/tvshow/") || path.startsWith("/person/") || path.startsWith("/search");
+}
+
 function handleRouting(path) {
   const parts = path.split('#');
   const pathPart = parts[0];
@@ -11272,7 +11276,10 @@ function initialize() {
   bindElements();
   loadAppVersion();
   bootstrapTokenFromUrl();
-  handleRouting(window.location.pathname + window.location.hash);
+  const initialPath = window.location.pathname + window.location.hash;
+  if (!isConfigSensitiveRoute(initialPath)) {
+    handleRouting(initialPath);
+  }
   attachEvents();
   applyExplorerPosterWidth();
   elements.adminEmail.value = localStorage.getItem("firebaseAdminEmail") || "";
@@ -11319,18 +11326,18 @@ function initialize() {
         }
       } catch (e) { }
 
-      const fullPath = window.location.pathname + window.location.hash;
-      if (fullPath.startsWith("/movie/") || fullPath.startsWith("/tvshow/") || fullPath.startsWith("/person/") || fullPath.startsWith("/search")) {
-        handleRouting(fullPath);
-      }
     }
     if (user && token && !state.configLoaded) {
+      const fullPath = window.location.pathname + window.location.hash;
       elements.settingsUsername.value = user.username || user.email || "";
       localStorage.setItem("firebaseAdminEmail", user.email || "");
       setUnlocked(true);
       selectView(state.activeView);
       loadSavedConfig()
         .then(() => {
+          if (isConfigSensitiveRoute(fullPath)) {
+            handleRouting(fullPath);
+          }
           if (state.activeView === "dashboard") return loadHistory();
           if (state.activeView === "stats") return loadStats();
           return null;
@@ -11340,6 +11347,11 @@ function initialize() {
           renderDbStatus(false);
           setMessage(`${error.message} Signed in, but dashboard APIs are not responding yet.`, "error");
         });
+    } else if (user && token) {
+      const fullPath = window.location.pathname + window.location.hash;
+      if (isConfigSensitiveRoute(fullPath)) {
+        handleRouting(fullPath);
+      }
     } else if (!user) {
       setUnlocked(false);
     }
