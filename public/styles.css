@@ -4845,6 +4845,7 @@ h1 {
 
   .topnav.nav-open {
     max-height: 100vh;
+    overflow-y: auto;
   }
 
   .brand-search {
@@ -4885,9 +4886,9 @@ h1 {
     display: flex !important;
     flex-direction: column;
     gap: 0.35rem;
-    width: 2rem;
-    height: 2rem;
-    padding: 0.35rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0.60rem;
     background: transparent;
     border: 1px solid transparent;
     border-radius: 4px;
