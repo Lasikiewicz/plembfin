@@ -3730,7 +3730,11 @@ function navigateTo(url) {
     const nextIndex = (history.state?.index || 0) + 1;
     history.pushState({ index: nextIndex }, "", url);
     state.internalHistoryCount = nextIndex;
-    window.scrollTo({ top: 0, behavior: "instant" });
+    const pathnameBefore = currentUrl.split('#')[0];
+    const pathnameAfter = url.split('#')[0];
+    if (pathnameBefore !== pathnameAfter) {
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
   }
   handleRouting(url);
   applyActiveView();
@@ -8018,8 +8022,12 @@ async function openRecommendedMovieInlineDetail(tmdbId) {
 }
 
 async function openShowInlineDetail(showKey, activeSeasonNum = null, activeEpisodeNum = null) {
-  prepareInlineMediaDetail("shows");
-  await renderImmersiveShowModal(showKey, activeSeasonNum, activeEpisodeNum);
+  if (state.mediaDetailInline && state.activeShowModalKey === showKey) {
+    await renderImmersiveShowModal(showKey, activeSeasonNum, activeEpisodeNum);
+  } else {
+    prepareInlineMediaDetail("shows");
+    await renderImmersiveShowModal(showKey, activeSeasonNum, activeEpisodeNum);
+  }
 }
 
 // Monotonic token guarding async media-detail renders. Each render captures the
@@ -9721,9 +9729,44 @@ function attachEvents() {
         document.querySelector("#explorerBackButton")?.classList.add("hidden");
         document.querySelector(".explorer-controls")?.classList.remove("hidden");
       }
+      closeMobileMenu();
       selectView(button.dataset.view);
     });
   });
+
+  const hamburgerButton = document.getElementById("hamburgerButton");
+  const topnav = document.querySelector(".topnav");
+  if (hamburgerButton && topnav) {
+    function initMobileMenu() {
+      const isMobile = window.innerWidth <= 760;
+      if (isMobile) {
+        topnav.classList.add("nav-closed");
+        topnav.classList.remove("nav-open");
+      } else {
+        hamburgerButton.classList.remove("active");
+        topnav.classList.remove("nav-closed");
+        topnav.classList.remove("nav-open");
+      }
+    }
+    initMobileMenu();
+    window.addEventListener("resize", initMobileMenu);
+
+    hamburgerButton.addEventListener("click", () => {
+      hamburgerButton.classList.toggle("active");
+      topnav.classList.toggle("nav-closed");
+      topnav.classList.toggle("nav-open");
+      hamburgerButton.setAttribute("aria-expanded", hamburgerButton.classList.contains("active"));
+    });
+  }
+
+  function closeMobileMenu() {
+    if (hamburgerButton && hamburgerButton.classList.contains("active")) {
+      hamburgerButton.classList.remove("active");
+      topnav.classList.add("nav-closed");
+      topnav.classList.remove("nav-open");
+      hamburgerButton.setAttribute("aria-expanded", "false");
+    }
+  }
 
   // No scroll events or arrow click handlers needed for fixed-fit rows
 
