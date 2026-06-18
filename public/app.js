@@ -9752,19 +9752,24 @@ function attachEvents() {
   const hamburgerButton = document.getElementById("hamburgerButton");
   const topnav = document.querySelector(".topnav");
   if (hamburgerButton && topnav) {
-    function initMobileMenu() {
+    let lastIsMobile = window.innerWidth <= 760;
+    function initMobileMenu(force = false) {
       const isMobile = window.innerWidth <= 760;
-      if (isMobile) {
-        topnav.classList.add("nav-closed");
-        topnav.classList.remove("nav-open");
-      } else {
-        hamburgerButton.classList.remove("active");
-        topnav.classList.remove("nav-closed");
-        topnav.classList.remove("nav-open");
+      if (force || isMobile !== lastIsMobile) {
+        if (isMobile) {
+          topnav.classList.add("nav-closed");
+          topnav.classList.remove("nav-open");
+          hamburgerButton.classList.remove("active");
+        } else {
+          hamburgerButton.classList.remove("active");
+          topnav.classList.remove("nav-closed");
+          topnav.classList.remove("nav-open");
+        }
+        lastIsMobile = isMobile;
       }
     }
-    initMobileMenu();
-    window.addEventListener("resize", initMobileMenu);
+    initMobileMenu(true);
+    window.addEventListener("resize", () => initMobileMenu(false));
 
     hamburgerButton.addEventListener("click", () => {
       hamburgerButton.classList.toggle("active");
