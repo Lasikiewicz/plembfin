@@ -210,6 +210,14 @@
                     <option value="next_air_asc">Next Airing</option>
                   </select>
                 </label>
+                <label id="explorerHideWatchedLabel" class="compact-field" style="display: none; cursor: pointer; user-select: none; grid-template-columns: auto auto; justify-content: start;">
+                  <span style="font-size: 0.75rem; font-weight: 800; color: var(--muted); white-space: nowrap;">Hide Fully Watched</span>
+                  <input id="explorerHideWatched" type="checkbox" style="width: 15px; height: 15px; accent-color: var(--blue); cursor: pointer; margin: 0; margin-left: 0.2rem;" />
+                </label>
+                <label id="explorerHideEndedLabel" class="compact-field" style="display: none; cursor: pointer; user-select: none; grid-template-columns: auto auto; justify-content: start;">
+                  <span style="font-size: 0.75rem; font-weight: 800; color: var(--muted); white-space: nowrap;">Hide Ended</span>
+                  <input id="explorerHideEnded" type="checkbox" style="width: 15px; height: 15px; accent-color: var(--blue); cursor: pointer; margin: 0; margin-left: 0.2rem;" />
+                </label>
                 <div class="explorer-view-toggle" role="group" aria-label="View type">
                   <button class="explorer-view-btn active" type="button" data-explorer-view="posters" title="Poster grid">
                     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1" y="1" width="5.5" height="5.5" rx="1" fill="currentColor"/><rect x="8.5" y="1" width="5.5" height="5.5" rx="1" fill="currentColor"/><rect x="1" y="8.5" width="5.5" height="5.5" rx="1" fill="currentColor"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" fill="currentColor"/></svg>
