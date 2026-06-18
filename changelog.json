@@ -1,7 +1,14 @@
 {
-  "version": "0.1.0",
-  "updatedAt": "2026-06-18T15:24:49.925Z",
+  "version": "0.1.1",
+  "updatedAt": "2026-06-18T16:25:44+01:00",
   "entries": [
+    {
+      "version": "0.1.1",
+      "date": "2026-06-18T16:25:44+01:00",
+      "commit": "679d2ecc09b38be6b4b4293edddbf18b71d285b7",
+      "message": "chore: bump version to 0.1.0",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.0",
       "date": "2026-06-18T15:24:49.925Z",
