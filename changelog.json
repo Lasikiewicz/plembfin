@@ -1,7 +1,14 @@
 {
-  "version": "0.0.70",
-  "updatedAt": "2026-06-18T12:36:42+01:00",
+  "version": "0.0.71",
+  "updatedAt": "2026-06-18T12:59:51+01:00",
   "entries": [
+    {
+      "version": "0.0.71",
+      "date": "2026-06-18T12:59:51+01:00",
+      "commit": "10b41af027ad262dd2442ac5d681adb6f9032d21",
+      "message": "feat: add Hide Fully Watched and Hide Ended filters to TV Show library",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.70",
       "date": "2026-06-18T12:36:42+01:00",
