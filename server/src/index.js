@@ -293,6 +293,78 @@ async function handleConfig(req, res) {
   return methodNotAllowed(res);
 }
 
+async function handleSeerrStatus(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const config = await loadMediaConfig();
+  const { baseUrl, apiKey, disabled } = config.seerr || {};
+
+  if (disabled || !baseUrl || !apiKey) {
+    return sendJson(res, { ok: false, configured: false, error: "Seerr is not configured or disabled." }, 503);
+  }
+
+  try {
+    const seerrRes = await fetch(`${baseUrl}/api/v1/settings/public`, {
+      headers: { "X-Api-Key": apiKey, Accept: "application/json" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!seerrRes.ok) {
+      const text = await seerrRes.text().catch(() => "");
+      return sendJson(res, { ok: false, configured: true, error: `Seerr returned ${seerrRes.status}: ${text.slice(0, 200)}` }, 502);
+    }
+    const data = await seerrRes.json().catch(() => ({}));
+    return sendJson(res, { ok: true, configured: true, applicationTitle: data.applicationTitle || "Seerr" });
+  } catch (err) {
+    return sendJson(res, { ok: false, configured: true, error: err.message || "Connection failed" }, 502);
+  }
+}
+
+async function handleSeerrRequest(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const config = await loadMediaConfig();
+  const { baseUrl, apiKey, disabled } = config.seerr || {};
+
+  if (disabled || !baseUrl || !apiKey) {
+    return sendJson(res, { ok: false, error: "Seerr is not configured or disabled." }, 503);
+  }
+
+  const body = await readJson(req);
+  const mediaType = String(body.mediaType || "").trim();
+  const mediaId = Number(body.mediaId);
+
+  if (!mediaType || !mediaId) {
+    return sendJson(res, { ok: false, error: "mediaType and mediaId are required." }, 400);
+  }
+
+  try {
+    const payload = { mediaType, mediaId };
+    if (mediaType === "tv" && body.seasons) payload.seasons = body.seasons;
+
+    const seerrRes = await fetch(`${baseUrl}/api/v1/request`, {
+      method: "POST",
+      headers: { "X-Api-Key": apiKey, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    const responseBody = await seerrRes.json().catch(() => ({}));
+
+    if (!seerrRes.ok) {
+      const errMsg = responseBody?.message || responseBody?.error || `Seerr returned ${seerrRes.status}`;
+      return sendJson(res, { ok: false, error: errMsg }, 502);
+    }
+
+    return sendJson(res, { ok: true, requestId: responseBody?.id || null });
+  } catch (err) {
+    return sendJson(res, { ok: false, error: err.message || "Connection to Seerr failed" }, 502);
+  }
+}
+
 async function handleHistory(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -2923,6 +2995,8 @@ async function dispatch(req, res) {
     if (path === "webhook") return handleWebhook(req, res);
     if (path === "test-connection") return handleTestConnection(req, res);
     if (path === "test-plex-notifications") return handleTestPlexNotifications(req, res);
+    if (path === "seerr/status") return handleSeerrStatus(req, res);
+    if (path === "seerr/request") return handleSeerrRequest(req, res);
     if (path === "tmdb-poster") return handleTmdbPoster(req, res);
     if (path === "tmdb-profile") return handleTmdbProfile(req, res);
     if (path === "poster") return handlePoster(req, res);

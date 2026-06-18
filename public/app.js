@@ -161,6 +161,7 @@ const state = {
   nowPlayingSessionKey: "",
   nowPlayingLastFetchAt: 0,
   configLoaded: false,
+  seerrConfigured: false,
   fullSyncActive: false,
   backupImport: null,
   watchBackups: null,
@@ -271,6 +272,11 @@ function bindElements() {
     jellyfinServerUrl: document.querySelector("#jellyfinServerUrl"),
     jellyfinApiKey: document.querySelector("#jellyfinApiKey"),
     jellyfinUserId: document.querySelector("#jellyfinUserId"),
+    seerrEnabled: document.querySelector("#seerrEnabled"),
+    seerrServerUrl: document.querySelector("#seerrServerUrl"),
+    seerrApiKey: document.querySelector("#seerrApiKey"),
+    saveSeerrConfigButton: document.querySelector("#saveSeerrConfigButton"),
+    seerrConfigStatus: document.querySelector("#seerrConfigStatus"),
     cronSyncUrl: document.querySelector("#cronSyncUrl"),
     runRepairButton: document.querySelector("#runRepairButton"),
     repairStatus: document.querySelector("#repairStatus"),
@@ -314,6 +320,8 @@ function bindElements() {
     tmdbConfigStatus: document.querySelector("#tmdbConfigStatus"),
     saveYoutubeConfigButton: document.querySelector("#saveYoutubeConfigButton"),
     youtubeConfigStatus: document.querySelector("#youtubeConfigStatus"),
+    saveSeerrConfigButton: document.querySelector("#saveSeerrConfigButton") || elements.saveSeerrConfigButton,
+    seerrConfigStatus: document.querySelector("#seerrConfigStatus") || elements.seerrConfigStatus,
     saveAdminCredentialsButton: document.querySelector("#saveAdminCredentialsButton"),
     checkSessionButton: document.querySelector("#checkSessionButton"),
     webhookUrl: document.querySelector("#webhookUrl"),
@@ -4090,10 +4098,14 @@ function syncSettingsInputsDisabledState() {
   elements.embyApiKey.disabled = !embyActive;
   elements.embyUserId.disabled = !embyActive;
 
-  const jellyfinActive = elements.jellyfinEnabled.checked;
-  elements.jellyfinServerUrl.disabled = !jellyfinActive;
-  elements.jellyfinApiKey.disabled = !jellyfinActive;
-  elements.jellyfinUserId.disabled = !jellyfinActive;
+  const jellyfinActive = elements.jellyfinEnabled?.checked;
+  if (elements.jellyfinServerUrl) elements.jellyfinServerUrl.disabled = !jellyfinActive;
+  if (elements.jellyfinApiKey) elements.jellyfinApiKey.disabled = !jellyfinActive;
+  if (elements.jellyfinUserId) elements.jellyfinUserId.disabled = !jellyfinActive;
+
+  const seerrActive = elements.seerrEnabled?.checked;
+  if (elements.seerrServerUrl) elements.seerrServerUrl.disabled = !seerrActive;
+  if (elements.seerrApiKey) elements.seerrApiKey.disabled = !seerrActive;
 }
 
 function populateConfigForm(config = {}) {
@@ -4112,9 +4124,17 @@ function populateConfigForm(config = {}) {
   elements.jellyfinApiKey.value = config.jellyfin?.apiKey || config.jellyfin?.api_key || "";
   elements.jellyfinUserId.value = config.jellyfin?.userId || "";
 
-  elements.tmdbApiKey.value = "";
-  elements.tmdbApiKey.placeholder = config.tmdb?.configured ? "Configured - enter a new key to replace it" : "TMDB API key";
+  if (elements.tmdbApiKey) elements.tmdbApiKey.value = "";
+  if (elements.tmdbApiKey) elements.tmdbApiKey.placeholder = config.tmdb?.configured ? "Configured - enter a new key to replace it" : "TMDB API key";
   if (elements.youtubeApiKey) elements.youtubeApiKey.value = config.youtube?.apiKey || "";
+
+  if (elements.seerrEnabled) elements.seerrEnabled.checked = !config.seerr?.disabled;
+  if (elements.seerrServerUrl) elements.seerrServerUrl.value = config.seerr?.baseUrl || "";
+  if (elements.seerrApiKey) elements.seerrApiKey.value = "";
+  if (elements.seerrApiKey) elements.seerrApiKey.placeholder = config.seerr?.configured ? "Configured - enter a new key to replace it" : "Seerr API key";
+
+  // Update the global Seerr configured flag so detail pages show/hide the button.
+  state.seerrConfigured = Boolean(config.seerr?.configured);
 
   syncSettingsInputsDisabledState();
 }
@@ -4285,6 +4305,12 @@ async function saveSectionConfig(section) {
       payload.youtube = {
         apiKey: elements.youtubeApiKey.value.trim(),
       };
+    } else if (section === "seerr") {
+      payload.seerr = {
+        baseUrl: elements.seerrServerUrl?.value.trim() || "",
+        apiKey: elements.seerrApiKey?.value.trim() || "",
+        disabled: !(elements.seerrEnabled?.checked ?? true),
+      };
     }
 
     const response = await fetch("/api/config", {
@@ -4306,6 +4332,16 @@ async function saveSectionConfig(section) {
       };
       elements.tmdbApiKey.value = "";
       elements.tmdbApiKey.placeholder = state.savedConfig.tmdb.configured ? "Configured - enter a new key to replace it" : "TMDB API key";
+    }
+    if (section === "seerr") {
+      // Recompute configured flag based on what was just saved.
+      const apiKeySet = Boolean(payload.seerr?.apiKey || state.savedConfig.seerr?.configured);
+      const urlSet = Boolean(payload.seerr?.baseUrl);
+      const enabled = !payload.seerr?.disabled;
+      state.savedConfig.seerr = { configured: apiKeySet && urlSet && enabled };
+      state.seerrConfigured = state.savedConfig.seerr.configured;
+      if (elements.seerrApiKey) elements.seerrApiKey.value = "";
+      if (elements.seerrApiKey) elements.seerrApiKey.placeholder = state.seerrConfigured ? "Configured - enter a new key to replace it" : "Seerr API key";
     }
 
     state.configLoaded = true;
@@ -6242,6 +6278,40 @@ function setConnectionButton(button, text, tone = "muted", disabled = false) {
 }
 
 async function testConnection(type, button) {
+  // Seerr uses its own status endpoint rather than the generic test-connection proxy.
+  if (type === "seerr") {
+    if (!elements.seerrServerUrl?.value.trim() || !elements.seerrApiKey?.value.trim()) {
+      setConnectionStatus(type, "Seerr URL and API key are required to test the connection.", "error");
+      return;
+    }
+    setConnectionButton(button, "Testing...", "loading", true);
+    setConnectionStatus(type, "Testing Seerr connection...", "muted");
+    let seerrTestRes, seerrTestBody = {};
+    try {
+      // Save first so the backend has the latest values.
+      await saveSectionConfig("seerr");
+      seerrTestRes = await fetch("/api/seerr/status", { headers: authHeaders() });
+      seerrTestBody = await seerrTestRes.json().catch(() => ({}));
+    } catch (err) {
+      setConnectionButton(button, "✘ Failed", "error");
+      setConnectionStatus(type, `Seerr fetch failed: ${err.message}`, "error");
+      button.disabled = false;
+      return;
+    } finally {
+      button.disabled = false;
+    }
+    if (seerrTestRes.ok && seerrTestBody.ok) {
+      const title = seerrTestBody.applicationTitle || "Seerr";
+      setConnectionButton(button, "✔ Connected", "success");
+      setConnectionStatus(type, `✔ Connected to "${title}"`, "success");
+      window.setTimeout(() => setConnectionButton(button, "Test Connection", "muted"), 3000);
+    } else {
+      setConnectionButton(button, "✘ Failed", "error");
+      setConnectionStatus(type, `✘ ${seerrTestBody.error || "Connection failed"}`, "error");
+    }
+    return;
+  }
+
   const payload = connectionPayloadFromElements(type, elements);
   const label = connectionLabel(type);
 
@@ -7182,6 +7252,12 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
           </div>
 
           <p class="immersive-overview">${escapeHtml(overview)}</p>
+          ${state.seerrConfigured && show.tmdb_id ? `
+            <div class="immersive-actions" style="margin-top: 0.75rem;">
+              <button class="action-pill seerr-request-btn" type="button"
+                data-seerr-media-type="tv"
+                data-seerr-media-id="${escapeAttribute(String(show.tmdb_id))}">Request on Seerr</button>
+            </div>` : ""}
         </div>
       </header>
 
@@ -7924,6 +8000,43 @@ function watchRecordFromMovie(movie, watchedAt) {
     tmdb_id: movie.tmdbId || null,
     poster_url: movie.posterUrl || null,
   };
+}
+
+async function submitSeerrRequest(mediaType, mediaId, button) {
+  if (!mediaId || !mediaType) {
+    setMessage("Cannot send Seerr request — missing media info.", "error");
+    return;
+  }
+  const originalText = button?.textContent;
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Requesting…";
+  }
+  try {
+    const res = await fetch("/api/seerr/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ mediaType, mediaId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok) {
+      setMessage("✔ Request submitted to Seerr!", "success");
+      if (button) button.textContent = "✔ Requested";
+    } else {
+      const errMsg = data.error || `Seerr returned ${res.status}`;
+      setMessage(`Seerr error: ${errMsg}`, "error");
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    }
+  } catch (err) {
+    setMessage(`Seerr request failed: ${err.message}`, "error");
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
 }
 
 function markMovieWatched(movie) {
@@ -8732,6 +8845,9 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
                 data-movie-title="${escapeAttribute(movieTitle)}"
                 data-movie-poster="${escapeAttribute(posterUrl)}"
                 data-movie-release="${escapeAttribute(tmdbData.release_date || "")}">${isSavingThisMovie ? "Saving watched state…" : "Mark watched"}</button>
+              ${state.seerrConfigured && tmdbId ? `<button class="action-pill seerr-request-btn" type="button"
+                data-seerr-media-type="movie"
+                data-seerr-media-id="${escapeAttribute(String(tmdbId))}">Request on Seerr</button>` : ""}
             </div>
           </section>
         </div>
@@ -10604,6 +10720,14 @@ function attachEvents() {
       return;
     }
 
+    const seerrBtn = event.target.closest("[data-seerr-media-type]");
+    if (seerrBtn) {
+      const mediaType = seerrBtn.dataset.seerrMediaType;
+      const mediaId = Number(seerrBtn.dataset.seerrMediaId);
+      submitSeerrRequest(mediaType, mediaId, seerrBtn);
+      return;
+    }
+
     const unwatchButton = event.target.closest("[data-unwatch-id]");
     if (unwatchButton) {
       confirmAndMarkUnwatched(unwatchButton).catch((error) => setMessage(error.message, "error"));
@@ -10790,10 +10914,14 @@ function attachEvents() {
   elements.saveYoutubeConfigButton?.addEventListener("click", () => {
     saveSectionConfig("youtube");
   });
+  elements.saveSeerrConfigButton?.addEventListener("click", () => {
+    saveSectionConfig("seerr");
+  });
 
   elements.plexEnabled?.addEventListener("change", syncSettingsInputsDisabledState);
   elements.embyEnabled?.addEventListener("change", syncSettingsInputsDisabledState);
   elements.jellyfinEnabled?.addEventListener("change", syncSettingsInputsDisabledState);
+  elements.seerrEnabled?.addEventListener("change", syncSettingsInputsDisabledState);
 
   elements.explorerSearchInput?.addEventListener("input", () => {
     window.clearTimeout(state.explorerSearchTimer);
