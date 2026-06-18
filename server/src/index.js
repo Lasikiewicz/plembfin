@@ -284,10 +284,11 @@ async function handleConfig(req, res) {
     const errors = validateConfig(config);
     if (errors.length) return sendJson(res, { error: "Invalid configuration", details: errors }, 400);
     await saveMediaConfig(config);
+    const storedConfig = await loadMediaConfig();
     // Reconnect the Plex notification listener so a newly added/changed server or token
     // takes effect immediately (event-driven unwatch detection).
     restartPlexNotificationListener();
-    return sendJson(res, { ok: true });
+    return sendJson(res, { ok: true, config: publicMediaConfig(storedConfig) });
   }
 
   return methodNotAllowed(res);
@@ -306,7 +307,7 @@ async function handleSeerrStatus(req, res) {
   }
 
   try {
-    const seerrRes = await fetch(`${baseUrl}/api/v1/settings/public`, {
+    const seerrRes = await fetch(`${baseUrl}/api/v1/auth/me`, {
       headers: { "X-Api-Key": apiKey, Accept: "application/json" },
       signal: AbortSignal.timeout(8000),
     });
@@ -315,7 +316,7 @@ async function handleSeerrStatus(req, res) {
       return sendJson(res, { ok: false, configured: true, error: `Seerr returned ${seerrRes.status}: ${text.slice(0, 200)}` }, 502);
     }
     const data = await seerrRes.json().catch(() => ({}));
-    return sendJson(res, { ok: true, configured: true, applicationTitle: data.applicationTitle || "Seerr" });
+    return sendJson(res, { ok: true, configured: true, applicationTitle: data.displayName || data.username || "Seerr" });
   } catch (err) {
     return sendJson(res, { ok: false, configured: true, error: err.message || "Connection failed" }, 502);
   }

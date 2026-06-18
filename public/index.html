@@ -323,25 +323,26 @@
                       <div class="section-heading">
                         <div>
                           <p>Plex Setup</p>
-                          <span>Server URL, token, and username</span>
                         </div>
+                        <label class="checkbox-label integration-toggle">
+                          <input id="plexEnabled" type="checkbox" />
+                          <span>Enable Plex</span>
+                        </label>
                       </div>
-                      <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer; user-select: none;">
-                        <input id="plexEnabled" type="checkbox" style="width: 16px; height: 16px; accent-color: var(--blue); margin: 0;" />
-                        <span style="font-weight: 600; color: var(--text);">Enable Plex Integration</span>
-                      </label>
-                      <label class="field-label">
-                        Plex Server URL
-                        <input id="plexServerUrl" class="field" type="url" placeholder="http://127.0.0.1:32400" />
-                      </label>
-                      <label class="field-label">
-                        Plex Token
-                        <input id="plexToken" class="field" type="password" autocomplete="off" />
-                      </label>
-                      <label class="field-label">
-                        Plex Username
-                        <input id="plexUsername" class="field" type="text" autocomplete="off" />
-                      </label>
+                      <div class="integration-fields">
+                        <label class="field-label">
+                          Plex Server URL
+                          <input id="plexServerUrl" class="field" type="url" placeholder="http://127.0.0.1:32400" />
+                        </label>
+                        <label class="field-label">
+                          Plex Token
+                          <input id="plexToken" class="field" type="password" autocomplete="off" />
+                        </label>
+                        <label class="field-label">
+                          Plex Username
+                          <input id="plexUsername" class="field" type="text" autocomplete="off" />
+                        </label>
+                      </div>
                       <div class="settings-actions">
                         <button id="savePlexConfigButton" class="button-primary" type="button">Save Plex</button>
                         <button class="button-ghost test-connection-button" type="button" data-test-connection="plex">Test Connection</button>
@@ -377,25 +378,26 @@
                       <div class="section-heading">
                         <div>
                           <p>Emby Setup</p>
-                          <span>API key, URL, and user ID</span>
                         </div>
+                        <label class="checkbox-label integration-toggle">
+                          <input id="embyEnabled" type="checkbox" />
+                          <span>Enable Emby</span>
+                        </label>
                       </div>
-                      <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer; user-select: none;">
-                        <input id="embyEnabled" type="checkbox" style="width: 16px; height: 16px; accent-color: var(--blue); margin: 0;" />
-                        <span style="font-weight: 600; color: var(--text);">Enable Emby Integration</span>
-                      </label>
-                      <label class="field-label">
-                        Emby Server URL
-                        <input id="embyServerUrl" class="field" type="url" placeholder="http://127.0.0.1:8096" />
-                      </label>
-                      <label class="field-label">
-                        Emby API Key
-                        <input id="embyApiKey" class="field" type="password" autocomplete="off" />
-                      </label>
-                      <label class="field-label">
-                        Emby User ID
-                        <input id="embyUserId" class="field" type="text" autocomplete="off" />
-                      </label>
+                      <div class="integration-fields">
+                        <label class="field-label">
+                          Emby Server URL
+                          <input id="embyServerUrl" class="field" type="url" placeholder="http://127.0.0.1:8096" />
+                        </label>
+                        <label class="field-label">
+                          Emby API Key
+                          <input id="embyApiKey" class="field" type="password" autocomplete="off" />
+                        </label>
+                        <label class="field-label">
+                          Emby User ID
+                          <input id="embyUserId" class="field" type="text" autocomplete="off" />
+                        </label>
+                      </div>
                       <div class="settings-actions">
                         <button id="saveEmbyConfigButton" class="button-primary" type="button">Save Emby</button>
                         <button class="button-ghost test-connection-button" type="button" data-test-connection="emby">Test Connection</button>
@@ -434,25 +436,26 @@
                       <div class="section-heading">
                         <div>
                           <p>Jellyfin Setup</p>
-                          <span>API key, URL, and user ID</span>
                         </div>
+                        <label class="checkbox-label integration-toggle">
+                          <input id="jellyfinEnabled" type="checkbox" />
+                          <span>Enable Jellyfin</span>
+                        </label>
                       </div>
-                      <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer; user-select: none;">
-                        <input id="jellyfinEnabled" type="checkbox" style="width: 16px; height: 16px; accent-color: var(--blue); margin: 0;" />
-                        <span style="font-weight: 600; color: var(--text);">Enable Jellyfin Integration</span>
-                      </label>
-                      <label class="field-label">
-                        Jellyfin Server URL
-                        <input id="jellyfinServerUrl" class="field" type="url" placeholder="http://127.0.0.1:8096" />
-                      </label>
-                      <label class="field-label">
-                        Jellyfin API Key
-                        <input id="jellyfinApiKey" class="field" type="password" autocomplete="off" />
-                      </label>
-                      <label class="field-label">
-                        Jellyfin User ID
-                        <input id="jellyfinUserId" class="field" type="text" autocomplete="off" />
-                      </label>
+                      <div class="integration-fields">
+                        <label class="field-label">
+                          Jellyfin Server URL
+                          <input id="jellyfinServerUrl" class="field" type="url" placeholder="http://127.0.0.1:8096" />
+                        </label>
+                        <label class="field-label">
+                          Jellyfin API Key
+                          <input id="jellyfinApiKey" class="field" type="password" autocomplete="off" />
+                        </label>
+                        <label class="field-label">
+                          Jellyfin User ID
+                          <input id="jellyfinUserId" class="field" type="text" autocomplete="off" />
+                        </label>
+                      </div>
                       <div class="settings-actions">
                         <button id="saveJellyfinConfigButton" class="button-primary" type="button">Save Jellyfin</button>
                         <button class="button-ghost test-connection-button" type="button" data-test-connection="jellyfin">Test Connection</button>
@@ -491,21 +494,22 @@
                       <div class="section-heading">
                         <div>
                           <p>Seerr Setup</p>
-                          <span>Media request management integration</span>
                         </div>
+                        <label class="checkbox-label integration-toggle">
+                          <input id="seerrEnabled" type="checkbox" />
+                          <span>Enable Seerr</span>
+                        </label>
                       </div>
-                      <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer; user-select: none;">
-                        <input id="seerrEnabled" type="checkbox" style="width: 16px; height: 16px; accent-color: var(--blue); margin: 0;" />
-                        <span style="font-weight: 600; color: var(--text);">Enable Seerr Integration</span>
-                      </label>
-                      <label class="field-label">
-                        Seerr Server URL
-                        <input id="seerrServerUrl" class="field" type="url" placeholder="http://localhost:5055" />
-                      </label>
-                      <label class="field-label">
-                        Seerr API Key
-                        <input id="seerrApiKey" class="field" type="password" autocomplete="off" />
-                      </label>
+                      <div class="integration-fields">
+                        <label class="field-label">
+                          Seerr Server URL
+                          <input id="seerrServerUrl" class="field" type="url" placeholder="http://localhost:5055" />
+                        </label>
+                        <label class="field-label">
+                          Seerr API Key
+                          <input id="seerrApiKey" class="field" type="password" autocomplete="off" />
+                        </label>
+                      </div>
                       <div class="settings-actions">
                         <button id="saveSeerrConfigButton" class="button-primary" type="button">Save Seerr</button>
                         <button class="button-ghost test-connection-button" type="button" data-test-connection="seerr">Test Connection</button>
