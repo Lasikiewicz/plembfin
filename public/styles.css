@@ -2314,6 +2314,36 @@ details[open] .tool-accordion-chevron::before {
   min-width: 0;
 }
 
+.integration-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.integration-toggle input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--blue);
+  flex: 0 0 auto;
+}
+
+.integration-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--space-2);
+  align-items: end;
+}
+
 .admin-credentials-form {
   display: grid;
   gap: var(--space-3);
@@ -6863,6 +6893,40 @@ details[open] > .tool-section-summary::before {
 
 .settings-pane .checkbox-label {
   margin-bottom: 0.35rem !important;
+}
+
+.settings-pane .integration-toggle {
+  margin-bottom: 0 !important;
+}
+
+.settings-pane[data-settings-panel="apps"] .settings-card {
+  gap: var(--space-2);
+  padding-block: 0.5rem !important;
+}
+
+.settings-pane[data-settings-panel="apps"] .settings-row {
+  align-items: stretch;
+}
+
+.settings-pane[data-settings-panel="apps"] .settings-row-main,
+.settings-pane[data-settings-panel="apps"] .settings-row-help {
+  align-self: stretch;
+}
+
+.settings-pane[data-settings-panel="apps"] .section-heading {
+  min-height: 1.45rem;
+}
+
+.settings-pane[data-settings-panel="apps"] .integration-fields {
+  gap: 0.35rem 0.5rem;
+}
+
+.settings-pane[data-settings-panel="apps"] .integration-fields .field-label {
+  margin-bottom: 0 !important;
+}
+
+.settings-pane[data-settings-panel="apps"] .settings-actions {
+  margin-top: auto !important;
 }
 
 .settings-pane p.tool-accordion-desc,

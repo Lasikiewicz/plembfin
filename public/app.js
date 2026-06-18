@@ -4236,7 +4236,7 @@ async function saveSavedConfig() {
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Config save failed with ${response.status}`);
 
-    state.savedConfig = {
+    state.savedConfig = body.config || {
       ...config,
       tmdb: { configured: Boolean(config.tmdb?.apiKey || state.savedConfig.tmdb?.configured) },
     };
@@ -4321,6 +4321,9 @@ async function saveSectionConfig(section) {
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Save failed with ${response.status}`);
 
+    const savedSectionConfig = body.config?.[section];
+    const previousSectionConfig = state.savedConfig?.[section] || {};
+
     // Update state.savedConfig with new section values
     state.savedConfig = {
       ...state.savedConfig,
@@ -4334,14 +4337,28 @@ async function saveSectionConfig(section) {
       elements.tmdbApiKey.placeholder = state.savedConfig.tmdb.configured ? "Configured - enter a new key to replace it" : "TMDB API key";
     }
     if (section === "seerr") {
-      // Recompute configured flag based on what was just saved.
-      const apiKeySet = Boolean(payload.seerr?.apiKey || state.savedConfig.seerr?.configured);
-      const urlSet = Boolean(payload.seerr?.baseUrl);
-      const enabled = !payload.seerr?.disabled;
-      state.savedConfig.seerr = { configured: apiKeySet && urlSet && enabled };
-      state.seerrConfigured = state.savedConfig.seerr.configured;
-      if (elements.seerrApiKey) elements.seerrApiKey.value = "";
-      if (elements.seerrApiKey) elements.seerrApiKey.placeholder = state.seerrConfigured ? "Configured - enter a new key to replace it" : "Seerr API key";
+      if (savedSectionConfig) {
+        state.savedConfig.seerr = savedSectionConfig;
+        state.seerrConfigured = Boolean(savedSectionConfig.configured);
+        if (elements.seerrServerUrl) elements.seerrServerUrl.value = savedSectionConfig.baseUrl || "";
+        if (elements.seerrEnabled) elements.seerrEnabled.checked = !savedSectionConfig.disabled;
+        if (elements.seerrApiKey) elements.seerrApiKey.value = "";
+        if (elements.seerrApiKey) elements.seerrApiKey.placeholder = state.seerrConfigured ? "Configured - enter a new key to replace it" : "Seerr API key";
+        syncSettingsInputsDisabledState();
+      } else {
+        // Recompute configured flag based on what was just saved.
+        const apiKeySet = Boolean(payload.seerr?.apiKey || previousSectionConfig?.configured);
+        const urlSet = Boolean(payload.seerr?.baseUrl);
+        const enabled = !payload.seerr?.disabled;
+        state.savedConfig.seerr = {
+          configured: apiKeySet && urlSet && enabled,
+          baseUrl: payload.seerr?.baseUrl || "",
+          disabled: Boolean(payload.seerr?.disabled),
+        };
+        state.seerrConfigured = state.savedConfig.seerr.configured;
+        if (elements.seerrApiKey) elements.seerrApiKey.value = "";
+        if (elements.seerrApiKey) elements.seerrApiKey.placeholder = state.seerrConfigured ? "Configured - enter a new key to replace it" : "Seerr API key";
+      }
     }
 
     state.configLoaded = true;
@@ -6280,16 +6297,33 @@ function setConnectionButton(button, text, tone = "muted", disabled = false) {
 async function testConnection(type, button) {
   // Seerr uses its own status endpoint rather than the generic test-connection proxy.
   if (type === "seerr") {
-    if (!elements.seerrServerUrl?.value.trim() || !elements.seerrApiKey?.value.trim()) {
-      setConnectionStatus(type, "Seerr URL and API key are required to test the connection.", "error");
+    const hasNewUrl    = Boolean(elements.seerrServerUrl?.value.trim());
+    const hasNewApiKey = Boolean(elements.seerrApiKey?.value.trim());
+
+    // Allow testing if already configured (key was previously saved and field is blank),
+    // but require at minimum that a URL is present somewhere.
+    if (!hasNewUrl && !state.seerrConfigured) {
+      setConnectionStatus(type, "Enter a Seerr Server URL first.", "error");
       return;
     }
+    if (!state.seerrConfigured && !hasNewApiKey) {
+      setConnectionStatus(type, "Enter a Seerr API key first.", "error");
+      return;
+    }
+
     setConnectionButton(button, "Testing...", "loading", true);
     setConnectionStatus(type, "Testing Seerr connection...", "muted");
     let seerrTestRes, seerrTestBody = {};
     try {
-      // Save first so the backend has the latest values.
-      await saveSectionConfig("seerr");
+      // Only save if the user has entered new values in the fields.
+      if (hasNewUrl || hasNewApiKey) {
+        await saveSectionConfig("seerr");
+      }
+      if (!state.seerrConfigured) {
+        setConnectionButton(button, "✘ Failed", "error");
+        setConnectionStatus(type, "Enter a Seerr API key first.", "error");
+        return;
+      }
       seerrTestRes = await fetch("/api/seerr/status", { headers: authHeaders() });
       seerrTestBody = await seerrTestRes.json().catch(() => ({}));
     } catch (err) {

@@ -137,19 +137,33 @@ export function publicMediaConfig(config = {}) {
   return {
     ...normalized,
     tmdb: { configured: Boolean(normalized.tmdb.apiKey) },
-    seerr: { configured: Boolean(normalized.seerr.apiKey && normalized.seerr.baseUrl && !normalized.seerr.disabled) },
+    // Expose baseUrl and disabled so the frontend can repopulate the URL field,
+    // but never expose the raw apiKey to the browser.
+    seerr: {
+      configured: Boolean(normalized.seerr.apiKey && normalized.seerr.baseUrl && !normalized.seerr.disabled),
+      baseUrl: normalized.seerr.baseUrl,
+      disabled: normalized.seerr.disabled,
+    },
   };
 }
 
 export async function saveMediaConfig(config) {
   const existing = await loadMediaConfig().catch(() => normalizeStoredConfig({}));
+
+  const incomingSeerr = config.seerr
+    ? {
+        ...existing.seerr,
+        ...config.seerr,
+        apiKey: String(config.seerr.apiKey || "").trim() ? config.seerr.apiKey : existing.seerr.apiKey,
+      }
+    : existing.seerr;
   
   // Merge incoming sections with existing sections
   const merged = {
     plex: config.plex ? { ...existing.plex, ...config.plex } : existing.plex,
     emby: config.emby ? { ...existing.emby, ...config.emby } : existing.emby,
     jellyfin: config.jellyfin ? { ...existing.jellyfin, ...config.jellyfin } : existing.jellyfin,
-    seerr: config.seerr ? { ...existing.seerr, ...config.seerr } : existing.seerr,
+    seerr: incomingSeerr,
     tmdb: config.tmdb ? { ...existing.tmdb, ...config.tmdb } : existing.tmdb,
     youtube: config.youtube ? { ...existing.youtube, ...config.youtube } : existing.youtube,
   };
