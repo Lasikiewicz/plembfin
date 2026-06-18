@@ -5060,7 +5060,7 @@ function observeExplorerTmdbPrefetch(container) {
         // poster_path for cards whose poster hasn't resolved yet. Cards that already
         // rendered an <img> need nothing — skip them so we don't fire a request per
         // card. List/overview views always need the metadata (dates, runtime, eps).
-        const needsMeta = currentExplorerView() === "list" || currentExplorerView() === "overview";
+        const needsMeta = currentExplorerView() === "list" || currentExplorerView() === "overview" || (mediaType === "tv" && currentExplorerView() === "posters");
         const needsPoster = !!el.querySelector(".poster-fallback[data-poster-id]");
         if (!needsMeta && !needsPoster) {
           _explorerPrefetchObserver?.unobserve(el);
@@ -5124,6 +5124,13 @@ function observeExplorerTmdbPrefetch(container) {
                     epsEl.outerHTML = `<div class="list-eps-progress" data-list-eps data-watched="${watched}" data-total="${total}"><div class="list-eps-bar-track"><div class="list-eps-bar-fill" style="width:${pct}%"></div></div><span class="list-eps-label">${watched} / ${total}</span></div>`;
                   }
                 }
+              }
+              const progressPill = el.querySelector(".show-progress-pill");
+              if (progressPill && data?.number_of_episodes) {
+                const watched = parseInt(progressPill.dataset.watched || "0") || 0;
+                const total = data.number_of_episodes;
+                progressPill.dataset.total = String(total);
+                progressPill.textContent = `${watched}/${total} Watched`;
               }
               if (state.explorerSortShows === "next_air_asc" && mediaType === "tv") {
                 scheduleNextAirResort();
@@ -5588,7 +5595,7 @@ function renderShowRecord(show = {}) {
   if (currentExplorerView() === "list") {
     const tmdbShow = resolvedTmdbCache("tv", tmdbId, displayTitle);
     const year = tmdbShow?.first_air_date?.slice(0, 4) || "";
-    const totalEps = tmdbShow?.number_of_episodes || 0;
+    const totalEps = show.total_episodes || tmdbShow?.number_of_episodes || 0;
     const nextAiring = nextAiringCell(tmdbShow);
     const pct = totalEps ? Math.round((episodeCount / totalEps) * 100) : null;
     const episodeProgressHtml = totalEps
@@ -5630,10 +5637,18 @@ function renderShowRecord(show = {}) {
     `;
   }
 
+  const tmdbShow = resolvedTmdbCache("tv", tmdbId, displayTitle);
+  const totalEps = show.total_episodes || tmdbShow?.number_of_episodes || 0;
+
   return `
     <article class="folder-card" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
       <button class="folder-trigger" type="button" data-show-key="${escapeAttribute(showKey)}" style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block;">
-        ${posterMarkup(latestEpisode, "explorer-folder-poster")}
+        <div style="position: relative; display: block; width: 100%;">
+          ${posterMarkup(latestEpisode, "explorer-folder-poster")}
+          <span class="show-progress-pill" data-watched="${episodeCount}" data-total="${totalEps}">
+            ${totalEps ? `${episodeCount}/${totalEps} Watched` : `${episodeCount} Watched`}
+          </span>
+        </div>
         <div class="movie-card-body" style="margin-top: 0.5rem;">
           <b>${escapeHtml(displayTitle)}</b>
         </div>
@@ -11446,7 +11461,7 @@ function libraryTvWatchProgress(libItem, tmdbData = null) {
     watchedKeys.add(showEpisodeKey(episode.season, episode.episode));
   }
   const watched = watchedKeys.size || Number(show.episode_count || 0);
-  const total = Number(tmdbData?.number_of_episodes || 0);
+  const total = show.total_episodes || Number(tmdbData?.number_of_episodes || 0);
   return {
     watched,
     total,

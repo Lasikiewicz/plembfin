@@ -1208,6 +1208,7 @@ h2 {
   align-items: stretch;
   gap: 0.5rem;
   padding: var(--space-2);
+  text-decoration: none;
 }
 
 .movie-poster {
@@ -6810,4 +6811,23 @@ details[open] > .tool-section-summary::before {
     height: 65vh;
     max-height: 65vh;
   }
+}
+
+.show-progress-pill {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: rgba(7, 10, 13, 0.72);
+  color: #fff;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  font-family: inherit;
 }

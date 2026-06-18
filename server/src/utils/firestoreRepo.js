@@ -3,6 +3,18 @@ import { db, getDataVersion, bumpDataVersion, parseJson, toJson, transaction } f
 import { loadMediaConfig } from "./configStore.js";
 import { fetchPosterFromTmdb } from "./tmdbClient.js";
 import { getTmdbDetails, getTmdbSeason } from "./tmdbGateway.js";
+import {
+  initShowProgressCache,
+  getCachedShowProgress,
+  queueShowProgressUpdate,
+  flushShowProgressUpdates,
+} from "./showProgressCache.js";
+
+// Initialize TV show progress cache on startup
+initShowProgressCache().catch((err) => {
+  console.error("[firestoreRepo] Failed to initialize show progress cache", err);
+});
+
 
 const MAX_HISTORY_LIMIT = 25000;
 const HISTORY_VISIBILITY_CACHE_VERSION = 4;
@@ -336,18 +348,24 @@ export async function getCachedShows() {
   if (showCache.version === version && showCache.shows.length > 0) return showCache.shows;
   const episodeRows = (await getCachedHistory()).filter((r) => r.media_type === "episode" && isPlembfinTrackedWatchRow(r));
   const groups = groupShowRows(dedupeHistory(episodeRows));
-  const shows = groups.map((group) => ({
-    id: canonicalTitleKey(group.title) || normalizeKeyPart(group.title),
-    title: group.title,
-    episode_count: group.episode_count,
-    season_count: group.season_count,
-    latest_watched_at: group.latest_watched_at,
-    earliest_watched_at: group.earliest_watched_at,
-    representative_episode: compactEpisode(group.representative_episode),
-  }));
+  const shows = groups.map((group) => {
+    const showKey = canonicalTitleKey(group.title) || normalizeKeyPart(group.title);
+    const cachedProgress = getCachedShowProgress(showKey);
+    return {
+      id: showKey,
+      title: group.title,
+      episode_count: group.episode_count,
+      season_count: group.season_count,
+      latest_watched_at: group.latest_watched_at,
+      earliest_watched_at: group.earliest_watched_at,
+      representative_episode: compactEpisode(group.representative_episode),
+      total_episodes: cachedProgress?.total_episodes || 0,
+    };
+  });
   showCache = { version, shows };
   return shows;
 }
+
 
 // --- Playstate -------------------------------------------------------------
 const selectPlaystateStmt = db.prepare("SELECT * FROM playstate WHERE media_key = ?");
@@ -468,7 +486,19 @@ export async function countWatchedPlaystateRows() {
   return countWatchedPlaystateStmt.get().c || 0;
 }
 
+function queueProgressUpdateForRecord(record) {
+  if (record && (record.media_type === "episode" || record.mediaType === "episode")) {
+    const showTitle = record.show_title || record.showTitle || showTitleFrom(record.title);
+    if (showTitle) {
+      queueShowProgressUpdate(showTitle);
+    }
+  }
+}
+
 export async function invalidateHistoryDerivedCaches() {
+  await flushShowProgressUpdates().catch((err) => {
+    console.error("[firestoreRepo] Failed to flush show progress updates", err);
+  });
   bumpDataVersion();
 }
 
@@ -477,6 +507,9 @@ export async function insertWatchRecord(_unusedDb, record, { skipInvalidate = fa
   const normalized = normalizeWatchRecord(record, record.source);
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));
+
+  // Queue show progress update
+  queueProgressUpdateForRecord(normalized);
 
   const id = crypto.randomUUID();
   const params = watchRowParams(normalized);
@@ -549,6 +582,8 @@ export async function batchInsertWatchRecords(_unusedDb, records) {
   if (toInsert.length) {
     transaction(() => {
       for (const normalized of toInsert) {
+        // Queue show progress update
+        queueProgressUpdateForRecord(normalized);
         const params = watchRowParams({
           ...normalized,
           sync_dispatch_telemetry: normalized.sync_dispatch_telemetry || defaultTelemetry(normalized),
@@ -1121,6 +1156,10 @@ export async function updateWatchRecord(id, fields = {}) {
   if (!id) return { ok: false, error: "id is required" };
   const existing = selectByIdStmt.get(String(id));
   if (!existing) return { ok: false, error: "Watch record not found" };
+
+  // Queue old show title
+  queueProgressUpdateForRecord(existing);
+
   const sets = [];
   const params = [];
   let normalizedWatchedAt = "";
@@ -1134,6 +1173,10 @@ export async function updateWatchRecord(id, fields = {}) {
   if (fields.title != null) {
     const title = String(fields.title).trim();
     if (title) { sets.push("title = ?", "title_lower = ?"); params.push(title, title.toLowerCase()); }
+    // Queue new show title
+    if (existing.media_type === "episode") {
+      queueShowProgressUpdate(showTitleFrom(title));
+    }
   }
   if (fields.youtube_url != null) { sets.push("youtube_url = ?"); params.push(String(fields.youtube_url).trim()); }
   if (!sets.length) return { ok: false, error: "No valid fields to update" };
@@ -1154,6 +1197,10 @@ export async function mergeShows(sourceTitle, targetTitle) {
   const sourceKey = canonicalTitleKey(sourceTitle);
   const targetKey = canonicalTitleKey(targetTitle);
   if (sourceKey === targetKey) throw new Error("source and target are the same show");
+
+  // Queue updates for both shows
+  queueShowProgressUpdate(sourceTitle);
+  queueShowProgressUpdate(targetTitle);
 
   let docs = selectEpisodesByShowLowerStmt.all(sourceTitle.toLowerCase());
   if (!docs.length) {
@@ -1178,6 +1225,10 @@ export async function mergeShows(sourceTitle, targetTitle) {
 
 export async function deleteWatchRecordById(id, { skipInvalidate = false } = {}) {
   if (!id) return false;
+  const row = selectByIdStmt.get(String(id));
+  if (row) {
+    queueProgressUpdateForRecord(row);
+  }
   deleteByIdStmt.run(String(id));
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
   return true;
@@ -1195,6 +1246,9 @@ export async function deleteWatchRecord(_unusedDb, media, { skipInvalidate = fal
   });
   const rows = selectByMediaKeyStmt.all(key);
   if (!rows.length) return false;
+  for (const row of rows) {
+    queueProgressUpdateForRecord(row);
+  }
   transaction(() => {
     for (const row of rows) deleteByIdStmt.run(row.id);
   });
@@ -1317,6 +1371,10 @@ export function deleteWatchRecordsByIds(ids = []) {
   transaction(() => {
     for (const id of ids) {
       if (!id) continue;
+      const row = selectByIdStmt.get(String(id));
+      if (row) {
+        queueProgressUpdateForRecord(row);
+      }
       deleteByIdStmt.run(String(id));
       deleted += 1;
     }
@@ -1539,7 +1597,12 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
   if (resolvedTitle) {
     const rows = dedupeHistory(selectEpisodesByShowLowerStmt.all(resolvedTitle.toLowerCase()).map(rowToWatch).filter(isPlembfinTrackedWatchRow));
     const [show] = groupShowRows(rows);
-    if (show) return show;
+    if (show) {
+      const showKey = canonicalTitleKey(show.title) || normalizeKeyPart(show.title);
+      const cachedProgress = getCachedShowProgress(showKey);
+      show.total_episodes = cachedProgress?.total_episodes || 0;
+      return show;
+    }
   }
 
   if (!resolvedTitle && id) resolvedTitle = String(id).replace(/-/g, " ");
