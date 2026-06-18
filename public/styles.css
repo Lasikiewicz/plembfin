@@ -5403,9 +5403,9 @@ h1 {
   --list-cols: calc(var(--poster-width, 160px) * 0.4) 1fr 8rem 10rem 11rem 5rem 7rem 3rem;
 }
 
-/* poster | title | source | next-air | seasons | episodes | last-watched | year */
+/* poster | title | next-air | episodes | seasons | last-watched | year */
 .shows-list {
-  --list-cols: calc(var(--poster-width, 160px) * 0.4) 1fr 8rem 11rem 6rem 8rem 11rem 5rem;
+  --list-cols: calc(var(--poster-width, 160px) * 0.4) 16rem 11rem 1fr 6rem 11rem 5rem;
 }
 
 .explorer-list-view {
