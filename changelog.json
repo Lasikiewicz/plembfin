@@ -1,7 +1,14 @@
 {
-  "version": "0.0.66",
-  "updatedAt": "2026-06-18T09:29:33+01:00",
+  "version": "0.0.67",
+  "updatedAt": "2026-06-18T10:39:38+01:00",
   "entries": [
+    {
+      "version": "0.0.67",
+      "date": "2026-06-18T10:39:38+01:00",
+      "commit": "6df8e83e2ed9e61dc64e1d51ccd8ea8962a1159a",
+      "message": "Implement TV show progress caching system and layout styling improvements",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.66",
       "date": "2026-06-18T09:29:33+01:00",
