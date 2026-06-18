@@ -1,7 +1,14 @@
 {
-  "version": "0.0.72",
-  "updatedAt": "2026-06-18T13:36:46+01:00",
+  "version": "0.1.0",
+  "updatedAt": "2026-06-18T15:24:49.925Z",
   "entries": [
+    {
+      "version": "0.1.0",
+      "date": "2026-06-18T15:24:49.925Z",
+      "commit": "471276b5d87ff891ebd44dcca8b93edce66dc4a2",
+      "message": "feat: move search filter tabs to middle top inline, center them, and fix show poster fallbacks",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.72",
       "date": "2026-06-18T13:36:46+01:00",
