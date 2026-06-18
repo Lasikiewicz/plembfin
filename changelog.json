@@ -1,7 +1,14 @@
 {
-  "version": "0.1.3",
-  "updatedAt": "2026-06-18T20:06:45+01:00",
+  "version": "0.1.4",
+  "updatedAt": "2026-06-18T20:13:51+01:00",
   "entries": [
+    {
+      "version": "0.1.4",
+      "date": "2026-06-18T20:13:51+01:00",
+      "commit": "a113d492b4f41cbb18e5390f393b086208fd3062",
+      "message": "fix: load config before media routes",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.3",
       "date": "2026-06-18T20:06:45+01:00",
