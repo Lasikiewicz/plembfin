@@ -1,7 +1,14 @@
 {
-  "version": "0.0.71",
-  "updatedAt": "2026-06-18T12:59:51+01:00",
+  "version": "0.0.72",
+  "updatedAt": "2026-06-18T13:36:46+01:00",
   "entries": [
+    {
+      "version": "0.0.72",
+      "date": "2026-06-18T13:36:46+01:00",
+      "commit": "4ab4df95be0b54cd67dfc28ac0d1d9872c7e1181",
+      "message": "feat: reorder TV show list columns to poster/title/next-airing/episodes/seasons/last-watched/year",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.71",
       "date": "2026-06-18T12:59:51+01:00",
