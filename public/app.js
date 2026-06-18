@@ -3719,8 +3719,14 @@ function clearSearchInputs() {
   window.clearTimeout(state.globalSearchDropdownTimer);
   window.clearTimeout(state.globalSearchRemoteTimer);
   state.explorerSearch = "";
-  if (elements.explorerSearchInput) elements.explorerSearchInput.value = "";
-  if (elements.globalSearchInput) elements.globalSearchInput.value = "";
+  if (elements.explorerSearchInput) {
+    elements.explorerSearchInput.value = "";
+    elements.explorerSearchInput.setAttribute("readonly", "true");
+  }
+  if (elements.globalSearchInput) {
+    elements.globalSearchInput.value = "";
+    elements.globalSearchInput.setAttribute("readonly", "true");
+  }
   closeGlobalSearchDropdown();
 }
 
@@ -10464,6 +10470,10 @@ function attachEvents() {
   const unlockGlobalSearch = () => elements.globalSearchInput?.removeAttribute("readonly");
   elements.globalSearchInput?.addEventListener("pointerdown", unlockGlobalSearch);
   elements.globalSearchInput?.addEventListener("focus", unlockGlobalSearch);
+
+  const unlockExplorerSearch = () => elements.explorerSearchInput?.removeAttribute("readonly");
+  elements.explorerSearchInput?.addEventListener("pointerdown", unlockExplorerSearch);
+  elements.explorerSearchInput?.addEventListener("focus", unlockExplorerSearch);
 
   elements.globalSearchInput?.addEventListener("focus", () => {
     const query = elements.globalSearchInput.value.trim();
