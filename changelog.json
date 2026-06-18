@@ -1,7 +1,14 @@
 {
-  "version": "0.0.69",
-  "updatedAt": "2026-06-18T12:11:17+01:00",
+  "version": "0.0.70",
+  "updatedAt": "2026-06-18T12:36:42+01:00",
   "entries": [
+    {
+      "version": "0.0.70",
+      "date": "2026-06-18T12:36:42+01:00",
+      "commit": "e37c91c580bcce400bedd16d199943531405176e",
+      "message": "Prevent browser password managers from autofilling search inputs",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.69",
       "date": "2026-06-18T12:11:17+01:00",
