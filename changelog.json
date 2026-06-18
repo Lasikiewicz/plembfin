@@ -1,7 +1,14 @@
 {
-  "version": "0.0.67",
-  "updatedAt": "2026-06-18T10:39:38+01:00",
+  "version": "0.0.68",
+  "updatedAt": "2026-06-18T11:32:45+01:00",
   "entries": [
+    {
+      "version": "0.0.68",
+      "date": "2026-06-18T11:32:45+01:00",
+      "commit": "b9228b4497337d428c4754e02dfd1531696f6163",
+      "message": "Fix mobile navigation hamburger menu toggle and usability on iOS Safari",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.67",
       "date": "2026-06-18T10:39:38+01:00",
