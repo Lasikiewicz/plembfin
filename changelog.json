@@ -1,7 +1,14 @@
 {
-  "version": "0.0.65",
-  "updatedAt": "2026-06-17T16:39:50+01:00",
+  "version": "0.0.66",
+  "updatedAt": "2026-06-18T09:29:33+01:00",
   "entries": [
+    {
+      "version": "0.0.66",
+      "date": "2026-06-18T09:29:33+01:00",
+      "commit": "962e7f101a5ea0f212e19f98c54bee1cd8d1f01d",
+      "message": "Fix mobile view display and scroll faults (explorer controls overlay, cast section layout, and season accordion scroll jumps)",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.65",
       "date": "2026-06-17T16:39:50+01:00",
