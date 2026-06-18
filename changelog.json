@@ -1,7 +1,14 @@
 {
-  "version": "0.0.68",
-  "updatedAt": "2026-06-18T11:32:45+01:00",
+  "version": "0.0.69",
+  "updatedAt": "2026-06-18T12:11:17+01:00",
   "entries": [
+    {
+      "version": "0.0.69",
+      "date": "2026-06-18T12:11:17+01:00",
+      "commit": "a7f83f6bed8a07d4095368d5baa3b80a107e4e1a",
+      "message": "Fix desktop poster default size, isolate responsive poster size storage, and update watched pill text color",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.0.68",
       "date": "2026-06-18T11:32:45+01:00",
