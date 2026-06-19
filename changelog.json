@@ -1,7 +1,14 @@
 {
-  "version": "0.1.17",
-  "updatedAt": "2026-06-19T11:32:47+01:00",
+  "version": "0.1.18",
+  "updatedAt": "2026-06-19T13:43:51+01:00",
   "entries": [
+    {
+      "version": "0.1.18",
+      "date": "2026-06-19T13:43:51+01:00",
+      "commit": "825fbbf957bdec2d177e6265489ec6c517b07784",
+      "message": "fix: align media page top bars",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.17",
       "date": "2026-06-19T11:32:47+01:00",
