@@ -1,7 +1,14 @@
 {
-  "version": "0.1.21",
-  "updatedAt": "2026-06-19T18:53:43+01:00",
+  "version": "0.1.22",
+  "updatedAt": "2026-06-19T19:35:53+01:00",
   "entries": [
+    {
+      "version": "0.1.22",
+      "date": "2026-06-19T19:35:53+01:00",
+      "commit": "682376de213970d3e8f6c4a445afe3d203068a31",
+      "message": "Add media images section to show and movie detail pages",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.21",
       "date": "2026-06-19T18:53:43+01:00",
