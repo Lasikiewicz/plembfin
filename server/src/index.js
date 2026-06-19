@@ -1774,9 +1774,9 @@ async function handleNowPlaying(req, res) {
     const isDuplicate = merged.some(
       (s) =>
         s.source === active.source &&
-        s.title === active.title &&
-        s.season === active.season &&
-        s.episode === active.episode
+        s.title.toLowerCase().trim() === active.title.toLowerCase().trim() &&
+        (s.season == null ? null : Number(s.season)) === (active.season == null ? null : Number(active.season)) &&
+        (s.episode == null ? null : Number(s.episode)) === (active.episode == null ? null : Number(active.episode))
     );
     if (!isDuplicate) {
       merged.push({
