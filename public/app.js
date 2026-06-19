@@ -10677,41 +10677,63 @@ async function triggerRetryAllCategory(categoryName, button) {
 
   const originalText = button.textContent;
   button.disabled = true;
-  button.textContent = `Retrying all ${jobsInCategory.length}...`;
+  button.textContent = `Retrying ${jobsInCategory.length}...`;
 
-  try {
-    const titleList = jobsInCategory.map(j => j.title).join(", ");
-    setMessage(`Retrying ${jobsInCategory.length} items: ${titleList.substring(0, 80)}${titleList.length > 80 ? "..." : ""}`, "info");
-
-    // Retry all items sequentially
-    let successCount = 0;
-    for (const job of jobsInCategory) {
+  showConfirmModal(
+    `Retry all ${jobsInCategory.length} ${categoryName === 'plexMismatch' ? 'Plex' : 'Emby/Jellyfin'} match issues?\n\nThis will sequentially retry each item. The process may take a minute or two.`,
+    async () => {
       try {
-        await new Promise((resolve, reject) => {
-          const response = fetch("/api/retry-sync", {
-            method: "POST",
-            headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ id: job.id }),
-          }).then(r => r.json()).then(data => {
-            if (data.ok || data.success) successCount++;
-            resolve();
-          }).catch(reject);
-        });
-      } catch (err) {
-        console.error(`Failed to retry ${job.id}:`, err);
-      }
-      // Small delay between retries
-      await new Promise(r => setTimeout(r, 100));
-    }
+        setMessage(`Retrying ${jobsInCategory.length} items...`, "info");
 
-    await loadSyncJobs({ force: true });
-    setMessage(`Retried ${jobsInCategory.length} items. ${successCount} succeeded.`, "success");
-  } catch (error) {
-    setMessage(`Error: ${error.message}`, "error");
-  } finally {
-    button.disabled = false;
-    button.textContent = originalText;
-  }
+        // Retry all items sequentially
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let i = 0; i < jobsInCategory.length; i++) {
+          const job = jobsInCategory[i];
+          try {
+            const response = await fetch("/api/retry-sync", {
+              method: "POST",
+              headers: { ...authHeaders(), "Content-Type": "application/json" },
+              body: JSON.stringify({ id: job.id }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              if (data.status === "success" || String(data.status || "").includes("success")) {
+                successCount++;
+              } else {
+                failCount++;
+              }
+            } else {
+              failCount++;
+            }
+          } catch (err) {
+            console.error(`Failed to retry ${job.id}:`, err);
+            failCount++;
+          }
+
+          // Small delay between retries and progress updates
+          if (i % 5 === 0 || i === jobsInCategory.length - 1) {
+            setMessage(`Retrying... ${i + 1}/${jobsInCategory.length} (${successCount} passed)`, "info");
+          }
+          await new Promise(r => setTimeout(r, 200));
+        }
+
+        // Refresh to see updated results
+        await loadSyncJobs({ force: true });
+        await loadSyncHistory({ force: true });
+
+        const resultMsg = `Completed ${jobsInCategory.length} retries. ${successCount} passed, ${failCount} had issues.`;
+        setMessage(resultMsg, successCount > failCount ? "success" : "warning");
+      } catch (error) {
+        setMessage(`Error during retry: ${error.message}`, "error");
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    }
+  );
 }
 
 async function triggerCronSync() {
