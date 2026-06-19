@@ -1,7 +1,14 @@
 {
-  "version": "0.1.24",
-  "updatedAt": "2026-06-19T20:13:53+01:00",
+  "version": "0.1.25",
+  "updatedAt": "2026-06-19T20:21:13+01:00",
   "entries": [
+    {
+      "version": "0.1.25",
+      "date": "2026-06-19T20:21:13+01:00",
+      "commit": "eb764e22f0fabe5d16eeffc74151de68acd1f17a",
+      "message": "Fix sync issues sub-category expand-on-open and filter content-not-in-library false positives",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.24",
       "date": "2026-06-19T20:13:53+01:00",
