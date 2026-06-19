@@ -626,6 +626,27 @@ export async function batchInsertWatchRecords(_unusedDb, records) {
 
 const updateTelemetryStmt = db.prepare("UPDATE watch_history SET sync_dispatch_telemetry = ?, updated_at = ? WHERE id = ?");
 const updatePlaystateWatchedAtStmt = db.prepare("UPDATE playstate SET watched_at = ?, updated_at = ? WHERE media_key = ?");
+const updateWatchRowWatchedAtStmt = db.prepare("UPDATE watch_history SET watched_at = ?, updated_at = ? WHERE id = ?");
+
+function relatedTrackedWatchRowsForDateEdit(existing = {}) {
+  if (!existing.id) return [];
+  if (existing.media_type !== "episode") {
+    return existing.media_key
+      ? selectByMediaKeyStmt.all(existing.media_key).filter((row) => row.id !== existing.id && isPlembfinTrackedWatchRow(row))
+      : [];
+  }
+
+  const showKey = canonicalTitleKey(existing.show_title || showTitleFrom(existing.title));
+  const season = existing.season == null ? null : Number(existing.season);
+  const episode = existing.episode == null ? null : Number(existing.episode);
+  if (!showKey || season == null || episode == null) return [];
+
+  return selectAllEpisodesStmt.all().filter((row) => {
+    if (row.id === existing.id || !isPlembfinTrackedWatchRow(row)) return false;
+    if (Number(row.season) !== season || Number(row.episode) !== episode) return false;
+    return canonicalTitleKey(row.show_title || showTitleFrom(row.title)) === showKey;
+  });
+}
 
 export async function updateWatchTelemetry(_unusedDb, id, telemetry, { skipInvalidate = false } = {}) {
   if (!id) return;
@@ -1220,6 +1241,17 @@ export async function updateWatchRecord(id, fields = {}) {
   sets.push("updated_at = ?"); params.push(Date.now());
   params.push(String(id));
   db.prepare(`UPDATE watch_history SET ${sets.join(", ")} WHERE id = ?`).run(...params);
+  if (normalizedWatchedAt && existing.media_key) {
+    const relatedRows = relatedTrackedWatchRowsForDateEdit(existing);
+    transaction(() => {
+      for (const row of relatedRows) {
+        updateWatchRowWatchedAtStmt.run(normalizedWatchedAt, Date.now(), row.id);
+      }
+    });
+    for (const mediaKey of new Set(relatedRows.map((row) => row.media_key).filter(Boolean))) {
+      updatePlaystateWatchedAtStmt.run(normalizedWatchedAt, Date.now(), mediaKey);
+    }
+  }
   if (normalizedWatchedAt && existing.media_key) {
     updatePlaystateWatchedAtStmt.run(normalizedWatchedAt, Date.now(), existing.media_key);
   }

@@ -7467,6 +7467,50 @@ function mergeShowWithLoadedHistory(show = {}) {
   };
 }
 
+function applyWatchedAtToLocalWatchRecord(id, watchedAt) {
+  if (!id || !watchedAt) return null;
+  let updated = null;
+
+  const updateRow = (row) => {
+    if (!row || String(row.id) !== String(id)) return;
+    row.watched_at = watchedAt;
+    updated = row;
+  };
+
+  state.history.forEach(updateRow);
+  state.historyViewRaw.forEach(updateRow);
+
+  for (const show of state.showsRaw || []) {
+    let showUpdated = false;
+    for (const episode of show.episodes || []) {
+      if (String(episode.id) !== String(id)) continue;
+      episode.watched_at = watchedAt;
+      updated = episode;
+      showUpdated = true;
+    }
+    if (show.representative_episode && String(show.representative_episode.id) === String(id)) {
+      show.representative_episode.watched_at = watchedAt;
+      updated = show.representative_episode;
+      showUpdated = true;
+    }
+    if (showUpdated) {
+      const dates = (show.episodes || []).map((episode) => episode.watched_at).filter(Boolean).sort();
+      if (dates.length) {
+        show.earliest_watched_at = dates[0];
+        show.latest_watched_at = dates.at(-1);
+      }
+    }
+  }
+
+  for (const episode of state.showModalEpisodes || []) {
+    if (!episode.watched || String(episode.watched.id) !== String(id)) continue;
+    episode.watched.watched_at = watchedAt;
+    updated = episode.watched;
+  }
+
+  return updated;
+}
+
 async function openShowImmersiveModalByTitleLegacy(showTitle) {
   const showKey = slug(showTitle);
   let show = state.showsRaw.find((s) => slug(s.title) === showKey);
@@ -11995,9 +12039,9 @@ function attachEvents() {
         editDateBtn.dataset.watchedAt = watched_at;
         const span = container.querySelector(".progress-label-row span");
         if (span) span.textContent = `Watched on ${formatDate(watched_at)}`;
-        const entry = state.history.find((h) => h.id === editDateBtn.dataset.editId);
+        const entry = applyWatchedAtToLocalWatchRecord(editDateBtn.dataset.editId, watched_at)
+          || state.history.find((h) => h.id === editDateBtn.dataset.editId);
         if (entry) {
-          entry.watched_at = watched_at;
           if (entry.media_type === "episode") {
             const showTitle = entry.show_title || showTitleFrom(entry.title);
             if (showTitle) {
@@ -12017,12 +12061,8 @@ function attachEvents() {
               });
           }
         }
-        const pageEntry = state.historyViewRaw.find((h) => h.id === editDateBtn.dataset.editId);
-        if (pageEntry) {
-          pageEntry.watched_at = watched_at;
-          if (state.activeView === "history") {
-            renderHistoryView();
-          }
+        if (state.activeView === "history") {
+          renderHistoryView();
         }
       });
       return;
@@ -12132,9 +12172,9 @@ function attachEvents() {
         // Also update movie watch status row if present
         const span = editDateIconBtn.closest(".progress-label-row")?.querySelector("span");
         if (span) span.innerHTML = `Watched on ${formatDate(watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(id)}" data-watched-at="${escapeAttribute(watched_at)}">✎</button>`;
-        const entry = state.history.find((h) => h.id === id);
+        const entry = applyWatchedAtToLocalWatchRecord(id, watched_at)
+          || state.history.find((h) => h.id === id);
         if (entry) {
-          entry.watched_at = watched_at;
           if (entry.media_type === "episode") {
             const showTitle = entry.show_title || showTitleFrom(entry.title);
             if (showTitle) {
@@ -12154,12 +12194,8 @@ function attachEvents() {
               });
           }
         }
-        const pageEntry = state.historyViewRaw.find((h) => h.id === id);
-        if (pageEntry) {
-          pageEntry.watched_at = watched_at;
-          if (state.activeView === "history") {
-            renderHistoryView();
-          }
+        if (state.activeView === "history") {
+          renderHistoryView();
         }
       });
       return;
