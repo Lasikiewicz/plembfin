@@ -6232,6 +6232,14 @@ function summaryEpisodeFromShow(show = {}) {
   };
 }
 
+function tmdbLookupIdsFromShow(show = {}, seasons = null) {
+  const representative = show.representative_episode || show.representativeEpisode || representativeEpisode(seasons || seasonsFromShowRecord(show));
+  return {
+    imdbId: show.imdb_id || representative?.imdb_id || "",
+    tvdbId: show.tvdb_id || representative?.tvdb_id || "",
+  };
+}
+
 function renderShowRecord(show = {}) {
   const displayTitle = sanitizeTitle(show.title) || "Unknown Show";
   const showKey = slug(displayTitle);
@@ -7079,14 +7087,28 @@ function flushTmdbBatch() {
   })();
 }
 
-async function fetchTmdbDetails(mediaType, tmdbId, title) {
-  const cacheKey = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}`;
+function normalizeTmdbLookupIds(ids = {}) {
+  return {
+    imdbId: String(ids.imdbId || ids.imdb_id || ids.imdb || "").trim(),
+    tvdbId: String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim(),
+  };
+}
+
+async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}) {
+  const lookupIds = normalizeTmdbLookupIds(ids);
+  const cacheKey = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}|${lookupIds.imdbId.toLowerCase()}|${lookupIds.tvdbId.toLowerCase()}`;
   if (state.tmdbDetailsCache.has(cacheKey)) return state.tmdbDetailsCache.get(cacheKey);
 
   let resolveFn;
   const promise = new Promise((resolve) => { resolveFn = resolve; });
   _tmdbBatchQueue.push({
-    item: { mediaType, tmdbId: tmdbId || undefined, title: title || undefined },
+    item: {
+      mediaType,
+      tmdbId: tmdbId || undefined,
+      title: title || undefined,
+      imdbId: lookupIds.imdbId || undefined,
+      tvdbId: lookupIds.tvdbId || undefined,
+    },
     resolve: resolveFn,
   });
   if (_tmdbBatchQueue.length >= 100) {
@@ -7555,7 +7577,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
     </div>
   `;
 
-  const tmdbData = await fetchTmdbDetails("tv", show.tmdb_id, show.title);
+  const tmdbData = await fetchTmdbDetails("tv", show.tmdb_id, show.title, tmdbLookupIdsFromShow(show, seasonsMap));
 
   const showTitle = sanitizeTitle(show.title) || "Unknown Show";
   let backdropUrl = "";
@@ -8193,7 +8215,7 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
   const show = mergeShowWithLoadedHistory(state.showsRaw.find((s) => slug(s.title) === showKey));
   if (!show) return;
 
-  const tmdbData = await fetchTmdbDetails("tv", show.tmdb_id, show.title);
+  const tmdbData = await fetchTmdbDetails("tv", show.tmdb_id, show.title, tmdbLookupIdsFromShow(show));
   if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
 
   if (tmdbData && tmdbData.id) {

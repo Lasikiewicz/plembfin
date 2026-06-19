@@ -196,10 +196,44 @@ async function cacheCanonicalArtwork(mediaType, tmdbId, details) {
   return { cached_poster_url: poster, cached_backdrop_url: backdrop };
 }
 
-async function resolveTmdbId(mediaType, tmdbId, title) {
+async function resolveTmdbExternalId(type, source, externalId) {
+  const cleaned = String(externalId || "").trim();
+  if (!cleaned) return "";
+  const key = `external_${type}_${source}_${hash(cleaned.toLowerCase())}`;
+  const cached = metaGet(key);
+  if (cached?.tmdbId) return String(cached.tmdbId);
+
+  try {
+    const result = await upstream(`find/${encodeURIComponent(cleaned)}`, { external_source: source });
+    const list = type === "movie" ? result.movie_results : result.tv_results;
+    const resolved = String(list?.[0]?.id || "");
+    if (resolved) {
+      metaSet(key, { tmdbId: resolved, mediaType: type, title: cleaned, updatedAtMs: Date.now() });
+    }
+    return resolved;
+  } catch {
+    return "";
+  }
+}
+
+async function resolveTmdbId(mediaType, tmdbId, title, ids = {}) {
   if (tmdbId) return String(tmdbId);
   const type = mediaTypeFor(mediaType);
-  const titleKey = `title_${type}_${hash(canonicalTitle(title))}`;
+  const imdbId = String(ids.imdbId || ids.imdb_id || ids.imdb || "").trim();
+  const tvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
+
+  if (imdbId) {
+    const resolved = await resolveTmdbExternalId(type, "imdb_id", imdbId);
+    if (resolved) return resolved;
+  }
+  if (type === "tv" && tvdbId) {
+    const resolved = await resolveTmdbExternalId(type, "tvdb_id", tvdbId);
+    if (resolved) return resolved;
+  }
+
+  const normalizedTitle = canonicalTitle(title);
+  if (!normalizedTitle) return "";
+  const titleKey = `title_${type}_${hash(normalizedTitle)}`;
   const cached = metaGet(titleKey);
   if (cached?.tmdbId) return String(cached.tmdbId);
   const result = await upstream(`search/${type}`, { query: title, page: 1, include_adult: false });
@@ -227,9 +261,9 @@ async function deriveNextAiring(details, tmdbId) {
   return null;
 }
 
-export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", force = false }) {
+export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false }) {
   const type = mediaTypeFor(mediaType);
-  const resolvedId = await resolveTmdbId(type, tmdbId, title);
+  const resolvedId = await resolveTmdbId(type, tmdbId, title, ids);
   if (!resolvedId) {
     const error = new Error("Could not resolve TMDB ID");
     error.status = 404;
