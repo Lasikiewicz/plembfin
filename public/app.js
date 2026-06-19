@@ -3071,6 +3071,7 @@ function categorizeIssues(jobs = []) {
     missingTelemetry: [],
     plexMismatch: [],
     targetMismatch: [],
+    otherIssues: [],
   };
 
   for (const job of jobs) {
@@ -3081,6 +3082,9 @@ function categorizeIssues(jobs = []) {
       categories.plexMismatch.push(job);
     } else if (telemetry.includes("Synced to no targets")) {
       categories.targetMismatch.push(job);
+    } else {
+      // Catch any other unresolved issues
+      categories.otherIssues.push(job);
     }
   }
   return categories;
@@ -3093,6 +3097,7 @@ function renderIssueCategory(categoryName, jobs = [], helpText = "") {
     missingTelemetry: "Missing Dispatch Telemetry",
     plexMismatch: "Plex Match Issues",
     targetMismatch: "Emby/Jellyfin Match Issues",
+    otherIssues: "Other Issues",
   };
 
   const showFixButtons = categoryName !== 'missingTelemetry';
@@ -3169,6 +3174,8 @@ function renderSyncJobs() {
       'Plex could not find matching items. Check Plex metadata, external IDs, or library content. Emby/Jellyfin may have synced successfully.')}
     ${renderIssueCategory('targetMismatch', categories.targetMismatch,
       'Plex found the item but Emby/Jellyfin could not. Check their metadata and external IDs to match Plex.')}
+    ${renderIssueCategory('otherIssues', categories.otherIssues,
+      'These items have unresolved sync issues. Check the telemetry for details on what went wrong.')}
   `;
 
   container.innerHTML = html;
@@ -10679,8 +10686,16 @@ async function triggerRetryAllCategory(categoryName, button) {
   button.disabled = true;
   button.textContent = `Retrying ${jobsInCategory.length}...`;
 
+  const categoryLabels = {
+    plexMismatch: 'Plex Match',
+    targetMismatch: 'Emby/Jellyfin Match',
+    otherIssues: 'Unresolved',
+    missingTelemetry: 'Missing Telemetry',
+  };
+  const categoryLabel = categoryLabels[categoryName] || categoryName;
+
   showConfirmModal(
-    `Retry all ${jobsInCategory.length} ${categoryName === 'plexMismatch' ? 'Plex' : 'Emby/Jellyfin'} match issues?\n\nThis will sequentially retry each item. The process may take a minute or two.`,
+    `Retry all ${jobsInCategory.length} ${categoryLabel} issues?\n\nThis will sequentially retry each item. The process may take a minute or two.`,
     async () => {
       try {
         setMessage(`Retrying ${jobsInCategory.length} items...`, "info");
