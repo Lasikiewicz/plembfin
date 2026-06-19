@@ -1022,6 +1022,21 @@ h2 {
   color: #fff;
 }
 
+.sync-job-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+.sync-job-actions .button-ghost,
+.sync-job-actions .retry-sync-btn {
+  min-height: 1.85rem;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.72rem;
+}
+
 /* Slim name-only availability pills */
 .avail-pills-row {
   display: flex;
@@ -7483,6 +7498,68 @@ details[open] > .tool-section-summary::before {
   text-transform: uppercase;
   font-size: 0.68rem;
   letter-spacing: 0.05em;
+}
+
+/* Animations */
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+
+/* Enhanced sync button styling */
+.sync-btn {
+  transition: all 0.2s ease;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.sync-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.sync-action-btn {
+  transition: all 0.2s ease;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.sync-action-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(75, 150, 230, 0.3);
+}
+
+/* Sync issue card expandable styling */
+.sync-issue-card {
+  transition: all 0.2s ease;
+}
+
+.sync-issue-card[open] {
+  background: rgba(0, 0, 0, 0.08);
+  border-left-color: var(--blue);
+}
+
+.sync-issue-card summary:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.dismiss-issue-btn {
+  font-size: 1.1rem !important;
+  padding: 0.25rem 0.35rem !important;
+  min-height: auto !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dismiss-issue-btn:hover {
+  color: var(--red) !important;
 }
 
 @media (max-width: 600px) {

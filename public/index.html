@@ -1097,28 +1097,66 @@
 
                     <!-- Control Buttons -->
                     <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3);">
-                      <button id="runCronSyncButton" class="button-primary" type="button">Run Cron Sync</button>
-                      <button id="forceSyncButton" class="button-primary" type="button">Force Sync</button>
-                      <button id="stopSyncButton" class="button-danger hidden" type="button">Stop Sync</button>
-                      <button id="refreshSyncButton" class="button-ghost" type="button">Refresh</button>
+                      <button id="runCronSyncButton" class="button-primary sync-action-btn" type="button" title="Run the scheduled sync job immediately">Run Cron Sync</button>
+                      <button id="forceSyncButton" class="button-primary sync-action-btn" type="button" title="Force an immediate sync of all pending watched states">Force Sync</button>
+                      <button id="stopSyncButton" class="button-danger hidden" type="button" title="Stop the currently running sync">Stop Sync</button>
+                      <button id="refreshSyncButton" class="button-ghost sync-btn" type="button" title="Refresh the sync issues list">Refresh</button>
                     </div>
                   </div>
 
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Synchronization Help</p>
-                        <span>Queues &amp; Jobs</span>
+                        <p>Sync Help</p>
+                        <span>Understanding Issues & Status</span>
                       </div>
-                      <p class="tool-accordion-desc">
-                        <b>Background Worker:</b> Runs every 60 seconds to poll active playback sessions, commit watches above 90% progress, dispatch pending sync jobs, and poll Plex for unwatched removals.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Resume Progress Sync:</b> Playback stopped below 90% and above 1 minute stores the current resume offset tick count and replicates it to all other platforms.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Loop Prevention:</b> An in-memory <code>loopStore</code> tracks dispatched watch states to prevent feedback echo loops when media server webhooks trigger.
-                      </p>
+
+                      <div style="margin-bottom: var(--space-3);">
+                        <b style="display: block; margin-bottom: var(--space-1);">Sync Issues Section</b>
+                        <p class="tool-accordion-desc" style="margin: 0;">
+                          This section shows any problems with propagating watched states between your media servers. Click on any issue to view detailed telemetry about what went wrong.
+                        </p>
+                      </div>
+
+                      <div style="margin-bottom: var(--space-3);">
+                        <b style="display: block; margin-bottom: var(--space-1);">Issue Categories</b>
+                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
+                          <b>Missing Dispatch Telemetry:</b> No logging data recorded. These likely synced successfully but the logs are missing. Safe to clear.
+                        </p>
+                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
+                          <b>Plex Match Issues:</b> Plex couldn't find the media item. Check Plex metadata and external IDs.
+                        </p>
+                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
+                          <b>Emby/Jellyfin Match Issues:</b> Plex found it but Emby/Jellyfin couldn't. Check their metadata and IDs.
+                        </p>
+                        <p class="tool-accordion-desc" style="margin: 0;">
+                          <b>Unresolved Sync Issues:</b> Other sync problems detected. Click to view telemetry for error details.
+                        </p>
+                      </div>
+
+                      <div style="margin-bottom: var(--space-3);">
+                        <b style="display: block; margin-bottom: var(--space-1);">Sync History</b>
+                        <p class="tool-accordion-desc" style="margin: 0;">
+                          Recent watched-state propagation attempts. Shows source, action, timestamp, and target sync results.
+                        </p>
+                      </div>
+
+                      <div style="margin-bottom: var(--space-3);">
+                        <b style="display: block; margin-bottom: var(--space-1);">How Sync Works</b>
+                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
+                          When you mark something as watched (on any platform), Plembfin automatically propagates that state to your other configured servers every 60 seconds.
+                        </p>
+                        <p class="tool-accordion-desc" style="margin: 0;">
+                          Resume positions sync similarly. Use "Force Sync" to immediately push any pending updates without waiting.
+                        </p>
+                      </div>
+
+                      <div>
+                        <b style="display: block; margin-bottom: var(--space-1);">Fixing Issues</b>
+                        <p class="tool-accordion-desc" style="margin: 0;">
+                          Click "Retry" on an issue to re-attempt the sync and see detailed error messages. Click "Fix" to manually adjust the match if the item wasn't found.
+                        </p>
+                      </div>
                     </article>
                   </div>
                 </div>
