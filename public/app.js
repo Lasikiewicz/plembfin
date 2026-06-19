@@ -3940,9 +3940,13 @@ function selectView(view) {
     url = `/${targetView}`;
   }
 
-  const currentUrl = window.location.pathname + window.location.hash;
+  const currentUrl = window.location.pathname + window.location.search + window.location.hash;
   if (currentUrl !== url) {
-    navigateTo(url);
+    if (isConfigSensitiveRoute(currentUrl) && !state.configLoaded) {
+      applyActiveView();
+    } else {
+      navigateTo(url);
+    }
   } else {
     applyActiveView();
   }
@@ -9163,6 +9167,11 @@ async function unlockWithToken(password, email = elements.adminEmail?.value) {
     renderSettingsStatus(error.message, "error");
     setMessage(error.message, "error");
   });
+  const fullPath = window.location.pathname + window.location.search + window.location.hash;
+  if (isConfigSensitiveRoute(fullPath)) {
+    handleRouting(fullPath);
+    applyActiveView();
+  }
   startHistoryPolling();
   setMessage("Dashboard unlocked.", "success");
 }
@@ -11320,7 +11329,7 @@ function attachEvents() {
 
   window.addEventListener("popstate", () => {
     state.internalHistoryCount = history.state?.index || 0;
-    handleRouting(window.location.pathname + window.location.hash);
+    handleRouting(window.location.pathname + window.location.search + window.location.hash);
     applyActiveView();
   });
 
@@ -11368,7 +11377,7 @@ function initialize() {
   bindElements();
   loadAppVersion();
   bootstrapTokenFromUrl();
-  const initialPath = window.location.pathname + window.location.hash;
+  const initialPath = window.location.pathname + window.location.search + window.location.hash;
   if (!isConfigSensitiveRoute(initialPath)) {
     handleRouting(initialPath);
   }
@@ -11420,7 +11429,7 @@ function initialize() {
 
     }
     if (user && token && !state.configLoaded) {
-      const fullPath = window.location.pathname + window.location.hash;
+      const fullPath = window.location.pathname + window.location.search + window.location.hash;
       elements.settingsUsername.value = user.username || user.email || "";
       localStorage.setItem("firebaseAdminEmail", user.email || "");
       setUnlocked(true);
@@ -11429,6 +11438,7 @@ function initialize() {
         .then(() => {
           if (isConfigSensitiveRoute(fullPath)) {
             handleRouting(fullPath);
+            applyActiveView();
           }
           if (state.activeView === "dashboard") return loadHistory();
           if (state.activeView === "stats") return loadStats();
@@ -11440,9 +11450,10 @@ function initialize() {
           setMessage(`${error.message} Signed in, but dashboard APIs are not responding yet.`, "error");
         });
     } else if (user && token) {
-      const fullPath = window.location.pathname + window.location.hash;
+      const fullPath = window.location.pathname + window.location.search + window.location.hash;
       if (isConfigSensitiveRoute(fullPath)) {
         handleRouting(fullPath);
+        applyActiveView();
       }
     } else if (!user) {
       setUnlocked(false);
