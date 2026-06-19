@@ -1,7 +1,14 @@
 {
-  "version": "0.1.14",
-  "updatedAt": "2026-06-19T10:26:47+01:00",
+  "version": "0.1.15",
+  "updatedAt": "2026-06-19T11:04:14+01:00",
   "entries": [
+    {
+      "version": "0.1.15",
+      "date": "2026-06-19T11:04:14+01:00",
+      "commit": "73cbc6c56c50cfff2bcb6acf9c92caad79bf55e8",
+      "message": "fix: use app availability for tv requests",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.14",
       "date": "2026-06-19T10:26:47+01:00",
