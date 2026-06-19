@@ -1,7 +1,14 @@
 {
-  "version": "0.1.6",
-  "updatedAt": "2026-06-19T08:27:22+01:00",
+  "version": "0.1.7",
+  "updatedAt": "2026-06-19T08:58:52+01:00",
   "entries": [
+    {
+      "version": "0.1.7",
+      "date": "2026-06-19T08:58:52+01:00",
+      "commit": "bff09f425e33bfde2f01455e4f39faa4b517cc27",
+      "message": "Improve Seerr availability display and remove sync target pills",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.6",
       "date": "2026-06-19T08:27:22+01:00",
