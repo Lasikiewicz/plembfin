@@ -7170,9 +7170,10 @@ function ratingPillHtml({ label, value = "View", href = "", title = "" } = {}) {
   `;
 }
 
-function renderSeerrRequestPill(mediaType, tmdbId) {
+function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false) {
   if (!state.seerrConfigured || !tmdbId) return "";
   const status = state.seerrMediaStatusCache.get(`${mediaType}:${tmdbId}`) || {};
+  const isAvailable = status.available || localAvailable;
   const supports4k = mediaType === "movie" ? state.seerrSupports4k.movie : state.seerrSupports4k.tv;
   const seerrBaseUrl = String(state.savedConfig?.seerr?.baseUrl || "").replace(/\/+$/, "");
   const seerrIconHtml = seerrBaseUrl
@@ -7180,25 +7181,27 @@ function renderSeerrRequestPill(mediaType, tmdbId) {
     : "";
   const iconAndFallback = `${seerrIconHtml}<span class="seerr-request-fallback" aria-hidden="true">S</span>`;
   return `
-    ${status.available ? `<span class="rating-pill seerr-owned-pill">Available in 1080p</span>` : `
-      <button class="rating-pill seerr-request-btn" type="button"
-        data-seerr-media-type="${escapeAttribute(mediaType)}"
-        data-seerr-media-id="${escapeAttribute(String(tmdbId))}">
-        ${iconAndFallback}
-        <span>${status.pending ? "Requested on Seerr" : "Request on Seerr"}</span>
-      </button>
-    `}
-    ${supports4k && !status.available4k ? `
-      <button class="rating-pill seerr-request-btn seerr-request-btn-4k" type="button"
-        data-seerr-media-type="${escapeAttribute(mediaType)}"
-        data-seerr-media-id="${escapeAttribute(String(tmdbId))}"
-        data-seerr-request-4k="true">
-        ${iconAndFallback}
-        <span>${status.pending4k ? "4K Requested" : "Request 4K"}</span>
-      </button>
-    ` : status.available4k ? `
-      <span class="rating-pill seerr-owned-pill seerr-owned-pill-4k">Available in 4K</span>
-    ` : ""}
+    <span id="seerrRequestContainer" style="display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;" data-media-type="${escapeAttribute(mediaType)}" data-tmdb-id="${escapeAttribute(String(tmdbId))}" data-local-available="${localAvailable}">
+      ${isAvailable ? `<span class="rating-pill seerr-owned-pill">Available in 1080p</span>` : `
+        <button class="rating-pill seerr-request-btn" type="button"
+          data-seerr-media-type="${escapeAttribute(mediaType)}"
+          data-seerr-media-id="${escapeAttribute(String(tmdbId))}">
+          ${iconAndFallback}
+          <span>${status.pending ? "Requested on Seerr" : "Request on Seerr"}</span>
+        </button>
+      `}
+      ${supports4k && !status.available4k ? `
+        <button class="rating-pill seerr-request-btn seerr-request-btn-4k" type="button"
+          data-seerr-media-type="${escapeAttribute(mediaType)}"
+          data-seerr-media-id="${escapeAttribute(String(tmdbId))}"
+          data-seerr-request-4k="true">
+          ${iconAndFallback}
+          <span>${status.pending4k ? "4K Requested" : "Request 4K"}</span>
+        </button>
+      ` : status.available4k ? `
+        <span class="rating-pill seerr-owned-pill seerr-owned-pill-4k">Available in 4K</span>
+      ` : ""}
+    </span>
   `;
 }
 
@@ -7221,10 +7224,10 @@ function fetchSeerrMediaStatus(mediaType, tmdbId) {
 }
 
 function refreshActiveMediaDetailAfterSeerrStatus(mediaType, tmdbId) {
-  if (mediaType === "movie" && String(state.activeMovieTmdbId || "") === String(tmdbId)) {
-    openMovieImmersiveModalByTmdbId(tmdbId).catch(() => null);
-  } else if (mediaType === "tv" && String(state.activeShowTmdbId || "") === String(tmdbId)) {
-    openShowImmersiveModalByTmdbId(tmdbId).catch(() => null);
+  const container = document.getElementById("seerrRequestContainer");
+  if (container && container.getAttribute("data-media-type") === mediaType && String(container.getAttribute("data-tmdb-id")) === String(tmdbId)) {
+    const localAvailable = container.getAttribute("data-local-available") === "true";
+    container.outerHTML = renderSeerrRequestPill(mediaType, tmdbId, localAvailable);
   }
 }
 
@@ -7875,9 +7878,10 @@ function renderShowModalContent(show, {
           <h2 class="immersive-title">${escapeHtml(showTitle)}</h2>
           <p class="immersive-subtitle">${escapeHtml(premiered)}</p>
 
-          <div class="ratings-row">
+          <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingPillsHtml}
             ${showModalStatus(loading, hasTmdbKey, Boolean(tmdbData))}
+            ${renderSeerrRequestPill("tv", show.tmdb_id || tmdbData?.id, !tmdbOnly)}
           </div>
 
           <p class="immersive-overview">${escapeHtml(overview)}</p>
@@ -7893,7 +7897,7 @@ function renderShowModalContent(show, {
             </div>
           </section>
 
-        </div>
+         </div>
         ${renderMediaFacts(tmdbData, "tv", "sidebar")}
       </header>
 
@@ -7906,6 +7910,11 @@ function renderShowModalContent(show, {
     </div>
     ${renderWatchDatePrompt(state.pendingWatchAction)}
   `;
+  const tvSeerrTmdbId = show.tmdb_id || tmdbData?.id;
+  if (tvSeerrTmdbId) {
+    fetchSeerrMediaStatus("tv", tvSeerrTmdbId)
+      .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus("tv", tvSeerrTmdbId); });
+  }
   hydratePosters(root);
   // Highlight only — no scrolling when navigating from dashboard
 }
@@ -8130,7 +8139,7 @@ async function submitSeerrRequest(mediaType, mediaId, button) {
     setMessage("Cannot send Seerr request — missing media info.", "error");
     return;
   }
-  const is4k = button?.dataset?.seerrRequest4k === "true";
+  const is4k = button?.getAttribute("data-seerr-request-4k") === "true";
   const originalText = button?.textContent;
   if (button) {
     button.disabled = true;
@@ -8810,7 +8819,7 @@ async function renderMovieImmersiveModalContent(movie) {
 
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
-            ${renderSeerrRequestPill("movie", movie.tmdb_id || tmdbData?.id)}
+            ${renderSeerrRequestPill("movie", movie.tmdb_id || tmdbData?.id, true)}
             ${syncStatusBlockHtml}
           </div>
           <p class="immersive-overview">${escapeHtml(overview)}</p>
@@ -8954,7 +8963,7 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
           
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
-            ${renderSeerrRequestPill("movie", tmdbId)}
+            ${renderSeerrRequestPill("movie", tmdbId, false)}
           </div>
 
           <p class="immersive-overview">${escapeHtml(overview)}</p>

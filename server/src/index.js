@@ -441,8 +441,8 @@ async function handleSeerrMediaStatus(req, res) {
     const requested4k = Boolean(media?.requests?.some?.((request) => request?.is4k) || media?.request4k || media?.requested4k);
     const available = Boolean(media?.available || status === 5);
     const available4k = Boolean(media?.available4k || status4k === 5);
-    const pending = Boolean(requested || [2, 3, 4].includes(status));
-    const pending4k = Boolean(requested4k || [2, 3, 4].includes(status4k));
+    const pending = !available && Boolean(requested || [2, 3, 4].includes(status));
+    const pending4k = !available4k && Boolean(requested4k || [2, 3, 4].includes(status4k));
 
     return sendJson(res, {
       ok: true,
