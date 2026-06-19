@@ -949,12 +949,13 @@ export async function listRecentTrackedWatchRows({ limit = 100, scanLimit = 400 
   return dedupeHistory(rows).slice(0, safeLimit);
 }
 
-export async function queryWatchHistory(_unusedDb, { search = "", limit = 50, offset = 0 } = {}) {
+export async function queryWatchHistory(_unusedDb, { search = "", limit = 50, offset = 0, dedupe = true } = {}) {
   const safeLimit = Math.min(Number(limit) || 50, MAX_HISTORY_LIMIT);
   const safeOffset = Math.max(Number(offset) || 0, 0);
   const rows = await loadHistoryRows({ limit: MAX_HISTORY_LIMIT, offset: 0 });
   const filtered = rows.filter((row) => isPlembfinTrackedWatchRow(row) && matchesSearch(row, cleanString(search)));
-  return dedupeHistory(filtered).slice(safeOffset, safeOffset + safeLimit);
+  const processed = dedupe ? dedupeHistory(filtered) : filtered;
+  return processed.slice(safeOffset, safeOffset + safeLimit);
 }
 
 function compactHistoryPreviewRow(row = {}) {
