@@ -1,7 +1,14 @@
 {
-  "version": "0.1.11",
-  "updatedAt": "2026-06-19T09:21:51+01:00",
+  "version": "0.1.12",
+  "updatedAt": "2026-06-19T09:26:03+01:00",
   "entries": [
+    {
+      "version": "0.1.12",
+      "date": "2026-06-19T09:26:03+01:00",
+      "commit": "919eba45ec2bd92a6c272e45a5295c6171c5ae62",
+      "message": "fix: update active movie and show TMDB IDs when resolved to ensure Seerr status refreshes correctly",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.11",
       "date": "2026-06-19T09:21:51+01:00",
