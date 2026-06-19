@@ -3249,7 +3249,7 @@ function renderIssueCategory(categoryName, jobs = [], helpText = "") {
   const showFixButtons = categoryName !== 'missingTelemetry';
 
   return `
-    <details class="issue-category" open>
+    <details class="issue-category">
       <summary style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: var(--space-2); background: rgba(0,0,0,0.1); border-radius: var(--radius-sm); margin-bottom: var(--space-2);">
         <div>
           <b>${titles[categoryName] || categoryName}</b>

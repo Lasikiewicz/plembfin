@@ -1017,6 +1017,17 @@ function isLegacyInitialSyncPlaceholder(row = {}) {
   return origin.endsWith("_initial_sync") && !telemetryHasTargetStatus(telemetry) && details.includes("awaiting outbound sync telemetry");
 }
 
+// Returns true when every non-successful target says "No matching item found" — meaning
+// the content simply isn't in those libraries, not a fixable sync error.
+function allNonSuccessTargetsNotFound(telemetry) {
+  const lines = String(telemetry || "").split(/\r?\n/);
+  const targetLines = lines.filter((l) => /^(plex|emby|jellyfin)\s+(?:progress\s+)?status:/i.test(l.trim()));
+  if (!targetLines.length) return false;
+  const nonSuccessLines = targetLines.filter((l) => !l.toLowerCase().includes("success"));
+  if (!nonSuccessLines.length) return false;
+  return nonSuccessLines.every((l) => l.toLowerCase().includes("no matching item found"));
+}
+
 export async function querySyncJobs({ limit = 100, offset = 0, status = "outstanding" } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
   const safeOffset = Math.max(Number(offset) || 0, 0);
@@ -1030,6 +1041,7 @@ export async function querySyncJobs({ limit = 100, offset = 0, status = "outstan
     if (status === "all") return true;
     if (status === "success") return dispatchStatus === "success";
     if (isLegacyInitialSyncPlaceholder(row)) return false;
+    if (allNonSuccessTargetsNotFound(row.sync_dispatch_telemetry)) return false;
     if (dispatchStatus === "skipped") {
       const telemetry = row.sync_dispatch_telemetry || "";
       const hasTargetStatus = telemetryHasTargetStatus(telemetry);
