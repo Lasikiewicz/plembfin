@@ -6335,6 +6335,56 @@ h1 {
   text-overflow: ellipsis;
 }
 
+/* Media Images Section */
+.media-images-scroll-row {
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding: 0.25rem 0 0.8rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.media-images-scroll-row::-webkit-scrollbar {
+  height: 6px;
+}
+
+.media-images-scroll-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.media-images-scroll-row::-webkit-scrollbar-thumb {
+  background-color: var(--line-strong);
+  border-radius: 3px;
+}
+
+.media-image-card {
+  flex: 0 0 260px;
+  width: 260px;
+  aspect-ratio: 16 / 9;
+  display: block;
+  overflow: hidden;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 0;
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease;
+}
+
+.media-image-card:hover {
+  transform: translateY(-3px);
+  border-color: #3a7fc2;
+}
+
+.media-image-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 /* Review Styles */
 .review-list {
   display: flex;
@@ -6558,12 +6608,13 @@ h1 {
   position: fixed;
   inset: 0;
   z-index: 9000;
-  background: rgba(0, 0, 0, 0.92);
+  background: rgba(0, 0, 0, 0.95);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
+  padding: 0.5rem;
 }
 
 .photo-lightbox-img-wrap {
@@ -6572,9 +6623,8 @@ h1 {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  width: min(94vw, 1200px);
-  height: min(90vh, 1100px);
-  cursor: grab;
+  width: 96vw;
+  height: calc(96vh - 60px);
 }
 
 .photo-lightbox-img-wrap.grabbing {
@@ -6595,22 +6645,28 @@ h1 {
 .photo-lightbox-controls {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+  padding: 0.4rem 0.55rem;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.5);
 }
 
 .photo-lightbox-btn {
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.2);
-  color: #fff;
+  background: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  color: #111;
   border-radius: 6px;
-  padding: 0.35rem 0.75rem;
-  font-size: 1rem;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.9rem;
   cursor: pointer;
   line-height: 1;
+  font-weight: 700;
 }
 
 .photo-lightbox-btn:hover {
-  background: rgba(255,255,255,0.22);
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.3);
 }
 
 .photo-lightbox-nav {
@@ -6632,8 +6688,10 @@ h1 {
 .photo-lightbox-nav--next { right: 0.5rem; }
 
 .photo-lightbox-counter {
-  color: rgba(255,255,255,0.6);
-  font-size: 0.8rem;
+  color: #111;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0 0.35rem;
 }
 
 .person-credits-grid {
