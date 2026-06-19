@@ -1,7 +1,14 @@
 {
-  "version": "0.1.5",
-  "updatedAt": "2026-06-18T21:01:19+01:00",
+  "version": "0.1.6",
+  "updatedAt": "2026-06-19T08:27:22+01:00",
   "entries": [
+    {
+      "version": "0.1.6",
+      "date": "2026-06-19T08:27:22+01:00",
+      "commit": "26459f6efb0559b9d01395713a85c572ded2e7bf",
+      "message": "Fix routing to stay on config-sensitive pages on refresh",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.5",
       "date": "2026-06-18T21:01:19+01:00",
