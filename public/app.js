@@ -145,6 +145,7 @@ const state = {
   showModalRequestToken: 0,
   showModalEpisodes: [],
   showModalEpisodeIndex: new Map(),
+  activeShowRenderContext: null,
   showDetailInflight: new Map(),
   mediaDetailInline: false,
   mediaDetailReturnView: "explorer",
@@ -8000,6 +8001,7 @@ function renderShowModalContent(show, {
 
   state.showModalEpisodes = episodeRows;
   state.showModalEpisodeIndex = new Map(episodeRows.map((episode) => [episode.key, episode]));
+  state.activeShowRenderContext = { show, activeSeasonNum, tmdbData, seasonDetailsByNumber, loading };
 
   const selectedSeasonRecord = selectedSeason == null
     ? null
@@ -8169,9 +8171,18 @@ function renderShowModalContent(show, {
   if (tvSeerrTmdbId && !hasTvSeerrStatus) {
     fetchSeerrMediaStatus("tv", tvSeerrTmdbId)
       .then((status) => {
-        if (status && state.activeShowModalKey === slug(show.title)) {
-          renderShowModalContent(show, { activeSeasonNum, tmdbData, seasonDetailsByNumber, loading });
+        if (!status || state.activeShowModalKey !== slug(show.title)) return;
+        const current = state.activeShowRenderContext;
+        if (current?.tmdbData && !current.loading) {
+          renderShowModalContent(current.show, {
+            activeSeasonNum: current.activeSeasonNum,
+            tmdbData: current.tmdbData,
+            seasonDetailsByNumber: current.seasonDetailsByNumber,
+            loading: current.loading,
+          });
+          return;
         }
+        refreshActiveMediaDetailAfterSeerrStatus("tv", tvSeerrTmdbId);
       });
   }
   hydratePosters(root);
@@ -9336,6 +9347,7 @@ function closeDebugModal() {
   state.showModalRequestToken += 1;
   state.showModalEpisodes = [];
   state.showModalEpisodeIndex = new Map();
+  state.activeShowRenderContext = null;
   state.pendingWatchAction = null;
   state.activeMovieModalId = null;
   const eyebrowEl = elements.debugModal.querySelector(".eyebrow");
@@ -9361,7 +9373,7 @@ function prepareInlineMediaDetail(mode = state.explorerMode || "movies") {
   elements.explorerPanel.innerHTML = "";
   elements.explorerPanel.scrollIntoView({ block: "start" });
   document.querySelector("#explorerBackButton")?.classList.remove("hidden");
-  document.querySelector(".explorer-controls")?.classList.add("hidden");
+  document.querySelector('[data-view-panel="explorer"] .explorer-controls')?.classList.add("hidden");
 }
 
 function setMediaDetailActions(html) {
@@ -9378,6 +9390,7 @@ function clearMediaDetailState() {
   state.showModalRequestToken += 1;
   state.showModalEpisodes = [];
   state.showModalEpisodeIndex = new Map();
+  state.activeShowRenderContext = null;
   state.pendingWatchAction = null;
   state.activeMovieModalId = null;
   state.activeMovieTmdbId = null;
