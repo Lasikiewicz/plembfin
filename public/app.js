@@ -1379,17 +1379,30 @@ function watchedAtToInputValue(watchedAt) {
 }
 
 // Show inline edit-date dialog inside `container`, saves to record `id`
-function openEditDateDialog(_container, id, currentWatchedAt, onSaved) {
+function openEditDateDialog(_container, id, currentWatchedAt, onSaved, options = {}) {
   document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
 
+  const releaseDate = String(options.releaseDate || "").slice(0, 10);
+  const releaseLabel = releaseDate ? formatTmdbDate(releaseDate) : "Release date unavailable";
   const overlay = document.createElement("div");
   overlay.className = "edit-dialog-overlay";
   overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
   overlay.innerHTML = `
     <div class="edit-dialog glass-panel">
       <h3>Edit Watch Date</h3>
+      <div class="watch-date-section-label">Quick choices</div>
+      <div class="watch-date-options">
+        <button class="watch-date-pick edit-date-choice" type="button" data-edit-date-choice="release"${releaseDate ? "" : " disabled"}>
+          <span class="watch-date-pick-title">On release date</span>
+          <span class="watch-date-pick-sub">${escapeHtml(releaseLabel)}</span>
+        </button>
+        <button class="watch-date-pick edit-date-choice" type="button" data-edit-date-choice="now">
+          <span class="watch-date-pick-title">Now</span>
+          <span class="watch-date-pick-sub">Today, ${escapeHtml(formatTmdbDate(new Date().toISOString().slice(0, 10)))}</span>
+        </button>
+      </div>
       <label class="field-label">
-        Watched at
+        Or pick a specific time
         <input type="datetime-local" class="field edit-date-input" value="${escapeAttribute(watchedAtToInputValue(currentWatchedAt))}" />
       </label>
       <div class="edit-dialog-actions">
@@ -1401,6 +1414,15 @@ function openEditDateDialog(_container, id, currentWatchedAt, onSaved) {
   `;
 
   overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
+  overlay.querySelectorAll("[data-edit-date-choice]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const input = overlay.querySelector(".edit-date-input");
+      if (!input) return;
+      const choice = button.dataset.editDateChoice;
+      if (choice === "release" && releaseDate) input.value = watchedAtToInputValue(dateAtMiddayIso(releaseDate));
+      if (choice === "now") input.value = watchedAtToInputValue(new Date().toISOString());
+    });
+  });
   overlay.querySelector(".edit-dialog-save").addEventListener("click", async () => {
     const input = overlay.querySelector(".edit-date-input");
     const status = overlay.querySelector(".edit-dialog-status");
@@ -7511,6 +7533,18 @@ function applyWatchedAtToLocalWatchRecord(id, watchedAt) {
   return updated;
 }
 
+function editDateOptionsFromButton(button, entry = null) {
+  const releaseDateFromRow = button?.closest(".immersive-episode-row")?.querySelector(".immersive-episode-dates time[datetime]")?.getAttribute("datetime");
+  if (releaseDateFromRow) return { releaseDate: releaseDateFromRow };
+
+  if (entry?.media_type === "movie") {
+    const tmdbData = resolvedTmdbCache("movie", entry.tmdb_id, entry.title);
+    if (tmdbData?.release_date) return { releaseDate: tmdbData.release_date };
+  }
+
+  return {};
+}
+
 async function openShowImmersiveModalByTitleLegacy(showTitle) {
   const showKey = slug(showTitle);
   let show = state.showsRaw.find((s) => slug(s.title) === showKey);
@@ -12035,6 +12069,7 @@ function attachEvents() {
     const editDateBtn = event.target.closest(".media-edit-date-btn");
     if (editDateBtn) {
       const container = editDateBtn.closest(".immersive-container, .modal-body") || document.body;
+      const currentEntry = state.history.find((h) => h.id === editDateBtn.dataset.editId);
       openEditDateDialog(container, editDateBtn.dataset.editId, editDateBtn.dataset.watchedAt, ({ watched_at }) => {
         editDateBtn.dataset.watchedAt = watched_at;
         const span = container.querySelector(".progress-label-row span");
@@ -12064,7 +12099,7 @@ function attachEvents() {
         if (state.activeView === "history") {
           renderHistoryView();
         }
-      });
+      }, editDateOptionsFromButton(editDateBtn, currentEntry));
       return;
     }
 
@@ -12164,6 +12199,7 @@ function attachEvents() {
     const editDateIconBtn = event.target.closest(".edit-date-icon-btn");
     if (editDateIconBtn) {
       const id = editDateIconBtn.dataset.editId;
+      const currentEntry = state.history.find((h) => h.id === id);
       openEditDateDialog(null, id, editDateIconBtn.dataset.watchedAt, ({ watched_at }) => {
         editDateIconBtn.dataset.watchedAt = watched_at;
         // Update the time element this icon is inside
@@ -12197,7 +12233,7 @@ function attachEvents() {
         if (state.activeView === "history") {
           renderHistoryView();
         }
-      });
+      }, editDateOptionsFromButton(editDateIconBtn, currentEntry));
       return;
     }
 
