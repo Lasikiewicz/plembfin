@@ -208,6 +208,8 @@ function bindElements() {
     dbStatus: document.querySelector("#dbStatus"),
     debugModal: document.querySelector("#debugModal"),
     explorerPanel: document.querySelector("#explorerPanel"),
+    pageTopbar: document.querySelector("#pageTopbar"),
+    pageTopbarActions: document.querySelector("#pageTopbarActions"),
     historyPanel: document.querySelector("#historyPanel"),
     alphaFilterNav: document.querySelector("#alphaFilterNav"),
     explorerSearchInput: document.querySelector("#explorerSearchInput"),
@@ -221,6 +223,9 @@ function bindElements() {
     explorerHideEndedLabel: document.querySelector("#explorerHideEndedLabel"),
     explorerHideEnded: document.querySelector("#explorerHideEnded"),
     explorerViewButtons: [...document.querySelectorAll("[data-explorer-view]")],
+    explorerTopbarControls: document.querySelector("#explorerTopbarControls"),
+    historyTopbarControls: document.querySelector("#historyTopbarControls"),
+    searchTopbarControls: document.querySelector("#searchTopbarControls"),
     explorerSubtitle: document.querySelector("#explorerSubtitle"),
     explorerTitle: document.querySelector("#explorerTitle"),
     terminalModal: document.querySelector("#terminalModal"),
@@ -1554,7 +1559,7 @@ function renderGlobalSearchDropdown(query) {
       _type: "movie",
       title: m.title,
       poster: m.poster_url || "",
-      href: `/movie/${m.id}`,
+      href: movieHref(m),
       sub: "Movie",
       overview: "",
       isLocal: true
@@ -3712,6 +3717,7 @@ function handleRouting(path) {
   if (!isExplorerListRoute || (previousExplorerListRoute && previousExplorerListRoute !== pathname)) clearSearchInputs();
 
   if (!pathname.startsWith("/person")) {
+    state.personProfileName = "";
     if (elements.personModal) {
       elements.personModal.classList.add("hidden");
     }
@@ -3769,7 +3775,8 @@ function handleRouting(path) {
     state.activeShowModalEpisode = episodeNum;
     openShowImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
   } else if (movieMatch) {
-    const movieId = decodeURIComponent(movieMatch[1]);
+    const movieKey = decodeURIComponent(movieMatch[1]);
+    const movie = movieBySlugOrId(movieKey);
     if (!state.mediaDetailInline) {
       state.mediaDetailReturnView = state.activeView || "dashboard";
       state.mediaDetailReturnExplorerMode = state.explorerMode || "movies";
@@ -3777,8 +3784,8 @@ function handleRouting(path) {
     state.activeView = "explorer";
     state.explorerMode = "movies";
     state.mediaDetailInline = true;
-    state.activeMovieModalId = movieId;
-    openMovieInlineDetail(movieId).catch((error) => setMessage(error.message, "error"));
+    state.activeMovieModalId = movie?.id || movieKey;
+    openMovieInlineDetail(movie?.id || movieKey).catch((error) => setMessage(error.message, "error"));
   } else if (tvshowMatch) {
     const showKey = tvshowMatch[1];
     let seasonNum = null;
@@ -3937,7 +3944,7 @@ function selectView(view) {
         }
       }
     } else if (state.explorerMode === "movies" && state.activeMovieModalId) {
-      url = `/movie/${state.activeMovieModalId}`;
+      url = movieHref(movieBySlugOrId(state.activeMovieModalId) || { id: state.activeMovieModalId });
     } else if (state.explorerMode === "movies" && state.activeMovieTmdbId) {
       url = `/movie/tmdb/${state.activeMovieTmdbId}`;
     } else {
@@ -3984,6 +3991,91 @@ function selectBackupsTab(tab) {
   applyActiveView();
   if (state.activeBackupsTab === "restore") {
     loadRemoteBackupsForRestoreTab().catch((error) => setMessage(error.message, "error"));
+  }
+}
+
+function settingsTopbarTitle() {
+  const labels = {
+    general: "General",
+    apps: "Apps",
+    "api-keys": "API Keys",
+    tools: "Tools",
+    backups: state.activeBackupsTab === "restore" ? "Backups - Restore" : "Backups",
+    sync: "Sync",
+    logs: "Logs",
+  };
+  return `Settings - ${labels[state.activeSettingsTab] || "General"}`;
+}
+
+function activeHelpTitle() {
+  const topic = HELP_TOPICS.find((item) => item.id === state.activeHelpTopic);
+  return topic?.title || "Help";
+}
+
+function syncPageTopbar() {
+  if (!elements.pageTopbar) return;
+
+  const path = window.location.pathname;
+  const query = new URLSearchParams(window.location.search);
+  const isPersonDetail = path.startsWith("/person/");
+  const isInlineDetail = state.mediaDetailInline || isPersonDetail;
+  const controlGroups = [elements.explorerTopbarControls, elements.historyTopbarControls, elements.searchTopbarControls].filter(Boolean);
+  let title = "Dashboard";
+  let subtitle = "Overview";
+  let activeControls = null;
+
+  if (state.activeView === "explorer") {
+    const mode = state.explorerMode === "shows" ? "shows" : "movies";
+    title = mode === "shows" ? "TV Shows" : "Movies";
+    subtitle = isInlineDetail ? "" : (state.savedConfig?.plex?.username || "Watched history library");
+    activeControls = isInlineDetail ? null : elements.explorerTopbarControls;
+  } else if (state.activeView === "history") {
+    title = "Watch History";
+    subtitle = "";
+    activeControls = elements.historyTopbarControls;
+  } else if (state.activeView === "stats") {
+    title = "Stats";
+    subtitle = "Watch statistics";
+  } else if (state.activeView === "settings") {
+    title = settingsTopbarTitle();
+    subtitle = "";
+  } else if (state.activeView === "help") {
+    title = activeHelpTitle();
+    subtitle = "Help";
+  } else if (state.activeView === "search") {
+    const searchQuery = state.searchQuery || query.get("q") || "";
+    title = searchQuery ? `Search Results for "${searchQuery}"` : "Search Results";
+    subtitle = "Local and global database search results";
+    activeControls = elements.searchTopbarControls;
+  }
+
+  if (isPersonDetail && state.personProfileName) {
+    title = state.personProfileName;
+    subtitle = "";
+  }
+
+  if (elements.explorerTitle) elements.explorerTitle.textContent = title;
+  if (elements.explorerSubtitle) {
+    elements.explorerSubtitle.textContent = subtitle;
+    elements.explorerSubtitle.classList.toggle("hidden", !subtitle);
+  }
+
+  const backButton = document.querySelector("#explorerBackButton");
+  backButton?.classList.toggle("hidden", !isInlineDetail);
+
+  for (const group of controlGroups) {
+    group.classList.add("hidden");
+  }
+
+  const mediaDetailActions = document.getElementById("mediaDetailActions");
+  if (elements.pageTopbarActions) {
+    if (activeControls) {
+      elements.pageTopbarActions.appendChild(activeControls);
+      activeControls.classList.remove("hidden");
+    }
+    if (mediaDetailActions && mediaDetailActions.parentElement !== elements.pageTopbarActions) {
+      elements.pageTopbarActions.appendChild(mediaDetailActions);
+    }
   }
 }
 
@@ -4083,6 +4175,7 @@ function applyActiveView() {
       renderSettingsStatus("Configuration ready.", "success");
     }
   }
+  syncPageTopbar();
   syncLogsRefresh();
 
   if (state.token) {
@@ -4813,9 +4906,9 @@ function renderHistoryCard(entry) {
       }, 50);
     }
 
-    const canonicalShowName = showName(entry.title);
+    const canonicalShowName = entry.show_title || showName(entry.title);
     const showKeySlug = slug(canonicalShowName);
-    const href = entry.tmdb_id ? `/tvshow/tmdb/${entry.tmdb_id}` : `/tvshow/${showKeySlug}`;
+    const href = `/tvshow/${showKeySlug}`;
 
     return `
       <a class="movie-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(showTitle || "")}">
@@ -4835,7 +4928,7 @@ function renderHistoryCard(entry) {
     `;
   } else {
     // Movie
-    const href = entry.tmdb_id ? `/movie/tmdb/${entry.tmdb_id}` : `/movie/${entry.id}`;
+    const href = entry.tmdb_id ? `/movie/tmdb/${entry.tmdb_id}` : movieHref(entry);
     return `
       <a class="movie-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(entry.title || "")}">
         ${posterMarkup(entry, "movie-poster")}
@@ -5034,7 +5127,7 @@ function renderMonthChart() {
 
 function syncExplorerControlsState() {
   const backBtn = document.querySelector("#explorerBackButton");
-  const controls = document.querySelector('[data-view-panel="explorer"] .explorer-controls');
+  const controls = elements.explorerTopbarControls || document.querySelector("#explorerTopbarControls");
   const heading = document.querySelector('[data-view-panel="explorer"] .explorer-heading-sticky');
   if (state.mediaDetailInline) {
     backBtn?.classList.remove("hidden");
@@ -5057,6 +5150,7 @@ function syncInlineMediaDetailHeading(mode = state.explorerMode || "movies") {
   if (elements.explorerSubtitle) {
     elements.explorerSubtitle.textContent = "";
   }
+  syncPageTopbar();
 }
 
 function triggerSearchPage(query) {
@@ -5064,8 +5158,7 @@ function triggerSearchPage(query) {
   state.searchLoading = true;
   state.searchResults = [];
 
-  const titleEl = document.getElementById("searchViewTitle");
-  if (titleEl) titleEl.textContent = `Search Results for "${query}"`;
+  syncPageTopbar();
 
   const loadingEl = document.getElementById("searchViewLoading");
   const emptyEl = document.getElementById("searchViewEmpty");
@@ -5113,7 +5206,7 @@ function triggerSearchPage(query) {
           _type: "movie",
           title,
           poster: m.poster_url || "",
-          href: `/movie/${m.id}`,
+          href: movieHref(m),
           sub: "Movie (Local)",
           overview: "",
           isLocal: true,
@@ -5181,6 +5274,7 @@ function triggerSearchPage(query) {
 }
 
 function renderSearchPage() {
+  syncPageTopbar();
   const loadingEl = document.getElementById("searchViewLoading");
   const emptyEl = document.getElementById("searchViewEmpty");
   const resultsEl = document.getElementById("searchViewResults");
@@ -5326,6 +5420,7 @@ function renderExplorer() {
   if (elements.explorerSubtitle) {
     elements.explorerSubtitle.textContent = state.mediaDetailInline ? "" : (state.savedConfig?.plex?.username || "Watched history library");
   }
+  syncPageTopbar();
 
   const search = elements.explorerSearchInput ? elements.explorerSearchInput.value.trim() : state.explorerSearch;
   state.explorerSearch = search;
@@ -5401,9 +5496,9 @@ async function handleAlphaFilterClick(e) {
   function scrollToTarget(el) {
     const pageShell = document.querySelector(".page-shell");
     if (!pageShell) return;
-    const headingEl = document.querySelector(".explorer-heading-sticky");
+    const headingEl = elements.pageTopbar || document.querySelector(".page-topbar");
     const relativeTop = el.getBoundingClientRect().top - pageShell.getBoundingClientRect().top;
-    const isSticky = window.getComputedStyle(headingEl).position === "sticky";
+    const isSticky = headingEl ? window.getComputedStyle(headingEl).position === "sticky" : false;
     const headingHeight = (headingEl && isSticky) ? headingEl.offsetHeight : 0;
     const targetScrollTop = pageShell.scrollTop + relativeTop - headingHeight - 8;
     pageShell.scrollTo({ top: targetScrollTop, behavior: "smooth" });
@@ -5923,11 +6018,11 @@ function renderHistoryPageCard(entry) {
       }, 50);
     }
 
-    const canonicalShowName = showName(entry.title);
+    const canonicalShowName = entry.show_title || showName(entry.title);
     const showKeySlug = slug(canonicalShowName);
-    href = entry.tmdb_id ? `/tvshow/tmdb/${entry.tmdb_id}` : `/tvshow/${showKeySlug}`;
+    href = `/tvshow/${showKeySlug}`;
   } else {
-    href = entry.tmdb_id ? `/movie/tmdb/${entry.tmdb_id}` : `/movie/${entry.id}`;
+    href = entry.tmdb_id ? `/movie/tmdb/${entry.tmdb_id}` : movieHref(entry);
   }
 
   const sourceBadge = entry.source ? `<span class="source-badge ${sourceClass(entry.source)}">${escapeHtml(platformBadge(entry.source))}</span>` : "None";
@@ -6762,6 +6857,14 @@ function slug(value) {
   return String(value || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
+function movieSlug(movie = {}) {
+  return slug(movie.title || movie.name || movie.id);
+}
+
+function movieHref(movie = {}) {
+  return `/movie/${movieSlug(movie)}`;
+}
+
 function historyById(id) {
   return state.history.find((entry) => String(entry.id) === String(id));
 }
@@ -6770,6 +6873,36 @@ function movieById(id) {
   return state.history.find((entry) => String(entry.id) === String(id)) ||
     state.moviesRaw.find((entry) => String(entry.id) === String(id)) ||
     state.activeSessions.find((entry) => String(entry.id || entry.key) === String(id));
+}
+
+function movieBySlugOrId(value) {
+  const key = decodeURIComponent(String(value || ""));
+  const keySlug = slug(key);
+  return movieById(key) ||
+    state.moviesRaw.find((entry) => movieSlug(entry) === keySlug) ||
+    state.history.find((entry) => entry.media_type === "movie" && movieSlug(entry) === keySlug);
+}
+
+async function resolveMovieBySlugOrId(value) {
+  const local = movieBySlugOrId(value);
+  if (local) return local;
+
+  const key = decodeURIComponent(String(value || ""));
+  const keySlug = slug(key);
+  const search = key.replace(/-/g, " ").trim();
+  if (!search || !state.token) return null;
+
+  const url = new URL("/api/movies", window.location.origin);
+  url.searchParams.set("limit", "50");
+  url.searchParams.set("search", search);
+  const res = await fetch(url, { headers: authHeaders(), cache: "no-store" });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return null;
+  const movies = Array.isArray(body.movies) ? body.movies : [];
+  if (movies.length) {
+    state.moviesRaw = dedupeMediaRecords([...state.moviesRaw, ...movies], "movies");
+  }
+  return movies.find((entry) => String(entry.id) === key || movieSlug(entry) === keySlug) || null;
 }
 
 function nowPlayingHref(session = {}) {
@@ -6800,9 +6933,9 @@ function nowPlayingHref(session = {}) {
     if (ids.tmdb && String(entry.tmdb_id || "") === String(ids.tmdb)) return true;
     return String(entry.title || "").trim().toLowerCase() === String(session.title || "").trim().toLowerCase();
   });
-  if (localMovie?.id) return `/movie/${encodeURIComponent(localMovie.id)}`;
+  if (localMovie?.id) return movieHref(localMovie);
   if (ids.tmdb) return `/movie/tmdb/${ids.tmdb}`;
-  return `/movie/${encodeURIComponent(session.id || session.key || session.title || "unknown")}`;
+  return `/movie/${slug(session.title || session.id || session.key || "unknown")}`;
 }
 
 function showTitleFrom(title = "") {
@@ -7137,7 +7270,7 @@ function renderCastSection(tmdbData) {
   return `
     <section class="seasons-section cast-section">
       <div class="show-section-title"><h3>Cast</h3></div>
-      <div class="cast-compact-row">
+      <div class="cast-compact-row cast-scroll-row">
         ${cast.slice(0, 20).map((actor) => {
     const avatarUrl = tmdbProfile(actor.profile_path) || "/favicon.svg";
     return `
@@ -8967,8 +9100,7 @@ async function openMovieImmersiveModal(id) {
 
 async function openMovieInlineDetail(id) {
   prepareInlineMediaDetail("movies");
-  const movie = state.moviesRaw.find((item) => String(item.id) === String(id))
-    || state.history.find((item) => String(item.id) === String(id));
+  const movie = await resolveMovieBySlugOrId(id);
   if (movie) {
     await renderMovieImmersiveModalContent(movie);
     return;
@@ -9395,12 +9527,14 @@ function prepareInlineMediaDetail(mode = state.explorerMode || "movies") {
   elements.explorerPanel.innerHTML = "";
   elements.explorerPanel.scrollIntoView({ block: "start" });
   document.querySelector("#explorerBackButton")?.classList.remove("hidden");
-  document.querySelector('[data-view-panel="explorer"] .explorer-controls')?.classList.add("hidden");
+  elements.explorerTopbarControls?.classList.add("hidden");
+  syncPageTopbar();
 }
 
 function setMediaDetailActions(html) {
   const el = document.getElementById("mediaDetailActions");
   if (el) el.innerHTML = html || "";
+  syncPageTopbar();
 }
 
 function clearMediaDetailState() {
@@ -9433,7 +9567,8 @@ function closeMediaDetail() {
   state.mediaDetailInline = false;
   clearMediaDetailState();
   document.querySelector("#explorerBackButton")?.classList.add("hidden");
-  document.querySelector(".explorer-controls")?.classList.remove("hidden");
+  elements.explorerTopbarControls?.classList.remove("hidden");
+  syncPageTopbar();
   state.explorerMode = state.mediaDetailReturnExplorerMode || state.explorerMode || "movies";
   if (state.mediaDetailReturnView && state.mediaDetailReturnView !== "explorer") {
     selectView(state.mediaDetailReturnView);
@@ -10698,7 +10833,7 @@ function attachEvents() {
         state.pendingWatchAction = null;
         state.activeMovieModalId = null;
         document.querySelector("#explorerBackButton")?.classList.add("hidden");
-        document.querySelector(".explorer-controls")?.classList.remove("hidden");
+        elements.explorerTopbarControls?.classList.remove("hidden");
       }
       closeMobileMenu();
       selectView(button.dataset.view);
@@ -11270,7 +11405,7 @@ function attachEvents() {
         event.preventDefault();
         const entry = state.history.find(e => e.id === historyRow.dataset.historyId);
         if (entry) {
-          const canonicalShowName = showName(entry.title);
+          const canonicalShowName = entry.show_title || showName(entry.title);
           const showKeySlug = slug(canonicalShowName);
           let showObj = state.showsRaw.find(s => slug(s.title) === showKeySlug);
           if (!showObj) {
@@ -11282,7 +11417,7 @@ function attachEvents() {
         }
       } else if (event.target.closest(".movie-card") && event.button === 0 && !event.ctrlKey && !event.metaKey) {
         event.preventDefault();
-        navigateTo(`/movie/${historyRow.dataset.historyId}`);
+        navigateTo(movieHref(movieBySlugOrId(historyRow.dataset.historyId) || { id: historyRow.dataset.historyId }));
       } else if (!event.target.closest(".movie-card")) {
         openHistoryDebugModal(historyRow.dataset.historyId).catch((error) => setMessage(error.message, "error"));
       }
@@ -11707,12 +11842,41 @@ function attachEvents() {
   });
 }
 
+function primeSensitiveRouteState(path = "") {
+  const pathname = path.split("?")[0].split("#")[0];
+  if (pathname.startsWith("/movie/")) {
+    state.activeView = "explorer";
+    state.explorerMode = "movies";
+    state.mediaDetailInline = true;
+    return true;
+  }
+  if (pathname.startsWith("/tvshow/")) {
+    state.activeView = "explorer";
+    state.explorerMode = "shows";
+    state.mediaDetailInline = true;
+    return true;
+  }
+  if (pathname.startsWith("/person/")) {
+    state.activeView = "explorer";
+    state.explorerMode = "movies";
+    state.mediaDetailInline = true;
+    return true;
+  }
+  if (pathname.startsWith("/search")) {
+    state.activeView = "search";
+    return true;
+  }
+  return false;
+}
+
 function initialize() {
   bindElements();
   loadAppVersion();
   bootstrapTokenFromUrl();
   const initialPath = window.location.pathname + window.location.search + window.location.hash;
-  if (!isConfigSensitiveRoute(initialPath)) {
+  if (isConfigSensitiveRoute(initialPath)) {
+    primeSensitiveRouteState(initialPath);
+  } else {
     handleRouting(initialPath);
   }
   attachEvents();
@@ -11724,12 +11888,12 @@ function initialize() {
   if (elements.cronSyncUrl) {
     elements.cronSyncUrl.textContent = `${window.location.origin}/api/cron-sync`;
   }
-  selectView(state.activeView);
+  applyActiveView();
   populateConfigForm({});
   renderDashboard();
   renderActiveSessions();
   renderStats();
-  renderExplorer();
+  if (!state.mediaDetailInline) renderExplorer();
   renderHelp();
   renderLogs().catch(() => { });
   renderImportPreview();
@@ -11767,7 +11931,12 @@ function initialize() {
       elements.settingsUsername.value = user.username || user.email || "";
       localStorage.setItem("firebaseAdminEmail", user.email || "");
       setUnlocked(true);
-      selectView(state.activeView);
+      if (isConfigSensitiveRoute(fullPath)) {
+        primeSensitiveRouteState(fullPath);
+        applyActiveView();
+      } else {
+        selectView(state.activeView);
+      }
       loadSavedConfig()
         .then(() => {
           if (isConfigSensitiveRoute(fullPath)) {
@@ -12040,6 +12209,7 @@ function closePersonProfile() {
 }
 
 async function loadCastMemberDetails(personId, personName = null) {
+  state.personProfileName = personName || "";
   if (elements.personModal) {
     elements.personModal.classList.add("hidden");
   }
@@ -12057,7 +12227,7 @@ async function loadCastMemberDetails(personId, personName = null) {
   elements.explorerPanel.innerHTML = "";
   elements.explorerPanel.scrollIntoView({ block: "start" });
   document.querySelector("#explorerBackButton")?.classList.remove("hidden");
-  document.querySelector(".explorer-controls")?.classList.add("hidden");
+  elements.explorerTopbarControls?.classList.add("hidden");
 
   const root = mediaDetailRoot();
 
@@ -12065,8 +12235,9 @@ async function loadCastMemberDetails(personId, personName = null) {
     elements.explorerTitle.textContent = personName || "Cast Member Profile";
   }
   if (elements.explorerSubtitle) {
-    elements.explorerSubtitle.textContent = "Cast Member Biography and Filmography";
+    elements.explorerSubtitle.textContent = "";
   }
+  syncPageTopbar();
 
   root.innerHTML = `
     <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
@@ -12096,6 +12267,8 @@ async function loadCastMemberDetails(personId, personName = null) {
     if (elements.explorerTitle) {
       elements.explorerTitle.textContent = data.name || "Cast Member Profile";
     }
+    state.personProfileName = data.name || "Cast Member Profile";
+    syncPageTopbar();
 
     const castCredits = (data.combined_credits?.cast || []);
     const profileUrl = tmdbProfile(data.profile_path) || '/favicon.svg';
@@ -12283,7 +12456,7 @@ async function loadCastMemberDetails(personId, personName = null) {
             const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
             const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
             if (isTv) libraryTvCredits.push({ credit, libItem, title });
-            const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : `/movie/${libItem.id}`;
+            const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : movieHref(movieBySlugOrId(libItem.id) || { id: libItem.id, title });
             return `
               <a class="person-credit-card in-library" href="${escapeAttribute(href)}" data-library-item-type="${libItem.type}" data-library-item-id="${escapeAttribute(libItem.id || libItem.key)}" data-library-item-title="${escapeAttribute(title)}">
                 <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
@@ -12303,7 +12476,7 @@ async function loadCastMemberDetails(personId, personName = null) {
             const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
             const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
             if (isTv) libraryTvCredits.push({ credit, libItem, title });
-            const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : `/movie/${libItem.id}`;
+            const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : movieHref(movieBySlugOrId(libItem.id) || { id: libItem.id, title });
             return `
               <a class="person-credit-card in-library" href="${escapeAttribute(href)}" data-library-item-type="${libItem.type}" data-library-item-id="${escapeAttribute(libItem.id || libItem.key)}" data-library-item-title="${escapeAttribute(title)}">
                 <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
@@ -12362,7 +12535,7 @@ window.openLibraryItem = function (mediaType, idOrKey, title, isLibraryItem = tr
     if (mediaType === "show" || mediaType === "tv") {
       navigateTo(`/tvshow/${idOrKey}`);
     } else if (mediaType === "movie") {
-      navigateTo(`/movie/${idOrKey}`);
+      navigateTo(movieHref(movieBySlugOrId(idOrKey) || { id: idOrKey, title }));
     }
   } else {
     if (mediaType === "show" || mediaType === "tv") {

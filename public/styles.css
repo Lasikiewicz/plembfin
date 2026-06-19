@@ -21,6 +21,9 @@
   --space-4: 1rem;
   --sidebar-width: 16rem;
   --top-control-padding: 0.65rem;
+  --control-inline-padding: 0.7rem;
+  --right-topbar-height: 3rem;
+  --right-topbar-content-offset: 0.7rem;
   font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -628,7 +631,7 @@ h2 {
   flex: 1;
   height: 100%;
   margin: 0;
-  padding: var(--top-control-padding) 2rem 2rem;
+  padding: 0 var(--control-inline-padding) 2rem;
   background: var(--bg);
   overflow-y: auto;
 }
@@ -648,6 +651,98 @@ h2 {
 .month-chart {
   display: grid;
   gap: var(--space-3);
+}
+
+.page-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 35;
+  display: flex;
+  width: calc(100% + (var(--control-inline-padding) * 2));
+  height: var(--right-topbar-height);
+  min-height: var(--right-topbar-height);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-inline: calc(var(--control-inline-padding) * -1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg);
+  padding: var(--right-topbar-content-offset) var(--control-inline-padding) 0;
+}
+
+.page-shell[data-active-view="dashboard"] .page-topbar {
+  display: none;
+}
+
+.page-shell[data-active-view="dashboard"] .live-panel {
+  padding-top: var(--right-topbar-content-offset);
+}
+
+.page-shell:not([data-active-view="dashboard"]) .page-topbar + .view-panel {
+  padding-top: var(--space-2);
+}
+
+.page-topbar-title,
+.page-topbar-actions,
+#mediaDetailActions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.page-topbar-title {
+  flex: 1 1 auto;
+}
+
+.page-topbar-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.page-topbar-copy p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.page-topbar-copy span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.2;
+}
+
+.page-topbar-actions {
+  flex: 0 1 auto;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+#mediaDetailActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.page-topbar .immersive-back-button {
+  min-height: 1.8rem;
+  align-self: center;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: rgba(7, 10, 13, 0.72);
+  color: var(--text);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.view-control-source {
+  display: none;
 }
 
 .glass-panel {
@@ -4818,7 +4913,7 @@ h1 {
 .view-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 2.1rem;
+  gap: var(--space-3);
   width: 100%;
 }
 
@@ -5366,7 +5461,7 @@ h1 {
   .page-shell {
     grid-column: 1;
     grid-row: 2;
-    padding: 1rem 0.75rem 2rem;
+    padding: 0 0.75rem 2rem;
     overflow-y: auto;
     min-height: 0;
   }
@@ -5423,38 +5518,38 @@ h1 {
   }
 
   /* Explorer page specific - only affect explorer pages */
-  [data-view-panel="explorer"] .explorer-controls:not(.hidden) {
+  #explorerTopbarControls:not(.hidden) {
     display: grid !important;
     grid-template-columns: 1fr !important;
     gap: 0.4rem !important;
     padding: 0.4rem 0 !important;
   }
 
-  [data-view-panel="explorer"] .compact-field {
+  #explorerTopbarControls .compact-field {
     margin: 0 !important;
   }
 
-  [data-view-panel="explorer"] .compact-field input,
-  [data-view-panel="explorer"] .compact-field select {
+  #explorerTopbarControls .compact-field input,
+  #explorerTopbarControls .compact-field select {
     font-size: 0.8rem;
     padding: 0.3rem 0.4rem !important;
     height: 1.8rem;
   }
 
-  [data-view-panel="explorer"] .explorer-view-toggle {
+  #explorerTopbarControls .explorer-view-toggle {
     display: flex;
     justify-content: flex-start;
     gap: 0.2rem;
     margin-top: 0.2rem;
   }
 
-  [data-view-panel="explorer"] .explorer-view-btn {
+  #explorerTopbarControls .explorer-view-btn {
     padding: 0.3rem 0.4rem !important;
     min-height: 1.7rem !important;
     font-size: 0.75rem;
   }
 
-  [data-view-panel="explorer"] .explorer-search-box {
+  #explorerTopbarControls .explorer-search-box {
     margin-bottom: 0.2rem !important;
   }
 
@@ -6029,9 +6124,26 @@ h1 {
 /* Cast Styles */
 .cast-compact-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1rem;
+  flex-wrap: nowrap;
+  gap: 1rem;
   margin-top: 0.25rem;
+  overflow-x: auto;
+  padding-bottom: 0.75rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.cast-compact-row::-webkit-scrollbar {
+  height: 6px;
+}
+
+.cast-compact-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cast-compact-row::-webkit-scrollbar-thumb {
+  background-color: var(--line-strong);
+  border-radius: 3px;
 }
 
 .cast-member-card {
