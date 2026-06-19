@@ -1,7 +1,14 @@
 {
-  "version": "0.1.28",
-  "updatedAt": "2026-06-19T20:52:42+01:00",
+  "version": "0.1.29",
+  "updatedAt": "2026-06-19T21:05:29+01:00",
   "entries": [
+    {
+      "version": "0.1.29",
+      "date": "2026-06-19T21:05:29+01:00",
+      "commit": "5f167f43bf551a4a1769b077b9cead9a425d6d93",
+      "message": "fix(progress): prompt for watch date when marking partly watched items as watched",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.28",
       "date": "2026-06-19T20:52:42+01:00",
