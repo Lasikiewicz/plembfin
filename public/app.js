@@ -8906,26 +8906,26 @@ function renderShowModalContent(show, {
         <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" onerror="this.src='/favicon.svg';" />
         <div class="immersive-meta">
           ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(showTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(showTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(showTitle)}</h2>`}
-          <p class="immersive-subtitle">${escapeHtml(premiered)}</p>
+          <div class="media-detail-bottom-stack">
+            <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              ${ratingPillsHtml}
+              ${showModalStatus(loading, hasTmdbKey, Boolean(tmdbData))}
+              ${renderSeerrRequestPill("tv", tvSeerrTmdbId, false)}
+            </div>
 
-          <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-            ${ratingPillsHtml}
-            ${showModalStatus(loading, hasTmdbKey, Boolean(tmdbData))}
-            ${renderSeerrRequestPill("tv", tvSeerrTmdbId, false)}
+            <p class="immersive-overview">${escapeHtml(overview)}</p>
+
+            <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
+              <h3>Progress</h3>
+              <div class="progress-label-row">
+                <span>${watchedCount} of ${totalCount} episodes watched</span>
+                <span>${progressPercent}% complete</span>
+              </div>
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill" style="width: ${progressPercent}%;"></div>
+              </div>
+            </section>
           </div>
-
-          <p class="immersive-overview">${escapeHtml(overview)}</p>
-
-          <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
-            <h3>Progress</h3>
-            <div class="progress-label-row">
-              <span>${watchedCount} of ${totalCount} episodes watched</span>
-              <span>${progressPercent}% complete</span>
-            </div>
-            <div class="progress-bar-track">
-              <div class="progress-bar-fill" style="width: ${progressPercent}%;"></div>
-            </div>
-          </section>
 
          </div>
         ${renderMediaFacts(tmdbData, "tv", "sidebar")}
