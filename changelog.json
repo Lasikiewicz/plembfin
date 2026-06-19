@@ -1,7 +1,14 @@
 {
-  "version": "0.1.25",
-  "updatedAt": "2026-06-19T20:21:13+01:00",
+  "version": "0.1.26",
+  "updatedAt": "2026-06-19T20:25:25+01:00",
   "entries": [
+    {
+      "version": "0.1.26",
+      "date": "2026-06-19T20:25:25+01:00",
+      "commit": "ca72fca77633f407bddd5e71ec537bb63ace25ae",
+      "message": "fix: decode HTML entities in active sessions and make Now Playing duplicate detection more robust",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.25",
       "date": "2026-06-19T20:21:13+01:00",
