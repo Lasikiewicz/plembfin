@@ -276,8 +276,13 @@ function bindElements() {
     runCronSyncButton: document.querySelector("#runCronSyncButton"),
     forceSyncButton: document.querySelector("#forceSyncButton"),
     stopSyncButton: document.querySelector("#stopSyncButton"),
-    clearMissingTelemetryButton: document.querySelector("#clearMissingTelemetryButton"),
     forceSyncTerminal: document.querySelector("#forceSyncTerminal"),
+    syncIssuesToggle: document.querySelector("#syncIssuesToggle"),
+    syncIssuesContent: document.querySelector("#syncIssuesContent"),
+    syncIssuesToggleIcon: document.querySelector("#syncIssuesToggleIcon"),
+    syncHistoryToggle: document.querySelector("#syncHistoryToggle"),
+    syncHistoryContent: document.querySelector("#syncHistoryContent"),
+    syncHistoryToggleIcon: document.querySelector("#syncHistoryToggleIcon"),
     plexEnabled: document.querySelector("#plexEnabled"),
     plexServerUrl: document.querySelector("#plexServerUrl"),
     plexToken: document.querySelector("#plexToken"),
@@ -3061,60 +3066,102 @@ function syncHistoryTargetPills(entry = {}) {
     .join("");
 }
 
+function categorizeIssues(jobs = []) {
+  const categories = {
+    missingTelemetry: [],
+    plexMismatch: [],
+    targetMismatch: [],
+  };
+
+  for (const job of jobs) {
+    const telemetry = job.sync_dispatch_telemetry || "";
+    if (!telemetry || telemetry.trim() === "") {
+      categories.missingTelemetry.push(job);
+    } else if (telemetry.includes("plex") && telemetry.includes("No matching item found")) {
+      categories.plexMismatch.push(job);
+    } else if (telemetry.includes("Synced to no targets")) {
+      categories.targetMismatch.push(job);
+    }
+  }
+  return categories;
+}
+
+function renderIssueCategory(categoryName, jobs = [], helpText = "") {
+  if (!jobs.length) return "";
+
+  const titles = {
+    missingTelemetry: "Missing Dispatch Telemetry",
+    plexMismatch: "Plex Match Issues",
+    targetMismatch: "Emby/Jellyfin Match Issues",
+  };
+
+  return `
+    <details class="issue-category" open>
+      <summary style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: var(--space-2); background: rgba(0,0,0,0.1); border-radius: var(--radius-sm); margin-bottom: var(--space-2);">
+        <div>
+          <b>${titles[categoryName] || categoryName}</b>
+          <span style="margin-left: var(--space-2); opacity: 0.7;">${jobs.length} issue${jobs.length !== 1 ? "s" : ""}</span>
+        </div>
+      </summary>
+      <div style="padding: var(--space-2);">
+        <div style="background: rgba(0,0,0,0.05); padding: var(--space-2); border-radius: var(--radius-sm); margin-bottom: var(--space-3); font-size: 0.9rem;">
+          ${helpText}
+        </div>
+        <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-3); flex-wrap: wrap;">
+          ${categoryName === 'missingTelemetry' ? `<button class="button-primary" type="button" data-action="clearMissingTelemetry">Clear ${jobs.length} Records</button>` : `<button class="button-primary" type="button" data-action="retryAll" data-category="${categoryName}">Retry All</button>`}
+        </div>
+        <div style="display: grid; gap: var(--space-2);">
+          ${jobs.map(job => `
+            <div style="padding: var(--space-2); background: rgba(0,0,0,0.02); border-left: 3px solid var(--color-warning); border-radius: var(--radius-sm);">
+              <div style="font-weight: 500;">${escapeHtml(job.title || "Unknown")}</div>
+              <div style="font-size: 0.85rem; opacity: 0.7; margin-top: 0.25rem;">
+                ${escapeHtml(platformBadge(job.source))} • ${escapeHtml(job.media_type || "unknown")} • ${escapeHtml(formatDate(job.watched_at))}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    </details>
+  `;
+}
+
 function renderSyncJobs() {
-  if (!elements.syncJobsPanel) return;
+  const container = document.getElementById("syncIssuesContainer");
+  if (!container) return;
 
   if (state.syncJobsLoading) {
-    elements.syncJobsPanel.innerHTML = `<div class="empty-log"><b>Loading sync jobs</b><span>Fetching current watched-state dispatch rows.</span></div>`;
-    if (elements.syncSummary) elements.syncSummary.textContent = "Loading";
+    if (elements.syncSummary) elements.syncSummary.textContent = "Loading...";
     return;
   }
 
-  const jobs = [...state.syncJobs].sort((a, b) => syncJobSortWeight(a) - syncJobSortWeight(b) || String(b.watched_at || "").localeCompare(String(a.watched_at || "")));
-  const pendingCount = jobs.filter((job) => syncStatus(job).tone === "pending").length;
-  const errorCount = jobs.filter((job) => syncStatus(job).tone === "error").length;
+  const jobs = [...state.syncJobs];
+  const categories = categorizeIssues(jobs);
+  const totalIssues = jobs.length;
+  const hasIssues = totalIssues > 0;
 
   if (elements.syncSummary) {
-    elements.syncSummary.textContent = jobs.length ? `${jobs.length} outstanding / ${pendingCount} pending / ${errorCount} needs attention` : "All clear";
-    elements.syncSummary.className = `status-pill ${errorCount ? "status-error" : pendingCount ? "status-warning" : "status-ready"}`;
+    const summary = hasIssues
+      ? `${totalIssues} issue${totalIssues !== 1 ? "s" : ""}`
+      : "All clear";
+    elements.syncSummary.textContent = summary;
+    elements.syncSummary.className = `status-pill ${hasIssues ? "status-error" : "status-ready"}`;
   }
 
-  if (!jobs.length) {
-    elements.syncJobsPanel.innerHTML = `<div class="empty-log"><b>No outstanding sync jobs</b><span>Recent watched-state dispatches have completed or were intentionally skipped.</span></div>`;
+  if (!hasIssues) {
+    container.innerHTML = `<div class="empty-log"><b>No sync issues</b><span>All watched-state dispatches are up to date.</span></div>`;
     return;
   }
 
-  elements.syncJobsPanel.innerHTML = jobs
-    .map((job) => {
-      const status = syncStatus(job);
-      const dispatchStatus = telemetryLineValue(job.sync_dispatch_telemetry, "Dispatch status") || "missing";
-      const details = telemetryLineValue(job.sync_dispatch_telemetry, "Details") || status.detail;
-      return `
-        <article class="sync-job-card" data-history-id="${escapeAttribute(job.id)}">
-          <div class="sync-job-main">
-            <span class="sync-status-dot sync-status-dot--${status.tone}" aria-hidden="true"></span>
-            <div class="sync-job-title">
-              <b>${escapeHtml(job.title || "Unknown media")}</b>
-              <span>${escapeHtml(platformBadge(job.source))} - ${escapeHtml(historyAction(job))} - ${escapeHtml(formatDate(job.watched_at))}</span>
-            </div>
-            <span class="status-pill ${status.tone === "pending" ? "status-warning" : "status-error"}">${escapeHtml(status.label)}</span>
-          </div>
-          <div class="sync-job-meta">
-            <div><span>Dispatch</span><b>${escapeHtml(dispatchStatus)}</b></div>
-            <div><span>Media</span><b>${escapeHtml(job.media_type || "unknown")}</b></div>
-            <div><span>IDs</span><b>${escapeHtml(idLine(job) || "No provider IDs")}</b></div>
-            <div><span>Details</span><b>${escapeHtml(details)}</b></div>
-          </div>
-          <div class="sync-target-row">${renderTargetPills(job)}</div>
-          <div class="sync-job-actions">
-            <button class="button-ghost media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(job.id)}" data-title="${escapeAttribute(job.title || "")}" data-media-type="${escapeAttribute(syncJobMediaType(job))}">Fix Match</button>
-            <button class="retry-sync-btn sync-job-retry-btn" type="button" data-retry-sync-id="${escapeAttribute(job.id)}" title="Retry syncing watched state to all platforms">Retry Sync</button>
-          </div>
-          <pre class="sync-telemetry">${escapeHtml(job.sync_dispatch_telemetry || "No sync telemetry recorded.")}</pre>
-        </article>
-      `;
-    })
-    .join("");
+  const html = `
+    ${renderIssueCategory('missingTelemetry', categories.missingTelemetry,
+      'Records without dispatch telemetry are old or incomplete. They likely synced successfully but logging was missing. Safe to clear without affecting actual sync.')}
+    ${renderIssueCategory('plexMismatch', categories.plexMismatch,
+      'Plex could not find matching items. Check Plex metadata, external IDs, or library content. Emby/Jellyfin may have synced successfully.')}
+    ${renderIssueCategory('targetMismatch', categories.targetMismatch,
+      'Plex found the item but Emby/Jellyfin could not. Check their metadata and external IDs to match Plex.')}
+  `;
+
+  container.innerHTML = html;
 }
 
 function renderSyncHistory() {
@@ -11782,11 +11829,40 @@ function attachEvents() {
     });
   }
 
-  if (elements.clearMissingTelemetryButton) {
-    elements.clearMissingTelemetryButton.addEventListener("click", () => {
-      triggerClearMissingTelemetry().catch(() => { });
+  // Sync issues toggle
+  if (elements.syncIssuesToggle) {
+    elements.syncIssuesToggle.addEventListener("click", () => {
+      const isHidden = elements.syncIssuesContent.classList.contains("hidden");
+      if (isHidden) {
+        elements.syncIssuesContent.classList.remove("hidden");
+        elements.syncIssuesToggleIcon.textContent = "▼";
+      } else {
+        elements.syncIssuesContent.classList.add("hidden");
+        elements.syncIssuesToggleIcon.textContent = "▶";
+      }
     });
   }
+
+  // Sync history toggle
+  if (elements.syncHistoryToggle) {
+    elements.syncHistoryToggle.addEventListener("click", () => {
+      const isHidden = elements.syncHistoryContent.classList.contains("hidden");
+      if (isHidden) {
+        elements.syncHistoryContent.classList.remove("hidden");
+        elements.syncHistoryToggleIcon.textContent = "▼";
+      } else {
+        elements.syncHistoryContent.classList.add("hidden");
+        elements.syncHistoryToggleIcon.textContent = "▶";
+      }
+    });
+  }
+
+  // Event delegation for action buttons in sync issues
+  document.addEventListener("click", (e) => {
+    if (e.target.dataset.action === "clearMissingTelemetry") {
+      triggerClearMissingTelemetry().catch(() => { });
+    }
+  });
 
   window.addEventListener("error", (event) => {
     logDebug("Global browser error captured.", {
