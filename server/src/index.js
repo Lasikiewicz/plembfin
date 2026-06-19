@@ -2782,13 +2782,17 @@ async function handleTmdbDetails(req, res) {
   const mediaType = String(req.query.mediaType || req.query.type || "").trim().toLowerCase();
   let tmdbId = String(req.query.tmdbId || req.query.id || "").trim();
   const title = String(req.query.title || "").trim();
+  const ids = {
+    imdbId: String(req.query.imdbId || req.query.imdb_id || req.query.imdb || "").trim(),
+    tvdbId: String(req.query.tvdbId || req.query.tvdb_id || req.query.tvdb || "").trim(),
+  };
 
-  if (!mediaType || (!tmdbId && !title)) {
-    return sendJson(res, { error: "mediaType and either tmdbId or title are required" }, 400);
+  if (!mediaType || (!tmdbId && !title && !ids.imdbId && !ids.tvdbId)) {
+    return sendJson(res, { error: "mediaType and a TMDB ID, title, IMDb ID, or TVDB ID are required" }, 400);
   }
 
   try {
-    const details = await getTmdbDetails({ mediaType, tmdbId, title });
+    const details = await getTmdbDetails({ mediaType, tmdbId, title, ids });
     return sendJson(res, details, 200, { "Cache-Control": "private, max-age=300, stale-while-revalidate=86400", Vary: "Authorization" });
   } catch (error) {
     console.error("Failed handling TMDB details API", error);
@@ -2937,9 +2941,13 @@ async function handleTmdbDetailsBatch(req, res) {
     const mediaType = String(item?.mediaType || item?.type || "").trim().toLowerCase();
     const tmdbId = String(item?.tmdbId || item?.id || "").trim();
     const title = String(item?.title || "").trim();
-    if (!mediaType || (!tmdbId && !title)) return { error: "invalid" };
+    const ids = {
+      imdbId: String(item?.imdbId || item?.imdb_id || item?.imdb || "").trim(),
+      tvdbId: String(item?.tvdbId || item?.tvdb_id || item?.tvdb || "").trim(),
+    };
+    if (!mediaType || (!tmdbId && !title && !ids.imdbId && !ids.tvdbId)) return { error: "invalid" };
     try {
-      const details = await getTmdbDetails({ mediaType, tmdbId, title });
+      const details = await getTmdbDetails({ mediaType, tmdbId, title, ids });
       return { details };
     } catch (error) {
       return { error: error.message || "failed", status: error.status || 500 };
