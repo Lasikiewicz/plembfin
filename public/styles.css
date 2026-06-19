@@ -7185,3 +7185,144 @@ details[open] > .tool-section-summary::before {
 .search-view-filters .explorer-view-btn {
   width: auto;
 }
+
+/* Watch History Page List Layout */
+.history-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.85rem;
+  width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .history-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .history-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .history-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 500px) {
+  .history-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.history-page-card {
+  display: flex;
+  gap: 1rem;
+  padding: 0.6rem;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+  align-items: center;
+}
+
+.history-page-card:hover {
+  border-color: var(--yellow);
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-1px);
+}
+
+.history-card-poster-wrapper {
+  flex: 0 0 var(--history-poster-width, 86px);
+  width: var(--history-poster-width, 86px);
+  aspect-ratio: 2/3;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  transition: transform 130ms ease, box-shadow 130ms ease;
+}
+
+.history-page-card:hover .history-card-poster-wrapper {
+  transform: scale(1.02);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.45);
+}
+
+.history-card-poster-wrapper img,
+.history-card-poster-wrapper span {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.history-card-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.history-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.history-card-title {
+  font-size: 1.05rem;
+  font-weight: 850;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-card-episode {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #e5a00d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.76rem;
+  color: #9b9b9b;
+}
+
+.history-card-meta > span,
+.history-card-meta > div {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.meta-label {
+  font-weight: 800;
+  color: var(--muted, #666);
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+}
+
+@media (max-width: 600px) {
+  .history-page-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.65rem;
+  }
+  .history-card-poster-wrapper {
+    width: 64px;
+    flex: 0 0 64px;
+  }
+}

@@ -481,8 +481,9 @@ async function handleHistory(req, res) {
     return sendJson(res, { history, historyVersion }, 200, { "Cache-Control": "private, max-age=30, stale-while-revalidate=120", Vary: "Authorization" });
   }
 
+  const dedupe = !["0", "false", "no"].includes(String(req.query.dedupe || "").toLowerCase());
   const includeStats = !["0", "false", "no"].includes(statsMode);
-  const historyPromise = queryWatchHistory(requireDb(), { search: req.query.search || "", limit: req.query.limit || 50, offset: req.query.offset || 0 });
+  const historyPromise = queryWatchHistory(requireDb(), { search: req.query.search || "", limit: req.query.limit || 50, offset: req.query.offset || 0, dedupe });
   const historyVersionPromise = getHistoryCacheVersion();
 
   if (!includeStats) {

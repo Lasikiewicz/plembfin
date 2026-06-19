@@ -57,7 +57,7 @@ const HIDE_WATCHED_KEY_SHOWS = "plembfin:hideWatched:shows";
 const HIDE_ENDED_KEY_SHOWS = "plembfin:hideEnded:shows";
 const EXPLORER_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_LIMIT = 24;
-const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "search"];
+const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "search", "history"];
 const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs"];
 
 const state = {
@@ -128,6 +128,14 @@ const state = {
   dashboardPosterObserver: undefined,
   explorerScrollArmed: false,
   posterHydrateScrollScheduled: false,
+  historyViewSearch: "",
+  historyViewSearchTimer: undefined,
+  historyViewRaw: [],
+  historyViewOffset: 0,
+  historyViewHasMore: true,
+  historyViewLoading: false,
+  historyViewLoadObserver: undefined,
+  historyViewScrollArmed: false,
   expandedShows: new Set(),
   expandedSeasons: new Set(),
   activeShowModalKey: null,
@@ -199,9 +207,12 @@ function bindElements() {
     dbStatus: document.querySelector("#dbStatus"),
     debugModal: document.querySelector("#debugModal"),
     explorerPanel: document.querySelector("#explorerPanel"),
+    historyPanel: document.querySelector("#historyPanel"),
     alphaFilterNav: document.querySelector("#alphaFilterNav"),
     explorerSearchInput: document.querySelector("#explorerSearchInput"),
+    historySearchInput: document.querySelector("#historySearchInput"),
     explorerPosterSize: document.querySelector("#explorerPosterSize"),
+    historyPosterSize: document.querySelector("#historyPosterSize"),
     explorerPosterSizeLabel: document.querySelector(".explorer-size-slider"),
     explorerSort: document.querySelector("#explorerSort"),
     explorerHideWatchedLabel: document.querySelector("#explorerHideWatchedLabel"),
@@ -3811,6 +3822,10 @@ function handleRouting(path) {
     state.activeView = "stats";
     state.mediaDetailInline = false;
     clearMediaDetailState();
+  } else if (pathname === "/history") {
+    state.activeView = "history";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
   } else if (pathname === "/search") {
     state.activeView = "search";
     state.mediaDetailInline = false;
@@ -4007,10 +4022,16 @@ function applyActiveView() {
   }
   if (state.activeView === "explorer") renderExplorer();
   if (state.activeView === "search") renderSearchPage();
+  if (state.activeView === "history") renderHistoryView();
   if (state.activeView !== "explorer") {
     state.explorerLoadObserver?.disconnect();
     state.explorerLoadObserver = undefined;
     updateAlphaFilter();
+  }
+
+  if (state.activeView !== "history") {
+    state.historyViewLoadObserver?.disconnect();
+    state.historyViewLoadObserver = undefined;
   }
 
   if (state.activeView !== "dashboard") {
@@ -4796,7 +4817,7 @@ function renderHistoryCard(entry) {
     const href = entry.tmdb_id ? `/tvshow/tmdb/${entry.tmdb_id}` : `/tvshow/${showKeySlug}`;
 
     return `
-      <a class="movie-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}">
+      <a class="movie-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(showTitle || "")}">
         ${posterMarkup(entry, "movie-poster")}
         <div class="movie-card-body">
           <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.15rem; min-width: 0; width: 100%; flex-direction: column;">
@@ -4815,7 +4836,7 @@ function renderHistoryCard(entry) {
     // Movie
     const href = entry.tmdb_id ? `/movie/tmdb/${entry.tmdb_id}` : `/movie/${entry.id}`;
     return `
-      <a class="movie-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}">
+      <a class="movie-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(entry.title || "")}">
         ${posterMarkup(entry, "movie-poster")}
         <div class="movie-card-body">
           <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.15rem; min-width: 0; width: 100%; flex-direction: column;">
@@ -5852,6 +5873,159 @@ async function loadExplorerMovies() {
     state.moviesLoading = false;
     renderMovieExplorer();
   }
+}
+
+function applyHistoryPosterWidth() {
+  const isMobile = window.innerWidth <= 760;
+  const defaultSize = isMobile ? "64px" : "86px";
+  const saved = localStorage.getItem("plembfin:history:posterWidth") || defaultSize;
+  document.documentElement.style.setProperty("--history-poster-width", saved);
+  if (elements.historyPosterSize) elements.historyPosterSize.value = parseInt(saved) || (isMobile ? 64 : 86);
+}
+
+function resetHistoryView(key = "") {
+  state.historyViewRaw = [];
+  state.historyViewOffset = 0;
+  state.historyViewHasMore = true;
+  state.historyViewLoading = false;
+  state.historyViewQueryKey = key;
+  state.historyViewScrollArmed = false;
+}
+
+function renderHistoryPageCard(entry) {
+  const isEpisode = entry.media_type === "episode";
+  let displayTitle = entry.title;
+  let epTitle = "";
+  let href = "";
+
+  if (isEpisode) {
+    displayTitle = entry.show_title || showTitleFrom(entry.title);
+    epTitle = entry.episode_title;
+    let needsResolve = false;
+    if (!epTitle || /^Episode \d+$/i.test(String(epTitle).trim())) {
+      const text = String(entry.title || "").trim();
+      const suffixMatch = text.match(/S\d{1,2}E\d{1,2}\s+-\s+(.+)$/i);
+      if (suffixMatch?.[1]) {
+        epTitle = suffixMatch[1].trim();
+      } else {
+        if (!epTitle) {
+          epTitle = `Episode ${entry.episode}`;
+        }
+        needsResolve = true;
+      }
+    }
+
+    if (needsResolve) {
+      setTimeout(() => {
+        const el = document.querySelector(`[data-history-id="${entry.id}"] .history-card-episode`);
+        resolveEpisodeTitleFromTmdb(entry, el);
+      }, 50);
+    }
+
+    const canonicalShowName = showName(entry.title);
+    const showKeySlug = slug(canonicalShowName);
+    href = entry.tmdb_id ? `/tvshow/tmdb/${entry.tmdb_id}` : `/tvshow/${showKeySlug}`;
+  } else {
+    href = entry.tmdb_id ? `/movie/tmdb/${entry.tmdb_id}` : `/movie/${entry.id}`;
+  }
+
+  const sourceBadge = entry.source ? `<span class="source-badge ${sourceClass(entry.source)}">${escapeHtml(platformBadge(entry.source))}</span>` : "None";
+
+  return `
+    <a class="history-page-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
+      <div class="history-card-poster-wrapper">
+        ${posterMarkup(entry, "history-page-poster")}
+      </div>
+      <div class="history-card-details">
+        <div class="history-card-header">
+          <b class="history-card-title" title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</b>
+          ${isEpisode ? `<span class="history-card-episode" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>` : ""}
+        </div>
+        <div class="history-card-meta">
+          ${isEpisode ? `<span><span class="meta-label">Season/Ep:</span> S${entry.season} · E${entry.episode}</span>` : ""}
+          <span><span class="meta-label">Watched:</span> ${formatDate(entry.watched_at)}</span>
+          <span><span class="meta-label">App Used:</span> ${sourceBadge}</span>
+        </div>
+      </div>
+    </a>
+  `;
+}
+
+function renderHistoryView() {
+  if (state.mediaDetailInline) return;
+  const key = [state.historyViewSearch].join("|");
+  if (state.historyViewQueryKey !== key) resetHistoryView(key);
+
+  if (!state.historyViewRaw.length && state.historyViewHasMore && !state.historyViewLoading && state.token) {
+    loadHistoryView().catch((error) => setMessage(error.message, "error"));
+  }
+
+  if (!state.historyViewRaw.length && state.historyViewLoading) {
+    elements.historyPanel.innerHTML = emptyExplorer("Loading watch history...");
+    return;
+  }
+
+  applyHistoryPosterWidth();
+
+  if (elements.historySearchInput && elements.historySearchInput.value !== state.historyViewSearch) {
+    elements.historySearchInput.value = state.historyViewSearch;
+  }
+
+  const historyGrid = state.historyViewRaw.length
+    ? `<div class="history-list">${state.historyViewRaw.map(renderHistoryPageCard).join("")}</div><div class="explorer-scroll-sentinel" data-history-sentinel aria-live="polite"><span>${state.historyViewLoading ? "Loading..." : ""}</span></div>`
+    : emptyExplorer("No watch history items found");
+  elements.historyPanel.innerHTML = historyGrid;
+  hydratePosters(elements.historyPanel);
+  observeHistorySentinel();
+  observeExplorerTmdbPrefetch(elements.historyPanel);
+}
+
+async function loadHistoryView() {
+  if (state.historyViewLoading || !state.historyViewHasMore) return;
+  state.historyViewLoading = true;
+  if (elements.historyPanel) {
+    const sentinel = elements.historyPanel.querySelector("[data-history-sentinel] span");
+    if (sentinel) sentinel.textContent = "Loading...";
+  }
+
+  try {
+    const url = new URL("/api/history", window.location.origin);
+    url.searchParams.set("limit", String(EXPLORER_PAGE_SIZE));
+    url.searchParams.set("offset", String(state.historyViewOffset));
+    url.searchParams.set("stats", "0");
+    url.searchParams.set("dedupe", "false");
+    if (state.historyViewSearch) url.searchParams.set("search", state.historyViewSearch);
+
+    const res = await fetch(url, { headers: authHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `History load failed ${res.status}`);
+
+    const historyItems = Array.isArray(body.history) ? body.history : [];
+    state.historyViewRaw = [...state.historyViewRaw, ...historyItems];
+    state.historyViewOffset += historyItems.length;
+    state.historyViewHasMore = historyItems.length === EXPLORER_PAGE_SIZE;
+  } finally {
+    state.historyViewLoading = false;
+    renderHistoryView();
+  }
+}
+
+function observeHistorySentinel() {
+  state.historyViewLoadObserver?.disconnect();
+  state.historyViewLoadObserver = undefined;
+
+  const sentinel = elements.historyPanel?.querySelector("[data-history-sentinel]");
+  if (!sentinel || !("IntersectionObserver" in window)) return;
+
+  state.historyViewLoadObserver = new IntersectionObserver(
+    (entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      if (!state.historyViewScrollArmed) return;
+      loadHistoryView().catch((error) => setMessage(error.message, "error"));
+    },
+    { rootMargin: "1200px 0px 1200px 0px" },
+  );
+  state.historyViewLoadObserver.observe(sentinel);
 }
 
 function renderShowExplorer() {
@@ -11304,6 +11478,7 @@ function attachEvents() {
 
   window.addEventListener("resize", () => {
     applyExplorerPosterWidth();
+    applyHistoryPosterWidth();
     window.clearTimeout(state.dashboardHistoryResizeTimer);
     state.dashboardHistoryResizeTimer = window.setTimeout(() => {
       if (state.activeView === "dashboard") renderDashboard();
@@ -11311,13 +11486,18 @@ function attachEvents() {
   });
 
   window.addEventListener("scroll", () => {
-    if (state.activeView !== "explorer") return;
-    state.explorerScrollArmed = true;
+    if (state.activeView !== "explorer" && state.activeView !== "history") return;
+    if (state.activeView === "explorer") {
+      state.explorerScrollArmed = true;
+    } else {
+      state.historyViewScrollArmed = true;
+    }
     if (state.posterHydrateScrollScheduled) return;
     state.posterHydrateScrollScheduled = true;
     window.requestAnimationFrame(() => {
       state.posterHydrateScrollScheduled = false;
-      hydratePosters(elements.explorerPanel);
+      const container = state.activeView === "explorer" ? elements.explorerPanel : elements.historyPanel;
+      hydratePosters(container);
     });
   }, { passive: true });
 
@@ -11341,6 +11521,24 @@ function attachEvents() {
     document.documentElement.style.setProperty("--poster-width", `${val}px`);
     localStorage.setItem(currentPosterWidthKey(), `${val}px`);
   });
+
+  elements.historyPosterSize?.addEventListener("input", (e) => {
+    const val = e.target.value;
+    document.documentElement.style.setProperty("--history-poster-width", `${val}px`);
+    localStorage.setItem("plembfin:history:posterWidth", `${val}px`);
+  });
+
+  elements.historySearchInput?.addEventListener("input", () => {
+    window.clearTimeout(state.historyViewSearchTimer);
+    state.historyViewSearchTimer = window.setTimeout(() => {
+      state.historyViewSearch = elements.historySearchInput.value.trim();
+      renderHistoryView();
+    }, 220);
+  });
+
+  const unlockHistorySearch = () => elements.historySearchInput?.removeAttribute("readonly");
+  elements.historySearchInput?.addEventListener("pointerdown", unlockHistorySearch);
+  elements.historySearchInput?.addEventListener("focus", unlockHistorySearch);
 
   for (const btn of elements.explorerViewButtons || []) {
     btn.addEventListener("click", () => {

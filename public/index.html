@@ -42,6 +42,7 @@
             <button class="nav-tab active" type="button" data-view="dashboard">Dashboard</button>
             <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="movies">Movies</button>
             <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="shows">TV Shows</button>
+            <button class="nav-tab" type="button" data-view="history">History</button>
           </div>
           <div class="sidebar-secondary">
             <span class="nav-label">More</span>
@@ -117,6 +118,32 @@
             <div class="dashboard-row-section" style="margin-top: 1.8rem;">
               <h3 class="dashboard-row-title">Movies</h3>
               <div id="movieHistoryRow" class="horizontal-scroll-row" aria-live="polite"></div>
+            </div>
+          </section>
+        </section>
+
+        <section id="history-view" class="view-panel hidden" data-view-panel="history">
+          <section class="glass-panel p-section">
+            <div class="section-heading explorer-heading explorer-heading-sticky" style="padding-top: 0.25rem; padding-bottom: 0.25rem;">
+              <div class="explorer-heading-title" style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; min-width: 0; flex: 1;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                  <p style="margin: 0; font-weight: 850; font-size: 0.95rem; line-height: 1.2;">Watch History</p>
+                  <span style="color: var(--muted); font-size: 0.74rem; line-height: 1.2;">Chronological watch log</span>
+                </div>
+              </div>
+              <div class="explorer-controls">
+                <label class="compact-field explorer-search-box">
+                  <span>Search</span>
+                  <input id="historySearchInput" class="field" type="search" placeholder="Search history..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
+                </label>
+                <label class="compact-field explorer-size-slider">
+                  <span>Size</span>
+                  <input id="historyPosterSize" type="range" min="60" max="180" value="86" />
+                </label>
+              </div>
+            </div>
+            <div class="explorer-with-alpha">
+              <div id="historyPanel" class="explorer-panel"></div>
             </div>
           </section>
         </section>
