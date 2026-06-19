@@ -283,6 +283,9 @@ function bindElements() {
     syncHistoryToggle: document.querySelector("#syncHistoryToggle"),
     syncHistoryContent: document.querySelector("#syncHistoryContent"),
     syncHistoryToggleIcon: document.querySelector("#syncHistoryToggleIcon"),
+    syncToolsToggle: document.querySelector("#syncToolsToggle"),
+    syncToolsContent: document.querySelector("#syncToolsContent"),
+    syncToolsToggleIcon: document.querySelector("#syncToolsToggleIcon"),
     plexEnabled: document.querySelector("#plexEnabled"),
     plexServerUrl: document.querySelector("#plexServerUrl"),
     plexToken: document.querySelector("#plexToken"),
@@ -11969,6 +11972,20 @@ function attachEvents() {
       } else {
         elements.syncHistoryContent.classList.add("hidden");
         elements.syncHistoryToggleIcon.textContent = "▶";
+      }
+    });
+  }
+
+  // Sync tools toggle
+  if (elements.syncToolsToggle) {
+    elements.syncToolsToggle.addEventListener("click", () => {
+      const isHidden = elements.syncToolsContent.classList.contains("hidden");
+      if (isHidden) {
+        elements.syncToolsContent.classList.remove("hidden");
+        elements.syncToolsToggleIcon.textContent = "▼";
+      } else {
+        elements.syncToolsContent.classList.add("hidden");
+        elements.syncToolsToggleIcon.textContent = "▶";
       }
     });
   }

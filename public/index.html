@@ -647,8 +647,10 @@
 
               <section class="settings-pane hidden" data-settings-panel="tools">
                 <!-- System Integrity Check -->
-                <details open style="margin-bottom: var(--space-4);">
-                  <summary class="tool-section-summary">
+                <div class="settings-row">
+                  <div class="settings-row-main">
+                    <details open style="margin-bottom: var(--space-4);">
+                      <summary class="tool-section-summary">
                     <span class="tool-section-summary-text">
                       <b>System Integrity Check</b>
                       <span>Verify local database state and media server reachability</span>
@@ -668,30 +670,33 @@
                           <div id="completeCheckResults" class="complete-check-results hidden" style="display: grid; gap: var(--space-2);"></div>
                         </div>
                       </article>
-                    </div>
-                    <div class="settings-row-help">
-                      <article class="glass-panel p-section settings-card">
-                        <div class="section-heading">
-                          <p>Integrity Help</p>
-                          <span>Database Care</span>
-                        </div>
-                        <p class="tool-accordion-desc">
-                          <b>System Integrity Check:</b> Tests end-to-end database connectivity and verifies if configured media servers are accessible.
-                        </p>
-                        <p class="tool-accordion-desc">
-                          <b>Repair History Rows:</b> Fixes rows containing wrong media types (TV vs Movie) and pulls missing posters.
-                        </p>
-                        <p class="tool-accordion-desc">
-                          <b>Clean Duplicates:</b> Runs a deduplication routine over watch entries to keep the history database clean and fast.
-                        </p>
-                      </article>
-                    </div>
+                    </details>
                   </div>
-                </details>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Integrity Help</p>
+                        <span>Database Care</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        <b>System Integrity Check:</b> Tests end-to-end database connectivity and verifies if configured media servers are accessible.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Repair History Rows:</b> Fixes rows containing wrong media types (TV vs Movie) and pulls missing posters.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Clean Duplicates:</b> Runs a deduplication routine over watch entries to keep the history database clean and fast.
+                      </p>
+                    </article>
+                  </div>
+                </div>
 
                 <!-- Migration & Import Row -->
-                <details style="margin-bottom: var(--space-4);">
-                  <summary class="tool-section-summary">
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <details style="margin-bottom: var(--space-4);">
+                      <summary class="tool-section-summary">
                     <span class="tool-section-summary-text">
                       <b>Migration &amp; Import</b>
                       <span>Transfer watch histories and configs</span>
@@ -748,33 +753,36 @@
                           <div id="importPreview" class="import-preview"></div>
                         </div>
                       </article>
-                    </div>
-                    <div class="settings-row-help">
-                      <article class="glass-panel p-section settings-card">
-                        <div class="section-heading">
-                          <p>Migration Help</p>
-                          <span>Data Operations</span>
-                        </div>
-                        <p class="tool-accordion-desc">
-                          <b>Backup &amp; Transfer:</b> Export native JSON database archives or import existing backups containing metadata, watch states, and user configurations.
-                        </p>
-                        <p class="tool-accordion-desc">
-                          <b>Trakt Importer:</b> Drag and drop CSV or JSON logs exported from Trakt.tv to populate your local database in bulk.
-                        </p>
-                        <p class="tool-accordion-desc">
-                          <b>Rebuild DB Tool:</b> Run <code>node scripts/rebuildPlaystateDatabase.js --trakt-dir "path" --write</code> to reset the database and load history from Trakt/Plex.
-                        </p>
-                        <p class="tool-accordion-desc">
-                          <b>Force Push Tool:</b> Run <code>node scripts/forcePushHistory.js</code> to push all local history watch states to all connected media servers.
-                        </p>
-                      </article>
-                    </div>
+                    </details>
                   </div>
-                </details>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Migration Help</p>
+                        <span>Data Operations</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        <b>Backup &amp; Transfer:</b> Export native JSON database archives or import existing backups containing metadata, watch states, and user configurations.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Trakt Importer:</b> Drag and drop CSV or JSON logs exported from Trakt.tv to populate your local database in bulk.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Rebuild DB Tool:</b> Run <code>node scripts/rebuildPlaystateDatabase.js --trakt-dir "path" --write</code> to reset the database and load history from Trakt/Plex.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Force Push Tool:</b> Run <code>node scripts/forcePushHistory.js</code> to push all local history watch states to all connected media servers.
+                      </p>
+                    </article>
+                  </div>
+                </div>
 
                 <!-- Integrity & Repairs Row -->
-                <details style="margin-bottom: var(--space-4);">
-                  <summary class="tool-section-summary">
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <details style="margin-bottom: var(--space-4);">
+                      <summary class="tool-section-summary">
                     <span class="tool-section-summary-text">
                       <b>Integrity &amp; Repairs</b>
                       <span>Audit database records and repair anomalies</span>
@@ -809,30 +817,33 @@
                           <div id="dedupHistoryLog" class="import-terminal compact-terminal">Dedup log will appear here.</div>
                         </div>
                       </article>
-                    </div>
-                    <div class="settings-row-help">
-                      <article class="glass-panel p-section settings-card">
-                        <div class="section-heading">
-                          <p>Integrity Help</p>
-                          <span>Database Care</span>
-                        </div>
-                        <p class="tool-accordion-desc">
-                          <b>System Integrity Check:</b> Tests end-to-end database connectivity and verifies if configured media servers are accessible.
-                        </p>
-                        <p class="tool-accordion-desc">
-                          <b>Repair History Rows:</b> Fixes rows containing wrong media types (TV vs Movie) and pulls missing posters.
-                        </p>
-                        <p class="tool-accordion-desc">
-                          <b>Clean Duplicates:</b> Runs a deduplication routine over watch entries to keep the history database clean and fast.
-                        </p>
-                      </article>
-                    </div>
+                    </details>
                   </div>
-                </details>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Integrity Help</p>
+                        <span>Database Care</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        <b>System Integrity Check:</b> Tests end-to-end database connectivity and verifies if configured media servers are accessible.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Repair History Rows:</b> Fixes rows containing wrong media types (TV vs Movie) and pulls missing posters.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Clean Duplicates:</b> Runs a deduplication routine over watch entries to keep the history database clean and fast.
+                      </p>
+                    </article>
+                  </div>
+                </div>
 
                 <!-- Sync & Cache Row -->
-                <details style="margin-bottom: var(--space-4);">
-                  <summary class="tool-section-summary">
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <details style="margin-bottom: var(--space-4);">
+                      <summary class="tool-section-summary">
                     <span class="tool-section-summary-text">
                       <b>Sync &amp; Cache Tools</b>
                       <span>Ingest caching and server backfills</span>
@@ -890,23 +901,24 @@
                           <div id="traktBackfillLog" class="import-terminal compact-terminal">Trakt backfill log will appear here.</div>
                         </div>
                       </article>
-                    </div>
-                    <div class="settings-row-help">
-                      <article class="glass-panel p-section settings-card">
-                        <div class="section-heading">
-                          <p>Sync Help</p>
-                          <span>Caching &amp; Backfills</span>
-                        </div>
-                        <p class="tool-accordion-desc">
-                          <b>Full Sync Watchstates:</b> Synchronizes all locally recorded watched status events back into Plex/Emby/Jellyfin active watchlists.
-                        </p>
-                        <p class="tool-accordion-desc">
-                          <b>Refresh TMDB Metadata:</b> Forces an API fetch from TMDB to rebuild local descriptions, recommendations, and local image caches.
-                        </p>
-                      </article>
-                    </div>
+                    </details>
                   </div>
-                </details>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Sync Help</p>
+                        <span>Caching &amp; Backfills</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        <b>Full Sync Watchstates:</b> Synchronizes all locally recorded watched status events back into Plex/Emby/Jellyfin active watchlists.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Refresh TMDB Metadata:</b> Forces an API fetch from TMDB to rebuild local descriptions, recommendations, and local image caches.
+                      </p>
+                    </article>
+                  </div>
+                </div>
               </section>
 
               <!-- Backups Settings Panel -->
@@ -1060,9 +1072,9 @@
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="sync">
+                <!-- Sync Issues Row -->
                 <div class="settings-row">
                   <div class="settings-row-main">
-                    <!-- Sync Issues Section -->
                     <section class="glass-panel p-section sync-panel">
                       <button id="syncIssuesToggle" class="section-heading sync-heading" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
                         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
@@ -1076,43 +1088,18 @@
                       <div id="syncIssuesContent" class="hidden" style="margin-top: var(--space-3);">
                         <div id="syncIssuesContainer" aria-live="polite"></div>
                       </div>
-                      <pre id="forceSyncTerminal" class="import-terminal compact-terminal hidden" style="margin-top: 1rem;" aria-live="polite">[idle] Waiting for force sync.</pre>
                     </section>
-
-                    <!-- Sync History Section -->
-                    <section class="glass-panel p-section sync-panel" style="margin-top: var(--space-4);">
-                      <button id="syncHistoryToggle" class="section-heading sync-heading" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                          <div>
-                            <p>Sync History</p>
-                            <span id="syncHistorySummary" class="status-pill status-muted">Loading...</span>
-                          </div>
-                          <span id="syncHistoryToggleIcon" style="font-size: 1.2rem;">▶</span>
-                        </div>
-                      </button>
-                      <div id="syncHistoryContent" class="hidden" style="margin-top: var(--space-3);">
-                        <div id="syncHistoryPanel" class="sync-history-panel" aria-live="polite"></div>
-                      </div>
-                    </section>
-
-                    <!-- Control Buttons -->
-                    <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3);">
-                      <button id="runCronSyncButton" class="button-primary sync-action-btn" type="button" title="Run the scheduled sync job immediately">Run Cron Sync</button>
-                      <button id="forceSyncButton" class="button-primary sync-action-btn" type="button" title="Force an immediate sync of all pending watched states">Force Sync</button>
-                      <button id="stopSyncButton" class="button-danger hidden" type="button" title="Stop the currently running sync">Stop Sync</button>
-                      <button id="refreshSyncButton" class="button-ghost sync-btn" type="button" title="Refresh the sync issues list">Refresh</button>
-                    </div>
                   </div>
 
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Sync Help</p>
-                        <span>Understanding Issues & Status</span>
+                        <p>Sync Issues Help</p>
+                        <span>Understanding Issues</span>
                       </div>
 
                       <div style="margin-bottom: var(--space-3);">
-                        <b style="display: block; margin-bottom: var(--space-1);">Sync Issues Section</b>
+                        <b style="display: block; margin-bottom: var(--space-1);">What are Sync Issues?</b>
                         <p class="tool-accordion-desc" style="margin: 0;">
                           This section shows any problems with propagating watched states between your media servers. Click on any issue to view detailed telemetry about what went wrong.
                         </p>
@@ -1134,14 +1121,50 @@
                         </p>
                       </div>
 
-                      <div style="margin-bottom: var(--space-3);">
-                        <b style="display: block; margin-bottom: var(--space-1);">Sync History</b>
+                      <div>
+                        <b style="display: block; margin-bottom: var(--space-1);">How to Fix</b>
                         <p class="tool-accordion-desc" style="margin: 0;">
-                          Recent watched-state propagation attempts. Shows source, action, timestamp, and target sync results.
+                          Click "Retry" on an issue to re-attempt the sync and see detailed error messages. Click "Fix" to manually adjust the match if the item wasn't found.
                         </p>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+
+                <!-- Sync History Row -->
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <section class="glass-panel p-section sync-panel">
+                      <button id="syncHistoryToggle" class="section-heading sync-heading" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                          <div style="display: flex; align-items: center; gap: var(--space-2);">
+                            <p style="margin: 0;">Sync History</p>
+                            <span id="syncHistorySummary" class="status-pill status-muted">Loading...</span>
+                          </div>
+                          <span id="syncHistoryToggleIcon" style="font-size: 1.2rem;">▶</span>
+                        </div>
+                      </button>
+                      <div id="syncHistoryContent" class="hidden" style="margin-top: var(--space-3);">
+                        <div id="syncHistoryPanel" class="sync-history-panel" aria-live="polite"></div>
+                      </div>
+                    </section>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Sync History Help</p>
+                        <span>Recent Propagations</span>
                       </div>
 
                       <div style="margin-bottom: var(--space-3);">
+                        <b style="display: block; margin-bottom: var(--space-1);">What is Sync History?</b>
+                        <p class="tool-accordion-desc" style="margin: 0;">
+                          Recent watched-state propagation attempts. Shows source, action, timestamp, and target sync results for every automatic and manual sync.
+                        </p>
+                      </div>
+
+                      <div>
                         <b style="display: block; margin-bottom: var(--space-1);">How Sync Works</b>
                         <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
                           When you mark something as watched (on any platform), Plembfin automatically propagates that state to your other configured servers every 60 seconds.
@@ -1150,13 +1173,49 @@
                           Resume positions sync similarly. Use "Force Sync" to immediately push any pending updates without waiting.
                         </p>
                       </div>
+                    </article>
+                  </div>
+                </div>
 
-                      <div>
-                        <b style="display: block; margin-bottom: var(--space-1);">Fixing Issues</b>
-                        <p class="tool-accordion-desc" style="margin: 0;">
-                          Click "Retry" on an issue to re-attempt the sync and see detailed error messages. Click "Fix" to manually adjust the match if the item wasn't found.
-                        </p>
+                <!-- Sync Tools Row -->
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <section class="glass-panel p-section sync-panel">
+                      <button id="syncToolsToggle" class="section-heading sync-heading" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                          <p style="margin: 0;">Sync Tools</p>
+                          <span id="syncToolsToggleIcon" style="font-size: 1.2rem;">▶</span>
+                        </div>
+                      </button>
+                      <div id="syncToolsContent" class="hidden" style="margin-top: var(--space-3); display: flex; gap: var(--space-2); flex-wrap: wrap;">
+                        <button id="runCronSyncButton" class="button-primary sync-action-btn" type="button" title="Run the scheduled sync job immediately">Run Cron Sync</button>
+                        <button id="forceSyncButton" class="button-primary sync-action-btn" type="button" title="Force an immediate sync of all pending watched states">Force Sync</button>
+                        <button id="stopSyncButton" class="button-danger hidden" type="button" title="Stop the currently running sync">Stop Sync</button>
+                        <button id="refreshSyncButton" class="button-ghost sync-btn" type="button" title="Refresh the sync issues list">Refresh</button>
                       </div>
+                      <pre id="forceSyncTerminal" class="import-terminal compact-terminal hidden" style="margin-top: 1rem;" aria-live="polite">[idle] Waiting for force sync.</pre>
+                    </section>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Sync Tools Help</p>
+                        <span>Manual Control</span>
+                      </div>
+
+                      <p class="tool-accordion-desc" style="margin-bottom: var(--space-3);">
+                        <b>Run Cron Sync:</b> Executes the scheduled sync job immediately, checking for outstanding propagations and updating resume positions across all platforms.
+                      </p>
+                      <p class="tool-accordion-desc" style="margin-bottom: var(--space-3);">
+                        <b>Force Sync:</b> Forcefully propagates all pending watched-state changes to your other platforms right away, bypassing the 60-second scheduled interval. Use this to immediately sync a watch or unwatched state.
+                      </p>
+                      <p class="tool-accordion-desc" style="margin-bottom: var(--space-3);">
+                        <b>Stop Sync:</b> Halts a currently running force sync operation. Appears only when a sync is actively running.
+                      </p>
+                      <p class="tool-accordion-desc" style="margin: 0;">
+                        <b>Refresh:</b> Reloads the sync issues list to check for any new or resolved issues without waiting for the next scheduled check.
+                      </p>
                     </article>
                   </div>
                 </div>
