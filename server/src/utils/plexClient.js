@@ -168,30 +168,28 @@ async function findPlexSeries(config, media) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const candidates = plexGuidCandidates(media);
 
-  for (const guid of candidates) {
-    const url = new URL(`${baseUrl}/library/all`);
-    url.searchParams.set("guid", guid);
-    url.searchParams.set("type", "2"); // 2 is Show/Series in Plex
-    url.searchParams.set("X-Plex-Token", config.token);
+  if (candidates.length > 0) {
+    const lookups = await Promise.allSettled(candidates.map(async (guid) => {
+      const url = new URL(`${baseUrl}/library/all`);
+      url.searchParams.set("guid", guid);
+      url.searchParams.set("type", "2"); // 2 is Show/Series in Plex
+      url.searchParams.set("X-Plex-Token", config.token);
+      console.log("Plex series lookup started", { guid });
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok) {
+        console.error("Plex series lookup failed", { status: response.status, guid });
+        return null;
+      }
+      const body = await response.json();
+      return body?.MediaContainer?.Metadata?.find(
+        (m) => m.type === "show" || m.type === "series"
+      ) || body?.MediaContainer?.Metadata?.[0] || null;
+    }));
 
-    console.log("Plex series lookup started", { guid });
-    const response = await fetch(url, {
-      headers: { Accept: "application/json" },
-    });
-
-    if (!response.ok) {
-      console.error("Plex series lookup failed", { status: response.status, guid });
-      continue;
-    }
-
-    const body = await response.json();
-    const item = body?.MediaContainer?.Metadata?.find(
-      (m) => m.type === "show" || m.type === "series"
-    ) || body?.MediaContainer?.Metadata?.[0];
-
-    if (item?.ratingKey) {
-      console.log("Plex series lookup matched item", { ratingKey: item.ratingKey, guid });
-      return item;
+    const match = lookups.find((r) => r.status === "fulfilled" && r.value?.ratingKey);
+    if (match) {
+      console.log("Plex series lookup matched item", { ratingKey: match.value.ratingKey });
+      return match.value;
     }
   }
 
@@ -224,30 +222,27 @@ async function findPlexMovie(config, media) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const candidates = plexGuidCandidates(media);
 
-  for (const guid of candidates) {
-    const url = new URL(`${baseUrl}/library/all`);
-    url.searchParams.set("guid", guid);
-    url.searchParams.set("type", "1"); // 1 is Movie in Plex
-    url.searchParams.set("X-Plex-Token", config.token);
+  if (candidates.length > 0) {
+    const lookups = await Promise.allSettled(candidates.map(async (guid) => {
+      const url = new URL(`${baseUrl}/library/all`);
+      url.searchParams.set("guid", guid);
+      url.searchParams.set("type", "1"); // 1 is Movie in Plex
+      url.searchParams.set("X-Plex-Token", config.token);
+      console.log("Plex movie lookup started", { guid });
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok) {
+        console.error("Plex movie lookup failed", { status: response.status, guid });
+        return null;
+      }
+      const body = await response.json();
+      return body?.MediaContainer?.Metadata?.find((m) => m.type === "movie")
+        || body?.MediaContainer?.Metadata?.[0] || null;
+    }));
 
-    console.log("Plex movie lookup started", { guid });
-    const response = await fetch(url, {
-      headers: { Accept: "application/json" },
-    });
-
-    if (!response.ok) {
-      console.error("Plex movie lookup failed", { status: response.status, guid });
-      continue;
-    }
-
-    const body = await response.json();
-    const item = body?.MediaContainer?.Metadata?.find(
-      (m) => m.type === "movie"
-    ) || body?.MediaContainer?.Metadata?.[0];
-
-    if (item?.ratingKey) {
-      console.log("Plex movie lookup matched item", { ratingKey: item.ratingKey, guid });
-      return item;
+    const match = lookups.find((r) => r.status === "fulfilled" && r.value?.ratingKey);
+    if (match) {
+      console.log("Plex movie lookup matched item", { ratingKey: match.value.ratingKey });
+      return match.value;
     }
   }
 
@@ -297,7 +292,7 @@ export async function markPlexPlayed(config, media) {
 
     const item = await findPlexItem(config, media);
     if (!item?.ratingKey) {
-      console.log(`[SKIPPED] Match verification failed`);
+      console.log(`[NOT FOUND] No matching item in Plex library for: "${media.title}"`);
       return { platform: "plex", status: "not_found" };
     }
 
@@ -326,7 +321,7 @@ export async function markPlexUnplayed(config, media) {
 
     const item = await findPlexItem(config, media);
     if (!item?.ratingKey) {
-      console.log(`[SKIPPED] Match verification failed`);
+      console.log(`[NOT FOUND] No matching item in Plex library for: "${media.title}"`);
       return { platform: "plex", status: "not_found" };
     }
 
@@ -355,7 +350,7 @@ export async function setPlexProgress(config, media) {
 
     const item = await findPlexItem(config, media);
     if (!item?.ratingKey) {
-      console.log(`[SKIPPED] Match verification failed`);
+      console.log(`[NOT FOUND] No matching item in Plex library for: "${media.title}"`);
       return { platform: "plex", status: "not_found" };
     }
 
