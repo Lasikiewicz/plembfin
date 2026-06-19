@@ -1062,35 +1062,46 @@
               <section class="settings-pane hidden" data-settings-panel="sync">
                 <div class="settings-row">
                   <div class="settings-row-main">
+                    <!-- Sync Issues Section -->
                     <section class="glass-panel p-section sync-panel">
-                      <div class="section-heading sync-heading">
-                        <div>
-                          <p>Sync</p>
-                          <span>Outstanding watched-state sync jobs and target diagnostics</span>
+                      <button id="syncIssuesToggle" class="section-heading sync-heading" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                          <div>
+                            <p>Sync Issues</p>
+                            <span id="syncSummary" class="status-pill status-muted">Loading...</span>
+                          </div>
+                          <span id="syncIssuesToggleIcon" style="font-size: 1.2rem;">▶</span>
                         </div>
-                        <div class="logs-actions" style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
-                          <span id="syncSummary" class="status-pill status-muted">Not loaded</span>
-                          <button id="runCronSyncButton" class="button-primary" type="button">Run Cron Sync</button>
-                          <button id="forceSyncButton" class="button-primary" type="button">Force Sync</button>
-                          <button id="stopSyncButton" class="button-danger hidden" type="button">Stop Sync</button>
-                          <button id="clearMissingTelemetryButton" class="button-ghost" type="button" title="Mark records with missing dispatch telemetry as resolved">Clear Missing Telemetry</button>
-                          <button id="refreshSyncButton" class="button-ghost" type="button">Refresh</button>
-                        </div>
+                      </button>
+                      <div id="syncIssuesContent" class="hidden" style="margin-top: var(--space-3);">
+                        <div id="syncIssuesContainer" aria-live="polite"></div>
                       </div>
                       <pre id="forceSyncTerminal" class="import-terminal compact-terminal hidden" style="margin-top: 1rem;" aria-live="polite">[idle] Waiting for force sync.</pre>
-                      <div id="syncJobsPanel" class="sync-jobs-panel" aria-live="polite" style="margin-top: var(--space-3);"></div>
                     </section>
 
+                    <!-- Sync History Section -->
                     <section class="glass-panel p-section sync-panel" style="margin-top: var(--space-4);">
-                      <div class="section-heading sync-heading">
-                        <div>
-                          <p>Sync history</p>
-                          <span>Recent watched-state and resume propagation attempts</span>
+                      <button id="syncHistoryToggle" class="section-heading sync-heading" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                          <div>
+                            <p>Sync History</p>
+                            <span id="syncHistorySummary" class="status-pill status-muted">Loading...</span>
+                          </div>
+                          <span id="syncHistoryToggleIcon" style="font-size: 1.2rem;">▶</span>
                         </div>
-                        <span id="syncHistorySummary" class="status-pill status-muted">Not loaded</span>
+                      </button>
+                      <div id="syncHistoryContent" class="hidden" style="margin-top: var(--space-3);">
+                        <div id="syncHistoryPanel" class="sync-history-panel" aria-live="polite"></div>
                       </div>
-                      <div id="syncHistoryPanel" class="sync-history-panel" aria-live="polite" style="margin-top: var(--space-3);"></div>
                     </section>
+
+                    <!-- Control Buttons -->
+                    <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3);">
+                      <button id="runCronSyncButton" class="button-primary" type="button">Run Cron Sync</button>
+                      <button id="forceSyncButton" class="button-primary" type="button">Force Sync</button>
+                      <button id="stopSyncButton" class="button-danger hidden" type="button">Stop Sync</button>
+                      <button id="refreshSyncButton" class="button-ghost" type="button">Refresh</button>
+                    </div>
                   </div>
 
                   <div class="settings-row-help">
