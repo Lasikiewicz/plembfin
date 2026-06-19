@@ -1,7 +1,14 @@
 {
-  "version": "0.1.31",
-  "updatedAt": "2026-06-19T21:48:39+01:00",
+  "version": "0.1.32",
+  "updatedAt": "2026-06-19T21:56:32+01:00",
   "entries": [
+    {
+      "version": "0.1.32",
+      "date": "2026-06-19T21:56:32+01:00",
+      "commit": "ca6843275e7279c1440cd9d69967806e575dad80",
+      "message": "feat: add edit watch date quick choices",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.31",
       "date": "2026-06-19T21:48:39+01:00",
