@@ -30,7 +30,7 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 *   🖼️ **Art Pipeline & Caching**: Fetches posters and backdrops from your media servers or TMDB, resizes them with `sharp`, and caches them locally under `data/media` for near-instant rendering.
 *   🧹 **Echo Loop Prevention**: Utilizes a memory-mapped loop detector to suppress echo webhooks triggered by Plembfin's own updates.
 *   ☁️ **Automated Backups**: Backs up your database daily to multiple targets including Local Folders, Backblaze B2, S3-compatible, WebDAV, OneDrive, and Dropbox.
-*   🔍 **Seerr Integration**: Integrates with Overseerr/Jellyseerr/Seerr, allowing you to check request status and submit request commands directly from the dashboard.
+*   🔍 **Seerr Integration**: Integrates with Overseerr/Jellyseerr/Seerr to check request and availability statuses directly from the movie and show detail views.
 *   📅 **In-Process Scheduler**: An in-memory scheduler checks for active play sessions, processes manual sync overrides, and triggers catch-up syncs every minute.
 
 ---
@@ -127,7 +127,6 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 #### 🔍 Seerr (Request Manager)
 *   **Seerr Server URL**: Your Overseerr or Jellyseerr server URL (e.g., `http://192.168.1.100:5055`).
 *   **Seerr API Key**: Copy the API key from your Seerr Settings → General.
-*   *Once configured, movie and TV show pages will display availability states ("Available in 1080p", "Available in 4K") and allow you to request missing content directly.*
 
 ---
 
@@ -135,24 +134,20 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 
 Playback events are sent to Plembfin via webhooks POSTed to `<YOUR_PLEMBFIN_HOST>/api/webhook`. 
 
-### Authenticating Webhooks
-Your Plembfin API key is generated on first boot and is displayed on the dashboard under **Settings → API Keys** (or stored in `data/config.json`). Authenticators are supported in three ways:
-1.  **URL Query parameter**: `http://YOUR_HOST:5055/api/webhook?api_key=YOUR_API_KEY`
-2.  **HTTP Header**: Send `X-Api-Key: YOUR_API_KEY`
-3.  **Authorization Header**: Send `Authorization: Bearer YOUR_API_KEY`
+No authentication tokens are required on the webhook URL itself because Plembfin maps incoming payloads to your local media players using username/user ID matching defined in your app settings.
 
 ### Media Server Settings
 
 #### 1. Plex Webhook Setup
 1.  Navigate to Plex Web → **Account Settings → Webhooks**.
 2.  Click **Add Webhook**.
-3.  Paste the URL: `http://<YOUR_HOST>:5055/api/webhook?api_key=YOUR_API_KEY`
+3.  Paste the URL: `http://<YOUR_HOST>:5055/api/webhook`
 4.  Save changes.
 
 #### 2. Emby Webhook Setup
 1.  Install the official **Webhooks** plugin in Emby (if not already installed).
 2.  Go to settings for Webhooks and add a new webhook destination.
-3.  Set the URL to `http://<YOUR_HOST>:5055/api/webhook?api_key=YOUR_API_KEY`.
+3.  Set the URL to `http://<YOUR_HOST>:5055/api/webhook`.
 4.  Set the payload format to **JSON**.
 5.  Check **Send All Properties** (crucial; without this, Emby omits titles and identifiers, preventing Plembfin from matching items).
 6.  Select playback events (Play, Pause, Stop, etc.) to trigger it.
@@ -160,7 +155,7 @@ Your Plembfin API key is generated on first boot and is displayed on the dashboa
 #### 3. Jellyfin Webhook Setup
 1.  Install the **Webhooks** plugin from the Jellyfin Repository.
 2.  Add a new Generic Destination.
-3.  Set the Webhook URL: `http://<YOUR_HOST>:5055/api/webhook?api_key=YOUR_API_KEY`.
+3.  Set the Webhook URL: `http://<YOUR_HOST>:5055/api/webhook`.
 4.  Under event types, check **Playback Start**, **Playback Progress**, **Playback Stop**, and **User Data Saved** (which handles mark watched/unwatched events).
 5.  Ensure JSON formatting is used and save.
 
@@ -173,7 +168,7 @@ Plembfin runs an automated daily backup at a customizable time. Backups store yo
 ### Supported Destinations
 
 *   📁 **Local / Synced Folder**: Save to a local folder or a mounted directory synced by cloud applications (like OneDrive or Dropbox desktop apps). No credentials needed.
-*   ☁️ **Backblaze B2**: Enter B2 Region (e.g. `us-west-004`), Bucket Name, keyID, and Application Key.
+*   ☁️ **Backblaze B2**: Enter B2 Region (e.g. `us-west-003`), Bucket Name, keyID, and Application Key.
 *   ☁️ **S3-compatible**: Set custom endpoints for MinIO, AWS S3, Cloudflare R2, or DigitalOcean Spaces.
 *   🌐 **WebDAV**: Connect to Nextcloud, ownCloud, or custom WebDAV shares with URL, username, and password.
 *   🛡️ **OneDrive API**: Directly connect OneDrive using a free Azure App Registration (requires client ID).
@@ -181,21 +176,12 @@ Plembfin runs an automated daily backup at a customizable time. Backups store yo
 
 ---
 
-## 📦 Backfills & Migration
+## 📦 Backfills & Imports
 
 ### Trakt Watch History Import
 1. Download a JSON watch history export of your Trakt profile.
 2. Go to **Settings → Tools** in Plembfin, upload the JSON, and start the import.
 3. Once completed, click **Full Sync Watchstates** to propagate the Trakt watch history to all connected Plex, Emby, and Jellyfin servers.
-
-### Firebase Migration (Legacy)
-If migrating from an older Firebase version of Plembfin, you can import your Firestore collections and Storage assets directly into the SQLite database:
-```bash
-GOOGLE_APPLICATION_CREDENTIALS=./service-account-key.json \
-FIREBASE_STORAGE_BUCKET=your-bucket.firebasestorage.app \
-npm run migrate
-```
-This is idempotent and safe to re-run multiple times.
 
 ---
 
