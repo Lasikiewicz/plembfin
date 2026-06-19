@@ -4164,10 +4164,15 @@ details[open] .tool-accordion-chevron::before {
   transition: background 150ms ease, border-color 150ms ease, transform 120ms ease;
 }
 
-.watch-date-pick:hover {
+.watch-date-pick:hover:not(:disabled) {
   background: #1e2936;
   border-color: #3a7fc2;
   transform: translateY(-1px);
+}
+
+.watch-date-pick:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .watch-date-pick-title {
@@ -8487,3 +8492,105 @@ html.light-mode .part-watched-page-card:hover {
 html.light-mode .part-watched-card-title {
   color: var(--text);
 }
+
+/* Light mode watch date overlay and dialog */
+html.light-mode .watch-date-overlay {
+  background: rgba(15, 23, 42, 0.3);
+}
+
+html.light-mode .watch-date-dialog {
+  background: #ffffff;
+  border-color: var(--line);
+  box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 10px 10px -5px rgba(15, 23, 42, 0.04);
+}
+
+html.light-mode .watch-date-head h3 {
+  color: var(--text);
+}
+
+html.light-mode .watch-date-sub {
+  color: var(--muted);
+}
+
+html.light-mode .watch-date-close {
+  color: var(--muted);
+}
+
+html.light-mode .watch-date-close:hover {
+  color: var(--text);
+}
+
+html.light-mode .watch-date-dialog p {
+  color: var(--muted);
+}
+
+html.light-mode .watch-date-episodes {
+  background: var(--panel-2);
+  border-color: var(--line);
+}
+
+html.light-mode .watch-date-episodes-head {
+  background: var(--panel-3);
+  border-bottom-color: var(--line);
+  color: var(--muted);
+}
+
+html.light-mode .watch-date-episode {
+  border-bottom-color: var(--line);
+}
+
+html.light-mode .watch-date-episode-code {
+  color: var(--text);
+}
+
+html.light-mode .watch-date-episode-title {
+  color: var(--text);
+}
+
+html.light-mode .watch-date-episode-air {
+  color: var(--muted);
+}
+
+html.light-mode .watch-date-section-label {
+  color: var(--muted);
+}
+
+html.light-mode .watch-date-pick {
+  background: var(--panel-2);
+  border-color: var(--line);
+}
+
+html.light-mode .watch-date-pick:hover:not(:disabled) {
+  background: var(--panel-3);
+  border-color: var(--accent);
+}
+
+html.light-mode .watch-date-pick:disabled {
+  background: var(--panel-2);
+  border-color: var(--line);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+html.light-mode .watch-date-pick-title {
+  color: var(--text);
+}
+
+html.light-mode .watch-date-pick-sub {
+  color: var(--muted);
+}
+
+html.light-mode .watch-date-custom {
+  border-top-color: var(--line);
+}
+
+html.light-mode .watch-date-custom label {
+  color: var(--muted);
+}
+
+html.light-mode .watch-date-custom-row input {
+  background: #ffffff;
+  border-color: var(--line);
+  color: var(--text);
+}
+
