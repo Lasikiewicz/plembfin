@@ -14,6 +14,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const schema = fs.readFileSync(path.join(here, "schema.sql"), "utf8");
 db.exec(schema);
 
+// Column migrations (ALTER TABLE IF NOT EXISTS isn't valid SQLite syntax)
+try {
+  const watchCols = db.pragma("table_info(watch_history)").map(c => c.name);
+  if (!watchCols.includes("logo_url")) db.exec("ALTER TABLE watch_history ADD COLUMN logo_url TEXT");
+} catch { /* column already exists */ }
+
 // ---------------------------------------------------------------------------
 // In-process derived-cache version. In the old Firebase deployment, ephemeral
 // Cloud Run instances tracked a "version" marker doc in Firestore to invalidate

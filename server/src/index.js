@@ -3180,6 +3180,7 @@ async function handleUpdateWatch(req, res) {
   const fields = {};
   if (body.watched_at !== undefined) fields.watched_at = body.watched_at;
   if (body.poster_url !== undefined) fields.poster_url = body.poster_url;
+  if (body.logo_url !== undefined) fields.logo_url = body.logo_url;
   if (body.tmdb_id !== undefined) fields.tmdb_id = body.tmdb_id;
   if (body.title !== undefined) fields.title = body.title;
   if (body.youtube_url !== undefined) fields.youtube_url = body.youtube_url;
