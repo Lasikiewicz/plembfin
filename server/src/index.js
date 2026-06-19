@@ -10,6 +10,7 @@ import { getLogs as getDiagnosticLogs, clearLogs as clearDiagnosticLogs } from "
 import { readFormData, readJson } from "./utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed, notFound } from "./utils/http.js";
 import { appendSyncHistory, loadMediaConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "./utils/configStore.js";
+import { db, parseJson, toJson } from "./db.js";
 import { createLoopStore } from "./utils/loopStore.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "./utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "./utils/liveSessions.js";
@@ -262,6 +263,42 @@ function shouldIgnoreWebhookUser(mediaUser = "", configuredUser = "", { strictNa
   if (incoming === configured) return false;
   if (strictName) return true;
   return looksLikeServerUserId(incoming);
+}
+
+const APPEARANCE_SETTINGS_ID = "appearanceConfig";
+const APPEARANCE_DEFAULTS = {
+  showLogoArt: true,
+  showCast: true,
+  showTrailers: true,
+  showReviews: true,
+  showImages: true,
+  showRelated: true,
+};
+
+async function handleAppearance(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  if (req.method === "GET") {
+    const row = db.prepare("SELECT data FROM settings WHERE id = ?").get(APPEARANCE_SETTINGS_ID);
+    const stored = parseJson(row?.data, {}) || {};
+    return sendJson(res, { appearance: { ...APPEARANCE_DEFAULTS, ...stored } });
+  }
+
+  if (req.method === "POST") {
+    const body = await readJson(req);
+    const merged = { ...APPEARANCE_DEFAULTS };
+    for (const key of Object.keys(APPEARANCE_DEFAULTS)) {
+      if (typeof body[key] === "boolean") merged[key] = body[key];
+    }
+    db.prepare(
+      `INSERT INTO settings (id, data, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`
+    ).run(APPEARANCE_SETTINGS_ID, toJson(merged), Date.now());
+    return sendJson(res, { ok: true, appearance: merged });
+  }
+
+  return methodNotAllowed(res);
 }
 
 async function handleConfig(req, res) {
@@ -3300,6 +3337,7 @@ async function dispatch(req, res) {
     if (path === "auth/status" || path === "auth-status") return handleAuthStatus(req, res);
     if (path === "auth/credentials") return handleAuthCredentials(req, res);
     if (path === "config") return handleConfig(req, res);
+    if (path === "appearance") return handleAppearance(req, res);
     if (path === "history") return handleHistory(req, res);
     if (path === "sync-jobs") return handleSyncJobs(req, res);
     if (path === "sync-history") return handleSyncHistory(req, res);
