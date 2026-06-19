@@ -3095,6 +3095,8 @@ function renderIssueCategory(categoryName, jobs = [], helpText = "") {
     targetMismatch: "Emby/Jellyfin Match Issues",
   };
 
+  const showFixButtons = categoryName !== 'missingTelemetry';
+
   return `
     <details class="issue-category" open>
       <summary style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: var(--space-2); background: rgba(0,0,0,0.1); border-radius: var(--radius-sm); margin-bottom: var(--space-2);">
@@ -3107,16 +3109,24 @@ function renderIssueCategory(categoryName, jobs = [], helpText = "") {
         <div style="background: rgba(0,0,0,0.05); padding: var(--space-2); border-radius: var(--radius-sm); margin-bottom: var(--space-3); font-size: 0.9rem;">
           ${helpText}
         </div>
-        <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-3); flex-wrap: wrap;">
-          ${categoryName === 'missingTelemetry' ? `<button class="button-primary" type="button" data-action="clearMissingTelemetry">Clear ${jobs.length} Records</button>` : `<button class="button-primary" type="button" data-action="retryAll" data-category="${categoryName}">Retry All</button>`}
-        </div>
+        ${categoryName === 'missingTelemetry' ? `<div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-3);">
+          <button class="button-primary" type="button" data-action="clearMissingTelemetry">Clear ${jobs.length} Records</button>
+        </div>` : ''}
         <div style="display: grid; gap: var(--space-2);">
           ${jobs.map(job => `
-            <div style="padding: var(--space-2); background: rgba(0,0,0,0.02); border-left: 3px solid var(--color-warning); border-radius: var(--radius-sm);">
-              <div style="font-weight: 500;">${escapeHtml(job.title || "Unknown")}</div>
-              <div style="font-size: 0.85rem; opacity: 0.7; margin-top: 0.25rem;">
-                ${escapeHtml(platformBadge(job.source))} • ${escapeHtml(job.media_type || "unknown")} • ${escapeHtml(formatDate(job.watched_at))}
+            <div style="display: flex; gap: var(--space-2); align-items: flex-start; padding: var(--space-2); background: rgba(0,0,0,0.02); border-left: 3px solid var(--color-warning); border-radius: var(--radius-sm);">
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-weight: 500; word-break: break-word;">${escapeHtml(job.title || "Unknown")}</div>
+                <div style="font-size: 0.85rem; opacity: 0.7; margin-top: 0.25rem;">
+                  ${escapeHtml(platformBadge(job.source))} • ${escapeHtml(job.media_type || "unknown")} • ${escapeHtml(formatDate(job.watched_at))}
+                </div>
               </div>
+              ${showFixButtons ? `
+                <div style="display: flex; gap: var(--space-1); flex-shrink: 0;">
+                  <button class="button-ghost media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(job.id)}" data-title="${escapeAttribute(job.title || "")}" data-media-type="${escapeAttribute(syncJobMediaType(job))}" style="font-size: 0.85rem; padding: 0.3rem 0.6rem;">Fix</button>
+                  <button class="retry-sync-btn sync-job-retry-btn" type="button" data-retry-sync-id="${escapeAttribute(job.id)}" style="font-size: 0.85rem; padding: 0.3rem 0.6rem;">Retry</button>
+                </div>
+              ` : ''}
             </div>
           `).join("")}
         </div>
