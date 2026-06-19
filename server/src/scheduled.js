@@ -37,7 +37,7 @@ const SCHEDULED_RESUME_LIMIT = 50;
 
 // Fallback cadence for the legacy Plex unwatch poll. Primary detection is the realtime
 // notification listener; this poll only backstops events missed while the socket was down.
-const PLEX_UNWATCHED_POLL_INTERVAL_MS = 10 * 60 * 1000;
+const PLEX_UNWATCHED_POLL_INTERVAL_MS = 6 * 60 * 60 * 1000;
 let lastPlexUnwatchedPollAt = 0;
 
 function buildTelemetry(media, summary) {

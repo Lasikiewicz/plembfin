@@ -1716,6 +1716,151 @@ async function handleManualWatch(req, res) {
   return sendJson(res, { ok: true, inserted, skipped, rejected, propagated: 0, syncQueued: syncTasks.length, results });
 }
 
+async function handlePlaybackProgressList(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+  try {
+    const rows = await listPlaybackProgressRowsForReplay({ limit, offset });
+    const total = await countPlaybackProgressRows();
+
+    const decoratedRows = await Promise.all(rows.map(async (row) => {
+      const mediaKey = row.media_key;
+      let posterUrl = null;
+      try {
+        const cached = await getPosterCache(mediaKey);
+        if (cached && (cached.url || cached.cached)) {
+          posterUrl = cached.url || "/favicon.svg";
+        }
+      } catch (err) {
+        // ignore
+      }
+      return { ...row, poster_url: posterUrl };
+    }));
+
+    return sendJson(res, { progress: decoratedRows, total });
+  } catch (error) {
+    console.error("Failed to list playback progress", error);
+    return sendJson(res, { error: "Failed to list playback progress", details: error.message }, 500);
+  }
+}
+
+async function handlePlaybackProgressWatch(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const mediaKey = String(body.media_key || "").trim();
+  if (!mediaKey) return sendJson(res, { error: "media_key is required" }, 400);
+
+  try {
+    const progressRow = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?").get(mediaKey);
+    if (!progressRow) return sendJson(res, { error: "Playback progress item not found" }, 404);
+
+    const config = await loadMediaConfig();
+    const loopStore = createLoopStore();
+
+    const record = {
+      title: progressRow.title,
+      media_type: progressRow.media_type,
+      source: progressRow.source || "manual",
+      imdb_id: progressRow.imdb_id || null,
+      tmdb_id: progressRow.tmdb_id || null,
+      tvdb_id: progressRow.tvdb_id || null,
+      season: progressRow.season ?? null,
+      episode: progressRow.episode ?? null,
+      watched_at: Date.now(),
+      sync_action: "watched",
+      sync_dispatch_telemetry: "Origin: progress_resolve\nLoop-check: Passed\nDispatch status: pending\nDetails: Manual watch propagation queued.",
+    };
+
+    const { data, record: normalizedRecord } = watchRecordToFirestoreData(record, "manual");
+    const existing = await findExistingWatch(data.mediaKey || mediaKeyFor(normalizedRecord), data.watchedAt);
+
+    const media = manualWatchMediaFromRecord(normalizedRecord);
+    let id = "";
+    if (!existing) {
+      const insertResult = await insertWatchRecord(requireDb(), normalizedRecord, { skipInvalidate: true });
+      id = insertResult.id;
+      await insertResult.assetPrefetch?.catch(() => null);
+    } else {
+      id = existing.id;
+    }
+
+    await upsertPlaystateForMedia(requireDb(), media, "watched", record.watched_at, { skipInvalidate: true });
+
+    await deletePlaybackProgress(requireDb(), media).catch(() => null);
+
+    (async () => {
+      try {
+        const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
+          skipped: false,
+          status: "error",
+          details: `Watch propagation failed: ${error.message || String(error)}`,
+          targetStates: [],
+        }));
+        await updateWatchTelemetry(requireDb(), id, formatDispatchTelemetry(summary, media, "watched"), { skipInvalidate: true });
+        await recordSyncHistory(media, summary, "watched");
+      } catch (err) {
+        console.error("Background sync for progress watch failed:", err);
+      } finally {
+        await invalidateHistoryDerivedCaches().catch(() => null);
+      }
+    })().catch((error) => console.error("Background sync loop crashed:", error));
+
+    await invalidateHistoryDerivedCaches().catch(() => null);
+    return sendJson(res, { ok: true, id });
+  } catch (error) {
+    console.error("Mark watch from progress failed", error);
+    return sendJson(res, { error: "Mark watch from progress failed", details: error.message }, 500);
+  }
+}
+
+async function handlePlaybackProgressUnwatch(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const mediaKey = String(body.media_key || "").trim();
+  if (!mediaKey) return sendJson(res, { error: "media_key is required" }, 400);
+
+  try {
+    const progressRow = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?").get(mediaKey);
+    if (!progressRow) return sendJson(res, { error: "Playback progress item not found" }, 404);
+
+    const media = {
+      title: progressRow.title,
+      type: progressRow.media_type,
+      source: progressRow.source || "manual",
+      ids: {
+        imdb: progressRow.imdb_id || undefined,
+        tmdb: progressRow.tmdb_id || undefined,
+        tvdb: progressRow.tvdb_id || undefined,
+      },
+      season: progressRow.season == null ? undefined : Number(progressRow.season),
+      episode: progressRow.episode == null ? undefined : Number(progressRow.episode),
+      isValid: Boolean(progressRow.title && ["movie", "episode"].includes(progressRow.media_type)),
+    };
+
+    const config = await loadMediaConfig();
+    const loopStore = createLoopStore();
+
+    const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore);
+    return sendJson(res, { ok: true, id: unwatchedId, status: summary.status, targetStates: summary.targetStates || [] });
+  } catch (error) {
+    console.error("Playback progress unwatch failed", error);
+    return sendJson(res, { error: "Playback progress unwatch failed", details: error.message }, 500);
+  } finally {
+    await invalidateHistoryDerivedCaches().catch(() => null);
+  }
+}
+
 async function handleRetrySync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -2393,7 +2538,25 @@ async function handlePoster(req, res) {
 
   try {
     const rowId = String(req.query.id || "");
-    const row = await getWatchRecordByIdLight(rowId);
+    let row = await getWatchRecordByIdLight(rowId);
+    if (!row) {
+      const progressRow = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?").get(rowId);
+      if (progressRow) {
+        row = {
+          id: progressRow.media_key,
+          media_key: progressRow.media_key,
+          title: progressRow.title,
+          media_type: progressRow.media_type,
+          source: progressRow.source,
+          imdb_id: progressRow.imdb_id,
+          tmdb_id: progressRow.tmdb_id,
+          tvdb_id: progressRow.tvdb_id,
+          season: progressRow.season,
+          episode: progressRow.episode,
+          poster_url: null,
+        };
+      }
+    }
     if (!row) return sendJson(res, { error: "not found" }, 404);
 
     const fallbackRequested = ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase());
@@ -3353,6 +3516,9 @@ async function dispatch(req, res) {
     if (path === "watch-backups") return handleWatchBackups(req, res);
     if (path === "manual-watch") return handleManualWatch(req, res);
     if (path === "manual-unwatch") return handleManualUnwatch(req, res);
+    if (path === "playback-progress") return handlePlaybackProgressList(req, res);
+    if (path === "playback-progress/watch") return handlePlaybackProgressWatch(req, res);
+    if (path === "playback-progress/unwatch") return handlePlaybackProgressUnwatch(req, res);
     if (path === "retry-sync") return handleRetrySync(req, res);
     if (path === "update-watch") return handleUpdateWatch(req, res);
     if (path === "merge-shows") return handleMergeShows(req, res);

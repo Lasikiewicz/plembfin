@@ -42,6 +42,7 @@
             <button class="nav-tab active" type="button" data-view="dashboard">Dashboard</button>
             <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="movies">Movies</button>
             <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="shows">TV Shows</button>
+            <button class="nav-tab" type="button" data-view="part-watched">Part Watched</button>
             <button class="nav-tab" type="button" data-view="history">History</button>
           </div>
           <div class="sidebar-secondary">
@@ -159,6 +160,22 @@
             </div>
             <div class="explorer-with-alpha">
               <div id="historyPanel" class="explorer-panel"></div>
+            </div>
+          </section>
+        </section>
+
+        <section id="part-watched-view" class="view-panel hidden" data-view-panel="part-watched">
+          <section class="glass-panel p-section">
+            <div class="view-control-source">
+              <div id="partWatchedTopbarControls" class="explorer-controls">
+                <label class="compact-field explorer-size-slider">
+                  <span>Size</span>
+                  <input id="partWatchedPosterSize" type="range" min="60" max="180" value="120" />
+                </label>
+              </div>
+            </div>
+            <div class="explorer-with-alpha">
+              <div id="partWatchedPanel" class="explorer-panel"></div>
             </div>
           </section>
         </section>
