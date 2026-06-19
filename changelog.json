@@ -1,7 +1,14 @@
 {
-  "version": "0.1.26",
-  "updatedAt": "2026-06-19T20:25:25+01:00",
+  "version": "0.1.27",
+  "updatedAt": "2026-06-19T20:44:32+01:00",
   "entries": [
+    {
+      "version": "0.1.27",
+      "date": "2026-06-19T20:44:32+01:00",
+      "commit": "aad55d709a9218df2156a6e520c51f533f7fefc7",
+      "message": "feat: add Part Watched section with playstate update actions",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.26",
       "date": "2026-06-19T20:25:25+01:00",
