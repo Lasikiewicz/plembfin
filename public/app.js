@@ -1818,27 +1818,34 @@ function extractYouTubeId(url) {
 function openEditImageDialog(_container, id, _currentPosterUrl, tmdbData, onSaved) {
   document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
 
+  let activeTab = "poster";
+
   const overlay = document.createElement("div");
   overlay.className = "edit-dialog-overlay";
   overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
   overlay.innerHTML = `
     <div class="edit-dialog edit-dialog--wide glass-panel">
-      <h3>Choose Poster</h3>
+      <div class="edit-image-tabs">
+        <button class="edit-image-tab active" type="button" data-tab="poster">Poster</button>
+        <button class="edit-image-tab" type="button" data-tab="logo">Logo / Title Art</button>
+      </div>
       <p class="edit-dialog-status" style="margin:0;"></p>
       <div class="edit-image-grid poster-search-grid"></div>
-      <label class="field-label" style="margin-top: 0.75rem;">
-        YouTube URL <span class="muted-copy" style="font-weight:normal;">(paste to fetch thumbnails)</span>
-        <div style="display:flex;gap:0.5rem;">
-          <input type="url" class="field yt-url-input" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;" />
-          <button class="button-ghost yt-fetch-btn" type="button">Fetch</button>
-        </div>
-      </label>
+      <div class="edit-image-yt-row">
+        <label class="field-label" style="margin-top: 0.75rem;">
+          YouTube URL <span class="muted-copy" style="font-weight:normal;">(paste to fetch thumbnails)</span>
+          <div style="display:flex;gap:0.5rem;">
+            <input type="url" class="field yt-url-input" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;" />
+            <button class="button-ghost yt-fetch-btn" type="button">Fetch</button>
+          </div>
+        </label>
+      </div>
       <label class="field-label" style="margin-top: 0.5rem;">
         Custom image URL
         <input type="url" class="field edit-image-input" placeholder="https://..." value="" />
       </label>
       <div class="edit-dialog-actions">
-        <button class="button-primary edit-dialog-save" type="button">Save</button>
+        <button class="button-primary edit-dialog-save" type="button">Save poster</button>
         <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
       </div>
     </div>
@@ -1847,13 +1854,15 @@ function openEditImageDialog(_container, id, _currentPosterUrl, tmdbData, onSave
   const gridEl = overlay.querySelector(".poster-search-grid");
   const status = overlay.querySelector(".edit-dialog-status");
   const urlInput = overlay.querySelector(".edit-image-input");
+  const ytRow = overlay.querySelector(".edit-image-yt-row");
   const ytInput = overlay.querySelector(".yt-url-input");
   const ytFetchBtn = overlay.querySelector(".yt-fetch-btn");
+  const saveBtn = overlay.querySelector(".edit-dialog-save");
 
-  const renderGrid = (posters, selectFirst = true) => {
-    gridEl.innerHTML = posters.map((url, i) => `
-      <button class="edit-image-option" type="button" data-url="${escapeAttribute(url)}">
-        <img src="${escapeAttribute(url)}" alt="Poster ${i + 1}" loading="lazy" onerror="this.closest('button').style.display='none'" />
+  const renderGrid = (urls, isLogo = false, selectFirst = true) => {
+    gridEl.innerHTML = urls.map((url, i) => `
+      <button class="edit-image-option${isLogo ? " edit-image-option--logo" : ""}" type="button" data-url="${escapeAttribute(url)}">
+        <img src="${escapeAttribute(url)}" alt="${isLogo ? "Logo" : "Poster"} ${i + 1}" loading="lazy" onerror="this.closest('button').style.display='none'" />
       </button>
     `).join("");
     gridEl.querySelectorAll(".edit-image-option").forEach((btn) => {
@@ -1863,8 +1872,8 @@ function openEditImageDialog(_container, id, _currentPosterUrl, tmdbData, onSave
         btn.classList.add("selected");
       });
     });
-    if (selectFirst) {
-      urlInput.value = posters[0];
+    if (selectFirst && urls.length) {
+      urlInput.value = urls[0];
       gridEl.querySelector(".edit-image-option")?.classList.add("selected");
     }
   };
@@ -1873,62 +1882,98 @@ function openEditImageDialog(_container, id, _currentPosterUrl, tmdbData, onSave
     const videoId = extractYouTubeId(ytInput.value.trim());
     if (!videoId) { status.textContent = "Could not find a YouTube video ID in that URL."; return; }
     status.textContent = "Fetching YouTube thumbnails…";
-    // YouTube provides several thumbnail resolutions; maxresdefault may 404 for older videos
     const candidates = [
       `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
       `https://img.youtube.com/vi/${videoId}/sddefault.jpg`,
       `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
       `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
     ];
-    // Probe which ones actually exist by loading them as images
     const valid = await Promise.all(candidates.map((url) => new Promise((resolve) => {
       const img = new Image();
-      img.onload = () => resolve(img.naturalWidth > 120 ? url : null); // 120px wide = YouTube's "no thumbnail" placeholder
+      img.onload = () => resolve(img.naturalWidth > 120 ? url : null);
       img.onerror = () => resolve(null);
       img.src = url;
     })));
     const found = valid.filter(Boolean);
     if (!found.length) { status.textContent = "No thumbnails found for that video."; return; }
     status.textContent = "";
-    renderGrid(found);
+    renderGrid(found, false);
   };
 
   ytFetchBtn.addEventListener("click", fetchYouTubeThumbnails);
   ytInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); fetchYouTubeThumbnails(); } });
 
-  const loadPosters = async () => {
-    status.textContent = "Loading posters…";
+  let tmdbImages = null;
+  const getTmdbImages = async () => {
+    if (tmdbImages) return tmdbImages;
     const tmdbId = tmdbData?.id;
     const mediaType = tmdbData?.title !== undefined ? "movie" : "tv";
     if (state.savedConfig?.tmdb?.configured && tmdbId) {
       try {
         const res = await fetch(`/api/tmdb-images?mediaType=${encodeURIComponent(mediaType)}&tmdbId=${encodeURIComponent(tmdbId)}`, { headers: authHeaders() });
-        const data = await res.json();
-        const posters = (data.posters || []).slice(0, 20).map((p) => tmdbPoster(p.file_path));
-        if (posters.length) {
-          status.textContent = "";
-          renderGrid(posters);
-          return;
-        }
-      } catch (e) { /* fall through */ }
+        tmdbImages = await res.json();
+      } catch { tmdbImages = {}; }
+    } else {
+      tmdbImages = {};
     }
-    // Fallback: use any images already on tmdbData
+    return tmdbImages;
+  };
+
+  const loadPosters = async () => {
+    status.textContent = "Loading posters…";
+    urlInput.value = "";
+    const data = await getTmdbImages();
+    const posters = (data.posters || []).slice(0, 20).map((p) => tmdbPoster(p.file_path));
+    if (posters.length) { status.textContent = ""; renderGrid(posters, false); return; }
     const fallback = [];
     if (tmdbData?.poster_path) fallback.push(tmdbPoster(tmdbData.poster_path));
     if (tmdbData?.backdrop_path) fallback.push(`https://image.tmdb.org/t/p/w780${tmdbData.backdrop_path}`);
-    if (fallback.length) { status.textContent = ""; renderGrid(fallback); }
-    else { status.textContent = state.savedConfig?.tmdb?.configured ? "No posters found." : "Configure a TMDB API key to browse posters."; }
+    if (fallback.length) { status.textContent = ""; renderGrid(fallback, false); }
+    else { status.textContent = state.savedConfig?.tmdb?.configured ? "No posters found." : "Configure a TMDB API key to browse posters."; gridEl.innerHTML = ""; }
   };
 
+  const loadLogos = async () => {
+    status.textContent = "Loading logos…";
+    urlInput.value = "";
+    gridEl.innerHTML = "";
+    const data = await getTmdbImages();
+    const logos = (data.logos || []);
+    const enLogos = logos.filter(l => l.iso_639_1 === "en");
+    const otherLogos = logos.filter(l => l.iso_639_1 !== "en");
+    const sorted = [...enLogos, ...otherLogos].slice(0, 16).map(l => tmdbImage(l.file_path, "original"));
+    if (sorted.length) { status.textContent = ""; renderGrid(sorted, true, true); return; }
+    status.textContent = state.savedConfig?.tmdb?.configured ? "No logo art found for this title." : "Configure a TMDB API key to browse logos.";
+  };
+
+  const switchTab = (tab) => {
+    activeTab = tab;
+    overlay.querySelectorAll(".edit-image-tab").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tab));
+    urlInput.value = "";
+    if (tab === "poster") {
+      ytRow.style.display = "";
+      saveBtn.textContent = "Save poster";
+      loadPosters();
+    } else {
+      ytRow.style.display = "none";
+      saveBtn.textContent = "Save logo";
+      loadLogos();
+    }
+  };
+
+  overlay.querySelectorAll(".edit-image-tab").forEach(btn => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+
   overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
-  overlay.querySelector(".edit-dialog-save").addEventListener("click", async () => {
+  saveBtn.addEventListener("click", async () => {
     const url = urlInput.value.trim();
     if (!url) { status.textContent = "Please select or enter an image URL."; return; }
     status.textContent = "Saving…";
     try {
-      await apiUpdateWatch(id, { poster_url: url });
+      const field = activeTab === "logo" ? "logo_url" : "poster_url";
+      await apiUpdateWatch(id, { [field]: url });
       overlay.remove();
-      onSaved?.({ poster_url: url });
+      onSaved?.({ [field]: url });
     } catch (err) {
       status.textContent = `Error: ${err.message}`;
     }
@@ -7510,8 +7555,9 @@ function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inline") {
     ["Streaming", providers.map((provider) => provider.provider_name).join(", ")],
   ].filter(([, value]) => value);
   if (!facts.length) return "";
+  const wideLabels = new Set(["Streaming", "Network"]);
   return `<aside class="media-facts-rail ${placement === "sidebar" ? "media-facts-rail--sidebar" : ""}" aria-label="Media facts">${facts.map(([label, value]) => `
-    <div class="media-fact"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>
+    <div class="media-fact${wideLabels.has(label) ? " media-fact--wide" : ""}"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>
   `).join("")}</aside>`;
 }
 
@@ -8000,6 +8046,12 @@ function tmdbPoster(path) {
   return path ? `/api/tmdb-poster?path=${encodeURIComponent(path)}` : "";
 }
 
+function bestTmdbLogo(tmdbData) {
+  const logos = tmdbData?.images?.logos || [];
+  const logo = logos.find(l => l.iso_639_1 === "en") || logos.find(l => !l.iso_639_1) || logos[0];
+  return logo ? tmdbImage(logo.file_path, "original") : null;
+}
+
 function tmdbProfile(path) {
   return path ? `/api/tmdb-profile?path=${encodeURIComponent(path)}` : "";
 }
@@ -8274,6 +8326,7 @@ function renderShowModalContent(show, {
   const representative = representativeEpisode(seasonsMap);
   const backdropUrl = tmdbData?.cached_backdrop_url || tmdbImage(tmdbData?.backdrop_path, "original");
   const posterUrl = tmdbData?.cached_poster_url || tmdbPoster(tmdbData?.poster_path) || posterUrlFor(representative);
+  const logoUrl = show.logo_url || bestTmdbLogo(tmdbData);
   const overview = tmdbData?.overview || "No synopsis available.";
   const premiered = tmdbData?.first_air_date ? `Premiered ${formatTmdbDate(tmdbData.first_air_date)}` : "Release date unknown";
   const rating = tmdbData?.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "";
@@ -8404,7 +8457,7 @@ function renderShowModalContent(show, {
     </button>
     ${watchedRows.length ? `<button class="action-pill media-edit-show-date-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">Edit Show Watch Date</button>` : ""}
     ${tmdbOnly ? "" : `
-      <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}">Edit Image</button>
+      <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}" data-logo-url="${escapeAttribute(show.logo_url || "")}">Edit Image</button>
       <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">Fix Match</button>
       <button class="action-pill media-merge-show-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">Merge</button>
     `}
@@ -8418,7 +8471,7 @@ function renderShowModalContent(show, {
       <header class="immersive-header">
         <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" onerror="this.src='/favicon.svg';" />
         <div class="immersive-meta">
-          <h2 class="immersive-title">${escapeHtml(showTitle)}</h2>
+          ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(showTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(showTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(showTitle)}</h2>`}
           <p class="immersive-subtitle">${escapeHtml(premiered)}</p>
 
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
@@ -9283,7 +9336,7 @@ async function renderMovieImmersiveModalContent(movie) {
   const localPoster = posterUrlFor(movie) || "/favicon.svg";
   setMediaDetailActions(`
     <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
-    <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}">Edit Image</button>
+    <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}">Edit Image</button>
     <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
   `);
   root.innerHTML = `
@@ -9344,6 +9397,8 @@ async function renderMovieImmersiveModalContent(movie) {
     if (youtubeMeta.publishedAt) released = `Published ${formatTmdbDate(youtubeMeta.publishedAt.slice(0, 10))}`;
   }
 
+  const logoUrl = movie.logo_url || bestTmdbLogo(tmdbData);
+
   const ratingBadgeHtml = rating !== "N/A" ? `
     ${renderExternalRatingPills("movie", tmdbData, movieTitle, rating)}
   ` : "";
@@ -9371,7 +9426,7 @@ async function renderMovieImmersiveModalContent(movie) {
     : "";
   setMediaDetailActions(`
     <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
-    <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}">Edit Image</button>
+    <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}">Edit Image</button>
     <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
     ${ytWatchBtn}
     ${imdbLinkHtml}
@@ -9385,7 +9440,7 @@ async function renderMovieImmersiveModalContent(movie) {
       <header class="immersive-header">
         <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(movieTitle)} poster" onerror="this.src='/favicon.svg';" />
         <div class="immersive-meta">
-          <h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>
+          ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
           <p class="immersive-subtitle">${released}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
 
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
@@ -9518,6 +9573,8 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
 
   recommendations = tmdbData.recommendations?.results || [];
 
+  const logoUrl = bestTmdbLogo(tmdbData);
+
   const ratingBadgeHtml = rating !== "N/A" ? `
     ${renderExternalRatingPills("movie", tmdbData, movieTitle, rating)}
   ` : "";
@@ -9525,11 +9582,11 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
   root.innerHTML = `
     <div class="modal-backdrop-image" style="background-image: url('${backdropUrl || posterUrl}');"></div>
     <div class="immersive-container media-detail-page">
-      
+
       <header class="immersive-header">
         <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(movieTitle)} poster" onerror="this.src='/favicon.svg';" />
         <div class="immersive-meta">
-          <h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>
+          ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
           <p class="immersive-subtitle">${released}</p>
           
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
@@ -11438,12 +11495,37 @@ function attachEvents() {
           if (cached && !(cached instanceof Promise)) tmdbData = cached;
         }
       }
-      openEditImageDialog(container, id, editImageBtn.dataset.posterUrl, tmdbData, ({ poster_url }) => {
-        editImageBtn.dataset.posterUrl = poster_url;
-        const posterImg = container.querySelector(".immersive-poster-img");
-        if (posterImg) posterImg.src = poster_url;
-        const backdrop = container.querySelector(".modal-backdrop-image");
-        if (backdrop) backdrop.style.backgroundImage = `url('${poster_url}')`;
+      openEditImageDialog(container, id, editImageBtn.dataset.posterUrl, tmdbData, ({ poster_url, logo_url }) => {
+        if (poster_url) {
+          editImageBtn.dataset.posterUrl = poster_url;
+          const posterImg = container.querySelector(".immersive-poster-img");
+          if (posterImg) posterImg.src = poster_url;
+          const backdrop = container.querySelector(".modal-backdrop-image");
+          if (backdrop) backdrop.style.backgroundImage = `url('${poster_url}')`;
+        }
+        if (logo_url !== undefined) {
+          editImageBtn.dataset.logoUrl = logo_url;
+          const meta = container.querySelector(".immersive-meta");
+          if (meta) {
+            let logoEl = meta.querySelector(".immersive-logo");
+            const titleEl = meta.querySelector(".immersive-title");
+            if (logo_url) {
+              if (logoEl) {
+                logoEl.src = logo_url;
+              } else {
+                logoEl = document.createElement("img");
+                logoEl.className = "immersive-logo";
+                logoEl.alt = titleEl?.textContent || "";
+                logoEl.src = logo_url;
+                meta.insertBefore(logoEl, titleEl);
+              }
+              titleEl?.classList.add("sr-only");
+            } else {
+              logoEl?.remove();
+              titleEl?.classList.remove("sr-only");
+            }
+          }
+        }
       });
       return;
     }
