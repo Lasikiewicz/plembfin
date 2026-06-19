@@ -1,7 +1,14 @@
 {
-  "version": "0.1.23",
-  "updatedAt": "2026-06-19T19:53:31+01:00",
+  "version": "0.1.24",
+  "updatedAt": "2026-06-19T20:13:53+01:00",
   "entries": [
+    {
+      "version": "0.1.24",
+      "date": "2026-06-19T20:13:53+01:00",
+      "commit": "6f8048520caf05d726e41b59acbcd956e66ee50c",
+      "message": "Fix sync queue infinite retry, episode-level IDs, and Plex GUID lookup performance",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.23",
       "date": "2026-06-19T19:53:31+01:00",
