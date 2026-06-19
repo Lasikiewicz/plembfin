@@ -95,7 +95,7 @@ const HIDE_WATCHED_KEY_SHOWS = "plembfin:hideWatched:shows";
 const HIDE_ENDED_KEY_SHOWS = "plembfin:hideEnded:shows";
 const EXPLORER_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_LIMIT = 24;
-const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "search", "history"];
+const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "search", "history", "part-watched"];
 const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs", "appearance"];
 
 const state = {
@@ -148,6 +148,11 @@ const state = {
   explorerSortShows: localStorage.getItem(EXPLORER_SORT_KEY_SHOWS) || "title_asc",
   hideWatchedShows: localStorage.getItem(HIDE_WATCHED_KEY_SHOWS) === "true",
   hideEndedShows: localStorage.getItem(HIDE_ENDED_KEY_SHOWS) === "true",
+  partWatchedRaw: [],
+  partWatchedOffset: 0,
+  partWatchedHasMore: true,
+  partWatchedLoading: false,
+  partWatchedQueryKey: "",
   explorerViewMovies: localStorage.getItem(EXPLORER_VIEW_KEY_MOVIES) || "posters",
   explorerViewShows: localStorage.getItem(EXPLORER_VIEW_KEY_SHOWS) || "posters",
   posterLookupCache: new Map(),
@@ -254,6 +259,8 @@ function bindElements() {
     historySearchInput: document.querySelector("#historySearchInput"),
     explorerPosterSize: document.querySelector("#explorerPosterSize"),
     historyPosterSize: document.querySelector("#historyPosterSize"),
+    partWatchedPosterSize: document.querySelector("#partWatchedPosterSize"),
+    partWatchedPanel: document.querySelector("#partWatchedPanel"),
     explorerPosterSizeLabel: document.querySelector(".explorer-size-slider"),
     explorerSort: document.querySelector("#explorerSort"),
     explorerHideWatchedLabel: document.querySelector("#explorerHideWatchedLabel"),
@@ -264,6 +271,7 @@ function bindElements() {
     explorerTopbarControls: document.querySelector("#explorerTopbarControls"),
     historyTopbarControls: document.querySelector("#historyTopbarControls"),
     searchTopbarControls: document.querySelector("#searchTopbarControls"),
+    partWatchedTopbarControls: document.querySelector("#partWatchedTopbarControls"),
     explorerSubtitle: document.querySelector("#explorerSubtitle"),
     explorerTitle: document.querySelector("#explorerTitle"),
     terminalModal: document.querySelector("#terminalModal"),
@@ -4069,6 +4077,10 @@ function handleRouting(path) {
     state.activeView = "history";
     state.mediaDetailInline = false;
     clearMediaDetailState();
+  } else if (pathname === "/part-watched") {
+    state.activeView = "part-watched";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
   } else if (pathname === "/search") {
     state.activeView = "search";
     state.mediaDetailInline = false;
@@ -4255,7 +4267,7 @@ function syncPageTopbar() {
   const query = new URLSearchParams(window.location.search);
   const isPersonDetail = path.startsWith("/person/");
   const isInlineDetail = state.mediaDetailInline || isPersonDetail;
-  const controlGroups = [elements.explorerTopbarControls, elements.historyTopbarControls, elements.searchTopbarControls].filter(Boolean);
+  const controlGroups = [elements.explorerTopbarControls, elements.historyTopbarControls, elements.searchTopbarControls, elements.partWatchedTopbarControls].filter(Boolean);
   let title = "Dashboard";
   let subtitle = "Overview";
   let activeControls = null;
@@ -4269,6 +4281,10 @@ function syncPageTopbar() {
     title = "Watch History";
     subtitle = "";
     activeControls = elements.historyTopbarControls;
+  } else if (state.activeView === "part-watched") {
+    title = "Part Watched";
+    subtitle = "In progress items across connected apps";
+    activeControls = elements.partWatchedTopbarControls;
   } else if (state.activeView === "stats") {
     title = "Stats";
     subtitle = "Watch statistics";
@@ -4352,6 +4368,7 @@ function applyActiveView() {
   if (state.activeView === "explorer") renderExplorer();
   if (state.activeView === "search") renderSearchPage();
   if (state.activeView === "history") renderHistoryView();
+  if (state.activeView === "part-watched") renderPartWatched();
   if (state.activeView !== "explorer") {
     state.explorerLoadObserver?.disconnect();
     state.explorerLoadObserver = undefined;
@@ -4361,6 +4378,10 @@ function applyActiveView() {
   if (state.activeView !== "history") {
     state.historyViewLoadObserver?.disconnect();
     state.historyViewLoadObserver = undefined;
+  }
+  if (state.activeView !== "part-watched") {
+    state.partWatchedLoadObserver?.disconnect();
+    state.partWatchedLoadObserver = undefined;
   }
 
   if (state.activeView !== "dashboard") {
@@ -6206,6 +6227,164 @@ async function loadExplorerMovies() {
     state.moviesLoading = false;
     renderMovieExplorer();
   }
+}
+
+function applyPartWatchedPosterWidth() {
+  const isMobile = window.innerWidth <= 760;
+  const defaultSize = isMobile ? "90px" : "120px";
+  const saved = localStorage.getItem("plembfin:partWatched:posterWidth") || defaultSize;
+  document.documentElement.style.setProperty("--part-watched-poster-width", saved);
+  if (elements.partWatchedPosterSize) elements.partWatchedPosterSize.value = parseInt(saved) || (isMobile ? 90 : 120);
+}
+
+function resetPartWatchedView(key = "") {
+  state.partWatchedRaw = [];
+  state.partWatchedOffset = 0;
+  state.partWatchedHasMore = true;
+  state.partWatchedLoading = false;
+  state.partWatchedQueryKey = key;
+  state.partWatchedScrollArmed = false;
+}
+
+function renderPartWatchedCard(entry) {
+  const isEpisode = entry.media_type === "episode";
+  let displayTitle = entry.title;
+  let epTitle = "";
+
+  if (isEpisode) {
+    displayTitle = entry.show_title || showTitleFrom(entry.title);
+    epTitle = entry.episode_title;
+    let needsResolve = false;
+    if (!epTitle || /^Episode \d+$/i.test(String(epTitle).trim())) {
+      const text = String(entry.title || "").trim();
+      const suffixMatch = text.match(/S\d{1,2}E\d{1,2}\s+-\s+(.+)$/i);
+      if (suffixMatch?.[1]) {
+        epTitle = suffixMatch[1].trim();
+      } else {
+        if (!epTitle) {
+          epTitle = `Episode ${entry.episode}`;
+        }
+        needsResolve = true;
+      }
+    }
+
+    if (needsResolve) {
+      setTimeout(() => {
+        const el = document.querySelector(`[data-part-watched-card-id="${entry.id}"] .part-watched-card-episode`);
+        resolveEpisodeTitleFromTmdb(entry, el);
+      }, 50);
+    }
+  }
+
+  const sourceBadge = entry.source ? `<span class="source-badge ${sourceClass(entry.source)}">${escapeHtml(platformBadge(entry.source))}</span>` : "None";
+  const progressPercent = Math.round(entry.progress || 0);
+  const formattedTime = entry.updated_at ? formatDate(entry.updated_at) : "";
+
+  return `
+    <div class="part-watched-page-card" data-part-watched-card-id="${entry.id}">
+      <div class="part-watched-card-poster-wrapper">
+        ${posterMarkup(entry, "part-watched-page-poster")}
+      </div>
+      <div class="part-watched-card-details">
+        <div class="part-watched-card-header">
+          <b class="part-watched-card-title" title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</b>
+          ${isEpisode ? `<span class="part-watched-card-episode" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>` : ""}
+        </div>
+        <div class="part-watched-card-meta">
+          ${isEpisode ? `<span><span class="meta-label">Season/Ep:</span> S${entry.season} · E${entry.episode}</span>` : ""}
+          <span><span class="meta-label">Last Played:</span> ${formattedTime}</span>
+          <span><span class="meta-label">App Used:</span> ${sourceBadge}</span>
+        </div>
+        
+        <div class="part-watched-progress-container">
+          <div class="part-watched-progress-bar">
+            <div class="part-watched-progress-fill" style="width: ${progressPercent}%;"></div>
+          </div>
+          <span class="part-watched-progress-text">${progressPercent}% watched</span>
+        </div>
+
+        <div class="part-watched-card-actions">
+          <button class="button-primary part-watched-action-btn" type="button" data-action-watch="${escapeAttribute(entry.media_key)}" data-title="${escapeAttribute(entry.title)}">
+            Mark Watched
+          </button>
+          <button class="button-ghost part-watched-action-btn" type="button" data-action-unwatch="${escapeAttribute(entry.media_key)}" data-title="${escapeAttribute(entry.title)}">
+            Clear Progress
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderPartWatched() {
+  if (state.mediaDetailInline) return;
+  const key = "default";
+  if (state.partWatchedQueryKey !== key) resetPartWatchedView(key);
+
+  if (!state.partWatchedRaw.length && state.partWatchedHasMore && !state.partWatchedLoading && state.token) {
+    loadPartWatched().catch((error) => setMessage(error.message, "error"));
+  }
+
+  if (!state.partWatchedRaw.length && state.partWatchedLoading) {
+    elements.partWatchedPanel.innerHTML = emptyExplorer("Loading partly watched items...");
+    return;
+  }
+
+  applyPartWatchedPosterWidth();
+
+  const gridContent = state.partWatchedRaw.length
+    ? `<div class="part-watched-list">${state.partWatchedRaw.map(renderPartWatchedCard).join("")}</div><div class="explorer-scroll-sentinel" data-part-watched-sentinel aria-live="polite"><span>${state.partWatchedLoading ? "Loading..." : ""}</span></div>`
+    : emptyExplorer("No partly watched items found");
+  elements.partWatchedPanel.innerHTML = gridContent;
+  hydratePosters(elements.partWatchedPanel);
+  observePartWatchedSentinel();
+  observeExplorerTmdbPrefetch(elements.partWatchedPanel);
+  state.partWatchedScrollArmed = true;
+}
+
+async function loadPartWatched() {
+  if (state.partWatchedLoading || !state.partWatchedHasMore) return;
+  state.partWatchedLoading = true;
+  if (elements.partWatchedPanel) {
+    const sentinel = elements.partWatchedPanel.querySelector("[data-part-watched-sentinel] span");
+    if (sentinel) sentinel.textContent = "Loading...";
+  }
+
+  try {
+    const url = new URL("/api/playback-progress", window.location.origin);
+    url.searchParams.set("limit", String(EXPLORER_PAGE_SIZE));
+    url.searchParams.set("offset", String(state.partWatchedOffset));
+
+    const res = await fetch(url, { headers: authHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Progress load failed ${res.status}`);
+
+    const items = Array.isArray(body.progress) ? body.progress : [];
+    state.partWatchedRaw = [...state.partWatchedRaw, ...items];
+    state.partWatchedOffset += items.length;
+    state.partWatchedHasMore = items.length === EXPLORER_PAGE_SIZE;
+  } finally {
+    state.partWatchedLoading = false;
+    renderPartWatched();
+  }
+}
+
+function observePartWatchedSentinel() {
+  state.partWatchedLoadObserver?.disconnect();
+  state.partWatchedLoadObserver = undefined;
+
+  const sentinel = elements.partWatchedPanel?.querySelector("[data-part-watched-sentinel]");
+  if (!sentinel || !("IntersectionObserver" in window)) return;
+
+  state.partWatchedLoadObserver = new IntersectionObserver(
+    (entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      if (!state.partWatchedScrollArmed) return;
+      loadPartWatched().catch((error) => setMessage(error.message, "error"));
+    },
+    { rootMargin: "1200px 0px 1200px 0px" },
+  );
+  state.partWatchedLoadObserver.observe(sentinel);
 }
 
 function applyHistoryPosterWidth() {
@@ -12265,6 +12444,7 @@ function attachEvents() {
   window.addEventListener("resize", () => {
     applyExplorerPosterWidth();
     applyHistoryPosterWidth();
+    applyPartWatchedPosterWidth();
     window.clearTimeout(state.dashboardHistoryResizeTimer);
     state.dashboardHistoryResizeTimer = window.setTimeout(() => {
       if (state.activeView === "dashboard") renderDashboard();
@@ -12272,17 +12452,21 @@ function attachEvents() {
   });
 
   window.addEventListener("scroll", () => {
-    if (state.activeView !== "explorer" && state.activeView !== "history") return;
+    if (state.activeView !== "explorer" && state.activeView !== "history" && state.activeView !== "part-watched") return;
     if (state.activeView === "explorer") {
       state.explorerScrollArmed = true;
-    } else {
+    } else if (state.activeView === "history") {
       state.historyViewScrollArmed = true;
+    } else if (state.activeView === "part-watched") {
+      state.partWatchedScrollArmed = true;
     }
     if (state.posterHydrateScrollScheduled) return;
     state.posterHydrateScrollScheduled = true;
     window.requestAnimationFrame(() => {
       state.posterHydrateScrollScheduled = false;
-      const container = state.activeView === "explorer" ? elements.explorerPanel : elements.historyPanel;
+      const container = state.activeView === "explorer"
+        ? elements.explorerPanel
+        : (state.activeView === "part-watched" ? elements.partWatchedPanel : elements.historyPanel);
       hydratePosters(container);
     });
   }, { passive: true });
@@ -12312,6 +12496,57 @@ function attachEvents() {
     const val = e.target.value;
     document.documentElement.style.setProperty("--history-poster-width", `${val}px`);
     localStorage.setItem("plembfin:history:posterWidth", `${val}px`);
+  });
+
+  elements.partWatchedPosterSize?.addEventListener("input", (e) => {
+    const val = e.target.value;
+    document.documentElement.style.setProperty("--part-watched-poster-width", `${val}px`);
+    localStorage.setItem("plembfin:partWatched:posterWidth", `${val}px`);
+  });
+
+  elements.partWatchedPanel?.addEventListener("click", async (event) => {
+    const watchBtn = event.target.closest("[data-action-watch]");
+    const unwatchBtn = event.target.closest("[data-action-unwatch]");
+    if (!watchBtn && !unwatchBtn) return;
+
+    const mediaKey = watchBtn ? watchBtn.dataset.actionWatch : unwatchBtn.dataset.actionUnwatch;
+    const title = watchBtn ? watchBtn.dataset.title : unwatchBtn.dataset.title;
+
+    if (watchBtn) {
+      showConfirmModal(`Mark "${title}" as fully watched?`, async () => {
+        try {
+          const res = await fetch("/api/playback-progress/watch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({ media_key: mediaKey }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+          setMessage(`"${title}" marked as watched`, "success");
+          resetPartWatchedView("default");
+          renderPartWatched();
+        } catch (error) {
+          setMessage(`Failed to mark watched: ${error.message}`, "error");
+        }
+      });
+    } else if (unwatchBtn) {
+      showConfirmModal(`Clear playback progress for "${title}"? This will mark it unwatched and reset progress.`, async () => {
+        try {
+          const res = await fetch("/api/playback-progress/unwatch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({ media_key: mediaKey }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+          setMessage(`Progress cleared for "${title}"`, "success");
+          resetPartWatchedView("default");
+          renderPartWatched();
+        } catch (error) {
+          setMessage(`Failed to clear progress: ${error.message}`, "error");
+        }
+      });
+    }
   });
 
   elements.historySearchInput?.addEventListener("input", () => {

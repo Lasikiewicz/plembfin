@@ -164,9 +164,44 @@ async function searchPlexFallback(config, media, targetType) {
   return undefined;
 }
 
+// In-memory cache for resolved Plex rating keys to avoid repetitive slow queries/searches.
+const plexRatingKeyCache = new Map();
+
+function getCacheKey(media) {
+  const type = String(media?.type || "").toLowerCase();
+  const season = media?.season != null ? String(media.season) : "x";
+  const episode = media?.episode != null ? String(media.episode) : "x";
+  const imdb = media?.ids?.imdb || media?.imdb || "";
+  const tmdb = media?.ids?.tmdb || media?.tmdb || "";
+  const tvdb = media?.ids?.tvdb || media?.tvdb || "";
+  const title = String(media?.title || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  
+  if (imdb) return `${type}:${season}:${episode}:imdb:${imdb}`;
+  if (tmdb) return `${type}:${season}:${episode}:tmdb:${tmdb}`;
+  if (tvdb) return `${type}:${season}:${episode}:tvdb:${tvdb}`;
+  return `${type}:${season}:${episode}:title:${title}`;
+}
+
 async function findPlexSeries(config, media) {
+  const cacheKey = getCacheKey(media);
+  if (plexRatingKeyCache.has(cacheKey)) {
+    const ratingKey = plexRatingKeyCache.get(cacheKey);
+    if (ratingKey) {
+      try {
+        const item = await fetchPlexMetadataItem(config, ratingKey);
+        if (item) {
+          return item;
+        }
+      } catch (error) {
+        console.warn(`Direct Plex series lookup by cached ratingKey ${ratingKey} failed, falling back to search`, error.message);
+      }
+      plexRatingKeyCache.delete(cacheKey);
+    }
+  }
+
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const candidates = plexGuidCandidates(media);
+  let series;
 
   if (candidates.length > 0) {
     const lookups = await Promise.allSettled(candidates.map(async (guid) => {
@@ -189,11 +224,19 @@ async function findPlexSeries(config, media) {
     const match = lookups.find((r) => r.status === "fulfilled" && r.value?.ratingKey);
     if (match) {
       console.log("Plex series lookup matched item", { ratingKey: match.value.ratingKey });
-      return match.value;
+      series = match.value;
     }
   }
 
-  return searchPlexFallback(config, media, "show");
+  if (!series) {
+    series = await searchPlexFallback(config, media, "show");
+  }
+
+  if (series?.ratingKey) {
+    plexRatingKeyCache.set(cacheKey, series.ratingKey);
+  }
+
+  return series;
 }
 
 export { findPlexSeries };
@@ -280,10 +323,36 @@ async function findPlexEpisode(config, media) {
 }
 
 export async function findPlexItem(config, media) {
-  if (media.type === "movie") return findPlexMovie(config, media);
-  if (media.type === "episode") return findPlexEpisode(config, media);
-  if (media.type === "series" || media.type === "show") return findPlexSeries(config, media);
-  return undefined;
+  const cacheKey = getCacheKey(media);
+  if (plexRatingKeyCache.has(cacheKey)) {
+    const ratingKey = plexRatingKeyCache.get(cacheKey);
+    if (ratingKey) {
+      try {
+        const item = await fetchPlexMetadataItem(config, ratingKey);
+        if (item) {
+          return item;
+        }
+      } catch (error) {
+        console.warn(`Direct Plex lookup by cached ratingKey ${ratingKey} failed, falling back to search`, error.message);
+      }
+      plexRatingKeyCache.delete(cacheKey);
+    }
+  }
+
+  let item;
+  if (media.type === "movie") {
+    item = await findPlexMovie(config, media);
+  } else if (media.type === "episode") {
+    item = await findPlexEpisode(config, media);
+  } else if (media.type === "series" || media.type === "show") {
+    item = await findPlexSeries(config, media);
+  }
+
+  if (item?.ratingKey) {
+    plexRatingKeyCache.set(cacheKey, item.ratingKey);
+  }
+
+  return item;
 }
 
 export async function markPlexPlayed(config, media) {

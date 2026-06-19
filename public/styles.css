@@ -8312,3 +8312,178 @@ html.light-mode .review-card {
   border-color: var(--line);
   color: var(--text);
 }
+
+/* Part Watched Page List Layout */
+.part-watched-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+  width: 100%;
+}
+
+@media (max-width: 1400px) {
+  .part-watched-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1000px) {
+  .part-watched-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .part-watched-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.part-watched-page-card {
+  display: flex;
+  gap: 1rem;
+  padding: 0.85rem;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+  align-items: flex-start;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.part-watched-page-card:hover {
+  border-color: var(--yellow);
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-2px);
+}
+
+.part-watched-card-poster-wrapper {
+  flex: 0 0 var(--part-watched-poster-width, 120px);
+  width: var(--part-watched-poster-width, 120px);
+  aspect-ratio: 2/3;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: transform 130ms ease, box-shadow 130ms ease;
+}
+
+.part-watched-page-card:hover .part-watched-card-poster-wrapper {
+  transform: scale(1.02);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.part-watched-card-poster-wrapper img,
+.part-watched-card-poster-wrapper span {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.part-watched-card-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  height: 100%;
+  justify-content: space-between;
+}
+
+.part-watched-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.part-watched-card-title {
+  font-size: 1.1rem;
+  font-weight: 850;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.part-watched-card-episode {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #e5a00d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.part-watched-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: #9b9b9b;
+}
+
+.part-watched-card-meta > span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Progress bar container */
+.part-watched-progress-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.2rem;
+}
+
+.part-watched-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.part-watched-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #e5a00d, #f59e0b);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.part-watched-progress-text {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #e5a00d;
+}
+
+/* Actions */
+.part-watched-card-actions {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.4rem;
+}
+
+.part-watched-action-btn {
+  flex: 1;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.72rem;
+  min-height: 1.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+html.light-mode .part-watched-page-card {
+  background: var(--panel);
+  border-color: var(--line);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+html.light-mode .part-watched-page-card:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+html.light-mode .part-watched-card-title {
+  color: var(--text);
+}
