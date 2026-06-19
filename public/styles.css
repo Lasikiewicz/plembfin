@@ -150,7 +150,7 @@ h2 {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
   gap: clamp(1rem, 2.5vw, 2rem);
-  align-items: start;
+  align-items: stretch;
   align-content: start;
   margin-top: 0;
 }
@@ -176,9 +176,18 @@ h2 {
 
 .media-detail-page .immersive-meta {
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 0.8rem;
-  align-content: start;
+  align-content: stretch;
+  align-self: stretch;
   padding-top: 0.2rem;
+}
+
+.media-detail-page .media-detail-bottom-stack {
+  display: grid;
+  gap: 0.8rem;
+  align-self: end;
+  min-width: 0;
 }
 
 .media-detail-page .immersive-overview {
@@ -240,17 +249,21 @@ h2 {
 .media-detail-page .media-facts-rail--sidebar {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4) var(--space-4);
-  align-self: start;
+  align-self: center;
+  justify-self: center;
   margin-top: 0;
   padding-top: 0;
+  width: min(100%, 620px);
 }
 
 .media-facts-rail--sidebar {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4) var(--space-4);
-  align-self: start;
+  align-self: center;
+  justify-self: center;
   margin-top: 0;
   padding-top: 0;
+  width: min(100%, 620px);
 }
 
 .media-facts-rail--sidebar .media-fact:last-child:nth-child(odd) {
@@ -271,14 +284,19 @@ h2 {
   font-size: clamp(2rem, 4vw, 3.8rem);
   line-height: 0.96;
   letter-spacing: 0;
+  align-self: center;
+  justify-self: center;
+  text-align: center;
 }
 
 .media-detail-page .immersive-logo {
-  max-height: clamp(60px, 8vw, 110px);
-  max-width: min(340px, 90%);
+  max-height: clamp(76px, 9vw, 132px);
+  max-width: min(420px, 92%);
   width: auto;
   object-fit: contain;
-  object-position: left center;
+  object-position: center;
+  align-self: center;
+  justify-self: center;
   filter: drop-shadow(0 2px 8px rgba(0,0,0,0.55));
 }
 
@@ -393,6 +411,10 @@ h2 {
   .media-detail-page .immersive-title {
     font-size: 1.7rem;
   }
+
+  .media-detail-page .immersive-meta {
+    grid-template-rows: auto;
+  }
 }
 
 @media (max-width: 640px) {
@@ -421,6 +443,12 @@ h2 {
 
   .media-detail-page .immersive-title {
     font-size: 2rem;
+  }
+
+  .media-detail-page .immersive-title,
+  .media-detail-page .immersive-logo {
+    justify-self: start;
+    text-align: left;
   }
 
   .ratings-row {
