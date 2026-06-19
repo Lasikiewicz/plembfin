@@ -216,7 +216,7 @@ export async function markEmbyPlayed(config, media) {
 
     const items = await findEmbyItems(config, media);
     if (!items || items.length === 0) {
-      console.log(`[SKIPPED] Match verification failed`);
+      console.log(`[NOT FOUND] No matching item in Emby library for: "${media.title}"`);
       return { platform: "emby", status: "not_found" };
     }
 
@@ -251,7 +251,7 @@ export async function markEmbyUnplayed(config, media) {
 
     const items = await findEmbyItems(config, media);
     if (!items || items.length === 0) {
-      console.log(`[SKIPPED] Match verification failed`);
+      console.log(`[NOT FOUND] No matching item in Emby library for: "${media.title}"`);
       return { platform: "emby", status: "not_found" };
     }
 
@@ -286,7 +286,7 @@ export async function setEmbyProgress(config, media) {
 
     const items = await findEmbyItems(config, media);
     if (!items || items.length === 0) {
-      console.log(`[SKIPPED] Match verification failed`);
+      console.log(`[NOT FOUND] No matching item in Emby library for: "${media.title}"`);
       return { platform: "emby", status: "not_found" };
     }
 
@@ -377,7 +377,7 @@ export async function fetchEmbyWatchedItems(config, { limit = 0 } = {}) {
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("Filters", "IsPlayed");
   url.searchParams.set("IncludeItemTypes", "Movie,Episode");
-  url.searchParams.set("Fields", "ProviderIds,UserData,PremiereDate,ProductionYear");
+  url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear");
   url.searchParams.set("SortBy", "DatePlayed");
   url.searchParams.set("SortOrder", "Descending");
   if (Number(limit) > 0) url.searchParams.set("Limit", String(Math.max(1, Math.round(Number(limit)))));

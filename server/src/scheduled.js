@@ -894,7 +894,12 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
     const pollTimestamp = Date.now();
     
     for (const item of raw) {
-      const ids = normalizeProviderIds(item.ProviderIds);
+      // For episodes, prefer series-level provider IDs (SeriesProviderIds) so that Plex and
+      // other targets can match by series GUID rather than failing on episode-level IDs.
+      const rawIds = item.Type === "Episode"
+        ? { ...(item.ProviderIds || {}), ...(item.SeriesProviderIds || {}) }
+        : (item.ProviderIds || {});
+      const ids = normalizeProviderIds(rawIds);
       const media = {
         title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
         type: item.Type === "Episode" ? "episode" : "movie",
@@ -987,7 +992,12 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
     const pollTimestamp = Date.now();
     
     for (const item of raw) {
-      const ids = normalizeProviderIds(item.ProviderIds);
+      // For episodes, prefer series-level provider IDs (SeriesProviderIds) so that Plex and
+      // other targets can match by series GUID rather than failing on episode-level IDs.
+      const rawIds = item.Type === "Episode"
+        ? { ...(item.ProviderIds || {}), ...(item.SeriesProviderIds || {}) }
+        : (item.ProviderIds || {});
+      const ids = normalizeProviderIds(rawIds);
       const media = {
         title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
         type: item.Type === "Episode" ? "episode" : "movie",
@@ -1087,6 +1097,9 @@ function isTargetSynced(telemetry = "", target = "", source = "") {
     if (line.includes(`${tgt} status:`) || line.includes(`${tgt} progress status:`)) {
       if (line.includes("success")) return true;
       if (line.includes("loop")) return true;
+      // "not found" means the item simply isn't in this platform's library — treat as terminal
+      // so it doesn't get re-queued every minute forever. Only "error" is retryable.
+      if (line.includes("skipped")) return true;
       return false;
     }
   }
