@@ -1,7 +1,14 @@
 {
-  "version": "0.1.15",
-  "updatedAt": "2026-06-19T11:04:14+01:00",
+  "version": "0.1.16",
+  "updatedAt": "2026-06-19T11:20:25+01:00",
   "entries": [
+    {
+      "version": "0.1.16",
+      "date": "2026-06-19T11:20:25+01:00",
+      "commit": "5dd3a36f913e0c1b9aa75d33f6fb31f8aeec1a61",
+      "message": "fix: preserve tv metadata after status refresh",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.15",
       "date": "2026-06-19T11:04:14+01:00",
