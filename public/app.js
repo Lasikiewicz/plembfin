@@ -21,6 +21,44 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") warmUpBackend();
 });
 
+// Theme initialization
+const THEME_KEY = "plembfin:theme";
+
+function updateThemeIcon() {
+  const isLightMode = document.documentElement.classList.contains("light-mode");
+  const logo = document.querySelector(".brand-logo");
+  if (logo) {
+    logo.src = isLightMode ? "/plembfin_header_logo_light.png" : "/plembfin_header_logo_dark.png";
+  }
+}
+
+function initializeTheme() {
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const shouldUseLightMode = savedTheme === "light" || (savedTheme === null && !prefersDark);
+
+  if (shouldUseLightMode) {
+    document.documentElement.classList.add("light-mode");
+  } else {
+    document.documentElement.classList.remove("light-mode");
+  }
+  updateThemeIcon();
+}
+
+function toggleTheme() {
+  const isLightMode = document.documentElement.classList.contains("light-mode");
+  if (isLightMode) {
+    document.documentElement.classList.remove("light-mode");
+    localStorage.setItem(THEME_KEY, "dark");
+  } else {
+    document.documentElement.classList.add("light-mode");
+    localStorage.setItem(THEME_KEY, "light");
+  }
+  updateThemeIcon();
+}
+
+initializeTheme();
+
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
 const LEGACY_TOKEN_KEY = "sync_admin_token";
@@ -267,6 +305,7 @@ function bindElements() {
     importTerminal: document.querySelector("#importTerminal"),
     lockButton: document.querySelector("#lockButton"),
     logsTerminal: document.querySelector("#logsTerminal"),
+    themeToggleButton: document.querySelector("#themeToggleButton"),
     message: document.querySelector("#message"),
     modalBody: document.querySelector("#modalBody"),
     monthChart: document.querySelector("#monthChart"),
@@ -7639,7 +7678,6 @@ function renderSeasonSeerrControls(tmdbId, seasonNumber, status = {}) {
   const supports4k = state.seerrSupports4k.tv;
   return `
     <span class="season-request-controls">
-      ${tvSeasonAvailabilityHtml(status, seasonNumber)}
       ${missingStandard ? `
         <button class="rating-pill seerr-request-btn season-seerr-request-btn" type="button"
           data-seerr-media-type="tv"
@@ -11258,6 +11296,9 @@ function attachEvents() {
   }
 
   elements.lockButton.addEventListener("click", lockDashboard);
+  if (elements.themeToggleButton) {
+    elements.themeToggleButton.addEventListener("click", toggleTheme);
+  }
   elements.closeModalButton.addEventListener("click", closeDebugModal);
   elements.debugModal.addEventListener("click", (event) => {
     if (event.target === elements.debugModal) closeDebugModal();
