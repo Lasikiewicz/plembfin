@@ -1774,7 +1774,7 @@ async function handlePlaybackProgressWatch(req, res) {
       tvdb_id: progressRow.tvdb_id || null,
       season: progressRow.season ?? null,
       episode: progressRow.episode ?? null,
-      watched_at: Date.now(),
+      watched_at: body.watched_at || Date.now(),
       sync_action: "watched",
       sync_dispatch_telemetry: "Origin: progress_resolve\nLoop-check: Passed\nDispatch status: pending\nDetails: Manual watch propagation queued.",
     };

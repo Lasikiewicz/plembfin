@@ -9278,8 +9278,42 @@ async function refreshShowAfterManualWatch(showTitle) {
   mergeShowDetail(body.show);
 }
 
+async function applyPartWatchedWatchDateChoice(choice) {
+  const action = state.pendingWatchAction;
+  if (!action) return;
+
+  const root = mediaDetailRoot();
+  const customDate = root.querySelector("#watchDateCustomInput")?.value || "";
+
+  const airDate = action.scope === "movie" ? action.movie?.releaseDate : action.episodes?.[0]?.airDate;
+  const watchedAt = watchedAtForChoice(choice, { airDate }, customDate);
+
+  root.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]").forEach((button) => {
+    button.disabled = true;
+  });
+
+  closeWatchDatePrompt();
+  setMessage(`Marking "${action.title}" as watched…`, "muted");
+
+  try {
+    const res = await fetch("/api/playback-progress/watch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ media_key: action.mediaKey, watched_at: watchedAt }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    setMessage(`"${action.title}" marked as watched`, "success");
+    resetPartWatchedView("default");
+    renderPartWatched();
+  } catch (error) {
+    showErrorExplainModal(`Failed to mark "${action.title}" as watched`, error.message);
+  }
+}
+
 async function applyWatchDateChoice(choice) {
   const action = state.pendingWatchAction;
+  if (action?.origin === "part-watched") return applyPartWatchedWatchDateChoice(choice);
   if (action?.scope === "movie") return applyMovieWatchDateChoice(choice);
   if (!action?.episodes?.length) return;
 
@@ -10030,6 +10064,7 @@ function closeDebugModal() {
 }
 
 function mediaDetailRoot() {
+  if (state.activeView === "part-watched") return elements.partWatchedPanel;
   return state.mediaDetailInline ? elements.explorerPanel : elements.modalBody;
 }
 
@@ -12663,28 +12698,45 @@ function attachEvents() {
     const title = watchBtn ? watchBtn.dataset.title : unwatchBtn.dataset.title;
 
     if (watchBtn) {
-      showConfirmModal(`Mark "${title}" as fully watched?`, async () => {
-        const originalText = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = "Syncing...";
-        try {
-          const res = await fetch("/api/playback-progress/watch", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...authHeaders() },
-            body: JSON.stringify({ media_key: mediaKey }),
-          });
-          const body = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-          setMessage(`"${title}" marked as watched`, "success");
-          resetPartWatchedView("default");
-          renderPartWatched();
-        } catch (error) {
-          showErrorExplainModal(`Failed to mark "${title}" as watched`, error.message);
-        } finally {
-          btn.disabled = false;
-          btn.textContent = originalText;
+      const entry = state.partWatchedRaw.find(e => e.media_key === mediaKey);
+      if (entry) {
+        if (entry.media_type === "movie") {
+          state.pendingWatchAction = {
+            origin: "part-watched",
+            scope: "movie",
+            mediaKey: entry.media_key,
+            title: entry.title,
+            movie: {
+              title: entry.title,
+              tmdbId: entry.tmdb_id,
+              imdbId: entry.imdb_id,
+              tvdbId: entry.tvdb_id,
+              posterUrl: entry.poster_url || entry.imageUrl || entry.thumb || null,
+            },
+            label: `Mark ${entry.title} watched`,
+          };
+        } else {
+          const showTitle = entry.show_title || showTitleFrom(entry.title);
+          state.pendingWatchAction = {
+            origin: "part-watched",
+            scope: "episode",
+            mediaKey: entry.media_key,
+            title: entry.title,
+            showTitle: showTitle,
+            episodes: [{
+              seasonNumber: entry.season,
+              episodeNumber: entry.episode,
+              title: entry.episode_title || entry.title,
+              showTmdbId: entry.tmdb_id,
+              posterUrl: entry.poster_url || entry.imageUrl || entry.thumb || null,
+              key: entry.media_key,
+            }],
+            label: `Mark ${showTitle} watched`,
+            countLabel: `Season ${entry.season} · Episode ${entry.episode}`,
+          };
         }
-      });
+        openWatchDatePrompt(state.pendingWatchAction);
+      }
     } else if (unwatchBtn) {
       showConfirmModal(`Clear playback progress for "${title}"? This will mark it unwatched and reset progress.`, async () => {
         const originalText = btn.textContent;
