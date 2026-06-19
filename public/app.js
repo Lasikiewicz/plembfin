@@ -7539,6 +7539,39 @@ function renderRichTmdbDetails(tmdbData) {
   return renderTrailersReviewsSection(tmdbData);
 }
 
+function renderMediaImagesSection(tmdbData) {
+  if (!tmdbData?.images) return "";
+  const seen = new Set();
+  const dedupe = (imgs) => imgs.filter((img) => {
+    if (!img.file_path || seen.has(img.file_path)) return false;
+    seen.add(img.file_path);
+    return true;
+  });
+  // Prefer language-neutral backdrops (no text overlay); fall back to all if too few.
+  const raw = tmdbData.images.backdrops || [];
+  const clean = dedupe(raw.filter((img) => !img.iso_639_1));
+  const backdrops = (clean.length >= 3 ? clean : dedupe(raw))
+    .sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0))
+    .slice(0, 20);
+
+  if (!backdrops.length) return "";
+
+  return `
+    <section class="seasons-section media-images-section">
+      <div class="show-section-title"><h3>Images</h3><span>${backdrops.length} available</span></div>
+      <div class="media-images-scroll-row">
+        ${backdrops.map((img, i) => {
+    const thumb = tmdbImage(img.file_path, "w780");
+    const full = tmdbImage(img.file_path, "original");
+    return `<button class="media-image-card" type="button" data-lightbox-index="${i}" data-lightbox-src="${escapeAttribute(full)}">
+            <img class="media-image-thumb" src="${escapeAttribute(thumb)}" alt="Scene image" loading="lazy" onerror="this.parentElement.style.display='none';" />
+          </button>`;
+  }).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inline") {
   if (!tmdbData) return "";
   const providers = tmdbData["watch/providers"]?.results?.GB?.flatrate || tmdbData["watch/providers"]?.results?.US?.flatrate || [];
@@ -8502,6 +8535,7 @@ function renderShowModalContent(show, {
       ${renderCastSection(tmdbData)}
 
       ${renderTrailersReviewsSection(tmdbData)}
+      ${renderMediaImagesSection(tmdbData)}
       ${renderRelatedShowsSection(tmdbData)}
     </div>
     ${renderWatchDatePrompt(state.pendingWatchAction)}
@@ -9468,6 +9502,8 @@ async function renderMovieImmersiveModalContent(movie) {
       ${renderCastSection(tmdbData)}
 
       ${renderRichTmdbDetails(tmdbData)}
+
+      ${renderMediaImagesSection(tmdbData)}
 
       ${recommendations.length > 0 ? `
         <section class="seasons-section">
@@ -11403,7 +11439,7 @@ function attachEvents() {
 
   const wheelScrollTargets = new WeakMap();
   document.addEventListener("wheel", (e) => {
-    const row = e.target.closest(".horizontal-scroll-row, .trailer-scroll-row, .cast-scroll-row");
+    const row = e.target.closest(".horizontal-scroll-row, .trailer-scroll-row, .cast-scroll-row, .media-images-scroll-row");
     if (!row) return;
     if (row.scrollWidth <= row.clientWidth) return;
     // Let native horizontal gestures (trackpad swipe) pass through untouched.
@@ -11450,6 +11486,16 @@ function attachEvents() {
   }, { passive: false });
 
   document.addEventListener("click", (event) => {
+    const mediaImageCard = event.target.closest(".media-image-card[data-lightbox-src]");
+    if (mediaImageCard) {
+      const row = mediaImageCard.closest(".media-images-scroll-row");
+      const cards = row ? [...row.querySelectorAll(".media-image-card[data-lightbox-src]")] : [mediaImageCard];
+      const srcs = cards.map((c) => c.dataset.lightboxSrc);
+      const index = parseInt(mediaImageCard.dataset.lightboxIndex, 10) || 0;
+      window.openPhotoLightbox(srcs, index);
+      return;
+    }
+
     const nowPlayingCard = event.target.closest("[data-now-playing-href]");
     if (nowPlayingCard) {
       navigateTo(nowPlayingCard.dataset.nowPlayingHref);
@@ -12432,13 +12478,34 @@ window.playTrailer = function (el, videoKey, videoName) {
   let photos = [];
   let current = 0;
   let scale = 1;
+  let panX = 0;
+  let panY = 0;
   let lb = null;
+  // drag state
+  let dragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let panAtDragX = 0;
+  let panAtDragY = 0;
+
+  function applyTransform() {
+    const img = lb.querySelector('.photo-lightbox-img');
+    const wrap = lb.querySelector('.photo-lightbox-img-wrap');
+    if (scale === 1) {
+      img.style.transform = '';
+      wrap.classList.remove('grabbing');
+      wrap.style.cursor = '';
+    } else {
+      img.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+      wrap.style.cursor = dragging ? 'grabbing' : 'grab';
+    }
+  }
 
   function render() {
     const img = lb.querySelector('.photo-lightbox-img');
     img.src = photos[current];
-    scale = 1;
-    img.style.transform = '';
+    scale = 1; panX = 0; panY = 0;
+    applyTransform();
     lb.querySelector('.photo-lightbox-counter').textContent = `${current + 1} / ${photos.length}`;
     lb.querySelector('.photo-lightbox-nav--prev').style.display = photos.length > 1 ? '' : 'none';
     lb.querySelector('.photo-lightbox-nav--next').style.display = photos.length > 1 ? '' : 'none';
@@ -12465,25 +12532,51 @@ window.playTrailer = function (el, videoKey, videoName) {
         </div>
       `;
 
-      // Zoom buttons
+      // Zoom buttons + close
       lb.addEventListener('click', (e) => {
+        if (dragging) return;
         if (e.target.dataset.lbClose !== undefined || e.target === lb) { close(); return; }
         const z = e.target.dataset.lbZoom;
         if (z === undefined) return;
-        const img = lb.querySelector('.photo-lightbox-img');
-        if (z === '0') scale = 1;
+        if (z === '0') { scale = 1; panX = 0; panY = 0; }
         else if (z === '1') scale = Math.min(scale + 0.5, 5);
-        else scale = Math.max(scale - 0.5, 0.5);
-        img.style.transform = scale === 1 ? '' : `scale(${scale})`;
+        else { scale = Math.max(scale - 0.5, 0.5); if (scale === 1) { panX = 0; panY = 0; } }
+        applyTransform();
       });
 
       // Wheel zoom
-      lb.querySelector('.photo-lightbox-img-wrap').addEventListener('wheel', (e) => {
+      const wrap = lb.querySelector('.photo-lightbox-img-wrap');
+      wrap.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const img = lb.querySelector('.photo-lightbox-img');
         scale = Math.min(5, Math.max(0.5, scale - e.deltaY * 0.001));
-        img.style.transform = scale === 1 ? '' : `scale(${scale})`;
+        if (scale === 1) { panX = 0; panY = 0; }
+        applyTransform();
       }, { passive: false });
+
+      // Drag to pan
+      wrap.addEventListener('mousedown', (e) => {
+        if (scale <= 1) return;
+        if (e.button !== 0) return;
+        e.preventDefault();
+        dragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        panAtDragX = panX;
+        panAtDragY = panY;
+        wrap.classList.add('grabbing');
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        panX = panAtDragX + (e.clientX - dragStartX);
+        panY = panAtDragY + (e.clientY - dragStartY);
+        applyTransform();
+      });
+      window.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        wrap.classList.remove('grabbing');
+        applyTransform();
+      });
 
       // Nav arrows
       lb.querySelector('.photo-lightbox-nav--prev').addEventListener('click', (e) => { e.stopPropagation(); current = (current - 1 + photos.length) % photos.length; render(); });
@@ -12498,6 +12591,7 @@ window.playTrailer = function (el, videoKey, videoName) {
 
   function close() {
     if (lb) lb.style.display = 'none';
+    dragging = false;
     document.body.style.overflow = '';
   }
 
