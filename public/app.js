@@ -3298,7 +3298,7 @@ function renderIssueCategory(categoryName, jobs = [], helpText = "") {
                 </div>
               ` : `
                 <div style="background: rgba(0,0,0,0.05); padding: var(--space-2); border-top: 1px solid rgba(0,0,0,0.1); font-size: 0.8rem; opacity: 0.7;">
-                  Click "Retry" to view detailed error information
+                  ${showFixButtons ? 'Click "Retry" to view detailed error information' : 'No telemetry details available.'}
                 </div>
               `}
             </details>
@@ -5046,6 +5046,53 @@ function dedupeMediaRecords(records = [], mode = "") {
   return [...map.values()];
 }
 
+function progressRecordIdentity(record = {}) {
+  const mediaType = record.media_type || "";
+  const imdb = String(record.imdb_id || "").trim();
+  const tmdb = String(record.tmdb_id || "").trim();
+  const tvdb = String(record.tvdb_id || "").trim();
+  
+  if (mediaType === "episode") {
+    const season = record.season ?? "unknown";
+    const episode = record.episode ?? "unknown";
+    const showTitle = slug(record.show_title || showTitleFrom(record.title) || "");
+    if (showTitle && season !== "unknown" && episode !== "unknown") {
+      return `episode|show:${showTitle}|s:${season}|e:${episode}`;
+    }
+    const id = imdb ? `imdb:${imdb}` : tmdb ? `tmdb:${tmdb}` : tvdb ? `tvdb:${tvdb}` : slug(record.title);
+    return `episode|id:${id}|s:${season}|e:${episode}`;
+  }
+  
+  if (mediaType === "movie") {
+    const id = imdb ? `imdb:${imdb}` : tmdb ? `tmdb:${tmdb}` : tvdb ? `tvdb:${tvdb}` : slug(record.title);
+    return `movie|id:${id}`;
+  }
+  
+  return `unknown|${slug(record.title)}|${record.updated_at || ""}`;
+}
+
+function dedupePlaybackProgress(items = []) {
+  const map = new Map();
+  for (const item of items) {
+    const key = progressRecordIdentity(item);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, item);
+      continue;
+    }
+    const existingTime = Number(existing.updated_at || 0);
+    const itemTime = Number(item.updated_at || 0);
+    if (itemTime > existingTime) {
+      map.set(key, item);
+    } else if (itemTime === existingTime) {
+      if (Number(item.progress || 0) > Number(existing.progress || 0)) {
+        map.set(key, item);
+      }
+    }
+  }
+  return [...map.values()];
+}
+
 function prefetchDashboardHistoryTmdb(tvEntries, movieEntries) {
   if (!state.token) return;
   const seen = new Set();
@@ -6360,7 +6407,7 @@ async function loadPartWatched() {
     if (!res.ok) throw new Error(body.error || `Progress load failed ${res.status}`);
 
     const items = Array.isArray(body.progress) ? body.progress : [];
-    state.partWatchedRaw = [...state.partWatchedRaw, ...items];
+    state.partWatchedRaw = dedupePlaybackProgress([...state.partWatchedRaw, ...items]);
     state.partWatchedOffset += items.length;
     state.partWatchedHasMore = items.length === EXPLORER_PAGE_SIZE;
   } finally {
@@ -9407,6 +9454,11 @@ async function triggerRetrySync(id, button) {
   const originalText = button.textContent;
   button.textContent = "Syncing...";
 
+  const titleEl = document.getElementById("terminalModalTitle");
+  if (titleEl) {
+    titleEl.textContent = "Retry Sync Terminal";
+  }
+
   elements.terminalModal?.classList.remove("hidden");
   if (elements.retryTerminalOutput) {
     elements.retryTerminalOutput.innerHTML = "";
@@ -11026,16 +11078,52 @@ async function runFullSyncWatchstates() {
   }
 }
 
-async function triggerClearMissingTelemetry() {
-  const button = elements.clearMissingTelemetryButton;
-  if (!button) return;
+async function triggerClearMissingTelemetry(button) {
+  const btn = button || elements.clearMissingTelemetryButton || document.querySelector('[data-action="clearMissingTelemetry"]');
+  if (!btn) return;
 
   showConfirmModal(
     "Clear missing dispatch telemetry records?\n\nThis will mark records with missing telemetry as resolved, removing them from the outstanding jobs list. This is safe — it only affects logging, not actual sync functionality.",
     async () => {
-      const originalText = button.textContent;
-      button.disabled = true;
-      button.textContent = "Clearing...";
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Clearing...";
+
+      const titleEl = document.getElementById("terminalModalTitle");
+      if (titleEl) {
+        titleEl.textContent = "Clear Telemetry Terminal";
+      }
+
+      elements.terminalModal?.classList.remove("hidden");
+      if (elements.retryTerminalOutput) {
+        elements.retryTerminalOutput.innerHTML = "";
+      }
+
+      function termLog(text, tone = "info") {
+        if (!elements.retryTerminalOutput) return;
+        const span = document.createElement("span");
+        if (tone === "error") {
+          span.style.color = "#fb7185";
+          span.style.fontWeight = "bold";
+        } else if (tone === "success") {
+          span.style.color = "#34d399";
+          span.style.fontWeight = "bold";
+        } else if (tone === "warn") {
+          span.style.color = "#f59e0b";
+        } else if (tone === "header") {
+          span.style.color = "#38bdf8";
+          span.style.fontWeight = "bold";
+        } else {
+          span.style.color = "#e8edf2";
+        }
+        span.textContent = text + "\n";
+        elements.retryTerminalOutput.appendChild(span);
+        elements.retryTerminalOutput.scrollTop = elements.retryTerminalOutput.scrollHeight;
+      }
+
+      termLog("plembfin@server:~$ ./clear-missing-telemetry", "header");
+      termLog("Initiating request to clear missing dispatch telemetry...", "info");
+      termLog("POST /api/clear-missing-telemetry HTTP/1.1", "info");
 
       try {
         const response = await fetch("/api/clear-missing-telemetry", {
@@ -11043,19 +11131,27 @@ async function triggerClearMissingTelemetry() {
           headers: authHeaders()
         });
 
+        const body = await response.json().catch(() => ({}));
         if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
+          termLog("[ERROR] Clear request failed with status: " + response.status, "error");
+          if (body.error) {
+            termLog("Reason: " + body.error, "error");
+          }
           throw new Error(body.error || `Failed with HTTP ${response.status}`);
         }
 
-        const data = await response.json();
-        setMessage(`Cleared ${data.cleared} records`, "success");
+        termLog("Response received: HTTP 200 OK", "success");
+        termLog(`Successfully cleared ${body.cleared || 0} watch history record(s) with missing telemetry.`, "success");
+        termLog("\n✨ Done!", "success");
+
+        setMessage(`Cleared ${body.cleared || 0} records`, "success");
         await loadSyncJobs({ force: true });
       } catch (error) {
+        termLog(`\n[FATAL ERROR] Clear process aborted: ${error.message}`, "error");
         setMessage(`Error: ${error.message}`, "error");
       } finally {
-        button.disabled = false;
-        button.textContent = originalText;
+        btn.disabled = false;
+        btn.textContent = originalText;
       }
     }
   );
@@ -11242,6 +11338,16 @@ async function triggerCronSync() {
 
 function showConfirmModal(message, onApprove) {
   if (!elements.confirmModal || !elements.confirmModalMessage) return;
+
+  const titleEl = document.getElementById("confirmModalTitle") || elements.confirmModal.querySelector("h2");
+  if (titleEl) {
+    titleEl.textContent = "Confirm Sync";
+  }
+  const cancelBtn = elements.cancelConfirmButton;
+  if (cancelBtn) cancelBtn.style.display = "";
+
+  elements.approveConfirmButton.textContent = "Approve";
+
   elements.confirmModalMessage.textContent = message;
   elements.confirmModal.classList.remove("hidden");
 
@@ -11254,6 +11360,49 @@ function showConfirmModal(message, onApprove) {
     elements.confirmModal.classList.add("hidden");
     onApprove();
   });
+}
+
+function showErrorExplainModal(title, errorMsg) {
+  if (!elements.confirmModal || !elements.confirmModalMessage) return;
+
+  const titleEl = document.getElementById("confirmModalTitle") || elements.confirmModal.querySelector("h2");
+  if (titleEl) {
+    titleEl.textContent = title;
+  }
+
+  let resolutionInstructions = "";
+  const errLower = String(errorMsg || "").toLowerCase();
+
+  if (errLower.includes("not found") || errLower.includes("404")) {
+    resolutionInstructions = "\n\n👉 How to Resolve:\nThis item could not be found on the target media server. Ensure that the media server (Plex, Emby, Jellyfin) is running, that this item exists in its library, and that its metadata (IMDB/TMDB/TVDB IDs) is fully matched and synchronized.";
+  } else if (errLower.includes("unauthorized") || errLower.includes("401") || errLower.includes("forbidden") || errLower.includes("key") || errLower.includes("token")) {
+    resolutionInstructions = "\n\n👉 How to Resolve:\nAuthentication failed. Please check the Settings tab for the app used and verify that the Server URL, API Key, User ID, or Access Token are correct and valid.";
+  } else if (errLower.includes("timeout") || errLower.includes("refused") || errLower.includes("network") || errLower.includes("fetch") || errLower.includes("connect")) {
+    resolutionInstructions = "\n\n👉 How to Resolve:\nNetwork connection failed. Verify that your media server is online and reachable from the Plembfin server, and check that no firewall or proxy is blocking outbound API requests.";
+  } else {
+    resolutionInstructions = "\n\n👉 How to Resolve:\nPlease check the Server Logs under Settings -> Logs for a detailed traceback, and test your media server connection credentials in Settings -> Apps.";
+  }
+
+  elements.confirmModalMessage.innerHTML = `<span style="white-space: pre-wrap; display: block; line-height: 1.5; color: var(--text);">${escapeHtml(errorMsg)}${escapeHtml(resolutionInstructions)}</span>`;
+
+  const cancelBtn = elements.cancelConfirmButton;
+  if (cancelBtn) cancelBtn.style.display = "none";
+
+  const approveBtn = elements.approveConfirmButton;
+  if (approveBtn) {
+    approveBtn.textContent = "OK";
+    const newApproveBtn = approveBtn.cloneNode(true);
+    approveBtn.parentNode.replaceChild(newApproveBtn, approveBtn);
+    elements.approveConfirmButton = newApproveBtn;
+    newApproveBtn.addEventListener("click", () => {
+      elements.confirmModal.classList.add("hidden");
+      if (cancelBtn) cancelBtn.style.display = "";
+      newApproveBtn.textContent = "Approve";
+      if (titleEl) titleEl.textContent = "Confirm Sync";
+    });
+  }
+
+  elements.confirmModal.classList.remove("hidden");
 }
 
 async function triggerStopSync() {
@@ -12406,7 +12555,7 @@ function attachEvents() {
   // Event delegation for action buttons in sync issues
   document.addEventListener("click", (e) => {
     if (e.target.dataset.action === "clearMissingTelemetry") {
-      triggerClearMissingTelemetry().catch(() => { });
+      triggerClearMissingTelemetry(e.target).catch(() => { });
     }
     if (e.target.dataset.action === "retryAllCategory") {
       triggerRetryAllCategory(e.target.dataset.category, e.target).catch(() => { });
@@ -12509,11 +12658,15 @@ function attachEvents() {
     const unwatchBtn = event.target.closest("[data-action-unwatch]");
     if (!watchBtn && !unwatchBtn) return;
 
+    const btn = watchBtn || unwatchBtn;
     const mediaKey = watchBtn ? watchBtn.dataset.actionWatch : unwatchBtn.dataset.actionUnwatch;
     const title = watchBtn ? watchBtn.dataset.title : unwatchBtn.dataset.title;
 
     if (watchBtn) {
       showConfirmModal(`Mark "${title}" as fully watched?`, async () => {
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Syncing...";
         try {
           const res = await fetch("/api/playback-progress/watch", {
             method: "POST",
@@ -12526,11 +12679,17 @@ function attachEvents() {
           resetPartWatchedView("default");
           renderPartWatched();
         } catch (error) {
-          setMessage(`Failed to mark watched: ${error.message}`, "error");
+          showErrorExplainModal(`Failed to mark "${title}" as watched`, error.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalText;
         }
       });
     } else if (unwatchBtn) {
       showConfirmModal(`Clear playback progress for "${title}"? This will mark it unwatched and reset progress.`, async () => {
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Clearing...";
         try {
           const res = await fetch("/api/playback-progress/unwatch", {
             method: "POST",
@@ -12543,7 +12702,10 @@ function attachEvents() {
           resetPartWatchedView("default");
           renderPartWatched();
         } catch (error) {
-          setMessage(`Failed to clear progress: ${error.message}`, "error");
+          showErrorExplainModal(`Failed to clear progress for "${title}"`, error.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalText;
         }
       });
     }
