@@ -1,7 +1,14 @@
 {
-  "version": "0.1.19",
-  "updatedAt": "2026-06-19T15:23:52+01:00",
+  "version": "0.1.20",
+  "updatedAt": "2026-06-19T18:24:42+01:00",
   "entries": [
+    {
+      "version": "0.1.20",
+      "date": "2026-06-19T18:24:42+01:00",
+      "commit": "a3deca192f37bcc3dfae7a40e1b8b9ea722ddd82",
+      "message": "Improve light mode polish, UI layout, and episode view",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.19",
       "date": "2026-06-19T15:23:52+01:00",
