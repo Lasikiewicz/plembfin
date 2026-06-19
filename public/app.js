@@ -11315,10 +11315,11 @@ function attachEvents() {
       openFixMatchDialog(container, fixMatchBtn.dataset.editId, fixMatchBtn.dataset.title, mediaType, ({ tmdb_id }) => {
         state.tmdbDetailsCache.clear();
         const syncJobCard = fixMatchBtn.closest(".sync-job-card");
-        if (syncJobCard) {
+        const inSyncIssues = fixMatchBtn.closest("#syncIssuesContainer");
+        if (syncJobCard || inSyncIssues) {
           loadSyncJobs({ force: true }).catch(() => null);
           loadSyncHistory({ force: true }).catch(() => null);
-          setMessage("Match updated. Retry sync when ready.", "success");
+          setMessage("Match updated. Sync issues list refreshed.", "success");
         } else if (mediaType === "movie") {
           const movie = state.history.find((h) => h.id === fixMatchBtn.dataset.editId);
           if (movie) { movie.tmdb_id = tmdb_id; renderMovieImmersiveModalContent(movie).catch(() => { }); }
