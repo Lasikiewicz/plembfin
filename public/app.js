@@ -276,6 +276,7 @@ function bindElements() {
     runCronSyncButton: document.querySelector("#runCronSyncButton"),
     forceSyncButton: document.querySelector("#forceSyncButton"),
     stopSyncButton: document.querySelector("#stopSyncButton"),
+    clearMissingTelemetryButton: document.querySelector("#clearMissingTelemetryButton"),
     forceSyncTerminal: document.querySelector("#forceSyncTerminal"),
     plexEnabled: document.querySelector("#plexEnabled"),
     plexServerUrl: document.querySelector("#plexServerUrl"),
@@ -3028,6 +3029,10 @@ function renderTargetPills(job = {}) {
     .join("");
 }
 
+function syncJobMediaType(job = {}) {
+  return String(job.media_type || "").toLowerCase() === "movie" ? "movie" : "tv";
+}
+
 function syncHistoryTone(entry = {}) {
   const status = String(entry.status || "").toLowerCase();
   const targets = Array.isArray(entry.targetStates) ? entry.targetStates : [];
@@ -3101,6 +3106,10 @@ function renderSyncJobs() {
             <div><span>Details</span><b>${escapeHtml(details)}</b></div>
           </div>
           <div class="sync-target-row">${renderTargetPills(job)}</div>
+          <div class="sync-job-actions">
+            <button class="button-ghost media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(job.id)}" data-title="${escapeAttribute(job.title || "")}" data-media-type="${escapeAttribute(syncJobMediaType(job))}">Fix Match</button>
+            <button class="retry-sync-btn sync-job-retry-btn" type="button" data-retry-sync-id="${escapeAttribute(job.id)}" title="Retry syncing watched state to all platforms">Retry Sync</button>
+          </div>
           <pre class="sync-telemetry">${escapeHtml(job.sync_dispatch_telemetry || "No sync telemetry recorded.")}</pre>
         </article>
       `;
@@ -9070,6 +9079,10 @@ async function triggerRetrySync(id, button) {
       clearDerivedUiCaches({ resetExplorer: false });
       renderDashboard();
       renderStats();
+      await Promise.all([
+        loadSyncJobs({ force: true }),
+        loadSyncHistory({ force: true }),
+      ]).catch(() => null);
 
       if (state.activeView === "explorer") {
         renderExplorer();
@@ -10559,6 +10572,41 @@ async function runFullSyncWatchstates() {
   }
 }
 
+async function triggerClearMissingTelemetry() {
+  const button = elements.clearMissingTelemetryButton;
+  if (!button) return;
+
+  showConfirmModal(
+    "Clear missing dispatch telemetry records?\n\nThis will mark records with missing telemetry as resolved, removing them from the outstanding jobs list. This is safe — it only affects logging, not actual sync functionality.",
+    async () => {
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = "Clearing...";
+
+      try {
+        const response = await fetch("/api/clear-missing-telemetry", {
+          method: "POST",
+          headers: authHeaders()
+        });
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.error || `Failed with HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        setMessage(`Cleared ${data.cleared} records`, "success");
+        await loadSyncJobs({ force: true });
+      } catch (error) {
+        setMessage(`Error: ${error.message}`, "error");
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    }
+  );
+}
+
 async function triggerCronSync() {
   const button = elements.runCronSyncButton;
   const terminal = elements.forceSyncTerminal;
@@ -11209,7 +11257,12 @@ function attachEvents() {
       const mediaType = fixMatchBtn.dataset.mediaType;
       openFixMatchDialog(container, fixMatchBtn.dataset.editId, fixMatchBtn.dataset.title, mediaType, ({ tmdb_id }) => {
         state.tmdbDetailsCache.clear();
-        if (mediaType === "movie") {
+        const syncJobCard = fixMatchBtn.closest(".sync-job-card");
+        if (syncJobCard) {
+          loadSyncJobs({ force: true }).catch(() => null);
+          loadSyncHistory({ force: true }).catch(() => null);
+          setMessage("Match updated. Retry sync when ready.", "success");
+        } else if (mediaType === "movie") {
           const movie = state.history.find((h) => h.id === fixMatchBtn.dataset.editId);
           if (movie) { movie.tmdb_id = tmdb_id; renderMovieImmersiveModalContent(movie).catch(() => { }); }
         } else if (state.activeShowModalKey) {
@@ -11726,6 +11779,12 @@ function attachEvents() {
   if (elements.stopSyncButton) {
     elements.stopSyncButton.addEventListener("click", () => {
       triggerStopSync().catch(() => { });
+    });
+  }
+
+  if (elements.clearMissingTelemetryButton) {
+    elements.clearMissingTelemetryButton.addEventListener("click", () => {
+      triggerClearMissingTelemetry().catch(() => { });
     });
   }
 

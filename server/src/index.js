@@ -736,6 +736,26 @@ async function handleSyncHistory(req, res) {
   return sendJson(res, { history }, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
 }
 
+async function handleClearMissingTelemetry(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const db = requireDb();
+    const clearStmt = db.prepare(`
+      UPDATE watch_history
+      SET sync_dispatch_telemetry = 'Dispatch Status: success'
+      WHERE sync_dispatch_telemetry IS NULL OR sync_dispatch_telemetry = ''
+    `);
+    const result = clearStmt.run();
+    await invalidateHistoryDerivedCaches();
+    return sendJson(res, { cleared: result.changes });
+  } catch (err) {
+    console.error("[clearMissingTelemetry] Error:", err);
+    return sendJson(res, { error: "Failed to clear telemetry" }, 500);
+  }
+}
+
 async function handleMovies(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -3282,6 +3302,7 @@ async function dispatch(req, res) {
     if (path === "history") return handleHistory(req, res);
     if (path === "sync-jobs") return handleSyncJobs(req, res);
     if (path === "sync-history") return handleSyncHistory(req, res);
+    if (path === "clear-missing-telemetry") return handleClearMissingTelemetry(req, res);
     if (path === "movies") return handleMovies(req, res);
     if (path === "delete-media") return handleDeleteMedia(req, res);
     if (path === "shows") return handleShows(req, res);
