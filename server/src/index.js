@@ -1553,6 +1553,43 @@ function manualWatchMediaFromRecord(record = {}) {
   };
 }
 
+function showTitleFromProgressTitle(title = "") {
+  const text = String(title || "").trim() || "Unknown Show";
+  const seasonMatch = text.match(/^(.*?)(?:\s+-\s+S\d{1,2}E\d{1,2})(?:\s+-\s+.*)?$/i);
+  if (seasonMatch?.[1]) return seasonMatch[1].trim() || "Unknown Show";
+  return text.split(" - ")[0].trim() || "Unknown Show";
+}
+
+async function enrichProgressWatchRecordWithTmdb(record = {}, body = {}) {
+  const mediaType = record.media_type === "episode" ? "tv" : record.media_type;
+  if (!["movie", "tv"].includes(mediaType)) return record;
+
+  const ids = {
+    imdbId: body.imdb_id || body.imdbId || body.imdb || record.imdb_id,
+    tvdbId: body.tvdb_id || body.tvdbId || body.tvdb || record.tvdb_id,
+  };
+  const title = mediaType === "tv" ? showTitleFromProgressTitle(record.title) : record.title;
+  const tmdbId = body.tmdb_id || body.tmdbId || body.tmdb || record.tmdb_id;
+
+  if (tmdbId && record.tmdb_id) return record;
+
+  try {
+    const details = await getTmdbDetails({ mediaType, tmdbId, title, ids });
+    if (details?.id && !record.tmdb_id) record.tmdb_id = String(details.id);
+    const externalIds = details?.external_ids || {};
+    if (!record.imdb_id && externalIds.imdb_id) record.imdb_id = externalIds.imdb_id;
+    if (!record.tvdb_id && externalIds.tvdb_id) record.tvdb_id = String(externalIds.tvdb_id);
+  } catch (error) {
+    console.warn("Progress watch TMDB enrichment skipped", {
+      title: record.title,
+      mediaType: record.media_type,
+      reason: error.message || String(error),
+    });
+  }
+
+  return record;
+}
+
 function mediaFromWatchRecord(record) {
   return {
     title: record.title,
@@ -1769,15 +1806,16 @@ async function handlePlaybackProgressWatch(req, res) {
       title: progressRow.title,
       media_type: progressRow.media_type,
       source: progressRow.source || "manual",
-      imdb_id: progressRow.imdb_id || null,
-      tmdb_id: progressRow.tmdb_id || null,
-      tvdb_id: progressRow.tvdb_id || null,
+      imdb_id: body.imdb_id || body.imdbId || body.imdb || progressRow.imdb_id || null,
+      tmdb_id: body.tmdb_id || body.tmdbId || body.tmdb || progressRow.tmdb_id || null,
+      tvdb_id: body.tvdb_id || body.tvdbId || body.tvdb || progressRow.tvdb_id || null,
       season: progressRow.season ?? null,
       episode: progressRow.episode ?? null,
       watched_at: body.watched_at || Date.now(),
       sync_action: "watched",
       sync_dispatch_telemetry: "Origin: progress_resolve\nLoop-check: Passed\nDispatch status: pending\nDetails: Manual watch propagation queued.",
     };
+    await enrichProgressWatchRecordWithTmdb(record, body);
 
     const { data, record: normalizedRecord } = watchRecordToFirestoreData(record, "manual");
     const existing = await findExistingWatch(data.mediaKey || mediaKeyFor(normalizedRecord), data.watchedAt);
@@ -1794,6 +1832,7 @@ async function handlePlaybackProgressWatch(req, res) {
 
     await upsertPlaystateForMedia(requireDb(), media, "watched", record.watched_at, { skipInvalidate: true });
 
+    await deletePlaybackProgress(requireDb(), { ...progressRow, media_key: mediaKey }).catch(() => null);
     await deletePlaybackProgress(requireDb(), media).catch(() => null);
 
     (async () => {

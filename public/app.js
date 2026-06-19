@@ -2611,14 +2611,15 @@ function isCachedStorageImageUrl(value = "") {
 }
 
 function posterUrlFor(item = {}) {
-  if (item.id != null) {
-    const cached = cachedPosterLookup(String(item.id));
+  const idValue = item.id != null ? item.id : item.media_key;
+  if (idValue != null) {
+    const cached = cachedPosterLookup(String(idValue));
     if (cached !== undefined) return cached || "";
   }
   const raw = item.poster_url || item.posterUrl || item.imageUrl || item.thumb || "";
   if (isCachedStorageImageUrl(raw)) return raw;
   if (raw.startsWith("https://img.youtube.com/")) return raw;
-  if (item.id != null) return "";
+  if (idValue != null) return "";
   if (raw) {
     return configuredImageUrl(raw, item);
   }
@@ -2628,7 +2629,8 @@ function posterUrlFor(item = {}) {
 function posterMarkup(item = {}, className = "media-poster") {
   const url = posterUrlFor(item);
   const label = item.title || "Media poster";
-  const posterId = item.id != null ? ` data-poster-id="${escapeAttribute(String(item.id))}"` : "";
+  const idValue = item.id != null ? item.id : item.media_key;
+  const posterId = idValue != null ? ` data-poster-id="${escapeAttribute(String(idValue))}"` : "";
   if (!url) return `<span class="${className} poster-fallback"${posterId} aria-hidden="true"></span>`;
   return `<img class="${className}"${posterId} src="${escapeAttribute(url)}" alt="${escapeAttribute(label)} poster" loading="lazy" decoding="async" referrerpolicy="no-referrer" />`;
 }
@@ -5077,16 +5079,23 @@ function dedupePlaybackProgress(items = []) {
     const key = progressRecordIdentity(item);
     const existing = map.get(key);
     if (!existing) {
-      map.set(key, item);
+      map.set(key, { ...item, sources: [item.source].filter(Boolean) });
       continue;
+    }
+    if (item.source && !existing.sources.includes(item.source)) {
+      existing.sources.push(item.source);
     }
     const existingTime = Number(existing.updated_at || 0);
     const itemTime = Number(item.updated_at || 0);
     if (itemTime > existingTime) {
-      map.set(key, item);
+      const sources = existing.sources;
+      Object.assign(existing, item);
+      existing.sources = sources;
     } else if (itemTime === existingTime) {
       if (Number(item.progress || 0) > Number(existing.progress || 0)) {
-        map.set(key, item);
+        const sources = existing.sources;
+        Object.assign(existing, item);
+        existing.sources = sources;
       }
     }
   }
@@ -5963,6 +5972,10 @@ function observeExplorerTmdbPrefetch(container) {
           if (state.token) {
             fetchTmdbDetails(mediaType, tmdbId || undefined, title).then((data) => {
               if (!el.isConnected) return;
+              if (data?.id && el.dataset.partWatchedMediaKey) {
+                const progressEntry = state.partWatchedRaw.find((item) => item.media_key === el.dataset.partWatchedMediaKey);
+                if (progressEntry && !progressEntry.tmdb_id) progressEntry.tmdb_id = String(data.id);
+              }
               if (data?.poster_path) {
                 const posterUrl = tmdbPoster(data.poster_path);
                 if (posterUrl) {
@@ -6323,12 +6336,16 @@ function renderPartWatchedCard(entry) {
     }
   }
 
-  const sourceBadge = entry.source ? `<span class="source-badge ${sourceClass(entry.source)}">${escapeHtml(platformBadge(entry.source))}</span>` : "None";
+  const sources = Array.isArray(entry.sources) && entry.sources.length ? entry.sources : (entry.source ? [entry.source] : []);
+  const sourceBadges = sources.map(src => `<span class="source-badge ${sourceClass(src)}">${escapeHtml(platformBadge(src))}</span>`).join(" ");
+  const sourceBadgeHtml = sourceBadges || "None";
   const progressPercent = Math.round(entry.progress || 0);
   const formattedTime = entry.updated_at ? formatDate(entry.updated_at) : "";
+  const prefetchType = isEpisode ? "tv" : "movie";
+  const prefetchTitle = isEpisode ? displayTitle : entry.title;
 
   return `
-    <div class="part-watched-page-card" data-part-watched-card-id="${entry.id}">
+    <div class="part-watched-page-card" data-part-watched-card-id="${entry.id}" data-part-watched-media-key="${escapeAttribute(entry.media_key)}" data-prefetch-type="${prefetchType}" data-prefetch-title="${escapeAttribute(prefetchTitle)}"${entry.tmdb_id ? ` data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id)}"` : ""}>
       <div class="part-watched-card-poster-wrapper">
         ${posterMarkup(entry, "part-watched-page-poster")}
       </div>
@@ -6340,7 +6357,7 @@ function renderPartWatchedCard(entry) {
         <div class="part-watched-card-meta">
           ${isEpisode ? `<span><span class="meta-label">Season/Ep:</span> S${entry.season} · E${entry.episode}</span>` : ""}
           <span><span class="meta-label">Last Played:</span> ${formattedTime}</span>
-          <span><span class="meta-label">App Used:</span> ${sourceBadge}</span>
+          <span><span class="meta-label">App Used:</span> ${sourceBadgeHtml}</span>
         </div>
         
         <div class="part-watched-progress-container">
@@ -7935,6 +7952,10 @@ async function resolveEpisodeTitleFromTmdb(entry, element) {
         element.title = tmdbEpisode.name;
       }
     }
+    if (tmdbEpisode?.air_date) {
+      entry.airDate = tmdbEpisode.air_date;
+      entry.air_date = tmdbEpisode.air_date;
+    }
   } catch (error) {
     console.error("Failed to resolve episode title from TMDB in background", error);
   }
@@ -8495,6 +8516,7 @@ function showModalStatus(loading, hasTmdbKey, hasTmdbData) {
 function renderMovieWatchDatePrompt(action, customValue) {
   const movie = action.movie || {};
   const releaseLabel = movie.releaseDate ? formatTmdbDate(movie.releaseDate) : "Unknown release date";
+  const lastPlayedLabel = action.lastPlayedAt ? formatDate(action.lastPlayedAt) : "";
   return `
     <div class="watch-date-overlay" role="dialog" aria-modal="true" aria-label="Choose watched date">
       <div class="watch-date-dialog">
@@ -8518,6 +8540,12 @@ function renderMovieWatchDatePrompt(action, customValue) {
             <span class="watch-date-pick-title">Now</span>
             <span class="watch-date-pick-sub">Today, ${escapeHtml(formatTmdbDate(customValue))}</span>
           </button>
+          ${lastPlayedLabel ? `
+          <button class="watch-date-pick" type="button" data-watch-date-choice="last_played">
+            <span class="watch-date-pick-title">Last played</span>
+            <span class="watch-date-pick-sub">${escapeHtml(lastPlayedLabel)}</span>
+          </button>
+          ` : ""}
         </div>
 
         <div class="watch-date-custom">
@@ -8538,6 +8566,8 @@ function renderWatchDatePrompt(action) {
   if (action.scope === "movie") return renderMovieWatchDatePrompt(action, customValue);
   const episodeCount = action.episodes.length;
   const them = episodeCount === 1 ? "this episode" : "these episodes";
+  const hasAirDate = action.episodes.some((episode) => episode.airDate);
+  const lastPlayedLabel = action.lastPlayedAt ? formatDate(action.lastPlayedAt) : "";
   const episodesHtml = action.episodes
     .map((episode) => `
       <li class="watch-date-episode">
@@ -8571,7 +8601,7 @@ function renderWatchDatePrompt(action) {
 
         <div class="watch-date-section-label">Watched date</div>
         <div class="watch-date-options">
-          <button class="watch-date-pick" type="button" data-watch-date-choice="release">
+          <button class="watch-date-pick" type="button" data-watch-date-choice="release"${hasAirDate ? "" : " disabled"}>
             <span class="watch-date-pick-title">Day of release</span>
             <span class="watch-date-pick-sub">Use each episode's air date</span>
           </button>
@@ -8579,6 +8609,12 @@ function renderWatchDatePrompt(action) {
             <span class="watch-date-pick-title">Now</span>
             <span class="watch-date-pick-sub">Today, ${escapeHtml(formatTmdbDate(customValue))}</span>
           </button>
+          ${lastPlayedLabel ? `
+          <button class="watch-date-pick" type="button" data-watch-date-choice="last_played">
+            <span class="watch-date-pick-title">Last played</span>
+            <span class="watch-date-pick-sub">${escapeHtml(lastPlayedLabel)}</span>
+          </button>
+          ` : ""}
         </div>
 
         <div class="watch-date-custom">
@@ -9035,6 +9071,10 @@ function dateAtMiddayIso(dateString) {
 
 function watchedAtForChoice(choice, episode, customDate) {
   if (choice === "release") return dateAtMiddayIso(episode.airDate);
+  if (choice === "last_played") {
+    const value = Number(episode.lastPlayedAt || 0);
+    if (Number.isFinite(value) && value > 0) return new Date(value).toISOString();
+  }
   if (choice === "custom") return dateAtMiddayIso(customDate);
   return new Date().toISOString();
 }
@@ -9285,8 +9325,20 @@ async function applyPartWatchedWatchDateChoice(choice) {
   const root = mediaDetailRoot();
   const customDate = root.querySelector("#watchDateCustomInput")?.value || "";
 
-  const airDate = action.scope === "movie" ? action.movie?.releaseDate : action.episodes?.[0]?.airDate;
-  const watchedAt = watchedAtForChoice(choice, { airDate }, customDate);
+  const episode = action.episodes?.[0] || {};
+  const airDate = action.scope === "movie" ? action.movie?.releaseDate : episode.airDate;
+  const watchedAt = watchedAtForChoice(choice, { airDate, lastPlayedAt: action.lastPlayedAt }, customDate);
+  const ids = action.scope === "movie"
+    ? {
+        tmdb_id: action.movie?.tmdbId || null,
+        imdb_id: action.movie?.imdbId || null,
+        tvdb_id: action.movie?.tvdbId || null,
+      }
+    : {
+        tmdb_id: episode.showTmdbId || null,
+        imdb_id: episode.imdbId || null,
+        tvdb_id: episode.tvdbId || null,
+      };
 
   root.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]").forEach((button) => {
     button.disabled = true;
@@ -9299,7 +9351,7 @@ async function applyPartWatchedWatchDateChoice(choice) {
     const res = await fetch("/api/playback-progress/watch", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ media_key: action.mediaKey, watched_at: watchedAt }),
+      body: JSON.stringify({ media_key: action.mediaKey, watched_at: watchedAt, ...ids }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
@@ -11944,7 +11996,34 @@ function attachEvents() {
         const span = container.querySelector(".progress-label-row span");
         if (span) span.textContent = `Watched on ${formatDate(watched_at)}`;
         const entry = state.history.find((h) => h.id === editDateBtn.dataset.editId);
-        if (entry) entry.watched_at = watched_at;
+        if (entry) {
+          entry.watched_at = watched_at;
+          if (entry.media_type === "episode") {
+            const showTitle = entry.show_title || showTitleFrom(entry.title);
+            if (showTitle) {
+              refreshShowAfterManualWatch(showTitle).then(() => {
+                if (state.activeShowModalKey) {
+                  renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+                }
+              });
+            }
+          } else if (entry.media_type === "movie" && state.activeMovieModalId && String(entry.id) === String(state.activeMovieModalId)) {
+            fetch(`/api/history?id=${encodeURIComponent(entry.id)}`, { headers: authHeaders() })
+              .then(res => res.json())
+              .then(body => {
+                if (body.row) {
+                  renderMovieImmersiveModalContent(body.row).catch(() => {});
+                }
+              });
+          }
+        }
+        const pageEntry = state.historyViewRaw.find((h) => h.id === editDateBtn.dataset.editId);
+        if (pageEntry) {
+          pageEntry.watched_at = watched_at;
+          if (state.activeView === "history") {
+            renderHistoryView();
+          }
+        }
       });
       return;
     }
@@ -12054,7 +12133,34 @@ function attachEvents() {
         const span = editDateIconBtn.closest(".progress-label-row")?.querySelector("span");
         if (span) span.innerHTML = `Watched on ${formatDate(watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(id)}" data-watched-at="${escapeAttribute(watched_at)}">✎</button>`;
         const entry = state.history.find((h) => h.id === id);
-        if (entry) entry.watched_at = watched_at;
+        if (entry) {
+          entry.watched_at = watched_at;
+          if (entry.media_type === "episode") {
+            const showTitle = entry.show_title || showTitleFrom(entry.title);
+            if (showTitle) {
+              refreshShowAfterManualWatch(showTitle).then(() => {
+                if (state.activeShowModalKey) {
+                  renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+                }
+              });
+            }
+          } else if (entry.media_type === "movie" && state.activeMovieModalId && String(entry.id) === String(state.activeMovieModalId)) {
+            fetch(`/api/history?id=${encodeURIComponent(entry.id)}`, { headers: authHeaders() })
+              .then(res => res.json())
+              .then(body => {
+                if (body.row) {
+                  renderMovieImmersiveModalContent(body.row).catch(() => {});
+                }
+              });
+          }
+        }
+        const pageEntry = state.historyViewRaw.find((h) => h.id === id);
+        if (pageEntry) {
+          pageEntry.watched_at = watched_at;
+          if (state.activeView === "history") {
+            renderHistoryView();
+          }
+        }
       });
       return;
     }
@@ -12714,6 +12820,7 @@ function attachEvents() {
               posterUrl: entry.poster_url || entry.imageUrl || entry.thumb || null,
             },
             label: `Mark ${entry.title} watched`,
+            lastPlayedAt: entry.updated_at,
           };
         } else {
           const showTitle = entry.show_title || showTitleFrom(entry.title);
@@ -12728,11 +12835,15 @@ function attachEvents() {
               episodeNumber: entry.episode,
               title: entry.episode_title || entry.title,
               showTmdbId: entry.tmdb_id,
+              imdbId: entry.imdb_id,
+              tvdbId: entry.tvdb_id,
               posterUrl: entry.poster_url || entry.imageUrl || entry.thumb || null,
               key: entry.media_key,
+              airDate: entry.airDate || entry.air_date || null,
             }],
             label: `Mark ${showTitle} watched`,
             countLabel: `Season ${entry.season} · Episode ${entry.episode}`,
+            lastPlayedAt: entry.updated_at,
           };
         }
         openWatchDatePrompt(state.pendingWatchAction);
