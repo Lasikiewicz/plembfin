@@ -1,7 +1,14 @@
 {
-  "version": "0.1.9",
-  "updatedAt": "2026-06-19T09:07:09+01:00",
+  "version": "0.1.10",
+  "updatedAt": "2026-06-19T09:13:38+01:00",
   "entries": [
+    {
+      "version": "0.1.10",
+      "date": "2026-06-19T09:13:38+01:00",
+      "commit": "fd64750056871d2985e0e5dc1279813ac9acead4",
+      "message": "fix: make Seerr media-status path fallback robust to non-404 errors",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.9",
       "date": "2026-06-19T09:07:09+01:00",
