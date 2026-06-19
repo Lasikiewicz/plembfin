@@ -191,13 +191,20 @@ async function findEpisode(config, media) {
   return matchedEpisodes;
 }
 
-async function findEmbyItems(config, media) {
+export async function findEmbyItems(config, media) {
   if (media.type === "movie") {
     let movies = await findByProviderIds(config, media, "Movie");
     if (!movies || movies.length === 0) {
       movies = await searchEmbyFallback(config, media, "Movie");
     }
     return movies;
+  }
+  if (media.type === "series" || media.type === "show") {
+    let series = await findByProviderIds(config, media, "Series");
+    if (!series || series.length === 0) {
+      series = await searchEmbyFallback(config, media, "Series");
+    }
+    return series;
   }
   if (media.type === "episode") return findEpisode(config, media);
   return [];
@@ -328,11 +335,23 @@ export async function fetchEmbyEpisodes(config, parentId) {
   url.searchParams.set("ParentId", parentId);
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("IncludeItemTypes", "Episode");
-  url.searchParams.set("Fields", "ProviderIds,UserData,PremiereDate,ProductionYear");
+  url.searchParams.set("Fields", "ProviderIds,UserData,PremiereDate,ProductionYear,MediaSources,MediaStreams,Width,Height");
   url.searchParams.set("api_key", config.apiKey);
 
   const data = await fetchJson(url, config);
   return data?.Items || [];
+}
+
+export async function fetchEmbySeriesEpisodes(config, media) {
+  requireEmbyConfig(config);
+  let series = await findByProviderIds(config, media, "Series");
+  if (!series || series.length === 0) {
+    series = await searchEmbyFallback(config, media, "Series");
+  }
+  if (!series || series.length === 0) return [];
+
+  const episodeGroups = await Promise.all(series.map((item) => fetchEmbyEpisodes(config, item.Id).catch(() => [])));
+  return episodeGroups.flat();
 }
 
 // Mark unplayed directly by native item Id, skipping the search/match step. Used by the

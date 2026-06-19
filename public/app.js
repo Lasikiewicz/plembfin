@@ -5033,8 +5033,8 @@ function renderMonthChart() {
 
 function syncExplorerControlsState() {
   const backBtn = document.querySelector("#explorerBackButton");
-  const controls = document.querySelector(".explorer-controls");
-  const heading = document.querySelector(".explorer-heading-sticky");
+  const controls = document.querySelector('[data-view-panel="explorer"] .explorer-controls');
+  const heading = document.querySelector('[data-view-panel="explorer"] .explorer-heading-sticky');
   if (state.mediaDetailInline) {
     backBtn?.classList.remove("hidden");
     controls?.classList.add("hidden");
@@ -7344,19 +7344,91 @@ function ratingPillHtml({ label, value = "View", href = "", title = "" } = {}) {
   `;
 }
 
+function tvAvailabilityLabel(status = {}) {
+  const total = Number(status.totalEpisodes || 0);
+  const available = Number(status.availableEpisodes || 0);
+  if (!total) return status.available ? "Available" : "";
+  if (available >= total) return `${available}/${total} Available in 1080p`;
+  if (available > 0) return `${available}/${total} Available in 1080p`;
+  return "";
+}
+
+function tvAvailability4kLabel(status = {}) {
+  const total = Number(status.totalEpisodes || 0);
+  const available4k = Number(status.available4kEpisodes || 0);
+  if (!total) return status.available4k ? "Available in 4K" : "";
+  if (available4k >= total) return `${available4k}/${total} Available in 4K`;
+  if (available4k > 0) return `${available4k}/${total} Available in 4K`;
+  return "";
+}
+
+function tvSeasonAvailability(status = {}, seasonNumber) {
+  return (status.seasons || []).find((season) => Number(season.seasonNumber) === Number(seasonNumber)) || null;
+}
+
+function tvSeasonAvailabilityHtml(status = {}, seasonNumber) {
+  if (!Array.isArray(status.seasons)) return "";
+  const season = tvSeasonAvailability(status, seasonNumber);
+  if (!season || !Number(season.released || season.total || 0)) return "";
+  const total = Number(season.released || season.total || 0);
+  const available = Number(season.available || 0);
+  const available4k = Number(season.available4k || 0);
+  const availabilityText = available >= total ? `All ${total} available` : `${available}/${total} available`;
+  const fourKText = available4k >= total ? `All ${total} in 4K` : available4k > 0 ? `${available4k}/${total} in 4K` : "";
+  return `
+    <span class="season-availability-pill ${available >= total ? "is-complete" : available > 0 ? "is-partial" : "is-missing"}">${escapeHtml(availabilityText)}</span>
+    ${fourKText ? `<span class="season-availability-pill is-4k ${available4k >= total ? "is-complete" : "is-partial"}">${escapeHtml(fourKText)}</span>` : ""}
+  `;
+}
+
+function renderSeasonSeerrControls(tmdbId, seasonNumber, status = {}) {
+  if (!state.seerrConfigured || !tmdbId) return "";
+  if (!Array.isArray(status.seasons)) return "";
+  const season = tvSeasonAvailability(status, seasonNumber);
+  const released = Number(season?.released || season?.total || 0);
+  const missingStandard = !season || !released || Number(season.available || 0) < released;
+  const missing4k = !season || !released || Number(season.available4k || 0) < released;
+  const supports4k = state.seerrSupports4k.tv;
+  return `
+    <span class="season-request-controls">
+      ${tvSeasonAvailabilityHtml(status, seasonNumber)}
+      ${missingStandard ? `
+        <button class="rating-pill seerr-request-btn season-seerr-request-btn" type="button"
+          data-seerr-media-type="tv"
+          data-seerr-media-id="${escapeAttribute(String(tmdbId))}"
+          data-seerr-season="${escapeAttribute(String(seasonNumber))}">
+          <span>Request season</span>
+        </button>
+      ` : ""}
+      ${supports4k && missing4k ? `
+        <button class="rating-pill seerr-request-btn seerr-request-btn-4k season-seerr-request-btn" type="button"
+          data-seerr-media-type="tv"
+          data-seerr-media-id="${escapeAttribute(String(tmdbId))}"
+          data-seerr-season="${escapeAttribute(String(seasonNumber))}"
+          data-seerr-request-4k="true">
+          <span>Request 4K</span>
+        </button>
+      ` : ""}
+    </span>
+  `;
+}
+
 function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false) {
   if (!state.seerrConfigured || !tmdbId) return "";
   const status = state.seerrMediaStatusCache.get(`${mediaType}:${tmdbId}`) || {};
-  const isAvailable = status.available || localAvailable;
+  const isTv = mediaType === "tv";
+  const isAvailable = isTv ? status.available : (status.available || localAvailable);
   const supports4k = mediaType === "movie" ? state.seerrSupports4k.movie : state.seerrSupports4k.tv;
   const seerrBaseUrl = String(state.savedConfig?.seerr?.baseUrl || "").replace(/\/+$/, "");
   const seerrIconHtml = seerrBaseUrl
     ? `<img class="seerr-request-icon" src="${escapeAttribute(`${seerrBaseUrl}/favicon.ico`)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-grid';" />`
     : "";
   const iconAndFallback = `${seerrIconHtml}<span class="seerr-request-fallback" aria-hidden="true">S</span>`;
+  const tvAvailableLabel = isTv ? tvAvailabilityLabel(status) : "";
+  const tv4kLabel = isTv ? tvAvailability4kLabel(status) : "";
   return `
     <span id="seerrRequestContainer" style="display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;" data-media-type="${escapeAttribute(mediaType)}" data-tmdb-id="${escapeAttribute(String(tmdbId))}" data-local-available="${localAvailable}">
-      ${isAvailable ? `<span class="rating-pill seerr-owned-pill">Available in 1080p</span>` : `
+      ${isAvailable ? `<span class="rating-pill seerr-owned-pill">${escapeHtml(isTv ? tvAvailableLabel || "Available" : "Available in 1080p")}</span>` : tvAvailableLabel ? `<span class="rating-pill seerr-owned-pill seerr-owned-pill-partial">${escapeHtml(tvAvailableLabel)}</span>` : `
         <button class="rating-pill seerr-request-btn" type="button"
           data-seerr-media-type="${escapeAttribute(mediaType)}"
           data-seerr-media-id="${escapeAttribute(String(tmdbId))}">
@@ -7364,7 +7436,9 @@ function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false) {
           <span>${status.pending ? "Requested on Seerr" : "Request on Seerr"}</span>
         </button>
       `}
-      ${supports4k && !status.available4k ? `
+      ${tv4kLabel ? `
+        <span class="rating-pill seerr-owned-pill seerr-owned-pill-4k ${status.available4k ? "" : "seerr-owned-pill-partial"}">${escapeHtml(tv4kLabel)}</span>
+      ` : supports4k && !status.available4k ? `
         <button class="rating-pill seerr-request-btn seerr-request-btn-4k" type="button"
           data-seerr-media-type="${escapeAttribute(mediaType)}"
           data-seerr-media-id="${escapeAttribute(String(tmdbId))}"
@@ -7373,7 +7447,7 @@ function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false) {
           <span>${status.pending4k ? "4K Requested" : "Request 4K"}</span>
         </button>
       ` : status.available4k ? `
-        <span class="rating-pill seerr-owned-pill seerr-owned-pill-4k">Available in 4K</span>
+        <span class="rating-pill seerr-owned-pill seerr-owned-pill-4k">${escapeHtml(isTv ? tv4kLabel || "Available in 4K" : "Available in 4K")}</span>
       ` : ""}
     </span>
   `;
@@ -7546,7 +7620,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
           
           <div class="ratings-row">
             ${ratingBadgeHtml}
-            ${renderSeerrRequestPill("tv", show.tmdb_id)}
+            ${renderSeerrRequestPill("tv", show.tmdb_id, false)}
             ${sourceBadgesHtml ? `
               <div style="display: flex; gap: 0.25rem; align-items: center; margin-left: 0.5rem;">
                 <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase;">Platforms:</span>
@@ -7919,6 +7993,10 @@ function renderShowModalContent(show, {
   const rating = tmdbData?.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "";
   const ratingPillsHtml = renderExternalRatingPills("tv", tmdbData, showTitle, rating);
   const uniqueSources = [...new Set((show.episodes || []).map((episode) => episode.source || "unknown"))].filter((source) => source !== "unknown");
+  const tvSeerrTmdbId = show.tmdb_id || tmdbData?.id || "";
+  const tvSeerrCacheKey = `tv:${tvSeerrTmdbId}`;
+  const hasTvSeerrStatus = Boolean(tvSeerrTmdbId && state.seerrMediaStatusCache.has(tvSeerrCacheKey));
+  const tvSeerrStatus = state.seerrMediaStatusCache.get(tvSeerrCacheKey) || {};
 
   state.showModalEpisodes = episodeRows;
   state.showModalEpisodeIndex = new Map(episodeRows.map((episode) => [episode.key, episode]));
@@ -7943,11 +8021,13 @@ function renderShowModalContent(show, {
   const selectedSeasonSummary = selectedSeasonRecord
     ? showSeasonSummary(selectedSeasonNumber, selectedSeasonEpisodes, selectedSeasonRecord, showTitle, tmdbData)
     : { watchedInSeason: 0, seasonTotal: 0 };
+  const selectedSeasonSeerrControls = selectedSeasonRecord ? renderSeasonSeerrControls(tvSeerrTmdbId, selectedSeasonNumber, tvSeerrStatus) : "";
   const selectedSeasonEpisodesHtml = selectedSeasonRecord ? `
     <section class="show-season-block" id="showSeason${selectedSeasonNumber}">
       <div class="show-season-head">
         <span class="show-season-label">${selectedSeasonSummary.watchedInSeason} of ${selectedSeasonSummary.seasonTotal || "?"} episodes watched</span>
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          ${selectedSeasonSeerrControls}
           ${selectedSeasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${selectedSeasonNumber}" ${isSaving ? "disabled" : ""}>Edit season date</button>` : ""}
           <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${selectedSeasonNumber}" ${(selectedSeasonUnwatched.length && !isSaving) ? "" : "disabled"}>
             ${isSaving && isSaving.scope === "season" && Number(isSaving.episodes[0]?.seasonNumber) === Number(selectedSeasonNumber) ? "Saving…" : "Mark season watched"}
@@ -8000,6 +8080,7 @@ function renderShowModalContent(show, {
     const isActive = seasonNumber === selectedSeasonNumber;
     const panelId = `seasonAccordionPanel${seasonNumber}`;
     const seasonMetaText = `${seasonTotal || "?"} episode${seasonTotal === 1 ? "" : "s"}${watchedInSeason ? ` - ${watchedInSeason} watched` : ""}${nextAiringText ? ` - ${nextAiringText}` : ""}`;
+    const seasonAvailabilityHtml = tvSeasonAvailabilityHtml(tvSeerrStatus, seasonNumber);
     return `
       <article class="season-accordion ${isActive ? "is-open" : ""}">
         <button class="season-accordion-trigger" type="button" data-season-accordion="${seasonNumber}" aria-expanded="${isActive}" aria-controls="${panelId}">
@@ -8008,6 +8089,7 @@ function renderShowModalContent(show, {
             <span class="season-episode-count">${escapeHtml(seasonMetaText)}</span>
           </span>
           <span class="season-accordion-meta">
+            ${seasonAvailabilityHtml}
             <svg class="season-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </span>
         </button>
@@ -8055,7 +8137,7 @@ function renderShowModalContent(show, {
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingPillsHtml}
             ${showModalStatus(loading, hasTmdbKey, Boolean(tmdbData))}
-            ${renderSeerrRequestPill("tv", show.tmdb_id || tmdbData?.id, !tmdbOnly)}
+            ${renderSeerrRequestPill("tv", tvSeerrTmdbId, false)}
           </div>
 
           <p class="immersive-overview">${escapeHtml(overview)}</p>
@@ -8084,10 +8166,13 @@ function renderShowModalContent(show, {
     </div>
     ${renderWatchDatePrompt(state.pendingWatchAction)}
   `;
-  const tvSeerrTmdbId = show.tmdb_id || tmdbData?.id;
-  if (tvSeerrTmdbId) {
+  if (tvSeerrTmdbId && !hasTvSeerrStatus) {
     fetchSeerrMediaStatus("tv", tvSeerrTmdbId)
-      .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus("tv", tvSeerrTmdbId); });
+      .then((status) => {
+        if (status && state.activeShowModalKey === slug(show.title)) {
+          renderShowModalContent(show, { activeSeasonNum, tmdbData, seasonDetailsByNumber, loading });
+        }
+      });
   }
   hydratePosters(root);
   // Highlight only — no scrolling when navigating from dashboard
@@ -8314,6 +8399,7 @@ async function submitSeerrRequest(mediaType, mediaId, button) {
     return;
   }
   const is4k = button?.getAttribute("data-seerr-request-4k") === "true";
+  const seasonNumber = Number(button?.getAttribute("data-seerr-season") || 0);
   const originalText = button?.textContent;
   if (button) {
     button.disabled = true;
@@ -8323,7 +8409,12 @@ async function submitSeerrRequest(mediaType, mediaId, button) {
     const res = await fetch("/api/seerr/request", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ mediaType, mediaId, is4k }),
+      body: JSON.stringify({
+        mediaType,
+        mediaId,
+        is4k,
+        ...(mediaType === "tv" && seasonNumber > 0 ? { seasons: [seasonNumber] } : {}),
+      }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok) {
@@ -8331,7 +8422,14 @@ async function submitSeerrRequest(mediaType, mediaId, button) {
       if (button) button.textContent = "✔ Requested";
       state.seerrMediaStatusCache.delete(`${mediaType}:${mediaId}`);
       fetchSeerrMediaStatus(mediaType, mediaId)
-        .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus(mediaType, mediaId); });
+        .then((status) => {
+          if (!status) return;
+          if (mediaType === "tv" && state.activeShowModalKey) {
+            renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason, state.activeShowModalEpisode);
+            return;
+          }
+          refreshActiveMediaDetailAfterSeerrStatus(mediaType, mediaId);
+        });
     } else {
       const errMsg = data.error || `Seerr returned ${res.status}`;
       setMessage(`Seerr error: ${errMsg}`, "error");

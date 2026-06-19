@@ -4144,6 +4144,64 @@ details[open] .tool-accordion-chevron::before {
   color: #99f6e4;
 }
 
+.seerr-owned-pill-partial {
+  border-color: rgba(234, 179, 8, 0.45);
+  background: rgba(234, 179, 8, 0.14);
+  color: #fde68a;
+}
+
+.season-request-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.season-seerr-request-btn {
+  min-height: 1.7rem;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.68rem;
+}
+
+.season-availability-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.35);
+  color: var(--soft);
+  padding: 0.15rem 0.45rem;
+  font-size: 0.64rem;
+  font-weight: 850;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.season-availability-pill.is-complete {
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.14);
+  color: #86efac;
+}
+
+.season-availability-pill.is-partial {
+  border-color: rgba(234, 179, 8, 0.45);
+  background: rgba(234, 179, 8, 0.14);
+  color: #fde68a;
+}
+
+.season-availability-pill.is-missing {
+  border-color: rgba(248, 113, 113, 0.36);
+  background: rgba(127, 29, 29, 0.18);
+  color: #fecaca;
+}
+
+.season-availability-pill.is-4k {
+  border-color: rgba(94, 234, 212, 0.45);
+  background: rgba(20, 184, 166, 0.15);
+  color: #99f6e4;
+}
+
 .confirm-dialog-body {
   color: var(--muted);
   font-size: 0.88rem;
