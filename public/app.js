@@ -7917,6 +7917,10 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
   const tmdbData = await fetchTmdbDetails("tv", show.tmdb_id, show.title);
   if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
 
+  if (tmdbData && tmdbData.id) {
+    state.activeShowTmdbId = String(tmdbData.id);
+  }
+
   const seasonsList = (tmdbData?.seasons?.length ? tmdbData.seasons : fallbackSeasonList(seasonsFromShowRecord(show))).filter((season) => Number(season.season_number) > 0);
   renderShowModalContent(show, { activeSeasonNum, tmdbData, seasonDetailsByNumber: new Map(), loading: true });
 
@@ -8718,6 +8722,10 @@ async function renderMovieImmersiveModalContent(movie) {
 
   const tmdbData = await fetchTmdbDetails("movie", movie.tmdb_id, movie.title);
   if (_mediaRenderToken !== renderToken) return; // navigated away while loading
+
+  if (tmdbData && tmdbData.id) {
+    state.activeMovieTmdbId = String(tmdbData.id);
+  }
 
   // For YouTube-only content, fetch metadata from our backend
   let youtubeMeta = null;
