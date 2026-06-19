@@ -3097,7 +3097,7 @@ function renderIssueCategory(categoryName, jobs = [], helpText = "") {
     missingTelemetry: "Missing Dispatch Telemetry",
     plexMismatch: "Plex Match Issues",
     targetMismatch: "Emby/Jellyfin Match Issues",
-    otherIssues: "Other Issues",
+    otherIssues: "Unresolved Sync Issues",
   };
 
   const showFixButtons = categoryName !== 'missingTelemetry';
@@ -3115,25 +3115,41 @@ function renderIssueCategory(categoryName, jobs = [], helpText = "") {
           ${helpText}
         </div>
         <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-3);">
-          ${categoryName === 'missingTelemetry' ? `<button class="button-primary" type="button" data-action="clearMissingTelemetry">Clear ${jobs.length} Records</button>` : `<button class="button-primary" type="button" data-action="retryAllCategory" data-category="${categoryName}">Retry All ${jobs.length}</button>`}
+          ${categoryName === 'missingTelemetry' ? `<button class="button-primary sync-action-btn" type="button" data-action="clearMissingTelemetry">Clear ${jobs.length} Records</button>` : `<button class="button-primary sync-action-btn" type="button" data-action="retryAllCategory" data-category="${categoryName}">Retry All ${jobs.length}</button>`}
         </div>
         <div style="display: grid; gap: var(--space-2);">
-          ${jobs.map(job => `
-            <div style="display: flex; gap: var(--space-2); align-items: flex-start; padding: var(--space-2); background: rgba(0,0,0,0.02); border-left: 3px solid var(--color-warning); border-radius: var(--radius-sm);">
-              <div style="flex: 1; min-width: 0;">
-                <div style="font-weight: 500; word-break: break-word;">${escapeHtml(job.title || "Unknown")}</div>
-                <div style="font-size: 0.85rem; opacity: 0.7; margin-top: 0.25rem;">
-                  ${escapeHtml(platformBadge(job.source))} • ${escapeHtml(job.media_type || "unknown")} • ${escapeHtml(formatDate(job.watched_at))}
+          ${jobs.map(job => {
+            const telemetry = String(job.sync_dispatch_telemetry || "");
+            return `
+            <details class="sync-issue-card" style="background: rgba(0,0,0,0.02); border-left: 3px solid var(--color-warning); border-radius: var(--radius-sm); overflow: hidden;">
+              <summary style="display: flex; gap: var(--space-2); align-items: flex-start; padding: var(--space-2); cursor: pointer;">
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-weight: 500; word-break: break-word;">${escapeHtml(job.title || "Unknown")}</div>
+                  <div style="font-size: 0.85rem; opacity: 0.7; margin-top: 0.25rem;">
+                    ${escapeHtml(platformBadge(job.source))} • ${escapeHtml(job.media_type || "unknown")} • ${escapeHtml(formatDate(job.watched_at))}
+                  </div>
                 </div>
-              </div>
-              ${showFixButtons ? `
-                <div style="display: flex; gap: var(--space-1); flex-shrink: 0;">
-                  <button class="button-ghost media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(job.id)}" data-title="${escapeAttribute(job.title || "")}" data-media-type="${escapeAttribute(syncJobMediaType(job))}" style="font-size: 0.85rem; padding: 0.3rem 0.6rem;">Fix</button>
-                  <button class="retry-sync-btn sync-job-retry-btn" type="button" data-retry-sync-id="${escapeAttribute(job.id)}" style="font-size: 0.85rem; padding: 0.3rem 0.6rem;">Retry</button>
+                ${showFixButtons ? `
+                  <div style="display: flex; gap: var(--space-1); flex-shrink: 0; align-items: center;">
+                    <button class="button-ghost media-fix-match-btn sync-btn" type="button" data-edit-id="${escapeAttribute(job.id)}" data-title="${escapeAttribute(job.title || "")}" data-media-type="${escapeAttribute(syncJobMediaType(job))}" style="font-size: 0.75rem; padding: 0.35rem 0.7rem; white-space: nowrap;">Fix</button>
+                    <button class="retry-sync-btn sync-job-retry-btn sync-btn" type="button" data-retry-sync-id="${escapeAttribute(job.id)}" style="font-size: 0.75rem; padding: 0.35rem 0.7rem; white-space: nowrap;">Retry</button>
+                    <button class="button-ghost dismiss-issue-btn sync-btn" type="button" data-dismiss-id="${escapeAttribute(job.id)}" title="Dismiss this issue" style="font-size: 0.75rem; padding: 0.35rem 0.55rem; color: var(--muted); white-space: nowrap;">✕</button>
+                  </div>
+                ` : ''}
+              </summary>
+              ${telemetry ? `
+                <div style="background: rgba(0,0,0,0.05); padding: var(--space-2); border-top: 1px solid rgba(0,0,0,0.1); font-size: 0.75rem; font-family: monospace; line-height: 1.4; word-break: break-word; white-space: pre-wrap;">
+                  <div style="margin-bottom: var(--space-1); font-weight: 500; opacity: 0.7;">Sync Telemetry Details:</div>
+                  ${escapeHtml(telemetry)}
                 </div>
-              ` : ''}
-            </div>
-          `).join("")}
+              ` : `
+                <div style="background: rgba(0,0,0,0.05); padding: var(--space-2); border-top: 1px solid rgba(0,0,0,0.1); font-size: 0.8rem; opacity: 0.7;">
+                  Click "Retry" to view detailed error information
+                </div>
+              `}
+            </details>
+          `;
+          }).join("")}
         </div>
       </div>
     </details>
@@ -11964,6 +11980,19 @@ function attachEvents() {
     }
     if (e.target.dataset.action === "retryAllCategory") {
       triggerRetryAllCategory(e.target.dataset.category, e.target).catch(() => { });
+    }
+    if (e.target.classList.contains("dismiss-issue-btn")) {
+      const issueCard = e.target.closest(".sync-issue-card");
+      if (issueCard) {
+        issueCard.style.animation = "fadeOut 0.3s ease forwards";
+        setTimeout(() => {
+          issueCard.remove();
+          const container = document.getElementById("syncIssuesContainer");
+          if (container && container.querySelectorAll(".sync-issue-card").length === 0) {
+            loadSyncJobs({ force: true }).catch(() => { });
+          }
+        }, 300);
+      }
     }
   });
 
