@@ -1,7 +1,14 @@
 {
-  "version": "0.1.27",
-  "updatedAt": "2026-06-19T20:44:32+01:00",
+  "version": "0.1.28",
+  "updatedAt": "2026-06-19T20:52:42+01:00",
   "entries": [
+    {
+      "version": "0.1.28",
+      "date": "2026-06-19T20:52:42+01:00",
+      "commit": "71226d0b330c319b5fc8129313de15ff055ffc49",
+      "message": "fix(sync): resolve clearMissingTelemetryButton, deduplicate progress records, and improve error feedback on progress actions",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.27",
       "date": "2026-06-19T20:44:32+01:00",
