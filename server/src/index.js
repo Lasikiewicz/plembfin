@@ -410,19 +410,29 @@ async function handleSeerrMediaStatus(req, res) {
 
   try {
     let media = null;
+    let lastErrorMsg = "";
     for (const path of paths) {
-      const seerrRes = await fetch(`${baseUrl}${path}`, {
-        headers,
-        signal: AbortSignal.timeout(8000),
-      });
-      if (seerrRes.status === 404) continue;
-      const body = await seerrRes.json().catch(() => ({}));
-      if (!seerrRes.ok) {
-        const errMsg = body?.message || body?.error || `Seerr returned ${seerrRes.status}`;
-        return sendJson(res, { ok: false, error: errMsg }, 502);
+      try {
+        const seerrRes = await fetch(`${baseUrl}${path}`, {
+          headers,
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!seerrRes.ok) {
+          const body = await seerrRes.json().catch(() => ({}));
+          lastErrorMsg = body?.message || body?.error || `Seerr returned ${seerrRes.status}`;
+          continue;
+        }
+        const body = await seerrRes.json().catch(() => ({}));
+        media = body?.mediaInfo || body;
+        break;
+      } catch (err) {
+        lastErrorMsg = err.message || "Connection failed";
+        continue;
       }
-      media = body?.mediaInfo || body;
-      break;
+    }
+
+    if (!media) {
+      return sendJson(res, { ok: false, error: lastErrorMsg || "Media not found on Seerr" }, 502);
     }
 
     const status = Number(media?.status ?? media?.mediaStatus ?? 0);
