@@ -1,4 +1,5 @@
 import { loadLiveTrackingCache as loadLiveTrackingCacheFromDb } from "./firestoreRepo.js";
+import { decodeHtmlEntities } from "./parsers.js";
 
 function trimTrailingSlash(value = "") {
   return String(value).trim().replace(/\/+$/, "");
@@ -119,16 +120,16 @@ function plexGuidIds(attributes = {}) {
 
 function plexTitle(attributes = {}, mediaType = "unknown") {
   if (mediaType === "episode") {
-    return formatEpisodeTitle(attributes.grandparentTitle || attributes.title, attributes.parentIndex, attributes.index);
+    return formatEpisodeTitle(decodeHtmlEntities(attributes.grandparentTitle || attributes.title), attributes.parentIndex, attributes.index);
   }
 
   if (mediaType === "track") {
-    const artist = attributes.grandparentTitle || attributes.originalTitle || "";
-    const title = attributes.title || "Unknown Track";
+    const artist = decodeHtmlEntities(attributes.grandparentTitle || attributes.originalTitle || "");
+    const title = decodeHtmlEntities(attributes.title || "Unknown Track");
     return artist ? `${artist} - ${title}` : title;
   }
 
-  return attributes.title || "Unknown Movie";
+  return decodeHtmlEntities(attributes.title) || "Unknown Movie";
 }
 
 function parsePlexSessions(xmlText = "", config = {}) {
@@ -229,10 +230,10 @@ function normalizeSessionItem(session = {}, source = "unknown", config = {}) {
     sessionId: session.Id || session.SessionId || item.Id || "",
     title:
       mediaType === "episode"
-        ? formatEpisodeTitle(item.SeriesName || item.ParentName || item.Name || session.SeriesName, item.ParentIndexNumber, item.IndexNumber)
+        ? formatEpisodeTitle(decodeHtmlEntities(item.SeriesName || item.ParentName || item.Name || session.SeriesName), item.ParentIndexNumber, item.IndexNumber)
         : mediaType === "track"
-          ? [item.Artists?.[0] || item.AlbumArtist || item.SeriesName || "", item.Name || item.Title || session.Name || "Unknown Track"].filter(Boolean).join(" - ")
-        : item.Name || item.Title || session.Name || "Unknown Movie",
+          ? [decodeHtmlEntities(item.Artists?.[0] || item.AlbumArtist || item.SeriesName || ""), decodeHtmlEntities(item.Name || item.Title || session.Name || "Unknown Track")].filter(Boolean).join(" - ")
+        : decodeHtmlEntities(item.Name || item.Title || session.Name || "Unknown Movie"),
     mediaType,
     offsetMs,
     durationMs,
@@ -357,7 +358,7 @@ export function hydrateCachedSession(row = {}) {
     ...payload,
     source: row.source_platform || payload.source || "unknown",
     sessionId: row.session_id,
-    title: row.title || payload.title || "Unknown media",
+    title: decodeHtmlEntities(row.title || payload.title || "Unknown media"),
     progress: Number(row.last_progress || payload.progress || 0),
     offsetMs: payload.offsetMs || 0,
     durationMs: payload.durationMs || 0,
