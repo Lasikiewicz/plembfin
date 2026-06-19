@@ -93,6 +93,19 @@
       </section>
 
       <section id="appShell" class="app-shell hidden">
+        <header id="pageTopbar" class="page-topbar" aria-label="Page controls">
+          <div class="page-topbar-title">
+            <button id="explorerBackButton" class="immersive-back-button hidden" type="button">&larr; Back</button>
+            <div class="page-topbar-copy">
+              <p id="explorerTitle">Dashboard</p>
+              <span id="explorerSubtitle">Overview</span>
+            </div>
+          </div>
+          <div id="pageTopbarActions" class="page-topbar-actions">
+            <div id="mediaDetailActions"></div>
+          </div>
+        </header>
+
         <section id="timeline-view" class="view-panel" data-view-panel="dashboard">
           <section class="glass-panel p-section live-panel">
             <div class="section-heading">
@@ -124,14 +137,8 @@
 
         <section id="history-view" class="view-panel hidden" data-view-panel="history">
           <section class="glass-panel p-section">
-            <div class="section-heading explorer-heading explorer-heading-sticky" style="padding-top: 0.25rem; padding-bottom: 0.25rem;">
-              <div class="explorer-heading-title" style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; min-width: 0; flex: 1;">
-                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                  <p style="margin: 0; font-weight: 850; font-size: 0.95rem; line-height: 1.2;">Watch History</p>
-                  <span style="color: var(--muted); font-size: 0.74rem; line-height: 1.2;">Chronological watch log</span>
-                </div>
-              </div>
-              <div class="explorer-controls">
+            <div class="view-control-source">
+              <div id="historyTopbarControls" class="explorer-controls">
                 <label class="compact-field explorer-search-box">
                   <span>Search</span>
                   <input id="historySearchInput" class="field" type="search" placeholder="Search history..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
@@ -211,16 +218,8 @@
 
         <section class="view-panel hidden" data-view-panel="explorer">
           <section class="glass-panel p-section">
-            <div class="section-heading explorer-heading explorer-heading-sticky" style="padding-top: 0.25rem; padding-bottom: 0.25rem;">
-              <div class="explorer-heading-title" style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; min-width: 0; flex: 1;">
-                <button id="explorerBackButton" class="immersive-back-button hidden" type="button" style="border: 1px solid var(--line-strong); border-radius: 999px; background: rgba(7, 10, 13, 0.72); color: var(--text); padding: 0.35rem 0.65rem; font-weight: 800; display: flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.75rem; min-height: 1.8rem; align-self: center; margin-bottom: 0;">&larr; Back</button>
-                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                  <p id="explorerTitle" style="margin: 0; font-weight: 850; font-size: 0.95rem; line-height: 1.2;">Movies</p>
-                  <span id="explorerSubtitle" style="color: var(--muted); font-size: 0.74rem; line-height: 1.2;">Library view from watched history</span>
-                </div>
-                <div id="mediaDetailActions" style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-left: auto;"></div>
-              </div>
-              <div class="explorer-controls">
+            <div class="view-control-source">
+              <div id="explorerTopbarControls" class="explorer-controls">
                 <label class="compact-field explorer-search-box">
                   <span>Search</span>
                   <input id="explorerSearchInput" class="field" type="search" placeholder="Movie, show, IMDb, TMDB, TVDB..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
@@ -1159,18 +1158,13 @@
 
         <section class="view-panel hidden" data-view-panel="search">
           <section class="glass-panel p-section">
-            <div class="section-heading explorer-heading search-results-heading" style="padding-top: 0.25rem; padding-bottom: 0.25rem;">
-              <div class="search-results-heading-left" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0;">
-                <p id="searchViewTitle" style="margin: 0; font-weight: 850; font-size: 0.95rem; line-height: 1.2;">Search Results</p>
-                <span id="searchViewSubtitle" style="color: var(--muted); font-size: 0.74rem; line-height: 1.2;">Local and global database search results</span>
-              </div>
-              <div class="explorer-view-toggle search-view-filters" style="display: flex; gap: 0.5rem;">
+            <div class="view-control-source">
+              <div id="searchTopbarControls" class="explorer-view-toggle search-view-filters">
                 <button class="explorer-view-btn search-filter-btn active" data-filter="all" type="button" style="padding: 0.35rem 0.75rem; font-weight: 800; font-size: 0.75rem; min-height: auto;">All</button>
                 <button class="explorer-view-btn search-filter-btn" data-filter="movies" type="button" style="padding: 0.35rem 0.75rem; font-weight: 800; font-size: 0.75rem; min-height: auto;">Movies</button>
                 <button class="explorer-view-btn search-filter-btn" data-filter="shows" type="button" style="padding: 0.35rem 0.75rem; font-weight: 800; font-size: 0.75rem; min-height: auto;">TV Shows</button>
                 <button class="explorer-view-btn search-filter-btn" data-filter="people" type="button" style="padding: 0.35rem 0.75rem; font-weight: 800; font-size: 0.75rem; min-height: auto;">People</button>
               </div>
-              <div class="search-results-heading-right"></div>
             </div>
             <div id="searchViewResults" class="explorer-overview-view" style="margin-top: 1rem;"></div>
             <div id="searchViewLoading" class="gsd-loading hidden" style="padding: 3rem 1rem; text-align: center; font-size: 0.9rem;">Searching TMDB and local database…</div>
