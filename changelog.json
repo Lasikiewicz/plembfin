@@ -1,7 +1,14 @@
 {
-  "version": "0.1.10",
-  "updatedAt": "2026-06-19T09:13:38+01:00",
+  "version": "0.1.11",
+  "updatedAt": "2026-06-19T09:21:51+01:00",
   "entries": [
+    {
+      "version": "0.1.11",
+      "date": "2026-06-19T09:21:51+01:00",
+      "commit": "50ec593452d99fcfd0ecc78ab519ffb8a74990d5",
+      "message": "fix: differentiate standard and 4K pending requests from Seerr",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.10",
       "date": "2026-06-19T09:13:38+01:00",
