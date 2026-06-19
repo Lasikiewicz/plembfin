@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook, buildPlexMediaFromMetadata } from "./utils/parsers.js";
-import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem } from "./utils/plexClient.js";
+import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes } from "./utils/plexClient.js";
 import { createPlexNotificationListener, probePlexNotificationSocket } from "./utils/plexNotificationListener.js";
-import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems } from "./utils/embyClient.js";
-import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems } from "./utils/jellyfinClient.js";
+import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "./utils/embyClient.js";
+import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes } from "./utils/jellyfinClient.js";
 import { requireAdmin, requireAdminStreaming, handleLogin, handleLogout, handleAuthStatus, handleAuthCredentials } from "./utils/auth.js";
 import { AUTH } from "./appConfig.js";
 import { getLogs as getDiagnosticLogs, clearLogs as clearDiagnosticLogs } from "./utils/diagnosticLogger.js";
@@ -362,7 +362,12 @@ async function handleSeerrRequest(req, res) {
   try {
     const payload = { mediaType, mediaId };
     if (body.is4k) payload.is4k = true;
-    if (mediaType === "tv" && body.seasons) payload.seasons = body.seasons;
+    if (mediaType === "tv" && Array.isArray(body.seasons)) {
+      const seasons = body.seasons
+        .map((season) => Number(typeof season === "object" ? season?.seasonNumber : season))
+        .filter((season) => Number.isInteger(season) && season > 0);
+      if (seasons.length) payload.seasons = [...new Set(seasons)];
+    }
 
     const seerrRes = await fetch(`${baseUrl}/api/v1/request`, {
       method: "POST",
@@ -384,6 +389,193 @@ async function handleSeerrRequest(req, res) {
   }
 }
 
+function activeMediaTargets(config = {}) {
+  const targets = [];
+  if (!config.plex?.disabled && config.plex?.baseUrl && config.plex?.token) targets.push("plex");
+  if (!config.emby?.disabled && config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId) targets.push("emby");
+  if (!config.jellyfin?.disabled && config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId) targets.push("jellyfin");
+  return targets;
+}
+
+function valueLooks4k(value) {
+  const text = String(value || "").toLowerCase();
+  if (!text) return false;
+  return text.includes("4k") || text.includes("2160") || text.includes("uhd");
+}
+
+function mediaItemLooks4k(item = {}) {
+  const stack = [item];
+  const seen = new Set();
+  while (stack.length) {
+    const current = stack.pop();
+    if (!current || typeof current !== "object" || seen.has(current)) continue;
+    seen.add(current);
+    const width = Number(current.width || current.Width || current.videoWidth || current.VideoWidth || 0);
+    const height = Number(current.height || current.Height || current.videoHeight || current.VideoHeight || 0);
+    if (width >= 3800 || height >= 2000) return true;
+    for (const key of ["videoResolution", "VideoResolution", "resolution", "Resolution", "displayTitle", "DisplayTitle", "Name", "name"]) {
+      if (valueLooks4k(current[key])) return true;
+    }
+    for (const key of ["Media", "media", "MediaSources", "mediaSources", "MediaStreams", "mediaStreams", "Streams", "streams"]) {
+      const next = current[key];
+      if (Array.isArray(next)) stack.push(...next);
+      else if (next && typeof next === "object") stack.push(next);
+    }
+  }
+  return false;
+}
+
+function episodeCoordinate(item = {}) {
+  const season = Number(item.parentIndex ?? item.ParentIndexNumber ?? item.SeasonNumber ?? item.seasonNumber ?? item.ParentIndex ?? 0);
+  const episode = Number(item.index ?? item.IndexNumber ?? item.EpisodeNumber ?? item.episodeNumber ?? item.Index ?? 0);
+  if (!Number.isFinite(season) || !Number.isFinite(episode) || season <= 0 || episode <= 0) return null;
+  return { season, episode, key: `${season}|${episode}` };
+}
+
+function tmdbSeasonEpisodeIndex(details = {}) {
+  const seasons = [];
+  const releasedKeys = new Set();
+  for (const season of details.seasons || []) {
+    const seasonNumber = Number(season.season_number);
+    if (!Number.isFinite(seasonNumber) || seasonNumber <= 0) continue;
+    const total = Math.max(0, Number(season.episode_count || 0));
+    seasons.push({
+      seasonNumber,
+      total,
+      released: total,
+      available: 0,
+      available4k: 0,
+      missingEpisodes: [],
+      missing4kEpisodes: [],
+    });
+    for (let episode = 1; episode <= total; episode += 1) {
+      releasedKeys.add(`${seasonNumber}|${episode}`);
+    }
+  }
+  return { seasons, releasedKeys };
+}
+
+function summarizeTvAvailability(details = {}, sources = []) {
+  const { seasons, releasedKeys } = tmdbSeasonEpisodeIndex(details);
+  const availableKeys = new Set();
+  const available4kKeys = new Set();
+
+  for (const source of sources) {
+    for (const episode of source.episodes || []) {
+      const coordinate = episodeCoordinate(episode);
+      if (!coordinate) continue;
+      availableKeys.add(coordinate.key);
+      if (mediaItemLooks4k(episode)) available4kKeys.add(coordinate.key);
+    }
+  }
+
+  const seasonSummaries = seasons.map((season) => {
+    const missingEpisodes = [];
+    const missing4kEpisodes = [];
+    let available = 0;
+    let available4k = 0;
+    for (let episode = 1; episode <= season.released; episode += 1) {
+      const key = `${season.seasonNumber}|${episode}`;
+      if (availableKeys.has(key)) available += 1;
+      else missingEpisodes.push(episode);
+      if (available4kKeys.has(key)) available4k += 1;
+      else missing4kEpisodes.push(episode);
+    }
+    return { ...season, available, available4k, missingEpisodes, missing4kEpisodes };
+  });
+
+  const totalEpisodes = seasonSummaries.reduce((sum, season) => sum + season.released, 0);
+  const availableEpisodes = [...availableKeys].filter((key) => releasedKeys.has(key)).length;
+  const available4kEpisodes = [...available4kKeys].filter((key) => releasedKeys.has(key)).length;
+
+  return {
+    checked: true,
+    available: totalEpisodes > 0 && availableEpisodes >= totalEpisodes,
+    partial: availableEpisodes > 0 && availableEpisodes < totalEpisodes,
+    available4k: totalEpisodes > 0 && available4kEpisodes >= totalEpisodes,
+    partial4k: available4kEpisodes > 0 && available4kEpisodes < totalEpisodes,
+    totalEpisodes,
+    availableEpisodes,
+    available4kEpisodes,
+    seasons: seasonSummaries,
+    sources: sources.map((source) => ({
+      target: source.target,
+      availableEpisodes: source.episodes?.length || 0,
+      error: source.error,
+    })),
+  };
+}
+
+async function mediaFromTmdbStatusRequest(mediaType, mediaId) {
+  const type = mediaType === "movie" ? "movie" : "series";
+  let details = {};
+  try {
+    details = await getTmdbDetails({ mediaType: mediaType === "movie" ? "movie" : "tv", tmdbId: mediaId });
+  } catch (error) {
+    details = {};
+  }
+  const externalIds = details.external_ids || {};
+  return {
+    type,
+    title: details.title || details.name || "",
+    ids: {
+      imdb: details.imdb_id || externalIds.imdb_id || undefined,
+      tmdb: String(mediaId),
+      tvdb: externalIds.tvdb_id ? String(externalIds.tvdb_id) : undefined,
+    },
+    details,
+  };
+}
+
+async function fetchConfiguredAppAvailability(config = {}, media = {}) {
+  const targets = activeMediaTargets(config);
+  if (!targets.length) {
+    return { checked: false, available: false, available4k: false, sources: [] };
+  }
+
+  if (media.type === "series" || media.type === "show") {
+    const sources = await Promise.all(targets.map(async (target) => {
+      try {
+        if (target === "plex") return { target, episodes: await fetchPlexSeriesEpisodes(config.plex, media) };
+        if (target === "emby") return { target, episodes: await fetchEmbySeriesEpisodes(config.emby, media) };
+        if (target === "jellyfin") return { target, episodes: await fetchJellyfinSeriesEpisodes(config.jellyfin, media) };
+      } catch (error) {
+        return { target, episodes: [], error: error.message || "Lookup failed" };
+      }
+      return { target, episodes: [] };
+    }));
+    return summarizeTvAvailability(media.details || {}, sources);
+  }
+
+  const jobs = targets.map(async (target) => {
+    try {
+      if (target === "plex") {
+        const item = await findPlexItem(config.plex, media);
+        return { target, available: Boolean(item?.ratingKey), available4k: mediaItemLooks4k(item) };
+      }
+      if (target === "emby") {
+        const items = await findEmbyItems(config.emby, media);
+        return { target, available: items.length > 0, available4k: items.some(mediaItemLooks4k) };
+      }
+      if (target === "jellyfin") {
+        const items = await findJellyfinItems(config.jellyfin, media);
+        return { target, available: items.length > 0, available4k: items.some(mediaItemLooks4k) };
+      }
+    } catch (error) {
+      return { target, available: false, available4k: false, error: error.message || "Lookup failed" };
+    }
+    return { target, available: false, available4k: false };
+  });
+
+  const sources = await Promise.all(jobs);
+  return {
+    checked: true,
+    available: sources.some((source) => source.available),
+    available4k: sources.some((source) => source.available4k),
+    sources,
+  };
+}
+
 async function handleSeerrMediaStatus(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -402,6 +594,8 @@ async function handleSeerrMediaStatus(req, res) {
     return sendJson(res, { ok: false, error: "mediaType and mediaId are required." }, 400);
   }
 
+  const localMedia = await mediaFromTmdbStatusRequest(mediaType, mediaId);
+  const configuredAppStatus = await fetchConfiguredAppAvailability(config, localMedia);
   const headers = { "X-Api-Key": apiKey, Accept: "application/json" };
   const paths = [
     `/api/v1/media/${mediaType}/${mediaId}`,
@@ -432,6 +626,22 @@ async function handleSeerrMediaStatus(req, res) {
     }
 
     if (!media) {
+      if (configuredAppStatus.checked) {
+        return sendJson(res, {
+          ok: true,
+          found: false,
+          ...configuredAppStatus,
+          available: configuredAppStatus.available,
+          available4k: configuredAppStatus.available4k,
+          pending: false,
+          pending4k: false,
+          status: 0,
+          status4k: 0,
+          availabilitySource: "configured_apps",
+          configuredAppStatus,
+          seerrError: lastErrorMsg || "Media not found on Seerr",
+        });
+      }
       return sendJson(res, { ok: false, error: lastErrorMsg || "Media not found on Seerr" }, 502);
     }
 
@@ -439,20 +649,27 @@ async function handleSeerrMediaStatus(req, res) {
     const status4k = Number(media?.status4k ?? media?.mediaStatus4k ?? 0);
     const requested = Boolean(media?.requests?.some?.((request) => !request?.is4k) || media?.request || media?.requested);
     const requested4k = Boolean(media?.requests?.some?.((request) => request?.is4k) || media?.request4k || media?.requested4k);
-    const available = Boolean(media?.available || status === 5);
-    const available4k = Boolean(media?.available4k || status4k === 5);
+    const available = configuredAppStatus.checked
+      ? configuredAppStatus.available
+      : Boolean(media?.available || status === 5);
+    const available4k = configuredAppStatus.checked
+      ? configuredAppStatus.available4k
+      : Boolean(media?.available4k || status4k === 5);
     const pending = !available && Boolean(requested || [2, 3, 4].includes(status));
     const pending4k = !available4k && Boolean(requested4k || [2, 3, 4].includes(status4k));
 
     return sendJson(res, {
       ok: true,
       found: Boolean(media),
+      ...configuredAppStatus,
       available,
       available4k,
       pending,
       pending4k,
       status,
       status4k,
+      availabilitySource: configuredAppStatus.checked ? "configured_apps" : "seerr",
+      configuredAppStatus,
     });
   } catch (err) {
     return sendJson(res, { ok: false, error: err.message || "Connection to Seerr failed" }, 502);

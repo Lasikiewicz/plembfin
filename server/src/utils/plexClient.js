@@ -198,6 +198,28 @@ async function findPlexSeries(config, media) {
   return searchPlexFallback(config, media, "show");
 }
 
+export { findPlexSeries };
+
+export async function fetchPlexSeriesEpisodes(config, media) {
+  requirePlexConfig(config);
+  const series = await findPlexSeries(config, media);
+  if (!series?.ratingKey) return [];
+
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const url = new URL(`${baseUrl}/library/metadata/${series.ratingKey}/allLeaves`);
+  url.searchParams.set("includeGuids", "1");
+  url.searchParams.set("includeMedia", "1");
+  url.searchParams.set("X-Plex-Token", config.token);
+
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!response.ok) {
+    throw new Error(`Plex allLeaves lookup failed with status ${response.status} for series ${series.ratingKey}`);
+  }
+
+  const body = await response.json();
+  return body?.MediaContainer?.Metadata || [];
+}
+
 async function findPlexMovie(config, media) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const candidates = plexGuidCandidates(media);
@@ -238,26 +260,11 @@ async function findPlexEpisode(config, media) {
     return undefined;
   }
 
-  const baseUrl = trimTrailingSlash(config.baseUrl);
-  const url = new URL(`${baseUrl}/library/metadata/${series.ratingKey}/allLeaves`);
-  url.searchParams.set("X-Plex-Token", config.token);
-
-  console.log("Plex episode lookup started via allLeaves", { seriesRatingKey: series.ratingKey });
-  const response = await fetch(url, {
-    headers: { Accept: "application/json" },
-  });
-
-  if (!response.ok) {
-    console.error("Plex allLeaves lookup failed", { status: response.status, seriesRatingKey: series.ratingKey });
-    return undefined;
-  }
-
   const parsed = parseShowTitle(media.title);
   const season = media.season ?? parsed.season;
   const episodeNum = media.episode ?? parsed.episode;
 
-  const body = await response.json();
-  const children = body?.MediaContainer?.Metadata || [];
+  const children = await fetchPlexSeriesEpisodes(config, media);
   const episode = children.find(
     (child) =>
       Number(child.index) === Number(episodeNum) &&
@@ -280,6 +287,7 @@ async function findPlexEpisode(config, media) {
 export async function findPlexItem(config, media) {
   if (media.type === "movie") return findPlexMovie(config, media);
   if (media.type === "episode") return findPlexEpisode(config, media);
+  if (media.type === "series" || media.type === "show") return findPlexSeries(config, media);
   return undefined;
 }
 
