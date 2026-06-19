@@ -3109,9 +3109,9 @@ function renderIssueCategory(categoryName, jobs = [], helpText = "") {
         <div style="background: rgba(0,0,0,0.05); padding: var(--space-2); border-radius: var(--radius-sm); margin-bottom: var(--space-3); font-size: 0.9rem;">
           ${helpText}
         </div>
-        ${categoryName === 'missingTelemetry' ? `<div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-3);">
-          <button class="button-primary" type="button" data-action="clearMissingTelemetry">Clear ${jobs.length} Records</button>
-        </div>` : ''}
+        <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-3);">
+          ${categoryName === 'missingTelemetry' ? `<button class="button-primary" type="button" data-action="clearMissingTelemetry">Clear ${jobs.length} Records</button>` : `<button class="button-primary" type="button" data-action="retryAllCategory" data-category="${categoryName}">Retry All ${jobs.length}</button>`}
+        </div>
         <div style="display: grid; gap: var(--space-2);">
           ${jobs.map(job => `
             <div style="display: flex; gap: var(--space-2); align-items: flex-start; padding: var(--space-2); background: rgba(0,0,0,0.02); border-left: 3px solid var(--color-warning); border-radius: var(--radius-sm);">
@@ -10664,6 +10664,56 @@ async function triggerClearMissingTelemetry() {
   );
 }
 
+async function triggerRetryAllCategory(categoryName, button) {
+  if (!categoryName || !state.syncJobs) return;
+
+  const categories = categorizeIssues(state.syncJobs);
+  const jobsInCategory = categories[categoryName] || [];
+
+  if (!jobsInCategory.length) {
+    setMessage("No issues to retry in this category", "info");
+    return;
+  }
+
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = `Retrying all ${jobsInCategory.length}...`;
+
+  try {
+    const titleList = jobsInCategory.map(j => j.title).join(", ");
+    setMessage(`Retrying ${jobsInCategory.length} items: ${titleList.substring(0, 80)}${titleList.length > 80 ? "..." : ""}`, "info");
+
+    // Retry all items sequentially
+    let successCount = 0;
+    for (const job of jobsInCategory) {
+      try {
+        await new Promise((resolve, reject) => {
+          const response = fetch("/api/retry-sync", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ id: job.id }),
+          }).then(r => r.json()).then(data => {
+            if (data.ok || data.success) successCount++;
+            resolve();
+          }).catch(reject);
+        });
+      } catch (err) {
+        console.error(`Failed to retry ${job.id}:`, err);
+      }
+      // Small delay between retries
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    await loadSyncJobs({ force: true });
+    setMessage(`Retried ${jobsInCategory.length} items. ${successCount} succeeded.`, "success");
+  } catch (error) {
+    setMessage(`Error: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
 async function triggerCronSync() {
   const button = elements.runCronSyncButton;
   const terminal = elements.forceSyncTerminal;
@@ -11874,6 +11924,9 @@ function attachEvents() {
   document.addEventListener("click", (e) => {
     if (e.target.dataset.action === "clearMissingTelemetry") {
       triggerClearMissingTelemetry().catch(() => { });
+    }
+    if (e.target.dataset.action === "retryAllCategory") {
+      triggerRetryAllCategory(e.target.dataset.category, e.target).catch(() => { });
     }
   });
 
