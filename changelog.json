@@ -1,7 +1,14 @@
 {
-  "version": "0.1.22",
-  "updatedAt": "2026-06-19T19:35:53+01:00",
+  "version": "0.1.23",
+  "updatedAt": "2026-06-19T19:53:31+01:00",
   "entries": [
+    {
+      "version": "0.1.23",
+      "date": "2026-06-19T19:53:31+01:00",
+      "commit": "186206b8c85a6860d8d8de08815e7264bc42b2d3",
+      "message": "Add Appearance settings tab with media page section toggles",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.22",
       "date": "2026-06-19T19:35:53+01:00",
