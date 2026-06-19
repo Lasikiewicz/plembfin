@@ -11317,9 +11317,11 @@ function attachEvents() {
         const syncJobCard = fixMatchBtn.closest(".sync-job-card");
         const inSyncIssues = fixMatchBtn.closest("#syncIssuesContainer");
         if (syncJobCard || inSyncIssues) {
-          loadSyncJobs({ force: true }).catch(() => null);
-          loadSyncHistory({ force: true }).catch(() => null);
-          setMessage("Match updated. Sync issues list refreshed.", "success");
+          setMessage("Match updated. Retrying sync...", "info");
+          triggerRetrySync(fixMatchBtn.dataset.editId, fixMatchBtn).catch(() => {
+            loadSyncJobs({ force: true }).catch(() => null);
+            loadSyncHistory({ force: true }).catch(() => null);
+          });
         } else if (mediaType === "movie") {
           const movie = state.history.find((h) => h.id === fixMatchBtn.dataset.editId);
           if (movie) { movie.tmdb_id = tmdb_id; renderMovieImmersiveModalContent(movie).catch(() => { }); }
