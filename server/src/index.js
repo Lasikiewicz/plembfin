@@ -437,7 +437,7 @@ async function handleSeerrMediaStatus(req, res) {
 
     const status = Number(media?.status ?? media?.mediaStatus ?? 0);
     const status4k = Number(media?.status4k ?? media?.mediaStatus4k ?? 0);
-    const requested = Boolean(media?.requests?.length || media?.request || media?.requested);
+    const requested = Boolean(media?.requests?.some?.((request) => !request?.is4k) || media?.request || media?.requested);
     const requested4k = Boolean(media?.requests?.some?.((request) => request?.is4k) || media?.request4k || media?.requested4k);
     const available = Boolean(media?.available || status === 5);
     const available4k = Boolean(media?.available4k || status4k === 5);
