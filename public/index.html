@@ -52,16 +52,17 @@
             <button class="nav-tab" type="button" data-view="settings">Settings</button>
             <div id="sidebarSettingsMenu" class="sidebar-sub-menu hidden">
               <button class="settings-tab active" type="button" data-settings-tab="general">General</button>
-              <button class="settings-tab" type="button" data-settings-tab="apps">Apps</button>
+              <button class="settings-tab" type="button" data-settings-tab="appearance">Appearance</button>
               <button class="settings-tab" type="button" data-settings-tab="api-keys">API Keys</button>
-              <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
+              <button class="settings-tab" type="button" data-settings-tab="apps">Apps</button>
               <button class="settings-tab" type="button" data-settings-tab="backups">Backups</button>
               <div id="sidebarBackupsMenu" class="sidebar-sub-menu hidden">
                 <button class="backups-sub-tab active" type="button" data-backups-tab="settings">Settings</button>
                 <button class="backups-sub-tab" type="button" data-backups-tab="restore">Restore</button>
               </div>
-              <button class="settings-tab" type="button" data-settings-tab="sync">Sync</button>
               <button class="settings-tab" type="button" data-settings-tab="logs">Logs</button>
+              <button class="settings-tab" type="button" data-settings-tab="sync">Sync</button>
+              <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
             </div>
           </div>
           <div class="sidebar-footer">
@@ -1262,6 +1263,83 @@
                   </div>
                 </div>
               </section>
+              <section class="settings-pane hidden" data-settings-panel="appearance">
+                <div class="settings-row">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Media Pages</p>
+                          <span>Choose which sections appear on show and movie detail pages</span>
+                        </div>
+                      </div>
+                      <div class="appearance-toggles">
+                        <label class="checkbox-label appearance-toggle-row" style="cursor: pointer; user-select: none;">
+                          <input id="appearShowLogoArt" type="checkbox" checked />
+                          <span>Show Logo Art</span>
+                        </label>
+                        <label class="checkbox-label appearance-toggle-row" style="cursor: pointer; user-select: none;">
+                          <input id="appearShowCast" type="checkbox" checked />
+                          <span>Show Cast Members</span>
+                        </label>
+                        <label class="checkbox-label appearance-toggle-row" style="cursor: pointer; user-select: none;">
+                          <input id="appearShowTrailers" type="checkbox" checked />
+                          <span>Show Trailers &amp; Clips</span>
+                        </label>
+                        <label class="checkbox-label appearance-toggle-row" style="cursor: pointer; user-select: none;">
+                          <input id="appearShowReviews" type="checkbox" checked />
+                          <span>Show Reviews</span>
+                        </label>
+                        <label class="checkbox-label appearance-toggle-row" style="cursor: pointer; user-select: none;">
+                          <input id="appearShowImages" type="checkbox" checked />
+                          <span>Show Images Section</span>
+                        </label>
+                        <label class="checkbox-label appearance-toggle-row" style="cursor: pointer; user-select: none;">
+                          <input id="appearShowRelated" type="checkbox" checked />
+                          <span>Show Related Shows</span>
+                        </label>
+                      </div>
+                    </article>
+                  </div>
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Media Pages</p>
+                        <span>What each toggle controls</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        <b>Show Logo Art</b> — Displays the title's logo image (fetched from TMDB) in the hero area at the top of the page. When off, the plain text title is shown instead.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Show Cast Members</b> — Horizontal scrolling row of cast cards with headshots and character names. Clicking a card opens the person's profile.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Show Trailers &amp; Clips</b> — Embeddable YouTube trailer and teaser thumbnails sourced from TMDB. Requires a TMDB API key.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Show Reviews</b> — Up to three critic or user reviews pulled from TMDB. Requires a TMDB API key.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Show Images Section</b> — A scrollable gallery of backdrops and stills for the title from TMDB.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Show Related Shows</b> — A row of similar titles recommended by TMDB. Clicking one navigates directly to that show's page.
+                      </p>
+                    </article>
+
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Notes</p>
+                        <span>Behaviour &amp; storage</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        Trailers, Reviews, Images, Cast, and Related content all require a configured TMDB API key under <b>Settings → API Keys</b>.
+                      </p>
+                    </article>
+                  </div>
+                </div>
+              </section>
+
             </div>
           </section>
         </section>

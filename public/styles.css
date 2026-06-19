@@ -8177,6 +8177,37 @@ html.light-mode .seerr-owned-pill {
   border-color: rgba(5, 150, 105, 0.25);
 }
 
+/* Appearance settings — hide media page sections */
+body.hide-logo-art .immersive-logo { display: none !important; }
+body.hide-logo-art .immersive-title.sr-only {
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  clip: auto !important;
+  white-space: normal !important;
+}
+body.hide-cast .cast-section { display: none !important; }
+body.hide-trailers .trailers-section { display: none !important; }
+body.hide-reviews .reviews-section { display: none !important; }
+body.hide-images .media-images-section { display: none !important; }
+body.hide-related .related-section { display: none !important; }
+
+.appearance-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.appearance-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 html.light-mode .seerr-owned-pill-4k {
   color: #0d9488;
   background: rgba(13, 148, 136, 0.08);

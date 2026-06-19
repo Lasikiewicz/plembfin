@@ -96,7 +96,7 @@ const HIDE_ENDED_KEY_SHOWS = "plembfin:hideEnded:shows";
 const EXPLORER_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_LIMIT = 24;
 const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "search", "history"];
-const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs"];
+const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs", "appearance"];
 
 const state = {
   token: readStoredAdminToken([TOKEN_KEY, LEGACY_UPPER_TOKEN_KEY, LEGACY_TOKEN_KEY]),
@@ -293,6 +293,12 @@ function bindElements() {
     watchBackupDestinations: document.querySelector("#watchBackupDestinations"),
     watchBackupDestinationType: document.querySelector("#watchBackupDestinationType"),
     addWatchBackupDestinationButton: document.querySelector("#addWatchBackupDestinationButton"),
+    appearShowLogoArt: document.querySelector("#appearShowLogoArt"),
+    appearShowCast: document.querySelector("#appearShowCast"),
+    appearShowTrailers: document.querySelector("#appearShowTrailers"),
+    appearShowReviews: document.querySelector("#appearShowReviews"),
+    appearShowImages: document.querySelector("#appearShowImages"),
+    appearShowRelated: document.querySelector("#appearShowRelated"),
     helpCanvas: document.querySelector("#helpCanvas"),
     helpMenu: document.querySelector("#helpMenu"),
     tvHistoryRow: document.querySelector("#tvHistoryRow"),
@@ -1126,6 +1132,59 @@ async function postWatchBackupAction(payload) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Backup action failed with ${response.status}`);
   return body;
+}
+
+const APPEARANCE_DEFAULTS = {
+  showLogoArt: true,
+  showCast: true,
+  showTrailers: true,
+  showReviews: true,
+  showImages: true,
+  showRelated: true,
+};
+
+function applyAppearanceToBody(prefs) {
+  document.body.classList.toggle("hide-logo-art", !prefs.showLogoArt);
+  document.body.classList.toggle("hide-cast", !prefs.showCast);
+  document.body.classList.toggle("hide-trailers", !prefs.showTrailers);
+  document.body.classList.toggle("hide-reviews", !prefs.showReviews);
+  document.body.classList.toggle("hide-images", !prefs.showImages);
+  document.body.classList.toggle("hide-related", !prefs.showRelated);
+}
+
+function populateAppearanceForm(prefs) {
+  if (elements.appearShowLogoArt) elements.appearShowLogoArt.checked = prefs.showLogoArt;
+  if (elements.appearShowCast) elements.appearShowCast.checked = prefs.showCast;
+  if (elements.appearShowTrailers) elements.appearShowTrailers.checked = prefs.showTrailers;
+  if (elements.appearShowReviews) elements.appearShowReviews.checked = prefs.showReviews;
+  if (elements.appearShowImages) elements.appearShowImages.checked = prefs.showImages;
+  if (elements.appearShowRelated) elements.appearShowRelated.checked = prefs.showRelated;
+}
+
+async function loadAppearanceSettings() {
+  const response = await fetch("/api/appearance", { headers: authHeaders() });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) return;
+  const prefs = { ...APPEARANCE_DEFAULTS, ...(body.appearance || {}) };
+  applyAppearanceToBody(prefs);
+  populateAppearanceForm(prefs);
+}
+
+async function saveAppearanceSettings() {
+  const prefs = {
+    showLogoArt: elements.appearShowLogoArt?.checked ?? true,
+    showCast: elements.appearShowCast?.checked ?? true,
+    showTrailers: elements.appearShowTrailers?.checked ?? true,
+    showReviews: elements.appearShowReviews?.checked ?? true,
+    showImages: elements.appearShowImages?.checked ?? true,
+    showRelated: elements.appearShowRelated?.checked ?? true,
+  };
+  applyAppearanceToBody(prefs);
+  await fetch("/api/appearance", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(prefs),
+  }).catch(() => null);
 }
 
 async function saveWatchBackupSettings() {
@@ -4179,6 +4238,7 @@ function settingsTopbarTitle() {
     backups: state.activeBackupsTab === "restore" ? "Backups - Restore" : "Backups",
     sync: "Sync",
     logs: "Logs",
+    appearance: "Appearance",
   };
   return `Settings - ${labels[state.activeSettingsTab] || "General"}`;
 }
@@ -4513,6 +4573,7 @@ async function loadSavedConfig() {
   state.posterLookupInflight.clear();
   renderSettingsStatus("Configuration loaded from Firestore.", "success");
   await refreshSeerrCapabilities().catch(() => null);
+  await loadAppearanceSettings().catch(() => null);
   renderDashboard();
   renderActiveSessions();
   renderSyncHistory();
@@ -11254,6 +11315,10 @@ function attachEvents() {
     button.addEventListener("click", () => selectBackupsTab(button.dataset.backupsTab));
   });
 
+  for (const id of ["appearShowLogoArt", "appearShowCast", "appearShowTrailers", "appearShowReviews", "appearShowImages", "appearShowRelated"]) {
+    elements[id]?.addEventListener("change", () => saveAppearanceSettings().catch(() => null));
+  }
+
   elements.saveWatchBackupConfigButton?.addEventListener("click", () => {
     saveWatchBackupSettings().catch((error) => setMessage(error.message, "error"));
   });
@@ -12333,6 +12398,7 @@ function initialize() {
     handleRouting(initialPath);
   }
   attachEvents();
+  applyAppearanceToBody(APPEARANCE_DEFAULTS);
   applyExplorerPosterWidth();
   elements.adminEmail.value = localStorage.getItem("firebaseAdminEmail") || "";
   elements.adminToken.value = "";
