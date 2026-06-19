@@ -1,7 +1,14 @@
 {
-  "version": "0.1.13",
-  "updatedAt": "2026-06-19T10:03:31+01:00",
+  "version": "0.1.14",
+  "updatedAt": "2026-06-19T10:26:47+01:00",
   "entries": [
+    {
+      "version": "0.1.14",
+      "date": "2026-06-19T10:26:47+01:00",
+      "commit": "3d66a323789e792c1765ee349b1d77b9a3397df5",
+      "message": "feat: add dedicated history page",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.13",
       "date": "2026-06-19T10:03:31+01:00",
