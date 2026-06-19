@@ -7173,9 +7173,6 @@ function ratingPillHtml({ label, value = "View", href = "", title = "" } = {}) {
 function renderSeerrRequestPill(mediaType, tmdbId) {
   if (!state.seerrConfigured || !tmdbId) return "";
   const status = state.seerrMediaStatusCache.get(`${mediaType}:${tmdbId}`) || {};
-  if (status.available && status.available4k) {
-    return `<span class="rating-pill seerr-owned-pill">Already in Seerr</span>`;
-  }
   const supports4k = mediaType === "movie" ? state.seerrSupports4k.movie : state.seerrSupports4k.tv;
   const seerrBaseUrl = String(state.savedConfig?.seerr?.baseUrl || "").replace(/\/+$/, "");
   const seerrIconHtml = seerrBaseUrl
@@ -7183,7 +7180,7 @@ function renderSeerrRequestPill(mediaType, tmdbId) {
     : "";
   const iconAndFallback = `${seerrIconHtml}<span class="seerr-request-fallback" aria-hidden="true">S</span>`;
   return `
-    ${status.available ? `<span class="rating-pill seerr-owned-pill">Available</span>` : `
+    ${status.available ? `<span class="rating-pill seerr-owned-pill">Available in 1080p</span>` : `
       <button class="rating-pill seerr-request-btn" type="button"
         data-seerr-media-type="${escapeAttribute(mediaType)}"
         data-seerr-media-id="${escapeAttribute(String(tmdbId))}">
@@ -7200,7 +7197,7 @@ function renderSeerrRequestPill(mediaType, tmdbId) {
         <span>${status.pending4k ? "4K Requested" : "Request 4K"}</span>
       </button>
     ` : status.available4k ? `
-      <span class="rating-pill seerr-owned-pill seerr-owned-pill-4k">4K Available</span>
+      <span class="rating-pill seerr-owned-pill seerr-owned-pill-4k">Available in 4K</span>
     ` : ""}
   `;
 }
@@ -7886,10 +7883,6 @@ function renderShowModalContent(show, {
           <p class="immersive-overview">${escapeHtml(overview)}</p>
 
           <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
-            <div class="availability-row">
-              <span class="availability-label">Availability</span>
-              <div class="avail-pills-row">${renderShowAvailabilityPills(show)}</div>
-            </div>
             <h3>Progress</h3>
             <div class="progress-label-row">
               <span>${watchedCount} of ${totalCount} episodes watched</span>
@@ -8717,7 +8710,6 @@ async function renderMovieImmersiveModalContent(movie) {
         <div class="immersive-meta">
           <span class="media-kicker">Movie · Loading metadata</span>
           <h2 class="immersive-title">${escapeHtml(movie.title || "Unknown movie")}</h2>
-          <div class="avail-pills-row">${renderAvailabilityPills(movie)}</div>
           <p class="immersive-overview">Your library record is ready. Synopsis, cast, providers and related media are loading.</p>
         </div>
       </header>
@@ -8811,9 +8803,6 @@ async function renderMovieImmersiveModalContent(movie) {
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
             ${renderSeerrRequestPill("movie", movie.tmdb_id || tmdbData?.id)}
-            <div class="avail-pills-row">
-              ${renderAvailabilityPills(movie)}
-            </div>
             ${syncStatusBlockHtml}
           </div>
           <p class="immersive-overview">${escapeHtml(overview)}</p>
@@ -8958,9 +8947,6 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
             ${renderSeerrRequestPill("movie", tmdbId)}
-            <div class="avail-pills-row">
-              ${renderAvailabilityPills({})}
-            </div>
           </div>
 
           <p class="immersive-overview">${escapeHtml(overview)}</p>
