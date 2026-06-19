@@ -1,7 +1,14 @@
 {
-  "version": "0.1.8",
-  "updatedAt": "2026-06-19T09:02:49+01:00",
+  "version": "0.1.9",
+  "updatedAt": "2026-06-19T09:07:09+01:00",
   "entries": [
+    {
+      "version": "0.1.9",
+      "date": "2026-06-19T09:07:09+01:00",
+      "commit": "ffcb6f051cd0a53d010e34d9d1196a186ac25b86",
+      "message": "docs: refine webhook auth details, remove legacy Firebase migration, and clean up Seerr description in README",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.8",
       "date": "2026-06-19T09:02:49+01:00",
