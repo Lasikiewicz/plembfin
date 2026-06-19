@@ -1,7 +1,14 @@
 {
-  "version": "0.1.12",
-  "updatedAt": "2026-06-19T09:26:03+01:00",
+  "version": "0.1.13",
+  "updatedAt": "2026-06-19T10:03:31+01:00",
   "entries": [
+    {
+      "version": "0.1.13",
+      "date": "2026-06-19T10:03:31+01:00",
+      "commit": "4dc1819fbdca8496a5633a43b951be46a8697f97",
+      "message": "fix: resolve Seerr status pending display bug and add TV show support",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.1.12",
       "date": "2026-06-19T09:26:03+01:00",
