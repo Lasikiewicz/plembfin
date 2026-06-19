@@ -152,7 +152,7 @@ h2 {
   gap: clamp(1rem, 2.5vw, 2rem);
   align-items: start;
   align-content: start;
-  margin-top: clamp(1rem, 3vh, 2.5rem);
+  margin-top: 0;
 }
 
 .media-detail-page .immersive-poster-img {
@@ -631,7 +631,7 @@ h2 {
   flex: 1;
   height: 100%;
   margin: 0;
-  padding: 0 var(--control-inline-padding) 2rem;
+  padding: 0 var(--control-inline-padding) var(--control-inline-padding);
   background: var(--bg);
   overflow-y: auto;
 }
@@ -667,7 +667,7 @@ h2 {
   margin-inline: calc(var(--control-inline-padding) * -1);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   background: var(--bg);
-  padding: var(--right-topbar-content-offset) var(--control-inline-padding) 0;
+  padding: var(--right-topbar-content-offset) var(--control-inline-padding);
 }
 
 .page-shell[data-active-view="dashboard"] .page-topbar {
@@ -4843,7 +4843,7 @@ h1 {
 .sidebar-secondary {
   display: grid;
   gap: 0;
-  padding: var(--space-3) 0;
+  padding: var(--space-1) 0;
 }
 
 .sidebar-secondary {
@@ -5189,7 +5189,7 @@ h1 {
 
 
 .immersive-container {
-  padding: 1.4rem clamp(2rem, 4.4vw, 5rem) 3rem;
+  padding: clamp(2rem, 3vw, 3rem);
   gap: 1rem;
 }
 
@@ -6217,9 +6217,9 @@ h1 {
 }
 
 .trailer-card {
-  flex: 0 0 240px !important;
-  width: 240px !important;
-  min-width: 240px !important;
+  flex: 0 0 480px !important;
+  width: 480px !important;
+  min-width: 480px !important;
   flex-shrink: 0 !important;
   position: relative;
   display: flex;
@@ -6881,16 +6881,17 @@ h1 {
 
 .media-detail-page .season-accordion-panel .immersive-episode-row {
   display: grid;
-  grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr);
+  grid-template-columns: 16rem minmax(0, 1fr);
+  grid-template-rows: auto;
   grid-template-areas: "thumb copy";
-  gap: var(--space-4);
+  gap: var(--space-3);
   align-items: center;
-  min-height: 116px;
+  min-height: 0;
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
   background: transparent;
-  padding: var(--space-4) 0;
+  padding: var(--space-3) 0;
   box-shadow: none;
 }
 
@@ -6907,7 +6908,7 @@ h1 {
 .season-accordion-panel .episode-thumb {
   grid-area: thumb;
   width: 100%;
-  max-width: 13rem;
+  max-width: 16rem;
   justify-self: start;
 }
 
@@ -6934,6 +6935,7 @@ h1 {
 
   .media-detail-page .season-accordion-panel .immersive-episode-row {
     grid-template-columns: 7rem minmax(0, 1fr);
+    grid-template-rows: auto;
     grid-template-areas: "thumb copy";
     min-height: 0;
     gap: var(--space-3);
@@ -7572,4 +7574,596 @@ details[open] > .tool-section-summary::before {
     width: 64px;
     flex: 0 0 64px;
   }
+}
+
+/* Light mode theme */
+html.light-mode {
+  color-scheme: light;
+  --bg: #ffffff;       /* Pure white - main content background */
+  --panel: #ffffff;    /* Pure white - crisp cards and containers */
+  --panel-2: #f8fafc;  /* Slate 50 - light surface for internal elements */
+  --panel-3: #f1f5f9;  /* Slate 100 - cool grey sidebar background */
+  --line: #e2e8f0;     /* Slate 200 - clean and subtle border */
+  --line-strong: #cbd5e1; /* Slate 300 - more visible border */
+  --text: #0f172a;     /* Slate 900 - dark slate for high legibility */
+  --soft: #334155;     /* Slate 700 - medium dark text */
+  --muted: #64748b;    /* Slate 500 - muted text with high contrast */
+  --blue: #2563eb;
+  --green: #059669;
+  --yellow: #d97706;
+  --red: #dc2626;
+  --field: #ffffff;
+  --accent: #2563eb;
+}
+
+html.light-mode,
+html.light-mode body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+html.light-mode .glass-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.05), 0 4px 6px -1px rgba(15, 23, 42, 0.01);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html.light-mode .view-panel > .glass-panel {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+html.light-mode .topnav {
+  background: var(--panel-3);
+  border-right: 1px solid var(--line);
+}
+
+html.light-mode .sidebar-primary,
+html.light-mode .sidebar-secondary {
+  background: var(--panel-3);
+}
+
+html.light-mode .nav-label {
+  color: var(--muted);
+}
+
+html.light-mode .nav-tab {
+  color: var(--text);
+  border-left: 3px solid transparent;
+}
+
+html.light-mode .nav-tab:hover {
+  background: rgba(37, 99, 235, 0.04);
+  color: var(--blue);
+  border-left-color: rgba(37, 99, 235, 0.3);
+}
+
+html.light-mode .nav-tab.active {
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--blue);
+  border-left-color: var(--blue);
+}
+
+html.light-mode .page-topbar {
+  background: var(--panel-3);
+  border-bottom: 1px solid var(--line);
+}
+
+html.light-mode .page-shell {
+  background: var(--bg);
+}
+
+html.light-mode button,
+html.light-mode input {
+  color: var(--text);
+}
+
+html.light-mode input[type="text"],
+html.light-mode input[type="email"],
+html.light-mode input[type="password"],
+html.light-mode input[type="search"],
+html.light-mode input[type="url"],
+html.light-mode input[type="datetime-local"],
+html.light-mode input[type="date"],
+html.light-mode input[type="time"],
+html.light-mode textarea,
+html.light-mode select {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  color-scheme: light;
+  color: var(--text);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+html.light-mode input[type="text"]:focus,
+html.light-mode input[type="email"]:focus,
+html.light-mode input[type="password"]:focus,
+html.light-mode input[type="search"]:focus,
+html.light-mode input[type="url"]:focus,
+html.light-mode input[type="datetime-local"]:focus,
+html.light-mode input[type="date"]:focus,
+html.light-mode input[type="time"]:focus,
+html.light-mode textarea:focus,
+html.light-mode select:focus {
+  border-color: var(--blue);
+  background: #ffffff;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05), 0 0 0 3px rgba(37, 99, 235, 0.15);
+  outline: none;
+}
+
+html.light-mode .button-primary {
+  background: var(--blue);
+  color: #ffffff;
+  border: none;
+}
+
+html.light-mode .button-primary:hover {
+  background: #1d4ed8;
+}
+
+html.light-mode .button-ghost {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  color: var(--text);
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  transition: all 150ms ease;
+}
+
+html.light-mode .button-ghost:hover {
+  background: var(--panel-2);
+  border-color: var(--line-strong);
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08);
+}
+
+html.light-mode .button-danger {
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+}
+
+html.light-mode h1,
+html.light-mode h2,
+html.light-mode h3,
+html.light-mode h4,
+html.light-mode h5,
+html.light-mode h6 {
+  color: var(--text);
+}
+
+html.light-mode .section-heading {
+  color: var(--text);
+}
+
+html.light-mode .muted,
+html.light-mode .muted-copy {
+  color: var(--muted);
+}
+
+html.light-mode .eyebrow {
+  color: var(--muted);
+}
+
+html.light-mode code {
+  background: var(--panel-2);
+  color: #d63384;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+html.light-mode .modal-backdrop-image {
+  opacity: 0.08;
+}
+
+html.light-mode .media-detail-page {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.92) 50%, rgba(248, 250, 252, 0.7) 100%),
+    #ffffff;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html.light-mode .modal-overlay {
+  background: rgba(15, 23, 42, 0.3);
+}
+
+html.light-mode .modal-panel {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 10px 10px -5px rgba(15, 23, 42, 0.04);
+}
+
+html.light-mode .sidebar-footer {
+  border-top: 1px solid var(--line);
+  background: var(--panel-3);
+}
+
+html.light-mode .movie-card b,
+html.light-mode .folder-title b {
+  color: var(--text);
+}
+
+html.light-mode .history-card-title {
+  color: var(--text);
+}
+
+html.light-mode .field-label {
+  color: var(--text);
+}
+
+html.light-mode .page-topbar .immersive-back-button {
+  background: #ffffff;
+  border-color: var(--line);
+  color: var(--text);
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+}
+
+html.light-mode .page-topbar .immersive-back-button:hover {
+  background: var(--panel-2);
+}
+
+html.light-mode .rating-pill {
+  background: var(--panel-2);
+}
+
+html.light-mode .rating-pill-link:hover {
+  background: var(--panel-3);
+}
+
+html.light-mode .sidebar-sub-menu .settings-tab.active,
+html.light-mode .sidebar-sub-menu .backups-sub-tab.active,
+html.light-mode .sidebar-sub-menu .help-menu-item.active {
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--blue);
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
+html.light-mode .sidebar-sub-menu .settings-tab:hover,
+html.light-mode .sidebar-sub-menu .backups-sub-tab:hover,
+html.light-mode .sidebar-sub-menu .help-menu-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+html.light-mode .watched-pill {
+  color: var(--green);
+  background: rgba(5, 150, 105, 0.08);
+  border-color: rgba(5, 150, 105, 0.25);
+}
+
+html.light-mode .status-ready,
+html.light-mode .target-pill[data-status="success"] {
+  border-color: rgba(5, 150, 105, 0.25);
+  background: rgba(5, 150, 105, 0.08);
+  color: var(--green);
+}
+
+html.light-mode .status-error,
+html.light-mode .target-pill[data-status="error"] {
+  border-color: rgba(220, 38, 38, 0.25);
+  background: rgba(220, 38, 38, 0.08);
+  color: var(--red);
+}
+
+html.light-mode .status-warning,
+html.light-mode .target-pill[data-status="pending"] {
+  border-color: rgba(217, 119, 6, 0.35);
+  background: rgba(217, 119, 6, 0.08);
+  color: var(--yellow);
+}
+
+html.light-mode .endpoint-box code,
+html.light-mode .help-doc-body code {
+  background: var(--panel-2);
+  color: #d63384;
+}
+
+html.light-mode #dropZone {
+  background: var(--panel-2) !important;
+}
+
+html.light-mode .import-progress-track {
+  background: var(--line) !important;
+}
+
+html.light-mode .history-page-card {
+  background: var(--panel);
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.03);
+}
+
+html.light-mode .history-page-card:hover {
+  background: var(--panel);
+  border-color: var(--blue);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+html.light-mode .season-accordion {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+
+html.light-mode .season-accordion.is-open {
+  border-color: var(--line-strong);
+}
+
+html.light-mode .season-accordion-trigger:hover {
+  background: var(--panel);
+}
+
+html.light-mode .history-poster,
+html.light-mode .explorer-poster {
+  background: var(--panel-2);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+html.light-mode .movie-card:hover .movie-poster,
+html.light-mode .folder-trigger:hover .explorer-folder-poster,
+html.light-mode .season-trigger:hover .explorer-folder-poster {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+}
+
+/* Theme toggle button */
+.theme-toggle-button {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  width: 100%;
+  margin-bottom: var(--space-2);
+}
+
+.theme-toggle-button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+.theme-toggle-track {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--panel-3);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.theme-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  height: calc(100% - 4px);
+  border-radius: 999px;
+  background: #1e2936;
+  transform: translateX(100%);
+  transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1), background 220ms ease, box-shadow 220ms ease;
+  z-index: 0;
+}
+
+html.light-mode .theme-toggle-thumb {
+  transform: translateX(0);
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.15);
+}
+
+.theme-toggle-label {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  transition: color 180ms ease;
+  user-select: none;
+}
+
+/* Dark mode: thumb is on the right ("Dark" side active) */
+.theme-toggle-label--light {
+  color: var(--muted);
+}
+
+.theme-toggle-label--dark {
+  color: #e2e8f0;
+}
+
+/* Light mode: thumb slides left ("Light" side active) */
+html.light-mode .theme-toggle-label--light {
+  color: var(--text);
+}
+
+html.light-mode .theme-toggle-label--dark {
+  color: var(--muted);
+}
+
+/* Ensure sidebar footer has proper styling */
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: stretch;
+  padding: var(--space-3);
+}
+
+/* Media details page specific overrides */
+html.light-mode .immersive-title {
+  color: var(--text);
+}
+
+html.light-mode .cast-actor-name {
+  color: var(--text);
+}
+
+html.light-mode .cast-character-name {
+  color: var(--soft);
+}
+
+html.light-mode .action-pill {
+  background: var(--panel);
+  border-color: var(--line);
+  color: var(--soft);
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+}
+
+html.light-mode .action-pill:hover {
+  background: var(--panel-2);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+html.light-mode .action-pill-ghost {
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+html.light-mode .action-pill-ghost:hover {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.35);
+  color: var(--red);
+}
+
+html.light-mode .action-pill-danger {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.25);
+  color: var(--red);
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+}
+
+html.light-mode .action-pill-danger:hover {
+  background: var(--red);
+  border-color: var(--red);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
+}
+
+html.light-mode .seerr-request-btn {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.25);
+  color: #4f46e5;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+}
+
+html.light-mode .seerr-request-btn:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #4338ca;
+}
+
+html.light-mode .seerr-owned-pill {
+  color: var(--green);
+  background: rgba(5, 150, 105, 0.08);
+  border-color: rgba(5, 150, 105, 0.25);
+}
+
+html.light-mode .seerr-owned-pill-4k {
+  color: #0d9488;
+  background: rgba(13, 148, 136, 0.08);
+  border-color: rgba(13, 148, 136, 0.25);
+}
+
+html.light-mode .seerr-owned-pill-partial {
+  color: var(--yellow);
+  background: rgba(217, 119, 6, 0.08);
+  border-color: rgba(217, 119, 6, 0.25);
+}
+
+html.light-mode .season-availability-pill {
+  background: var(--panel-2);
+  border-color: var(--line);
+  color: var(--soft);
+}
+
+html.light-mode .season-availability-pill.is-complete {
+  color: var(--green);
+  background: rgba(5, 150, 105, 0.08);
+  border-color: rgba(5, 150, 105, 0.25);
+}
+
+html.light-mode .season-availability-pill.is-partial {
+  color: var(--yellow);
+  background: rgba(217, 119, 6, 0.08);
+  border-color: rgba(217, 119, 6, 0.25);
+}
+
+html.light-mode .season-availability-pill.is-missing {
+  color: var(--red);
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
+html.light-mode .season-availability-pill.is-4k {
+  color: #0d9488;
+  background: rgba(13, 148, 136, 0.08);
+  border-color: rgba(13, 148, 136, 0.25);
+}
+
+html.light-mode .media-detail-page .immersive-poster-img {
+  box-shadow: none;
+}
+
+html.light-mode .person-profile-img {
+  box-shadow: none;
+}
+
+html.light-mode .person-biography-section h3,
+html.light-mode .person-photos-section h3,
+html.light-mode .person-credits-section h3 {
+  color: var(--text);
+}
+
+html.light-mode .person-photos-count {
+  background: var(--panel-3);
+  color: var(--soft);
+}
+
+html.light-mode .person-social-link {
+  background: var(--panel-3);
+  color: var(--soft);
+  border-color: var(--line);
+}
+
+html.light-mode .person-social-link:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+html.light-mode .live-now-card {
+  border-color: var(--line);
+  background: var(--panel);
+}
+
+html.light-mode .live-now-card:hover {
+  border-color: var(--yellow);
+  background: rgba(234, 179, 8, 0.04);
+}
+
+html.light-mode .source-badge {
+  background: var(--panel-3);
+  border-color: var(--line);
+  color: var(--soft);
+}
+
+html.light-mode .watch-state-badge.is-partial {
+  border-color: rgba(180, 110, 0, 0.4);
+  background: rgba(217, 119, 6, 0.1);
+  color: #92400e;
+}
+
+html.light-mode .library-badge,
+html.light-mode .watch-state-badge.is-complete {
+  color: #052e16;
+}
+
+html.light-mode .review-card {
+  background: var(--panel-2);
+  border-color: var(--line);
+  color: var(--text);
 }

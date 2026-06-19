@@ -4,6 +4,16 @@ const PLEX_COMPLETE_EVENTS = ["media.scrobble", "user.playrate"];
 const EMBY_ACTIVE_EVENTS = ["playback.start", "playback.unpause", "playback.progress", "playback.pause"];
 const JELLYFIN_ACTIVE_EVENTS = ["PlaybackStart", "PlaybackProgress", "PlaybackPause"];
 
+function decodeHtmlEntities(str) {
+  return String(str ?? "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
+
 function normalizeType(value) {
   const type = String(value || "").toLowerCase();
   if (type === "movie") return "movie";
@@ -52,13 +62,15 @@ function extractTitle(type, metadata, source) {
   const hasEpisodeCoordinates = season != null || episode != null;
 
   if (source === "plex") {
+    const showTitle = decodeHtmlEntities(metadata.grandparentTitle || metadata.title);
+    const movieTitle = decodeHtmlEntities(metadata.title);
     if (type === "episode") {
       if (hasEpisodeCoordinates) {
-        return `${metadata.grandparentTitle || metadata.title || "Unknown Show"} - S${String(season ?? "?").padStart(2, "0")}E${String(episode ?? "?").padStart(2, "0")}`;
+        return `${showTitle || "Unknown Show"} - S${String(season ?? "?").padStart(2, "0")}E${String(episode ?? "?").padStart(2, "0")}`;
       }
-      return metadata.grandparentTitle || metadata.title || "Unknown Episode";
+      return showTitle || "Unknown Episode";
     }
-    return metadata.title || "Unknown Movie";
+    return movieTitle || "Unknown Movie";
   }
   
   // Jellyfin / Emby
