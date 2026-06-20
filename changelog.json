@@ -1,7 +1,19 @@
 {
-  "version": "0.1.43",
-  "updatedAt": "2026-06-20T12:54:36+01:00",
+  "version": "0.1.44",
+  "updatedAt": "2026-06-20T13:25:10+01:00",
   "entries": [
+    {
+      "version": "0.1.44",
+      "date": "2026-06-20T13:25:10+01:00",
+      "commit": "4b9999988d2b8f079216b9bca458be5ab9a119d7",
+      "message": "fix: remove browser-side direct media server session polling",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removed direct browser fetch calls to Plex, Emby, and Jellyfin that violated CSP connect-src policy",
+        "Server scheduler already polls live sessions every minute via fetchLiveSessions, making browser-side probing redundant",
+        "Eliminates API key exposure in browser network traffic (Plex tokens and Emby/Jellyfin keys were visible in browser requests)"
+      ]
+    },
     {
       "version": "0.1.43",
       "date": "2026-06-20T12:54:36+01:00",
