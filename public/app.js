@@ -1900,10 +1900,12 @@ function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, onSaved
     gridEl.innerHTML = items.map((item, i) => {
       const url = typeof item === "string" ? item : item.url;
       const lang = typeof item === "object" && item.lang ? item.lang : null;
+      const source = typeof item === "object" && item.source ? item.source : null;
+      const hasBadges = lang || source;
       return `
         <button class="edit-image-option${isLogo ? " edit-image-option--logo" : ""}" type="button" data-url="${escapeAttribute(url)}">
           <img src="${escapeAttribute(url)}" alt="${isLogo ? "Logo" : "Poster"} ${i + 1}" loading="lazy" data-err="hide-closest-btn" />
-          ${lang ? `<span class="edit-image-logo-lang">${escapeAttribute(lang)}</span>` : ""}
+          ${hasBadges ? `<span class="edit-image-badge-row">${lang ? `<span class="edit-image-logo-lang">${escapeAttribute(lang.toUpperCase())}</span>` : ""}${source ? `<span class="edit-image-source-badge edit-image-source-badge--${escapeAttribute(source.toLowerCase())}">${escapeAttribute(source)}</span>` : ""}</span>` : ""}
         </button>
       `;
     }).join("");
@@ -1962,12 +1964,36 @@ function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, onSaved
     return tmdbImages;
   };
 
+  let fanartImages = null;
+  const getFanartImages = async () => {
+    if (fanartImages) return fanartImages;
+    const tmdbId = tmdbData?.id;
+    const mediaType = tmdbData?.title !== undefined ? "movie" : "tv";
+    if (tmdbId) {
+      try {
+        const res = await fetch(`/api/fanart-images?mediaType=${encodeURIComponent(mediaType)}&tmdbId=${encodeURIComponent(tmdbId)}`, { headers: authHeaders() });
+        fanartImages = await res.json();
+      } catch { fanartImages = {}; }
+    } else {
+      fanartImages = {};
+    }
+    return fanartImages;
+  };
+
   const loadPosters = async () => {
     status.textContent = "Loading posters…";
     urlInput.value = "";
-    const data = await getTmdbImages();
-    const posters = (data.posters || []).slice(0, 20).map((p) => tmdbPoster(p.file_path));
-    if (posters.length) { status.textContent = ""; renderGrid(posters, false); return; }
+    const [tmdbData_, fanartData] = await Promise.all([getTmdbImages(), getFanartImages()]);
+    const seen = new Set();
+    const items = [];
+    for (const p of (tmdbData_.posters || []).slice(0, 20)) {
+      const url = tmdbPoster(p.file_path);
+      if (!seen.has(url)) { seen.add(url); items.push({ url, source: "TMDB" }); }
+    }
+    for (const p of (fanartData?.posters || [])) {
+      if (p.url && !seen.has(p.url)) { seen.add(p.url); items.push({ url: p.url, lang: p.lang || "", source: "Fanart" }); }
+    }
+    if (items.length) { status.textContent = ""; renderGrid(items, false); return; }
     const fallback = [];
     if (tmdbData?.poster_path) fallback.push(tmdbPoster(tmdbData.poster_path));
     if (tmdbData?.backdrop_path) fallback.push(`https://image.tmdb.org/t/p/w780${tmdbData.backdrop_path}`);
@@ -1980,15 +2006,32 @@ function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, onSaved
     status.textContent = "Loading logos…";
     urlInput.value = "";
     gridEl.innerHTML = "";
-    const data = await getTmdbImages();
-    const logos = (data.logos || []);
+    const [tmdbData_, fanartData] = await Promise.all([getTmdbImages(), getFanartImages()]);
+    const seen = new Set();
+    const items = [];
+    const logos = (tmdbData_.logos || []);
     const enLogos = logos.filter(l => l.iso_639_1 === "en");
     const otherLogos = logos.filter(l => l.iso_639_1 !== "en");
-    const sorted = [...enLogos, ...otherLogos].slice(0, 16).map(l => ({
-      url: tmdbImage(l.file_path, "original"),
-      lang: l.iso_639_1 ? l.iso_639_1.toUpperCase() : "—",
-    }));
-    if (sorted.length) { status.textContent = enLogos.length === 0 ? "No English logo found — showing other languages." : ""; renderGrid(sorted, true, true); return; }
+    for (const l of [...enLogos, ...otherLogos].slice(0, 16)) {
+      const url = tmdbImage(l.file_path, "original");
+      if (!seen.has(url)) {
+        seen.add(url);
+        items.push({ url, lang: l.iso_639_1 ? l.iso_639_1.toUpperCase() : "—", source: "TMDB" });
+      }
+    }
+    for (const l of (fanartData?.logos || [])) {
+      if (l.url && !seen.has(l.url)) {
+        seen.add(l.url);
+        items.push({ url: l.url, lang: l.lang ? l.lang.toUpperCase() : "", source: "Fanart" });
+      }
+    }
+    if (items.length) {
+      const hasEnTmdb = enLogos.length > 0;
+      const hasEnFanart = (fanartData?.logos || []).some(l => l.lang === "en");
+      status.textContent = (!hasEnTmdb && !hasEnFanart && items.length > 0) ? "No English logo found — showing other languages." : "";
+      renderGrid(items, true, true);
+      return;
+    }
     status.textContent = state.savedConfig?.tmdb?.configured ? "No logo art found for this title." : "Configure a TMDB API key to browse logos.";
   };
 
@@ -4378,6 +4421,15 @@ function syncPageTopbar() {
   if (state.activeView === "explorer") {
     const mode = state.explorerMode === "shows" ? "shows" : "movies";
     title = mode === "shows" ? "TV Shows" : "Movies";
+    if (isInlineDetail) {
+      if (mode === "shows" && state.activeShowModalKey) {
+        const activeShow = state.showsRaw?.find(s => slug(s.title) === state.activeShowModalKey);
+        if (activeShow?.title) title = `TV Shows — ${activeShow.title}`;
+      } else if (mode === "movies" && state.activeMovieModalId) {
+        const activeMovie = state.history?.find(h => h.id === state.activeMovieModalId);
+        if (activeMovie?.title) title = `Movies — ${activeMovie.title}`;
+      }
+    }
     subtitle = isInlineDetail ? "" : (state.savedConfig?.plex?.username || "Watched history library");
     activeControls = isInlineDetail ? null : elements.explorerTopbarControls;
   } else if (state.activeView === "history") {
@@ -13915,16 +13967,15 @@ async function loadCastMemberDetails(personId, personName = null) {
             <div class="person-credits-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4); border-bottom: 1px solid var(--line-strong); padding-bottom: var(--space-3);">
               <h3 style="margin: 0;">Filmography (<span id="personCreditsCount">${castCredits.length}</span>)</h3>
               <div class="person-credits-controls" style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
-                <select id="personCreditsFilter" class="field" style="width: auto; min-width: 120px; font-size: 0.85rem; padding: var(--space-1) var(--space-2);">
-                  <option value="all" ${state.personCreditsFilter === "all" ? "selected" : ""}>All Media</option>
-                  <option value="movie" ${state.personCreditsFilter === "movie" ? "selected" : ""}>Movies</option>
-                  <option value="tv" ${state.personCreditsFilter === "tv" ? "selected" : ""}>TV Shows</option>
-                </select>
-                <select id="personCreditsSort" class="field" style="width: auto; min-width: 150px; font-size: 0.85rem; padding: var(--space-1) var(--space-2);">
-                  <option value="popularity" ${state.personCreditsSort === "popularity" ? "selected" : ""}>Popularity</option>
-                  <option value="date_desc" ${state.personCreditsSort === "date_desc" ? "selected" : ""}>Date (Newest)</option>
-                  <option value="date_asc" ${state.personCreditsSort === "date_asc" ? "selected" : ""}>Date (Oldest)</option>
-                </select>
+                <div class="pill-toggle-group" id="personCreditsFilterBtns">
+                  <button class="pill-toggle${state.personCreditsFilter === "movie" ? " active" : ""}" type="button" data-filter="movie">Movies</button>
+                  <button class="pill-toggle${state.personCreditsFilter === "tv" ? " active" : ""}" type="button" data-filter="tv">TV Shows</button>
+                </div>
+                <div class="pill-toggle-group" id="personCreditsSortBtns">
+                  <button class="pill-toggle${state.personCreditsSort === "popularity" ? " active" : ""}" type="button" data-sort="popularity">Popularity</button>
+                  <button class="pill-toggle${state.personCreditsSort === "date_desc" ? " active" : ""}" type="button" data-sort="date_desc">Newest</button>
+                  <button class="pill-toggle${state.personCreditsSort === "date_asc" ? " active" : ""}" type="button" data-sort="date_asc">Oldest</button>
+                </div>
               </div>
             </div>
             <div class="person-credits-grid" id="personCreditsGrid">
@@ -13937,8 +13988,8 @@ async function loadCastMemberDetails(personId, personName = null) {
       </div>
     `;
 
-    const filterSelect = root.querySelector("#personCreditsFilter");
-    const sortSelect = root.querySelector("#personCreditsSort");
+    const filterBtns = root.querySelector("#personCreditsFilterBtns");
+    const sortBtns = root.querySelector("#personCreditsSortBtns");
     const gridEl = root.querySelector("#personCreditsGrid");
     const countEl = root.querySelector("#personCreditsCount");
 
@@ -14028,13 +14079,9 @@ async function loadCastMemberDetails(personId, personName = null) {
     };
 
     const updateGrid = (resetVisible = true) => {
-      const newFilter = filterSelect.value;
-      const newSort = sortSelect.value;
-      if (resetVisible || newFilter !== state.personCreditsFilter || newSort !== state.personCreditsSort) {
+      if (resetVisible) {
         state.personCreditsVisible = FILMOGRAPHY_PAGE_SIZE;
       }
-      state.personCreditsFilter = newFilter;
-      state.personCreditsSort = newSort;
 
       let filtered = [...castCredits];
       if (state.personCreditsFilter === "movie") {
@@ -14096,8 +14143,22 @@ async function loadCastMemberDetails(personId, personName = null) {
       }
     };
 
-    filterSelect?.addEventListener("change", updateGrid);
-    sortSelect?.addEventListener("change", updateGrid);
+    filterBtns?.addEventListener("click", (e) => {
+      const btn = e.target.closest(".pill-toggle[data-filter]");
+      if (!btn) return;
+      const val = btn.dataset.filter;
+      state.personCreditsFilter = state.personCreditsFilter === val ? "all" : val;
+      filterBtns.querySelectorAll(".pill-toggle").forEach(b => b.classList.toggle("active", b.dataset.filter === state.personCreditsFilter));
+      updateGrid();
+    });
+
+    sortBtns?.addEventListener("click", (e) => {
+      const btn = e.target.closest(".pill-toggle[data-sort]");
+      if (!btn) return;
+      state.personCreditsSort = btn.dataset.sort;
+      sortBtns.querySelectorAll(".pill-toggle").forEach(b => b.classList.toggle("active", b.dataset.sort === state.personCreditsSort));
+      updateGrid();
+    });
 
     // Initial render of the grid
     updateGrid();

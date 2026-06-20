@@ -3481,7 +3481,7 @@ details[open] .tool-accordion-chevron::before {
 }
 
 .edit-dialog--wide {
-  width: min(680px, 96vw);
+  width: min(980px, 96vw);
 }
 
 .edit-dialog h3 {
@@ -3529,16 +3529,23 @@ details[open] .tool-accordion-chevron::before {
   padding: 0.5rem;
 }
 
+.edit-image-badge-row {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0.2rem;
+}
+
 .edit-image-logo-lang {
   font-size: 0.65rem;
   color: var(--muted);
-  margin-top: 0.2rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .edit-image-grid--logo {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
 }
 
 .edit-dialog-actions {
@@ -3558,7 +3565,7 @@ details[open] .tool-accordion-chevron::before {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   gap: 0.6rem;
-  max-height: 420px;
+  max-height: 560px;
   overflow-y: auto;
   padding: 0.25rem 0;
 }
@@ -3586,6 +3593,22 @@ details[open] .tool-accordion-chevron::before {
   object-fit: cover;
   border-radius: 3px;
   display: block;
+}
+
+.edit-image-source-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--muted), transparent 70%);
+  color: var(--muted);
+}
+
+.edit-image-source-badge--fanart {
+  background: color-mix(in srgb, var(--orange, #f59e0b), transparent 75%);
+  color: var(--orange, #f59e0b);
 }
 
 .availability-row {
@@ -7169,6 +7192,44 @@ h1 {
   .person-credits-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
+.pill-toggle-group {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.pill-toggle {
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 100ms, color 100ms, background 100ms;
+  white-space: nowrap;
+}
+
+.pill-toggle:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.pill-toggle.active {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: color-mix(in srgb, var(--blue), transparent 88%);
+}
+
+html.light-mode .pill-toggle {
+  background: #fff;
+  border-color: var(--line);
+}
+
+html.light-mode .pill-toggle.active {
+  background: color-mix(in srgb, var(--blue), transparent 88%);
+}
+
 .filmography-load-sentinel {
   grid-column: 1 / -1;
   height: 1px;
@@ -7381,7 +7442,7 @@ h1 {
   overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--panel-2), transparent 8%);
+  background: color-mix(in srgb, var(--panel-2), transparent 92%);
 }
 
 .season-accordion.is-open {
@@ -8477,7 +8538,7 @@ html.light-mode .history-page-card:hover {
 }
 
 html.light-mode .season-accordion {
-  background: var(--panel-2);
+  background: color-mix(in srgb, var(--panel-2), transparent 92%);
   border: 1px solid var(--line);
 }
 

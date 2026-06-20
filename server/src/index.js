@@ -72,7 +72,7 @@ import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
 import { cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, prewarmTmdbLibrary, searchTmdb, getCachedTvdbId } from "./utils/tmdbGateway.js";
-import { getFanartMovieArt, getFanartTvArt } from "./utils/fanartGateway.js";
+import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "./utils/fanartGateway.js";
 import { BACKUP_FORMAT, BACKUP_VERSION, backupManifest, exportCollectionPage, importCollectionBatch } from "./utils/backup.js";
 import {
   createWatchHistoryBackup,
@@ -3329,6 +3329,26 @@ async function handleTmdbImages(req, res) {
   }
 }
 
+async function handleFanartImages(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const mediaType = req.query.mediaType || req.query.type;
+    const tmdbId = String(req.query.tmdbId || req.query.id || "").trim();
+    let result = null;
+    if (mediaType === "movie") {
+      result = await getAllFanartMovieImages(tmdbId);
+    } else {
+      const tvdbId = getCachedTvdbId(tmdbId);
+      result = await getAllFanartTvImages(tvdbId);
+    }
+    return sendJson(res, result || { posters: [], logos: [] });
+  } catch (error) {
+    return sendJson(res, { error: error.message }, 500);
+  }
+}
+
 async function handleTmdbPerson(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -3634,6 +3654,7 @@ async function dispatch(req, res) {
     if (path === "media-search") return handleMediaSearch(req, res);
     if (path === "tmdb-season") return handleTmdbSeason(req, res);
     if (path === "tmdb-images") return handleTmdbImages(req, res);
+    if (path === "fanart-images") return handleFanartImages(req, res);
     if (path === "tmdb-person") return handleTmdbPerson(req, res);
     if (path === "youtube-meta") return handleYoutubeMeta(req, res);
     if (path === "webhook") return handleWebhook(req, res);
