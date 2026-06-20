@@ -1,7 +1,20 @@
 {
-  "version": "0.1.39",
-  "updatedAt": "2026-06-20T09:26:53+01:00",
+  "version": "0.1.40",
+  "updatedAt": "2026-06-20T09:46:37+01:00",
   "entries": [
+    {
+      "version": "0.1.40",
+      "date": "2026-06-20T09:46:37+01:00",
+      "commit": "d3a7d509fea8e04846d33f5b82d72250b7d56481",
+      "message": "fix: show x/x watched on TV show grid cards and self-heal missing episode totals",
+      "author": "Lasikiewicz",
+      "details": [
+        "Move watched count from overlay badge above poster to plain text below title, matching movie card date style",
+        "Also show last watched date below the watched count on TV show grid cards",
+        "Always render watched count as x/x format; fall back to x/? when total is not yet known",
+        "On server startup, queue any shows with total_episodes of 0 for a background TMDB refresh so the cache self-heals without a full rebuild"
+      ]
+    },
     {
       "version": "0.1.39",
       "date": "2026-06-20T09:26:53+01:00",
