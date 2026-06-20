@@ -1,7 +1,20 @@
 {
-  "version": "0.1.40",
-  "updatedAt": "2026-06-20T09:46:37+01:00",
+  "version": "0.1.41",
+  "updatedAt": "2026-06-20T11:07:06+01:00",
   "entries": [
+    {
+      "version": "0.1.41",
+      "date": "2026-06-20T11:07:06+01:00",
+      "commit": "330aab0c6086e9543b958b9bd0bfca38369b363d",
+      "message": "feat: add settings changelog view",
+      "author": "Lasikiewicz",
+      "details": [
+        "Make the sidebar version a centered link to Settings Changelog",
+        "Add a changelog settings tab backed by changelog.json",
+        "Keep Help focused by hiding topics already covered in Settings guidance",
+        "Document settings tab routing in the architecture guide"
+      ]
+    },
     {
       "version": "0.1.40",
       "date": "2026-06-20T09:46:37+01:00",
