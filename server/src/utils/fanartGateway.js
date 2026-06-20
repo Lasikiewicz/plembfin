@@ -56,3 +56,38 @@ export async function getFanartTvArt(tvdbId) {
     return null;
   }
 }
+
+function allImages(arr = []) {
+  if (!Array.isArray(arr)) return [];
+  return [...arr]
+    .sort((a, b) => (Number(b.likes) || 0) - (Number(a.likes) || 0))
+    .map(x => ({ url: x.url, lang: x.lang || "" }));
+}
+
+export async function getAllFanartMovieImages(tmdbId) {
+  if (!tmdbId) return null;
+  try {
+    const data = await fetchFanart(`movies/${tmdbId}`);
+    if (!data) return null;
+    return {
+      posters: allImages(data.movieposter),
+      logos: allImages([...(data.hdmovielogo || []), ...(data.movielogo || [])]),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function getAllFanartTvImages(tvdbId) {
+  if (!tvdbId) return null;
+  try {
+    const data = await fetchFanart(`tv/${tvdbId}`);
+    if (!data) return null;
+    return {
+      posters: allImages(data.tvposter),
+      logos: allImages([...(data.hdtvlogo || []), ...(data.clearlogo || [])]),
+    };
+  } catch {
+    return null;
+  }
+}
