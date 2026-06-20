@@ -48,6 +48,9 @@ function envMediaConfig() {
     tmdb: {
       apiKey: envValue("TMDB_API_KEY", "TMDB_KEY"),
     },
+    fanart: {
+      apiKey: envValue("FANART_API_KEY"),
+    },
     youtube: {
       apiKey: envValue("YOUTUBE_API_KEY", "YOUTUBE_DATA_API_KEY"),
     },
@@ -63,7 +66,7 @@ function mergeEnvDefaults(stored = {}) {
   const defaults = envMediaConfig();
   const merged = {};
 
-  for (const section of ["plex", "emby", "jellyfin", "tmdb", "youtube"]) {
+  for (const section of ["plex", "emby", "jellyfin", "tmdb", "fanart", "youtube"]) {
     merged[section] = { ...defaults[section], ...normalized[section] };
     for (const [key, value] of Object.entries(defaults[section])) {
       if (key === "disabled") continue;
@@ -115,6 +118,9 @@ export function normalizeStoredConfig(stored = {}) {
     tmdb: {
       apiKey: String(stored.tmdb?.apiKey || stored.tmdbApiKey || "").trim(),
     },
+    fanart: {
+      apiKey: String(stored.fanart?.apiKey || "").trim(),
+    },
     youtube: {
       apiKey: String(stored.youtube?.apiKey || "").trim(),
     },
@@ -137,6 +143,7 @@ export function publicMediaConfig(config = {}) {
   return {
     ...normalized,
     tmdb: { configured: Boolean(normalized.tmdb.apiKey) },
+    fanart: { configured: Boolean(normalized.fanart.apiKey) },
     // Expose baseUrl and disabled so the frontend can repopulate the URL field,
     // but never expose the raw apiKey to the browser.
     seerr: {
@@ -167,6 +174,7 @@ export async function saveMediaConfig(config) {
     jellyfin: config.jellyfin ? { ...existing.jellyfin, ...config.jellyfin } : existing.jellyfin,
     seerr: incomingSeerr,
     tmdb: config.tmdb ? { ...existing.tmdb, ...config.tmdb } : existing.tmdb,
+    fanart: config.fanart ? { ...existing.fanart, ...config.fanart } : existing.fanart,
     youtube: config.youtube ? { ...existing.youtube, ...config.youtube } : existing.youtube,
   };
   

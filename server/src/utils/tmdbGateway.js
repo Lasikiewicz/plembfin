@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { db, parseJson, toJson } from "../db.js";
 import { loadMediaConfig, loadRuntimeState, setRuntimeState } from "./configStore.js";
-import { cacheBackdropFromUrl, cachePosterFromUrl, getPosterCache, usableCachedPoster } from "./posterCache.js";
+import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./posterCache.js";
+import { getFanartMovieArt, getFanartTvArt } from "./fanartGateway.js";
 
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
@@ -177,23 +178,64 @@ async function upstream(path, params = {}, attempt = 0) {
 
 async function cacheCanonicalArtwork(mediaType, tmdbId, details) {
   const mediaKey = `tmdb:${mediaType}:${tmdbId}`;
-  const [posterCache, backdropCache] = await Promise.all([
+  const [posterCache, backdropCache, logoCache] = await Promise.all([
     getPosterCache(mediaKey, "poster"),
     getPosterCache(mediaKey, "backdrop"),
+    getPosterCache(mediaKey, "logo"),
   ]);
   const posterState = usableCachedPoster(posterCache);
   const backdropState = usableCachedPoster(backdropCache);
+  const logoState = usableCachedPoster(logoCache);
   let poster = posterState?.url || null;
   let backdrop = backdropState?.url || null;
-  const jobs = [];
+  let logo = logoState?.url || null;
+
+  const hasTmdbLogos = (details.images?.logos || []).length > 0;
+  const needsFanart = !posterState || !backdropState || (!logo && !hasTmdbLogos && !logoState);
+
+  // Start fanart.tv metadata lookup in parallel with TMDB image downloads so both
+  // services are queried simultaneously rather than sequentially.
+  const tvdbId = String(details.external_ids?.tvdb_id || "");
+  const fanartPromise = needsFanart
+    ? (mediaType === "movie" ? getFanartMovieArt(tmdbId) : getFanartTvArt(tvdbId)).catch(() => null)
+    : Promise.resolve(null);
+
+  const tmdbJobs = [];
   if (!posterState && details.poster_path) {
-    jobs.push(cachePosterFromUrl(mediaKey, `${IMAGE_ROOT}/w500${details.poster_path}`, "tmdb").then((value) => { poster = value?.url || poster; }));
+    tmdbJobs.push(cachePosterFromUrl(mediaKey, `${IMAGE_ROOT}/w500${details.poster_path}`, "tmdb").then((v) => { poster = v?.url || poster; }));
   }
   if (!backdropState && details.backdrop_path) {
-    jobs.push(cacheBackdropFromUrl(mediaKey, `${IMAGE_ROOT}/original${details.backdrop_path}`, "tmdb").then((value) => { backdrop = value?.url || backdrop; }));
+    tmdbJobs.push(cacheBackdropFromUrl(mediaKey, `${IMAGE_ROOT}/original${details.backdrop_path}`, "tmdb").then((v) => { backdrop = v?.url || backdrop; }));
   }
-  await Promise.all(jobs);
-  return { cached_poster_url: poster, cached_backdrop_url: backdrop };
+
+  // Wait for TMDB downloads and fanart metadata at the same time.
+  const [, fanartArt] = await Promise.all([Promise.all(tmdbJobs), fanartPromise]);
+
+  // Download any fanart images needed to fill gaps left by TMDB.
+  if (fanartArt) {
+    const fanartJobs = [];
+    if (!poster && fanartArt.poster) {
+      fanartJobs.push(cachePosterFromUrl(mediaKey, fanartArt.poster, "fanart").then((v) => { poster = v?.url || poster; }));
+    }
+    if (!backdrop && fanartArt.backdrop) {
+      fanartJobs.push(cacheBackdropFromUrl(mediaKey, fanartArt.backdrop, "fanart").then((v) => { backdrop = v?.url || backdrop; }));
+    }
+    if (!logo && !hasTmdbLogos && fanartArt.logo) {
+      fanartJobs.push(cacheLogoFromUrl(mediaKey, fanartArt.logo, "fanart").then((v) => { logo = v?.url || logo; }));
+    }
+    await Promise.all(fanartJobs);
+    if (!logo && !hasTmdbLogos && !fanartArt.logo) {
+      await markPosterMissing(mediaKey, "fanart", "No logo on fanart.tv", "logo");
+    }
+  } else if (needsFanart && !logo && !hasTmdbLogos && !logoState) {
+    await markPosterMissing(mediaKey, "fanart", "No fanart data", "logo");
+  }
+
+  return {
+    cached_poster_url: poster,
+    cached_backdrop_url: backdrop,
+    ...(logo ? { cached_logo_url: logo } : {}),
+  };
 }
 
 async function resolveTmdbExternalId(type, source, externalId) {
@@ -389,6 +431,14 @@ export async function prewarmTmdbLibrary({ limit = 4 } = {}) {
   for (const item of items) await getTmdbDetails(item).catch(() => null);
   await setRuntimeState({ lastTmdbPrewarmAt: Date.now() });
   return { warmed: items.length };
+}
+
+export function getCachedTvdbId(tmdbId) {
+  if (!tmdbId) return "";
+  const row = metaGetStmt.get(`tv_${tmdbId}`);
+  if (!row?.details) return "";
+  const details = parseJson(row.details);
+  return String(details?.external_ids?.tvdb_id || "");
 }
 
 export async function getTmdbPosterUrl({ mediaType, tmdbId = "", title = "" }) {

@@ -375,7 +375,7 @@
                         </label>
                         <label class="field-label">
                           Plex Token
-                          <input id="plexToken" class="field" type="password" autocomplete="off" />
+                          <input id="plexToken" class="field" type="text" autocomplete="off" />
                         </label>
                         <label class="field-label">
                           Plex Username
@@ -422,7 +422,7 @@
                         </label>
                         <label class="field-label">
                           Emby API Key
-                          <input id="embyApiKey" class="field" type="password" autocomplete="off" />
+                          <input id="embyApiKey" class="field" type="text" autocomplete="off" />
                         </label>
                         <label class="field-label">
                           Emby User ID
@@ -469,7 +469,7 @@
                         </label>
                         <label class="field-label">
                           Jellyfin API Key
-                          <input id="jellyfinApiKey" class="field" type="password" autocomplete="off" />
+                          <input id="jellyfinApiKey" class="field" type="text" autocomplete="off" />
                         </label>
                         <label class="field-label">
                           Jellyfin User ID
@@ -516,7 +516,7 @@
                         </label>
                         <label class="field-label">
                           Seerr API Key
-                          <input id="seerrApiKey" class="field" type="password" autocomplete="off" />
+                          <input id="seerrApiKey" class="field" type="text" autocomplete="off" />
                         </label>
                       </div>
                       <div class="settings-actions">
@@ -561,7 +561,7 @@
                       </div>
                       <label class="field-label" for="tmdbApiKey">
                         TMDB API Key (v3)
-                        <input id="tmdbApiKey" class="field" type="password" autocomplete="off" />
+                        <input id="tmdbApiKey" class="field" type="text" autocomplete="off" />
                       </label>
                       <div class="settings-actions">
                         <button id="saveTmdbConfigButton" class="button-primary" type="button">Save TMDB Key</button>
@@ -600,7 +600,7 @@
                       </div>
                       <label class="field-label" for="youtubeApiKey">
                         YouTube Data API Key
-                        <input id="youtubeApiKey" class="field" type="password" autocomplete="off" />
+                        <input id="youtubeApiKey" class="field" type="text" autocomplete="off" />
                       </label>
                       <div class="settings-actions">
                         <button id="saveYoutubeConfigButton" class="button-primary" type="button">Save YouTube Key</button>
@@ -622,6 +622,48 @@
                         <li>Go to <b>console.cloud.google.com</b></li>
                         <li>Enable the <b>YouTube Data API v3</b> in your project</li>
                         <li>Generate an API Key under Credentials</li>
+                      </ol>
+                    </article>
+                  </div>
+                </div>
+
+                <!-- Fanart.tv Row -->
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Fanart.tv Setup</p>
+                          <span>Fallback posters, backdrops, and logo art</span>
+                        </div>
+                      </div>
+                      <label class="field-label" for="fanartApiKey">
+                        Fanart.tv Personal API Key <span class="muted-copy" style="font-weight:normal;">(optional)</span>
+                        <input id="fanartApiKey" class="field" type="text" autocomplete="off" />
+                      </label>
+                      <div class="settings-actions">
+                        <button id="saveFanartConfigButton" class="button-primary" type="button">Save Fanart Key</button>
+                        <span id="fanartConfigStatus" class="message" role="status" aria-live="polite"></span>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Fanart.tv Help</p>
+                        <span>Fallback Artwork</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        Plembfin uses <a href="https://fanart.tv" target="_blank" rel="noopener noreferrer">fanart.tv</a> as a fallback source for posters, backdrops, and logo art when <a href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer">TMDB</a> doesn't have images for a title. A built-in project key is already configured — no key is required to use this feature.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        Entering your own personal API key gives you higher rate limits and access to images uploaded by your fanart.tv account. To get a personal key:
+                      </p>
+                      <ol class="tool-accordion-desc" style="margin: 0 0 var(--space-3) 1.25rem; padding: 0; list-style: decimal; font-size: 0.8rem;">
+                        <li>Create an account at <b>fanart.tv</b></li>
+                        <li>Go to your <b>Profile → API Key</b></li>
+                        <li>Copy your personal key and paste it above</li>
                       </ol>
                     </article>
                   </div>
