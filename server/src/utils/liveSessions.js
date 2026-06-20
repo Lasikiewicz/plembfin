@@ -106,16 +106,31 @@ function sessionKey(source, sessionId, fallbackTitle, season, episode) {
   return [source, sessionId || fallbackTitle || "unknown", season ?? "none", episode ?? "none"].join(":");
 }
 
-function plexGuidIds(attributes = {}) {
+function plexGuidIds(attributes = {}, body = "") {
   const guidValues = [attributes.guid, attributes.Guid, attributes.GUID]
     .filter(Boolean)
     .map((value) => String(value));
 
-  return {
+  const ids = {
     imdb: guidValues.find((value) => value.includes("imdb"))?.split(/:\/\/|\//).pop(),
     tmdb: guidValues.find((value) => value.includes("tmdb"))?.split(/:\/\/|\//).pop(),
     tvdb: guidValues.find((value) => value.includes("tvdb"))?.split(/:\/\/|\//).pop(),
   };
+
+  // Plex's new metadata agent stores external IDs as child <Guid id="tmdb://..."/> elements
+  // rather than in the parent tag's guid attribute — parse those too.
+  if (body) {
+    const matcher = /<Guid\s+id="([^"]+)"/gi;
+    let match;
+    while ((match = matcher.exec(body))) {
+      const guid = match[1];
+      if (!ids.imdb && guid.includes("imdb")) ids.imdb = guid.split(/:\/\/|\//).pop();
+      if (!ids.tmdb && guid.includes("tmdb")) ids.tmdb = guid.split(/:\/\/|\//).pop();
+      if (!ids.tvdb && guid.includes("tvdb")) ids.tvdb = guid.split(/:\/\/|\//).pop();
+    }
+  }
+
+  return ids;
 }
 
 function plexTitle(attributes = {}, mediaType = "unknown") {
@@ -167,7 +182,7 @@ function parsePlexSessions(xmlText = "", config = {}) {
         deviceName: player.title || player.product || player.platform || "",
         userName: user.title || attributes.user || "",
       },
-      ids: plexGuidIds(attributes),
+      ids: plexGuidIds(attributes, body),
       raw: { attributes, player, user },
     });
   }
