@@ -156,7 +156,16 @@ export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source 
   }
 
   try {
-    const response = await fetch(remoteUrl, { headers: { Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8" } });
+    // Move X-Plex-Token from the URL to a request header so the token does not
+    // appear in HTTP access logs on the upstream server.
+    const fetchUrl = new URL(remoteUrl);
+    const fetchHeaders = { Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8" };
+    const plexToken = fetchUrl.searchParams.get("X-Plex-Token");
+    if (plexToken) {
+      fetchUrl.searchParams.delete("X-Plex-Token");
+      fetchHeaders["X-Plex-Token"] = plexToken;
+    }
+    const response = await fetch(fetchUrl.toString(), { headers: fetchHeaders });
     if (!response.ok) {
       await markPosterFailure(mediaKey, source, `HTTP ${response.status}`, remoteUrl, variant);
       return null;

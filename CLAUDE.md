@@ -7,9 +7,66 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > These rules are absolute constraints. Adhere to them strictly under all circumstances.
 
 - **No Git Pushes** — Never execute `git push` or push commits to any remote repository unless the user explicitly instructs you to push in their request.
-- **No Deployments** — Never deploy the application or run deployment commands (e.g., `firebase deploy`) unless explicitly instructed by the user. Exception: if the user simply says `Deploy`, treat that as explicit instruction to deploy the entire site to Firebase and push the current Git branch to its remote.
+- **No Deployments** — Never deploy the application or run deployment commands unless explicitly instructed by the user.
 - **No Unsolicited Actions** — Do only exactly what the user asks. Do not perform unsolicited refactorings, add extra features, or modify files outside the direct scope of the request.
 - **No Tests or Browser Actions** — Never run test commands (e.g., `npm test`, `pytest`) or open web browsers/browser tools unless the user has explicitly requested it.
+
+## "Push to git" command
+
+When the user says **"Push to git"** (exactly), run this full pre-push workflow before committing:
+
+### 1 — Review all pending changes
+```bash
+git diff --stat HEAD
+```
+Read the list of changed files to understand what was touched in this session.
+
+### 2 — Sync docs
+For every changed file, check whether a corresponding doc in `docs/` needs updating:
+| Changed area | Doc to check |
+| --- | --- |
+| Webhook auth / `parsers.js` / `auth.js` | `docs/webhooks.md` |
+| Scheduler / `scheduled.js` / `cron-sync` | `docs/scheduled-sync.md` |
+| Now-playing / `live_tracking_cache` | `docs/now-playing.md` |
+| `schema.sql` / new SQLite tables | `docs/sqlite-schema.md` |
+| Auth / sessions / cookies | `docs/architecture.md` |
+| Any server-side breaking change | `docs/troubleshooting.md` |
+| Overall architecture change | `docs/README.md` |
+
+Update any doc that is out of date before proceeding.
+
+### 3 — Sync in-app help
+For every changed feature or setting, check `public/app.js`:
+- **`HELP_TOPICS`** array — update or add topic bodies if flows changed
+- **`renderSettingsInlineHelp()`** — check that the inline help content in each settings panel still matches the current behaviour
+- **`webhookWarning()` / `plexWebhookSetup()` / `embyWebhookSetup()` / `jellyfinWebhookSetup()`** — update if webhook setup steps changed
+- **`cronSyncGuide()`** — update if scheduler endpoint or behaviour changed
+- **`adminTokenGuide()`** — update if auth flow changed
+
+### 4 — Write the commit message
+Use this format — the first line becomes the changelog `message`; bullet-point body lines are parsed into `details` by `scripts/update-changelog.js`:
+
+```
+<type>: <concise one-line summary of the session>
+
+- Key change 1 (user-visible description, no code jargon)
+- Key change 2
+- Key change 3
+...
+```
+
+Types: `feat` (new feature), `fix` (bug fix), `security` (security change), `chore` (maintenance), `docs` (docs only).
+
+Keep bullet points to the 3–8 most significant user-visible changes. Skip internal refactors that don't affect behaviour.
+
+### 5 — Stage and commit
+Stage all modified files **except** `data/`, `node_modules/`, and any secrets. Commit using the message written in step 4.
+
+### 6 — Push
+```bash
+git push origin main
+```
+CI will then auto-bump the patch version, add a `changelog.json` entry, and build/push the Docker image.
 
 ## Commands
 

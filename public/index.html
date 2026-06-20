@@ -336,18 +336,10 @@
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>General Help</p>
+                        <p>Admin Login Guide</p>
                         <span>Portal Security</span>
                       </div>
-                      <p class="tool-accordion-desc">
-                        Plembfin is a self-hosted watch-state bridge. Access to this dashboard is gated by a local username and password session.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Defaults:</b> <code>admin</code> / <code>admin</code> on first run. Override by setting <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> environment variables.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        Every <code>/api/*</code> request is verified server-side — unauthenticated requests are rejected. External integrations (webhooks) authenticate with the API key shown after sign-in.
-                      </p>
+                      <div id="adminLoginHelp"></div>
                     </article>
 
                     <article class="glass-panel p-section settings-card">
@@ -356,8 +348,11 @@
                         <span>Webhook listener and background worker</span>
                       </div>
                       <div class="endpoint-box">
-                        <code id="webhookUrl">/api/webhook</code>
-                        <p>Point Plex, Emby, and Jellyfin webhooks here to capture watched events.</p>
+                        <div style="display:flex; align-items:center; gap:var(--space-2); flex-wrap:wrap; margin-bottom:var(--space-1);">
+                          <code id="webhookUrl">/api/webhook</code>
+                          <button id="rotateWebhookButton" class="button-ghost" type="button" title="Generate a new webhook secret — update the URL in all media servers after rotating">Rotate Secret</button>
+                        </div>
+                        <p>Point Plex, Emby, and Jellyfin webhooks here. The URL contains a secret token — copy it from the Webhook Setup help topic. After rotating, update it in every media server.</p>
                         <code id="cronSyncUrl">/api/cron-sync</code>
                         <p>Background scheduler URL for syncing states between platforms.</p>
                       </div>
@@ -407,17 +402,9 @@
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
                         <p>Plex Integration Guide</p>
-                        <span>Server &amp; Token</span>
+                        <span>Credentials &amp; Webhook</span>
                       </div>
-                      <p class="tool-accordion-desc">
-                        <b>Plex URL:</b> Typically <code>http://127.0.0.1:32400</code> if local. Otherwise, use your server's IP address with port <code>32400</code>.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Plex Token:</b> Sign in to Plex Web, open <b>Get Info</b> on any library item, and click <b>View XML</b>. Copy the alphanumeric token value following <code>X-Plex-Token=</code> at the end of the URL.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Unwatched/Unscrobble Sync:</b> Plex does not support unscrobbling via webhooks. To sync unwatched status instantly, run our local daemon script: <code>node scripts/plexWebSocketMonitor.js</code>.
-                      </p>
+                      <div id="plexHelp"></div>
                     </article>
                   </div>
                 </div>
@@ -462,20 +449,9 @@
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
                         <p>Emby Integration Guide</p>
-                        <span>API Key &amp; User ID</span>
+                        <span>Credentials &amp; Webhook</span>
                       </div>
-                      <p class="tool-accordion-desc">
-                        <b>Emby URL:</b> Typically <code>http://localhost:8096</code> or your secure reverse proxy domain (e.g. <code>https://emby.example.com</code>).
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>API Key:</b> Generate a key in Emby Settings ➔ <b>Advanced</b> ➔ <b>API Keys</b>.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>User ID:</b> Go to Emby settings ➔ <b>Users</b>, click your profile, and copy the string value following <code>?userId=</code> in the browser URL.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Webhook Setup:</b> Add our webhook endpoint in Emby webhooks settings, checking Playback (Start, Pause, Unpause, Stop), Users (Mark Played, Mark Unplayed), and Send All Properties.
-                      </p>
+                      <div id="embyHelp"></div>
                     </article>
                   </div>
                 </div>
@@ -520,20 +496,9 @@
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
                         <p>Jellyfin Integration Guide</p>
-                        <span>API Key &amp; User ID</span>
+                        <span>Credentials &amp; Webhook</span>
                       </div>
-                      <p class="tool-accordion-desc">
-                        <b>Jellyfin URL:</b> Typically <code>http://localhost:8096</code> or your secure reverse proxy domain.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>API Key:</b> In admin dashboard, go to <b>Advanced</b> ➔ <b>API Keys</b>, generate a new token named <code>Plembfin Bridge</code>.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>User ID:</b> Go to <b>Administration</b> ➔ <b>Users</b>, click your username, and copy the alphanumeric ID following <code>/users?userId=</code> in the address bar.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Webhook Setup:</b> Install the official Webhook plugin in Jellyfin. Create a Generic Webhook targeting <code>/api/webhook</code>, checking Playback Start/Progress/Stop and User Data Saved events. Check Send All Properties.
-                      </p>
+                      <div id="jellyfinHelp"></div>
                     </article>
                   </div>
                 </div>
@@ -787,18 +752,7 @@
                         <p>Migration Help</p>
                         <span>Data Operations</span>
                       </div>
-                      <p class="tool-accordion-desc">
-                        <b>Backup &amp; Transfer:</b> Export native JSON database archives or import existing backups containing metadata, watch states, and user configurations.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Trakt Importer:</b> Drag and drop CSV or JSON logs exported from Trakt.tv to populate your local database in bulk.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Rebuild DB Tool:</b> Run <code>node scripts/rebuildPlaystateDatabase.js --trakt-dir "path" --write</code> to reset the database and load history from Trakt/Plex.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Force Push Tool:</b> Run <code>node scripts/forcePushHistory.js</code> to push all local history watch states to all connected media servers.
-                      </p>
+                      <div id="migrationHelp"></div>
                     </article>
                   </div>
                 </div>

@@ -1,55 +1,56 @@
-# Scheduled Sync (`scheduledSync`)
+# Scheduled Sync
 
-A Cloud Scheduler job runs `runScheduledSync()` **every 1 minute**
-(`functions/src/index.js:1854`, `schedule: "every 1 minutes"`,
-`timeoutSeconds: 60`). The same logic runs on demand via:
+The in-process scheduler runs `runScheduledTick()` **every minute** via
+`setInterval` in `server/server.js`. It is guarded against overlap: if a tick is
+still running when the next fires, the new tick is skipped.
 
-- `POST /api/cron-sync` — `handleCronSync` (streams a text log back).
-- `POST /api/force-sync` — runs it and stores progress in `runtimeState` for the
-  dashboard to poll; `stop-force-sync` cancels.
+The same logic runs on demand via:
+- `POST /api/cron-sync` — `handleCronSync` (streams a text log back, auth by API key
+  or session cookie).
+- `POST /api/force-sync` — runs it and stores progress in `runtime_state` for the
+  dashboard to poll; `POST /api/stop-force-sync` cancels.
 
-Implementation lives in `functions/src/scheduled.js`.
+Implementation lives in `server/src/scheduled.js`.
 
 ## What it does each run
 
-1. **Catch-up watched sync** — for each active platform, pull recently-watched
-   items and propagate any that haven't been synced yet:
+1. **Catch-up watched sync** — for each active platform, pull recently-watched items
+   and propagate any that haven't been synced yet:
    - `syncRecentlyWatchedFromPlex` / `...FromEmby` / `...FromJellyfin`
-     (`scheduled.js:840`+). Each is wrapped in try/catch so one platform failing
-     doesn't abort the run.
+     (`scheduled.js`). Each is wrapped in try/catch so one platform failing doesn't
+     abort the run.
 2. **Manual dispatch queue** — `syncPendingManualDispatches` processes anything
    queued by the UI (manual mark-watched, retries).
 3. **Live session tracking** (this feeds Now Playing):
-   - `fetchLiveSessions(config)` polls the servers for what's playing now.
+   - `fetchLiveSessions(config)` polls the configured servers for what's playing now.
    - `buildCacheRow()` shapes each session; `upsertLiveTrackingCache()` writes them
-     to `liveTrackingCache` (`scheduled.js:874`–`884`).
-   - It then reconciles against the previously-cached rows: a cached session that
-     is **no longer playing** and had `last_progress >= 90` is treated as a
-     **completed watch** (`processCompletedSession` → inserts history + propagates).
-     Sessions that vanish below the threshold are marked/cleared as stale.
+     to the `live_tracking_cache` SQLite table.
+   - Reconciles against the previously-cached rows: a cached session that is **no
+     longer playing** and had `last_progress >= 90` is treated as a **completed
+     watch** (`processCompletedSession` → inserts history + propagates). Sessions
+     that vanish below the threshold are marked/cleared as stale.
 
 This is how a play that finishes without a final scrobble webhook still gets
 recorded: the poller sees it hit ≥ 90% then disappear, and completes it.
 
 ## Why it matters for Now Playing
 
-`liveTrackingCache` is the **primary** source for Now Playing (see
+`live_tracking_cache` is the **primary** source for Now Playing (see
 [now-playing.md](now-playing.md)). If the poller can't reach the media servers,
-`liveTrackingCache` goes empty and Now Playing shows idle — even though the UI and
+`live_tracking_cache` goes empty and Now Playing shows idle — even though the UI and
 webhooks are fine.
 
-**Reachability:** `scheduledSync` runs in `europe-west2` on Google's network. It
-can only poll media-server URLs that are **reachable from the public internet**.
-`localhost` / LAN IPs (`192.168.x.x`, `127.0.0.1`) configured in `settings` will
-silently fail from the cloud. (The browser-side probe in `loadActiveSessions`
-compensates for live display, but the poller's completion/catch-up logic still
-won't run.)
+**Reachability:** the poller runs on the same machine as the Plembfin server process.
+It can reach any URL that machine can reach — including `localhost`, LAN IPs, and VPN
+addresses. This is different from the old Firebase cloud-function architecture where
+only internet-reachable URLs would work.
 
 ## Debugging
 
-- Trigger it manually and watch the log: `POST /api/cron-sync` (the response
-  streams a line-by-line log identical to what the scheduler runs).
-- Or read Cloud Functions logs for the `scheduledSync` function in the Google Cloud
-  console.
+- Trigger it manually and watch the log: `POST /api/cron-sync` with your API key
+  (the response streams a line-by-line log identical to what the scheduler runs).
+- Or watch the server process stdout — tick start/stop and any errors are logged.
 - Key log lines: `"live sessions: N, cached sessions in tracking: M"` tells you
   whether the poller is seeing anything.
+- Force sync from the dashboard: **Settings → Tools → Force Sync** streams the same
+  log in-browser and shows per-platform status.

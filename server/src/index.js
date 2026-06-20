@@ -4,13 +4,13 @@ import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRating
 import { createPlexNotificationListener, probePlexNotificationSocket } from "./utils/plexNotificationListener.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "./utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes } from "./utils/jellyfinClient.js";
-import { requireAdmin, requireAdminStreaming, handleLogin, handleLogout, handleAuthStatus, handleAuthCredentials } from "./utils/auth.js";
-import { AUTH } from "./appConfig.js";
+import { requireAdmin, handleLogin, handleLogout, handleAuthStatus, handleAuthApiKey, handleAuthWebhookSecret, handleAuthCredentials, handleRevokeAllSessions } from "./utils/auth.js";
+import { AUTH, verifyWebhookToken } from "./appConfig.js";
 import { getLogs as getDiagnosticLogs, clearLogs as clearDiagnosticLogs } from "./utils/diagnosticLogger.js";
 import { readFormData, readJson } from "./utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed, notFound } from "./utils/http.js";
 import { appendSyncHistory, loadMediaConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "./utils/configStore.js";
-import { db, parseJson, toJson } from "./db.js";
+import { db, parseJson, toJson, writeAuditLog } from "./db.js";
 import { createLoopStore } from "./utils/loopStore.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "./utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "./utils/liveSessions.js";
@@ -321,6 +321,7 @@ async function handleConfig(req, res) {
     const errors = validateConfig(config);
     if (errors.length) return sendJson(res, { error: "Invalid configuration", details: errors }, 400);
     await saveMediaConfig(config);
+    writeAuditLog("settings.saved", { ip: req.ip || req.socket?.remoteAddress });
     const storedConfig = await loadMediaConfig();
     // Reconnect the Plex notification listener so a newly added/changed server or token
     // takes effect immediately (event-driven unwatch detection).
@@ -818,6 +819,7 @@ async function handleDeleteMedia(req, res) {
   try {
     const result = await deleteMovieByWatchId(id);
     if (!result.found) return sendJson(res, { error: "Media item not found" }, 404);
+    writeAuditLog("media.deleted", { ip: req.ip || req.socket?.remoteAddress, detail: { id, title: result.title } });
     return sendJson(res, { ok: true, deleted: result.deleted, title: result.title }, 200, { "Cache-Control": "no-store" });
   } catch (error) {
     console.error("Failed to delete media item", error);
@@ -1392,6 +1394,7 @@ async function startAuthoritativeRestore(filename, clearMode) {
   let restore;
   try {
     restore = restoreWatchHistoryBackup(filename, { mode: "replace", dryRun: false });
+    writeAuditLog("backup.restored", { detail: { filename, clearMode, records: restore?.imported } });
   } catch (error) {
     await setRuntimeState({ restoreSyncActive: false, restoreSyncResult: { success: false, error: error.message } }).catch(() => null);
     return { status: 400, body: { error: error.message } };
@@ -1996,15 +1999,13 @@ async function handleActiveSessions(req, res) {
 async function handleCronSync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
 
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
   res.write("Cron Sync started...\n");
-
-  const admin = await requireAdminStreaming(req, res);
-  if (!admin) return;
 
   const logger = (msg) => {
     res.write(`${msg}\n`);
@@ -2125,6 +2126,9 @@ async function handleStopForceSync(req, res) {
 async function handleWebhook(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
+  if (!verifyWebhookToken(String(req.query?.token || ""))) {
+    return sendJson(res, { error: "Unauthorized" }, 401);
+  }
 
   let media;
   try {
@@ -2170,7 +2174,6 @@ async function handleWebhook(req, res) {
       inserted: false,
       skipped: true,
       reason: "Unsupported event or missing provider IDs",
-      debug: media.rawPayloadDebug,
     });
   }
 
@@ -2521,11 +2524,19 @@ async function handleTestConnection(req, res) {
   if (!type || !baseUrl || !token) return sendJson(res, { ok: false, error: "type, url, and token are required" }, 400);
 
   try {
+    const parsedBase = new URL(baseUrl);
+    if (!["http:", "https:"].includes(parsedBase.protocol)) {
+      return sendJson(res, { ok: false, error: "Only http and https URLs are allowed" }, 400);
+    }
+  } catch {
+    return sendJson(res, { ok: false, error: "Invalid URL" }, 400);
+  }
+
+  try {
     let response;
     if (type === "plex") {
       const url = new URL(`${baseUrl}/identity`);
-      url.searchParams.set("X-Plex-Token", token);
-      response = await fetch(url, { headers: { Accept: "application/json, application/xml, text/xml" } });
+      response = await fetch(url, { headers: { Accept: "application/json, application/xml, text/xml", "X-Plex-Token": token } });
     } else if (type === "emby" || type === "jellyfin") {
       const url = new URL(`${baseUrl}/System/Info/Public`);
       response = await fetch(url, { headers: { Accept: "application/json", "X-Emby-Token": token, "X-MediaBrowser-Token": token } });
@@ -2714,6 +2725,7 @@ async function handlePoster(req, res) {
 async function handleTmdbPoster(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
 
   const posterPath = String(req.query.path || "").trim();
   if (!/^\/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)$/i.test(posterPath)) {
@@ -2742,6 +2754,7 @@ async function handleTmdbPoster(req, res) {
 async function handleTmdbProfile(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
 
   const profilePath = String(req.query.path || "").trim();
   if (!/^\/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)$/i.test(profilePath)) {
@@ -3083,34 +3096,6 @@ async function handleDiagnosticLogs(req, res) {
   return sendJson(res, data, 200, { "Cache-Control": "no-store" });
 }
 
-function verifyApiKey(token) {
-  if (!token || !AUTH?.apiKey) return false;
-  const a = Buffer.from(String(token));
-  const b = Buffer.from(AUTH.apiKey);
-  try {
-    return a.length === b.length && crypto.timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
-}
-
-function requireAdminSync(req) {
-  // Check query parameter first (easiest to debug)
-  if (verifyApiKey(String(req.query?.api_key || ""))) return true;
-
-  // Check X-Api-Key header (case-insensitive)
-  const xApiKey = Object.entries(req.headers || {}).find(([key]) => key.toLowerCase() === "x-api-key");
-  if (xApiKey && verifyApiKey(xApiKey[1])) return true;
-
-  // Check Bearer token in Authorization header
-  const authHeader = Object.entries(req.headers || {}).find(([key]) => key.toLowerCase() === "authorization");
-  if (authHeader) {
-    const bearerToken = String(authHeader[1]).replace(/^Bearer\s+/i, "").trim();
-    if (verifyApiKey(bearerToken)) return true;
-  }
-
-  return false;
-}
 
 // Paginated bulk refresh of the whole library's TMDB metadata + artwork. Mirrors
 // the ingest prefetch (full details cached to tmdbMetadataCache + poster/backdrop
@@ -3485,7 +3470,7 @@ async function handleYoutubeMeta(req, res) {
   const ytApiKey = config.youtube?.apiKey;
   if (ytApiKey) {
     try {
-      const apiRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${encodeURIComponent(videoId)}&key=${encodeURIComponent(ytApiKey)}`);
+      const apiRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${encodeURIComponent(videoId)}`, { headers: { "X-goog-api-key": ytApiKey } });
       if (apiRes.ok) {
         const apiData = await apiRes.json();
         const item = apiData.items?.[0];
@@ -3537,6 +3522,9 @@ async function dispatch(req, res) {
     if (path === "login") return handleLogin(req, res);
     if (path === "logout") return handleLogout(req, res);
     if (path === "auth/status" || path === "auth-status") return handleAuthStatus(req, res);
+    if (path === "auth/apikey") return handleAuthApiKey(req, res);
+    if (path === "auth/webhook-secret") return handleAuthWebhookSecret(req, res);
+    if (path === "auth/sessions/revoke-all") return handleRevokeAllSessions(req, res);
     if (path === "auth/credentials") return handleAuthCredentials(req, res);
     if (path === "config") return handleConfig(req, res);
     if (path === "appearance") return handleAppearance(req, res);

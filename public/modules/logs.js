@@ -31,7 +31,6 @@ export async function fetchDiagnosticLogs(headers = {}) {
   try {
     const url = new URL("/api/diagnostic-logs", window.location.origin);
     url.searchParams.set("limit", "500");
-    if (headers["X-Api-Key"]) url.searchParams.set("api_key", headers["X-Api-Key"]);
     const res = await fetch(url, {
       credentials: "same-origin",
       headers: { ...headers, "Cache-Control": "no-store" },
@@ -49,7 +48,6 @@ export async function fetchDiagnosticLogs(headers = {}) {
 
 export async function clearDiagnosticLogs(headers = {}) {
   const url = new URL("/api/diagnostic-logs", window.location.origin);
-  if (headers["X-Api-Key"]) url.searchParams.set("api_key", headers["X-Api-Key"]);
   const res = await fetch(url, {
     method: "DELETE",
     credentials: "same-origin",

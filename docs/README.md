@@ -2,9 +2,9 @@
 
 Reference docs for how Plembfin works under the hood. These exist so that when
 something breaks, you (or Claude) can be pointed at the relevant file instead of
-re-deriving the architecture from ~7000 lines of `app.js`.
+re-deriving the architecture from the source.
 
-> For build/deploy commands and a high-level architecture summary, see
+> For build/run commands and a high-level architecture summary, see
 > [`../CLAUDE.md`](../CLAUDE.md). These docs go deeper on the moving parts that
 > have actually caused issues.
 
@@ -12,31 +12,33 @@ re-deriving the architecture from ~7000 lines of `app.js`.
 
 | Doc | Read it when… |
 | --- | --- |
-| [architecture.md](architecture.md) | You need the big picture: frontend SPA ↔ single Cloud Function, the `dispatch()` router, where code lives. |
-| [now-playing.md](now-playing.md) | "Now Playing" is wrong, empty, stale, or works locally but not on the live site. **This is the one that bit us before.** |
-| [webhooks.md](webhooks.md) | A watched/unwatched event didn't record or didn't propagate; understanding webhook phases. |
-| [scheduled-sync.md](scheduled-sync.md) | The every-minute background worker (`scheduledSync`): catch-up sync and live-session polling. |
-| [watch-history-backups.md](watch-history-backups.md) | Plan for scheduled watch-state backups and optional cloud uploads. |
-| [firestore-collections.md](firestore-collections.md) | You're poking around the Firestore console and need to know what a collection/field means — including the camelCase vs snake_case schema traps. |
+| [architecture.md](architecture.md) | You need the big picture: Express server, `dispatch()` router, SQLite data layer, where code lives. |
+| [now-playing.md](now-playing.md) | "Now Playing" is wrong, empty, or stale. **This is the one that bit us before.** |
+| [webhooks.md](webhooks.md) | A watched/unwatched event didn't record or didn't propagate; understanding webhook phases and auth. |
+| [scheduled-sync.md](scheduled-sync.md) | The every-minute in-process background worker: catch-up sync and live-session polling. |
+| [watch-history-backups.md](watch-history-backups.md) | Automatic watch-state backups: scheduling, retention, and remote destinations. |
+| [sqlite-schema.md](sqlite-schema.md) | You're reading the database directly and need to know what a table or field means. |
 | [troubleshooting.md](troubleshooting.md) | Symptom-first index: "X is broken → look here." Start here if you don't know which doc you need. |
 
-## The single most important mental model
+## The most important mental model
 
-There are **two completely separate runtimes** that share the same code but
-**not** the same data:
+This is a **single-process, self-hosted Node.js application**. There are no separate
+runtimes, no cloud functions, no external databases, and no background services.
+Everything — the web UI, the API, and the per-minute scheduler — runs in one
+`node server/server.js` process, backed by a local SQLite file at `data/plembfin.db`.
 
-- **Local emulator** (`npm run emulators`) — its own isolated Firestore at
-  `localhost:8180`. The browser talks to functions **directly**.
-- **Production** (`plembfin.web.app`) — the real Firestore. The browser talks to
-  the `api` Cloud Function **through the Firebase Hosting proxy**.
+Data written to the database is always in the same file regardless of where you run
+the app. There is no emulator/production split and no "works locally but not in
+production" because there is no separate production environment — you run the
+binary directly, or in a container via `docker compose up`.
 
-Most "works locally but not live" bugs come from one of these differences:
-1. **Different data** — the emulator's Firestore and prod's Firestore are not the
-   same database. A collection full of sessions locally can be empty in prod.
-2. **The Hosting proxy** — prod traffic goes through Firebase Hosting, which
-   **buffers responses** and breaks long-lived streaming (SSE). The emulator does
-   not, so streaming silently "works" locally and silently fails in prod. See
-   [now-playing.md](now-playing.md#why-it-broke-the-sse-trap).
-3. **Network reachability** — the Cloud Function runs in `europe-west2` on
-   Google's network and cannot reach `localhost`/LAN media-server URLs. The
-   emulator runs on your LAN and can.
+Common gotchas:
+1. **Media server reachability** — Plembfin contacts Plex/Emby/Jellyfin from the
+   machine it runs on, not from the browser. A URL that the browser can reach but
+   the server cannot (e.g. a different LAN segment or a VPN-gated address) will
+   fail silently for the background sync while appearing fine in the UI probe.
+2. **Webhook secret in URL** — The webhook endpoint requires `?token=<webhookSecret>`
+   in the URL. Omitting it returns 401. Copy the full URL from Settings → API Endpoints.
+3. **Config persistence** — Credentials and settings are stored in `data/config.json`
+   (generated on first boot) and in the `settings` SQLite row. The Docker volume mount
+   at `/data` must be persistent across container restarts or settings will reset.

@@ -6,7 +6,9 @@ data
 scripts
 !scripts/
 !scripts/install-git-hooks.js
+!scripts/docker-entrypoint.sh
 docs
+scratch
 emulator-data
 firebase-export-*
 *.log

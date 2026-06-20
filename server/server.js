@@ -1,6 +1,7 @@
 import path from "node:path";
 import express from "express";
 import cookieParser from "cookie-parser";
+import { rateLimit } from "express-rate-limit";
 import { setGlobalDispatcher, Agent } from "undici";
 import { loadLocalEnv } from "./src/env.js";
 
@@ -18,6 +19,25 @@ const PORT = Number(process.env.PORT || 5055);
 const app = express();
 app.disable("x-powered-by");
 app.use(cookieParser());
+
+// HTTP security headers.
+app.use((_req, res, next) => {
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "same-origin");
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; img-src 'self' data: blob: https:; " +
+    "script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self';"
+  );
+  next();
+});
+
+// Rate limiting — applied before any route handler.
+app.use("/api/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }));
+app.use("/api/webhook", rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false }));
+app.use("/api/tmdb-poster", rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
+app.use("/api/tmdb-profile", rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
 
 // Capture the raw request body for /api so webhook/JSON handlers can parse it
 // themselves (multipart via busboy, JSON via readJson). express.raw sets

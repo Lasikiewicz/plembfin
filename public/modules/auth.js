@@ -1,12 +1,13 @@
 // Local authentication client. Replaces the Firebase Auth web SDK with calls to
 // the self-hosted /api/login, /api/logout, and /api/auth/status endpoints. The
 // browser holds an HttpOnly session cookie (sent automatically on same-origin
-// requests); the returned API key is kept in memory + localStorage so it can be
-// attached to header-less requests like the now-playing EventSource.
+// requests); the API key is fetched from /api/auth/apikey after login and kept
+// in memory + localStorage for use in X-Api-Key request headers.
 
 const API_KEY_STORAGE = "plembfinApiKey";
 
 let cachedToken = localStorage.getItem(API_KEY_STORAGE) || "";
+let cachedWebhookToken = "";
 let cachedUser = null;
 
 function userFrom(username) {
@@ -14,16 +15,38 @@ function userFrom(username) {
   return { email: name, uid: name, username: name };
 }
 
-function setSession(username, apiKey) {
+function setSession(username) {
   cachedUser = userFrom(username);
-  cachedToken = apiKey || cachedToken || "";
-  if (cachedToken) localStorage.setItem(API_KEY_STORAGE, cachedToken);
 }
 
 function clearSession() {
   cachedUser = null;
   cachedToken = "";
+  cachedWebhookToken = "";
   localStorage.removeItem(API_KEY_STORAGE);
+}
+
+// Fetches the admin API key from the server and caches it. Called after any
+// successful authentication so buildAuthHeaders() always has a key to use.
+async function fetchAndCacheApiKey() {
+  try {
+    const res = await fetch("/api/auth/apikey", { credentials: "same-origin" });
+    if (!res.ok) return;
+    const data = await res.json().catch(() => ({}));
+    if (data.apiKey) {
+      cachedToken = data.apiKey;
+      localStorage.setItem(API_KEY_STORAGE, cachedToken);
+    }
+  } catch { /* network error — session cookie covers same-origin requests */ }
+}
+
+async function fetchAndCacheWebhookToken() {
+  try {
+    const res = await fetch("/api/auth/webhook-secret", { credentials: "same-origin" });
+    if (!res.ok) return;
+    const data = await res.json().catch(() => ({}));
+    if (data.webhookToken) cachedWebhookToken = data.webhookToken;
+  } catch { /* best-effort */ }
 }
 
 export function readStoredAdminToken(_keys, fallback = "") {
@@ -34,6 +57,10 @@ export function currentFirebaseUser() {
   return cachedUser;
 }
 
+export function getWebhookToken() {
+  return cachedWebhookToken;
+}
+
 // Called once at startup. Resolves the current auth state from the session
 // cookie and invokes the callback with (user, token) or (null, "").
 export function onFirebaseAuthChange(callback) {
@@ -42,7 +69,8 @@ export function onFirebaseAuthChange(callback) {
       const res = await fetch("/api/auth/status", { credentials: "same-origin" });
       const data = await res.json().catch(() => ({}));
       if (data.authenticated) {
-        setSession(data.username, data.apiKey);
+        setSession(data.username);
+        await Promise.all([fetchAndCacheApiKey(), fetchAndCacheWebhookToken()]);
         callback(cachedUser, cachedToken || "session");
       } else {
         clearSession();
@@ -67,7 +95,8 @@ export async function signInAdmin(username, password) {
   if (!res.ok) {
     throw new Error(data.error || "Invalid username or password");
   }
-  setSession(data.username, data.apiKey);
+  setSession(data.username);
+  await Promise.all([fetchAndCacheApiKey(), fetchAndCacheWebhookToken()]);
   return { user: cachedUser, token: cachedToken || "session" };
 }
 
@@ -89,8 +118,21 @@ export async function updateAdminCredentials({ username, currentPassword, newPas
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Login update failed");
-  setSession(data.username, data.apiKey);
+  setSession(data.username);
+  await fetchAndCacheApiKey();
   return { user: cachedUser, token: cachedToken || "session" };
+}
+
+export async function rotateWebhookSecret() {
+  const res = await fetch("/api/auth/webhook-secret", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Failed to rotate webhook secret");
+  if (data.webhookToken) cachedWebhookToken = data.webhookToken;
+  return data.webhookToken || "";
 }
 
 export function buildAuthHeaders(token) {
@@ -100,11 +142,8 @@ export function buildAuthHeaders(token) {
   return headers;
 }
 
-export function buildNowPlayingUrl(origin, token) {
-  const url = new URL("/api/now-playing", origin);
-  const key = token && token !== "session" ? token : cachedToken;
-  if (key) url.searchParams.set("api_key", key);
-  return url;
+export function buildNowPlayingUrl(origin) {
+  return new URL("/api/now-playing", origin);
 }
 
 export function scrubTokenFromLocation() {

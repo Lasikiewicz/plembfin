@@ -2,99 +2,102 @@
 
 Start here. Find the symptom, follow the pointer.
 
-## "Now Playing is empty on the live site but fine locally"
+## "Now Playing is empty or stale"
 
-The classic. Causes, in order of likelihood:
+Causes, in order of likelihood:
 
-1. **SSE reintroduced behind the Hosting proxy.** Now Playing is polled, not
-   streamed — `handleNowPlaying` returns plain JSON and the dashboard re-fetches it
-   every 10s. If someone wires Server-Sent Events back up, Firebase Hosting buffers
-   the streamed response and it never delivers in prod (the original bug). Tell:
-   DevTools → Network shows a long-lived `now-playing` request stuck *pending* with
-   no body instead of quick ~10s JSON polls. Fix: keep it on polling
-   (`startHistoryPolling` → `loadActiveSessions` on an interval). Full write-up:
-   [now-playing.md](now-playing.md#why-it-broke-the-sse-trap).
-2. **Production `liveTrackingCache` is empty.** The cloud poller can't reach your
-   media servers. They must be **internet-reachable** — the function runs in
-   `europe-west2` and can't hit `localhost`/LAN IPs. Check `settings` URLs and
-   `scheduledSync` logs. See [scheduled-sync.md](scheduled-sync.md).
-3. **API returns data but grid is empty** → frontend render bug in
-   `renderNowPlaying`/`setActiveSessions` (`public/app.js`).
+1. **Scheduler isn't reaching the media servers.** The poller runs on the Plembfin
+   server machine. If that machine can't reach the configured Plex/Emby/Jellyfin
+   URLs, `live_tracking_cache` stays empty. The browser-side local probe compensates
+   for display but the scheduler's completion/catch-up logic won't run. Check the
+   server logs and Settings → Tools → System Integrity Check.
+2. **Database is stale.** Check via SQLite directly:
+   ```sh
+   sqlite3 data/plembfin.db "SELECT title, last_progress, completed_at FROM live_tracking_cache ORDER BY updated_at DESC LIMIT 10;"
+   ```
+3. **Frontend render bug.** `/api/now-playing` returns sessions but the grid stays
+   empty → bug in `renderNowPlaying`/`setActiveSessions` (`public/app.js`).
 
-Decision flow:
-```
-Now Playing idle on prod?
- ├─ Firestore → liveTrackingCache has fresh completedAt:null docs?
- │    ├─ NO  → poller can't reach servers (settings URLs / reachability)
- │    └─ YES → DevTools Network → /api/now-playing
- │             ├─ request stuck pending  → SSE reintroduced behind Hosting; keep polling
- │             ├─ returns [] (empty)     → stale function deploy or read bug
- │             └─ returns sessions       → frontend render bug
-```
+See [now-playing.md](now-playing.md) for full diagnosis steps.
 
-## "Events show on the emulator but not on the live site (or vice versa)"
+## "A watched event didn't record"
 
-A webhook has **one** target. The media servers are pointed at one origin's
-`/api/webhook`. Emulator URL ≠ production URL. Point them where you want the data.
-See [webhooks.md](webhooks.md). (Production watch history being *newer* than the
-emulator's is a tell that scrobbles go to prod while the emulator only gets some
-other source.)
-
-## "A watched item didn't record"
-
-- Confirm the webhook reached the right environment (above).
-- Check `media.phase` was `completed` — e.g. a Plex `media.stop` below 90% becomes
-  `ended`, not `completed`. See the phase table in
-  [webhooks.md](webhooks.md#normalization--phases).
-- Check `syncHistory` / the watch record's `sync_dispatch_telemetry` for errors.
+- Confirm the webhook reached Plembfin with the correct `?token=` secret. The server
+  logs every incoming webhook attempt and whether auth passed.
+- Check `media.phase` was `completed` — a Plex `media.stop` below 90% becomes
+  `ended`, not `completed`. See the phase table in [webhooks.md](webhooks.md).
+- Check `sync_history` and the watch record's `sync_dispatch_telemetry` for errors.
 
 ## "A watched item recorded but didn't sync to the other platforms"
 
-- Look at `syncHistory` and the record's `sync_dispatch_telemetry`.
-- Check the target platform's client (`embyClient.js` / `jellyfinClient.js` /
-  `plexClient.js`) isn't erroring (auth/URL).
+- Look at `sync_history` and the record's `sync_dispatch_telemetry`.
+  ```sh
+  sqlite3 data/plembfin.db "SELECT * FROM sync_history ORDER BY created_at DESC LIMIT 10;"
+  ```
+- Check the target platform's client credentials (URL / API key / user ID).
 - Echo suppression: `loopStore` drops events that look like echoes of a recent
-  dispatch — usually correct, but it's in-memory per instance. See
-  [webhooks.md](webhooks.md#propagation-sync).
+  dispatch — usually correct. If sync is double-firing, check loop keys:
+  ```sh
+  sqlite3 data/plembfin.db "SELECT * FROM loop_keys WHERE expires_at > unixepoch('now', 'subsec') * 1000;"
+  ```
 
 ## "Resume position didn't carry over"
 
-`playbackProgress` + `syncMediaProgress`. Triggered on `ended` when
-`shouldSyncResumeProgress` is true and the source provided `viewOffset`/`duration`.
-Plex must be sending playback lifecycle events with offsets.
+Triggered on `ended` when `shouldSyncResumeProgress` is true and the source
+provided `viewOffset`/`duration`. Check that Plex is sending lifecycle events
+(`media.pause`, `media.stop`) with `viewOffset` and `duration` populated, and that
+the position is over one minute (sub-minute positions are ignored to avoid noise).
 
 ## "Posters are missing / wrong"
 
-Two-tier system. Frontend renders a `poster-fallback` then calls
-`/api/poster?id=<docId>`. Backend tries: stored URL → configured server URL → TMDB,
-then caches the winner to Firebase Storage (`posterCache`, key `mediaKey`).
-- Only `firebasestorage.googleapis.com` URLs are treated as "cached"
-  (`isCachedStorageImageUrl`); `image.tmdb.org` URLs are not, and are stored as
-  `""` by `rememberPosterLookup` (the in-memory `posterLookupCache` bypasses this
-  for TMDB URLs from the prefetch observer). This is intentional; see CLAUDE.md
-  "Poster pipeline."
+Two-tier: frontend renders a `poster-fallback` then calls
+`/api/poster?id=<watchRecordId>`. Backend tries candidates in order — stored URL →
+configured server URL (Plex/Emby/Jellyfin) → TMDB — resizes with sharp, writes the
+winner to `data/media/posters` or `data/media/backdrops`, and records metadata in
+`poster_cache`.
+
+Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
+(`isCachedStorageImageUrl`); `image.tmdb.org` URLs are not.
 
 ## "Can't sign in / 401s everywhere"
 
-Admin gating: `ADMIN_EMAILS` / `ADMIN_UIDS` in `functions/.env`, verified by
-`requireAdmin` (`functions/src/utils/auth.js`). Emulator admin login is
-`admin`/`admin`.
+- Verify credentials: `ADMIN_USERNAME`/`ADMIN_PASSWORD` env vars, or `data/config.json`.
+- The session cookie `plembfin_session` must be present and unexpired (7-day TTL).
+- If `COOKIE_SECURE=true` is set, the cookie is only sent over HTTPS. Accessing the
+  app over HTTP will silently drop it.
+- API key is shown after sign-in via Settings → API Endpoints (click the eye icon
+  if present) or from `GET /api/auth/apikey` with a valid session.
+- If all sessions appear invalid, `sessionSecret` may have rotated (e.g. after
+  "Revoke All Sessions"). Sign in again.
+
+## "Webhook returns 401"
+
+- The `?token=` query parameter is missing or wrong. Copy the full webhook URL from
+  **Settings → API Endpoints** — it already includes the token.
+- If you rotated the webhook secret ("Rotate Secret" button), all media servers need
+  to be updated with the new URL.
+
+## "Scheduler / background sync not running"
+
+- The scheduler runs inside the server process. Confirm the server is running:
+  check `GET /api/ping` (returns `{"ok":true}` with no auth).
+- Trigger it manually: `POST /api/cron-sync` with your API key — the response
+  streams a line-by-line log.
+- Watch the server stdout for `[cron]` log lines.
+
+## "Settings or config not saving"
+
+- Confirm `DATA_DIR` (`data/` by default) is writable.
+- In Docker, confirm the volume is mounted: `docker exec plembfinfire ls /data`.
+- `data/config.json` must be writable for credential/secret persistence.
 
 ## General: where do I look?
 
 | Need | Place |
 | --- | --- |
-| What route handles X | `dispatch()` in `functions/src/index.js:1811` |
-| Live function logs | Google Cloud console → Cloud Functions → `api` / `scheduledSync` |
-| Production data | Firebase console → Firestore (see [firestore-collections.md](firestore-collections.md)) |
+| What route handles X | `dispatch()` in `server/src/index.js` |
+| Live server logs | stdout of `node server/server.js` (or `docker logs plembfinfire`) |
+| Database inspection | `sqlite3 data/plembfin.db` |
 | Run the background worker on demand | `POST /api/cron-sync` (streams a log) |
-| Frontend debug logs | `logDebug(...)` calls throughout `public/app.js` (and the in-app logs panel) |
-
-## Deploy notes
-
-- `npm run deploy:hosting` — frontend. Because `api` is `pinTag: true` in
-  `firebase.json`, this **also re-deploys the `api` function**.
-- `npm run deploy:functions` — backend only.
-- `npm run deploy` — everything.
-- There are no tests or linters. `node --check public/app.js` is a cheap syntax
-  sanity check before deploying frontend changes.
+| Frontend debug logs | `logDebug(...)` calls throughout `public/app.js` (and the in-app Logs panel) |
+| Security audit | `docs/security-audit-2026-06-20.md` |

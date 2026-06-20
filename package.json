@@ -21,6 +21,7 @@
     "busboy": "^1.6.0",
     "cookie-parser": "^1.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.5.2",
     "sharp": "^0.34.5",
     "undici": "^8.4.1"
   },

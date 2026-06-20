@@ -59,3 +59,12 @@ export function now() {
 export function transaction(fn) {
   return db.transaction(fn)();
 }
+
+const insertAuditLog = db.prepare(
+  "INSERT INTO audit_log (ts, action, actor_ip, detail) VALUES (?, ?, ?, ?)"
+);
+export function writeAuditLog(action, { ip = null, detail = null } = {}) {
+  try {
+    insertAuditLog.run(Date.now(), String(action), ip ?? null, detail ? JSON.stringify(detail) : null);
+  } catch { /* audit failures must never break the primary flow */ }
+}

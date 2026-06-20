@@ -10,9 +10,18 @@ const packagePath = path.join(root, "package.json");
 const packageLockPath = path.join(root, "package-lock.json");
 
 const sourceCommit = String(process.env.SOURCE_COMMIT || "").trim();
-const sourceMessage = String(process.env.SOURCE_MESSAGE || "Update application").trim().split(/\r?\n/, 1)[0];
+const rawMessage = String(process.env.SOURCE_MESSAGE || "Update application").trim();
+const sourceMessage = rawMessage.split(/\r?\n/, 1)[0];
 const sourceDate = String(process.env.SOURCE_DATE || new Date().toISOString()).trim();
 const sourceAuthor = String(process.env.SOURCE_AUTHOR || "unknown").trim();
+
+// Extract bullet-point lines from the commit body as structured details
+const sourceDetails = rawMessage
+  .split(/\r?\n/)
+  .slice(1)
+  .map((l) => l.trim())
+  .filter((l) => /^[-*]\s+/.test(l))
+  .map((l) => l.replace(/^[-*]\s+/, ""));
 
 if (!sourceCommit) {
   console.error("SOURCE_COMMIT is required");
@@ -32,13 +41,15 @@ const nextVersion = `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
 
 changelog.version = nextVersion;
 changelog.updatedAt = sourceDate;
-changelog.entries.unshift({
+const entry = {
   version: nextVersion,
   date: sourceDate,
   commit: sourceCommit,
   message: sourceMessage,
   author: sourceAuthor,
-});
+};
+if (sourceDetails.length > 0) entry.details = sourceDetails;
+changelog.entries.unshift(entry);
 
 const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
 packageJson.version = nextVersion;
