@@ -6,7 +6,7 @@ import { cacheBackdropFromUrl, cachePosterFromUrl, getPosterCache, usableCachedP
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DETAILS_SCHEMA_VERSION = 3;
+const DETAILS_SCHEMA_VERSION = 4;
 const PERSON_SCHEMA_VERSION = 5;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const MISSING_TTL_MS = DAY_MS;
