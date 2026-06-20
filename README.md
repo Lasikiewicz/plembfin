@@ -28,7 +28,7 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 *   📊 **Real-Time Dashboard**: A clean, single-page dashboard displaying real-time "Now Playing" activity, weekly viewing charts, and detailed history.
 *   📈 **Stats Reviews**: Year, month, and all-time reports highlight most-played movies and TV shows with poster rankings, first/last plays, platform breakdowns, and watch activity.
 *   🔒 **Self-Hosted & Private**: Built on a local SQLite database running in WAL mode. All poster assets, metadata, and watch histories reside on your own hardware.
-*   🖼️ **Art Pipeline & Caching**: Fetches posters and backdrops from your media servers or TMDB, resizes them with `sharp`, and caches them locally under `data/media` for near-instant rendering.
+*   🖼️ **Art Pipeline & Caching**: Fetches posters, backdrops, and logo art from your media servers, TMDB, and Fanart.tv (in parallel), resizes them with `sharp`, and caches them locally under `data/media` for near-instant rendering.
 *   🧹 **Echo Loop Prevention**: Utilizes a memory-mapped loop detector to suppress echo webhooks triggered by Plembfin's own updates.
 *   ☁️ **Automated Backups**: Backs up your database daily to a local folder and optionally mirrors to Backblaze B2 cloud storage.
 *   🔍 **Seerr Integration**: Integrates with Overseerr/Jellyseerr/Seerr to check request and availability statuses directly from the movie and show detail views.
@@ -125,6 +125,10 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 #### 🎬 TMDB (Metadata & Posters)
 *   **TMDB API Key**: Obtain a free API key from [TheMovieDB](https://www.themoviedb.org/documentation/api) and paste it here. This enables search capability on the dashboard, rich cast lists, and poster fallbacks.
 
+#### 🎨 Fanart.tv (Artwork Fallback)
+*   Plembfin includes a built-in project key for [Fanart.tv](https://fanart.tv) — no setup is required. Fanart.tv is queried in parallel with TMDB as a fallback source for posters, backdrops, and transparent logo art.
+*   **Personal API Key (optional)**: Register at fanart.tv and enter your personal key under **Settings → API Keys → Fanart.tv** to get higher rate limits and access to your own uploaded artwork.
+
 #### 🔍 Seerr (Request Manager)
 *   **Seerr Server URL**: Your Overseerr or Jellyseerr server URL (e.g., `http://192.168.1.100:5055`).
 *   **Seerr API Key**: Copy the API key from your Seerr Settings → General.
@@ -202,6 +206,7 @@ The following environment variables can be set in your system or defined in `doc
 | `ADMIN_PASSWORD` | `admin` | Default administrator password for fresh setups. |
 | `API_KEY` | _generated_ | Security token used to authorize incoming webhooks and API calls. |
 | `SESSION_SECRET` | _generated_ | Signing secret for the dashboard session cookie. |
+| `FANART_API_KEY` | _none_ | Optional personal Fanart.tv API key for higher rate limits. A built-in project key is used when this is unset. |
 
 ---
 
@@ -229,3 +234,13 @@ npm run dev      # start with auto-reload on http://localhost:5055
 ## 📜 License
 
 Plembfin is private software. See the [changelog.json](changelog.json) for the version history and commit logs.
+
+---
+
+## 🙏 Thank You
+
+Plembfin uses the following third-party services for artwork and metadata — thank you to the people and communities that make them possible:
+
+*   **[The Movie Database (TMDB)](https://www.themoviedb.org)** — The primary source for movie and TV show metadata, posters, backdrops, cast information, and logo art. This product uses the TMDB API but is not endorsed or certified by TMDB.
+*   **[Fanart.tv](https://fanart.tv)** — Community-driven source of high-quality poster art, backdrop images, and transparent logo art used as a fallback when TMDB images are unavailable. Thank you to all the fanart.tv contributors who upload and curate artwork.
+

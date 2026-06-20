@@ -350,6 +350,7 @@ function bindElements() {
     plexUsername: document.querySelector("#plexUsername"),
     tmdbApiKey: document.querySelector("#tmdbApiKey"),
     youtubeApiKey: document.querySelector("#youtubeApiKey"),
+    fanartApiKey: document.querySelector("#fanartApiKey"),
     embyEnabled: document.querySelector("#embyEnabled"),
     embyServerUrl: document.querySelector("#embyServerUrl"),
     embyApiKey: document.querySelector("#embyApiKey"),
@@ -411,6 +412,8 @@ function bindElements() {
     tmdbConfigStatus: document.querySelector("#tmdbConfigStatus"),
     saveYoutubeConfigButton: document.querySelector("#saveYoutubeConfigButton"),
     youtubeConfigStatus: document.querySelector("#youtubeConfigStatus"),
+    saveFanartConfigButton: document.querySelector("#saveFanartConfigButton"),
+    fanartConfigStatus: document.querySelector("#fanartConfigStatus"),
     saveSeerrConfigButton: document.querySelector("#saveSeerrConfigButton") || elements.saveSeerrConfigButton,
     seerrConfigStatus: document.querySelector("#seerrConfigStatus") || elements.seerrConfigStatus,
     saveAdminCredentialsButton: document.querySelector("#saveAdminCredentialsButton"),
@@ -1686,7 +1689,7 @@ function renderGlobalSearchDropdown(query) {
       movies.push({
         _type: "movie",
         title,
-        poster: tmdbPoster(item.poster_path),
+        poster: tmdbPoster(item.poster_path, item.id, "movie"),
         href: `/movie/tmdb/${item.id}`,
         sub: `Movie${year ? ` · ${year}` : ""} · TMDB`,
         overview,
@@ -1703,7 +1706,7 @@ function renderGlobalSearchDropdown(query) {
       shows.push({
         _type: "show",
         title,
-        poster: tmdbPoster(item.poster_path),
+        poster: tmdbPoster(item.poster_path, item.id, "tv"),
         href: `/tvshow/tmdb/${item.id}`,
         sub: `TV Show${year ? ` · ${year}` : ""} · TMDB`,
         overview,
@@ -4611,6 +4614,8 @@ function populateConfigForm(config = {}) {
   if (elements.tmdbApiKey) elements.tmdbApiKey.value = "";
   if (elements.tmdbApiKey) elements.tmdbApiKey.placeholder = config.tmdb?.configured ? "Configured - enter a new key to replace it" : "TMDB API key";
   if (elements.youtubeApiKey) elements.youtubeApiKey.value = config.youtube?.apiKey || "";
+  if (elements.fanartApiKey) elements.fanartApiKey.value = "";
+  if (elements.fanartApiKey) elements.fanartApiKey.placeholder = config.fanart?.configured ? "Configured - enter a new key to replace it" : "Personal API key (optional)";
 
   if (elements.seerrEnabled) elements.seerrEnabled.checked = !config.seerr?.disabled;
   if (elements.seerrServerUrl) elements.seerrServerUrl.value = config.seerr?.baseUrl || "";
@@ -4806,6 +4811,10 @@ async function saveSectionConfig(section) {
       payload.youtube = {
         apiKey: elements.youtubeApiKey.value.trim(),
       };
+    } else if (section === "fanart") {
+      payload.fanart = {
+        apiKey: elements.fanartApiKey.value.trim(),
+      };
     } else if (section === "seerr") {
       payload.seerr = {
         baseUrl: elements.seerrServerUrl?.value.trim() || "",
@@ -4837,6 +4846,13 @@ async function saveSectionConfig(section) {
       };
       elements.tmdbApiKey.value = "";
       elements.tmdbApiKey.placeholder = state.savedConfig.tmdb.configured ? "Configured - enter a new key to replace it" : "TMDB API key";
+    }
+    if (section === "fanart") {
+      state.savedConfig.fanart = {
+        configured: Boolean(payload.fanart.apiKey || state.savedConfig.fanart?.configured)
+      };
+      if (elements.fanartApiKey) elements.fanartApiKey.value = "";
+      if (elements.fanartApiKey) elements.fanartApiKey.placeholder = state.savedConfig.fanart.configured ? "Configured - enter a new key to replace it" : "Personal API key (optional)";
     }
     if (section === "seerr") {
       if (savedSectionConfig) {
@@ -5818,7 +5834,7 @@ function triggerSearchPage(query) {
         results.push({
           _type: mediaType === "person" ? "person" : (mediaType === "movie" ? "movie" : "show"),
           title,
-          poster: mediaType === "person" ? (tmdbProfile(item.profile_path) || tmdbPoster(item.profile_path)) : tmdbPoster(item.poster_path),
+          poster: mediaType === "person" ? (tmdbProfile(item.profile_path) || tmdbPoster(item.profile_path)) : tmdbPoster(item.poster_path, item.id, mediaType),
           href: mediaType === "person" ? `/person/${item.id}` : (mediaType === "movie" ? `/movie/tmdb/${item.id}` : `/tvshow/tmdb/${item.id}`),
           sub: mediaType === "person" ? "Cast Member" : `${mediaType === "movie" ? "Movie" : "TV Show"}${year ? ` · ${year}` : ""} · TMDB`,
           overview,
@@ -6214,6 +6230,8 @@ function observeDashboardPosters() {
 }
 
 let _explorerPrefetchObserver = null;
+let _filmographyObserver = null;
+const FILMOGRAPHY_PAGE_SIZE = 40;
 
 function observeExplorerTmdbPrefetch(container) {
   _explorerPrefetchObserver?.disconnect();
@@ -6551,6 +6569,7 @@ async function loadExplorerMovies() {
     state.moviesRaw = dedupeMediaRecords([...state.moviesRaw, ...movies], "movies");
     state.moviesOffset += movies.length;
     state.moviesHasMore = movies.length === EXPLORER_PAGE_SIZE;
+    if (state.moviesHasMore) state.explorerScrollArmed = true;
   } finally {
     state.moviesLoading = false;
     renderMovieExplorer();
@@ -6935,6 +6954,7 @@ async function loadExplorerShows() {
     state.showsRaw = dedupeMediaRecords([...state.showsRaw, ...shows], "shows");
     state.showsOffset += shows.length;
     state.showsHasMore = shows.length === EXPLORER_PAGE_SIZE;
+    if (state.showsHasMore) state.explorerScrollArmed = true;
   } finally {
     state.showsLoading = false;
     renderShowExplorer();
@@ -8571,7 +8591,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
       backdropUrl = `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`;
     }
     if (tmdbData.poster_path) {
-      posterUrl = tmdbPoster(tmdbData.poster_path);
+      posterUrl = tmdbPoster(tmdbData.poster_path, tmdbData.id, "tv");
     }
     overview = tmdbData.overview || overview;
     premiered = tmdbData.first_air_date ? `Premiered ${formatTmdbDate(tmdbData.first_air_date)}` : premiered;
@@ -8711,14 +8731,19 @@ function tmdbImage(path, size = "w300") {
   return path ? `https://image.tmdb.org/t/p/${size}${path}` : "";
 }
 
-function tmdbPoster(path) {
-  return path ? `/api/tmdb-poster?path=${encodeURIComponent(path)}` : "";
+function tmdbPoster(path, tmdbId = "", mediaType = "") {
+  if (!path) return "";
+  let url = `/api/tmdb-poster?path=${encodeURIComponent(path)}`;
+  if (tmdbId) url += `&tmdbId=${encodeURIComponent(tmdbId)}`;
+  if (mediaType) url += `&mediaType=${encodeURIComponent(mediaType)}`;
+  return url;
 }
 
 function bestTmdbLogo(tmdbData) {
   const logos = tmdbData?.images?.logos || [];
   const logo = logos.find(l => l.iso_639_1 === "en") || logos.find(l => !l.iso_639_1) || logos[0];
-  return logo ? tmdbImage(logo.file_path, "original") : null;
+  if (logo) return tmdbImage(logo.file_path, "original");
+  return tmdbData?.cached_logo_url || null;
 }
 
 function tmdbProfile(path) {
@@ -9009,7 +9034,7 @@ function renderShowModalContent(show, {
   const progressPercent = Math.max(0, Math.min(100, Math.round((watchedCount / totalCount) * 100)));
   const representative = representativeEpisode(seasonsMap);
   const backdropUrl = tmdbData?.cached_backdrop_url || tmdbImage(tmdbData?.backdrop_path, "original");
-  const posterUrl = tmdbData?.cached_poster_url || tmdbPoster(tmdbData?.poster_path) || posterUrlFor(representative);
+  const posterUrl = tmdbData?.cached_poster_url || tmdbPoster(tmdbData?.poster_path, tmdbData?.id, "tv") || posterUrlFor(representative);
   const logoUrl = show.logo_url || bestTmdbLogo(tmdbData);
   const overview = tmdbData?.overview || "No synopsis available.";
   const premiered = tmdbData?.first_air_date ? `Premiered ${formatTmdbDate(tmdbData.first_air_date)}` : "Release date unknown";
@@ -10124,7 +10149,7 @@ async function renderMovieImmersiveModalContent(movie) {
       backdropUrl = tmdbData.cached_backdrop_url || `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`;
     }
     if (tmdbData.poster_path) {
-      posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path);
+      posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path, tmdbData.id, "movie");
     }
     overview = tmdbData.overview || overview;
     released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : released;
@@ -10307,7 +10332,7 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
   const isSavingThisMovie = isSaving && isSaving.scope === "movie" && String(isSaving.movie?.tmdbId || "") === String(tmdbId);
 
   let backdropUrl = tmdbData.cached_backdrop_url || (tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "");
-  let posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path) || "/favicon.svg";
+  let posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path, tmdbData.id, "movie") || "/favicon.svg";
   let overview = tmdbData.overview || "No synopsis available.";
   let released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : "Unknown Release Date";
   let rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "N/A";
@@ -12828,6 +12853,9 @@ function attachEvents() {
   elements.saveYoutubeConfigButton?.addEventListener("click", () => {
     saveSectionConfig("youtube");
   });
+  elements.saveFanartConfigButton?.addEventListener("click", () => {
+    saveSectionConfig("fanart");
+  });
   elements.saveSeerrConfigButton?.addEventListener("click", () => {
     saveSectionConfig("seerr");
   });
@@ -13811,6 +13839,7 @@ async function loadCastMemberDetails(personId, personName = null) {
     // Initialize temporary filter/sort preferences on state if not set
     state.personCreditsFilter = state.personCreditsFilter || "all";
     state.personCreditsSort = state.personCreditsSort || "popularity";
+    state.personCreditsVisible = FILMOGRAPHY_PAGE_SIZE;
 
     root.innerHTML = `
       <div class="person-profile-container" style="padding-top: var(--space-4);">
@@ -13913,9 +13942,99 @@ async function loadCastMemberDetails(personId, personName = null) {
     const gridEl = root.querySelector("#personCreditsGrid");
     const countEl = root.querySelector("#personCreditsCount");
 
-    const updateGrid = () => {
-      state.personCreditsFilter = filterSelect.value;
-      state.personCreditsSort = sortSelect.value;
+    const renderCreditCards = (credits) => {
+      const libraryTvCredits = [];
+      const html = credits.map(credit => {
+        const isTv = credit.media_type === "tv";
+        const title = credit.title || credit.name || "Untitled";
+        const character = credit.character || "Unknown Character";
+        const posterUrl = tmdbPoster(credit.poster_path) || '/favicon.svg';
+        const dateStr = credit.release_date || credit.first_air_date || "";
+        const year = dateStr ? `(${dateStr.split("-")[0]})` : "";
+
+        let libItem = findLibraryItem(credit.media_type, credit.id, title, filmographyLookup);
+        if (!libItem && credit.in_library) {
+          if (isTv) {
+            libItem = {
+              type: "show",
+              key: credit.library_key,
+              item: {
+                title: credit.show_title || title,
+                episode_count: credit.watched_count,
+              }
+            };
+          } else {
+            libItem = {
+              type: "movie",
+              id: credit.library_id
+            };
+          }
+        }
+
+        const isInLibrary = !!credit.in_library;
+        const isWatched = !!(credit.in_watch_history || credit.in_library ||
+          (!isTv && filmographyLookup.allWatchedMovies.some(m => String(m.tmdb_id || "") === String(credit.id))) ||
+          (isTv && filmographyLookup.allWatchedShows.some(s => String(s.tmdb_id || "") === String(credit.id))));
+
+        if (libItem && isInLibrary) {
+          const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
+          const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
+          if (isTv) libraryTvCredits.push({ credit, libItem, title });
+          const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : movieHref(movieBySlugOrId(libItem.id) || { id: libItem.id, title });
+          return `
+            <a class="person-credit-card in-library" href="${escapeAttribute(href)}" data-library-item-type="${libItem.type}" data-library-item-id="${escapeAttribute(libItem.id || libItem.key)}" data-library-item-title="${escapeAttribute(title)}">
+              <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" loading="lazy" data-err="fav" />
+              <div class="person-credit-info">
+                <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
+                <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
+                <span class="person-credit-badges">
+                  <span class="library-badge">In Library</span>
+                  ${isTv ? personWatchBadgeMarkup(watchProgress, credit.id) : `<span class="watch-state-badge is-complete">Watched</span>`}
+                </span>
+              </div>
+            </a>
+          `;
+        } else if (libItem && isWatched) {
+          const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
+          const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
+          if (isTv) libraryTvCredits.push({ credit, libItem, title });
+          const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : movieHref(movieBySlugOrId(libItem.id) || { id: libItem.id, title });
+          return `
+            <a class="person-credit-card in-library" href="${escapeAttribute(href)}" data-library-item-type="${libItem.type}" data-library-item-id="${escapeAttribute(libItem.id || libItem.key)}" data-library-item-title="${escapeAttribute(title)}">
+              <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" loading="lazy" data-err="fav" />
+              <div class="person-credit-info">
+                <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
+                <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
+                <span class="person-credit-badges">
+                  ${isTv ? personWatchBadgeMarkup(watchProgress, credit.id) : `<span class="watch-state-badge is-complete">Watched</span>`}
+                </span>
+              </div>
+            </a>
+          `;
+        } else {
+          const href = isTv ? `/tvshow/tmdb/${credit.id}` : `/movie/tmdb/${credit.id}`;
+          return `
+            <a class="person-credit-card" href="${escapeAttribute(href)}" data-tmdb-id="${credit.id}" data-tmdb-media-type="${credit.media_type}" data-tmdb-title="${escapeAttribute(title)}">
+              <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" loading="lazy" data-err="fav" />
+              <div class="person-credit-info">
+                <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
+                <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
+              </div>
+            </a>
+          `;
+        }
+      }).join("");
+      return { html, libraryTvCredits };
+    };
+
+    const updateGrid = (resetVisible = true) => {
+      const newFilter = filterSelect.value;
+      const newSort = sortSelect.value;
+      if (resetVisible || newFilter !== state.personCreditsFilter || newSort !== state.personCreditsSort) {
+        state.personCreditsVisible = FILMOGRAPHY_PAGE_SIZE;
+      }
+      state.personCreditsFilter = newFilter;
+      state.personCreditsSort = newSort;
 
       let filtered = [...castCredits];
       if (state.personCreditsFilter === "movie") {
@@ -13946,103 +14065,34 @@ async function loadCastMemberDetails(personId, personName = null) {
 
       countEl.textContent = filtered.length;
 
-      const libraryTvCredits = [];
+      if (_filmographyObserver) { _filmographyObserver.disconnect(); _filmographyObserver = null; }
+
       if (filtered.length === 0) {
         gridEl.innerHTML = `<p class="muted-copy" style="grid-column: 1 / -1; text-align: center; padding: 2rem 0;">No matching filmography items found.</p>`;
-      } else {
-        gridEl.innerHTML = filtered.map(credit => {
-          const isTv = credit.media_type === "tv";
-          const title = credit.title || credit.name || "Untitled";
-          const character = credit.character || "Unknown Character";
-          const posterUrl = tmdbPoster(credit.poster_path) || '/favicon.svg';
-          const dateStr = credit.release_date || credit.first_air_date || "";
-          const year = dateStr ? `(${dateStr.split("-")[0]})` : "";
-
-          let libItem = findLibraryItem(credit.media_type, credit.id, title, filmographyLookup);
-          if (!libItem && credit.in_library) {
-            if (isTv) {
-              libItem = {
-                type: "show",
-                key: credit.library_key,
-                item: {
-                  title: credit.show_title || title,
-                  episode_count: credit.watched_count,
-                }
-              };
-            } else {
-              libItem = {
-                type: "movie",
-                id: credit.library_id
-              };
-            }
-          }
-
-          // "In Library" = on a media server. "Watched" = in watch history but not on a server.
-          // The server provides credit.in_library / credit.in_watch_history as authoritative signals.
-          // findLibraryItem may also find items via the local watched-movies lookup — those are
-          // watched but not necessarily server-sourced, so we rely on credit.in_library for the badge.
-          const isInLibrary = !!credit.in_library;
-          const isWatched = !!(credit.in_watch_history || credit.in_library ||
-            (!isTv && filmographyLookup.allWatchedMovies.some(m => String(m.tmdb_id || "") === String(credit.id))) ||
-            (isTv && filmographyLookup.allWatchedShows.some(s => String(s.tmdb_id || "") === String(credit.id))));
-
-          if (libItem && isInLibrary) {
-            // In Library card: item is physically on a media server
-            const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
-            const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
-            if (isTv) libraryTvCredits.push({ credit, libItem, title });
-            const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : movieHref(movieBySlugOrId(libItem.id) || { id: libItem.id, title });
-            return `
-              <a class="person-credit-card in-library" href="${escapeAttribute(href)}" data-library-item-type="${libItem.type}" data-library-item-id="${escapeAttribute(libItem.id || libItem.key)}" data-library-item-title="${escapeAttribute(title)}">
-                <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" data-err="fav" />
-                <div class="person-credit-info">
-                  <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
-                  <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
-                  <span class="person-credit-year">${isTv ? 'TV Show' : 'Movie'}</span>
-                </div>
-                <span class="person-credit-badges">
-                  <span class="library-badge">In Library</span>
-                  ${isTv ? personWatchBadgeMarkup(watchProgress, credit.id) : `<span class="watch-state-badge is-complete">Watched</span>`}
-                </span>
-              </a>
-            `;
-          } else if (libItem && isWatched) {
-            // Watched card: item is in watch history but NOT on a media server
-            const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
-            const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
-            if (isTv) libraryTvCredits.push({ credit, libItem, title });
-            const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : movieHref(movieBySlugOrId(libItem.id) || { id: libItem.id, title });
-            return `
-              <a class="person-credit-card in-library" href="${escapeAttribute(href)}" data-library-item-type="${libItem.type}" data-library-item-id="${escapeAttribute(libItem.id || libItem.key)}" data-library-item-title="${escapeAttribute(title)}">
-                <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" data-err="fav" />
-                <div class="person-credit-info">
-                  <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
-                  <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
-                  <span class="person-credit-year">${isTv ? 'TV Show' : 'Movie'}</span>
-                </div>
-                <span class="person-credit-badges">
-                  ${isTv ? personWatchBadgeMarkup(watchProgress, credit.id) : `<span class="watch-state-badge is-complete">Watched</span>`}
-                </span>
-              </a>
-            `;
-          } else {
-            const href = isTv ? `/tvshow/tmdb/${credit.id}` : `/movie/tmdb/${credit.id}`;
-            return `
-              <a class="person-credit-card" href="${escapeAttribute(href)}" data-tmdb-id="${credit.id}" data-tmdb-media-type="${credit.media_type}" data-tmdb-title="${escapeAttribute(title)}">
-                <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" data-err="fav" />
-                <div class="person-credit-info">
-                  <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
-                  <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
-                  <span class="person-credit-year">${isTv ? 'TV Show' : 'Movie'}</span>
-                </div>
-              </a>
-            `;
-          }
-        }).join("");
+        return;
       }
+
+      const visibleCount = Math.min(state.personCreditsVisible, filtered.length);
+      const page = filtered.slice(0, visibleCount);
+      const hasMore = filtered.length > visibleCount;
+
+      const { html, libraryTvCredits } = renderCreditCards(page);
+      gridEl.innerHTML = html + (hasMore ? `<div class="filmography-load-sentinel" aria-hidden="true"></div>` : "");
 
       if (libraryTvCredits.length > 0) {
         hydratePersonFilmographyWatchStatuses(personId, libraryTvCredits);
+      }
+
+      if (hasMore) {
+        const sentinel = gridEl.querySelector(".filmography-load-sentinel");
+        if (sentinel) {
+          _filmographyObserver = new IntersectionObserver(([entry]) => {
+            if (!entry.isIntersecting) return;
+            state.personCreditsVisible += FILMOGRAPHY_PAGE_SIZE;
+            updateGrid(false);
+          }, { rootMargin: "600px" });
+          _filmographyObserver.observe(sentinel);
+        }
       }
     };
 

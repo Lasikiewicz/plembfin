@@ -71,7 +71,8 @@ import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, sync
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
 import { cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
-import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, prewarmTmdbLibrary, searchTmdb } from "./utils/tmdbGateway.js";
+import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, prewarmTmdbLibrary, searchTmdb, getCachedTvdbId } from "./utils/tmdbGateway.js";
+import { getFanartMovieArt, getFanartTvArt } from "./utils/fanartGateway.js";
 import { BACKUP_FORMAT, BACKUP_VERSION, backupManifest, exportCollectionPage, importCollectionBatch } from "./utils/backup.js";
 import {
   createWatchHistoryBackup,
@@ -2759,6 +2760,9 @@ async function handleTmdbPoster(req, res) {
     return sendJson(res, { error: "Invalid TMDB poster path" }, 400);
   }
 
+  const tmdbId = String(req.query.tmdbId || "").trim();
+  const mediaType = String(req.query.mediaType || "movie").toLowerCase() === "tv" ? "tv" : "movie";
+
   const mediaKey = `tmdb:poster:${posterPath}`;
   const cached = usableCachedPoster(await getPosterCache(mediaKey));
   if (cached?.url) {
@@ -2780,9 +2784,28 @@ async function handleTmdbPoster(req, res) {
 
   const remoteUrl = `https://image.tmdb.org/t/p/w500${posterPath}`;
   const downloadPromise = (async () => {
+    // Start fanart.tv metadata lookup immediately, in parallel with waiting for a
+    // TMDB download slot. If TMDB succeeds the result is discarded; if it fails
+    // the fanart URL is already in hand with no extra round-trip.
+    let fanartPromise = Promise.resolve(null);
+    if (tmdbId) {
+      const tvdbId = mediaType === "tv" ? getCachedTvdbId(tmdbId) : "";
+      fanartPromise = (mediaType === "tv"
+        ? getFanartTvArt(tvdbId)
+        : getFanartMovieArt(tmdbId)).catch(() => null);
+    }
+
     await _acquireTmdbPosterSlot();
     try {
-      return await cachePosterFromUrl(mediaKey, remoteUrl, "tmdb");
+      const [tmdbResult, fanartArt] = await Promise.all([
+        cachePosterFromUrl(mediaKey, remoteUrl, "tmdb"),
+        fanartPromise,
+      ]);
+      if (tmdbResult) return tmdbResult;
+      if (fanartArt?.poster) {
+        return cachePosterFromUrl(mediaKey, fanartArt.poster, "fanart");
+      }
+      return null;
     } finally {
       _releaseTmdbPosterSlot();
     }

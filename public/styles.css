@@ -7157,22 +7157,36 @@ h1 {
 
 .person-credits-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .person-credits-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 600px) {
+  .person-credits-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.filmography-load-sentinel {
+  grid-column: 1 / -1;
+  height: 1px;
 }
 
 .person-credit-card {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: row;
+  align-items: stretch;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  padding: 0.5rem;
   border-radius: var(--radius);
+  overflow: hidden;
   transition: border-color 150ms ease, background 150ms ease;
   cursor: pointer;
   text-decoration: none;
   color: inherit;
+  gap: 0;
 }
 
 .person-credit-card:any-link {
@@ -7196,23 +7210,26 @@ h1 {
 }
 
 .person-credit-poster {
-  width: 45px;
-  height: 68px;
+  width: 150px;
+  flex-shrink: 0;
+  aspect-ratio: 2 / 3;
   object-fit: cover;
-  border-radius: 4px;
-  background: #000;
+  display: block;
+  background: #111;
 }
 
 .person-credit-info {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
+  gap: 0.2rem;
+  padding: 0.5rem 0.6rem;
   flex: 1;
+  min-width: 0;
+  justify-content: center;
 }
 
 .person-credit-title {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;
@@ -7221,7 +7238,7 @@ h1 {
 }
 
 .person-credit-character {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -7235,10 +7252,10 @@ h1 {
 
 .person-credit-badges {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.3rem;
-  margin-left: auto;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
 }
 
 .library-badge,
