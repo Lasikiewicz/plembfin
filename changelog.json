@@ -1,7 +1,18 @@
 {
-  "version": "0.1.33",
-  "updatedAt": "2026-06-19T22:05:07+01:00",
+  "version": "0.1.34",
+  "updatedAt": "2026-06-20T08:56:20+01:00",
   "entries": [
+    {
+      "version": "0.1.34",
+      "date": "2026-06-20T08:56:20+01:00",
+      "commit": "241d1a748f7c37a497c80ea6b2d9b4a9e1141f27",
+      "message": "fix: rebuild native modules after npm ci --ignore-scripts in CI",
+      "author": "Lasikiewicz",
+      "details": [
+        "npm ci --ignore-scripts skips better-sqlite3 and sharp postinstall steps",
+        "Added npm rebuild better-sqlite3 sharp after install in both workflow jobs"
+      ]
+    },
     {
       "version": "0.1.33",
       "date": "2026-06-19T22:05:07+01:00",
