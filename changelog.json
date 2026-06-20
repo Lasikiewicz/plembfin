@@ -1,7 +1,25 @@
 {
-  "version": "0.1.44",
-  "updatedAt": "2026-06-20T13:25:10+01:00",
+  "version": "0.1.45",
+  "updatedAt": "2026-06-20T13:39:53+01:00",
   "entries": [
+    {
+      "version": "0.1.45",
+      "date": "2026-06-20T13:39:53+01:00",
+      "commit": "71d3639d298fc77b0a0ce7f2ac2688003e90cbda",
+      "message": "feat: overhaul Edit Images dialog with tabbed layout and better logo display",
+      "author": "Lasikiewicz",
+      "details": [
+        "Rename \"Edit Image\" button to \"Edit Images\" on movie and TV show pages",
+        "Split dialog into four tabs: Poster, Logo / Title Art, YouTube Show, Custom Image",
+        "YouTube URL fetcher and custom image URL are now isolated to their own tabs",
+        "Logo grid switches to single-column full-width layout with natural aspect ratio (no more forced 16:9)",
+        "Language badge shown under each logo so users can identify English vs other languages",
+        "Status message warns when no English logo is found and falls back to other languages",
+        "Poster tab falls back to showing the current saved poster URL when TMDB has no results",
+        "Build minimal tmdbData hint from show/movie record when TMDB details cache is cold",
+        "Bump TMDB details schema version to 4 to force re-fetch of image data on stale cache entries"
+      ]
+    },
     {
       "version": "0.1.44",
       "date": "2026-06-20T13:25:10+01:00",
