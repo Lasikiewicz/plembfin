@@ -3515,11 +3515,30 @@ details[open] .tool-accordion-chevron::before {
   background: color-mix(in srgb, var(--blue), transparent 88%);
 }
 
+.edit-image-option--logo {
+  width: 100%;
+}
+
 .edit-image-option--logo img {
-  aspect-ratio: 16 / 9;
+  aspect-ratio: auto;
+  width: 100%;
+  height: auto;
+  max-height: 120px;
   object-fit: contain;
   background: color-mix(in srgb, var(--surface), transparent 40%);
   padding: 0.5rem;
+}
+
+.edit-image-logo-lang {
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.edit-image-grid--logo {
+  grid-template-columns: 1fr;
 }
 
 .edit-dialog-actions {
