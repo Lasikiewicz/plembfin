@@ -9097,9 +9097,11 @@ function renderShowModalContent(show, {
   const tvSeerrCacheKey = `tv:${tvSeerrTmdbId}`;
   const hasTvSeerrStatus = Boolean(tvSeerrTmdbId && state.seerrMediaStatusCache.has(tvSeerrCacheKey));
   const tvSeerrStatus = state.seerrMediaStatusCache.get(tvSeerrCacheKey) || {};
-  const showIsNowPlaying = tvSeerrTmdbId
-    ? state.activeSessions.some((s) => String(s.ids?.tmdb || "") === String(tvSeerrTmdbId))
-    : false;
+  const showIsNowPlaying = state.activeSessions.some((s) => {
+    if (tvSeerrTmdbId && String(s.ids?.tmdb || "") === String(tvSeerrTmdbId)) return true;
+    const sessionShowTitle = showTitleFrom(s.showTitle || s.show_title || s.title || "");
+    return Boolean(sessionShowTitle && slug(sessionShowTitle) === slug(showTitle));
+  });
 
   state.showModalEpisodes = episodeRows;
   state.showModalEpisodeIndex = new Map(episodeRows.map((episode) => [episode.key, episode]));
