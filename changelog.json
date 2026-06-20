@@ -1,7 +1,24 @@
 {
-  "version": "0.1.47",
-  "updatedAt": "2026-06-20T14:00:54+01:00",
+  "version": "0.1.48",
+  "updatedAt": "2026-06-20T14:50:37+01:00",
   "entries": [
+    {
+      "version": "0.1.48",
+      "date": "2026-06-20T14:50:37+01:00",
+      "commit": "a6f7e88ec1342afb7afe51fffb4b9974a6b5c0c3",
+      "message": "feat: add Fanart.tv integration and filmography grid overhaul",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add Fanart.tv as a parallel fallback source for posters, backdrops, and logo art alongside TMDB",
+        "Query TMDB and Fanart.tv simultaneously to reduce latency and share load",
+        "Built-in project API key included; optional personal key configurable in Settings → API Keys",
+        "Add Fanart.tv settings panel in API Keys with attribution links to fanart.tv and TMDB",
+        "Fix movies and TV shows explorer pagination stopping early due to scroll-arm guard",
+        "Overhaul cast member filmography: 4-column grid with 150px posters, details to the right, lazy-load on scroll",
+        "Raise /api/tmdb-poster and /api/tmdb-profile rate limits from 30 to 300 requests/minute",
+        "Add Thank You section to README crediting TMDB and Fanart.tv"
+      ]
+    },
     {
       "version": "0.1.47",
       "date": "2026-06-20T14:00:54+01:00",
