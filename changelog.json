@@ -1,7 +1,17 @@
 {
-  "version": "0.1.38",
-  "updatedAt": "2026-06-20T09:23:55+01:00",
+  "version": "0.1.39",
+  "updatedAt": "2026-06-20T09:26:53+01:00",
   "entries": [
+    {
+      "version": "0.1.39",
+      "date": "2026-06-20T09:26:53+01:00",
+      "commit": "c0106792843784a550a1b354aa38fd9280dca850",
+      "message": "docs: remove push-to-git workflow section from README",
+      "author": "Lasikiewicz",
+      "details": [
+        "Section belongs in CLAUDE.md only; no end-user value in README"
+      ]
+    },
     {
       "version": "0.1.38",
       "date": "2026-06-20T09:23:55+01:00",
