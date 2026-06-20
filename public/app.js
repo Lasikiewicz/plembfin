@@ -1899,7 +1899,7 @@ function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, onSaved
       const lang = typeof item === "object" && item.lang ? item.lang : null;
       return `
         <button class="edit-image-option${isLogo ? " edit-image-option--logo" : ""}" type="button" data-url="${escapeAttribute(url)}">
-          <img src="${escapeAttribute(url)}" alt="${isLogo ? "Logo" : "Poster"} ${i + 1}" loading="lazy" onerror="this.closest('button').style.display='none'" />
+          <img src="${escapeAttribute(url)}" alt="${isLogo ? "Logo" : "Poster"} ${i + 1}" loading="lazy" data-err="hide-closest-btn" />
           ${lang ? `<span class="edit-image-logo-lang">${escapeAttribute(lang)}</span>` : ""}
         </button>
       `;
@@ -2096,7 +2096,7 @@ function openFixMatchDialog(_container, id, currentTitle, mediaType, onSaved) {
         const year = (item.release_date || item.first_air_date || "").slice(0, 4);
         return `
           <button class="fix-match-result" type="button" data-tmdb-id="${item.id}" data-title="${escapeAttribute(title)}">
-            <img src="${escapeAttribute(poster)}" alt="" onerror="this.src='/favicon.svg'" />
+            <img src="${escapeAttribute(poster)}" alt="" data-err="fav" />
             <span>${escapeHtml(title)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
           </button>
         `;
@@ -2133,7 +2133,7 @@ function openFixMatchDialog(_container, id, currentTitle, mediaType, onSaved) {
       status.textContent = "";
 
       const thumbHtml = meta.thumbnails?.length
-        ? `<img src="${escapeAttribute(meta.thumbnails[0])}" alt="thumbnail" style="width:120px;height:68px;object-fit:cover;border-radius:4px;flex-shrink:0;" onerror="this.style.display='none'" />`
+        ? `<img src="${escapeAttribute(meta.thumbnails[0])}" alt="thumbnail" style="width:120px;height:68px;object-fit:cover;border-radius:4px;flex-shrink:0;" data-err="hide" />`
         : "";
       const descHtml = meta.description
         ? `<p style="font-size:0.8rem;color:var(--muted);margin:0.4rem 0 0;max-height:4.5rem;overflow:hidden;">${escapeHtml(meta.description)}</p>`
@@ -2223,7 +2223,7 @@ function openMergeShowDialog(targetTitle) {
         const posterUrl = s.poster_url || "";
         return `
           <button class="fix-match-result" type="button" data-source-title="${escapeAttribute(title)}">
-            ${posterUrl ? `<img src="${escapeAttribute(posterUrl)}" alt="" onerror="this.style.display='none'" />` : ""}
+            ${posterUrl ? `<img src="${escapeAttribute(posterUrl)}" alt="" data-err="hide" />` : ""}
             <span>${escapeHtml(title)}${count ? ` <small>(${count} eps)</small>` : ""}</span>
           </button>
         `;
@@ -8082,8 +8082,8 @@ function renderCastSection(tmdbData) {
         ${cast.slice(0, 20).map((actor) => {
     const avatarUrl = tmdbProfile(actor.profile_path) || "/favicon.svg";
     return `
-            <div class="cast-member-card" style="cursor: pointer;" onclick="window.showCastMemberDetails('${actor.id}', '${escapeAttribute(actor.name)}')">
-              <img class="cast-avatar-img" src="${escapeAttribute(avatarUrl)}" alt="${escapeAttribute(actor.name)}" onerror="this.src='/favicon.svg';" />
+            <div class="cast-member-card" style="cursor: pointer;" data-person-id="${actor.id}" data-person-name="${escapeAttribute(actor.name)}">
+              <img class="cast-avatar-img" src="${escapeAttribute(avatarUrl)}" alt="${escapeAttribute(actor.name)}" data-err="fav" />
               <span class="cast-actor-name">${escapeHtml(actor.name)}</span>
               <span class="cast-character-name">${escapeHtml(actor.character)}</span>
             </div>
@@ -8107,8 +8107,8 @@ function renderTrailersReviewsSection(tmdbData) {
         <div class="horizontal-scroll-row trailer-scroll-row" style="margin-top: 0.5rem;">
           ${trailers.map((video) => `
             <div class="trailer-card">
-              <div class="trailer-thumb-container" data-video-key="${video.key}" data-video-name="${escapeAttribute(video.name)}" onclick="window.playTrailer(this, '${video.key}', '${escapeAttribute(video.name)}')">
-                <img class="trailer-thumb" src="https://img.youtube.com/vi/${video.key}/mqdefault.jpg" alt="${escapeAttribute(video.name)}" onerror="this.src='/favicon.svg';" />
+              <div class="trailer-thumb-container" data-video-key="${video.key}" data-video-name="${escapeAttribute(video.name)}">
+                <img class="trailer-thumb" src="https://img.youtube.com/vi/${video.key}/mqdefault.jpg" alt="${escapeAttribute(video.name)}" data-err="fav" />
                 <div class="play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
               </div>
               <span class="trailer-title" title="${escapeAttribute(video.name)}">${escapeHtml(video.name)}</span>
@@ -8133,7 +8133,7 @@ function renderTrailersReviewsSection(tmdbData) {
                   ${review.author_details?.rating ? `<span class="review-rating">★ ${review.author_details.rating}/10</span>` : ""}
                 </div>
                 <div class="review-content-wrapper"><p class="review-content">${escapeHtml(review.content)}</p></div>
-                ${hasLong ? `<button class="action-pill review-toggle-btn" type="button" onclick="const p=this.previousElementSibling.querySelector('.review-content');p.classList.toggle('expanded');this.textContent=p.classList.contains('expanded')?'Show Less':'Read More';">Read More</button>` : ""}
+                ${hasLong ? `<button class="action-pill review-toggle-btn" type="button">Read More</button>` : ""}
               </div>
             `;
     }).join("")}
@@ -8157,7 +8157,7 @@ function renderRelatedShowsSection(tmdbData) {
     const year = (item.first_air_date || "").slice(0, 4);
     return `
             <a class="season-poster-card related-show-card" data-immersive-related-tmdb="${item.id}" href="/tvshow/tmdb/${item.id}">
-              <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(item.name || "")}" onerror="this.src='/favicon.svg';" />
+              <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(item.name || "")}" data-err="fav" />
               <span class="season-poster-name">${escapeHtml(item.name || "")}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
             </a>
           `;
@@ -8196,7 +8196,7 @@ function renderMediaImagesSection(tmdbData) {
     const thumb = tmdbImage(img.file_path, "w780");
     const full = tmdbImage(img.file_path, "original");
     return `<button class="media-image-card" type="button" data-lightbox-index="${i}" data-lightbox-src="${escapeAttribute(full)}">
-            <img class="media-image-thumb" src="${escapeAttribute(thumb)}" alt="Scene image" loading="lazy" onerror="this.parentElement.style.display='none';" />
+            <img class="media-image-thumb" src="${escapeAttribute(thumb)}" alt="Scene image" loading="lazy" data-err="hide-parent" />
           </button>`;
   }).join("")}
       </div>
@@ -8422,7 +8422,7 @@ function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false) {
   const supports4k = mediaType === "movie" ? state.seerrSupports4k.movie : state.seerrSupports4k.tv;
   const seerrBaseUrl = String(state.savedConfig?.seerr?.baseUrl || "").replace(/\/+$/, "");
   const seerrIconHtml = seerrBaseUrl
-    ? `<img class="seerr-request-icon" src="${escapeAttribute(`${seerrBaseUrl}/favicon.ico`)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-grid';" />`
+    ? `<img class="seerr-request-icon" src="${escapeAttribute(`${seerrBaseUrl}/favicon.ico`)}" alt="" loading="lazy" data-err="hide-show-next" />`
     : "";
   const iconAndFallback = `${seerrIconHtml}<span class="seerr-request-fallback" aria-hidden="true">S</span>`;
   const tvAvailableLabel = isTv ? tvAvailabilityLabel(status) : "";
@@ -8613,7 +8613,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
       <button class="immersive-back-button" type="button">← Back</button>
       
       <header class="immersive-header">
-        <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(showTitle)} poster" onerror="this.src='/favicon.svg';" />
+        <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(showTitle)} poster" data-err="fav" />
         <div class="immersive-meta">
           <span class="format-badge">Season ${activeSeasonNum}</span>
           <h2 class="immersive-title">${escapeHtml(showTitle)}</h2>
@@ -8680,7 +8680,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
           : posterUrl;
         return `
                 <div class="season-poster-card ${isActive ? "active" : ""}" data-immersive-season-num="${s.season_number}">
-                  <img class="season-poster-img" src="${seasonPoster}" alt="${escapeHtml(s.name)}" onerror="this.src='/favicon.svg';" />
+                  <img class="season-poster-img" src="${seasonPoster}" alt="${escapeHtml(s.name)}" data-err="fav" />
                   <span class="season-poster-name">${escapeHtml(s.name || `Season ${s.season_number}`)}</span>
                 </div>
               `;
@@ -9153,7 +9153,7 @@ function renderShowModalContent(show, {
     <div class="immersive-container media-detail-page">
 
       <header class="immersive-header">
-        <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" onerror="this.src='/favicon.svg';" />
+        <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" data-err="fav" />
         <div class="immersive-meta">
           ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(showTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(showTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(showTitle)}</h2>`}
           <div class="media-detail-bottom-stack">
@@ -10083,7 +10083,7 @@ async function renderMovieImmersiveModalContent(movie) {
     <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(localPoster)}');"></div>
     <div class="immersive-container media-detail-page is-loading-metadata">
       <header class="immersive-header">
-        <img class="immersive-poster-img" src="${escapeAttribute(localPoster)}" alt="${escapeAttribute(movie.title || "Movie")} poster" onerror="this.src='/favicon.svg';" />
+        <img class="immersive-poster-img" src="${escapeAttribute(localPoster)}" alt="${escapeAttribute(movie.title || "Movie")} poster" data-err="fav" />
         <div class="immersive-meta">
           <span class="media-kicker">Movie · Loading metadata</span>
           <h2 class="immersive-title">${escapeHtml(movie.title || "Unknown movie")}</h2>
@@ -10178,7 +10178,7 @@ async function renderMovieImmersiveModalContent(movie) {
     <div class="immersive-container media-detail-page">
 
       <header class="immersive-header">
-        <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(movieTitle)} poster" onerror="this.src='/favicon.svg';" />
+        <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
         <div class="immersive-meta">
           ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
           <p class="immersive-subtitle">${released}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
@@ -10223,7 +10223,7 @@ async function renderMovieImmersiveModalContent(movie) {
             : "/favicon.svg";
           return `
                   <a class="season-poster-card" data-immersive-movie-id="${rec.id}" href="/movie/tmdb/${rec.id}">
-                    <img class="season-poster-img" src="${recPoster}" alt="${escapeHtml(rec.title)}" onerror="this.src='/favicon.svg';" />
+                    <img class="season-poster-img" src="${recPoster}" alt="${escapeHtml(rec.title)}" data-err="fav" />
                     <span class="season-poster-name">${escapeHtml(rec.title)}</span>
                   </a>
                 `;
@@ -10326,7 +10326,7 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
     <div class="immersive-container media-detail-page">
 
       <header class="immersive-header">
-        <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(movieTitle)} poster" onerror="this.src='/favicon.svg';" />
+        <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
         <div class="immersive-meta">
           ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
           <p class="immersive-subtitle">${released}</p>
@@ -10376,7 +10376,7 @@ async function openMovieImmersiveModalByTmdbId(tmdbId) {
             : "/favicon.svg";
           return `
                   <a class="season-poster-card" data-immersive-movie-id="${rec.id}" href="/movie/tmdb/${rec.id}">
-                    <img class="season-poster-img" src="${recPoster}" alt="${escapeHtml(rec.title)}" onerror="this.src='/favicon.svg';" />
+                    <img class="season-poster-img" src="${recPoster}" alt="${escapeHtml(rec.title)}" data-err="fav" />
                     <span class="season-poster-name">${escapeHtml(rec.title)}</span>
                   </a>
                 `;
@@ -11945,6 +11945,44 @@ async function triggerForceSync() {
 
 
 function attachEvents() {
+  document.addEventListener("click", (e) => {
+    const castCard = e.target.closest("[data-person-id]");
+    if (castCard) {
+      window.showCastMemberDetails(castCard.dataset.personId, castCard.dataset.personName);
+      return;
+    }
+    const trailer = e.target.closest(".trailer-thumb-container[data-video-key]");
+    if (trailer) {
+      window.playTrailer(trailer, trailer.dataset.videoKey, trailer.dataset.videoName);
+      return;
+    }
+    const reviewBtn = e.target.closest(".review-toggle-btn");
+    if (reviewBtn) {
+      const p = reviewBtn.previousElementSibling.querySelector(".review-content");
+      p.classList.toggle("expanded");
+      reviewBtn.textContent = p.classList.contains("expanded") ? "Show Less" : "Read More";
+      return;
+    }
+    const photoThumb = e.target.closest("[data-photo-index]");
+    if (photoThumb) {
+      window.openPhotoLightbox(window._personPhotos, parseInt(photoThumb.dataset.photoIndex, 10));
+      return;
+    }
+  });
+
+  document.addEventListener("error", (e) => {
+    const img = e.target;
+    if (img.tagName !== "IMG") return;
+    const mode = img.dataset.err;
+    if (!mode) return;
+    img.dataset.err = "";
+    if (mode === "fav") { img.src = "/favicon.svg"; }
+    else if (mode === "hide") { img.style.display = "none"; }
+    else if (mode === "hide-parent") { img.parentElement.style.display = "none"; }
+    else if (mode === "hide-closest-btn") { img.closest("button").style.display = "none"; }
+    else if (mode === "hide-show-next") { img.style.display = "none"; img.nextElementSibling.style.display = "inline-grid"; }
+  }, true);
+
   elements.authForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
@@ -13457,7 +13495,7 @@ window.playTrailer = function (el, videoKey, videoName) {
         const key = thumbCont.dataset.videoKey;
         const name = thumbCont.dataset.videoName;
         thumbCont.innerHTML = `
-          <img class="trailer-thumb" src="https://img.youtube.com/vi/${key}/mqdefault.jpg" alt="${escapeAttribute(name)}" onerror="this.src='/favicon.svg';" />
+          <img class="trailer-thumb" src="https://img.youtube.com/vi/${key}/mqdefault.jpg" alt="${escapeAttribute(name)}" data-err="fav" />
           <div class="play-overlay">
             <svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           </div>
@@ -13777,7 +13815,7 @@ async function loadCastMemberDetails(personId, personName = null) {
     root.innerHTML = `
       <div class="person-profile-container" style="padding-top: var(--space-4);">
         <div class="person-profile-sidebar">
-          <img class="person-profile-img" src="${escapeAttribute(profileUrl)}" alt="${escapeAttribute(data.name)}" onerror="this.src='/favicon.svg';" />
+          <img class="person-profile-img" src="${escapeAttribute(profileUrl)}" alt="${escapeAttribute(data.name)}" data-err="fav" />
           <div class="person-profile-meta">
             <h3>Personal Info</h3>
             <div class="meta-item">
@@ -13838,7 +13876,7 @@ async function loadCastMemberDetails(personId, personName = null) {
               <h3>Photos <span class="person-photos-count">${gallery.length}</span></h3>
               <div class="person-photos-grid">
                 ${gallery.map((img, i) => `
-                  <img class="person-photo-thumb" src="${escapeAttribute(tmdbProfile(img.file_path))}" loading="lazy" alt="${escapeAttribute(data.name)}" onclick="window.openPhotoLightbox(window._personPhotos, ${i})" onerror="this.style.display='none';" />
+                  <img class="person-photo-thumb" src="${escapeAttribute(tmdbProfile(img.file_path))}" loading="lazy" alt="${escapeAttribute(data.name)}" data-photo-index="${i}" data-err="hide" />
                 `).join('')}
               </div>
             </div>`;
@@ -13956,7 +13994,7 @@ async function loadCastMemberDetails(personId, personName = null) {
             const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : movieHref(movieBySlugOrId(libItem.id) || { id: libItem.id, title });
             return `
               <a class="person-credit-card in-library" href="${escapeAttribute(href)}" data-library-item-type="${libItem.type}" data-library-item-id="${escapeAttribute(libItem.id || libItem.key)}" data-library-item-title="${escapeAttribute(title)}">
-                <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
+                <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" data-err="fav" />
                 <div class="person-credit-info">
                   <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
                   <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
@@ -13976,7 +14014,7 @@ async function loadCastMemberDetails(personId, personName = null) {
             const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : movieHref(movieBySlugOrId(libItem.id) || { id: libItem.id, title });
             return `
               <a class="person-credit-card in-library" href="${escapeAttribute(href)}" data-library-item-type="${libItem.type}" data-library-item-id="${escapeAttribute(libItem.id || libItem.key)}" data-library-item-title="${escapeAttribute(title)}">
-                <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
+                <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" data-err="fav" />
                 <div class="person-credit-info">
                   <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
                   <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
@@ -13991,7 +14029,7 @@ async function loadCastMemberDetails(personId, personName = null) {
             const href = isTv ? `/tvshow/tmdb/${credit.id}` : `/movie/tmdb/${credit.id}`;
             return `
               <a class="person-credit-card" href="${escapeAttribute(href)}" data-tmdb-id="${credit.id}" data-tmdb-media-type="${credit.media_type}" data-tmdb-title="${escapeAttribute(title)}">
-                <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" onerror="this.src='/favicon.svg';" />
+                <img class="person-credit-poster" src="${escapeAttribute(posterUrl)}" alt="${escapeAttribute(title)}" data-err="fav" />
                 <div class="person-credit-info">
                   <span class="person-credit-title" title="${escapeAttribute(title)}">${escapeHtml(title)} ${escapeHtml(year)}</span>
                   <span class="person-credit-character" title="${escapeAttribute(character)}">as ${escapeHtml(character)}</span>
