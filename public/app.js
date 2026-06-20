@@ -95,7 +95,7 @@ const HIDE_ENDED_KEY_SHOWS = "plembfin:hideEnded:shows";
 const EXPLORER_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_LIMIT = 24;
 const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "search", "history", "part-watched"];
-const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs", "appearance", "changelog"];
+const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs", "appearance", "changelog", "cache"];
 
 const state = {
   token: readStoredAdminToken([TOKEN_KEY, LEGACY_UPPER_TOKEN_KEY, LEGACY_TOKEN_KEY]),
@@ -224,6 +224,8 @@ const state = {
   backupImport: null,
   watchBackups: null,
   watchBackupsLoading: false,
+  cacheStats: null,
+  cacheStatsLoading: false,
   internalHistoryCount: history.state?.index || 0,
 };
 
@@ -421,6 +423,7 @@ function bindElements() {
     webhookUrl: document.querySelector("#webhookUrl"),
     rotateWebhookButton: document.querySelector("#rotateWebhookButton"),
     runCompleteCheckButton: document.querySelector("#runCompleteCheckButton"),
+    refreshCacheStatsButton: document.querySelector("#refreshCacheStatsButton"),
     completeCheckResults: document.querySelector("#completeCheckResults"),
     testConnectionButtons: [...document.querySelectorAll("[data-test-connection]")],
     testConnectionStatuses: [...document.querySelectorAll("[data-test-status]")],
@@ -1051,6 +1054,110 @@ async function restoreRemoteBackupFromCard(card, filename, clearMode = "reconcil
 async function connectBackupDestinationCard(card) {
   const destination = collectDestination(card);
   await postWatchBackupAction({ action: "save-destination", destination });
+}
+
+function fmtCacheBytes(bytes) {
+  if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(1)} GB`;
+  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
+}
+
+async function loadCacheStats({ force = false } = {}) {
+  if (!state.token || state.cacheStatsLoading || (state.cacheStats && !force)) return state.cacheStats;
+  state.cacheStatsLoading = true;
+  renderCachePanel();
+  try {
+    const response = await fetch("/api/cache-stats", { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Cache stats failed with ${response.status}`);
+    state.cacheStats = body;
+    return body;
+  } finally {
+    state.cacheStatsLoading = false;
+    renderCachePanel();
+  }
+}
+
+async function clearCacheType(type) {
+  try {
+    const response = await fetch("/api/clear-cache", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ type }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Cache clear failed with ${response.status}`);
+    const label = type === "all" ? "all images" : type;
+    setMessage(`Cleared ${body.deleted} file${body.deleted !== 1 ? "s" : ""} (${fmtCacheBytes(body.freed)} freed) from ${label}.`, "success");
+    state.cacheStats = null;
+    loadCacheStats().catch((error) => setMessage(error.message, "error"));
+  } catch (error) {
+    setMessage(error.message, "error");
+  }
+}
+
+function renderCachePanel() {
+  const panel = document.getElementById("cacheStatsPanel");
+  if (!panel) return;
+
+  if (state.cacheStatsLoading && !state.cacheStats) {
+    panel.innerHTML = `<p class="muted-text" style="padding:var(--space-3) 0;">Loading...</p>`;
+    return;
+  }
+
+  if (!state.cacheStats) {
+    panel.innerHTML = `<p class="muted-text" style="padding:var(--space-3) 0;">No data loaded.</p>`;
+    return;
+  }
+
+  const { disk } = state.cacheStats;
+  const rows = [
+    { key: "posters", label: "Posters" },
+    { key: "backdrops", label: "Backdrops" },
+    { key: "profiles", label: "Profiles" },
+  ];
+  const totalCount = rows.reduce((sum, r) => sum + (disk[r.key]?.count || 0), 0);
+  const totalSize = rows.reduce((sum, r) => sum + (disk[r.key]?.size || 0), 0);
+
+  panel.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;margin-top:var(--space-3);">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:var(--space-2) 0;font-size:0.78rem;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);">Type</th>
+          <th style="text-align:right;padding:var(--space-2) 0;font-size:0.78rem;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);">Files</th>
+          <th style="text-align:right;padding:var(--space-2) 0;font-size:0.78rem;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);">Size</th>
+          <th style="border-bottom:1px solid var(--border);"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(({ key, label }) => `
+          <tr>
+            <td style="padding:var(--space-3) 0;border-bottom:1px solid var(--border);"><b>${label}</b></td>
+            <td style="text-align:right;padding:var(--space-3) 0;border-bottom:1px solid var(--border);">${(disk[key]?.count || 0).toLocaleString()}</td>
+            <td style="text-align:right;padding:var(--space-3) 0;border-bottom:1px solid var(--border);">${fmtCacheBytes(disk[key]?.size || 0)}</td>
+            <td style="text-align:right;padding:var(--space-3) 0;border-bottom:1px solid var(--border);">
+              <button class="button-ghost" type="button" style="font-size:0.8rem;padding:0.2em 0.7em;" data-clear-cache="${key}">Clear</button>
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td style="padding:var(--space-3) 0;font-weight:600;">Total</td>
+          <td style="text-align:right;padding:var(--space-3) 0;font-weight:600;">${totalCount.toLocaleString()}</td>
+          <td style="text-align:right;padding:var(--space-3) 0;font-weight:600;">${fmtCacheBytes(totalSize)}</td>
+          <td style="text-align:right;padding:var(--space-3) 0;">
+            <button class="button-primary" type="button" style="font-size:0.8rem;padding:0.2em 0.7em;" data-clear-cache="all">Clear All</button>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  `;
+
+  for (const btn of panel.querySelectorAll("[data-clear-cache]")) {
+    btn.addEventListener("click", () => clearCacheType(btn.dataset.clearCache));
+  }
 }
 
 async function loadWatchBackups({ force = false } = {}) {
@@ -4397,6 +4504,7 @@ function settingsTopbarTitle() {
     logs: "Logs",
     appearance: "Appearance",
     changelog: "Changelog",
+    cache: "Cache",
   };
   return `Settings - ${labels[state.activeSettingsTab] || "General"}`;
 }
@@ -4585,6 +4693,10 @@ function applyActiveView() {
     }
     if (state.activeSettingsTab === "logs") renderLogs().catch(() => { });
     if (state.activeSettingsTab === "changelog") renderChangelog().catch(() => { });
+    if (state.activeSettingsTab === "cache") {
+      renderCachePanel();
+      if (!state.cacheStats && !state.cacheStatsLoading) loadCacheStats().catch((error) => setMessage(error.message, "error"));
+    }
     if (state.configLoaded) {
       renderSettingsStatus("Configuration ready.", "success");
     }
@@ -13100,6 +13212,12 @@ function attachEvents() {
       runSystemIntegrityCheck().catch((error) => {
         setMessage(`Integrity check exception: ${error.message}`, "error");
       });
+    });
+  }
+
+  if (elements.refreshCacheStatsButton) {
+    elements.refreshCacheStatsButton.addEventListener("click", () => {
+      loadCacheStats({ force: true }).catch((error) => setMessage(error.message, "error"));
     });
   }
 

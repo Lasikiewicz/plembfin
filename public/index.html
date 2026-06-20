@@ -65,6 +65,7 @@
               <button class="settings-tab" type="button" data-settings-tab="sync">Sync</button>
               <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
               <button class="settings-tab" type="button" data-settings-tab="changelog">Changelog</button>
+              <button class="settings-tab" type="button" data-settings-tab="cache">Cache</button>
             </div>
           </div>
           <div class="sidebar-footer">
@@ -1360,6 +1361,35 @@
                         </div>
                       </div>
                       <div id="changelogPanel" class="changelog-panel" aria-live="polite"></div>
+                    </article>
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-pane hidden" data-settings-panel="cache">
+                <div class="settings-row">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Image Cache</p>
+                          <span>Locally stored artwork from Plex, TMDB, and other sources</span>
+                        </div>
+                        <button id="refreshCacheStatsButton" class="button-ghost" type="button">Refresh</button>
+                      </div>
+                      <div id="cacheStatsPanel" aria-live="polite"></div>
+                    </article>
+                  </div>
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>About the Cache</p>
+                        <span>Storage</span>
+                      </div>
+                      <p class="tool-accordion-desc"><b>Posters</b> are the cover art thumbnails for movies and TV shows.</p>
+                      <p class="tool-accordion-desc"><b>Backdrops</b> are the wide banner images used on detail pages.</p>
+                      <p class="tool-accordion-desc"><b>Profiles</b> are person headshots for cast and crew.</p>
+                      <p class="tool-accordion-desc">Clearing the cache removes files from disk. Images will be re-fetched and cached on demand as you browse.</p>
                     </article>
                   </div>
                 </div>

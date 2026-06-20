@@ -1,4 +1,6 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
+import nodePath from "node:path";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook, buildPlexMediaFromMetadata } from "./utils/parsers.js";
 import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes } from "./utils/plexClient.js";
 import { createPlexNotificationListener, probePlexNotificationSocket } from "./utils/plexNotificationListener.js";
@@ -96,6 +98,7 @@ import {
   watchBackupStatus,
 } from "./utils/watchHistoryBackups.js";
 import { deviceCodeEndpoint, tokenEndpoint, ONEDRIVE_SCOPE } from "./utils/backupDestinations/onedrive.js";
+import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR } from "./paths.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -3605,6 +3608,81 @@ async function handleMergeShows(req, res) {
   }
 }
 
+async function handleCacheStats(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const dirs = [
+    { key: "posters", dir: POSTERS_DIR },
+    { key: "backdrops", dir: BACKDROPS_DIR },
+    { key: "profiles", dir: PROFILES_DIR },
+  ];
+  const disk = {};
+  for (const { key, dir } of dirs) {
+    let count = 0;
+    let size = 0;
+    try {
+      const files = await fs.promises.readdir(dir);
+      for (const file of files) {
+        try {
+          const stat = await fs.promises.stat(nodePath.join(dir, file));
+          if (stat.isFile()) { size += stat.size; count++; }
+        } catch {}
+      }
+    } catch {}
+    disk[key] = { count, size };
+  }
+
+  const dbRows = db.prepare(
+    "SELECT variant, COUNT(*) as count, COALESCE(SUM(size_bytes), 0) as size FROM poster_cache WHERE status = 'cached' GROUP BY variant"
+  ).all();
+  const dbByVariant = Object.fromEntries(dbRows.map((r) => [r.variant, { count: r.count, size: r.size }]));
+
+  return sendJson(res, { disk, db: dbByVariant });
+}
+
+async function handleClearCache(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const type = body?.type || "all";
+
+  const typeMap = {
+    posters: { dir: POSTERS_DIR, variants: ["poster", "logo"] },
+    backdrops: { dir: BACKDROPS_DIR, variants: ["backdrop"] },
+    profiles: { dir: PROFILES_DIR, variants: ["profile"] },
+  };
+  const targets = type === "all" ? Object.values(typeMap) : typeMap[type] ? [typeMap[type]] : [];
+
+  let deleted = 0;
+  let freed = 0;
+  for (const { dir } of targets) {
+    try {
+      const files = await fs.promises.readdir(dir);
+      for (const file of files) {
+        const filePath = nodePath.join(dir, file);
+        try {
+          const stat = await fs.promises.stat(filePath);
+          if (stat.isFile()) { freed += stat.size; await fs.promises.unlink(filePath); deleted++; }
+        } catch {}
+      }
+    } catch {}
+  }
+
+  if (type === "all") {
+    db.prepare("DELETE FROM poster_cache").run();
+  } else {
+    for (const variant of (typeMap[type]?.variants || [])) {
+      db.prepare("DELETE FROM poster_cache WHERE variant = ?").run(variant);
+    }
+  }
+
+  return sendJson(res, { ok: true, deleted, freed });
+}
+
 async function dispatch(req, res) {
   try {
     const path = routePath(req);
@@ -3666,6 +3744,8 @@ async function dispatch(req, res) {
     if (path === "tmdb-poster") return handleTmdbPoster(req, res);
     if (path === "tmdb-profile") return handleTmdbProfile(req, res);
     if (path === "poster") return handlePoster(req, res);
+    if (path === "cache-stats") return handleCacheStats(req, res);
+    if (path === "clear-cache") return handleClearCache(req, res);
     if (path === "admin-backfill-status") return handleBackfillStatus(req, res);
     if (path === "admin-backfill-trakt") return handleBackfillTrakt(req, res);
     if (path === "admin-fix-history") return handleAdminFixHistory(req, res);
