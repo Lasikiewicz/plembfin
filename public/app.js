@@ -5511,12 +5511,12 @@ function statsIntroCards(report = selectedStatsReport(), periodLabel = "All time
   ];
   if (state.statsMediaFilter === "movie") {
     cards.push(
-      { label: "Plays", value: formatNumber(report?.total || 0) },
+      { label: "Plays", value: formatNumber(report?.movieWatches || 0) },
       { label: "Movies", value: formatNumber(report?.uniqueMovies || 0) },
     );
   } else if (state.statsMediaFilter === "episode") {
     cards.push(
-      { label: "Plays", value: formatNumber(report?.total || 0) },
+      { label: "Plays", value: formatNumber(report?.tvWatches || 0) },
       { label: "TV shows", value: formatNumber(report?.uniqueShows || 0) },
       { label: "Episodes watched", value: formatNumber(report?.tvWatches || 0) },
     );
