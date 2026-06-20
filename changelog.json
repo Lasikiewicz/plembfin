@@ -1,7 +1,20 @@
 {
-  "version": "0.1.46",
-  "updatedAt": "2026-06-20T13:47:08+01:00",
+  "version": "0.1.47",
+  "updatedAt": "2026-06-20T14:00:54+01:00",
   "entries": [
+    {
+      "version": "0.1.47",
+      "date": "2026-06-20T14:00:54+01:00",
+      "commit": "13c416f74575b924f95097d30da1c35ccf8116dc",
+      "message": "fix: throttle TMDB poster downloads to prevent rate-limit 429 errors",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add concurrency semaphore capping simultaneous TMDB image downloads to 8 (was unlimited)",
+        "Add per-path inflight deduplication so duplicate requests share one download instead of firing separately",
+        "Stop writing permanent failure records to poster_cache on transient 429/503 responses so the next request retries immediately",
+        "Remove redundant markPosterMissing calls from handleTmdbPoster and handleTmdbProfile that were overwriting 24h failed status with 7-day missing status"
+      ]
+    },
     {
       "version": "0.1.46",
       "date": "2026-06-20T13:47:08+01:00",
