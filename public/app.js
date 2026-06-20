@@ -800,85 +800,6 @@ const DESTINATION_FORMS = {
     ],
     secrets: [{ key: "secretAccessKey", label: "applicationKey" }],
     oauth: null,
-    help: `<details class="destination-help"><summary>How to set up Backblaze B2 (free 10&nbsp;GB, ~5 min)</summary>
-      <ol>
-        <li>Create a free account at <a href="https://www.backblaze.com/sign-up/cloud-storage" target="_blank" rel="noopener">backblaze.com</a> and enable <b>B2 Cloud Storage</b>.</li>
-        <li><b>Buckets → Create a Bucket</b>: pick a globally-unique name, set files <b>Private</b>. After it's made, note the <b>Endpoint</b> shown (e.g. <code>s3.us-west-004.backblazeb2.com</code>) — the middle part is your <b>Region</b> (<code>us-west-004</code>).</li>
-        <li><b>Application Keys → Add a New Application Key</b>: restrict it to <i>that one bucket</i>, then create. Copy the <b>keyID</b> and <b>applicationKey</b> now — the applicationKey is shown only once.</li>
-        <li>Fill the fields above (Region, Bucket, keyID, applicationKey), <b>Save</b>, then <b>Test</b> (expect “Bucket … reachable”). Tick <b>Enabled</b> and click <b>Back Up Now</b>.</li>
-      </ol>
-      <p>The endpoint is derived from the region automatically. Backups are pruned to your retention count here too.</p>
-    </details>`,
-  },
-  folder: {
-    label: "Local / synced folder",
-    settings: [
-      { key: "path", label: "Folder path", placeholder: "C:\\Users\\you\\OneDrive\\Plembfin Backups", full: true },
-    ],
-    secrets: [],
-    oauth: null,
-    help: `<details class="destination-help"><summary>No login needed — how does this work?</summary>
-      <p>Point this at a folder your cloud's <b>desktop app already syncs</b> (e.g. a folder inside your OneDrive or Dropbox folder, or a mounted NAS share). Plembfin writes the backup there and your sync client uploads it. No Azure app, no OAuth.</p>
-      <p>The path is read on the server running Plembfin, so use a path that exists on that machine.</p>
-    </details>`,
-  },
-  webdav: {
-    label: "WebDAV",
-    settings: [
-      { key: "url", label: "Collection URL", placeholder: "https://cloud.example.com/remote.php/dav/files/me/plembfin/" },
-      { key: "username", label: "Username", placeholder: "username" },
-    ],
-    secrets: [{ key: "password", label: "Password" }],
-    oauth: null,
-  },
-  s3: {
-    label: "S3-compatible",
-    settings: [
-      { key: "endpoint", label: "Endpoint (blank for AWS)", placeholder: "http://localhost:9000" },
-      { key: "region", label: "Region", placeholder: "us-east-1" },
-      { key: "bucket", label: "Bucket", placeholder: "my-backups" },
-      { key: "prefix", label: "Key prefix (optional)", placeholder: "plembfin/" },
-      { key: "accessKeyId", label: "Access key ID", placeholder: "AKIA…" },
-      { key: "forcePathStyle", label: "Use path-style URLs (MinIO, B2, most non-AWS)", type: "checkbox", default: true },
-    ],
-    secrets: [{ key: "secretAccessKey", label: "Secret access key" }],
-    oauth: null,
-  },
-  onedrive: {
-    label: "OneDrive",
-    settings: [
-      { key: "clientId", label: "Azure app client ID", placeholder: "00000000-0000-0000-0000-000000000000", full: true },
-    ],
-    secrets: [],
-    oauth: "device",
-    help: `<details class="destination-help"><summary>Where do I get a client ID? (one-time, free)</summary>
-      <p><b>Easiest option:</b> skip the API entirely and use a <b>Local / synced folder</b> destination pointed at your OneDrive sync folder — your OneDrive desktop app does the upload, no registration needed.</p>
-      <p>If you do want the API, Microsoft requires a free app registration (one time):</p>
-      <ol>
-        <li>Open <a href="https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Entra app registrations</a> → <b>New registration</b>.</li>
-        <li>Name it anything. Under supported account types pick <b>“Accounts in any organizational directory and personal Microsoft accounts”</b>. Leave redirect URI blank → <b>Register</b>.</li>
-        <li>Open <b>Authentication</b> → enable <b>Allow public client flows</b> → <b>Save</b>.</li>
-        <li>Copy the <b>Application (client) ID</b> into the field above, Save, then click <b>Connect</b>.</li>
-      </ol>
-      <p><b>Personal @outlook/@hotmail account?</b> If step 1 says <i>“creating applications outside of a directory has been deprecated”</i>, your account has no Azure directory yet. Click <b>“sign up for Azure”</b> on that page (free — creates a directory) and then register the app there. The app still works with your personal OneDrive thanks to the account type in step 2. Or just use the folder option above and avoid all of this.</p>
-    </details>`,
-  },
-  dropbox: {
-    label: "Dropbox",
-    settings: [
-      { key: "appKey", label: "App key", placeholder: "abcd1234efgh5678" },
-      { key: "folder", label: "Folder", placeholder: "/Plembfin Backups" },
-    ],
-    secrets: [{ key: "appSecret", label: "App secret" }],
-    oauth: "code",
-    help: `<details class="destination-help"><summary>Where do I get an app key & secret? (one-time, free)</summary>
-      <ol>
-        <li>Open <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener">Dropbox App Console</a> → <b>Create app</b> → <b>Scoped access</b> → <b>App folder</b>, name it.</li>
-        <li>On the <b>Permissions</b> tab enable <b>files.content.write</b>, <b>files.content.read</b>, and <b>files.metadata.read</b> → Submit.</li>
-        <li>On the <b>Settings</b> tab copy the <b>App key</b> and <b>App secret</b> above, Save, then click <b>Connect</b>.</li>
-      </ol>
-      <p>Prefer no setup? Use a <b>Local / synced folder</b> destination pointed at your Dropbox sync folder instead.</p>
-    </details>`,
   },
 };
 
@@ -982,7 +903,7 @@ function collectDestination(card) {
 }
 
 async function addBackupDestination() {
-  const type = elements.watchBackupDestinationType?.value || "webdav";
+  const type = elements.watchBackupDestinationType?.value || "backblaze";
   const label = DESTINATION_FORMS[type]?.label || type;
   await postWatchBackupAction({ action: "save-destination", destination: { type, label, enabled: false, settings: {}, secrets: {} } });
   state.watchBackups = null;
@@ -1071,49 +992,7 @@ async function restoreRemoteBackupFromCard(card, filename, clearMode = "reconcil
 
 async function connectBackupDestinationCard(card) {
   const destination = collectDestination(card);
-  // Persist client/app credentials before kicking off the OAuth handshake.
   await postWatchBackupAction({ action: "save-destination", destination });
-  if (destination.type === "onedrive") return connectOneDriveDestination(destination.id, card);
-  if (destination.type === "dropbox") return connectDropboxDestination(destination.id, card);
-}
-
-async function connectOneDriveDestination(id, card) {
-  const feedback = card.querySelector("[data-dest-feedback]");
-  const start = await postWatchBackupAction({ action: "device-start", destinationId: id });
-  if (feedback) {
-    feedback.innerHTML = `Open <a href="${escapeAttribute(start.verificationUri)}" target="_blank" rel="noopener">${escapeHtml(start.verificationUri)}</a> and enter code <b>${escapeHtml(start.userCode)}</b>. Waiting for approval…`;
-  }
-  const deadline = Date.now() + (Number(start.expiresIn) || 900) * 1000;
-  const interval = Math.max(2, Number(start.interval) || 5) * 1000;
-  while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, interval));
-    const poll = await postWatchBackupAction({ action: "device-poll", pendingId: start.pendingId });
-    if (poll.status === "authorized") {
-      setMessage("OneDrive connected.", "success");
-      state.watchBackups = null;
-      await loadWatchBackups({ force: true });
-      return;
-    }
-    if (poll.status === "error") {
-      if (feedback) feedback.textContent = poll.error || "Authorization failed.";
-      setMessage(poll.error || "OneDrive authorization failed.", "error");
-      return;
-    }
-  }
-  if (feedback) feedback.textContent = "Login timed out — start again.";
-}
-
-async function connectDropboxDestination(id, card) {
-  const feedback = card.querySelector("[data-dest-feedback]");
-  const { url } = await postWatchBackupAction({ action: "oauth-url", destinationId: id });
-  window.open(url, "_blank", "noopener");
-  if (feedback) feedback.innerHTML = `A Dropbox tab opened. Approve access, then paste the code below.`;
-  const code = window.prompt("Dropbox: after approving access, paste the authorization code here:");
-  if (!code) return;
-  await postWatchBackupAction({ action: "oauth-exchange", destinationId: id, code });
-  setMessage("Dropbox connected.", "success");
-  state.watchBackups = null;
-  await loadWatchBackups({ force: true });
 }
 
 async function loadWatchBackups({ force = false } = {}) {

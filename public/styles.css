@@ -7816,8 +7816,10 @@ html.light-mode input[type="url"],
 html.light-mode input[type="datetime-local"],
 html.light-mode input[type="date"],
 html.light-mode input[type="time"],
+html.light-mode input[type="number"],
 html.light-mode textarea,
-html.light-mode select {
+html.light-mode select,
+html.light-mode .field {
   background: #ffffff;
   border: 1px solid var(--line);
   color-scheme: light;
@@ -7834,8 +7836,10 @@ html.light-mode input[type="url"]:focus,
 html.light-mode input[type="datetime-local"]:focus,
 html.light-mode input[type="date"]:focus,
 html.light-mode input[type="time"]:focus,
+html.light-mode input[type="number"]:focus,
 html.light-mode textarea:focus,
-html.light-mode select:focus {
+html.light-mode select:focus,
+html.light-mode .field:focus {
   border-color: var(--blue);
   background: #ffffff;
   box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05), 0 0 0 3px rgba(37, 99, 235, 0.15);
