@@ -223,19 +223,6 @@ npm install      # install dependencies
 npm run dev      # start with auto-reload on http://localhost:5055
 ```
 
-### "Push to git" command
-When working with an AI agent (Claude Code), say **"Push to git"** to trigger the full pre-push workflow:
-
-1. **Review changes** — scans all modified files
-2. **Sync docs** — verifies `docs/` is up to date for any changed server/API/auth areas
-3. **Sync in-app help** — checks `HELP_TOPICS` and `renderSettingsInlineHelp()` in `app.js` reflect current behaviour
-4. **Write commit message** — first line becomes the changelog entry; bullet-point body lines are stored as structured `details`
-5. **Commit & push** — stages all relevant files and pushes to `main`
-
-CI then auto-bumps the patch version in `changelog.json` / `package.json` and builds + pushes the Docker image to GHCR.
-
-The full workflow definition lives in [`CLAUDE.md`](./CLAUDE.md), which is the single source of truth for all AI agent behaviour in this repo.
-
 ---
 
 ## 📜 License
