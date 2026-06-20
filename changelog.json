@@ -1,7 +1,18 @@
 {
-  "version": "0.1.50",
-  "updatedAt": "2026-06-20T15:35:45+01:00",
+  "version": "0.1.51",
+  "updatedAt": "2026-06-20T15:41:54+01:00",
   "entries": [
+    {
+      "version": "0.1.51",
+      "date": "2026-06-20T15:41:54+01:00",
+      "commit": "5b4c6cc2366c747ad5b3c52a0e8a4c763140271c",
+      "message": "fix: suppress Seerr request buttons when show is actively playing",
+      "author": "Lasikiewicz",
+      "details": [
+        "renderSeerrRequestPill now respects localAvailable for TV shows (was",
+        "renderShowModalContent passes localAvailable=true when the show's TMDB"
+      ]
+    },
     {
       "version": "0.1.50",
       "date": "2026-06-20T15:35:45+01:00",
