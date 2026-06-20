@@ -1,7 +1,20 @@
 {
-  "version": "0.1.45",
-  "updatedAt": "2026-06-20T13:39:53+01:00",
+  "version": "0.1.46",
+  "updatedAt": "2026-06-20T13:47:08+01:00",
   "entries": [
+    {
+      "version": "0.1.46",
+      "date": "2026-06-20T13:47:08+01:00",
+      "commit": "d7dd662c04e015c3364fa010fc89bb523e6b0c27",
+      "message": "fix: replace inline event handlers to comply with Content Security Policy",
+      "author": "Lasikiewicz",
+      "details": [
+        "Remove all onclick/onerror attributes from dynamically-rendered HTML templates",
+        "Add delegated document click handler for cast cards, trailers, review toggles, and person photos",
+        "Add delegated document error handler (capture phase) for image fallbacks",
+        "Replace onerror attributes with data-err values (fav, hide, hide-parent, hide-closest-btn, hide-show-next)"
+      ]
+    },
     {
       "version": "0.1.45",
       "date": "2026-06-20T13:39:53+01:00",
