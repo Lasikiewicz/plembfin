@@ -2722,6 +2722,33 @@ async function handlePoster(req, res) {
   }
 }
 
+// Concurrency limiter for TMDB image downloads to avoid hitting rate limits.
+// At most 8 downloads run simultaneously; extras queue until a slot frees.
+const TMDB_POSTER_CONCURRENCY = 8;
+let _tmdbPosterActive = 0;
+const _tmdbPosterQueue = [];
+const _tmdbPosterInflight = new Map();
+
+function _acquireTmdbPosterSlot() {
+  return new Promise((resolve) => {
+    if (_tmdbPosterActive < TMDB_POSTER_CONCURRENCY) {
+      _tmdbPosterActive++;
+      resolve();
+    } else {
+      _tmdbPosterQueue.push(resolve);
+    }
+  });
+}
+
+function _releaseTmdbPosterSlot() {
+  const next = _tmdbPosterQueue.shift();
+  if (next) {
+    next();
+  } else {
+    _tmdbPosterActive--;
+  }
+}
+
 async function handleTmdbPoster(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -2740,10 +2767,32 @@ async function handleTmdbPoster(req, res) {
   }
   if (cached?.cached) return res.redirect(302, "/favicon.svg");
 
+  // Deduplicate concurrent requests for the same path.
+  if (_tmdbPosterInflight.has(posterPath)) {
+    await _tmdbPosterInflight.get(posterPath);
+    const recheck = usableCachedPoster(await getPosterCache(mediaKey));
+    if (recheck?.url) {
+      res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+      return res.redirect(302, recheck.url);
+    }
+    return res.redirect(302, "/favicon.svg");
+  }
+
   const remoteUrl = `https://image.tmdb.org/t/p/w500${posterPath}`;
-  const stored = await cachePosterFromUrl(mediaKey, remoteUrl, "tmdb");
+  const downloadPromise = (async () => {
+    await _acquireTmdbPosterSlot();
+    try {
+      return await cachePosterFromUrl(mediaKey, remoteUrl, "tmdb");
+    } finally {
+      _releaseTmdbPosterSlot();
+    }
+  })();
+
+  _tmdbPosterInflight.set(posterPath, downloadPromise);
+  const stored = await downloadPromise;
+  _tmdbPosterInflight.delete(posterPath);
+
   if (!stored?.url) {
-    await markPosterMissing(mediaKey, "tmdb", "TMDB poster download failed").catch(() => null);
     return res.redirect(302, "/favicon.svg");
   }
 
@@ -2772,7 +2821,6 @@ async function handleTmdbProfile(req, res) {
   const remoteUrl = `https://image.tmdb.org/t/p/original${profilePath}`;
   const stored = await cacheProfileFromUrl(mediaKey, remoteUrl, "tmdb");
   if (!stored?.url) {
-    await markPosterMissing(mediaKey, "tmdb", "TMDB profile download failed", "profile").catch(() => null);
     return res.redirect(302, "/favicon.svg");
   }
 
