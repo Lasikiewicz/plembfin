@@ -1,7 +1,21 @@
 {
-  "version": "0.1.41",
-  "updatedAt": "2026-06-20T11:07:06+01:00",
+  "version": "0.1.42",
+  "updatedAt": "2026-06-20T12:32:33+01:00",
   "entries": [
+    {
+      "version": "0.1.42",
+      "date": "2026-06-20T12:32:33+01:00",
+      "commit": "d23a68562804eb463f8642b0ed9bf58c79cd069f",
+      "message": "feat: add stats review reports",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add year, month, and all-time stats review reports with poster-ranked media",
+        "Add media and period filters for movies, TV shows, and combined watch history",
+        "Show period-specific first and last plays, platform breakdowns, and watch activity",
+        "Make stats report media cards open their movie or TV show pages",
+        "Document the stats review workflow in README, architecture docs, and in-app help"
+      ]
+    },
     {
       "version": "0.1.41",
       "date": "2026-06-20T11:07:06+01:00",
