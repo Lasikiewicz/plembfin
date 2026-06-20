@@ -21,19 +21,24 @@ git diff --stat HEAD
 ```
 Read the list of changed files to understand what was touched in this session.
 
-### 2 — Sync docs
-For every changed file, check whether a corresponding doc in `docs/` needs updating:
-| Changed area | Doc to check |
-| --- | --- |
-| Webhook auth / `parsers.js` / `auth.js` | `docs/webhooks.md` |
-| Scheduler / `scheduled.js` / `cron-sync` | `docs/scheduled-sync.md` |
-| Now-playing / `live_tracking_cache` | `docs/now-playing.md` |
-| `schema.sql` / new SQLite tables | `docs/sqlite-schema.md` |
-| Auth / sessions / cookies | `docs/architecture.md` |
-| Any server-side breaking change | `docs/troubleshooting.md` |
-| Overall architecture change | `docs/README.md` |
+### 2 — Sync docs and README
+For every changed file, check whether the corresponding doc **and** the relevant section of `README.md` need updating:
 
-Update any doc that is out of date before proceeding.
+| Changed area | Doc to check | README section to check |
+| --- | --- | --- |
+| Webhook auth / `parsers.js` / `auth.js` | `docs/webhooks.md` | ⚡ Webhook Setup |
+| Scheduler / `scheduled.js` / `cron-sync` | `docs/scheduled-sync.md` | 🛠️ Architecture |
+| Now-playing / `live_tracking_cache` | `docs/now-playing.md` | — |
+| `schema.sql` / new SQLite tables | `docs/sqlite-schema.md` | ⚙️ Configuration Reference |
+| Auth / sessions / cookies | `docs/architecture.md` | 🔧 Full Setup Guide |
+| New feature or setting | `docs/architecture.md` | 🌟 Key Features / 🔧 Full Setup Guide |
+| New env variable | `docs/architecture.md` | ⚙️ Configuration Reference |
+| Any server-side breaking change | `docs/troubleshooting.md` | relevant setup section |
+| Overall architecture change | `docs/README.md` | 🛠️ Architecture |
+| Docker / deployment change | `docs/README.md` | 🚀 Getting Started |
+| Push-to-git / agent workflow change | `CLAUDE.md` | 🧑‍💻 Development Workflow |
+
+Update any doc **and** the matching README section that is out of date before proceeding.
 
 ### 3 — Sync in-app help
 For every changed feature or setting, check `public/app.js`:
