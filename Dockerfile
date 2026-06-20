@@ -21,7 +21,9 @@ COPY server ./server
 COPY public ./public
 COPY changelog.json ./changelog.json
 
-RUN groupadd -r plembfin && useradd -r -g plembfin -u 1000 plembfin \
+# node:22-slim already provides a 'node' user at uid 1000; rename it to
+# 'plembfin' for clarity and set up the data directory.
+RUN usermod -l plembfin node && groupmod -n plembfin node \
     && mkdir -p /data && chown plembfin:plembfin /data /app
 
 VOLUME ["/data"]
