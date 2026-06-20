@@ -1773,6 +1773,48 @@ h2 {
   gap: var(--space-4);
 }
 
+.stats-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: end;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.stats-toolbar p {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.stats-toolbar-title {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.stats-toolbar span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.stats-controls {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.stats-review-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .insight-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -1783,6 +1825,253 @@ h2 {
   .insight-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.stats-poster-report {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.stats-review-intro {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-2);
+}
+
+.stats-review-intro > div,
+.stats-review-play {
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.stats-review-intro span,
+.stats-review-play span,
+.stats-review-copy span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.stats-review-intro b {
+  display: block;
+  min-width: 0;
+  margin-top: 0.2rem;
+  color: var(--text);
+  font-size: 1.35rem;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.stats-first-last {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.stats-review-play {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.stats-review-play-poster {
+  width: 3rem;
+  aspect-ratio: 2 / 3;
+  border-radius: 5px;
+  object-fit: cover;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.stats-review-play b {
+  display: block;
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.stats-review-play small {
+  display: block;
+  margin-top: 0.1rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.stats-review-feature-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-2);
+  align-items: stretch;
+}
+
+.stats-review-leader {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: end;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-3);
+}
+
+.stats-review-leader[data-stats-media-href],
+.stats-media-card[data-stats-media-href],
+.stats-review-play[data-stats-media-href] {
+  cursor: pointer;
+}
+
+.stats-review-leader[data-stats-media-href]:focus-visible,
+.stats-media-card[data-stats-media-href]:focus-visible,
+.stats-review-play[data-stats-media-href]:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.stats-review-side-stack {
+  display: grid;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.stats-review-side-stack .stats-media-card {
+  align-items: center;
+}
+
+.stats-review-poster {
+  width: 100%;
+  max-width: 12rem;
+  aspect-ratio: 2 / 3;
+  border-radius: 7px;
+  object-fit: cover;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+}
+
+.stats-review-copy {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.stats-review-copy h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 2.35rem;
+  line-height: 0.95;
+  overflow-wrap: anywhere;
+}
+
+.stats-review-copy p {
+  max-width: 58ch;
+  margin: 0;
+  color: var(--soft);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.stats-review-facts {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.stats-review-facts b {
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  background: var(--panel-2);
+  font-size: 0.78rem;
+}
+
+.stats-review-rank-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--space-2);
+}
+
+.stats-media-card {
+  display: grid;
+  grid-template-columns: 4.1rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: stretch;
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.stats-report-poster {
+  width: 4.1rem;
+  aspect-ratio: 2 / 3;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.stats-media-body {
+  min-width: 0;
+  display: grid;
+  align-content: space-between;
+  gap: var(--space-2);
+}
+
+.stats-media-body > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.stats-media-body span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.stats-media-body b {
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.stats-media-body small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.stats-media-body em {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.stats-media-meter {
+  height: 0.32rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.stats-media-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
 }
 
 .settings-pane[data-settings-panel="general"] {
@@ -3415,6 +3704,7 @@ details[open] .tool-accordion-chevron::before {
   }
 
   .insight-grid,
+  .stats-toolbar,
   .settings-config-grid,
   .admin-credentials-grid,
   .apps-server-grid,
@@ -3426,6 +3716,25 @@ details[open] .tool-accordion-chevron::before {
   .ranking-row,
   .insight-row {
     grid-template-columns: 1fr;
+  }
+
+  .stats-controls {
+    justify-content: stretch;
+  }
+
+  .stats-controls .compact-field {
+    flex: 1 1 10rem;
+  }
+
+  .stats-review-intro,
+  .stats-first-last,
+  .stats-review-feature-grid,
+  .stats-review-leader {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-review-poster {
+    max-width: 9rem;
   }
 
   .table-head {
