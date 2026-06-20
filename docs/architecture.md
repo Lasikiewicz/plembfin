@@ -75,7 +75,7 @@ invalidates them; the next read reloads from SQLite.
 
 - One global `state` object in `app.js` (no framework).
 - SPA navigation via `navigateTo(url)` / `handleRouting()` / `history.pushState`.
-  Routes: `/` dashboard, `/movie/:id`, `/tvshow/:key`, `/person/:id`, `/help/:topic`.
+  Routes: `/` dashboard, `/movie/:id`, `/tvshow/:key`, `/person/:id`, `/settings/:tab`, `/help/:topic`.
 - Auth handled by `onFirebaseAuthChange()` (`modules/auth.js`) — which checks
   `/api/auth/status`. The auth panel is hidden until a session is confirmed.
 - After every successful auth operation, `fetchAndCacheApiKey()` is called to

@@ -96,7 +96,7 @@ const HIDE_ENDED_KEY_SHOWS = "plembfin:hideEnded:shows";
 const EXPLORER_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_LIMIT = 24;
 const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "search", "history", "part-watched"];
-const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs", "appearance"];
+const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs", "appearance", "changelog"];
 
 const state = {
   token: readStoredAdminToken([TOKEN_KEY, LEGACY_UPPER_TOKEN_KEY, LEGACY_TOKEN_KEY]),
@@ -120,6 +120,7 @@ const state = {
   syncHistory: [],
   syncHistoryLoaded: false,
   syncHistoryLoading: false,
+  changelog: null,
   savedConfig: {},
   stats: {
     totalWatches: 0,
@@ -229,6 +230,7 @@ function bindElements() {
   Object.assign(elements, {
     appShell: document.querySelector("#appShell"),
     appVersion: document.querySelector("#appVersion"),
+    changelogPanel: document.querySelector("#changelogPanel"),
     authForm: document.querySelector("#authForm"),
     authPanel: document.querySelector("#authPanel"),
     adminToken: document.querySelector("#adminToken"),
@@ -434,9 +436,54 @@ async function loadAppVersion() {
   try {
     const response = await fetch("/changelog.json", { cache: "no-store" });
     const changelog = await response.json();
-    if (response.ok && changelog.version) elements.appVersion.textContent = `v${changelog.version}`;
+    if (response.ok) {
+      state.changelog = changelog;
+      if (changelog.version) elements.appVersion.textContent = `v${changelog.version}`;
+      if (state.activeView === "settings" && state.activeSettingsTab === "changelog") renderChangelog().catch(() => { });
+    }
   } catch {
     // Keep the HTML fallback version when release metadata is unavailable.
+  }
+}
+
+async function loadChangelogData() {
+  if (state.changelog?.entries) return state.changelog;
+  const response = await fetch("/changelog.json", { cache: "no-store" });
+  const changelog = await response.json();
+  if (!response.ok) throw new Error(changelog?.error || `Changelog unavailable (${response.status})`);
+  state.changelog = changelog;
+  if (elements.appVersion && changelog.version) elements.appVersion.textContent = `v${changelog.version}`;
+  return changelog;
+}
+
+async function renderChangelog() {
+  if (!elements.changelogPanel) return;
+  elements.changelogPanel.innerHTML = `<div class="idle-state"><b>Loading changelog...</b></div>`;
+  try {
+    const changelog = await loadChangelogData();
+    const entries = Array.isArray(changelog.entries) ? changelog.entries : [];
+    if (!entries.length) {
+      elements.changelogPanel.innerHTML = `<div class="idle-state"><b>No changelog entries found.</b></div>`;
+      return;
+    }
+
+    elements.changelogPanel.innerHTML = entries
+      .map((entry) => {
+        const details = Array.isArray(entry.details) ? entry.details.filter(Boolean) : [];
+        return `
+          <article class="changelog-entry">
+            <div class="changelog-entry-head">
+              <b>v${escapeHtml(entry.version || "")}</b>
+              <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
+            </div>
+            <p>${escapeHtml(entry.message || "Release update")}</p>
+            ${details.length ? `<ul>${details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("")}</ul>` : ""}
+          </article>
+        `;
+      })
+      .join("");
+  } catch (error) {
+    elements.changelogPanel.innerHTML = `<div class="idle-state"><b>${escapeHtml(error.message || "Unable to load changelog.")}</b></div>`;
   }
 }
 
@@ -3773,9 +3820,9 @@ const HELP_TOPICS = [
             <p>Plembfin is a self-hosted watch-state bridge. It listens for playback events from Plex, Emby, and Jellyfin via webhooks, records them in a local SQLite database, and propagates the watched or unwatched state to every other connected platform automatically. A background worker runs every minute so sync continues even when the dashboard is closed.</p>
             <p>Follow these steps to get from zero to a fully synchronised setup:</p>
             <ol>
-              <li><b>Sign in</b> — Log in with your admin username and password (defaults to <code>admin</code> / <code>admin</code>; override with <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code>). See the <a href="#" data-help-topic-link="firebase-auth">Admin Sign-In</a> guide for details.</li>
+              <li><b>Sign in</b> — Log in with your admin username and password (defaults to <code>admin</code> / <code>admin</code>; override with <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code>). See <a href="#" data-settings-link="general">Settings → General</a> for login controls.</li>
               <li><b>Add credentials</b> — Open <b>Settings → Apps</b> and fill in the server URL, token or API key, and user ID for each platform you use. Click <b>Save Configuration</b>.</li>
-              <li><b>Configure webhooks</b> — Copy your webhook URL from <b>Settings → API Endpoints</b> (it includes a secret token) and paste it into each media server. See the <a href="#" data-help-topic-link="webhooks">Webhook Setup</a> guide for per-server instructions.</li>
+              <li><b>Configure webhooks</b> — Copy your webhook URL from <b>Settings → General</b> (it includes a secret token) and paste it into each media server. Per-server webhook steps are shown beside each platform in <a href="#" data-settings-link="apps">Settings → Apps</a>.</li>
               <li><b>Verify</b> — Open <b>Settings → Tools → System Integrity Check</b> and run the diagnostic. All probes should return green before you rely on live sync.</li>
               <li><b>Import history (optional)</b> — Use the Trakt History Importer in <b>Settings → Tools</b> to seed your local archive from a Trakt export, then run Full Sync Watchstates to push everything to your media servers.</li>
             </ol>
@@ -3907,6 +3954,22 @@ const HELP_TOPICS = [
     body: () => forcePushHistoryGuide(),
   },
 ];
+
+const SETTINGS_DUPLICATED_HELP_TOPIC_IDS = new Set([
+  "firebase-auth",
+  "plex",
+  "emby",
+  "jellyfin",
+  "webhooks",
+  "sync-worker",
+  "sync-dashboard",
+  "rebuild-playstate",
+  "force-push-history",
+]);
+
+function visibleHelpTopics() {
+  return HELP_TOPICS.filter((topic) => !SETTINGS_DUPLICATED_HELP_TOPIC_IDS.has(topic.id));
+}
 
 function setMessage(text, tone = "muted") {
   elements.message.textContent = text;
@@ -4101,10 +4164,11 @@ function handleRouting(path) {
     state.mediaDetailInline = false;
     clearMediaDetailState();
     const parts = pathname.split("/");
-    if (parts[2]) {
+    const topics = visibleHelpTopics();
+    if (parts[2] && topics.some((topic) => topic.id === parts[2])) {
       state.activeHelpTopic = parts[2];
     } else {
-      state.activeHelpTopic = "getting-started";
+      state.activeHelpTopic = topics[0]?.id || "getting-started";
     }
   } else {
     state.activeView = "dashboard";
@@ -4233,12 +4297,13 @@ function settingsTopbarTitle() {
     sync: "Sync",
     logs: "Logs",
     appearance: "Appearance",
+    changelog: "Changelog",
   };
   return `Settings - ${labels[state.activeSettingsTab] || "General"}`;
 }
 
 function activeHelpTitle() {
-  const topic = HELP_TOPICS.find((item) => item.id === state.activeHelpTopic);
+  const topic = visibleHelpTopics().find((item) => item.id === state.activeHelpTopic);
   return topic?.title || "Help";
 }
 
@@ -4411,6 +4476,7 @@ function applyActiveView() {
       if (backupsSubMenu) backupsSubMenu.classList.add("hidden");
     }
     if (state.activeSettingsTab === "logs") renderLogs().catch(() => { });
+    if (state.activeSettingsTab === "changelog") renderChangelog().catch(() => { });
     if (state.configLoaded) {
       renderSettingsStatus("Configuration ready.", "success");
     }
@@ -6966,13 +7032,14 @@ function tokenBadges(tokens = []) {
 }
 
 function renderHelp() {
-  const categories = [...new Set(HELP_TOPICS.map((topic) => topic.category))];
+  const topics = visibleHelpTopics();
+  const categories = [...new Set(topics.map((topic) => topic.category))];
   elements.helpMenu.innerHTML = categories
     .map(
       (category) => `
         <section class="help-menu-group">
           <p>${escapeHtml(category)}</p>
-          ${HELP_TOPICS.filter((topic) => topic.category === category)
+          ${topics.filter((topic) => topic.category === category)
           .map(
             (topic) => `
                 <button class="help-menu-item ${topic.id === state.activeHelpTopic ? "active" : ""}" type="button" data-help-topic="${topic.id}">
@@ -6987,7 +7054,12 @@ function renderHelp() {
     )
     .join("");
 
-  const topic = HELP_TOPICS.find((item) => item.id === state.activeHelpTopic) || HELP_TOPICS[0];
+  const topic = topics.find((item) => item.id === state.activeHelpTopic) || topics[0];
+  if (!topic) {
+    elements.helpCanvas.innerHTML = `<div class="idle-state"><b>No help topics available.</b></div>`;
+    return;
+  }
+  state.activeHelpTopic = topic.id;
   elements.helpCanvas.innerHTML = `
     <div class="help-hero">
       <div class="help-hero-eyebrow">${escapeHtml(topic.category)}</div>
@@ -7000,7 +7072,7 @@ function renderHelp() {
 }
 
 function openHelpTopic(topicId) {
-  if (!HELP_TOPICS.some((topic) => topic.id === topicId)) return;
+  if (!visibleHelpTopics().some((topic) => topic.id === topicId)) return;
   navigateTo(`/help/${topicId}`);
   window.setTimeout(() => elements.helpCanvas?.scrollIntoView({ block: "start" }), 0);
 }
@@ -10852,7 +10924,7 @@ async function runSystemIntegrityCheck() {
     let statusLabel = "Skipped";
     let pillStyle = "border-color: var(--line); background: var(--panel-3); color: var(--muted);";
     let fixInstruction = "";
-    let helpTopic = "";
+    let settingsLink = "";
 
     if (res.status === "success") {
       statusLabel = "Online";
@@ -10871,7 +10943,7 @@ async function runSystemIntegrityCheck() {
     if (res.status !== "success") {
       if (res.name === "Scheduled Cron Job") {
         fixInstruction = "Fix: The background sync worker runs in-process every minute. If it hasn't fired, confirm the server is running and check the server logs for errors. You can also trigger it manually via /api/cron-sync.";
-        helpTopic = "sync-worker";
+        settingsLink = "sync";
       } else if (res.name === "Watch History API") {
         fixInstruction = "Fix: The SQLite database may be locked or the data directory may not be writable. Check the server logs and confirm DATA_DIR is set correctly.";
       } else if (res.name === "Server Configuration") {
@@ -10884,7 +10956,7 @@ async function runSystemIntegrityCheck() {
         fixInstruction = "Fix: Enter the Plex Server URL and Plex Token in Settings → Apps, then confirm the server is reachable from the machine running Plembfin.";
       } else if (res.name === "Plex Realtime Notifications") {
         fixInstruction = "Fix: Ensure any reverse proxy / Cloudflare in front of Plex forwards WebSocket upgrades on /:/websockets/notifications, or set the Plex Server URL to the direct LAN address (e.g. http://192.168.x.x:32400). Unwatch sync still works via the fallback poll until this is fixed.";
-        helpTopic = "webhooks";
+        settingsLink = "apps";
       } else if (res.name === "Emby Media Server") {
         fixInstruction = "Fix: Enter the Emby Server URL, API Key, and User ID in Settings → Apps, then confirm the server is reachable from the machine running Plembfin.";
       } else if (res.name === "Jellyfin Media Server") {
@@ -10898,7 +10970,7 @@ async function runSystemIntegrityCheck() {
           <b>${escapeHtml(res.name)}</b>
           <span style="font-size: 0.8rem; color: var(--muted);">${escapeHtml(res.detail)}</span>
           ${fixInstruction ? `<span style="font-size: 0.8rem; color: var(--text);">${escapeHtml(fixInstruction)}</span>` : ""}
-          ${helpTopic ? `<button type="button" data-help-topic-link="${escapeAttribute(helpTopic)}" style="width: fit-content; border: 1px solid var(--line); background: var(--panel-3); color: var(--text); border-radius: 6px; padding: 0.25rem 0.5rem; font-size: 0.78rem; font-weight: 800;">Open setup guide</button>` : ""}
+          ${settingsLink ? `<button type="button" data-settings-link="${escapeAttribute(settingsLink)}" style="width: fit-content; border: 1px solid var(--line); background: var(--panel-3); color: var(--text); border-radius: 6px; padding: 0.25rem 0.5rem; font-size: 0.78rem; font-weight: 800;">Open setup guide</button>` : ""}
         </div>
         <span class="target-pill" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; border: 1px solid; border-radius: 999px; ${pillStyle}">${statusLabel}</span>
       </div>
@@ -11899,6 +11971,10 @@ function attachEvents() {
     });
   }
 
+  elements.appVersion?.addEventListener("click", () => {
+    navigateTo("/settings/changelog");
+  });
+
   elements.lockButton.addEventListener("click", lockDashboard);
   if (elements.themeToggleButton) {
     elements.themeToggleButton.addEventListener("click", toggleTheme);
@@ -12198,7 +12274,15 @@ function attachEvents() {
 
     const helpLink = event.target.closest("[data-help-topic-link]");
     if (helpLink) {
+      event.preventDefault();
       openHelpTopic(helpLink.dataset.helpTopicLink);
+      return;
+    }
+
+    const settingsLink = event.target.closest("[data-settings-link]");
+    if (settingsLink) {
+      event.preventDefault();
+      selectSettingsTab(settingsLink.dataset.settingsLink);
       return;
     }
 

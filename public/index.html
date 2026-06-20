@@ -64,6 +64,7 @@
               <button class="settings-tab" type="button" data-settings-tab="logs">Logs</button>
               <button class="settings-tab" type="button" data-settings-tab="sync">Sync</button>
               <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
+              <button class="settings-tab" type="button" data-settings-tab="changelog">Changelog</button>
             </div>
           </div>
           <div class="sidebar-footer">
@@ -74,7 +75,7 @@
                 <span class="theme-toggle-label theme-toggle-label--dark">Dark</span>
               </span>
             </button>
-            <span id="appVersion" class="app-version">v0.0.0</span>
+            <button id="appVersion" class="app-version" type="button" title="Open changelog">v0.0.0</button>
             <button id="lockButton" class="button-ghost hidden" type="button">Sign out</button>
           </div>
         </div>
@@ -1309,6 +1310,22 @@
                       <p class="tool-accordion-desc">
                         Trailers, Reviews, Images, Cast, and Related content all require a configured TMDB API key under <b>Settings → API Keys</b>.
                       </p>
+                    </article>
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-pane hidden" data-settings-panel="changelog">
+                <div class="settings-row">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Changelog</p>
+                          <span>Recent Plembfin releases</span>
+                        </div>
+                      </div>
+                      <div id="changelogPanel" class="changelog-panel" aria-live="polite"></div>
                     </article>
                   </div>
                 </div>
