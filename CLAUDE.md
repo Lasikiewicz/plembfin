@@ -36,7 +36,11 @@ For every changed file, check whether the corresponding doc **and** the relevant
 | Any server-side breaking change | `docs/troubleshooting.md` | relevant setup section |
 | Overall architecture change | `docs/README.md` | 🛠️ Architecture |
 | Docker / deployment change | `docs/README.md` | 🚀 Getting Started |
+| Backup destinations / backup UI | — | 💾 Backup & Restore System |
+| Key Features list in README | — | 🌟 Key Features |
 | Push-to-git / agent workflow change | `CLAUDE.md` | 🧑‍💻 Development Workflow |
+
+**Important**: Always read the actual README sections that correspond to changed areas — do not assume they are already up to date. README prose can become stale even when docs/ files are current.
 
 Update any doc **and** the matching README section that is out of date before proceeding.
 
