@@ -8490,7 +8490,7 @@ function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false) {
   if (!state.seerrConfigured || !tmdbId) return "";
   const status = state.seerrMediaStatusCache.get(`${mediaType}:${tmdbId}`) || {};
   const isTv = mediaType === "tv";
-  const isAvailable = isTv ? status.available : (status.available || localAvailable);
+  const isAvailable = status.available || localAvailable;
   const supports4k = mediaType === "movie" ? state.seerrSupports4k.movie : state.seerrSupports4k.tv;
   const seerrBaseUrl = String(state.savedConfig?.seerr?.baseUrl || "").replace(/\/+$/, "");
   const seerrIconHtml = seerrBaseUrl
@@ -8693,7 +8693,7 @@ async function renderImmersiveShowModalLegacy(showKey, activeSeasonNum = null) {
           
           <div class="ratings-row">
             ${ratingBadgeHtml}
-            ${renderSeerrRequestPill("tv", show.tmdb_id, false)}
+            ${renderSeerrRequestPill("tv", show.tmdb_id, state.activeSessions.some((s) => String(s.ids?.tmdb || "") === String(show.tmdb_id || "")))}
             ${sourceBadgesHtml ? `
               <div style="display: flex; gap: 0.25rem; align-items: center; margin-left: 0.5rem;">
                 <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase;">Platforms:</span>
@@ -9097,6 +9097,9 @@ function renderShowModalContent(show, {
   const tvSeerrCacheKey = `tv:${tvSeerrTmdbId}`;
   const hasTvSeerrStatus = Boolean(tvSeerrTmdbId && state.seerrMediaStatusCache.has(tvSeerrCacheKey));
   const tvSeerrStatus = state.seerrMediaStatusCache.get(tvSeerrCacheKey) || {};
+  const showIsNowPlaying = tvSeerrTmdbId
+    ? state.activeSessions.some((s) => String(s.ids?.tmdb || "") === String(tvSeerrTmdbId))
+    : false;
 
   state.showModalEpisodes = episodeRows;
   state.showModalEpisodeIndex = new Map(episodeRows.map((episode) => [episode.key, episode]));
@@ -9237,7 +9240,7 @@ function renderShowModalContent(show, {
             <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
               ${ratingPillsHtml}
               ${showModalStatus(loading, hasTmdbKey, Boolean(tmdbData))}
-              ${renderSeerrRequestPill("tv", tvSeerrTmdbId, false)}
+              ${renderSeerrRequestPill("tv", tvSeerrTmdbId, showIsNowPlaying)}
             </div>
 
             <p class="immersive-overview">${escapeHtml(overview)}</p>
