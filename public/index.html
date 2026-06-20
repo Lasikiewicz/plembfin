@@ -902,13 +902,13 @@
 
               <!-- Backups Settings Panel -->
               <section class="settings-pane hidden" data-settings-panel="backups" data-backups-panel="settings">
+                <!-- Automatic Local Backups row -->
                 <div class="settings-row">
                   <div class="settings-row-main">
-                    <!-- Automatic Backups -->
                     <section class="glass-panel p-section backup-settings-panel">
                       <div class="section-heading sync-heading">
                         <div>
-                          <p>Automatic Backups</p>
+                          <p>Automatic Local Backups</p>
                           <span>Local watch history backup schedule settings</span>
                         </div>
                         <span id="watchBackupSummary" class="status-pill status-muted">Not loaded</span>
@@ -936,24 +936,36 @@
 
                       <div id="watchBackupRuntime" class="backup-runtime" aria-live="polite"></div>
                     </section>
+                  </div>
 
-                    <!-- Remote Destinations -->
-                    <section class="glass-panel p-section backup-settings-panel" style="margin-top: var(--space-4);">
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Local Backup Guide</p>
+                        <span>Disaster Recovery</span>
+                      </div>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-2);">
+                        Backups are saved to <code id="watchBackupLocalPath">data/backups/watch-history</code> on the server running Plembfin.
+                      </p>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin: 0;">
+                        Set a daily backup time, choose how many copies to retain, then click <b>Save Schedule</b>. Use <b>Back Up Now</b> to create an immediate snapshot.
+                      </p>
+                    </article>
+                  </div>
+                </div>
+
+                <!-- Automatic Remote Backups row -->
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <section class="glass-panel p-section backup-settings-panel">
                       <div class="section-heading">
                         <div>
-                          <p>Remote Destinations</p>
-                          <span>Mirror backups to OneDrive, Dropbox, WebDAV, or S3-compatible cloud storage</span>
+                          <p>Automatic Remote Backups</p>
+                          <span>Mirror backups to Backblaze B2 cloud storage</span>
                         </div>
                         <div class="backup-destination-add" style="display: flex; gap: var(--space-2); margin-top: var(--space-2);">
-                          <select id="watchBackupDestinationType" class="field" style="width: auto;">
-                            <option value="backblaze">Backblaze B2</option>
-                            <option value="folder">Local / synced folder</option>
-                            <option value="webdav">WebDAV</option>
-                            <option value="s3">S3-compatible</option>
-                            <option value="onedrive">OneDrive</option>
-                            <option value="dropbox">Dropbox</option>
-                          </select>
-                          <button id="addWatchBackupDestinationButton" class="button-primary" type="button">Add</button>
+                          <input id="watchBackupDestinationType" type="hidden" value="backblaze" />
+                          <button id="addWatchBackupDestinationButton" class="button-primary" type="button">Add Backblaze B2</button>
                         </div>
                       </div>
                       <div id="watchBackupDestinations" class="watch-backup-destinations" aria-live="polite"></div>
@@ -963,25 +975,16 @@
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Backup Guide</p>
-                        <span>Disaster Recovery</span>
+                        <p>Backblaze B2 Setup</p>
+                        <span>Free 10 GB · ~5 min</span>
                       </div>
-                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Local &amp; Synced Folders</h4>
-                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
-                        Backups are saved to <code id="watchBackupLocalPath">data/backups/watch-history</code>. You can point the folder destination to a OneDrive or Dropbox sync folder to automate off-host backups.
-                      </p>
-                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Backblaze B2 Mirror</h4>
-                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
-                        Create a private B2 bucket on backblaze.com, locate its region code (e.g. <code>us-west-004</code>), generate an application key, and enter the credentials.
-                      </p>
-                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">OneDrive Mirror</h4>
-                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
-                        Register an app in Entra portal (Accounts in any organizational directory and personal MS accounts), enable public client flows, and enter the Azure app client ID.
-                      </p>
-                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Dropbox Mirror</h4>
-                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: 0;">
-                        Create an app in Dropbox App Console with <code>files.content.write/read</code> permissions and enter the App Key and App Secret.
-                      </p>
+                      <ol class="tool-accordion-desc" style="font-size: 0.8rem; margin: 0 0 var(--space-2); padding-left: 1.2rem; line-height: 1.5;">
+                        <li>Create a free account at <a href="https://www.backblaze.com/sign-up/cloud-storage" target="_blank" rel="noopener" style="color: var(--accent);">backblaze.com</a> and enable <b>B2 Cloud Storage</b>.</li>
+                        <li><b>Buckets → Create a Bucket</b>: pick a globally-unique name, set files <b>Private</b>. Note the <b>Endpoint</b> shown (e.g. <code>s3.us-west-004.backblazeb2.com</code>) — the middle part is your <b>Region</b> (<code>us-west-004</code>).</li>
+                        <li><b>Application Keys → Add a New Application Key</b>: restrict it to that one bucket, then create. Copy the <b>keyID</b> and <b>applicationKey</b> — shown only once.</li>
+                        <li>Fill in Region, Bucket, keyID, applicationKey, <b>Save</b>, then <b>Test</b>. Tick <b>Enabled</b> and click <b>Back Up Now</b>.</li>
+                      </ol>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin: 0;">The endpoint is derived from the region automatically. Backups are pruned to your retention count here too.</p>
                     </article>
                   </div>
                 </div>
