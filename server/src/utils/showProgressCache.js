@@ -64,7 +64,16 @@ export async function initShowProgressCache() {
     try {
       const data = fs.readFileSync(CACHE_FILE_PATH, "utf8");
       progressCache = JSON.parse(data);
-      console.log(`[ShowProgressCache] Loaded ${Object.keys(progressCache).length} shows from cache file.`);
+      const total = Object.keys(progressCache).length;
+      const missingTotals = Object.values(progressCache).filter((s) => !s.total_episodes);
+      console.log(`[ShowProgressCache] Loaded ${total} shows from cache file.`);
+      if (missingTotals.length) {
+        console.log(`[ShowProgressCache] Scheduling background refresh for ${missingTotals.length} shows missing total episode count.`);
+        setImmediate(() => {
+          for (const show of missingTotals) queueShowProgressUpdate(show.title);
+          flushShowProgressUpdates().catch((e) => console.error("[ShowProgressCache] Background refresh error:", e));
+        });
+      }
       return;
     } catch (e) {
       console.error("[ShowProgressCache] Failed to load cache file, rebuilding...", e);
