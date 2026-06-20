@@ -1,7 +1,22 @@
 {
-  "version": "0.1.48",
-  "updatedAt": "2026-06-20T14:50:37+01:00",
+  "version": "0.1.49",
+  "updatedAt": "2026-06-20T15:10:46+01:00",
   "entries": [
+    {
+      "version": "0.1.49",
+      "date": "2026-06-20T15:10:46+01:00",
+      "commit": "af7af19ff8baaca2319b8cfd110d0ea95bf1a87f",
+      "message": "feat: Edit Images fanart support, bigger dialog, TV show breadcrumb and UI polish",
+      "author": "Lasikiewicz",
+      "details": [
+        "Edit Images dialog now pulls posters and logos from Fanart.tv alongside TMDB, with source badges (TMDB / Fanart) on each image tile",
+        "Edit Images dialog widened from 680px to 980px with taller image grid and two-column logo layout",
+        "New /api/fanart-images endpoint returns all Fanart.tv posters and logos for a given movie or TV show",
+        "TV show page breadcrumb now shows show name (e.g. \"TV Shows — Aussie Gold Hunters\")",
+        "Season accordion sections made virtually transparent",
+        "Filmography filter and sort controls replaced with pill toggle buttons (Movies / TV Shows, Popularity / Newest / Oldest)"
+      ]
+    },
     {
       "version": "0.1.48",
       "date": "2026-06-20T14:50:37+01:00",
