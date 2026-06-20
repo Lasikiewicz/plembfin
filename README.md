@@ -29,7 +29,7 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 *   🔒 **Self-Hosted & Private**: Built on a local SQLite database running in WAL mode. All poster assets, metadata, and watch histories reside on your own hardware.
 *   🖼️ **Art Pipeline & Caching**: Fetches posters and backdrops from your media servers or TMDB, resizes them with `sharp`, and caches them locally under `data/media` for near-instant rendering.
 *   🧹 **Echo Loop Prevention**: Utilizes a memory-mapped loop detector to suppress echo webhooks triggered by Plembfin's own updates.
-*   ☁️ **Automated Backups**: Backs up your database daily to multiple targets including Local Folders, Backblaze B2, S3-compatible, WebDAV, OneDrive, and Dropbox.
+*   ☁️ **Automated Backups**: Backs up your database daily to a local folder and optionally mirrors to Backblaze B2 cloud storage.
 *   🔍 **Seerr Integration**: Integrates with Overseerr/Jellyseerr/Seerr to check request and availability statuses directly from the movie and show detail views.
 *   📅 **In-Process Scheduler**: An in-memory scheduler checks for active play sessions, processes manual sync overrides, and triggers catch-up syncs every minute.
 
@@ -175,12 +175,8 @@ Plembfin runs an automated daily backup at a customizable time. Backups store yo
 
 ### Supported Destinations
 
-*   📁 **Local / Synced Folder**: Save to a local folder or a mounted directory synced by cloud applications (like OneDrive or Dropbox desktop apps). No credentials needed.
-*   ☁️ **Backblaze B2**: Enter B2 Region (e.g. `us-west-003`), Bucket Name, keyID, and Application Key.
-*   ☁️ **S3-compatible**: Set custom endpoints for MinIO, AWS S3, Cloudflare R2, or DigitalOcean Spaces.
-*   🌐 **WebDAV**: Connect to Nextcloud, ownCloud, or custom WebDAV shares with URL, username, and password.
-*   🛡️ **OneDrive API**: Directly connect OneDrive using a free Azure App Registration (requires client ID).
-*   🛡️ **Dropbox API**: Direct connection via scoped App Console keys and secrets.
+*   📁 **Local**: Backups are written to `data/backups/watch-history` on the server running Plembfin. Configure the daily time and how many copies to retain under **Settings → Backups → Automatic Local Backups**.
+*   ☁️ **Backblaze B2**: Mirror each backup to a private B2 bucket. Enter Region (e.g. `us-west-004`), Bucket Name, keyID, and Application Key under **Settings → Backups → Automatic Remote Backups**. Backblaze offers a free 10 GB tier.
 
 ---
 
