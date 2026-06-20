@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run build check
         run: npm run build
@@ -33,7 +33,7 @@ jobs:
 
       - name: Read application version
         id: version
-        run: node -e "const fs=require('fs'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./changelog.json').version + '\\n')"
+        run: node -e "const fs=require('fs'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./changelog.json').version + '\n')"
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
@@ -51,3 +51,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true

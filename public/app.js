@@ -1,4 +1,4 @@
-import { buildAuthHeaders, buildNowPlayingUrl, currentFirebaseUser, onFirebaseAuthChange, readStoredAdminToken, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
+import { buildAuthHeaders, buildNowPlayingUrl, currentFirebaseUser, getWebhookToken, onFirebaseAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./modules/logs.js";
 import { connectionLabel, connectionPayloadFromElements } from "./modules/settings.js";
 import { fetchLocalActiveSessions } from "./modules/timeline.js";
@@ -406,6 +406,7 @@ function bindElements() {
     saveAdminCredentialsButton: document.querySelector("#saveAdminCredentialsButton"),
     checkSessionButton: document.querySelector("#checkSessionButton"),
     webhookUrl: document.querySelector("#webhookUrl"),
+    rotateWebhookButton: document.querySelector("#rotateWebhookButton"),
     runCompleteCheckButton: document.querySelector("#runCompleteCheckButton"),
     completeCheckResults: document.querySelector("#completeCheckResults"),
     testConnectionButtons: [...document.querySelectorAll("[data-test-connection]")],
@@ -2306,12 +2307,8 @@ function logsText() {
   return logsToText(state.debugLogs);
 }
 
-function storedAdminToken() {
-  return readStoredAdminToken([TOKEN_KEY, LEGACY_UPPER_TOKEN_KEY], state.token);
-}
-
 function nowPlayingUrl() {
-  return buildNowPlayingUrl(window.location.origin, storedAdminToken());
+  return buildNowPlayingUrl(window.location.origin);
 }
 
 function bootstrapTokenFromUrl() {
@@ -3503,7 +3500,7 @@ function adminTokenGuide() {
         <li>Defaults to <code>admin</code> / <code>admin</code> on first run.</li>
         <li>Override by setting <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> environment variables (e.g. in <code>docker-compose.yml</code>).</li>
         <li>Use that username and password to sign in to this dashboard.</li>
-        <li>External integrations (webhooks) authenticate with the API key shown after sign-in, stored in <code>data/config.json</code>.</li>
+        <li>Webhooks use a separate secret token embedded in the webhook URL. Copy it from <b>Settings → API Endpoints</b>. You can rotate it independently without affecting your admin password or API key.</li>
       </ol>
     </div>
   `;
@@ -3594,31 +3591,86 @@ function jellyfinCredentialGuide() {
   `;
 }
 
+function buildWebhookUrl() {
+  const token = getWebhookToken();
+  const base = `${window.location.origin}/api/webhook`;
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+}
+
+function plexWebhookSetup() {
+  const url = buildWebhookUrl();
+  return `
+    <div class="guide-callout" style="border-color: rgba(234, 179, 8, 0.3); background: rgba(234, 179, 8, 0.06);">
+      <b>Plex Webhook Setup</b>
+      <p style="margin: var(--space-1) 0; font-size: 0.8rem; color: var(--muted);">Webhook URL:</p>
+      <code style="word-break: break-all; font-size: 0.75rem;">${escapeHtml(url)}</code>
+      <ul style="padding-left: 1.2rem; margin: var(--space-2) 0 0; display: grid; gap: 4px;">
+        <li>Set up webhooks per the <a href="https://support.plex.tv/articles/115002267687-webhooks/?utm_campaign=Plex%20Apps&utm_medium=Plex%20Web&utm_source=Plex%20Apps" target="_blank" rel="noopener noreferrer" style="color: var(--blue); text-decoration: underline;">Plex Webhook Documentation</a>. Point them to the URL above.</li>
+        <li>Enable events: <code>media.play</code>, <code>media.resume</code>, <code>media.pause</code>, <code>media.stop</code>, <code>media.scrobble</code>.</li>
+        <li><b>Unwatched sync (built-in):</b> Plembfin connects to your Plex Media Server via its WebSocket notification channel automatically — no external script required. Plex native webhooks cannot send unscrobble events, so this listener handles them.</li>
+        <li><b>Fallback:</b> The background cron worker also polls Plex every minute to catch any missed unwatched removals.</li>
+      </ul>
+    </div>
+  `;
+}
+
+function embyWebhookSetup() {
+  const url = buildWebhookUrl();
+  return `
+    <div class="guide-callout" style="border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.06);">
+      <b>Emby Webhook Setup</b>
+      <p style="margin: var(--space-1) 0; font-size: 0.8rem; color: var(--muted);">Webhook URL:</p>
+      <code style="word-break: break-all; font-size: 0.75rem;">${escapeHtml(url)}</code>
+      <ul style="padding-left: 1.2rem; margin: var(--space-2) 0 0; display: grid; gap: 4px;">
+        <li>Go to Emby Server Settings ➔ <b>Webhooks</b> and add a new webhook pointing to the URL above.</li>
+        <li>Under <b>Events → Playback</b>, check: <code>Start</code>, <code>Pause</code>, <code>Unpause</code>, <code>Stop</code>.</li>
+        <li>Under <b>Events → Users</b>, check: <code>Mark Played</code>, <code>Mark Unplayed</code>.</li>
+        <li>Enable <b>Send All Properties</b> so payloads include <code>PlaybackPositionTicks</code> for resume sync.</li>
+      </ul>
+    </div>
+  `;
+}
+
+function jellyfinWebhookSetup() {
+  const url = buildWebhookUrl();
+  return `
+    <div class="guide-callout" style="border-color: rgba(75, 150, 230, 0.3); background: rgba(75, 150, 230, 0.06);">
+      <b>Jellyfin Webhook Setup</b>
+      <p style="margin: var(--space-1) 0; font-size: 0.8rem; color: var(--muted);">Webhook URL:</p>
+      <code style="word-break: break-all; font-size: 0.75rem;">${escapeHtml(url)}</code>
+      <ul style="padding-left: 1.2rem; margin: var(--space-2) 0 0; display: grid; gap: 4px;">
+        <li>Install the <b>Webhooks</b> plugin in the Jellyfin Dashboard (Plugins → Catalog).</li>
+        <li>Add a new <b>Generic Webhook</b> named <code>plembfin</code> pointing to the URL above. Check <b>Enable</b>.</li>
+        <li>Under <b>Notification Type</b>, check: <code>Playback Start</code>, <code>Playback Progress</code>, <code>Playback Stop</code>, <code>User Data Saved</code> <i>(required for mark-watched/unwatched events)</i>.</li>
+        <li>Under <b>Item Type</b>, select: <code>Movies</code>, <code>Episodes</code>.</li>
+        <li>Check <b>Send All Properties (ignores template)</b> so resume position fields are included.</li>
+      </ul>
+    </div>
+  `;
+}
+
 function webhookWarning() {
-  const url = `${window.location.origin}/api/webhook`;
   return `
     <div class="guide-callout warning-callout" style="gap: var(--space-3); border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08);">
-      <b style="font-size: 1.1rem; color: #fde68a;">Webhook Setup & Unwatched Sync Guide</b>
+      <b style="font-size: 1.1rem; color: var(--yellow);">Webhook Setup & Unwatched Sync Guide</b>
       <p>Configure your media servers to send played and unplayed/unwatched events to your Plembfin webhook URL:</p>
-      
+
       <div style="display: grid; gap: var(--space-2); margin-top: var(--space-2);">
-        <h3 style="margin: 0; color: #f1f5f9; font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
+        <h3 style="margin: 0; color: var(--text); font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
           <span style="display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: #eab308;"></span>
           1. Plex Webhook Setup
         </h3>
         <ul style="padding-left: 1.2rem; margin: 0; display: grid; gap: 4px;">
           <li>Plex does not support sending unwatched (unscrobble) events via native webhooks or Tautulli.</li>
           <li>For resume sync, Plex webhook traffic must include playback lifecycle events such as <code>media.play</code>, <code>media.resume</code>, <code>media.pause</code>, <code>media.stop</code>, and <code>media.scrobble</code>. Plembfin reads <code>viewOffset</code> and <code>duration</code> when Plex provides them.</li>
-          <li><b>Real-time Sync (Daemon):</b> To sync unwatched status instantly, run our lightweight local daemon script:
-            <pre style="margin: 0.4rem 0; padding: 0.5rem; background: #090c0f; border: 1px solid var(--line); border-radius: 4px; overflow: auto; font-family: monospace; font-size: 0.72rem; line-height: 1.4; color: #dbe3ea;"><code>PLEX_URL="http://localhost:32400" PLEX_TOKEN="YOUR_TOKEN" PLEMBFIN_WEBHOOK_URL="${url}" PLEX_USERNAME="YOUR_USERNAME" node scripts/plexWebSocketMonitor.js</code></pre>
-          </li>
+          <li><b>Real-time Sync (Built-in):</b> Plembfin's server includes a built-in Plex notification listener. It connects to your Plex Media Server via the WebSocket notification channel (configured automatically from your Plex URL and token in Settings → Apps → Plex Setup) and forwards unwatched events directly — no external script or daemon is required.</li>
           <li><b>Cron Sync (Fallback):</b> Plembfin's background cron worker polls Plex periodically to check recently watched items and sync them to other servers if they are marked unwatched on Plex.</li>
           <li>For general playback events, set up webhooks according to the <a href="https://support.plex.tv/articles/115002267687-webhooks/?utm_campaign=Plex%20Apps&utm_medium=Plex%20Web&utm_source=Plex%20Apps" target="_blank" rel="noopener noreferrer" style="color: #4b96e6; text-decoration: underline;">Plex Webhook Documentation</a>.</li>
         </ul>
       </div>
 
       <div style="display: grid; gap: var(--space-2); margin-top: var(--space-2); border-top: 1px solid var(--line); padding-top: var(--space-2);">
-        <h3 style="margin: 0; color: #f1f5f9; font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
+        <h3 style="margin: 0; color: var(--text); font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
           <span style="display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: #10b981;"></span>
           2. Emby Webhook Setup
         </h3>
@@ -3635,7 +3687,7 @@ function webhookWarning() {
       </div>
 
       <div style="display: grid; gap: var(--space-2); margin-top: var(--space-2); border-top: 1px solid var(--line); padding-top: var(--space-2);">
-        <h3 style="margin: 0; color: #f1f5f9; font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
+        <h3 style="margin: 0; color: var(--text); font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
           <span style="display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: #4b96e6;"></span>
           3. Jellyfin Webhook Setup
         </h3>
@@ -3669,22 +3721,52 @@ function cronSyncGuide() {
   const endpoint = `${window.location.origin}/api/cron-sync`;
   return `
     <section class="guide-callout" id="cron-sync-setup">
-      <b>Firebase Scheduled Worker</b>
-      <p>The Firebase version runs <code>scheduledSync</code> every minute through Cloud Functions for Firebase and Cloud Scheduler. The dashboard does not need to stay open, and no external uptime monitor is required.</p>
+      <b>Background Sync Worker</b>
+      <p>Plembfin runs a built-in scheduler directly inside the server process — no external cron job or cloud infrastructure is required. It fires once per minute as long as the server is running.</p>
       <h3>Manual trigger</h3>
-      <ol>
-        <li>Sign in to the dashboard with Firebase Auth.</li>
-        <li>Call <code>/api/cron-sync</code> from this dashboard or another authenticated client if you need an immediate run.</li>
-        <li>The scheduled worker remains the primary background path and runs independently of the manual endpoint.</li>
-      </ol>
+      <p>To force an immediate run, send an authenticated POST to <code>/api/cron-sync</code>. You can also use <b>Force Sync</b> in the dashboard, which calls <code>/api/force-sync</code> and streams progress.</p>
       <h3>Authenticated request</h3>
-      ${snippet(`${endpoint}
+      ${snippet(`POST ${endpoint}
 
-Authorization: Bearer FIREBASE_ID_TOKEN`, "http")}
+X-Api-Key: <your-api-key>`, "http")}
       <h3>What this runs</h3>
-      <p>The worker writes the cron heartbeat, polls Plex, Emby, and Jellyfin for active playback, updates Firestore live cache rows, detects completed sessions after 90% progress, writes completed watches to <code>watchHistory</code>, dispatches outbound watched-state sync, and checks recent Plex items for unwatched removals.</p>
+      <p>The worker writes a heartbeat timestamp, polls Plex, Emby, and Jellyfin for active playback, updates live-session cache rows, detects completed sessions after 90% progress, writes completed watches to <code>watch_history</code>, dispatches outbound watched-state sync, and checks recent Plex items for unwatched removals.</p>
     </section>
   `;
+}
+
+function renderSettingsInlineHelp() {
+  const adminLoginHelp = document.getElementById("adminLoginHelp");
+  if (adminLoginHelp) adminLoginHelp.innerHTML = adminTokenGuide();
+
+  const plexHelp = document.getElementById("plexHelp");
+  if (plexHelp) plexHelp.innerHTML = plexCredentialGuide() + plexWebhookSetup();
+
+  const embyHelp = document.getElementById("embyHelp");
+  if (embyHelp) embyHelp.innerHTML = embyCredentialGuide() + embyWebhookSetup();
+
+  const jellyfinHelp = document.getElementById("jellyfinHelp");
+  if (jellyfinHelp) jellyfinHelp.innerHTML = jellyfinCredentialGuide() + jellyfinWebhookSetup();
+
+  const migrationHelp = document.getElementById("migrationHelp");
+  if (migrationHelp) {
+    migrationHelp.innerHTML = `
+      <p class="tool-accordion-desc"><b>Backup &amp; Transfer:</b> Export native JSON database archives or import existing backups containing metadata, watch states, and user configurations.</p>
+      <p class="tool-accordion-desc"><b>Trakt Importer:</b> Drag and drop CSV or JSON logs exported from Trakt.tv to populate your local database in bulk.</p>
+      <details style="margin-top: var(--space-3);">
+        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Export Plex History Guide</summary>
+        <div style="margin-top: var(--space-2);">${exportPlexHistoryGuide()}</div>
+      </details>
+      <details style="margin-top: var(--space-2);">
+        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Rebuild Database Guide</summary>
+        <div style="margin-top: var(--space-2);">${rebuildPlaystateGuide()}</div>
+      </details>
+      <details style="margin-top: var(--space-2);">
+        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Force Push History Guide</summary>
+        <div style="margin-top: var(--space-2);">${forcePushHistoryGuide()}</div>
+      </details>
+    `;
+  }
 }
 
 function rebuildPlaystateGuide() {
@@ -3721,7 +3803,7 @@ function rebuildPlaystateGuide() {
 
 function exportPlexHistoryGuide() {
   return `
-          <p><b>scripts/exportPlexHistory.js</b> can be adapted for this Firebase repo if you later choose to seed old Plex history. Webhooks and live session polling only see future activity, while this Firebase version intentionally starts with an empty Firestore archive.</p>
+          <p><b>scripts/exportPlexHistory.js</b> reads your full Plex play history and streams it into the local SQLite database via the import API. Use it once to seed historical watch data that webhooks and live session polling would otherwise miss (they only capture future activity).</p>
           <p>Use it once when you want to bootstrap a fresh deployment, or again if you are migrating an existing Plex library and need the cloud history to reflect years of prior viewing. The script does not need the browser open after launch; it reads the local configuration block, streams rows to the import API in batches, and finishes with a deterministic summary.</p>
           <section class="guide-callout">
             <b>Token discovery walkthrough</b>
@@ -3737,7 +3819,7 @@ function exportPlexHistoryGuide() {
           </section>
           <section class="guide-callout">
             <b>Execution workflow</b>
-            <p>If you add this utility later, configure PLEX_URL, the harvested PLEX_TOKEN, and a Firebase ID token for the import API before running it.</p>
+            <p>Configure PLEX_URL and the harvested PLEX_TOKEN as environment variables before running. The import API authenticates with your configured API key.</p>
             <div class="copy-block">
               <button class="copy-button" type="button" data-copy="node scripts/exportPlexHistory.js" aria-label="Copy bash snippet">Copy</button>
               <pre><code>node scripts/exportPlexHistory.js</code></pre>
@@ -3747,7 +3829,7 @@ function exportPlexHistoryGuide() {
       ℹ Found 3 media library sections to process.
 
       [1/3] Processing Section: "Movies" (ID: 1)
-      → Found 450 watched titles. Streaming to Firebase in chunks...
+      → Found 450 watched titles. Streaming to local database in batches...
       └── Chunks: [██████████████████████████████] 100% | Sent 5/5 batches successfully.
 
       [2/3] Processing Section: "TV Shows" (ID: 2)
@@ -3755,7 +3837,7 @@ function exportPlexHistoryGuide() {
       └── Chunks: [██████████████████████████████] 100% | Sent 12/12 batches successfully.
 
       🎉 [SUCCESS] Historic data migration finalized!
-      Total Rows Synced to Firestore Archive: 1,650 items.
+      Total Rows Synced to Local Database: 1,650 items.
       Ecosystem is fully synchronized and ready for live playback tracking.`)}
           </section>
         `;
@@ -3763,7 +3845,7 @@ function exportPlexHistoryGuide() {
 
 function forcePushHistoryGuide() {
   return `
-          <p><b>scripts/forcePushHistory.js</b> is the ecosystem equalizer if you later add it to this Firebase repo. It reads the master Firestore-backed history archive from your website, resolves each row against Plex, Emby, and Jellyfin, and replays the played state back out through their APIs so all three servers converge on the same watch record.</p>
+          <p><b>scripts/forcePushHistory.js</b> is the ecosystem equalizer. It reads the local SQLite watch history, resolves each row against Plex, Emby, and Jellyfin, and replays the played state back out through their APIs so all three servers converge on the same watch record.</p>
           <p>It is meant for catch-up and repair, not for routine polling. Use it when you want to reconcile a clean server, recover from a migration, or make a newly joined platform match the canonical watch archive with no manual checkbox clicking.</p>
           <section class="guide-callout">
             <b>Platform setup walkthrough</b>
@@ -3806,7 +3888,7 @@ const HELP_TOPICS = [
     id: "getting-started",
     category: "Overview",
     title: "Getting Started",
-    description: "Initial setup from Firebase auth to first webhook",
+    description: "Initial setup from admin sign-in to first webhook",
     badges: ["FIREBASE_AUTH", "PLEX_URL", "EMBY_API_KEY", "JELLYFIN_API_KEY"],
     body: () => `
             <p>Plembfin is a self-hosted watch-state bridge. It listens for playback events from Plex, Emby, and Jellyfin via webhooks, records them in a local SQLite database, and propagates the watched or unwatched state to every other connected platform automatically. A background worker runs every minute so sync continues even when the dashboard is closed.</p>
@@ -3814,7 +3896,7 @@ const HELP_TOPICS = [
             <ol>
               <li><b>Sign in</b> — Log in with your admin username and password (defaults to <code>admin</code> / <code>admin</code>; override with <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code>). See the <a href="#" data-help-topic-link="firebase-auth">Admin Sign-In</a> guide for details.</li>
               <li><b>Add credentials</b> — Open <b>Settings → Apps</b> and fill in the server URL, token or API key, and user ID for each platform you use. Click <b>Save Configuration</b>.</li>
-              <li><b>Configure webhooks</b> — Point each media server at your Plembfin webhook URL, including your API key. See the <a href="#" data-help-topic-link="webhooks">Webhook Setup</a> guide for per-server instructions.</li>
+              <li><b>Configure webhooks</b> — Copy your webhook URL from <b>Settings → API Endpoints</b> (it includes a secret token) and paste it into each media server. See the <a href="#" data-help-topic-link="webhooks">Webhook Setup</a> guide for per-server instructions.</li>
               <li><b>Verify</b> — Open <b>Settings → Tools → System Integrity Check</b> and run the diagnostic. All probes should return green before you rely on live sync.</li>
               <li><b>Import history (optional)</b> — Use the Trakt History Importer in <b>Settings → Tools</b> to seed your local archive from a Trakt export, then run Full Sync Watchstates to push everything to your media servers.</li>
             </ol>
@@ -3876,12 +3958,12 @@ const HELP_TOPICS = [
     category: "Webhooks",
     title: "Webhook Setup",
     description: "Configuring Plex, Emby, and Jellyfin to send events",
-    badges: ["FIREBASE_AUTH"],
+    badges: [],
     body: () => {
-      const url = `${window.location.origin}/api/webhook`;
+      const url = buildWebhookUrl();
       return `
               <p>Webhooks are how your media servers notify Plembfin the moment something is watched, paused, stopped, or marked as unplayed. Each server needs to be told where to send events — that is your unique webhook URL below. Plembfin accepts events from all three platforms on the same endpoint and normalises them into a single internal format.</p>
-              <p>Your webhook URL:</p>
+              <p>Your webhook URL (includes your secret token — keep it private):</p>
               ${snippet(url, "url")}
               ${webhookWarning()}
             `;
@@ -3894,10 +3976,8 @@ const HELP_TOPICS = [
     category: "Sync",
     title: "Background Sync Worker",
     description: "Cron schedule, resume sync, and loop detection",
-    badges: ["FIREBASE_AUTH"],
-    body: () => {
-      const url = `${window.location.origin}/api/webhook`;
-      return `
+    badges: [],
+    body: () => `
               <p>Plembfin keeps your watch states converged through two complementary mechanisms: immediate webhook propagation for real-time events, and a scheduled background worker for polling, catch-up, and recovery.</p>
               <h3>What the worker does each minute</h3>
               <ul>
@@ -3912,8 +3992,7 @@ const HELP_TOPICS = [
               <h3>Loop detection</h3>
               <p>When Plembfin propagates a watch event to Emby or Jellyfin, that server fires its own webhook back to Plembfin. The <code>loopStore</code> in-memory map tracks recently-processed events keyed by platform and media identifier. Any incoming webhook that matches a recently-dispatched event is detected as an echo and dropped before it can trigger another propagation round.</p>
               ${cronSyncGuide()}
-            `;
-    },
+            `,
   },
   {
     id: "sync-dashboard",
@@ -3944,7 +4023,7 @@ const HELP_TOPICS = [
     id: "force-push-history",
     category: "Scripts",
     title: "Force Push History",
-    description: "Replay the Firestore archive to Emby and Jellyfin",
+    description: "Replay the local watch history to Emby and Jellyfin",
     badges: ["EMBY_API_KEY", "EMBY_USER_ID", "JELLYFIN_API_KEY", "JELLYFIN_USER_ID"],
     body: () => forcePushHistoryGuide(),
   },
@@ -4414,6 +4493,7 @@ function applyActiveView() {
   }
 
   if (state.activeView === "settings") {
+    renderSettingsInlineHelp();
     localStorage.setItem(ACTIVE_SETTINGS_TAB_KEY, state.activeSettingsTab);
     for (const button of elements.settingsTabButtons || []) {
       button.classList.toggle("active", button.dataset.settingsTab === state.activeSettingsTab);
@@ -4616,7 +4696,7 @@ async function loadSavedConfig() {
   state.configLoaded = true;
   state.posterLookupCache.clear();
   state.posterLookupInflight.clear();
-  renderSettingsStatus("Configuration loaded from Firestore.", "success");
+  renderSettingsStatus("Configuration loaded.", "success");
   await refreshSeerrCapabilities().catch(() => null);
   await loadAppearanceSettings().catch(() => null);
   renderDashboard();
@@ -4937,13 +5017,13 @@ async function loadActiveSessions() {
   let sessions = Array.isArray(body) ? body : Array.isArray(body.sessions) ? body.sessions : [];
   logDebug(`Now-playing payload parsed successfully. Active sessions: ${sessions.length}`, sessions);
 
-  // Always poll local network in parallel — Firebase only captures sessions that sent webhooks
-  // (Plex webhooks work; Emby/Jellyfin playback events may not be configured).
+  // Always poll local network in parallel — the server-side scheduler only captures sessions
+  // it can reach; browser probes fill in any gaps when the browser is on a different network.
   // Merge local sessions so all three platforms show up regardless.
-  logDebug("Starting parallel direct browser local network probes to supplement Firebase sessions.");
+  logDebug("Starting parallel direct browser local network probes to supplement server sessions.");
   const localSessions = await fetchLocalActiveSessions(configFromInputs(), logDebug);
   if (localSessions.length) {
-    logDebug(`Local probes returned ${localSessions.length} session(s). Merging with Firebase sessions.`, localSessions);
+    logDebug(`Local probes returned ${localSessions.length} session(s). Merging with server sessions.`, localSessions);
     for (const local of localSessions) {
       const isDuplicate = sessions.some(
         (s) =>
@@ -6971,13 +7051,13 @@ function renderDbStatus(isOnline) {
   elements.dbStatus.innerHTML = `
     <span class="target-pill" data-status="${isOnline ? "success" : "error"}">${isOnline ? "Connected" : "Unavailable"}</span>
     <p>Total rows visible to this query: ${formatNumber(state.stats.totalWatches || 0)}</p>
-    <p>Backend store: <code>Cloud Firestore</code></p>
+    <p>Backend store: <code>SQLite</code></p>
   `;
 }
 
 function helpBadgeValue(token = "") {
   const key = String(token || "").trim().toUpperCase();
-  if (key === "FIREBASE_AUTH") return { label: "ADMIN", value: state.firebaseUser?.email || "" };
+  if (key === "FIREBASE_AUTH") return { label: "ADMIN", value: state.firebaseUser?.username || state.firebaseUser?.email || "" };
   if (key === "PLEX_URL") return { label: "PLEX_URL", value: state.savedConfig.plex?.baseUrl || state.savedConfig.plex?.url || "" };
   if (key === "PLEX_TOKEN") return { label: "PLEX_TOKEN", value: state.savedConfig.plex?.token || state.savedConfig.plex?.apiKey || "" };
   if (key === "EMBY_API_KEY") return { label: "EMBY_API_KEY", value: state.savedConfig.emby?.apiKey || state.savedConfig.emby?.api_key || "" };
@@ -9726,7 +9806,7 @@ async function triggerRetrySync(id, button) {
           if (errLower.includes("unauthorized") || errLower.includes("401") || errLower.includes("token") || errLower.includes("auth")) {
             termLog("👉 FIX: Go to the settings tab for this app (Settings -> Apps) and verify that the API Key or Token is correct, valid, and not expired.", "success");
           } else if (errLower.includes("refused") || errLower.includes("timeout") || errLower.includes("conn") || errLower.includes("reach") || errLower.includes("address")) {
-            termLog("👉 FIX: Verify that the Server URL is correct, the target server is currently online, and there are no network rules/firewalls blocking the connection from the Firebase Cloud Functions runtime.", "success");
+            termLog("👉 FIX: Verify that the Server URL is correct, the target server is currently online, and there are no network rules or firewalls blocking the connection from the machine running Plembfin.", "success");
           } else if (errLower.includes("not found") || errLower.includes("404") || errLower.includes("match")) {
             termLog("👉 FIX: The media item was not found on the target platform. Ensure the TMDB/IMDB/TVDB IDs are correct and that the media is properly scanned/matched in your Plex/Emby/Jellyfin library.", "success");
           } else {
@@ -10279,11 +10359,7 @@ async function unlockWithToken(password, email = elements.adminEmail?.value) {
   state.token = result.token;
   if (elements.settingsUsername) elements.settingsUsername.value = cleanEmail;
   localStorage.setItem("firebaseAdminEmail", cleanEmail);
-  if (result.token === "plembfin-local-admin") {
-    localStorage.setItem(TOKEN_KEY, result.token);
-  } else {
-    localStorage.removeItem(TOKEN_KEY);
-  }
+  localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(LEGACY_UPPER_TOKEN_KEY);
   localStorage.removeItem(LEGACY_TOKEN_KEY);
   setUnlocked(true);
@@ -10695,26 +10771,26 @@ async function runSystemIntegrityCheck() {
 
   const results = [];
 
-  // 1. Check Firestore-backed history API
+  // 1. Check history API (SQLite)
   try {
     const startTime = Date.now();
     const response = await fetch("/api/history?limit=1", { headers: authHeaders() });
     const elapsed = Date.now() - startTime;
     if (response.ok) {
-      results.push({ name: "Cloud Firestore History", status: "success", detail: `Connected successfully. Response time: ${elapsed}ms.` });
+      results.push({ name: "Watch History API", status: "success", detail: `Connected successfully. Response time: ${elapsed}ms.` });
     } else {
-      results.push({ name: "Cloud Firestore History", status: "error", detail: `Server responded with HTTP ${response.status}.` });
+      results.push({ name: "Watch History API", status: "error", detail: `Server responded with HTTP ${response.status}.` });
     }
   } catch (error) {
-    results.push({ name: "Cloud Firestore History", status: "error", detail: `Connection failed: ${error.message}` });
+    results.push({ name: "Watch History API", status: "error", detail: `Connection failed: ${error.message}` });
   }
 
-  // 2. Check Firestore settings document
+  // 2. Check server configuration
   try {
     await loadSavedConfig();
-    results.push({ name: "Firestore Settings", status: "success", detail: "Read server-side media configuration successfully." });
+    results.push({ name: "Server Configuration", status: "success", detail: "Read server-side media configuration successfully." });
   } catch (error) {
-    results.push({ name: "Firestore Settings", status: "error", detail: `Failed to read config: ${error.message}` });
+    results.push({ name: "Server Configuration", status: "error", detail: `Failed to read config: ${error.message}` });
   }
 
   // 3. Webhook Listener Availability & Events
@@ -10903,39 +10979,39 @@ async function runSystemIntegrityCheck() {
 
     if (res.status === "success") {
       statusLabel = "Online";
-      pillStyle = "border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.12); color: #a7f3d0;";
+      pillStyle = "border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.12); color: var(--green);";
     } else if (res.status === "error") {
       statusLabel = "Failed";
-      pillStyle = "border-color: rgba(244, 63, 94, 0.5); background: rgba(244, 63, 94, 0.12); color: #fecdd3;";
+      pillStyle = "border-color: rgba(244, 63, 94, 0.5); background: rgba(244, 63, 94, 0.12); color: var(--red);";
     } else if (res.status === "skipped") {
       statusLabel = "Not Configured";
-      pillStyle = "border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.12); color: #fde68a;";
+      pillStyle = "border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.12); color: var(--yellow);";
     } else if (res.status === "warning") {
       statusLabel = "Warnings Detected";
-      pillStyle = "border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.12); color: #fef08a;";
+      pillStyle = "border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.12); color: var(--yellow);";
     }
 
     if (res.status !== "success") {
       if (res.name === "Scheduled Cron Job") {
-        fixInstruction = "Fix: Confirm the Firebase scheduledSync function is deployed and Cloud Scheduler has invoked it. You can also run /api/cron-sync manually while signed in.";
-        helpTopic = "webhooks";
-      } else if (res.name === "Cloud Firestore History") {
-        fixInstruction = "Fix: Confirm Firestore is enabled and the Firebase Functions service account can access it.";
-      } else if (res.name === "Firestore Settings") {
-        fixInstruction = "Fix: Confirm Firestore is enabled and save media server settings again.";
+        fixInstruction = "Fix: The background sync worker runs in-process every minute. If it hasn't fired, confirm the server is running and check the server logs for errors. You can also trigger it manually via /api/cron-sync.";
+        helpTopic = "sync-worker";
+      } else if (res.name === "Watch History API") {
+        fixInstruction = "Fix: The SQLite database may be locked or the data directory may not be writable. Check the server logs and confirm DATA_DIR is set correctly.";
+      } else if (res.name === "Server Configuration") {
+        fixInstruction = "Fix: Try saving your configuration again in Settings → Apps. If the error persists, check that data/config.json is writable.";
       } else if (res.name === "Webhook Listener Endpoint") {
-        fixInstruction = "Fix: Confirm the latest Firebase Hosting deployment rewrites /api/webhook to the api function.";
+        fixInstruction = "Fix: Confirm the server is running and accessible at the expected host and port. Check for firewall or reverse-proxy rules blocking /api/webhook.";
       } else if (res.name === "Outbound Playstate Sync") {
         fixInstruction = "Fix: Open the latest history row debug details, review sync_dispatch_telemetry, then correct the failed platform credentials or provider-ID match.";
       } else if (res.name === "Plex Media Server") {
-        fixInstruction = "Fix: Enter the Plex Server URL and Plex Token in Settings, then confirm the server is reachable from Firebase Functions.";
+        fixInstruction = "Fix: Enter the Plex Server URL and Plex Token in Settings → Apps, then confirm the server is reachable from the machine running Plembfin.";
       } else if (res.name === "Plex Realtime Notifications") {
         fixInstruction = "Fix: Ensure any reverse proxy / Cloudflare in front of Plex forwards WebSocket upgrades on /:/websockets/notifications, or set the Plex Server URL to the direct LAN address (e.g. http://192.168.x.x:32400). Unwatch sync still works via the fallback poll until this is fixed.";
         helpTopic = "webhooks";
       } else if (res.name === "Emby Media Server") {
-        fixInstruction = "Fix: Enter the Emby Server URL, API Key, and User ID in Settings, then confirm the server is reachable from Firebase Functions.";
+        fixInstruction = "Fix: Enter the Emby Server URL, API Key, and User ID in Settings → Apps, then confirm the server is reachable from the machine running Plembfin.";
       } else if (res.name === "Jellyfin Media Server") {
-        fixInstruction = "Fix: Enter the Jellyfin Server URL, API Key, and User ID in Settings, then confirm the server is reachable from Firebase Functions.";
+        fixInstruction = "Fix: Enter the Jellyfin Server URL, API Key, and User ID in Settings → Apps, then confirm the server is reachable from the machine running Plembfin.";
       }
     }
 
@@ -12470,6 +12546,17 @@ function attachEvents() {
     setMessage(text, tone);
   });
 
+  elements.rotateWebhookButton?.addEventListener("click", async () => {
+    try {
+      await rotateWebhookSecret();
+      elements.webhookUrl.textContent = buildWebhookUrl();
+      renderSettingsInlineHelp();
+      setMessage("Webhook secret rotated. Update the webhook URL in all media servers.", "success");
+    } catch (error) {
+      setMessage(`Failed to rotate webhook secret: ${error.message}`, "error");
+    }
+  });
+
   elements.saveConfigButton?.addEventListener("click", () => {
     saveSavedConfig().catch((error) => {
       renderSettingsStatus(error.message, "error");
@@ -13035,7 +13122,7 @@ function initialize() {
   elements.adminEmail.value = localStorage.getItem("firebaseAdminEmail") || "";
   elements.adminToken.value = "";
   elements.settingsUsername.value = elements.adminEmail.value;
-  elements.webhookUrl.textContent = `${window.location.origin}/api/webhook`;
+  elements.webhookUrl.textContent = buildWebhookUrl();
   if (elements.cronSyncUrl) {
     elements.cronSyncUrl.textContent = `${window.location.origin}/api/cron-sync`;
   }

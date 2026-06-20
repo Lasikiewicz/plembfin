@@ -189,3 +189,12 @@ CREATE TABLE IF NOT EXISTS tmdb_person_cache (
   schema_version INTEGER,
   updated_at_ms INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL,
+  action TEXT NOT NULL,
+  actor_ip TEXT,
+  detail TEXT
+);
+CREATE INDEX IF NOT EXISTS audit_log_ts ON audit_log (ts);

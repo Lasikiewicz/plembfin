@@ -14,6 +14,7 @@ function readConfigFile() {
 
 function writeConfigFile(config) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  try { fs.chmodSync(CONFIG_PATH, 0o600); } catch { /* non-POSIX FS (Windows, some Docker volumes) */ }
 }
 
 function hashPassword(plain, salt = crypto.randomBytes(16).toString("hex")) {
@@ -44,6 +45,9 @@ function resolveAuthConfig() {
   const apiKey = String(process.env.API_KEY || stored.apiKey || crypto.randomBytes(24).toString("hex"));
   if (stored.apiKey !== apiKey) { stored.apiKey = apiKey; changed = true; }
 
+  const webhookSecret = String(process.env.WEBHOOK_SECRET || stored.webhookSecret || crypto.randomBytes(24).toString("hex"));
+  if (stored.webhookSecret !== webhookSecret) { stored.webhookSecret = webhookSecret; changed = true; }
+
   const sessionSecret = String(process.env.SESSION_SECRET || stored.sessionSecret || crypto.randomBytes(32).toString("hex"));
   if (stored.sessionSecret !== sessionSecret) { stored.sessionSecret = sessionSecret; changed = true; }
 
@@ -56,8 +60,25 @@ const config = resolveAuthConfig();
 export const AUTH = {
   username: config.username,
   apiKey: config.apiKey,
+  webhookSecret: config.webhookSecret,
   sessionSecret: config.sessionSecret,
 };
+
+export function verifyWebhookToken(token) {
+  if (!token || !AUTH.webhookSecret) return false;
+  const a = Buffer.from(String(token));
+  const b = Buffer.from(AUTH.webhookSecret);
+  try { return a.length === b.length && crypto.timingSafeEqual(a, b); } catch { return false; }
+}
+
+export function rotateWebhookSecret() {
+  const newSecret = crypto.randomBytes(24).toString("hex");
+  const nextConfig = { ...config, webhookSecret: newSecret };
+  writeConfigFile(nextConfig);
+  Object.assign(config, nextConfig);
+  AUTH.webhookSecret = newSecret;
+  return newSecret;
+}
 
 export function verifyPassword(plain) {
   const stored = String(config.passwordHash || "");
