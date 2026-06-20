@@ -9358,6 +9358,29 @@ async function renderImmersiveShowModal(showKey, activeSeasonNum = null, activeE
   }
 
   if (!show) {
+    // Not in local library. If the now-playing session has a TMDB ID, delegate to
+    // the TMDB-based loader (which has its own title fallback). Otherwise try a
+    // TMDB title search using the slug as a title hint.
+    const matchingSession = state.activeSessions.find((s) => {
+      const t = showTitleFrom(s.showTitle || s.show_title || s.title || "");
+      return slug(t) === showKey;
+    });
+    if (matchingSession?.ids?.tmdb) {
+      await openShowImmersiveModalByTmdbId(matchingSession.ids.tmdb);
+      return;
+    }
+    const sessionTitle = matchingSession
+      ? showTitleFrom(matchingSession.showTitle || matchingSession.show_title || matchingSession.title || "")
+      : "";
+    const titleGuess = sessionTitle || showKey.replace(/-/g, " ");
+    if (titleGuess) {
+      state.activeShowTmdbId = null;
+      const tmdbData = await fetchTmdbDetails("tv", null, titleGuess);
+      if (tmdbData) {
+        await openShowImmersiveModalByTmdbId(tmdbData.id);
+        return;
+      }
+    }
     root.innerHTML = `
       <div class="modal-backdrop-image"></div>
       <div class="immersive-container media-detail-page">
@@ -14217,7 +14240,21 @@ async function openShowImmersiveModalByTmdbId(tmdbId) {
     </div>
   `;
 
-  const tmdbData = await fetchTmdbDetails("tv", tmdbId, null);
+  let tmdbData = await fetchTmdbDetails("tv", tmdbId, null);
+  if (!tmdbData) {
+    // The stored TMDB ID may not map to a valid show (e.g. episode-level ID from
+    // Plex, or a show not yet indexed). Fall back to a title search using the
+    // matching now-playing session title so first-watch shows still load.
+    const matchingSession = state.activeSessions.find(
+      (s) => String(s.ids?.tmdb || "") === String(tmdbId)
+    );
+    if (matchingSession) {
+      const fallbackTitle = showTitleFrom(
+        matchingSession.showTitle || matchingSession.show_title || matchingSession.title || ""
+      );
+      if (fallbackTitle) tmdbData = await fetchTmdbDetails("tv", null, fallbackTitle);
+    }
+  }
   if (!tmdbData) {
     root.innerHTML = `
       <div class="immersive-container">
