@@ -1,7 +1,18 @@
 {
-  "version": "0.1.42",
-  "updatedAt": "2026-06-20T12:32:33+01:00",
+  "version": "0.1.43",
+  "updatedAt": "2026-06-20T12:54:36+01:00",
   "entries": [
+    {
+      "version": "0.1.43",
+      "date": "2026-06-20T12:54:36+01:00",
+      "commit": "273563f8bb0abd1971a20568f640358d28ed7434",
+      "message": "fix: correct stats plays count and promote Stats to primary nav",
+      "author": "Lasikiewicz",
+      "details": [
+        "Stats \"Plays\" card now shows movie-only or episode-only count when filtered, instead of the combined total",
+        "Moved Stats nav tab from the \"More\" section into the primary sidebar navigation"
+      ]
+    },
     {
       "version": "0.1.42",
       "date": "2026-06-20T12:32:33+01:00",
