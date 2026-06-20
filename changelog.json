@@ -1,7 +1,18 @@
 {
-  "version": "0.1.51",
-  "updatedAt": "2026-06-20T15:41:54+01:00",
+  "version": "0.1.52",
+  "updatedAt": "2026-06-20T15:50:37+01:00",
   "entries": [
+    {
+      "version": "0.1.52",
+      "date": "2026-06-20T15:50:37+01:00",
+      "commit": "d96dedbfd804906b360772140453de5c64e1b486",
+      "message": "fix: read Plex child Guid elements for TMDB IDs in live session tracking",
+      "author": "Lasikiewicz",
+      "details": [
+        "plexGuidIds now parses child <Guid id=\"tmdb://...\"/> elements from the",
+        "showIsNowPlaying in renderShowModalContent now also matches by show"
+      ]
+    },
     {
       "version": "0.1.51",
       "date": "2026-06-20T15:41:54+01:00",
