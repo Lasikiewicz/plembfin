@@ -1,7 +1,18 @@
 {
-  "version": "0.1.49",
-  "updatedAt": "2026-06-20T15:10:46+01:00",
+  "version": "0.1.50",
+  "updatedAt": "2026-06-20T15:35:45+01:00",
   "entries": [
+    {
+      "version": "0.1.50",
+      "date": "2026-06-20T15:35:45+01:00",
+      "commit": "7bf25e0d8e99554f264bb8045c0f8c0225e6619c",
+      "message": "fix: load TV show details for first-watch now-playing sessions",
+      "author": "Lasikiewicz",
+      "details": [
+        "When a now-playing show has never been watched, its TMDB ID may not",
+        "In the slug-based show route, if the show is not in the local library,"
+      ]
+    },
     {
       "version": "0.1.49",
       "date": "2026-06-20T15:10:46+01:00",
