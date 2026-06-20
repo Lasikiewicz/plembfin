@@ -1,7 +1,21 @@
 {
-  "version": "0.1.52",
-  "updatedAt": "2026-06-20T15:50:37+01:00",
+  "version": "0.1.53",
+  "updatedAt": "2026-06-20T16:49:22+01:00",
   "entries": [
+    {
+      "version": "0.1.53",
+      "date": "2026-06-20T16:49:22+01:00",
+      "commit": "b932b3566896bc29aff371d4e4c5f35c296b6d6c",
+      "message": "feat: add Cache settings page for image storage management",
+      "author": "Lasikiewicz",
+      "details": [
+        "New Cache page in Settings showing disk usage for posters, backdrops, and profiles",
+        "Displays file count and total size on disk for each image type",
+        "Clear buttons per type and a Clear All button to free disk space",
+        "Refresh button to reload stats on demand",
+        "Added GET /api/cache-stats and POST /api/clear-cache backend endpoints"
+      ]
+    },
     {
       "version": "0.1.52",
       "date": "2026-06-20T15:50:37+01:00",
