@@ -1,7 +1,6 @@
 import { buildAuthHeaders, buildNowPlayingUrl, currentFirebaseUser, getWebhookToken, onFirebaseAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./modules/logs.js";
 import { connectionLabel, connectionPayloadFromElements } from "./modules/settings.js";
-import { fetchLocalActiveSessions } from "./modules/timeline.js";
 
 // Warm the backend the moment the app loads (no auth needed), so the Cloud
 // Function is hot by the time the user clicks into anything. A light keep-alive
@@ -4982,27 +4981,6 @@ async function loadActiveSessions() {
   const refreshToken = response.headers.get("X-Now-Playing-Refresh") || "";
   let sessions = Array.isArray(body) ? body : Array.isArray(body.sessions) ? body.sessions : [];
   logDebug(`Now-playing payload parsed successfully. Active sessions: ${sessions.length}`, sessions);
-
-  // Always poll local network in parallel — the server-side scheduler only captures sessions
-  // it can reach; browser probes fill in any gaps when the browser is on a different network.
-  // Merge local sessions so all three platforms show up regardless.
-  logDebug("Starting parallel direct browser local network probes to supplement server sessions.");
-  const localSessions = await fetchLocalActiveSessions(configFromInputs(), logDebug);
-  if (localSessions.length) {
-    logDebug(`Local probes returned ${localSessions.length} session(s). Merging with server sessions.`, localSessions);
-    for (const local of localSessions) {
-      const isDuplicate = sessions.some(
-        (s) =>
-          s.source === local.source &&
-          s.title === local.title &&
-          s.season === local.season &&
-          s.episode === local.episode
-      );
-      if (!isDuplicate) sessions.push(local);
-    }
-  } else {
-    logDebug("Local probes returned zero active sessions.");
-  }
 
   const refreshChanged = Boolean(refreshToken && refreshToken !== state.nowPlayingRefreshToken);
 
