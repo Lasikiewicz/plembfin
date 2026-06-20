@@ -1,7 +1,18 @@
 {
-  "version": "0.1.35",
-  "updatedAt": "2026-06-20T08:59:37+01:00",
+  "version": "0.1.36",
+  "updatedAt": "2026-06-20T09:02:53+01:00",
   "entries": [
+    {
+      "version": "0.1.36",
+      "date": "2026-06-20T09:02:53+01:00",
+      "commit": "632e0fa3b330390d7e259061d8b9f6b17e9b8156",
+      "message": "fix: rename existing node user to plembfin instead of creating new uid 1000",
+      "author": "Lasikiewicz",
+      "details": [
+        "node:22-slim ships a 'node' user at uid 1000; useradd -u 1000 fails with exit 4",
+        "Use usermod/groupmod to rename the existing user/group to plembfin instead"
+      ]
+    },
     {
       "version": "0.1.35",
       "date": "2026-06-20T08:59:37+01:00",
