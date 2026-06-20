@@ -1,7 +1,20 @@
 {
-  "version": "0.1.36",
-  "updatedAt": "2026-06-20T09:02:53+01:00",
+  "version": "0.1.37",
+  "updatedAt": "2026-06-20T09:20:56+01:00",
   "entries": [
+    {
+      "version": "0.1.37",
+      "date": "2026-06-20T09:20:56+01:00",
+      "commit": "5dd516d70cabafb23e259a81b634cf5e10556ddc",
+      "message": "fix: simplify backup settings UI and fix light-theme input styling",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix light-theme: input fields in backup destination card were rendering with dark backgrounds due to a hardcoded .field override; added html.light-mode .field and input[type=\"number\"] rules to counter it",
+        "Remove all remote backup destination types except Backblaze B2 (dropped folder, WebDAV, S3, OneDrive, Dropbox from UI and JS)",
+        "Split backup settings into two independent rows: Automatic Local Backups and Automatic Remote Backups, each with its own contextual help panel on the right",
+        "Move Backblaze B2 setup guide from inline destination card into the right-side help panel"
+      ]
+    },
     {
       "version": "0.1.36",
       "date": "2026-06-20T09:02:53+01:00",
