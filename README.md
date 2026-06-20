@@ -132,32 +132,40 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 
 ## ⚡ Webhook Setup (Critical for Live Sync)
 
-Playback events are sent to Plembfin via webhooks POSTed to `<YOUR_PLEMBFIN_HOST>/api/webhook`. 
+Playback events are sent to Plembfin via webhooks. Each webhook URL contains a secret token for authentication — copy the full URL from **Settings → General → API Endpoints** after signing in. It will look like:
 
-No authentication tokens are required on the webhook URL itself because Plembfin maps incoming payloads to your local media players using username/user ID matching defined in your app settings.
+```
+http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
+```
+
+> [!IMPORTANT]
+> Always use the full URL including the `?token=` parameter. If you rotate the secret via the **Rotate Secret** button, update the URL in every media server.
 
 ### Media Server Settings
 
 #### 1. Plex Webhook Setup
 1.  Navigate to Plex Web → **Account Settings → Webhooks**.
 2.  Click **Add Webhook**.
-3.  Paste the URL: `http://<YOUR_HOST>:5055/api/webhook`
-4.  Save changes.
+3.  Paste the full webhook URL (with `?token=`) from **Settings → General → API Endpoints**.
+4.  Enable events: `media.play`, `media.resume`, `media.pause`, `media.stop`, `media.scrobble`.
+5.  Save changes.
+
+> **Unwatched sync:** Plex native webhooks cannot send unscrobble events. Plembfin includes a built-in Plex notification listener that connects automatically via WebSocket using your configured Plex URL and token — no external script required.
 
 #### 2. Emby Webhook Setup
-1.  Install the official **Webhooks** plugin in Emby (if not already installed).
-2.  Go to settings for Webhooks and add a new webhook destination.
-3.  Set the URL to `http://<YOUR_HOST>:5055/api/webhook`.
-4.  Set the payload format to **JSON**.
-5.  Check **Send All Properties** (crucial; without this, Emby omits titles and identifiers, preventing Plembfin from matching items).
-6.  Select playback events (Play, Pause, Stop, etc.) to trigger it.
+1.  Go to Emby Server Settings → **Webhooks** and add a new webhook.
+2.  Set the URL to the full webhook URL (with `?token=`) from **Settings → General → API Endpoints**.
+3.  Under **Events → Playback**, check: `Start`, `Pause`, `Unpause`, `Stop`.
+4.  Under **Events → Users**, check: `Mark Played`, `Mark Unplayed`.
+5.  Enable **Send All Properties** so payloads include position data for resume sync.
 
 #### 3. Jellyfin Webhook Setup
-1.  Install the **Webhooks** plugin from the Jellyfin Repository.
-2.  Add a new Generic Destination.
-3.  Set the Webhook URL: `http://<YOUR_HOST>:5055/api/webhook`.
-4.  Under event types, check **Playback Start**, **Playback Progress**, **Playback Stop**, and **User Data Saved** (which handles mark watched/unwatched events).
-5.  Ensure JSON formatting is used and save.
+1.  Install the **Webhooks** plugin from the Jellyfin Plugin Catalog.
+2.  Add a new **Generic Webhook** named `plembfin`.
+3.  Set the URL to the full webhook URL (with `?token=`) from **Settings → General → API Endpoints**.
+4.  Under **Notification Type**, check: `Playback Start`, `Playback Progress`, `Playback Stop`, `User Data Saved`.
+5.  Under **Item Type**, select: `Movies`, `Episodes`.
+6.  Check **Send All Properties (ignores template)** and save.
 
 ---
 
@@ -208,6 +216,29 @@ Plembfin runs as a single-process Node application:
 *   **Database**: Uses `better-sqlite3` in WAL mode for rapid reading/writing and locks safety.
 *   **Scheduler**: Runs in-process on a `setInterval` timer (no crontab required). It executes once per minute to reconcile active play states, check sync queues, and perform nightly backups.
 *   **Pre-push build check**: Before code is deployed or pushed, `npm run build` is run automatically. This checks JavaScript syntax and boots the server temporarily in a clean directory on port 0 to verify startup health.
+
+---
+
+## 🧑‍💻 Development Workflow
+
+### Running locally
+```bash
+npm install      # install dependencies
+npm run dev      # start with auto-reload on http://localhost:5055
+```
+
+### "Push to git" command
+When working with an AI agent (Claude Code), say **"Push to git"** to trigger the full pre-push workflow:
+
+1. **Review changes** — scans all modified files
+2. **Sync docs** — verifies `docs/` is up to date for any changed server/API/auth areas
+3. **Sync in-app help** — checks `HELP_TOPICS` and `renderSettingsInlineHelp()` in `app.js` reflect current behaviour
+4. **Write commit message** — first line becomes the changelog entry; bullet-point body lines are stored as structured `details`
+5. **Commit & push** — stages all relevant files and pushes to `main`
+
+CI then auto-bumps the patch version in `changelog.json` / `package.json` and builds + pushes the Docker image to GHCR.
+
+The full workflow definition lives in [`CLAUDE.md`](./CLAUDE.md), which is the single source of truth for all AI agent behaviour in this repo.
 
 ---
 
