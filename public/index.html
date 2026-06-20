@@ -182,31 +182,33 @@
         </section>
 
         <section id="stats-view" class="view-panel hidden" data-view-panel="stats">
-          <section class="stats-grid" aria-label="Watch statistics">
-            <article class="stat-card glass-panel">
-              <span>Total Watches</span>
-              <b id="totalWatches">0</b>
-            </article>
-            <article class="stat-card glass-panel">
-              <span>Unique Movies Logged</span>
-              <b id="totalMovies">0</b>
-            </article>
-            <article class="stat-card glass-panel">
-              <span>Total TV Episodes Tracked</span>
-              <b id="totalEpisodes">0</b>
-            </article>
-            <article class="stat-card glass-panel">
-              <span>Most Used Platform</span>
-              <b id="topPlatform">None</b>
-            </article>
-            <article class="stat-card glass-panel">
-              <span>Database Size</span>
-              <b id="dbSize">0 Bytes</b>
-            </article>
-            <article class="stat-card glass-panel">
-              <span>Tracking Span</span>
-              <b id="trackingSpan">N/A</b>
-            </article>
+          <section class="stats-toolbar glass-panel" aria-label="Stats filters">
+            <div class="stats-controls">
+              <label class="compact-field">
+                <span>Media</span>
+                <select id="statsMediaFilter" class="field">
+                  <option value="all">Movies & TV</option>
+                  <option value="movie">Movies</option>
+                  <option value="episode">TV shows</option>
+                </select>
+              </label>
+              <label class="compact-field">
+                <span>Period</span>
+                <select id="statsPeriodType" class="field">
+                  <option value="all">All time</option>
+                  <option value="year">Year</option>
+                  <option value="month">Month</option>
+                </select>
+              </label>
+              <label class="compact-field">
+                <span>Range</span>
+                <select id="statsPeriodValue" class="field"></select>
+              </label>
+            </div>
+          </section>
+
+          <section class="glass-panel p-section stats-review-section">
+            <div id="topMediaReport" class="stats-poster-report"></div>
           </section>
 
           <section class="insight-grid">
@@ -223,18 +225,8 @@
             <article class="glass-panel p-section">
               <div class="section-heading">
                 <div>
-                  <p>Top 5 Most Watched TV Series</p>
-                  <span>Top 5 by distinct logged episodes</span>
-                </div>
-              </div>
-              <div id="topShows" class="insight-list"></div>
-            </article>
-
-            <article class="glass-panel p-section wide-insight">
-              <div class="section-heading">
-                <div>
-                  <p>Watch Activity</p>
-                  <span>Monthly archive volume</span>
+                  <p id="statsActivityTitle">Watch Activity</p>
+                  <span id="statsActivitySubtitle">Monthly archive volume</span>
                 </div>
               </div>
               <div id="monthChart" class="month-chart"></div>

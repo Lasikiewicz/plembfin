@@ -129,7 +129,11 @@ const state = {
     sourceBreakdown: [],
     topShows: [],
     monthlyActivity: [],
+    reports: { all: null, years: [], months: [] },
   },
+  statsMediaFilter: "all",
+  statsPeriodType: "all",
+  statsPeriodValue: "all",
   statsLoaded: false,
   statsLoading: false,
   explorerMode: "movies",
@@ -383,6 +387,12 @@ function bindElements() {
     backupsSubTabButtons: [...document.querySelectorAll("[data-backups-tab]")],
     backupsPanels: [...document.querySelectorAll("[data-backups-panel]")],
     sourceRanking: document.querySelector("#sourceRanking"),
+    statsMediaFilter: document.querySelector("#statsMediaFilter"),
+    statsPeriodType: document.querySelector("#statsPeriodType"),
+    statsPeriodValue: document.querySelector("#statsPeriodValue"),
+    statsActivityTitle: document.querySelector("#statsActivityTitle"),
+    statsActivitySubtitle: document.querySelector("#statsActivitySubtitle"),
+    topMediaReport: document.querySelector("#topMediaReport"),
     startImportButton: document.querySelector("#startImportButton"),
     statusPill: document.querySelector("#statusPill"),
     totalMovies: document.querySelector("#totalMovies"),
@@ -391,7 +401,6 @@ function bindElements() {
     topPlatform: document.querySelector("#topPlatform"),
     dbSize: document.querySelector("#dbSize"),
     trackingSpan: document.querySelector("#trackingSpan"),
-    topShows: document.querySelector("#topShows"),
     saveConfigButton: document.querySelector("#saveConfigButton"),
     savePlexConfigButton: document.querySelector("#savePlexConfigButton"),
     plexConfigStatus: document.querySelector("#plexConfigStatus"),
@@ -3834,6 +3843,18 @@ const HELP_TOPICS = [
 
   // ── Credentials ───────────────────────────────────────────────────
   {
+    id: "stats-review",
+    category: "Overview",
+    title: "Stats Reviews",
+    description: "Year, month, and all-time watch reports",
+    badges: [],
+    body: () => `
+            <p>The <b>Stats</b> page turns your local watch history into review reports. Use the Media, Period, and Range controls to switch between all-time, yearly, and monthly views for movies, TV shows, or both.</p>
+            <p>The top section shows the selected media type, period, play totals, poster-ranked most-played items, and first/last plays. All-time reports also include the most used platform and the full tracking span.</p>
+            <p>Click any poster card in the report to open that movie or TV show page.</p>
+          `,
+  },
+  {
     id: "firebase-auth",
     category: "Credentials",
     title: "Admin Sign-In",
@@ -4334,7 +4355,7 @@ function syncPageTopbar() {
     activeControls = elements.partWatchedTopbarControls;
   } else if (state.activeView === "stats") {
     title = "Stats";
-    subtitle = "Watch statistics";
+    subtitle = "";
   } else if (state.activeView === "settings") {
     title = settingsTopbarTitle();
     subtitle = "";
@@ -5401,35 +5422,131 @@ function formatDateShort(date) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "2-digit" }).format(date);
 }
 
+function statsReports() {
+  const reports = state.stats.reports || {};
+  return {
+    all: reports.all || null,
+    years: Array.isArray(reports.years) ? reports.years : [],
+    months: Array.isArray(reports.months) ? reports.months : [],
+  };
+}
+
+function statsPeriodLabel(period = "") {
+  if (period === "all") return "All time";
+  if (/^\d{4}-\d{2}$/.test(period)) {
+    const date = new Date(`${period}-01T00:00:00`);
+    if (Number.isNaN(date.getTime())) return period;
+    return new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(date);
+  }
+  return period || "All time";
+}
+
+function syncStatsPeriodOptions() {
+  const periodSelect = elements.statsPeriodValue;
+  if (!periodSelect) return;
+  const reports = statsReports();
+  let options = [{ value: "all", label: "All time" }];
+  if (state.statsPeriodType === "year") {
+    options = reports.years.map((report) => ({ value: report.period, label: report.label || report.period }));
+  } else if (state.statsPeriodType === "month") {
+    options = reports.months.map((report) => ({ value: report.period, label: statsPeriodLabel(report.period) }));
+  }
+  if (!options.length) options = [{ value: "all", label: "No ranges" }];
+  if (!options.some((option) => option.value === state.statsPeriodValue)) {
+    state.statsPeriodValue = options[0].value;
+  }
+  periodSelect.disabled = state.statsPeriodType === "all";
+  periodSelect.innerHTML = options
+    .map((option) => `<option value="${escapeAttribute(option.value)}"${option.value === state.statsPeriodValue ? " selected" : ""}>${escapeHtml(option.label)}</option>`)
+    .join("");
+}
+
+function selectedStatsReport() {
+  const reports = statsReports();
+  if (state.statsPeriodType === "year") {
+    return reports.years.find((report) => report.period === state.statsPeriodValue) || reports.years[0] || reports.all;
+  }
+  if (state.statsPeriodType === "month") {
+    return reports.months.find((report) => report.period === state.statsPeriodValue) || reports.months[0] || reports.all;
+  }
+  return reports.all;
+}
+
+function statsFilteredRows(report = selectedStatsReport()) {
+  if (!report) return [];
+  if (state.statsMediaFilter === "movie") return report.topMovies || [];
+  if (state.statsMediaFilter === "episode") return report.topShows || [];
+  return report.topMedia || [];
+}
+
+function statsPeriodNoun() {
+  if (state.statsPeriodType === "year") return "Year";
+  if (state.statsPeriodType === "month") return "Month";
+  return "All Time";
+}
+
+function statsTrackingSpanText() {
+  if (!state.stats.firstWatch || !state.stats.lastWatch) return "N/A";
+  const first = new Date(state.stats.firstWatch);
+  const last = new Date(state.stats.lastWatch);
+  if (Number.isNaN(first.getTime()) || Number.isNaN(last.getTime())) return "N/A";
+  const diffTime = Math.abs(last - first);
+  return `${Math.ceil(diffTime / (1000 * 60 * 60 * 24))} days`;
+}
+
+function statsPlatformLabel(source) {
+  return source && source !== "none" ? platformName(source) : "None";
+}
+
+function statsSelectedMediaLabel() {
+  if (state.statsMediaFilter === "movie") return "Movies";
+  if (state.statsMediaFilter === "episode") return "TV Shows";
+  return "Movies & TV";
+}
+
+function statsIntroCards(report = selectedStatsReport(), periodLabel = "All time") {
+  const cards = [
+    { label: "Media", value: statsSelectedMediaLabel() },
+    { label: "Period", value: periodLabel },
+  ];
+  if (state.statsMediaFilter === "movie") {
+    cards.push(
+      { label: "Plays", value: formatNumber(report?.total || 0) },
+      { label: "Movies", value: formatNumber(report?.uniqueMovies || 0) },
+    );
+  } else if (state.statsMediaFilter === "episode") {
+    cards.push(
+      { label: "Plays", value: formatNumber(report?.total || 0) },
+      { label: "TV shows", value: formatNumber(report?.uniqueShows || 0) },
+      { label: "Episodes watched", value: formatNumber(report?.tvWatches || 0) },
+    );
+  } else {
+    cards.push(
+      { label: "Plays", value: formatNumber(report?.total || 0) },
+      { label: "Movies", value: formatNumber(report?.uniqueMovies || 0) },
+      { label: "TV shows", value: formatNumber(report?.uniqueShows || 0) },
+      { label: "Episodes watched", value: formatNumber(report?.tvWatches || 0) },
+    );
+  }
+  if (state.statsPeriodType === "all") {
+    cards.push(
+      { label: "Most used platform", value: statsPlatformLabel(report?.topSource || state.stats.topSource || "none") },
+      { label: "Tracking span", value: statsTrackingSpanText() },
+    );
+  }
+  return cards;
+}
+
 function renderStats() {
-  if (elements.totalWatches) elements.totalWatches.textContent = formatNumber(state.stats.totalWatches || 0);
-  if (elements.totalMovies) elements.totalMovies.textContent = formatNumber(state.stats.uniqueMoviesLogged || 0);
-  if (elements.totalEpisodes) elements.totalEpisodes.textContent = formatNumber(state.stats.totalTvEpisodesTracked || 0);
-
-  if (elements.topPlatform) {
-    const platform = state.stats.topSource;
-    elements.topPlatform.textContent = platform && platform !== "none" ? platformName(platform) : "None";
-  }
-
-  if (elements.dbSize) {
-    elements.dbSize.textContent = formatBytes(state.stats.dbSizeBytes || 0);
-  }
-
-  if (elements.trackingSpan) {
-    if (state.stats.firstWatch && state.stats.lastWatch) {
-      const first = new Date(state.stats.firstWatch);
-      const last = new Date(state.stats.lastWatch);
-      const diffTime = Math.abs(last - first);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      elements.trackingSpan.textContent = `${diffDays} days`;
-      elements.trackingSpan.title = `${formatDateShort(first)} to ${formatDateShort(last)}`;
-    } else {
-      elements.trackingSpan.textContent = "N/A";
-    }
-  }
-
-  renderRankingTable(elements.sourceRanking, state.stats.sourceBreakdown || [], "platform");
-  renderRankingTable(elements.topShows, state.stats.topShows || [], "series");
+  if (elements.statsMediaFilter) elements.statsMediaFilter.value = state.statsMediaFilter;
+  if (elements.statsPeriodType) elements.statsPeriodType.value = state.statsPeriodType;
+  syncStatsPeriodOptions();
+  const report = selectedStatsReport();
+  const periodLabel = statsPeriodLabel(report?.period || "all");
+  renderRankingTable(elements.sourceRanking, report?.sourceBreakdown || state.stats.sourceBreakdown || [], "platform");
+  renderStatsPosterReport(elements.topMediaReport, statsFilteredRows(report), { report, periodLabel });
+  if (elements.statsActivityTitle) elements.statsActivityTitle.textContent = state.statsPeriodType === "all" ? "Watch Activity" : "Range Activity";
+  if (elements.statsActivitySubtitle) elements.statsActivitySubtitle.textContent = state.statsPeriodType === "all" ? "Monthly archive volume" : `${periodLabel} selection`;
   if (elements.monthChart) renderMonthChart();
 }
 
@@ -5445,7 +5562,7 @@ function renderRankingTable(container, rows = [], labelKey) {
     <div class="ranking-table">
       <div class="ranking-head">
         <span>#</span>
-        <span>${labelKey === "platform" ? "Platform" : "Series"}</span>
+        <span>${labelKey === "platform" ? "Platform" : labelKey === "movie" ? "Movie" : "Series"}</span>
         <span>Relative volume</span>
         <span>Watch count</span>
       </div>
@@ -5465,8 +5582,101 @@ function renderRankingTable(container, rows = [], labelKey) {
   `;
 }
 
+function renderStatsPosterReport(container, rows = [], { report = selectedStatsReport(), periodLabel = "All time" } = {}) {
+  if (!container) return;
+  if (!rows.length) {
+    container.innerHTML = `<div class="empty-log"><b>No matching report data</b><span>Try another media type or period.</span></div>`;
+    return;
+  }
+  const max = Math.max(...rows.map((row) => Number(row.count || 0)), 1);
+  const leader = rows[0];
+  const sideRanks = rows.slice(1, 3);
+  const remaining = rows.slice(3, 10);
+  container.innerHTML = `
+    <div class="stats-review-intro">
+      ${statsIntroCards(report, periodLabel).map((card) => `
+        <div>
+          <span>${escapeHtml(card.label)}</span>
+          <b>${escapeHtml(card.value)}</b>
+        </div>
+      `).join("")}
+    </div>
+    <div class="stats-review-feature-grid">
+      <article class="stats-review-leader" data-stats-media-href="${escapeAttribute(statsMediaHref(leader))}" role="link" tabindex="0">
+        ${posterMarkup(leader, "stats-review-poster")}
+        <div class="stats-review-copy">
+          <span>#1 most played</span>
+          <h3>${escapeHtml(leader.title || "Unknown media")}</h3>
+          <p>${formatNumber(leader.count || 0)} play${Number(leader.count || 0) === 1 ? "" : "s"} made this your top ${leader.type === "movie" ? "movie" : "show"} for ${escapeHtml(periodLabel)}.</p>
+          <div class="stats-review-facts">
+            <b>${leader.type === "movie" ? "Movie" : "TV show"}</b>
+            <b>${formatNumber(Math.round((Number(leader.count || 0) / Math.max(Number(report?.total || 0), 1)) * 100))}% of plays</b>
+          </div>
+        </div>
+      </article>
+      <div class="stats-review-side-stack">
+        ${sideRanks.map((row, index) => renderStatsRankCard(row, index + 2, max)).join("")}
+      </div>
+    </div>
+    <div class="stats-review-rank-grid">
+      ${remaining.map((row, index) => renderStatsRankCard(row, index + 4, max)).join("")}
+    </div>
+    <div class="stats-first-last">
+      ${renderStatsReviewPlay("First play", report?.firstPlay)}
+      ${renderStatsReviewPlay("Last play", report?.lastPlay)}
+    </div>
+  `;
+  hydratePosterFallbacks(container).catch(() => { });
+}
+
+function statsMediaHref(item = {}) {
+  const title = item.title || "unknown";
+  if (item.type === "movie") return `/movie/${encodeURIComponent(item.id || slug(title))}`;
+  return `/tvshow/${encodeURIComponent(slug(title))}`;
+}
+
+function renderStatsRankCard(row, rank, max) {
+  return `
+    <article class="stats-media-card" data-stats-media-href="${escapeAttribute(statsMediaHref(row))}" role="link" tabindex="0">
+      ${posterMarkup(row, "stats-report-poster")}
+      <div class="stats-media-body">
+        <div>
+          <span>#${rank}</span>
+          <b>${escapeHtml(row.title || "Unknown media")}</b>
+          <small>${row.type === "movie" ? "Movie" : "TV show"}</small>
+        </div>
+        <div class="stats-media-meter" aria-hidden="true"><span style="width: ${(Number(row.count || 0) / max) * 100}%"></span></div>
+        <em>${formatNumber(row.count || 0)} play${Number(row.count || 0) === 1 ? "" : "s"}</em>
+      </div>
+    </article>
+  `;
+}
+
+function renderStatsReviewPlay(label, item = null) {
+  if (!item) {
+    return `<article class="stats-review-play"><div><span>${escapeHtml(label)}</span><b>No play logged</b></div></article>`;
+  }
+  return `
+    <article class="stats-review-play" data-stats-media-href="${escapeAttribute(statsMediaHref(item))}" role="link" tabindex="0">
+      ${posterMarkup(item, "stats-review-play-poster")}
+      <div>
+        <span>${escapeHtml(label)}</span>
+        <b>${escapeHtml(item.title || "Unknown media")}</b>
+        <small>${escapeHtml(formatDate(item.latestWatch))}</small>
+      </div>
+    </article>
+  `;
+}
+
 function renderMonthChart() {
-  const rows = state.stats.monthlyActivity || [];
+  let rows = state.stats.monthlyActivity || [];
+  if (state.statsPeriodType === "year" && state.statsPeriodValue) {
+    rows = rows.filter((row) => String(row.month || "").startsWith(`${state.statsPeriodValue}-`));
+  } else if (state.statsPeriodType === "month" && state.statsPeriodValue) {
+    rows = rows.filter((row) => row.month === state.statsPeriodValue);
+  } else {
+    rows = rows.slice(-12);
+  }
   if (!rows.length) {
     elements.monthChart.innerHTML = `<div class="empty-log"><b>No monthly activity yet</b><span>Completed watches will appear here.</span></div>`;
     return;
@@ -11947,6 +12157,31 @@ function attachEvents() {
     state.hideEndedShows = elements.explorerHideEnded.checked;
     localStorage.setItem(HIDE_ENDED_KEY_SHOWS, String(state.hideEndedShows));
     renderExplorer();
+  });
+  elements.statsMediaFilter?.addEventListener("change", () => {
+    state.statsMediaFilter = elements.statsMediaFilter.value || "all";
+    renderStats();
+  });
+  elements.statsPeriodType?.addEventListener("change", () => {
+    state.statsPeriodType = elements.statsPeriodType.value || "all";
+    state.statsPeriodValue = state.statsPeriodType === "all" ? "all" : "";
+    renderStats();
+  });
+  elements.statsPeriodValue?.addEventListener("change", () => {
+    state.statsPeriodValue = elements.statsPeriodValue.value || "all";
+    renderStats();
+  });
+  elements.topMediaReport?.addEventListener("click", (event) => {
+    const card = event.target.closest("[data-stats-media-href]");
+    if (!card) return;
+    navigateTo(card.dataset.statsMediaHref);
+  });
+  elements.topMediaReport?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const card = event.target.closest("[data-stats-media-href]");
+    if (!card) return;
+    event.preventDefault();
+    navigateTo(card.dataset.statsMediaHref);
   });
 
   elements.explorerPanel?.addEventListener("click", (e) => {

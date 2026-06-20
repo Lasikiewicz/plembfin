@@ -26,6 +26,7 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 *   🔄 **Bi-directional Synchronization**: Syncs watched and unwatched states between Plex, Emby, and Jellyfin.
 *   ⏱️ **Resume Progress Sync**: Automatically propagates playback progress (resume offsets) so you can pause a movie on Plex and pick up exactly where you left off on Jellyfin.
 *   📊 **Real-Time Dashboard**: A clean, single-page dashboard displaying real-time "Now Playing" activity, weekly viewing charts, and detailed history.
+*   📈 **Stats Reviews**: Year, month, and all-time reports highlight most-played movies and TV shows with poster rankings, first/last plays, platform breakdowns, and watch activity.
 *   🔒 **Self-Hosted & Private**: Built on a local SQLite database running in WAL mode. All poster assets, metadata, and watch histories reside on your own hardware.
 *   🖼️ **Art Pipeline & Caching**: Fetches posters and backdrops from your media servers or TMDB, resizes them with `sharp`, and caches them locally under `data/media` for near-instant rendering.
 *   🧹 **Echo Loop Prevention**: Utilizes a memory-mapped loop detector to suppress echo webhooks triggered by Plembfin's own updates.

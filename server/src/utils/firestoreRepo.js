@@ -329,6 +329,130 @@ function isPlembfinTrackedWatchRow(row = {}) {
   return isWatchedAction(row) && !isScheduledLibraryHistoryRow(row);
 }
 
+function createStatsPeriod(period, label) {
+  return {
+    period,
+    label,
+    total: 0,
+    movies: 0,
+    episodes: 0,
+    firstPlay: null,
+    lastPlay: null,
+    movieKeys: new Set(),
+    showKeys: new Set(),
+    sourceMap: new Map(),
+    movieMap: new Map(),
+    showMap: new Map(),
+    mediaMap: new Map(),
+  };
+}
+
+function statsMovieKey(row = {}) {
+  return row.imdb_id || row.tmdb_id || row.tvdb_id || canonicalTitleKey(row.title) || row.title || "unknown-movie";
+}
+
+function statsShowKey(row = {}) {
+  return canonicalTitleKey(row.show_title || showTitleFrom(row.title)) || row.show_title || showTitleFrom(row.title) || "unknown-show";
+}
+
+function compactStatsMedia(row = {}, { key, type, title } = {}) {
+  return {
+    id: row.id,
+    key,
+    type,
+    title,
+    poster_url: row.poster_url || null,
+    media_key: row.media_key || null,
+    imdb_id: row.imdb_id || null,
+    tmdb_id: row.tmdb_id || null,
+    tvdb_id: row.tvdb_id || null,
+    latestWatch: row.watched_at || null,
+  };
+}
+
+function bumpStatsMedia(map, key, item) {
+  const existing = map.get(key);
+  if (!existing) {
+    map.set(key, { ...item, count: 1 });
+    return;
+  }
+  existing.count += 1;
+  if (!existing.poster_url && item.poster_url) existing.poster_url = item.poster_url;
+  if (!existing.id && item.id) existing.id = item.id;
+  if (item.latestWatch && (!existing.latestWatch || item.latestWatch > existing.latestWatch)) {
+    existing.latestWatch = item.latestWatch;
+    if (item.id) existing.id = item.id;
+    if (item.poster_url) existing.poster_url = item.poster_url;
+    if (item.media_key) existing.media_key = item.media_key;
+  }
+}
+
+function addRowToStatsPeriod(period, row = {}) {
+  period.total += 1;
+  if (!period.firstPlay || (row.watched_at && row.watched_at < period.firstPlay.latestWatch)) {
+    period.firstPlay = compactStatsMedia(row, {
+      key: row.media_type === "movie" ? `movie:${statsMovieKey(row)}` : `show:${statsShowKey(row)}`,
+      type: row.media_type === "movie" ? "movie" : "episode",
+      title: row.media_type === "movie" ? row.title || "Unknown movie" : row.show_title || showTitleFrom(row.title),
+    });
+  }
+  if (!period.lastPlay || (row.watched_at && row.watched_at > period.lastPlay.latestWatch)) {
+    period.lastPlay = compactStatsMedia(row, {
+      key: row.media_type === "movie" ? `movie:${statsMovieKey(row)}` : `show:${statsShowKey(row)}`,
+      type: row.media_type === "movie" ? "movie" : "episode",
+      title: row.media_type === "movie" ? row.title || "Unknown movie" : row.show_title || showTitleFrom(row.title),
+    });
+  }
+  const source = normalizePlatformSource(row.source);
+  period.sourceMap.set(source, (period.sourceMap.get(source) || 0) + 1);
+  if (row.media_type === "movie") {
+    const key = `movie:${statsMovieKey(row)}`;
+    const item = compactStatsMedia(row, { key, type: "movie", title: row.title || "Unknown movie" });
+    period.movies += 1;
+    period.movieKeys.add(key);
+    bumpStatsMedia(period.movieMap, key, item);
+    bumpStatsMedia(period.mediaMap, key, item);
+    return;
+  }
+
+  if (row.media_type === "episode") {
+    const showTitle = row.show_title || showTitleFrom(row.title);
+    const key = `show:${statsShowKey(row)}`;
+    const item = compactStatsMedia(row, { key, type: "episode", title: showTitle || "Unknown show" });
+    period.episodes += 1;
+    period.showKeys.add(key);
+    bumpStatsMedia(period.showMap, key, item);
+    bumpStatsMedia(period.mediaMap, key, item);
+  }
+}
+
+function rankStatsItems(map, limit = 10) {
+  return [...map.values()]
+    .sort((a, b) => b.count - a.count || String(a.title || "").localeCompare(String(b.title || "")))
+    .slice(0, limit);
+}
+
+function finalizeStatsPeriod(period) {
+  return {
+    period: period.period,
+    label: period.label,
+    total: period.total,
+    movieWatches: period.movies,
+    tvWatches: period.episodes,
+    uniqueMovies: period.movieKeys.size,
+    uniqueShows: period.showKeys.size,
+    firstPlay: period.firstPlay,
+    lastPlay: period.lastPlay,
+    sourceBreakdown: [...period.sourceMap.entries()]
+      .map(([source, count]) => ({ source, count }))
+      .sort((a, b) => b.count - a.count),
+    topSource: [...period.sourceMap.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "none",
+    topMovies: rankStatsItems(period.movieMap),
+    topShows: rankStatsItems(period.showMap),
+    topMedia: rankStatsItems(period.mediaMap),
+  };
+}
+
 // --- History caches --------------------------------------------------------
 export async function getCachedHistory() {
   const version = getDataVersion();
@@ -1086,12 +1210,19 @@ export async function getWatchStats() {
   const bySource = new Map();
   const byShow = new Map();
   const byMonth = new Map();
+  const byYear = new Map();
+  const statsMonthPeriods = new Map();
+  const allPeriod = createStatsPeriod("all", "All time");
 
   for (const row of rows) {
     const source = normalizePlatformSource(row.source);
     bySource.set(source, (bySource.get(source) || 0) + 1);
     const month = String(row.watched_at || "").slice(0, 7) || "unknown";
+    const year = month.slice(0, 4) || "unknown";
     byMonth.set(month, (byMonth.get(month) || 0) + 1);
+    addRowToStatsPeriod(allPeriod, row);
+    if (!byYear.has(year)) byYear.set(year, createStatsPeriod(year, year));
+    addRowToStatsPeriod(byYear.get(year), row);
     if (row.media_type === "movie") {
       movieKeys.add(row.imdb_id || row.tmdb_id || row.tvdb_id || row.title);
     } else if (row.media_type === "episode") {
@@ -1099,11 +1230,16 @@ export async function getWatchStats() {
       const show = showTitleFrom(row.title);
       byShow.set(show, (byShow.get(show) || 0) + 1);
     }
+    const monthPeriod = statsMonthPeriods.get(month) || createStatsPeriod(month, month);
+    addRowToStatsPeriod(monthPeriod, row);
+    statsMonthPeriods.set(month, monthPeriod);
   }
 
   const sourceBreakdown = [...bySource.entries()].map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count);
   const monthlyActivity = [...byMonth.entries()].map(([month, count]) => ({ month, count })).sort((a, b) => a.month.localeCompare(b.month));
   const topShows = [...byShow.entries()].map(([title, count]) => ({ title, count })).sort((a, b) => b.count - a.count || a.title.localeCompare(b.title)).slice(0, 5);
+  const yearlyReports = [...byYear.values()].map(finalizeStatsPeriod).sort((a, b) => b.period.localeCompare(a.period));
+  const monthlyReports = [...statsMonthPeriods.values()].map(finalizeStatsPeriod).sort((a, b) => b.period.localeCompare(a.period));
 
   const stats = {
     total: rows.length,
@@ -1119,7 +1255,12 @@ export async function getWatchStats() {
     lastWatch: rows[0]?.watched_at || null,
     sourceBreakdown,
     topShows,
-    monthlyActivity: monthlyActivity.slice(-12),
+    monthlyActivity,
+    reports: {
+      all: finalizeStatsPeriod(allPeriod),
+      years: yearlyReports,
+      months: monthlyReports,
+    },
   };
   statsCache = { version, stats };
   return stats;

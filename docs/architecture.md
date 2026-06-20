@@ -75,7 +75,7 @@ invalidates them; the next read reloads from SQLite.
 
 - One global `state` object in `app.js` (no framework).
 - SPA navigation via `navigateTo(url)` / `handleRouting()` / `history.pushState`.
-  Routes: `/` dashboard, `/movie/:id`, `/tvshow/:key`, `/person/:id`, `/settings/:tab`, `/help/:topic`.
+  Routes: `/` dashboard, `/stats`, `/movie/:id`, `/tvshow/:key`, `/person/:id`, `/settings/:tab`, `/help/:topic`.
 - Auth handled by `onFirebaseAuthChange()` (`modules/auth.js`) — which checks
   `/api/auth/status`. The auth panel is hidden until a session is confirmed.
 - After every successful auth operation, `fetchAndCacheApiKey()` is called to
@@ -84,6 +84,10 @@ invalidates them; the next read reloads from SQLite.
 - The explorer grid uses `IntersectionObserver` (1200px rootMargin, 240-item pages)
   to pre-fetch the next page, plus a second observer
   (`observeExplorerTmdbPrefetch`) to pre-fetch TMDB details for visible cards.
+- The stats view consumes the derived `/api/history?stats=only` payload to render
+  all-time, yearly, and monthly review reports with poster-backed rankings,
+  first/last plays, platform breakdowns, and watch activity without re-querying
+  for each filter change.
 
 ## Environment variables
 
