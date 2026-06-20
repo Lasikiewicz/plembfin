@@ -1,7 +1,20 @@
 {
-  "version": "0.1.34",
-  "updatedAt": "2026-06-20T08:56:20+01:00",
+  "version": "0.1.35",
+  "updatedAt": "2026-06-20T08:59:37+01:00",
   "entries": [
+    {
+      "version": "0.1.35",
+      "date": "2026-06-20T08:59:37+01:00",
+      "commit": "eab6ab150be331ebee7616a15578fdb6b883e299",
+      "message": "fix: add buildx setup for Docker attestation support and sync CLAUDE.md",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added docker/setup-buildx-action@v3 before build-push in all three workflow jobs",
+        "The default docker driver does not support provenance/SBOM attestations; buildx container driver does",
+        "Also applied npm rebuild native modules fix to docker-publish.yml",
+        "Updated CLAUDE.md README sync table to include README.md in pre-push checklist"
+      ]
+    },
     {
       "version": "0.1.34",
       "date": "2026-06-20T08:56:20+01:00",
