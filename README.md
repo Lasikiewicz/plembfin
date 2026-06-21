@@ -15,9 +15,48 @@
 
 ---
 
-**Plembfin** is a self-hosted **watch-state bridge** for Plex, Emby, and Jellyfin — styled like Sonarr, Radarr, and Jellyseerr. It listens for playback webhooks from your media servers, records your watch history in a local SQLite database, and propagates watched/unwatched states across all connected platforms automatically. 
+**Plembfin** is a self-hosted **personal watch history tracker and playstate sync** for Plex, Emby, and Jellyfin. It listens for playback webhooks from your media servers, records everything you watch in a local SQLite database, and keeps your watched/unwatched state in sync across all connected platforms automatically. Plembfin is easy to configure and comes with a clean, polished UI with both light and dark theme options.
 
 With an in-process scheduler, Trakt history imports, Seerr requests, and automatic cloud backups, Plembfin keeps your entire media ecosystem in perfect sync without requiring cloud dependencies.
+
+---
+
+## 📸 Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/movies.png" alt="Movies library view" width="100%" />
+  <em>Movies — full poster grid with search, filters, and sort options</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/tvshows.png" alt="TV Shows library view" width="100%" />
+  <em>TV Shows — dark-themed library with rich show details</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/history.png" alt="Watch history view" width="100%" />
+  <em>History — complete watch log across all connected platforms</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/stats.png" alt="Stats view" width="100%" />
+  <em>Stats — all-time play counts, top shows, platform breakdowns, and monthly watch activity</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/bio.png" alt="Person bio view" width="100%" />
+  <em>Person pages — biography, photos, and full filmography pulled from TMDB</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/search.png" alt="Global search" width="100%" />
+  <em>Global search — instant results across movies, TV shows, and people</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/part-watched.png" alt="Part Watched view" width="100%" />
+  <em>Part Watched — tracks in-progress items with resume progress and quick mark-watched actions</em>
+</p>
 
 ---
 
