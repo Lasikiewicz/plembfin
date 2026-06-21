@@ -154,6 +154,22 @@
                   <span>Search</span>
                   <input id="historySearchInput" class="field" type="search" placeholder="Search history..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
                 </label>
+                <div class="explorer-view-toggle history-filter-toggle" role="group" aria-label="History media filter">
+                  <button class="explorer-view-btn history-filter-btn active" type="button" data-history-filter="all">All</button>
+                  <button class="explorer-view-btn history-filter-btn" type="button" data-history-filter="movies">Movies</button>
+                  <button class="explorer-view-btn history-filter-btn" type="button" data-history-filter="shows">TV Shows</button>
+                </div>
+                <div class="explorer-view-toggle" role="group" aria-label="History view type">
+                  <button class="explorer-view-btn active" type="button" data-history-view="grid" title="Grid view">
+                    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1" y="1" width="5.5" height="5.5" rx="1" fill="currentColor"/><rect x="8.5" y="1" width="5.5" height="5.5" rx="1" fill="currentColor"/><rect x="1" y="8.5" width="5.5" height="5.5" rx="1" fill="currentColor"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" fill="currentColor"/></svg>
+                  </button>
+                  <button class="explorer-view-btn" type="button" data-history-view="list" title="List view">
+                    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1" y="2.5" width="13" height="1.5" rx="0.75" fill="currentColor"/><rect x="1" y="6.75" width="13" height="1.5" rx="0.75" fill="currentColor"/><rect x="1" y="11" width="13" height="1.5" rx="0.75" fill="currentColor"/></svg>
+                  </button>
+                  <button class="explorer-view-btn" type="button" data-history-view="cards" title="Card view">
+                    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1" y="1" width="4" height="13" rx="1" fill="currentColor"/><rect x="6.5" y="1" width="7.5" height="2" rx="0.75" fill="currentColor"/><rect x="6.5" y="4.5" width="7.5" height="1.5" rx="0.75" fill="currentColor"/><rect x="6.5" y="7.5" width="5" height="1.5" rx="0.75" fill="currentColor"/></svg>
+                  </button>
+                </div>
                 <label class="compact-field explorer-size-slider">
                   <span>Size</span>
                   <input id="historyPosterSize" type="range" min="60" max="180" value="86" />

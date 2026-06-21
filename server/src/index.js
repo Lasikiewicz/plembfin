@@ -742,20 +742,23 @@ async function handleHistory(req, res) {
 
   const dedupe = !["0", "false", "no"].includes(String(req.query.dedupe || "").toLowerCase());
   const includeStats = !["0", "false", "no"].includes(statsMode);
-  const historyPromise = queryWatchHistory(requireDb(), { search: req.query.search || "", limit: req.query.limit || 50, offset: req.query.offset || 0, dedupe });
+  const requestedLimit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
+  const historyPromise = queryWatchHistory(requireDb(), { search: req.query.search || "", mediaType: req.query.mediaType || "", limit: requestedLimit + 1, offset: req.query.offset || 0, dedupe });
   const historyVersionPromise = getHistoryCacheVersion();
 
   if (!includeStats) {
-    const [history, historyVersion] = await Promise.all([historyPromise, historyVersionPromise]);
-    return sendJson(res, { history, historyVersion });
+    const [historyRows, historyVersion] = await Promise.all([historyPromise, historyVersionPromise]);
+    const hasMore = historyRows.length > requestedLimit;
+    return sendJson(res, { history: historyRows.slice(0, requestedLimit), hasMore, historyVersion });
   }
 
-  const [history, stats, historyVersion] = await Promise.all([
+  const [historyRows, stats, historyVersion] = await Promise.all([
     historyPromise,
     getWatchStats(requireDb()),
     historyVersionPromise,
   ]);
-  return sendJson(res, { history, stats, historyVersion });
+  const hasMore = historyRows.length > requestedLimit;
+  return sendJson(res, { history: historyRows.slice(0, requestedLimit), hasMore, stats, historyVersion });
 }
 
 async function handleSyncJobs(req, res) {

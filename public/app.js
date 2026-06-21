@@ -88,6 +88,10 @@ const EXPLORER_CACHE_TTL_MS = 30 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_KEY = "plembfin:explorerPageCache:v3";
 const EXPLORER_VIEW_KEY_MOVIES = "plembfin:explorerView:movies";
 const EXPLORER_VIEW_KEY_SHOWS = "plembfin:explorerView:shows";
+const HISTORY_VIEW_KEY = "plembfin:historyView";
+const HISTORY_FILTER_KEY = "plembfin:historyFilter";
+const HISTORY_VIEW_MODES = ["grid", "list", "cards"];
+const HISTORY_FILTERS = ["all", "movies", "shows"];
 const EXPLORER_SORT_KEY_MOVIES = "plembfin:explorerSort:movies";
 const EXPLORER_SORT_KEY_SHOWS = "plembfin:explorerSort:shows";
 const HIDE_WATCHED_KEY_SHOWS = "plembfin:hideWatched:shows";
@@ -176,6 +180,8 @@ const state = {
   explorerScrollArmed: false,
   posterHydrateScrollScheduled: false,
   historyViewSearch: "",
+  historyViewMode: HISTORY_VIEW_MODES.includes(localStorage.getItem(HISTORY_VIEW_KEY)) ? localStorage.getItem(HISTORY_VIEW_KEY) : "grid",
+  historyViewFilter: HISTORY_FILTERS.includes(localStorage.getItem(HISTORY_FILTER_KEY)) ? localStorage.getItem(HISTORY_FILTER_KEY) : "all",
   historyViewSearchTimer: undefined,
   historyViewRaw: [],
   historyViewOffset: 0,
@@ -264,6 +270,8 @@ function bindElements() {
     alphaFilterNav: document.querySelector("#alphaFilterNav"),
     explorerSearchInput: document.querySelector("#explorerSearchInput"),
     historySearchInput: document.querySelector("#historySearchInput"),
+    historyFilterButtons: [...document.querySelectorAll("[data-history-filter]")],
+    historyViewButtons: [...document.querySelectorAll("[data-history-view]")],
     explorerPosterSize: document.querySelector("#explorerPosterSize"),
     historyPosterSize: document.querySelector("#historyPosterSize"),
     partWatchedPosterSize: document.querySelector("#partWatchedPosterSize"),
@@ -6919,7 +6927,13 @@ function resetHistoryView(key = "") {
   state.historyViewScrollArmed = false;
 }
 
-function renderHistoryPageCard(entry) {
+function historyMediaFilterParam() {
+  if (state.historyViewFilter === "movies") return "movie";
+  if (state.historyViewFilter === "shows") return "episode";
+  return "";
+}
+
+function historyEntryDisplay(entry) {
   const isEpisode = entry.media_type === "episode";
   let displayTitle = entry.title;
   let epTitle = "";
@@ -6957,6 +6971,55 @@ function renderHistoryPageCard(entry) {
   }
 
   const sourceBadge = entry.source ? `<span class="source-badge ${sourceClass(entry.source)}">${escapeHtml(platformBadge(entry.source))}</span>` : "None";
+  const mediaLabel = isEpisode ? "TV Show" : "Movie";
+  const seasonEpisode = isEpisode ? `S${entry.season} - E${entry.episode}` : "";
+
+  return { isEpisode, displayTitle, epTitle, href, sourceBadge, mediaLabel, seasonEpisode };
+}
+
+function renderHistoryGridCard(entry) {
+  const { isEpisode, displayTitle, epTitle, href, mediaLabel } = historyEntryDisplay(entry);
+  return `
+    <a class="history-grid-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
+      ${posterMarkup(entry, "history-grid-poster")}
+      <div class="history-grid-copy">
+        <b title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</b>
+        <span>${escapeHtml(isEpisode ? epTitle : mediaLabel)}</span>
+        <small>${formatDate(entry.watched_at)}</small>
+      </div>
+    </a>
+  `;
+}
+
+function renderHistoryListRow(entry) {
+  const { isEpisode, displayTitle, epTitle, href, sourceBadge, mediaLabel, seasonEpisode } = historyEntryDisplay(entry);
+  return `
+    <a class="history-list-row" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
+      ${posterMarkup(entry, "history-list-poster")}
+      <span class="history-list-title" title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</span>
+      <span class="history-list-col" title="${escapeAttribute(epTitle || mediaLabel)}">${escapeHtml(epTitle || mediaLabel)}</span>
+      <span class="history-list-col">${escapeHtml(seasonEpisode || mediaLabel)}</span>
+      <span class="history-list-col">${formatDate(entry.watched_at)}</span>
+      <span class="history-list-source">${sourceBadge}</span>
+    </a>
+  `;
+}
+
+function renderHistoryListHeader() {
+  return `
+    <div class="history-list-header" aria-hidden="true">
+      <span></span>
+      <span>Title</span>
+      <span>Episode</span>
+      <span>Type</span>
+      <span>Watched</span>
+      <span>App</span>
+    </div>
+  `;
+}
+
+function renderHistoryPageCard(entry) {
+  const { isEpisode, displayTitle, epTitle, href, sourceBadge } = historyEntryDisplay(entry);
 
   return `
     <a class="history-page-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
@@ -6978,9 +7041,21 @@ function renderHistoryPageCard(entry) {
   `;
 }
 
+function renderHistoryItems() {
+  if (!state.historyViewRaw.length) return emptyExplorer("No watch history items found");
+  const sentinel = `<div class="explorer-scroll-sentinel" data-history-sentinel aria-live="polite"><span>${state.historyViewLoading ? "Loading..." : ""}</span></div>`;
+  if (state.historyViewMode === "list") {
+    return `<div class="history-table-view">${renderHistoryListHeader()}${state.historyViewRaw.map(renderHistoryListRow).join("")}</div>${sentinel}`;
+  }
+  if (state.historyViewMode === "cards") {
+    return `<div class="history-list">${state.historyViewRaw.map(renderHistoryPageCard).join("")}</div>${sentinel}`;
+  }
+  return `<div class="history-grid-view">${state.historyViewRaw.map(renderHistoryGridCard).join("")}</div>${sentinel}`;
+}
+
 function renderHistoryView() {
   if (state.mediaDetailInline) return;
-  const key = [state.historyViewSearch].join("|");
+  const key = [state.historyViewSearch, state.historyViewFilter].join("|");
   if (state.historyViewQueryKey !== key) resetHistoryView(key);
 
   if (!state.historyViewRaw.length && state.historyViewHasMore && !state.historyViewLoading && state.token) {
@@ -6997,11 +7072,14 @@ function renderHistoryView() {
   if (elements.historySearchInput && elements.historySearchInput.value !== state.historyViewSearch) {
     elements.historySearchInput.value = state.historyViewSearch;
   }
+  for (const button of elements.historyFilterButtons || []) {
+    button.classList.toggle("active", button.dataset.historyFilter === state.historyViewFilter);
+  }
+  for (const button of elements.historyViewButtons || []) {
+    button.classList.toggle("active", button.dataset.historyView === state.historyViewMode);
+  }
 
-  const historyGrid = state.historyViewRaw.length
-    ? `<div class="history-list">${state.historyViewRaw.map(renderHistoryPageCard).join("")}</div><div class="explorer-scroll-sentinel" data-history-sentinel aria-live="polite"><span>${state.historyViewLoading ? "Loading..." : ""}</span></div>`
-    : emptyExplorer("No watch history items found");
-  elements.historyPanel.innerHTML = historyGrid;
+  elements.historyPanel.innerHTML = renderHistoryItems();
   hydratePosters(elements.historyPanel);
   observeHistorySentinel();
   observeExplorerTmdbPrefetch(elements.historyPanel);
@@ -7022,6 +7100,8 @@ async function loadHistoryView() {
     url.searchParams.set("stats", "0");
     url.searchParams.set("dedupe", "false");
     if (state.historyViewSearch) url.searchParams.set("search", state.historyViewSearch);
+    const mediaType = historyMediaFilterParam();
+    if (mediaType) url.searchParams.set("mediaType", mediaType);
 
     const res = await fetch(url, { headers: authHeaders() });
     const body = await res.json().catch(() => ({}));
@@ -7030,7 +7110,7 @@ async function loadHistoryView() {
     const historyItems = Array.isArray(body.history) ? body.history : [];
     state.historyViewRaw = [...state.historyViewRaw, ...historyItems];
     state.historyViewOffset += historyItems.length;
-    state.historyViewHasMore = historyItems.length === EXPLORER_PAGE_SIZE;
+    state.historyViewHasMore = typeof body.hasMore === "boolean" ? body.hasMore : historyItems.length === EXPLORER_PAGE_SIZE;
   } finally {
     state.historyViewLoading = false;
     renderHistoryView();
@@ -7047,7 +7127,6 @@ function observeHistorySentinel() {
   state.historyViewLoadObserver = new IntersectionObserver(
     (entries) => {
       if (!entries.some((entry) => entry.isIntersecting)) return;
-      if (!state.historyViewScrollArmed) return;
       loadHistoryView().catch((error) => setMessage(error.message, "error"));
     },
     { rootMargin: "1200px 0px 1200px 0px" },
@@ -12938,6 +13017,14 @@ function attachEvents() {
         openHistoryDebugModal(historyRow.dataset.historyId).catch((error) => setMessage(error.message, "error"));
         return;
       }
+      if (event.target.closest("#historyPanel") && event.button === 0 && !event.ctrlKey && !event.metaKey) {
+        const href = historyRow.getAttribute("href");
+        if (href) {
+          event.preventDefault();
+          navigateTo(href);
+          return;
+        }
+      }
       const isTvRow = event.target.closest("#tvHistoryRow");
       if (isTvRow && event.button === 0 && !event.ctrlKey && !event.metaKey) {
         event.preventDefault();
@@ -13521,6 +13608,29 @@ function attachEvents() {
   const unlockHistorySearch = () => elements.historySearchInput?.removeAttribute("readonly");
   elements.historySearchInput?.addEventListener("pointerdown", unlockHistorySearch);
   elements.historySearchInput?.addEventListener("focus", unlockHistorySearch);
+
+  for (const btn of elements.historyFilterButtons || []) {
+    btn.addEventListener("click", () => {
+      const filter = btn.dataset.historyFilter || "all";
+      if (!HISTORY_FILTERS.includes(filter)) return;
+      if (filter === state.historyViewFilter) return;
+      state.historyViewFilter = filter;
+      localStorage.setItem(HISTORY_FILTER_KEY, filter);
+      resetHistoryView([state.historyViewSearch, state.historyViewFilter].join("|"));
+      renderHistoryView();
+    });
+  }
+
+  for (const btn of elements.historyViewButtons || []) {
+    btn.addEventListener("click", () => {
+      const view = btn.dataset.historyView || "grid";
+      if (!HISTORY_VIEW_MODES.includes(view)) return;
+      if (view === state.historyViewMode) return;
+      state.historyViewMode = view;
+      localStorage.setItem(HISTORY_VIEW_KEY, view);
+      renderHistoryView();
+    });
+  }
 
   for (const btn of elements.explorerViewButtons || []) {
     btn.addEventListener("click", () => {

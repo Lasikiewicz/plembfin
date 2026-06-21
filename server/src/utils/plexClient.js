@@ -90,6 +90,10 @@ function extractYear(title) {
   return match ? Number(match[1]) : undefined;
 }
 
+function removeTrailingYear(title) {
+  return String(title || "").replace(/\s*\(\d{4}\)\s*$/, "").trim();
+}
+
 function titleMatches(a, b) {
   const clean = (s) => String(s || "").toLowerCase().replace(/\(\d{4}\)/g, "").trim().replace(/[^a-z0-9]/g, "");
   return clean(a) === clean(b);
@@ -123,42 +127,46 @@ function parseShowTitle(title) {
 
 async function searchPlexFallback(config, media, targetType) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
-  const url = new URL(`${baseUrl}/search`);
 
   const parsed = parseShowTitle(media.title);
-  const queryTitle = (targetType === "show" || targetType === "series") ? parsed.title : media.title;
+  const isShowSearch = targetType === "show" || targetType === "series";
+  const primaryQueryTitle = isShowSearch ? parsed.title : media.title;
+  const retryQueryTitle = isShowSearch ? removeTrailingYear(primaryQueryTitle) : primaryQueryTitle;
+  const queryTitles = [...new Set([primaryQueryTitle, retryQueryTitle].map((title) => String(title || "").trim()).filter(Boolean))];
 
-  url.searchParams.set("query", queryTitle);
-  url.searchParams.set("X-Plex-Token", config.token);
+  for (const queryTitle of queryTitles) {
+    const url = new URL(`${baseUrl}/search`);
+    url.searchParams.set("query", queryTitle);
+    url.searchParams.set("X-Plex-Token", config.token);
 
-  console.log("Plex search fallback started", { query: queryTitle, targetType });
-  const response = await fetch(url, {
-    headers: { Accept: "application/json" },
-  });
+    console.log("Plex search fallback started", { query: queryTitle, targetType });
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+    });
 
-  if (!response.ok) {
-    console.error("Plex search fallback failed", { status: response.status });
-    return undefined;
-  }
+    if (!response.ok) {
+      console.error("Plex search fallback failed", { status: response.status });
+      continue;
+    }
 
-  const body = await response.json();
-  const results = body?.MediaContainer?.Metadata || [];
+    const body = await response.json();
+    const results = body?.MediaContainer?.Metadata || [];
 
-  const matched = results.find((item) => {
-    const itemType = item.type === "series" ? "show" : item.type;
-    const expectedType = targetType === "series" ? "show" : targetType;
-    if (itemType !== expectedType) return false;
+    const matched = results.find((item) => {
+      const itemType = item.type === "series" ? "show" : item.type;
+      const expectedType = targetType === "series" ? "show" : targetType;
+      if (itemType !== expectedType) return false;
 
-    const expectedTitle = (targetType === "show" || targetType === "series") ? parsed.title : media.title;
-    if (!titleMatches(expectedTitle, item.title)) return false;
-    if (!yearMatches(media.title, item.year)) return false;
+      if (!titleMatches(queryTitle, item.title)) return false;
+      if (!yearMatches(media.title, item.year)) return false;
 
-    return true;
-  });
+      return true;
+    });
 
-  if (matched?.ratingKey) {
-    console.log("Plex search fallback matched item", { ratingKey: matched.ratingKey, title: matched.title, year: matched.year });
-    return matched;
+    if (matched?.ratingKey) {
+      console.log("Plex search fallback matched item", { ratingKey: matched.ratingKey, title: matched.title, year: matched.year, query: queryTitle });
+      return matched;
+    }
   }
 
   return undefined;

@@ -76,6 +76,16 @@ function canonicalTitle(value = "") {
   return String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+function titleSearchParts(value = "") {
+  const title = String(value || "").trim();
+  const match = title.match(/\s*\((\d{4})\)\s*$/);
+  if (!match) return { title, year: "" };
+  return {
+    title: title.replace(/\s*\(\d{4}\)\s*$/, "").trim(),
+    year: match[1],
+  };
+}
+
 function mediaTypeFor(value) {
   return String(value).toLowerCase() === "movie" ? "movie" : "tv";
 }
@@ -273,15 +283,22 @@ async function resolveTmdbId(mediaType, tmdbId, title, ids = {}, { ignoreTmdbId 
     if (resolved) return resolved;
   }
 
-  const normalizedTitle = canonicalTitle(title);
+  const searchParts = titleSearchParts(title);
+  const searchTitle = searchParts.title || title;
+  const normalizedTitle = canonicalTitle(searchTitle);
   if (!normalizedTitle) return "";
-  const titleKey = `title_${type}_${hash(normalizedTitle)}`;
+  const titleKey = `title_${type}_${hash(`${normalizedTitle}|${searchParts.year || ""}`)}`;
   const cached = metaGet(titleKey);
   if (cached?.tmdbId) return String(cached.tmdbId);
-  const result = await upstream(`search/${type}`, { query: title, page: 1, include_adult: false });
+  const searchParams = { query: searchTitle, page: 1, include_adult: false };
+  if (searchParts.year) {
+    if (type === "tv") searchParams.first_air_date_year = searchParts.year;
+    else searchParams.primary_release_year = searchParts.year;
+  }
+  const result = await upstream(`search/${type}`, searchParams);
   const resolved = String(result.results?.[0]?.id || "");
   if (resolved) {
-    metaSet(titleKey, { tmdbId: resolved, title, mediaType: type, updatedAtMs: Date.now() });
+    metaSet(titleKey, { tmdbId: resolved, title: searchTitle, mediaType: type, updatedAtMs: Date.now() });
   }
   return resolved;
 }
