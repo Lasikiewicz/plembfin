@@ -19,7 +19,7 @@
     "better-sqlite3": "^11.8.1",
     "busboy": "^1.6.0",
     "cookie-parser": "^1.4.7",
-    "express": "^4.21.2",
+    "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "morgan": "^1.11.0",
     "rotating-file-stream": "^3.2.9",
