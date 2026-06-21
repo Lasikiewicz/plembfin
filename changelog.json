@@ -1,7 +1,27 @@
 {
-  "version": "0.2.1",
-  "updatedAt": "2026-06-21T16:47:26+01:00",
+  "version": "0.2.2",
+  "updatedAt": "2026-06-21T17:29:30+01:00",
   "entries": [
+    {
+      "version": "0.2.2",
+      "date": "2026-06-21T17:29:30+01:00",
+      "commit": "19349815f4239220d990b1f53d1a5b338e6e8331",
+      "message": "security: harden server, enforce default-password change, add docs",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add HTTP security headers: Permissions-Policy, HSTS (when COOKIE_SECURE=true), frame-src YouTube in CSP",
+        "Force redirect to Settings → General with a warning banner when the default admin/admin password is still set; nav is locked until the password is changed",
+        "Startup security summary warns on default or short passwords and logs which secrets are auto-generated vs pinned",
+        "Add /health endpoint returning { ok, ts } for Docker HEALTHCHECK and uptime monitors",
+        "Graceful shutdown on SIGTERM/SIGINT: stops Plex WS listener, drains HTTP, closes SQLite",
+        "Set SQLite file permissions to 0o600 on open",
+        "Docker Compose: add no-new-privileges and CPU/memory resource limits",
+        "Add docker-compose.secure.yml overlay: read-only rootfs, tmpfs /tmp, required env-var enforcement",
+        "Add .github/workflows/security.yml: npm audit, CodeQL, dependency-review on push/PR/daily cron",
+        "Add SECURITY.md with supported versions, threat model, and vulnerability reporting",
+        "Add docs/hardening.md: credentials, HTTPS reverse-proxy (Caddy/NGINX/Traefik/Cloudflare), Docker hardening, webhook setup, backups, secret rotation"
+      ]
+    },
     {
       "version": "0.2.1",
       "date": "2026-06-21T16:47:26+01:00",
