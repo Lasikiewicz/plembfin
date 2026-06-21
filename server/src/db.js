@@ -7,6 +7,7 @@ import { DB_PATH, ensureDataDirs } from "./paths.js";
 ensureDataDirs();
 
 export const db = new Database(DB_PATH);
+try { fs.chmodSync(DB_PATH, 0o600); } catch { /* non-POSIX FS (Windows, some Docker volumes) */ }
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 

@@ -3853,3 +3853,7 @@ export function restartPlexNotificationListener() {
   }
   plexNotificationListener.restart();
 }
+
+export function stopPlexNotificationListener() {
+  plexNotificationListener?.stop();
+}

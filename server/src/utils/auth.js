@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { AUTH, updateAdminCredentials, rotateWebhookSecret, verifyPassword, verifyUsername } from "../appConfig.js";
+import { AUTH, updateAdminCredentials, rotateWebhookSecret, verifyPassword, verifyUsername, isDefaultPassword } from "../appConfig.js";
 import { writeAuditLog } from "../db.js";
 import { readJson } from "./requestBody.js";
 import { sendJson } from "./http.js";
@@ -96,7 +96,11 @@ export async function handleLogout(req, res) {
 export async function handleAuthStatus(req, res) {
   const principal = resolvePrincipal(req);
   if (!principal) return sendJson(res, { authenticated: false });
-  return sendJson(res, { authenticated: true, username: principal.username });
+  return sendJson(res, {
+    authenticated: true,
+    username: principal.username,
+    mustChangePassword: isDefaultPassword(),
+  });
 }
 
 export async function handleAuthApiKey(req, res) {

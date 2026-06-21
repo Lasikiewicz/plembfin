@@ -1,0 +1,34 @@
+# Hardened overlay — requires Docker Compose v2+
+# Usage: docker compose -f docker-compose.yml -f docker-compose.secure.yml up -d
+#
+# This overlay adds:
+#   - read-only root filesystem with /tmp on tmpfs
+#   - no-new-privileges security option (also in base compose)
+#   - tighter resource caps
+#   - required env-var enforcement (ADMIN_PASSWORD, COOKIE_SECURE)
+#
+# Prerequisites:
+#   - Set ADMIN_PASSWORD to a strong value (min 12 chars)
+#   - Set SESSION_SECRET, API_KEY, WEBHOOK_SECRET to 32+ char random strings
+#   - Place the app behind an HTTPS reverse proxy and set COOKIE_SECURE=true
+
+services:
+  plembfinfire:
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - COOKIE_SECURE=true
+      # Required — must be set to a strong password before first boot.
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
+      # Required — pin secrets so they survive container replacement.
+      - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET must be set}
+      - API_KEY=${API_KEY:?API_KEY must be set}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:?WEBHOOK_SECRET must be set}
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "512M"

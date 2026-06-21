@@ -71,7 +71,7 @@ export function onFirebaseAuthChange(callback) {
       if (data.authenticated) {
         setSession(data.username);
         await Promise.all([fetchAndCacheApiKey(), fetchAndCacheWebhookToken()]);
-        callback(cachedUser, cachedToken || "session");
+        callback(cachedUser, cachedToken || "session", data.mustChangePassword === true);
       } else {
         clearSession();
         callback(null, "");
