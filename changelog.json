@@ -1,7 +1,19 @@
 {
-  "version": "0.1.53",
-  "updatedAt": "2026-06-20T16:49:22+01:00",
+  "version": "0.1.54",
+  "updatedAt": "2026-06-21T15:38:57+01:00",
   "entries": [
+    {
+      "version": "0.1.54",
+      "date": "2026-06-21T15:38:57+01:00",
+      "commit": "f9729e8ce46bed24d0bb6a11bcf91adf73f2cedf",
+      "message": "fix: recover show metadata from episode ids",
+      "author": "Lasikiewicz",
+      "details": [
+        "Retry TMDB detail lookups by title or external IDs when a stored ID returns 404",
+        "Prevent episode-level TMDB IDs from being exposed as TV show IDs",
+        "Prefer resolved TMDB IDs for Seerr availability checks"
+      ]
+    },
     {
       "version": "0.1.53",
       "date": "2026-06-20T16:49:22+01:00",
