@@ -3,7 +3,7 @@ import path from "node:path";
 import express from "express";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
-import rfs from "rotating-file-stream";
+import { createStream } from "rotating-file-stream";
 import { rateLimit } from "express-rate-limit";
 import { setGlobalDispatcher, Agent } from "undici";
 import { loadLocalEnv } from "./src/env.js";
@@ -17,7 +17,7 @@ const { db } = await import("./src/db.js");
 ensureDataDirs();
 const LOGS_DIR = path.join(DATA_DIR, "logs");
 fs.mkdirSync(LOGS_DIR, { recursive: true });
-const accessLogStream = rfs.createStream("access.log", {
+const accessLogStream = createStream("access.log", {
   interval: "1d",
   path: LOGS_DIR,
   maxFiles: 14,
