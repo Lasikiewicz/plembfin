@@ -54,6 +54,21 @@ const findExistingStmt = db.prepare("SELECT * FROM watch_history WHERE media_key
 const findWatchedByKeyStmt = db.prepare("SELECT * FROM watch_history WHERE media_key = ? AND sync_action = 'watched' LIMIT 1");
 const getTmdbShowDetailsStmt = db.prepare("SELECT details FROM tmdb_metadata_cache WHERE id = ?");
 
+function cachedTmdbShowDetails(tmdbId) {
+  const id = cleanString(tmdbId);
+  if (!id) return null;
+  const row = getTmdbShowDetailsStmt.get(`tv_${id}`);
+  return row?.details ? parseJson(row.details) : null;
+}
+
+function cachedShowTmdbId(...candidates) {
+  for (const candidate of candidates) {
+    const id = cleanString(candidate);
+    if (id && cachedTmdbShowDetails(id)) return id;
+  }
+  return "";
+}
+
 function cleanString(value) {
   return String(value || "").trim();
 }
@@ -478,18 +493,15 @@ export async function getCachedShows() {
   const shows = groups.map((group) => {
     const showKey = canonicalTitleKey(group.title) || normalizeKeyPart(group.title);
     const cachedProgress = getCachedShowProgress(showKey);
-    const tmdbId = group.tmdb_id || group.representative_episode?.tmdb_id || cachedProgress?.tmdb_id || "";
+    const tmdbId = cachedShowTmdbId(cachedProgress?.tmdb_id, group.tmdb_id, group.representative_episode?.tmdb_id);
     let posterUrl = group.poster_url || group.representative_episode?.poster_url || "";
     let status = "";
     if (tmdbId) {
       try {
-        const row = getTmdbShowDetailsStmt.get(`tv_${tmdbId}`);
-        if (row) {
-          const details = parseJson(row.details);
-          status = details?.status || "";
-          if (!posterUrl && details?.poster_path) {
-            posterUrl = `/api/tmdb-poster?path=${encodeURIComponent(details.poster_path)}`;
-          }
+        const details = cachedTmdbShowDetails(tmdbId);
+        if (details) {
+          status = details.status || "";
+          if (!posterUrl && details.poster_path) posterUrl = `/api/tmdb-poster?path=${encodeURIComponent(details.poster_path)}`;
         }
       } catch (err) {
         console.error(`Failed to get TV show details for tv_${tmdbId}`, err);
@@ -1312,11 +1324,11 @@ export async function listLibraryItemsForRefresh() {
     const title = showTitleFrom(row.title);
     const key = canonicalTitleKey(title) || title.toLowerCase();
     let group = showMap.get(key);
-    if (!group) { group = { mediaType: "tv", tmdbId: row.tmdb_id || "", title, records: [], _repAt: "" }; showMap.set(key, group); }
+    if (!group) { group = { mediaType: "tv", tmdbId: cachedShowTmdbId(row.tmdb_id), title, records: [], _repAt: "" }; showMap.set(key, group); }
     if (row.id) group.records.push({ id: row.id, poster: row.poster_url || "" });
     if ((row.watched_at || "") >= group._repAt) {
       group._repAt = row.watched_at || "";
-      if (row.tmdb_id) group.tmdbId = row.tmdb_id;
+      group.tmdbId = cachedShowTmdbId(group.tmdbId, row.tmdb_id);
       group.title = title;
     }
   }
@@ -1833,6 +1845,7 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
     if (show) {
       const showKey = canonicalTitleKey(show.title) || normalizeKeyPart(show.title);
       const cachedProgress = getCachedShowProgress(showKey);
+      show.tmdb_id = cachedShowTmdbId(cachedProgress?.tmdb_id, show.tmdb_id, show.representative_episode?.tmdb_id) || null;
       show.total_episodes = cachedProgress?.total_episodes || 0;
       return show;
     }
@@ -1843,6 +1856,7 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
   const rows = dedupeHistory(await loadHistoryRowsByType({ mediaType: "episode", limit: MAX_HISTORY_LIMIT }))
     .filter((row) => canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === key);
   const [show] = groupShowRows(rows);
+  if (show) show.tmdb_id = cachedShowTmdbId(show.tmdb_id, show.representative_episode?.tmdb_id) || null;
   return show || null;
 }
 

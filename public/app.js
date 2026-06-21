@@ -9205,7 +9205,7 @@ function renderShowModalContent(show, {
   const rating = tmdbData?.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "";
   const ratingPillsHtml = renderExternalRatingPills("tv", tmdbData, showTitle, rating);
   const uniqueSources = [...new Set((show.episodes || []).map((episode) => episode.source || "unknown"))].filter((source) => source !== "unknown");
-  const tvSeerrTmdbId = show.tmdb_id || tmdbData?.id || "";
+  const tvSeerrTmdbId = tmdbData?.id || show.tmdb_id || "";
   const tvSeerrCacheKey = `tv:${tvSeerrTmdbId}`;
   const hasTvSeerrStatus = Boolean(tvSeerrTmdbId && state.seerrMediaStatusCache.has(tvSeerrCacheKey));
   const tvSeerrStatus = state.seerrMediaStatusCache.get(tvSeerrCacheKey) || {};
@@ -10402,7 +10402,7 @@ async function renderMovieImmersiveModalContent(movie) {
 
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
-            ${renderSeerrRequestPill("movie", movie.tmdb_id || tmdbData?.id, true)}
+            ${renderSeerrRequestPill("movie", tmdbData?.id || movie.tmdb_id, true)}
             ${syncStatusBlockHtml}
           </div>
           <p class="immersive-overview">${escapeHtml(overview)}</p>
@@ -10451,9 +10451,11 @@ async function renderMovieImmersiveModalContent(movie) {
       ` : ""}
     </div>
   `;
-  const movieSeerrTmdbId = movie.tmdb_id || tmdbData?.id;
-  fetchSeerrMediaStatus("movie", movieSeerrTmdbId)
-    .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus("movie", movieSeerrTmdbId); });
+  const movieSeerrTmdbId = tmdbData?.id || movie.tmdb_id;
+  if (movieSeerrTmdbId) {
+    fetchSeerrMediaStatus("movie", movieSeerrTmdbId)
+      .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus("movie", movieSeerrTmdbId); });
+  }
   hydratePosters(root);
 }
 
