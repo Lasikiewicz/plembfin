@@ -1,7 +1,24 @@
 {
-  "version": "0.2.2",
-  "updatedAt": "2026-06-21T17:29:30+01:00",
+  "version": "0.2.3",
+  "updatedAt": "2026-06-21T17:47:20+01:00",
   "entries": [
+    {
+      "version": "0.2.3",
+      "date": "2026-06-21T17:47:20+01:00",
+      "commit": "9cda40989b99c2a22a51c5caf0a90cc51f4fb073",
+      "message": "chore: remove all Firebase references and dead migration scripts",
+      "author": "Lasikiewicz",
+      "details": [
+        "Deleted all scripts that depended on firebase-admin (migrate, rebuildPlaystate, repairReleaseDates, localForceSync, check_plex_history, testSessions)",
+        "Removed firebase-admin from package.json devDependencies; npm audit now reports 0 vulnerabilities",
+        "Renamed onFirebaseAuthChange to onAuthChange and currentFirebaseUser to currentUser in auth module",
+        "Renamed watchRecordToFirestoreData to normalizeWatchRecordForInsert in firestoreRepo.js",
+        "Scrubbed all Firebase/Firestore references from code comments across index.js, scheduled.js, db.js, app.js, tmdbGateway.js, and showProgressCache.js",
+        "Cleaned CLAUDE.md: removed migrate command, removed Firebase migration section, updated architecture descriptions",
+        "Cleaned docs/architecture.md, docs/now-playing.md, docs/scheduled-sync.md, docs/sqlite-schema.md of Firebase references",
+        "Removed Firebase emulator entries from .gitignore and .dockerignore"
+      ]
+    },
     {
       "version": "0.2.2",
       "date": "2026-06-21T17:29:30+01:00",
