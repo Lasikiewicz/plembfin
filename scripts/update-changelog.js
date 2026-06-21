@@ -37,7 +37,21 @@ if (changelog.entries.some((entry) => entry.commit === sourceCommit)) {
 
 const match = String(changelog.version || "0.0.0").match(/^(\d+)\.(\d+)\.(\d+)$/);
 if (!match) throw new Error(`Invalid changelog version: ${changelog.version}`);
-const nextVersion = `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
+const patchBumped = `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
+
+// If package.json was manually set to a higher version (e.g. a major/minor bump),
+// honour that instead of overwriting it with a patch increment.
+const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
+function semverGt(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if (pa[i] > pb[i]) return true;
+    if (pa[i] < pb[i]) return false;
+  }
+  return false;
+}
+const nextVersion = semverGt(packageJson.version, patchBumped) ? packageJson.version : patchBumped;
 
 changelog.version = nextVersion;
 changelog.updatedAt = sourceDate;
@@ -51,7 +65,6 @@ const entry = {
 if (sourceDetails.length > 0) entry.details = sourceDetails;
 changelog.entries.unshift(entry);
 
-const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
 packageJson.version = nextVersion;
 
 const packageLock = JSON.parse(fs.readFileSync(packageLockPath, "utf8"));
