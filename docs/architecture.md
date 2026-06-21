@@ -24,6 +24,7 @@ No framework, no bundler, no TypeScript.
 
 ```
 browser ──/api/whatever──▶ Express (server.js) ──▶ dispatch() (index.js) ──▶ handleX()
+browser ──/health────────▶ Express ──▶ { ok: true, ts: <epoch> }  (no auth required)
 browser ──/──────────────▶ Express ──▶ static public/ (SPA fallback → index.html)
 browser ──/media/──────────▶ Express ──▶ static data/media/ (cached artwork)
 ```
@@ -92,6 +93,16 @@ invalidates them; the next read reloads from SQLite.
   all-time, yearly, and monthly review reports with poster-backed rankings,
   first/last plays, platform breakdowns, and watch activity without re-querying
   for each filter change.
+
+## Security headers
+
+Every response carries: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, and a `Content-Security-Policy` that allows frames only from YouTube. `Strict-Transport-Security` is added when `COOKIE_SECURE=true`. `x-powered-by` is suppressed.
+
+Startup runs `logSecuritySummary()` (in `appConfig.js`) which warns if the admin password is still the default, or if any pinned secret is shorter than the minimum length.
+
+## Graceful shutdown
+
+`server.js` registers `SIGTERM` and `SIGINT` handlers. On signal: the Plex notification WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, then `db.close()` flushes the WAL. A 5-second watchdog forces `exit(1)` if the drain hangs.
 
 ## Environment variables
 

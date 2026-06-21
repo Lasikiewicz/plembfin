@@ -19,6 +19,7 @@ re-deriving the architecture from the source.
 | [watch-history-backups.md](watch-history-backups.md) | Automatic watch-state backups: scheduling, retention, and remote destinations. |
 | [sqlite-schema.md](sqlite-schema.md) | You're reading the database directly and need to know what a table or field means. |
 | [troubleshooting.md](troubleshooting.md) | Symptom-first index: "X is broken → look here." Start here if you don't know which doc you need. |
+| [hardening.md](hardening.md) | Production security checklist: credentials, HTTPS/reverse-proxy setup, Docker hardening overlay, webhook setup, backups, and secret rotation. |
 
 ## The most important mental model
 

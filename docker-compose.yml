@@ -23,4 +23,11 @@ services:
       # - WEBHOOK_SECRET=your-long-random-secret
       # Optional: pin the session signing secret (otherwise auto-generated).
       # - SESSION_SECRET=your-long-random-secret
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "512M"
     restart: unless-stopped

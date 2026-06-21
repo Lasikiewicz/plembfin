@@ -28,6 +28,7 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 *   📊 **Real-Time Dashboard**: A clean, single-page dashboard displaying real-time "Now Playing" activity, weekly viewing charts, and detailed history.
 *   📈 **Stats Reviews**: Year, month, and all-time reports highlight most-played movies and TV shows with poster rankings, first/last plays, platform breakdowns, and watch activity.
 *   🔒 **Self-Hosted & Private**: Built on a local SQLite database running in WAL mode. All poster assets, metadata, and watch histories reside on your own hardware.
+*   🛡️ **Security Hardening**: Ships with strict HTTP security headers (CSP, `X-Frame-Options`, `Permissions-Policy`), scrypt password hashing, rate-limited login, HMAC-signed sessions, and a forced first-login password change when the default credentials are in use. See [`docs/hardening.md`](docs/hardening.md) for the full production checklist.
 *   🖼️ **Art Pipeline & Caching**: Fetches posters, backdrops, and logo art from your media servers, TMDB, and Fanart.tv (in parallel), resizes them with `sharp`, and caches them locally under `data/media` for near-instant rendering.
 *   🧹 **Echo Loop Prevention**: Utilizes a memory-mapped loop detector to suppress echo webhooks triggered by Plembfin's own updates.
 *   ☁️ **Automated Backups**: Backs up your database daily to a local folder and optionally mirrors to Backblaze B2 cloud storage.
@@ -67,6 +68,13 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
    ```
 3. Open `http://localhost:5055` in your browser and log in with your configured credentials.
 
+> [!TIP]
+> For a hardened production setup (read-only filesystem, required secrets, `COOKIE_SECURE`), use the secure overlay:
+> ```bash
+> docker compose -f docker-compose.yml -f docker-compose.secure.yml up -d
+> ```
+> See [`docs/hardening.md`](docs/hardening.md) for the full guide including HTTPS reverse-proxy setup.
+
 ---
 
 ### Method B: Bare Metal (Node.js)
@@ -99,7 +107,7 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 ## 🔧 Full Setup & Integration Guide
 
 ### 1. Sign In & Set Admin Credentials
-On your first login using the default credentials, go to **Settings → General** to update your username and password to secure values.
+On your first login with the default credentials (`admin` / `admin`), Plembfin will automatically redirect you to **Settings → General** and display a security banner until the password is changed.
 
 ### 2. Connect Your Media Apps
 Go to **Settings → Apps** and configure connection settings for the platforms you use:
@@ -205,7 +213,9 @@ The following environment variables can be set in your system or defined in `doc
 | `ADMIN_USERNAME` | `admin` | Default administrator username for fresh setups. |
 | `ADMIN_PASSWORD` | `admin` | Default administrator password for fresh setups. |
 | `API_KEY` | _generated_ | Security token used to authorize incoming webhooks and API calls. |
+| `WEBHOOK_SECRET` | _generated_ | Secret token embedded in the webhook URL (`?token=`). Rotatable independently of the API key. |
 | `SESSION_SECRET` | _generated_ | Signing secret for the dashboard session cookie. |
+| `COOKIE_SECURE` | `false` | Set to `true` when the app is served behind an HTTPS reverse proxy — enables `Secure` cookie flag and `Strict-Transport-Security` header. |
 | `FANART_API_KEY` | _none_ | Optional personal Fanart.tv API key for higher rate limits. A built-in project key is used when this is unset. |
 
 ---

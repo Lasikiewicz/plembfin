@@ -8,7 +8,8 @@ import { loadLocalEnv } from "./src/env.js";
 loadLocalEnv();
 
 const { PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
-const { dispatch, runScheduledTick, startPlexNotificationListener } = await import("./src/index.js");
+const { dispatch, runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener } = await import("./src/index.js");
+const { db } = await import("./src/db.js");
 
 ensureDataDirs();
 
@@ -20,15 +21,22 @@ const app = express();
 app.disable("x-powered-by");
 app.use(cookieParser());
 
+const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
+
 // HTTP security headers.
 app.use((_req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "same-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  if (COOKIE_SECURE) {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
   res.setHeader(
     "Content-Security-Policy",
     "default-src 'self'; img-src 'self' data: blob: https:; " +
-    "script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self';"
+    "script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; " +
+    "frame-src https://www.youtube.com https://www.youtube-nocookie.com;"
   );
   next();
 });
@@ -54,6 +62,14 @@ app.use("/media", express.static(MEDIA_DIR, { maxAge: "365d", immutable: true })
 
 app.get("/changelog.json", (_req, res) => {
   res.sendFile(path.resolve(PUBLIC_DIR, "..", "changelog.json"));
+});
+
+// Health check — must be above the SPA fallback.
+app.all(["/health", "/health/"], (req, res) => {
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    return res.status(405).set("Allow", "GET, HEAD").json({ error: "Method not allowed" });
+  }
+  res.json({ ok: true, ts: Date.now() });
 });
 
 // Static SPA assets, then SPA fallback to index.html for client-side routes.
@@ -106,3 +122,20 @@ server.on("error", (error) => {
   }
   throw error;
 });
+
+function shutdown(signal) {
+  console.log(`${signal} received — shutting down gracefully`);
+  const timer = setTimeout(() => {
+    console.error("Graceful shutdown timed out — forcing exit");
+    process.exit(1);
+  }, 5000);
+  timer.unref();
+  stopPlexNotificationListener();
+  server.close(() => {
+    try { db.close(); } catch { /* ignore */ }
+    process.exit(0);
+  });
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

@@ -104,6 +104,7 @@ const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync"
 const state = {
   token: readStoredAdminToken([TOKEN_KEY, LEGACY_UPPER_TOKEN_KEY, LEGACY_TOKEN_KEY]),
   authReady: false,
+  mustChangePassword: false,
   firebaseUser: undefined,
   activeView: localStorage.getItem(ACTIVE_VIEW_KEY) || "dashboard",
   activeSettingsTab: localStorage.getItem(ACTIVE_SETTINGS_TAB_KEY) || "general",
@@ -3625,9 +3626,9 @@ function adminTokenGuide() {
       <b>Admin Sign-In</b>
       <p><b>What it is:</b> The local username and password for this self-hosted instance.</p>
       <ol>
-        <li>Defaults to <code>admin</code> / <code>admin</code> on first run.</li>
+        <li>Defaults to <code>admin</code> / <code>admin</code> on first run — you will be prompted to change the password immediately on first login.</li>
         <li>Override by setting <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> environment variables (e.g. in <code>docker-compose.yml</code>).</li>
-        <li>Use that username and password to sign in to this dashboard.</li>
+        <li>Use that username and password to sign in to this dashboard. Change credentials here at any time.</li>
         <li>Webhooks use a separate secret token embedded in the webhook URL. Copy it from <b>Settings → API Endpoints</b>. You can rotate it independently without affecting your admin password or API key.</li>
       </ol>
     </div>
@@ -4022,7 +4023,7 @@ const HELP_TOPICS = [
             <p>Plembfin is a self-hosted watch-state bridge. It listens for playback events from Plex, Emby, and Jellyfin via webhooks, records them in a local SQLite database, and propagates the watched or unwatched state to every other connected platform automatically. A background worker runs every minute so sync continues even when the dashboard is closed.</p>
             <p>Follow these steps to get from zero to a fully synchronised setup:</p>
             <ol>
-              <li><b>Sign in</b> — Log in with your admin username and password (defaults to <code>admin</code> / <code>admin</code>; override with <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code>). See <a href="#" data-settings-link="general">Settings → General</a> for login controls.</li>
+              <li><b>Sign in</b> — Log in with your admin credentials (defaults to <code>admin</code> / <code>admin</code>; override with <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code>). If the default password is still set, you will be redirected to <a href="#" data-settings-link="general">Settings → General</a> to change it before proceeding.</li>
               <li><b>Add credentials</b> — Open <b>Settings → Apps</b> and fill in the server URL, token or API key, and user ID for each platform you use. Click <b>Save Configuration</b>.</li>
               <li><b>Configure webhooks</b> — Copy your webhook URL from <b>Settings → General</b> (it includes a secret token) and paste it into each media server. Per-server webhook steps are shown beside each platform in <a href="#" data-settings-link="apps">Settings → Apps</a>.</li>
               <li><b>Verify</b> — Open <b>Settings → Tools → System Integrity Check</b> and run the diagnostic. All probes should return green before you rely on live sync.</li>
@@ -4198,6 +4199,33 @@ function setUnlocked(isUnlocked) {
     elements.statusPill.className = `session-dot ${isUnlocked ? "unlocked" : "locked"}`;
     elements.statusPill.setAttribute("aria-label", isUnlocked ? "Unlocked session" : "Locked session");
     elements.statusPill.title = isUnlocked ? "Unlocked" : "Locked";
+  }
+}
+
+const PW_BANNER_ID = "pw-change-required-banner";
+
+function applyMustChangePassword() {
+  const existing = document.getElementById(PW_BANNER_ID);
+  if (state.mustChangePassword) {
+    if (!existing) {
+      const banner = document.createElement("div");
+      banner.id = PW_BANNER_ID;
+      banner.setAttribute("role", "alert");
+      banner.style.cssText =
+        "background:#b91c1c;color:#fff;padding:10px 16px;font-size:0.9rem;" +
+        "font-weight:600;text-align:center;position:sticky;top:0;z-index:9999;" +
+        "letter-spacing:0.01em;";
+      banner.textContent =
+        "Security notice: You are using the default admin password. " +
+        "Change it below before using the dashboard.";
+      elements.appShell?.prepend(banner);
+    }
+    state.activeView = "settings";
+    state.activeSettingsTab = "general";
+    document.body.classList.add("pw-change-required");
+  } else {
+    existing?.remove();
+    document.body.classList.remove("pw-change-required");
   }
 }
 
@@ -4424,6 +4452,12 @@ function navigateTo(url) {
 }
 
 function selectView(view) {
+  if (state.mustChangePassword && view !== "settings") {
+    state.activeView = "settings";
+    state.activeSettingsTab = "general";
+    applyActiveView();
+    return;
+  }
   const legacyImporterView = view === "importer";
   const requestedView = legacyImporterView ? "settings" : view;
   const legacySettingsTab = legacyImporterView ? "tools" : null;
@@ -4848,6 +4882,14 @@ async function saveAdminCredentials() {
     localStorage.setItem("firebaseAdminEmail", username);
     renderAdminCredentialsStatus("Login updated. Other dashboard sessions have been signed out.", "success");
     setMessage(`Login updated for ${username}.`, "success");
+    // Re-check whether the default-password flag has been cleared.
+    fetch("/api/auth/status", { credentials: "same-origin" })
+      .then(r => r.json()).then(data => {
+        if (state.mustChangePassword && !data.mustChangePassword) {
+          state.mustChangePassword = false;
+          applyMustChangePassword();
+        }
+      }).catch(() => {});
   } catch (error) {
     renderAdminCredentialsStatus(error.message, "error");
     setMessage(error.message, "error");
@@ -13726,8 +13768,9 @@ function initialize() {
   renderDbStatus(false);
   renderSettingsStatus("Configuration not loaded yet.");
 
-  onFirebaseAuthChange((user, token) => {
+  onFirebaseAuthChange((user, token, mustChangePassword) => {
     state.authReady = true;
+    state.mustChangePassword = mustChangePassword === true;
     state.firebaseUser = user || undefined;
     state.token = token || "";
     if (user && token) {
@@ -13756,7 +13799,8 @@ function initialize() {
       elements.settingsUsername.value = user.username || user.email || "";
       localStorage.setItem("firebaseAdminEmail", user.email || "");
       setUnlocked(true);
-      if (isConfigSensitiveRoute(fullPath)) {
+      applyMustChangePassword();
+      if (isConfigSensitiveRoute(fullPath) && !state.mustChangePassword) {
         primeSensitiveRouteState(fullPath);
         applyActiveView();
       } else {

@@ -22,6 +22,20 @@ function hashPassword(plain, salt = crypto.randomBytes(16).toString("hex")) {
   return `scrypt$${salt}$${derived}`;
 }
 
+// Returns true when the stored hash matches the default "admin" password.
+function isDefaultPasswordHash(hash = "") {
+  const [scheme, salt, storedHash] = String(hash).split("$");
+  if (scheme !== "scrypt" || !salt || !storedHash) return false;
+  try {
+    const candidate = crypto.scryptSync("admin", salt, 64).toString("hex");
+    const a = Buffer.from(candidate, "hex");
+    const b = Buffer.from(storedHash, "hex");
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
 // Resolve the auth config from data/config.json, applying env overrides and
 // generating an API key / session secret on first boot. Persists any changes.
 function resolveAuthConfig() {
@@ -57,12 +71,56 @@ function resolveAuthConfig() {
 
 const config = resolveAuthConfig();
 
+// Runs once at startup to warn about insecure configuration.
+function logSecuritySummary() {
+  const warnings = [];
+
+  if (isDefaultPasswordHash(config.passwordHash)) {
+    warnings.push("ADMIN PASSWORD IS DEFAULT ('admin') — change it immediately in Settings → General");
+  } else if (!config.authManagedInApp && process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD.length < 8) {
+    warnings.push("ADMIN_PASSWORD is shorter than 8 characters — use a stronger password");
+  }
+
+  if (config.sessionSecret && config.sessionSecret.length < 32) {
+    warnings.push("SESSION_SECRET is shorter than 32 characters — regenerate it");
+  }
+  if (config.apiKey && config.apiKey.length < 32) {
+    warnings.push("API_KEY is shorter than 32 characters — use a longer key");
+  }
+  if (config.webhookSecret && config.webhookSecret.length < 32) {
+    warnings.push("WEBHOOK_SECRET is shorter than 32 characters — use a longer secret");
+  }
+
+  const pinned = [];
+  const generated = [];
+  if (process.env.API_KEY) pinned.push("API_KEY"); else generated.push("API_KEY");
+  if (process.env.WEBHOOK_SECRET) pinned.push("WEBHOOK_SECRET"); else generated.push("WEBHOOK_SECRET");
+  if (process.env.SESSION_SECRET) pinned.push("SESSION_SECRET"); else generated.push("SESSION_SECRET");
+
+  if (warnings.length > 0) {
+    console.warn("⚠️  Security warnings:");
+    for (const w of warnings) console.warn(`   • ${w}`);
+  }
+  if (generated.length > 0) {
+    console.log(`[security] Auto-generated secrets: ${generated.join(", ")} (persisted in data/config.json)`);
+  }
+  if (pinned.length > 0) {
+    console.log(`[security] Pinned secrets from env: ${pinned.join(", ")}`);
+  }
+}
+
+logSecuritySummary();
+
 export const AUTH = {
   username: config.username,
   apiKey: config.apiKey,
   webhookSecret: config.webhookSecret,
   sessionSecret: config.sessionSecret,
 };
+
+export function isDefaultPassword() {
+  return isDefaultPasswordHash(config.passwordHash);
+}
 
 export function verifyWebhookToken(token) {
   if (!token || !AUTH.webhookSecret) return false;
