@@ -1,7 +1,18 @@
 {
-  "version": "0.2.3",
-  "updatedAt": "2026-06-21T17:47:20+01:00",
+  "version": "0.2.4",
+  "updatedAt": "2026-06-21T17:50:12+01:00",
   "entries": [
+    {
+      "version": "0.2.4",
+      "date": "2026-06-21T17:50:12+01:00",
+      "commit": "6d6fa2ca0d58fcaaa84ac502e524ff1ff7ce4a5c",
+      "message": "chore: bump CI to Node 24 and CodeQL action v4",
+      "author": "Lasikiewicz",
+      "details": [
+        "Update node-version from 20 to 24 in npm-audit job (Node 20 deprecated on GitHub Actions)",
+        "Upgrade github/codeql-action from v3 to v4 (v3 deprecates December 2026)"
+      ]
+    },
     {
       "version": "0.2.3",
       "date": "2026-06-21T17:47:20+01:00",
