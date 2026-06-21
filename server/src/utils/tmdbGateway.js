@@ -17,7 +17,7 @@ const inflight = new Map();
 let nextRequestAt = 0;
 let throttleTail = Promise.resolve();
 
-// --- SQLite-backed cache helpers (replace Firestore tmdb*Cache collections) ---
+// --- SQLite-backed cache helpers ---
 const metaGetStmt = db.prepare("SELECT * FROM tmdb_metadata_cache WHERE id = ?");
 const metaSetStmt = db.prepare(
   `INSERT INTO tmdb_metadata_cache (id, tmdb_id, media_type, title, details, schema_version, updated_at_ms)

@@ -42,8 +42,7 @@ webhooks are fine.
 
 **Reachability:** the poller runs on the same machine as the Plembfin server process.
 It can reach any URL that machine can reach — including `localhost`, LAN IPs, and VPN
-addresses. This is different from the old Firebase cloud-function architecture where
-only internet-reachable URLs would work.
+addresses.
 
 ## Debugging
 

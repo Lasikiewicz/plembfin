@@ -68,15 +68,9 @@ read a long-lived `text/event-stream` response. The server had a streaming branc
 that wrote `data:` frames and kept the connection open with `onSnapshot` listeners
 and a heartbeat.
 
-SSE worked against the **local emulator** (direct connection). In **production** the
-request went `browser → Firebase Hosting proxy → Cloud Function`, and **Hosting
-buffered the response** — the `data:` frames never arrived; the reader sat receiving
-nothing forever.
-
 **Fix (current design):** SSE dropped entirely for Now Playing. `handleNowPlaying`
 returns a plain JSON array, and the dashboard polls it every 10s via
-`loadActiveSessions()`. Short polls are also cheaper — SSE pinned a function instance
-open for the whole time the dashboard was open.
+`loadActiveSessions()`.
 
 > Don't reintroduce an SSE consumer for Now Playing. The streaming server branch and
 > its heartbeat machinery were deleted. Polling is the right design for this use case.

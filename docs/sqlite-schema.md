@@ -25,8 +25,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 
 ## `live_tracking_cache`
 
-Written by `upsertLiveTrackingCache` in `server/src/utils/firestoreRepo.js`
-(retained name from Firebase era):
+Written by `upsertLiveTrackingCache` in `server/src/utils/firestoreRepo.js` (the db module):
 
 ```
 session_id     TEXT PRIMARY KEY  -- e.g. "plex:<id>:<season>:<episode>"

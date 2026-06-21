@@ -89,9 +89,6 @@ npm start
 # Run with auto-reload during development
 npm run dev
 
-# One-time import of data from the old Firebase project into local SQLite
-npm run migrate
-
 # Build & run as a container
 docker compose up --build
 ```
@@ -108,15 +105,14 @@ a generated API key, and a session secret.
 This is a **self-hosted, single-process app** in the style of Sonarr/Radarr/Jellyseerr.
 One long-running Node process serves the web UI, the `/api/*` surface, and an in-process
 per-minute scheduler. All state lives in a local **SQLite** database and a local **media
-folder** under `data/`. (It was previously a Firebase app — Hosting + Cloud Functions +
-Firestore + Storage + Auth — which was fully migrated to local infrastructure.)
+folder** under `data/`.
 
 ### Process layout
 
 **Entrypoint** (`server/server.js`) — an Express app that:
 - static-serves `public/` (the SPA) and `data/media` (cached artwork at `/media/...`)
 - mounts the API router at `/api/*` (raw body captured so webhook/JSON handlers parse it themselves)
-- runs `setInterval(runScheduledTick, 60000)` in place of the old `scheduledSync` Cloud Function
+- runs `setInterval(runScheduledTick, 60000)` for the per-minute scheduler
 - falls back to `index.html` for client-side routes
 
 **API** (`server/src/index.js`) — a manual `dispatch()` router that strips the `/api/`
@@ -130,19 +126,16 @@ plus `public/modules/`). No framework, bundler, or TypeScript.
 
 `better-sqlite3` opens `data/plembfin.db` (WAL mode) and applies `schema.sql` on boot. The
 repo modules (`firestoreRepo.js`, `configStore.js`, `posterCache.js`, `activeSessions.js`,
-`loopStore.js`, `tmdbGateway.js`) use prepared SQL statements. Firestore document semantics
-were translated as: `.doc(id).set(x,{merge})` → `INSERT ... ON CONFLICT DO UPDATE`,
-`.batch()` → `db.transaction()`, `serverTimestamp()` → `Date.now()`, `.count()` →
-`SELECT COUNT(*)`.
+`loopStore.js`, `tmdbGateway.js`) use prepared SQL statements.
 
-Because the process is long-lived, the old Firestore-backed derived caches were replaced by
-**in-process memoization** keyed by an in-memory `dataVersion` integer (`getDataVersion()` /
-`bumpDataVersion()` in `db.js`). `invalidateHistoryDerivedCaches()` just bumps the version;
-the in-memory `historyCache`/`movieCache`/`showCache`/`statsCache` reload on the next read.
+Derived caches use **in-process memoization** keyed by an in-memory `dataVersion` integer
+(`getDataVersion()` / `bumpDataVersion()` in `db.js`). `invalidateHistoryDerivedCaches()`
+just bumps the version; the in-memory `historyCache`/`movieCache`/`showCache`/`statsCache`
+reload on the next read.
 
 ### Auth (`server/src/utils/auth.js` + `server/src/appConfig.js`)
 
-Local username/password login (no Firebase). `appConfig.js` resolves credentials from env or
+Local username/password login. `appConfig.js` resolves credentials from env or
 `data/config.json` (hashing the password with scrypt) and generates an API key + session
 secret on first run. `requireAdmin(req,res)` accepts either a signed HttpOnly session cookie
 (`plembfin_session`, HMAC over the session secret) **or** the API key (via `X-Api-Key`,
@@ -172,7 +165,7 @@ and stores progress in `runtime_state` for polling.
 
 **Important**: `isCachedStorageImageUrl()` in `app.js` returns `true` only for `/media/posters/` and `/media/backdrops/` URLs. TMDB `image.tmdb.org` URLs are **not** treated as cached.
 
-### SQLite tables (one per former Firestore collection)
+### SQLite tables
 
 - `watch_history` — canonical watch records
 - `playstate` — per-item watched/unwatched state for sync targets
@@ -186,17 +179,14 @@ and stores progress in `runtime_state` for polling.
 - `poster_cache` — cached artwork metadata (binaries live in `data/media`)
 - `tmdb_metadata_cache` / `tmdb_search_cache` / `tmdb_season_cache` / `tmdb_person_cache` — TMDB caches
 
-The Firestore `derivedCache` / `derivedShowSummaries` collections were dropped (now in-process memo).
-
 ### Frontend state and routing
 
 `app.js` uses a single `state` object (no framework). Navigation is SPA-style via
 `navigateTo(url)` / `handleRouting()` / `history.pushState`. Routes: `/` → dashboard,
 `/movie/:id`, `/tvshow/:key`, `/person/:id`, `/help/:topic`.
 
-Auth is managed by `onFirebaseAuthChange()` (`modules/auth.js`) — which now checks
-`/api/auth/status` rather than Firebase. The auth panel becomes visible when no session is
-active; the app shell shows on successful login.
+Auth is managed by `onAuthChange()` (`modules/auth.js`) — which checks `/api/auth/status`.
+The auth panel becomes visible when no session is active; the app shell shows on successful login.
 
 The explorer grid uses IntersectionObserver (1200px rootMargin) to pre-fetch the next page;
 page size 240. A second observer (`observeExplorerTmdbPrefetch`) pre-fetches TMDB details.
@@ -209,10 +199,3 @@ page size 240. A second observer (`observeExplorerTmdbPrefetch`) pre-fetches TMD
 - `API_KEY` — pin the webhook/integration key (otherwise generated into `data/config.json`)
 - `SESSION_SECRET` — pin the session signing secret (otherwise generated)
 
-### Migrating from the old Firebase project
-
-`scripts/migrate-firestore-to-sqlite.js` (run via `npm run migrate`) reads every Firestore
-collection with `firebase-admin` and a service-account key, inserts into the matching SQLite
-table, and downloads cached poster/backdrop binaries from Firebase Storage into `data/media`.
-It is idempotent. Requires `GOOGLE_APPLICATION_CREDENTIALS` (defaults to
-`./service-account-key.json`) and `FIREBASE_STORAGE_BUCKET`.

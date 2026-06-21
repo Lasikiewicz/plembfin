@@ -22,10 +22,8 @@ try {
 } catch { /* column already exists */ }
 
 // ---------------------------------------------------------------------------
-// In-process derived-cache version. In the old Firebase deployment, ephemeral
-// Cloud Run instances tracked a "version" marker doc in Firestore to invalidate
-// caches across instances. A single long-lived process can just keep an integer
-// in memory and bump it on every write that changes history-derived results.
+// In-process derived-cache version. A monotone integer invalidates in-memory
+// caches; bump it on every write that changes history-derived results.
 // ---------------------------------------------------------------------------
 let dataVersion = 1;
 export function getDataVersion() {
@@ -56,7 +54,7 @@ export function now() {
   return Date.now();
 }
 
-// Run a function inside a single transaction (replaces Firestore batch()).
+// Run a function inside a single transaction.
 export function transaction(fn) {
   return db.transaction(fn)();
 }

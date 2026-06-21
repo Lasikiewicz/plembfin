@@ -9,8 +9,6 @@ scripts
 !scripts/docker-entrypoint.sh
 docs
 scratch
-emulator-data
-firebase-export-*
 *.log
 *.md
 service-account-key.json
