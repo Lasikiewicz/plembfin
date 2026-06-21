@@ -1,7 +1,21 @@
 {
-  "version": "0.2.6",
-  "updatedAt": "2026-06-21T18:38:40+01:00",
+  "version": "0.2.7",
+  "updatedAt": "2026-06-21T19:00:45+01:00",
   "entries": [
+    {
+      "version": "0.2.7",
+      "date": "2026-06-21T19:00:45+01:00",
+      "commit": "5582ea853d0c6f6e9281230d75a92be71257c758",
+      "message": "docs: update README intro and add screenshots; fix search dropdown in light mode",
+      "author": "Lasikiewicz",
+      "details": [
+        "Reworded README intro to lead with personal watch history tracker and playstate sync",
+        "Removed \"styled like Sonarr/Radarr/Jellyseerr\" phrasing",
+        "Added mentions of easy configuration and light/dark theme options",
+        "Added Screenshots section to README with all 8 app screenshots",
+        "Fixed global search dropdown using hardcoded dark hex colours — replaced with CSS variables so it renders correctly in light mode"
+      ]
+    },
     {
       "version": "0.2.6",
       "date": "2026-06-21T18:38:40+01:00",
