@@ -84,7 +84,9 @@ invalidates them; the next read reloads from SQLite.
 - The explorer and history grids use `IntersectionObserver` (1200px rootMargin,
   240-item pages) to pre-fetch the next page. The history endpoint returns an
   explicit `hasMore` flag so the dedicated History page can continue lazy-loading
-  through the full SQLite watch log. A second observer
+  through the full SQLite watch log; raw History pages collapse duplicate rows to
+  one entry per movie or show episode per calendar day so same-day webhook echoes
+  do not crowd out genuine later rewatches. A second observer
   (`observeExplorerTmdbPrefetch`) pre-fetches TMDB details for visible cards.
 - The stats view consumes the derived `/api/history?stats=only` payload to render
   all-time, yearly, and monthly review reports with poster-backed rankings,
