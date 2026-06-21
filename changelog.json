@@ -1,7 +1,19 @@
 {
-  "version": "0.1.55",
-  "updatedAt": "2026-06-21T16:08:25+01:00",
+  "version": "0.1.56",
+  "updatedAt": "2026-06-21T16:13:57+01:00",
   "entries": [
+    {
+      "version": "0.1.56",
+      "date": "2026-06-21T16:13:57+01:00",
+      "commit": "adecdf14a59add822615b9d80264da5cfd140486",
+      "message": "fix: collapse duplicate daily history rows",
+      "author": "Lasikiewicz",
+      "details": [
+        "Show one History entry per movie or TV episode per calendar day",
+        "Preserve later-day rewatches as separate History entries",
+        "Document the History page daily collapse behavior"
+      ]
+    },
     {
       "version": "0.1.55",
       "date": "2026-06-21T16:08:25+01:00",
