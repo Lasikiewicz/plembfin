@@ -1,7 +1,19 @@
 {
-  "version": "0.2.0",
-  "updatedAt": "2026-06-21T16:42:18+01:00",
+  "version": "0.2.1",
+  "updatedAt": "2026-06-21T16:47:26+01:00",
   "entries": [
+    {
+      "version": "0.2.1",
+      "date": "2026-06-21T16:47:26+01:00",
+      "commit": "d412f4629e2bd20b65585695aa912f600f778178",
+      "message": "fix: honour manual version bumps and auto-rebase before push",
+      "author": "Lasikiewicz",
+      "details": [
+        "update-changelog.js now respects package.json version when it is higher than the next patch increment (fixes major/minor bumps being overwritten by CI)",
+        "pre-push hook now runs git pull --rebase origin main before the build check so pushes never require a manual rebase",
+        "Reset version to 0.2.0 (CI had overwritten it to 0.1.57)"
+      ]
+    },
     {
       "version": "0.2.0",
       "date": "2026-06-21T16:42:18+01:00",
