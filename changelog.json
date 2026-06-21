@@ -1,7 +1,21 @@
 {
-  "version": "0.1.54",
-  "updatedAt": "2026-06-21T15:38:57+01:00",
+  "version": "0.1.55",
+  "updatedAt": "2026-06-21T16:08:25+01:00",
   "entries": [
+    {
+      "version": "0.1.55",
+      "date": "2026-06-21T16:08:25+01:00",
+      "commit": "c996755149e08d37372c027b0e229143e983fbda",
+      "message": "feat: refine history browsing and TV matching",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add movie and TV filters to the History page",
+        "Add grid, list, and card view options for watch history",
+        "Keep History lazy-loading through the full watch log",
+        "Normalize year-suffixed TV show titles for matching and artwork lookup",
+        "Ignore local .random scratch files"
+      ]
+    },
     {
       "version": "0.1.54",
       "date": "2026-06-21T15:38:57+01:00",
