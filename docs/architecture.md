@@ -81,9 +81,11 @@ invalidates them; the next read reloads from SQLite.
 - After every successful auth operation, `fetchAndCacheApiKey()` is called to
   populate `cachedToken` in `auth.js`; this token goes into `X-Api-Key` headers
   for all subsequent API calls.
-- The explorer grid uses `IntersectionObserver` (1200px rootMargin, 240-item pages)
-  to pre-fetch the next page, plus a second observer
-  (`observeExplorerTmdbPrefetch`) to pre-fetch TMDB details for visible cards.
+- The explorer and history grids use `IntersectionObserver` (1200px rootMargin,
+  240-item pages) to pre-fetch the next page. The history endpoint returns an
+  explicit `hasMore` flag so the dedicated History page can continue lazy-loading
+  through the full SQLite watch log. A second observer
+  (`observeExplorerTmdbPrefetch`) pre-fetches TMDB details for visible cards.
 - The stats view consumes the derived `/api/history?stats=only` payload to render
   all-time, yearly, and monthly review reports with poster-backed rankings,
   first/last plays, platform breakdowns, and watch activity without re-querying

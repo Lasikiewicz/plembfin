@@ -151,19 +151,24 @@ function preferredShowTitle(current, candidate) {
   const next = cleanString(candidate);
   if (!existing) return next || "Unknown Show";
   if (!next) return existing;
+  if (/\(\d{4}\)\s*$/.test(existing) && !/\(\d{4}\)\s*$/.test(next)) return next;
   const existingIsAllCaps = existing === existing.toUpperCase() && /[A-Z]/.test(existing);
   const nextIsAllCaps = next === next.toUpperCase() && /[A-Z]/.test(next);
   if (existingIsAllCaps && !nextIsAllCaps) return next;
   return existing;
 }
 
+function removeTrailingYear(title) {
+  return cleanString(title).replace(/\s*\(\d{4}\)\s*$/, "").trim();
+}
+
 function showTitleFrom(title = "") {
   const text = cleanString(decodeBasicHtmlEntities(title)) || "Unknown Show";
   const seasonMatch = text.match(/^(.*?)(?:\s+-\s+S\d{1,2}E\d{1,2})(?:\s+-\s+.*)?$/i);
-  if (seasonMatch?.[1]) return seasonMatch[1].trim() || "Unknown Show";
+  if (seasonMatch?.[1]) return removeTrailingYear(seasonMatch[1]) || "Unknown Show";
   const alternateMatch = text.match(/^(.*?)(?:\s+-\s+Season\s+\d+.*)$/i);
-  if (alternateMatch?.[1]) return alternateMatch[1].trim() || "Unknown Show";
-  return text.split(" - ")[0].trim() || "Unknown Show";
+  if (alternateMatch?.[1]) return removeTrailingYear(alternateMatch[1]) || "Unknown Show";
+  return removeTrailingYear(text.split(" - ")[0]) || "Unknown Show";
 }
 
 export function mediaKeyFor(record = {}) {
@@ -186,7 +191,7 @@ function normalizeImportedTitle(record = {}, mediaType = "") {
   const episode = record.episode || {};
 
   if (mediaType === "episode") {
-    const showTitle = record.show_title || show.title || (typeof record.show === "string" ? record.show : "");
+    const showTitle = showTitleFrom(record.show_title || show.title || (typeof record.show === "string" ? record.show : ""));
     const season = record.season || episode.season || "";
     const episodeNumber = record.episode_number || episode.number || "";
     if (showTitle && (season || episodeNumber)) {
@@ -272,7 +277,7 @@ function validateWatchRecord(record) {
 
 // Build the column params for a watch_history row (excludes id/created_at).
 function watchRowParams(record) {
-  const showTitle = record.media_type === "episode" ? showTitleFrom(record.title) : null;
+  const showTitle = record.media_type === "episode" ? showTitleFrom(record.show_title || record.title) : null;
   return {
     title: record.title,
     title_lower: record.title.toLowerCase(),
@@ -492,7 +497,8 @@ export async function getCachedShows() {
   const groups = groupShowRows(dedupeHistory(episodeRows));
   const shows = groups.map((group) => {
     const showKey = canonicalTitleKey(group.title) || normalizeKeyPart(group.title);
-    const cachedProgress = getCachedShowProgress(showKey);
+    const rawShowKey = canonicalTitleKey(group.raw_title) || normalizeKeyPart(group.raw_title);
+    const cachedProgress = getCachedShowProgress(showKey) || (rawShowKey !== showKey ? getCachedShowProgress(rawShowKey) : null);
     const tmdbId = cachedShowTmdbId(cachedProgress?.tmdb_id, group.tmdb_id, group.representative_episode?.tmdb_id);
     let posterUrl = group.poster_url || group.representative_episode?.poster_url || "";
     let status = "";
@@ -1108,11 +1114,43 @@ export async function listRecentTrackedWatchRows({ limit = 100, scanLimit = 400 
   return dedupeHistory(rows).slice(0, safeLimit);
 }
 
-export async function queryWatchHistory(_unusedDb, { search = "", limit = 50, offset = 0, dedupe = true } = {}) {
+export async function queryWatchHistory(_unusedDb, { search = "", mediaType = "", limit = 50, offset = 0, dedupe = true } = {}) {
   const safeLimit = Math.min(Number(limit) || 50, MAX_HISTORY_LIMIT);
   const safeOffset = Math.max(Number(offset) || 0, 0);
+  const normalizedMediaType = ["movie", "episode"].includes(String(mediaType || "").toLowerCase()) ? String(mediaType).toLowerCase() : "";
+
+  if (!dedupe) {
+    const where = [
+      "(sync_action IS NULL OR LOWER(sync_action) NOT IN ('unwatched', 'unplayed'))",
+      "(sync_dispatch_telemetry IS NULL OR (sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Plex library history%' AND sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Emby library history%' AND sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Jellyfin library history%'))",
+    ];
+    const params = {};
+
+    if (normalizedMediaType) {
+      where.push("media_type = @mediaType");
+      params.mediaType = normalizedMediaType;
+    }
+
+    const searchText = cleanString(search).toLowerCase();
+    if (searchText) {
+      where.push("(LOWER(COALESCE(title, '') || ' ' || COALESCE(source, '') || ' ' || COALESCE(imdb_id, '') || ' ' || COALESCE(tmdb_id, '') || ' ' || COALESCE(tvdb_id, '') || ' ' || COALESCE(sync_dispatch_telemetry, '')) LIKE @search)");
+      params.search = `%${searchText}%`;
+    }
+
+    return db.prepare(`
+      SELECT * FROM watch_history
+      WHERE ${where.join(" AND ")}
+      ORDER BY watched_at DESC
+      LIMIT @limit OFFSET @offset
+    `).all({ ...params, limit: safeLimit, offset: safeOffset }).map(rowToWatch);
+  }
+
   const rows = await loadHistoryRows({ limit: MAX_HISTORY_LIMIT, offset: 0 });
-  const filtered = rows.filter((row) => isPlembfinTrackedWatchRow(row) && matchesSearch(row, cleanString(search)));
+  const filtered = rows.filter((row) => {
+    if (!isPlembfinTrackedWatchRow(row)) return false;
+    if (normalizedMediaType && row.media_type !== normalizedMediaType) return false;
+    return matchesSearch(row, cleanString(search));
+  });
   const processed = dedupe ? dedupeHistory(filtered) : filtered;
   return processed.slice(safeOffset, safeOffset + safeLimit);
 }
@@ -1711,10 +1749,12 @@ function dedupeMovies(rows = []) {
 function groupShowRows(rows = []) {
   const groups = new Map();
   rows.forEach((row) => {
+    const rawTitle = cleanString(row.show_title || showTitleFrom(row.title));
     const title = showTitleFrom(row.show_title || row.title);
     const key = canonicalTitleKey(title) || normalizeKeyPart(title);
     const group = groups.get(key) || {
       title,
+      raw_title: rawTitle,
       episode_count: 0,
       season_count: 0,
       latest_watched_at: row.watched_at,
@@ -1844,7 +1884,8 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
     const [show] = groupShowRows(rows);
     if (show) {
       const showKey = canonicalTitleKey(show.title) || normalizeKeyPart(show.title);
-      const cachedProgress = getCachedShowProgress(showKey);
+      const rawShowKey = canonicalTitleKey(show.raw_title) || normalizeKeyPart(show.raw_title);
+      const cachedProgress = getCachedShowProgress(showKey) || (rawShowKey !== showKey ? getCachedShowProgress(rawShowKey) : null);
       show.tmdb_id = cachedShowTmdbId(cachedProgress?.tmdb_id, show.tmdb_id, show.representative_episode?.tmdb_id) || null;
       show.total_episodes = cachedProgress?.total_episodes || 0;
       return show;

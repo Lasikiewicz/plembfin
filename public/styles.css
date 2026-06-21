@@ -8026,6 +8026,178 @@ details[open] > .tool-section-summary::before {
   width: auto;
 }
 
+.history-filter-toggle .explorer-view-btn {
+  width: auto;
+  padding: 0 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* Watch History Page Grid Layout */
+.history-grid-view {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--history-poster-width, 86px), 1fr));
+  gap: 0.85rem;
+  width: 100%;
+}
+
+.history-grid-card {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.history-grid-card:hover .history-grid-poster {
+  border-color: var(--yellow);
+  transform: translateY(-2px);
+}
+
+.history-grid-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  display: block;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #090d11;
+  transition: transform 140ms ease, border-color 140ms ease;
+}
+
+.history-grid-poster.poster-fallback {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 3;
+}
+
+.history-grid-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.history-grid-copy b,
+.history-grid-copy span,
+.history-grid-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-grid-copy b {
+  font-size: 0.86rem;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.history-grid-copy span,
+.history-grid-copy small {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* Watch History Page Dense List Layout */
+.history-table-view {
+  --history-list-cols: calc(var(--history-poster-width, 86px) * 0.42) minmax(12rem, 1.4fr) minmax(10rem, 1fr) 7rem 10rem 8rem;
+  display: grid;
+  grid-template-columns: 1fr;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.history-list-header,
+.history-list-row {
+  display: grid;
+  grid-template-columns: var(--history-list-cols);
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.history-list-header {
+  padding: 0.45rem 1rem;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.history-list-header span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.history-list-row {
+  min-width: 0;
+  padding: 0.45rem 1rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  text-decoration: none;
+  transition: background 120ms ease;
+}
+
+.history-list-row:last-child {
+  border-bottom: 0;
+}
+
+.history-list-row:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+.history-list-poster {
+  width: calc(var(--history-poster-width, 86px) * 0.42);
+  height: calc(var(--history-poster-width, 86px) * 0.42 * 1.5);
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: #090d11;
+  display: block;
+}
+
+.history-list-poster.poster-fallback {
+  width: calc(var(--history-poster-width, 86px) * 0.42);
+  height: calc(var(--history-poster-width, 86px) * 0.42 * 1.5);
+}
+
+.history-list-title,
+.history-list-col {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-list-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.history-list-col {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.history-list-source {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .history-table-view {
+    --history-list-cols: calc(var(--history-poster-width, 86px) * 0.42) minmax(0, 1fr) minmax(8rem, 0.8fr) 9rem;
+  }
+  .history-list-header > *:nth-child(4),
+  .history-list-row > *:nth-child(4),
+  .history-list-header > *:nth-child(6),
+  .history-list-row > *:nth-child(6) {
+    display: none;
+  }
+}
+
 /* Watch History Page List Layout */
 .history-list {
   display: grid;
@@ -8218,6 +8390,13 @@ details[open] > .tool-section-summary::before {
 }
 
 @media (max-width: 600px) {
+  .history-table-view {
+    --history-list-cols: 2.4rem minmax(0, 1fr) 6.5rem;
+  }
+  .history-list-header > *:nth-child(n+4),
+  .history-list-row > *:nth-child(n+4) {
+    display: none;
+  }
   .history-page-card {
     flex-direction: column;
     align-items: flex-start;
