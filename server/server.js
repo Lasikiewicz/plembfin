@@ -64,7 +64,7 @@ app.use("/api/tmdb-profile", rateLimit({ windowMs: 60 * 1000, max: 300, standard
 // Capture the raw request body for /api so webhook/JSON handlers can parse it
 // themselves (multipart via busboy, JSON via readJson). express.raw sets
 // req.body to a Buffer, which the requestBody helpers already understand.
-app.all("/api/*", express.raw({ type: "*/*", limit: "15mb" }), (req, res) => {
+app.all("/api/*path", express.raw({ type: "*/*", limit: "15mb" }), (req, res) => {
   Promise.resolve(dispatch(req, res)).catch((error) => {
     console.error("Unhandled API error", error);
     if (!res.headersSent) res.status(500).json({ error: "Internal error" });
@@ -88,7 +88,7 @@ app.all(["/health", "/health/"], (req, res) => {
 
 // Static SPA assets, then SPA fallback to index.html for client-side routes.
 app.use(express.static(PUBLIC_DIR, { extensions: ["html"] }));
-app.get("*", (req, res) => {
+app.get("/*name", (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, "index.html"));
 });
 
