@@ -1120,6 +1120,15 @@ export async function queryWatchHistory(_unusedDb, { search = "", mediaType = ""
   const normalizedMediaType = ["movie", "episode"].includes(String(mediaType || "").toLowerCase()) ? String(mediaType).toLowerCase() : "";
 
   if (!dedupe) {
+    const titleKeySql = (column) => `
+      CASE
+        WHEN COALESCE(${column}, '') GLOB '* ([0-9][0-9][0-9][0-9])'
+          THEN LOWER(TRIM(SUBSTR(COALESCE(${column}, ''), 1, LENGTH(COALESCE(${column}, '')) - 7)))
+        ELSE LOWER(TRIM(COALESCE(${column}, '')))
+      END
+    `;
+    const showTitleKey = titleKeySql("COALESCE(show_title_lower, show_title)");
+    const titleKey = titleKeySql("COALESCE(title_lower, title)");
     const where = [
       "(sync_action IS NULL OR LOWER(sync_action) NOT IN ('unwatched', 'unplayed'))",
       "(sync_dispatch_telemetry IS NULL OR (sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Plex library history%' AND sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Emby library history%' AND sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Jellyfin library history%'))",
@@ -1138,8 +1147,35 @@ export async function queryWatchHistory(_unusedDb, { search = "", mediaType = ""
     }
 
     return db.prepare(`
-      SELECT * FROM watch_history
-      WHERE ${where.join(" AND ")}
+      WITH ranked_history AS (
+        SELECT
+          watch_history.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY
+              SUBSTR(COALESCE(watched_at, ''), 1, 10),
+              CASE
+                WHEN media_type = 'episode' THEN
+                  'episode|show:' || COALESCE(NULLIF(${showTitleKey}, ''), NULLIF(${titleKey}, ''), 'unknown')
+                    || '|s:' || COALESCE(CAST(season AS TEXT), 'unknown')
+                    || '|e:' || COALESCE(CAST(episode AS TEXT), 'unknown')
+                WHEN media_type = 'movie' THEN
+                  'movie|' || COALESCE(
+                    NULLIF('imdb:' || COALESCE(imdb_id, ''), 'imdb:'),
+                    NULLIF('tmdb:' || COALESCE(tmdb_id, ''), 'tmdb:'),
+                    NULLIF('tvdb:' || COALESCE(tvdb_id, ''), 'tvdb:'),
+                    NULLIF('title:' || ${titleKey}, 'title:'),
+                    'unknown'
+                  )
+                ELSE
+                  COALESCE(media_type, 'unknown') || '|' || COALESCE(NULLIF(${titleKey}, ''), 'unknown')
+              END
+            ORDER BY watched_at DESC, updated_at DESC
+          ) AS daily_rank
+        FROM watch_history
+        WHERE ${where.join(" AND ")}
+      )
+      SELECT * FROM ranked_history
+      WHERE daily_rank = 1
       ORDER BY watched_at DESC
       LIMIT @limit OFFSET @offset
     `).all({ ...params, limit: safeLimit, offset: safeOffset }).map(rowToWatch);
