@@ -1,9 +1,9 @@
 {
-  "version": "0.1.57",
+  "version": "0.2.0",
   "updatedAt": "2026-06-21T16:42:18+01:00",
   "entries": [
     {
-      "version": "0.1.57",
+      "version": "0.2.0",
       "date": "2026-06-21T16:42:18+01:00",
       "commit": "3470f9d1a84b18c176ded93ad92e91173a65e86c",
       "message": "chore: bump version to 0.2.0 (rollback checkpoint)",
