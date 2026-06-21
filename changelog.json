@@ -1,7 +1,23 @@
 {
-  "version": "0.2.5",
-  "updatedAt": "2026-06-21T18:27:33+01:00",
+  "version": "0.2.6",
+  "updatedAt": "2026-06-21T18:38:40+01:00",
   "entries": [
+    {
+      "version": "0.2.6",
+      "date": "2026-06-21T18:38:40+01:00",
+      "commit": "e99d26293d9efc36caddaa13fde5308c495404e3",
+      "message": "chore: upgrade dependencies and fix Express 5 wildcard route syntax",
+      "author": "Lasikiewicz",
+      "details": [
+        "Upgrade express 4 → 5.2.1 (requires named wildcards in route patterns)",
+        "Fix app.all('/api/*') and app.get('*') to use named params for Express 5 compat",
+        "Upgrade better-sqlite3 11 → 12.11.1 (drops Node 18, safe on Node 20+)",
+        "Upgrade sharp 0.34 → 0.35.2",
+        "Upgrade actions/checkout v4/v6 → v7 across all workflows (v6 did not exist)",
+        "Upgrade actions/setup-node v4 → v6",
+        "Upgrade docker/setup-buildx-action v3 → v4"
+      ]
+    },
     {
       "version": "0.2.5",
       "date": "2026-06-21T18:27:33+01:00",
