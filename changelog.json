@@ -1,7 +1,19 @@
 {
-  "version": "0.2.7",
-  "updatedAt": "2026-06-21T19:00:45+01:00",
+  "version": "0.2.8",
+  "updatedAt": "2026-06-21T19:05:46+01:00",
   "entries": [
+    {
+      "version": "0.2.8",
+      "date": "2026-06-21T19:05:46+01:00",
+      "commit": "7346fe33c88b06b7021b5d5918a2eeb3fd8ce388",
+      "message": "docs: add Now Playing screenshot and reorder README screenshots",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added Now Playing dashboard screenshot as the first image",
+        "Moved Part Watched to second position",
+        "Removed em dashes from all screenshot captions"
+      ]
+    },
     {
       "version": "0.2.7",
       "date": "2026-06-21T19:00:45+01:00",
