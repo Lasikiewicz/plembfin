@@ -90,11 +90,15 @@ boot. All database access uses prepared statements.
   first/last plays, platform breakdowns, and watch activity without re-querying
   for each filter change.
 
+## Access logging
+
+Morgan `combined`-format request logs are written to `data/logs/access.log`. The file rotates daily and the last 14 days of logs are retained. Logs are never written to stdout — only to the file — so container log streams stay clean.
+
 ## Security headers
 
 Every response carries: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, and a `Content-Security-Policy` that allows frames only from YouTube. `Strict-Transport-Security` is added when `COOKIE_SECURE=true`. `x-powered-by` is suppressed.
 
-Startup runs `logSecuritySummary()` (in `appConfig.js`) which warns if the admin password is still the default, or if any pinned secret is shorter than the minimum length.
+Startup runs `logSecuritySummary()` (in `appConfig.js`) which warns if the admin password is still the default, or if any pinned secret is shorter than the minimum length. A separate `[security]` warning is emitted if `COOKIE_SECURE` is not set, reminding operators to enable it when the app is behind an HTTPS reverse proxy.
 
 ## Graceful shutdown
 
