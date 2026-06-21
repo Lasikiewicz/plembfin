@@ -1,17 +1,27 @@
+import fs from "node:fs";
 import path from "node:path";
 import express from "express";
 import cookieParser from "cookie-parser";
+import morgan from "morgan";
+import rfs from "rotating-file-stream";
 import { rateLimit } from "express-rate-limit";
 import { setGlobalDispatcher, Agent } from "undici";
 import { loadLocalEnv } from "./src/env.js";
 
 loadLocalEnv();
 
-const { PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
+const { DATA_DIR, PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
 const { dispatch, runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener } = await import("./src/index.js");
 const { db } = await import("./src/db.js");
 
 ensureDataDirs();
+const LOGS_DIR = path.join(DATA_DIR, "logs");
+fs.mkdirSync(LOGS_DIR, { recursive: true });
+const accessLogStream = rfs.createStream("access.log", {
+  interval: "1d",
+  path: LOGS_DIR,
+  maxFiles: 14,
+});
 
 // Keep upstream connections (Plex/Emby/Jellyfin/TMDB) warm.
 setGlobalDispatcher(new Agent({ keepAliveTimeout: 15000, connections: 64 }));
@@ -19,9 +29,13 @@ setGlobalDispatcher(new Agent({ keepAliveTimeout: 15000, connections: 64 }));
 const PORT = Number(process.env.PORT || 5055);
 const app = express();
 app.disable("x-powered-by");
+app.use(morgan("combined", { stream: accessLogStream }));
 app.use(cookieParser());
 
 const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
+if (!COOKIE_SECURE) {
+  console.warn("[security] COOKIE_SECURE is not set — session cookies will not have the Secure flag. Set COOKIE_SECURE=true when running behind HTTPS.");
+}
 
 // HTTP security headers.
 app.use((_req, res, next) => {
