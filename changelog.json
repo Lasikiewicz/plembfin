@@ -1,7 +1,14 @@
 {
-  "version": "0.2.8",
-  "updatedAt": "2026-06-21T19:05:46+01:00",
+  "version": "0.2.9",
+  "updatedAt": "2026-06-21T19:14:32+01:00",
   "entries": [
+    {
+      "version": "0.2.9",
+      "date": "2026-06-21T19:14:32+01:00",
+      "commit": "0fb0980cda836d1580b7a85b40e317bf3c1e61a8",
+      "message": "chore: trigger CI to test updated workflow configuration",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.2.8",
       "date": "2026-06-21T19:05:46+01:00",
