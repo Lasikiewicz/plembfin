@@ -258,8 +258,8 @@ async function resolveTmdbExternalId(type, source, externalId) {
   }
 }
 
-async function resolveTmdbId(mediaType, tmdbId, title, ids = {}) {
-  if (tmdbId) return String(tmdbId);
+async function resolveTmdbId(mediaType, tmdbId, title, ids = {}, { ignoreTmdbId = false } = {}) {
+  if (tmdbId && !ignoreTmdbId) return String(tmdbId);
   const type = mediaTypeFor(mediaType);
   const imdbId = String(ids.imdbId || ids.imdb_id || ids.imdb || "").trim();
   const tvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
@@ -331,6 +331,12 @@ export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids =
       return details;
     } catch (error) {
       if (cached?.details) return { ...cached.details, cache_stale: true };
+      if (error.status === 404 && (title || ids.imdbId || ids.imdb_id || ids.imdb || ids.tvdbId || ids.tvdb_id || ids.tvdb)) {
+        const fallbackId = await resolveTmdbId(type, "", title, ids, { ignoreTmdbId: true }).catch(() => "");
+        if (fallbackId && String(fallbackId) !== String(resolvedId)) {
+          return getTmdbDetails({ mediaType: type, tmdbId: fallbackId, title, ids, force });
+        }
+      }
       throw error;
     }
   });
