@@ -24,38 +24,43 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 ## 📸 Screenshots
 
 <p align="center">
+  <img src="docs/screenshots/now-playing.png" alt="Now Playing dashboard" width="100%" />
+  <em>Now Playing dashboard with active sessions and recent watch history</em>
+</p>
+
+<p align="center">
   <img src="docs/screenshots/movies.png" alt="Movies library view" width="100%" />
-  <em>Movies — full poster grid with search, filters, and sort options</em>
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/tvshows.png" alt="TV Shows library view" width="100%" />
-  <em>TV Shows — dark-themed library with rich show details</em>
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/history.png" alt="Watch history view" width="100%" />
-  <em>History — complete watch log across all connected platforms</em>
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/stats.png" alt="Stats view" width="100%" />
-  <em>Stats — all-time play counts, top shows, platform breakdowns, and monthly watch activity</em>
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/bio.png" alt="Person bio view" width="100%" />
-  <em>Person pages — biography, photos, and full filmography pulled from TMDB</em>
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/search.png" alt="Global search" width="100%" />
-  <em>Global search — instant results across movies, TV shows, and people</em>
+  <em>Full poster grid with search, filters, and sort options</em>
 </p>
 
 <p align="center">
   <img src="docs/screenshots/part-watched.png" alt="Part Watched view" width="100%" />
-  <em>Part Watched — tracks in-progress items with resume progress and quick mark-watched actions</em>
+  <em>In-progress items with resume progress and quick mark-watched actions</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/tvshows.png" alt="TV Shows library view" width="100%" />
+  <em>TV Shows library with rich show details</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/history.png" alt="Watch history view" width="100%" />
+  <em>Complete watch log across all connected platforms</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/stats.png" alt="Stats view" width="100%" />
+  <em>All-time play counts, top shows, platform breakdowns, and monthly watch activity</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/bio.png" alt="Person bio view" width="100%" />
+  <em>Biography, photos, and full filmography pulled from TMDB</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/search.png" alt="Global search" width="100%" />
+  <em>Instant search results across movies, TV shows, and people</em>
 </p>
 
 ---
