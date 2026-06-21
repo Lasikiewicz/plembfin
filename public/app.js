@@ -1,4 +1,4 @@
-import { buildAuthHeaders, buildNowPlayingUrl, currentFirebaseUser, getWebhookToken, onFirebaseAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
+import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./modules/logs.js";
 import { connectionLabel, connectionPayloadFromElements } from "./modules/settings.js";
 
@@ -105,7 +105,7 @@ const state = {
   token: readStoredAdminToken([TOKEN_KEY, LEGACY_UPPER_TOKEN_KEY, LEGACY_TOKEN_KEY]),
   authReady: false,
   mustChangePassword: false,
-  firebaseUser: undefined,
+  currentUser: undefined,
   activeView: localStorage.getItem(ACTIVE_VIEW_KEY) || "dashboard",
   activeSettingsTab: localStorage.getItem(ACTIVE_SETTINGS_TAB_KEY) || "general",
   activeBackupsTab: localStorage.getItem("activeBackupsTab") || "settings",
@@ -2497,7 +2497,7 @@ function compactPosterUrl(value) {
 }
 
 function persistentPosterCacheKey() {
-  const userKey = state.firebaseUser?.uid || state.firebaseUser?.email || "local";
+  const userKey = state.currentUser?.uid || state.currentUser?.email || "local";
   return `${POSTER_LOOKUP_PERSISTED_CACHE_KEY}:${userKey}`;
 }
 
@@ -2613,7 +2613,7 @@ function historyVersionFromRows(rows = []) {
 }
 
 function persistentDashboardHistoryCacheKey() {
-  const userKey = state.firebaseUser?.uid || state.firebaseUser?.email || "local";
+  const userKey = state.currentUser?.uid || state.currentUser?.email || "local";
   return `${DASHBOARD_HISTORY_CACHE_KEY}:${userKey}`;
 }
 
@@ -2656,7 +2656,7 @@ function explorerCacheVersion() {
 }
 
 function persistentExplorerCacheKey() {
-  const userKey = state.firebaseUser?.uid || state.firebaseUser?.email || "local";
+  const userKey = state.currentUser?.uid || state.currentUser?.email || "local";
   return `${EXPLORER_PERSISTED_CACHE_KEY}:${userKey}`;
 }
 
@@ -4018,7 +4018,7 @@ const HELP_TOPICS = [
     category: "Overview",
     title: "Getting Started",
     description: "Initial setup from admin sign-in to first webhook",
-    badges: ["FIREBASE_AUTH", "PLEX_URL", "EMBY_API_KEY", "JELLYFIN_API_KEY"],
+    badges: ["ADMIN_AUTH", "PLEX_URL", "EMBY_API_KEY", "JELLYFIN_API_KEY"],
     body: () => `
             <p>Plembfin is a self-hosted watch-state bridge. It listens for playback events from Plex, Emby, and Jellyfin via webhooks, records them in a local SQLite database, and propagates the watched or unwatched state to every other connected platform automatically. A background worker runs every minute so sync continues even when the dashboard is closed.</p>
             <p>Follow these steps to get from zero to a fully synchronised setup:</p>
@@ -4049,11 +4049,11 @@ const HELP_TOPICS = [
           `,
   },
   {
-    id: "firebase-auth",
+    id: "admin-auth",
     category: "Credentials",
     title: "Admin Sign-In",
     description: "Local username/password and API key",
-    badges: ["FIREBASE_AUTH"],
+    badges: ["ADMIN_AUTH"],
     body: () => `
             <p>Plembfin uses a local username and password to gate access to the dashboard, and an API key to gate webhooks and external integrations. Every <code>/api/*</code> request is verified server-side — unauthenticated requests are rejected before they touch the database.</p>
             ${adminTokenGuide()}
@@ -4157,7 +4157,7 @@ const HELP_TOPICS = [
     category: "Scripts",
     title: "Rebuild Playstate Database",
     description: "Full reset and reimport from a Trakt export + live Plex state",
-    badges: ["FIREBASE_AUTH", "PLEX_TOKEN", "EMBY_API_KEY", "JELLYFIN_API_KEY"],
+    badges: ["ADMIN_AUTH", "PLEX_TOKEN", "EMBY_API_KEY", "JELLYFIN_API_KEY"],
     body: () => rebuildPlaystateGuide(),
   },
   {
@@ -4171,7 +4171,7 @@ const HELP_TOPICS = [
 ];
 
 const SETTINGS_DUPLICATED_HELP_TOPIC_IDS = new Set([
-  "firebase-auth",
+  "admin-auth",
   "plex",
   "emby",
   "jellyfin",
@@ -4873,13 +4873,13 @@ async function saveAdminCredentials() {
 
   try {
     const result = await updateAdminCredentials({ username, currentPassword, newPassword });
-    state.firebaseUser = result.user;
+    state.currentUser = result.user;
     state.token = result.token;
     elements.adminEmail.value = username;
     elements.currentAdminPassword.value = "";
     elements.newAdminPassword.value = "";
     elements.confirmAdminPassword.value = "";
-    localStorage.setItem("firebaseAdminEmail", username);
+    localStorage.setItem("adminUsername", username);
     renderAdminCredentialsStatus("Login updated. Other dashboard sessions have been signed out.", "success");
     setMessage(`Login updated for ${username}.`, "success");
     // Re-check whether the default-password flag has been cleared.
@@ -5272,9 +5272,8 @@ function startHistoryPolling() {
   if (!state.token || state.activeView !== "dashboard" || document.hidden) return;
 
   logDebug(`Starting Now Playing polling (every ${NOW_PLAYING_POLL_MS / 1000}s).`);
-  // SSE streaming via /api/now-playing?stream=1 does not survive the Firebase
-  // Hosting proxy in production (responses are buffered), so the dashboard polls
-  // the non-streaming endpoint on an interval instead. Visibility-gated so it
+  // Dashboard polls the non-streaming endpoint on an interval instead of using
+  // SSE (/api/now-playing?stream=1). Visibility-gated so it
   // pauses when the tab is hidden or the user leaves the dashboard.
   pollNowPlayingOnce();
   state.nowPlayingInterval = setInterval(pollNowPlayingOnce, NOW_PLAYING_POLL_MS);
@@ -7526,7 +7525,7 @@ function renderDbStatus(isOnline) {
 
 function helpBadgeValue(token = "") {
   const key = String(token || "").trim().toUpperCase();
-  if (key === "FIREBASE_AUTH") return { label: "ADMIN", value: state.firebaseUser?.username || state.firebaseUser?.email || "" };
+  if (key === "ADMIN_AUTH") return { label: "ADMIN", value: state.currentUser?.username || state.currentUser?.email || "" };
   if (key === "PLEX_URL") return { label: "PLEX_URL", value: state.savedConfig.plex?.baseUrl || state.savedConfig.plex?.url || "" };
   if (key === "PLEX_TOKEN") return { label: "PLEX_TOKEN", value: state.savedConfig.plex?.token || state.savedConfig.plex?.apiKey || "" };
   if (key === "EMBY_API_KEY") return { label: "EMBY_API_KEY", value: state.savedConfig.emby?.apiKey || state.savedConfig.emby?.api_key || "" };
@@ -8309,7 +8308,7 @@ function flushTmdbBatch() {
   const items = batch.map((entry) => entry.item);
   (async () => {
     try {
-      // no-store: the real cache is server-side (Firestore, status-aware TTL).
+      // no-store: the real cache is server-side (status-aware TTL).
       const res = await fetch("/api/tmdb-details-batch", {
         method: "POST",
         headers: { ...authHeaders(), "Content-Type": "application/json" },
@@ -10865,10 +10864,10 @@ async function unlockWithToken(password, email = elements.adminEmail?.value) {
   }
 
   const result = await signInAdmin(cleanEmail, cleanPassword);
-  state.firebaseUser = result.user;
+  state.currentUser = result.user;
   state.token = result.token;
   if (elements.settingsUsername) elements.settingsUsername.value = cleanEmail;
-  localStorage.setItem("firebaseAdminEmail", cleanEmail);
+  localStorage.setItem("adminUsername", cleanEmail);
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(LEGACY_UPPER_TOKEN_KEY);
   localStorage.removeItem(LEGACY_TOKEN_KEY);
@@ -10894,7 +10893,7 @@ async function unlockWithToken(password, email = elements.adminEmail?.value) {
 async function lockDashboard() {
   stopHistoryPolling();
   state.token = "";
-  state.firebaseUser = undefined;
+  state.currentUser = undefined;
   state.history = [];
   state.historyVersion = "";
   state.activeSessions = [];
@@ -12214,7 +12213,7 @@ async function triggerForceSync() {
           throw new Error(body.error || `Force sync failed with HTTP ${startResponse.status}`);
         }
 
-        // Poll GET /api/force-sync every 2s to read Firestore-buffered log lines
+        // Poll GET /api/force-sync every 2s to read buffered log lines
         let seenLines = 0;
         let finalResult = null;
         let pollActive = true;
@@ -13136,7 +13135,7 @@ function attachEvents() {
   });
 
   elements.checkSessionButton.addEventListener("click", async () => {
-    const user = currentFirebaseUser();
+    const user = currentUser();
     const text = user ? `Signed in as ${user.username || user.email || "admin"}.` : "Sign in again from the lock screen.";
     const tone = user ? "success" : "error";
     renderAdminCredentialsStatus(text, tone);
@@ -13748,7 +13747,7 @@ function initialize() {
   attachEvents();
   applyAppearanceToBody(APPEARANCE_DEFAULTS);
   applyExplorerPosterWidth();
-  elements.adminEmail.value = localStorage.getItem("firebaseAdminEmail") || "";
+  elements.adminEmail.value = localStorage.getItem("adminUsername") || "";
   elements.adminToken.value = "";
   elements.settingsUsername.value = elements.adminEmail.value;
   elements.webhookUrl.textContent = buildWebhookUrl();
@@ -13768,10 +13767,10 @@ function initialize() {
   renderDbStatus(false);
   renderSettingsStatus("Configuration not loaded yet.");
 
-  onFirebaseAuthChange((user, token, mustChangePassword) => {
+  onAuthChange((user, token, mustChangePassword) => {
     state.authReady = true;
     state.mustChangePassword = mustChangePassword === true;
-    state.firebaseUser = user || undefined;
+    state.currentUser = user || undefined;
     state.token = token || "";
     if (user && token) {
       for (const [key, value] of state.posterLookupCache.entries()) {
@@ -13797,7 +13796,7 @@ function initialize() {
     if (user && token && !state.configLoaded) {
       const fullPath = window.location.pathname + window.location.search + window.location.hash;
       elements.settingsUsername.value = user.username || user.email || "";
-      localStorage.setItem("firebaseAdminEmail", user.email || "");
+      localStorage.setItem("adminUsername", user.email || "");
       setUnlocked(true);
       applyMustChangePassword();
       if (isConfigSensitiveRoute(fullPath) && !state.mustChangePassword) {

@@ -14,13 +14,3 @@ service-account-key.json
 .claude/
 .playwright-mcp/
 
-# Legacy Firebase emulator/export artifacts (kept out of the repo)
-.firebase/
-firebase-debug.log
-firestore-debug.log
-pubsub-debug.log
-storage-debug.log
-ui-debug.log
-firebase-emulators*.log
-emulator-data/
-firebase-export-*/

@@ -301,7 +301,7 @@ function watchRowParams(record) {
   };
 }
 
-export function watchRecordToFirestoreData(record, fallbackSource = record?.source || "import") {
+export function normalizeWatchRecordForInsert(record, fallbackSource = record?.source || "import") {
   const normalized = normalizeWatchRecord(record, fallbackSource);
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));

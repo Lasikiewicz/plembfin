@@ -10,7 +10,7 @@ const CACHE_FILE_PATH = path.resolve(here, "..", "..", "..", "data", "tv_progres
 let progressCache = {};
 const pendingShowUpdates = new Set();
 
-// Pure Helper functions decoupled from firestoreRepo to avoid circular dependency issues
+// Pure helper functions decoupled from firestoreRepo.js to avoid circular dependency issues
 function decodeBasicHtmlEntities(value) {
   return String(value ?? "")
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))

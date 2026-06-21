@@ -52,14 +52,10 @@ The same logic runs on demand via:
 ## Data layer (`server/src/db.js` + `schema.sql`)
 
 `better-sqlite3` opens `data/plembfin.db` in WAL mode and applies `schema.sql` on
-boot. All database access uses prepared statements. Firestore-style semantics map as:
-- `.doc(id).set(x, { merge })` → `INSERT … ON CONFLICT DO UPDATE`
-- `.batch()` → `db.transaction()`
-- `serverTimestamp()` → `Date.now()`
+boot. All database access uses prepared statements.
 
-**In-process memoization:** the old Firestore-backed derived caches are replaced by
-in-memory caches keyed by a monotone `dataVersion` integer. `bumpDataVersion()`
-invalidates them; the next read reloads from SQLite.
+**In-process memoization:** derived caches are keyed by a monotone `dataVersion` integer.
+`bumpDataVersion()` invalidates them; the next read reloads from SQLite.
 
 ## Auth (`server/src/utils/auth.js` + `server/src/appConfig.js`)
 
@@ -77,7 +73,7 @@ invalidates them; the next read reloads from SQLite.
 - One global `state` object in `app.js` (no framework).
 - SPA navigation via `navigateTo(url)` / `handleRouting()` / `history.pushState`.
   Routes: `/` dashboard, `/stats`, `/movie/:id`, `/tvshow/:key`, `/person/:id`, `/settings/:tab`, `/help/:topic`.
-- Auth handled by `onFirebaseAuthChange()` (`modules/auth.js`) — which checks
+- Auth handled by `onAuthChange()` (`modules/auth.js`) — which checks
   `/api/auth/status`. The auth panel is hidden until a session is confirmed.
 - After every successful auth operation, `fetchAndCacheApiKey()` is called to
   populate `cachedToken` in `auth.js`; this token goes into `X-Api-Key` headers

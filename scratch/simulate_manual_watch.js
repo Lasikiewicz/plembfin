@@ -52,7 +52,7 @@ async function run() {
         sync_dispatch_telemetry: "Origin: manual\nLoop-check: Passed\nDispatch status: pending\nDetails: Manual watch propagation queued.",
       };
       
-      // We simulate watchRecordToFirestoreData logic
+      // We simulate normalizeWatchRecordForInsert logic
       const record = {
         title: pending.title,
         media_type: pending.media_type,

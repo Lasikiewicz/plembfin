@@ -52,7 +52,7 @@ import {
   updateWatchTelemetry,
   upsertPlaybackProgress,
   upsertPlaystateForMedia,
-  watchRecordToFirestoreData,
+  normalizeWatchRecordForInsert,
   watchRowToMedia,
   getCachedShows,
   getCachedMovies,
@@ -1622,7 +1622,7 @@ function mediaFromWatchRecord(record) {
 // platforms. Shared by the webhook `unplayed` phase and the manual-unwatch handler.
 async function applyManualUnwatch(media, config, loopStore) {
   const wasDeleted = await deleteWatchRecord(requireDb(), media, { skipInvalidate: true }).catch((error) => {
-    console.error("Failed to delete watch record from Firestore", error);
+    console.error("Failed to delete watch record", error);
     return false;
   });
   await deletePlaybackProgress(requireDb(), media).catch(() => null);
@@ -1711,7 +1711,7 @@ async function handleManualWatch(req, res) {
         sync_action: "watched",
         sync_dispatch_telemetry: "Origin: manual\nLoop-check: Passed\nDispatch status: pending\nDetails: Manual watch propagation queued.",
       };
-      const { data, record } = watchRecordToFirestoreData(pending, "manual");
+      const { data, record } = normalizeWatchRecordForInsert(pending, "manual");
       const existing = await findExistingWatch(data.mediaKey || mediaKeyFor(record), data.watchedAt);
 
       const media = manualWatchMediaFromRecord(record);
@@ -1827,7 +1827,7 @@ async function handlePlaybackProgressWatch(req, res) {
     };
     await enrichProgressWatchRecordWithTmdb(record, body);
 
-    const { data, record: normalizedRecord } = watchRecordToFirestoreData(record, "manual");
+    const { data, record: normalizedRecord } = normalizeWatchRecordForInsert(record, "manual");
     const existing = await findExistingWatch(data.mediaKey || mediaKeyFor(normalizedRecord), data.watchedAt);
 
     const media = manualWatchMediaFromRecord(normalizedRecord);
@@ -2033,7 +2033,7 @@ async function handleForceSync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
 
-  // GET: poll for current status and log lines stored in Firestore runtimeState
+  // GET: poll for current status and log lines stored in runtimeState
   if (req.method === "GET") {
     if (!(await requireAdmin(req, res))) return;
     const runtime = await loadRuntimeState();
@@ -2063,8 +2063,7 @@ async function handleForceSync(req, res) {
     forceSyncCancelRequested: false,
   });
 
-  // Batch log writes: collect lines in memory, flush to Firestore every 3s.
-  // This avoids per-line Firestore writes (Firestore sustains ~1 write/sec per doc).
+  // Batch log writes: collect lines in memory, flush every 3s.
   const logBuffer = [];
   let flushTimer = null;
 
@@ -2294,7 +2293,7 @@ async function handleWebhook(req, res) {
           if (media.phase === "unplayed") {
             await deleteActiveSession(null, episodeMedia).catch(() => null);
             const wasDeleted = await deleteWatchRecord(requireDb(), episodeMedia, { skipInvalidate: true }).catch((error) => {
-              console.error("Failed to delete watch record from Firestore", error);
+              console.error("Failed to delete watch record", error);
               return false;
             });
             await deletePlaybackProgress(requireDb(), episodeMedia).catch(() => null);
@@ -2387,7 +2386,7 @@ async function handleWebhook(req, res) {
       await upsertPlaybackProgress(requireDb(), {
         ...progressRecord,
         sync_dispatch_telemetry: formatProgressTelemetry({ skipped: false, status: "pending", details: "Resume propagation queued", targetStates: [] }, media),
-      }).catch((error) => console.error("Failed to store resume progress in Firestore", error));
+      }).catch((error) => console.error("Failed to store resume progress", error));
       progressSummary = await syncMediaProgress(media, config, loopStore).catch((error) => ({
         skipped: false,
         status: "error",
@@ -2513,7 +2512,7 @@ async function handleWebhook(req, res) {
     await invalidateHistoryDerivedCaches().catch(() => null);
     return sendJson(res, { ok: true, inserted: true, id: result.id, record: result.record });
   } catch (error) {
-    console.error("Webhook Firestore insert failed", error);
+    console.error("Webhook insert failed", error);
     await invalidateHistoryDerivedCaches().catch(() => null);
     return sendJson(res, { error: "Webhook insert failed", details: error.message }, 500);
   }
@@ -3061,7 +3060,7 @@ async function handleMaintenanceStub(req, res, name) {
     converted: 0,
     backfilled: 0,
     tried: 0,
-    note: "This Firebase fresh-start repo does not include Cloudflare-era maintenance repair jobs.",
+    note: "Cloudflare-era maintenance repair jobs are not included.",
   });
 }
 
@@ -3149,10 +3148,8 @@ async function handleTmdbDetails(req, res) {
   }
 }
 
-// Ultra-cheap, no-auth, no-Firestore endpoint whose only job is to boot a warm
-// instance. The client calls this on page load so the function is hot by the time
-// the user clicks into anything — gives the latency benefit of a warm instance
-// without the 24/7 cost of minInstances.
+// Ultra-cheap, no-auth endpoint that returns immediately — client calls this on
+// page load so the server is warm by the time the user clicks into anything.
 function handlePing(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   return sendJson(res, { ok: true, ts: Date.now() }, 200, { "Cache-Control": "no-store" });
@@ -3188,9 +3185,8 @@ async function handleRefreshTmdbMetadata(req, res) {
   const offset = Math.max(Number(body.offset || 0), 0);
   const limit = Math.min(Math.max(Number(body.limit || 12), 1), 30);
 
-  // Firebase Hosting cuts off rewritten requests at ~60s, and TV items are slow
-  // (deriveNextAiring fetches multiple seasons). Time-box each page so it always
-  // returns well under that limit; the client just resumes from nextOffset.
+  // TV items are slow (deriveNextAiring fetches multiple seasons). Time-box each
+  // page so it always returns promptly; the client just resumes from nextOffset.
   const PAGE_BUDGET_MS = 25000;
   const startedAt = Date.now();
 
@@ -3232,8 +3228,7 @@ async function handleRefreshTmdbMetadata(req, res) {
   const nextOffset = offset + processed;
   const hasMore = nextOffset < total;
   // Invalidate derived caches ONCE, on the final page. Doing it per page forced a
-  // full watchHistory re-scan on every subsequent page's list build, which pushed
-  // pages past the Firebase Hosting ~60s timeout (503s).
+  // full watchHistory re-scan on every subsequent page's list build.
   if (!hasMore) await invalidateHistoryDerivedCaches().catch(() => null);
 
   return sendJson(res, {

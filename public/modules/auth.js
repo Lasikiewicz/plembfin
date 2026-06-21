@@ -1,8 +1,8 @@
-// Local authentication client. Replaces the Firebase Auth web SDK with calls to
-// the self-hosted /api/login, /api/logout, and /api/auth/status endpoints. The
-// browser holds an HttpOnly session cookie (sent automatically on same-origin
-// requests); the API key is fetched from /api/auth/apikey after login and kept
-// in memory + localStorage for use in X-Api-Key request headers.
+// Local authentication client. Calls the self-hosted /api/login, /api/logout,
+// and /api/auth/status endpoints. The browser holds an HttpOnly session cookie
+// (sent automatically on same-origin requests); the API key is fetched from
+// /api/auth/apikey after login and kept in memory + localStorage for use in
+// X-Api-Key request headers.
 
 const API_KEY_STORAGE = "plembfinApiKey";
 
@@ -53,7 +53,7 @@ export function readStoredAdminToken(_keys, fallback = "") {
   return cachedToken || fallback || "";
 }
 
-export function currentFirebaseUser() {
+export function currentUser() {
   return cachedUser;
 }
 
@@ -63,7 +63,7 @@ export function getWebhookToken() {
 
 // Called once at startup. Resolves the current auth state from the session
 // cookie and invokes the callback with (user, token) or (null, "").
-export function onFirebaseAuthChange(callback) {
+export function onAuthChange(callback) {
   (async () => {
     try {
       const res = await fetch("/api/auth/status", { credentials: "same-origin" });

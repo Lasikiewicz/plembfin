@@ -1690,7 +1690,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
     if (processedCount % checkEvery !== 0) return false;
     const currentRuntime = await loadRuntimeState();
     if (currentRuntime.forceSyncCancelRequested === true) {
-      logger("Force Sync: stop request detected in Firestore. Aborting sync...");
+      logger("Force Sync: stop request detected. Aborting sync...");
       abortResult = abortSummary();
       return true;
     }
@@ -1771,9 +1771,9 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
     if (newestState === "watched") {
       const inHistory = historyRecords.some(r => r.syncAction === "watched");
       if (!inHistory) {
-        logger(`Firestore: skipping server-only watched state for "${mediaObj.title}" because no Plembfin history row exists.`);
+        logger(`Skipping server-only watched state for "${mediaObj.title}" because no Plembfin history row exists.`);
       } else if (lastHistoryRecord && lastHistoryRecord.syncAction === "unwatched") {
-        logger(`Firestore: deleting outdated unwatched record for "${mediaObj.title}"`);
+        logger(`Deleting outdated unwatched record for "${mediaObj.title}"`);
         const unwatchedDocs = historyRecords.filter(r => r.syncAction === "unwatched");
         for (const docRec of unwatchedDocs) {
           await deleteWatchRecordById(docRec.id, { skipInvalidate: true });
@@ -1794,7 +1794,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
     } else {
       const hasWatchedRecord = historyRecords.some(r => r.syncAction === "watched");
       if (hasWatchedRecord) {
-        logger(`Firestore: deleting watched records and marking unwatched for "${mediaObj.title}"`);
+        logger(`Deleting watched records and marking unwatched for "${mediaObj.title}"`);
         for (const docRec of historyRecords) {
           await deleteWatchRecordById(docRec.id, { skipInvalidate: true });
           deletedFromHistoryCount++;
