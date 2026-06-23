@@ -1,7 +1,19 @@
 {
-  "version": "0.2.12",
-  "updatedAt": "2026-06-23T10:46:38+01:00",
+  "version": "0.2.13",
+  "updatedAt": "2026-06-23T11:18:01+01:00",
   "entries": [
+    {
+      "version": "0.2.13",
+      "date": "2026-06-23T11:18:01+01:00",
+      "commit": "fce8ec4f3161b9f8cc33700cc5c41a1c8c053507",
+      "message": "fix: restore correct show names for Plex episode watch history records",
+      "author": "Lasikiewicz",
+      "details": [
+        "TV episodes from Plex no longer save as \"Unknown Show\" when the show name was already available",
+        "Existing \"Unknown Show\" episodes are now repaired on startup using the show name recorded in their sync telemetry",
+        "Episode numbers are preserved in episode titles instead of being lost (no more \"S10E0?\")"
+      ]
+    },
     {
       "version": "0.2.12",
       "date": "2026-06-23T10:46:38+01:00",
