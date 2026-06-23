@@ -55,7 +55,7 @@ const findWatchedByKeyStmt = db.prepare("SELECT * FROM watch_history WHERE media
 const getTmdbShowDetailsStmt = db.prepare("SELECT details FROM tmdb_metadata_cache WHERE id = ?");
 const recoverShowTitleByTmdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tmdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
 const recoverShowTitleByTvdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tvdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
-const selectUnknownShowRowsStmt = db.prepare("SELECT id, title, tmdb_id, tvdb_id FROM watch_history WHERE media_type = 'episode' AND show_title_lower = 'unknown show'");
+const selectUnknownShowRowsStmt = db.prepare("SELECT id, title, tmdb_id, tvdb_id, sync_dispatch_telemetry FROM watch_history WHERE media_type = 'episode' AND show_title_lower = 'unknown show'");
 
 function cachedTmdbShowDetails(tmdbId) {
   const id = cleanString(tmdbId);
@@ -194,10 +194,25 @@ function normalizeImportedTitle(record = {}, mediaType = "") {
   const episode = record.episode || {};
 
   if (mediaType === "episode") {
-    const showTitle = showTitleFrom(record.show_title || show.title || (typeof record.show === "string" ? record.show : ""));
+    // Live webhook media objects carry the resolved "Show - SxxExx" string on
+    // `record.title` and the episode number on `record.episode` (not the
+    // `show_title`/`episode_number` fields that Trakt/import records use), so
+    // include those as fallbacks. Only rebuild when we actually have a real show
+    // name — otherwise fall through to `record.title` so the stored title keeps
+    // the correct episode coordinates and id-based recovery can still fix it.
+    const showTitle = showTitleFrom(
+      record.show_title ||
+        show.title ||
+        (typeof record.show === "string" ? record.show : "") ||
+        record.title,
+    );
     const season = record.season || episode.season || "";
-    const episodeNumber = record.episode_number || episode.number || "";
-    if (showTitle && (season || episodeNumber)) {
+    const episodeNumber =
+      record.episode_number ||
+      episode.number ||
+      (typeof record.episode === "object" ? "" : record.episode) ||
+      "";
+    if (showTitle && showTitle !== "Unknown Show" && (season || episodeNumber)) {
       return `${showTitle} - S${String(season || "?").padStart(2, "0")}E${String(episodeNumber || "?").padStart(2, "0")}`;
     }
   }
@@ -288,6 +303,22 @@ function recoverShowTitle(tmdbId, tvdbId) {
     if (row?.show_title) return row.show_title;
   }
   return null;
+}
+
+// Last-resort recovery for episodes stored as "Unknown Show": the dispatch
+// telemetry's `Media:` line holds the title that was resolved at sync time
+// (e.g. "Aussie Gold Hunters - S10E12"), which is often correct even when the
+// stored row lost the show name. Returns the resolved show title and the full
+// "Show - SxxExx" string, or null when telemetry is absent/still unknown.
+function recoverTitleFromTelemetry(telemetry) {
+  if (!telemetry) return null;
+  const line = String(telemetry).split("\n").find((l) => /^Media:/i.test(l));
+  if (!line) return null;
+  const fullTitle = line.replace(/^Media:\s*/i, "").trim();
+  if (!fullTitle || /^unknown/i.test(fullTitle)) return null;
+  const showTitle = showTitleFrom(fullTitle);
+  if (!showTitle || showTitle === "Unknown Show") return null;
+  return { showTitle, fullTitle };
 }
 
 // Build the column params for a watch_history row (excludes id/created_at).
@@ -1548,10 +1579,22 @@ export async function backfillUnknownShowTitles() {
   let fixed = 0;
   transaction(() => {
     for (const row of rows) {
-      const recovered = recoverShowTitle(row.tmdb_id, row.tvdb_id);
-      if (!recovered) continue;
-      const oldTitle = row.title || "";
-      const newTitle = oldTitle.replace(/^Unknown Show(\s+-\s+S\d)/i, `${recovered}$1`);
+      let recovered = recoverShowTitle(row.tmdb_id, row.tvdb_id);
+      let newTitle = null;
+      if (recovered) {
+        const oldTitle = row.title || "";
+        newTitle = oldTitle.replace(/^Unknown Show(\s+-\s+S\d)/i, `${recovered}$1`);
+      } else {
+        // No sibling record shares this episode's ids (e.g. Plex supplies only
+        // episode-unique TMDB/IMDb ids). Fall back to the resolved title recorded
+        // in the dispatch telemetry, which also restores the episode coordinate.
+        const fromTelemetry = recoverTitleFromTelemetry(row.sync_dispatch_telemetry);
+        if (fromTelemetry) {
+          recovered = fromTelemetry.showTitle;
+          newTitle = fromTelemetry.fullTitle;
+        }
+      }
+      if (!recovered || !newTitle) continue;
       updateShowTitleStmt.run(newTitle, newTitle.toLowerCase(), recovered, recovered.toLowerCase(), Date.now(), row.id);
       fixed++;
     }
