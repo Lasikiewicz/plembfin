@@ -8842,6 +8842,13 @@ function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false) {
   const iconAndFallback = `${seerrIconHtml}<span class="seerr-request-fallback" aria-hidden="true">S</span>`;
   const tvAvailableLabel = isTv ? tvAvailabilityLabel(status) : "";
   const tv4kLabel = isTv ? tvAvailability4kLabel(status) : "";
+  // For whole-show TV 4K requests, embed the season numbers that are missing 4K so
+  // Jellyseerr receives the required `seasons` field in the request payload.
+  const tv4kSeasons = isTv && Array.isArray(status.seasons)
+    ? status.seasons
+        .filter((s) => Number(s.released || s.total || 0) > 0 && !s.available4k)
+        .map((s) => s.seasonNumber)
+    : [];
   return `
     <span id="seerrRequestContainer" style="display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;" data-media-type="${escapeAttribute(mediaType)}" data-tmdb-id="${escapeAttribute(String(tmdbId))}" data-local-available="${localAvailable}">
       ${isAvailable ? `<span class="rating-pill seerr-owned-pill">${escapeHtml(isTv ? tvAvailableLabel || "Available" : "Available in 1080p")}</span>` : tvAvailableLabel ? `<span class="rating-pill seerr-owned-pill seerr-owned-pill-partial">${escapeHtml(tvAvailableLabel)}</span>` : `
@@ -8858,7 +8865,7 @@ function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false) {
         <button class="rating-pill seerr-request-btn seerr-request-btn-4k" type="button"
           data-seerr-media-type="${escapeAttribute(mediaType)}"
           data-seerr-media-id="${escapeAttribute(String(tmdbId))}"
-          data-seerr-request-4k="true">
+          data-seerr-request-4k="true"${tv4kSeasons.length ? ` data-seerr-seasons="${escapeAttribute(JSON.stringify(tv4kSeasons))}"` : ""}>
           ${iconAndFallback}
           <span>${status.pending4k ? "4K Requested" : "Request 4K"}</span>
         </button>
@@ -10036,12 +10043,21 @@ async function submitSeerrRequest(mediaType, mediaId, button) {
   }
   const is4k = button?.getAttribute("data-seerr-request-4k") === "true";
   const seasonNumber = Number(button?.getAttribute("data-seerr-season") || 0);
+  // data-seerr-seasons (plural) carries a JSON array of season numbers for whole-show
+  // requests from the top-level pill, where no single season is targeted.
+  const seasonsJson = button?.getAttribute("data-seerr-seasons");
+  const seasonsArray = seasonsJson ? JSON.parse(seasonsJson).filter((s) => Number.isInteger(s) && s > 0) : [];
   const originalText = button?.textContent;
   if (button) {
     button.disabled = true;
     button.textContent = "Requesting…";
   }
   try {
+    const tvSeasons = mediaType === "tv"
+      ? seasonNumber > 0
+        ? [seasonNumber]
+        : seasonsArray.length > 0 ? seasonsArray : undefined
+      : undefined;
     const res = await fetch("/api/seerr/request", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -10049,7 +10065,7 @@ async function submitSeerrRequest(mediaType, mediaId, button) {
         mediaType,
         mediaId,
         is4k,
-        ...(mediaType === "tv" && seasonNumber > 0 ? { seasons: [seasonNumber] } : {}),
+        ...(tvSeasons ? { seasons: tvSeasons } : {}),
       }),
     });
     const data = await res.json().catch(() => ({}));
