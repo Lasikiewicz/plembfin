@@ -1049,10 +1049,14 @@ function matchesSearch(row, search) {
   return haystack.includes(search.toLowerCase());
 }
 
+function normalizeForSearch(value) {
+  return cleanString(value).toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
 function titleContainsSearch(title, search) {
-  const needle = cleanString(search).toLowerCase();
+  const needle = normalizeForSearch(search);
   if (!needle) return true;
-  return cleanString(title).toLowerCase().includes(needle);
+  return normalizeForSearch(title).includes(needle);
 }
 
 function dedupeHistory(rows) {

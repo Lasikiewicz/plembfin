@@ -113,3 +113,4 @@ Startup runs `logSecuritySummary()` (in `appConfig.js`) which warns if the admin
 - `WEBHOOK_SECRET` — pin the webhook URL secret token
 - `SESSION_SECRET` — pin the session signing secret
 - `COOKIE_SECURE` — set to `true` when behind an HTTPS reverse proxy
+- `OMDB_API_KEY` — optional OMDb API key; when set, enables IMDb rating badges on movie detail pages (free tier: 1,000 req/day from omdbapi.com). Can also be configured in Settings → Integrations.

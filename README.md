@@ -181,6 +181,10 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 *   Plembfin includes a built-in project key for [Fanart.tv](https://fanart.tv) — no setup is required. Fanart.tv is queried in parallel with TMDB as a fallback source for posters, backdrops, and transparent logo art.
 *   **Personal API Key (optional)**: Register at fanart.tv and enter your personal key under **Settings → API Keys → Fanart.tv** to get higher rate limits and access to your own uploaded artwork.
 
+#### ⭐ OMDb (IMDb Ratings)
+*   **Optional**: Register for a free API key at [omdbapi.com](https://www.omdbapi.com/apikey.aspx) (1,000 req/day free tier) and paste it under **Settings → Integrations → OMDb Setup**.
+*   When configured, IMDb ratings appear as a rating badge (e.g. **IMDb 85%**) next to the TMDB score on movie detail pages. Ratings are cached locally for 7 days. Can also be set via the `OMDB_API_KEY` environment variable.
+
 #### 🔍 Seerr (Request Manager)
 *   **Seerr Server URL**: Your Overseerr or Jellyseerr server URL (e.g., `http://192.168.1.100:5055`).
 *   **Seerr API Key**: Copy the API key from your Seerr Settings → General.
@@ -261,6 +265,7 @@ The following environment variables can be set in your system or defined in `doc
 | `SESSION_SECRET` | _generated_ | Signing secret for the dashboard session cookie. |
 | `COOKIE_SECURE` | `false` | Set to `true` when the app is served behind an HTTPS reverse proxy — enables `Secure` cookie flag and `Strict-Transport-Security` header. |
 | `FANART_API_KEY` | _none_ | Optional personal Fanart.tv API key for higher rate limits. A built-in project key is used when this is unset. |
+| `OMDB_API_KEY` | _none_ | Optional OMDb API key. When set, IMDb ratings are fetched and displayed as a rating badge on movie detail pages. Free tier: 1,000 req/day. |
 
 ---
 

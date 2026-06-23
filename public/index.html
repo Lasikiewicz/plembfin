@@ -685,6 +685,44 @@
                     </article>
                   </div>
                 </div>
+                <!-- OMDb Row -->
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>OMDb Setup</p>
+                          <span>IMDb ratings on movie pages</span>
+                        </div>
+                      </div>
+                      <label class="field-label" for="omdbApiKey">
+                        OMDb API Key <span class="muted-copy" style="font-weight:normal;">(optional)</span>
+                        <input id="omdbApiKey" class="field" type="text" autocomplete="off" />
+                      </label>
+                      <div class="settings-actions">
+                        <button id="saveOmdbConfigButton" class="button-primary" type="button">Save OMDb Key</button>
+                        <span id="omdbConfigStatus" class="message" role="status" aria-live="polite"></span>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>OMDb Help</p>
+                        <span>IMDb Ratings</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        When configured, Plembfin fetches IMDb ratings from the <a href="https://www.omdbapi.com" target="_blank" rel="noopener noreferrer">OMDb API</a> and displays them as a rating badge next to the TMDB score on movie pages. Ratings are cached for 7 days. The free tier allows 1,000 requests/day.
+                      </p>
+                      <ol class="tool-accordion-desc" style="margin: 0 0 var(--space-3) 1.25rem; padding: 0; list-style: decimal; font-size: 0.8rem;">
+                        <li>Go to <b>omdbapi.com/apikey.aspx</b></li>
+                        <li>Register for a free API key</li>
+                        <li>Paste the key above and save</li>
+                      </ol>
+                    </article>
+                  </div>
+                </div>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="tools">

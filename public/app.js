@@ -362,6 +362,7 @@ function bindElements() {
     tmdbApiKey: document.querySelector("#tmdbApiKey"),
     youtubeApiKey: document.querySelector("#youtubeApiKey"),
     fanartApiKey: document.querySelector("#fanartApiKey"),
+    omdbApiKey: document.querySelector("#omdbApiKey"),
     embyEnabled: document.querySelector("#embyEnabled"),
     embyServerUrl: document.querySelector("#embyServerUrl"),
     embyApiKey: document.querySelector("#embyApiKey"),
@@ -425,6 +426,8 @@ function bindElements() {
     youtubeConfigStatus: document.querySelector("#youtubeConfigStatus"),
     saveFanartConfigButton: document.querySelector("#saveFanartConfigButton"),
     fanartConfigStatus: document.querySelector("#fanartConfigStatus"),
+    saveOmdbConfigButton: document.querySelector("#saveOmdbConfigButton"),
+    omdbConfigStatus: document.querySelector("#omdbConfigStatus"),
     saveSeerrConfigButton: document.querySelector("#saveSeerrConfigButton") || elements.saveSeerrConfigButton,
     seerrConfigStatus: document.querySelector("#seerrConfigStatus") || elements.seerrConfigStatus,
     saveAdminCredentialsButton: document.querySelector("#saveAdminCredentialsButton"),
@@ -4822,6 +4825,8 @@ function populateConfigForm(config = {}) {
   if (elements.youtubeApiKey) elements.youtubeApiKey.value = config.youtube?.apiKey || "";
   if (elements.fanartApiKey) elements.fanartApiKey.value = "";
   if (elements.fanartApiKey) elements.fanartApiKey.placeholder = config.fanart?.configured ? "Configured - enter a new key to replace it" : "Personal API key (optional)";
+  if (elements.omdbApiKey) elements.omdbApiKey.value = "";
+  if (elements.omdbApiKey) elements.omdbApiKey.placeholder = config.omdb?.configured ? "Configured - enter a new key to replace it" : "OMDb API key";
 
   if (elements.seerrEnabled) elements.seerrEnabled.checked = !config.seerr?.disabled;
   if (elements.seerrServerUrl) elements.seerrServerUrl.value = config.seerr?.baseUrl || "";
@@ -5029,6 +5034,10 @@ async function saveSectionConfig(section) {
       payload.fanart = {
         apiKey: elements.fanartApiKey.value.trim(),
       };
+    } else if (section === "omdb") {
+      payload.omdb = {
+        apiKey: elements.omdbApiKey.value.trim(),
+      };
     } else if (section === "seerr") {
       payload.seerr = {
         baseUrl: elements.seerrServerUrl?.value.trim() || "",
@@ -5067,6 +5076,13 @@ async function saveSectionConfig(section) {
       };
       if (elements.fanartApiKey) elements.fanartApiKey.value = "";
       if (elements.fanartApiKey) elements.fanartApiKey.placeholder = state.savedConfig.fanart.configured ? "Configured - enter a new key to replace it" : "Personal API key (optional)";
+    }
+    if (section === "omdb") {
+      state.savedConfig.omdb = {
+        configured: Boolean(payload.omdb.apiKey || state.savedConfig.omdb?.configured)
+      };
+      if (elements.omdbApiKey) elements.omdbApiKey.value = "";
+      if (elements.omdbApiKey) elements.omdbApiKey.placeholder = state.savedConfig.omdb.configured ? "Configured - enter a new key to replace it" : "OMDb API key";
     }
     if (section === "seerr") {
       if (savedSectionConfig) {
@@ -6130,7 +6146,7 @@ function renderSearchPage() {
             </div>
           </div>
           <div class="overview-card-attrs">${escapeHtml(r.sub)}</div>
-          <p class="overview-card-text" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-top: 0.25rem;">${escapeHtml(r.overview || "No synopsis available.")}</p>
+          <div class="overview-card-text-wrap"><p class="overview-card-text" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-top: 0.25rem;">${escapeHtml(r.overview || "No synopsis available.")}</p></div>
         </div>
       </article>
     `;
@@ -6726,7 +6742,7 @@ function renderMovieOverviewCard(movie) {
           <div class="overview-card-badges">${sourceBadge}${renderSyncStatusDot(movie)}</div>
         </div>
         <div class="overview-card-attrs" data-overview-attrs>${[year, genres].filter(Boolean).join(" &middot; ")}</div>
-        <p class="overview-card-text" data-overview-text>${escapeHtml(overview)}</p>
+        <div class="overview-card-text-wrap"><p class="overview-card-text" data-overview-text>${escapeHtml(overview)}</p></div>
         <span class="overview-card-date">${formatDate(movie.watched_at)}</span>
       </div>
     </div>
@@ -7435,7 +7451,7 @@ function renderShowRecord(show = {}) {
             <button class="folder-trigger overview-show-title-btn" type="button" data-show-key="${escapeAttribute(showKey)}" style="border:0;background:transparent;padding:0;text-align:left;cursor:pointer;"><b>${escapeHtml(displayTitle)}</b></button>
           </div>
           <div class="overview-card-attrs" data-overview-attrs>${[firstYear, genres].filter(Boolean).join(" &middot; ")}${episodeCount ? `${firstYear || genres ? " &middot; " : ""}${episodeCount} ep${episodeCount !== 1 ? "s" : ""}` : ""}</div>
-          <p class="overview-card-text" data-overview-text>${escapeHtml(overview)}</p>
+          <div class="overview-card-text-wrap"><p class="overview-card-text" data-overview-text>${escapeHtml(overview)}</p></div>
         </div>
       </article>
     `;
@@ -7946,7 +7962,7 @@ async function resolveMovieBySlugOrId(value) {
   const key = decodeURIComponent(String(value || ""));
   const keySlug = slug(key);
   const search = key.replace(/-/g, " ").trim();
-  if (!search || !state.token) return null;
+  if (!search) return null;
 
   const url = new URL("/api/movies", window.location.origin);
   url.searchParams.set("limit", "50");
@@ -7958,7 +7974,24 @@ async function resolveMovieBySlugOrId(value) {
   if (movies.length) {
     state.moviesRaw = dedupeMediaRecords([...state.moviesRaw, ...movies], "movies");
   }
-  return movies.find((entry) => String(entry.id) === key || movieSlug(entry) === keySlug) || null;
+  const found = movies.find((entry) => String(entry.id) === key || movieSlug(entry) === keySlug);
+  if (found) return found;
+
+  // Titles with special chars (e.g. "Angels & Demons") produce slugs that don't round-trip
+  // cleanly through a text search. Fall back to searching by first word and slug-matching results.
+  const firstWord = search.split(" ")[0];
+  if (!firstWord || firstWord === search) return null;
+  const url2 = new URL("/api/movies", window.location.origin);
+  url2.searchParams.set("limit", "50");
+  url2.searchParams.set("search", firstWord);
+  const res2 = await fetch(url2, { headers: authHeaders(), cache: "no-store" });
+  const body2 = await res2.json().catch(() => ({}));
+  if (!res2.ok) return null;
+  const movies2 = Array.isArray(body2.movies) ? body2.movies : [];
+  if (movies2.length) {
+    state.moviesRaw = dedupeMediaRecords([...state.moviesRaw, ...movies2], "movies");
+  }
+  return movies2.find((entry) => String(entry.id) === key || movieSlug(entry) === keySlug) || null;
 }
 
 function nowPlayingHref(session = {}) {
@@ -9387,7 +9420,7 @@ function renderShowModalContent(show, {
                     ${syncStatusDotHtml}
                   </b>
                 </div>
-                <p>${escapeHtml(episode.overview)}</p>
+                <div class="immersive-episode-copy-wrap"><p>${escapeHtml(episode.overview)}</p></div>
                 <div class="immersive-episode-meta-row">
                   <span class="immersive-episode-dates">
                     <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
@@ -9450,15 +9483,20 @@ function renderShowModalContent(show, {
   const showImdbLinkHtml = showImdbId ? `<a class="action-pill" href="https://www.imdb.com/title/${escapeAttribute(showImdbId)}" target="_blank" rel="noopener noreferrer">View on IMDb</a>` : "";
 
   setMediaDetailActions(`
-    <button class="action-pill" type="button" data-watch-scope="show" ${(unwatchedRows.length && !isSaving) ? "" : "disabled"}>
-      ${isSavingShow ? "Saving watched state…" : "Mark whole show watched"}
-    </button>
-    ${watchedRows.length ? `<button class="action-pill media-edit-show-date-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">Edit Show Watch Date</button>` : ""}
-    ${tmdbOnly ? "" : `
-      <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}" data-logo-url="${escapeAttribute(show.logo_url || "")}">Edit Images</button>
-      <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">Fix Match</button>
-      <button class="action-pill media-merge-show-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">Merge</button>
-    `}
+    <details class="media-actions-menu">
+      <summary class="action-pill media-actions-menu-trigger">Show actions</summary>
+      <div class="media-actions-menu-panel">
+        <button class="action-pill" type="button" data-watch-scope="show" ${(unwatchedRows.length && !isSaving) ? "" : "disabled"}>
+          ${isSavingShow ? "Saving watched state…" : "Mark whole show watched"}
+        </button>
+        ${watchedRows.length ? `<button class="action-pill media-edit-show-date-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">Edit Show Watch Date</button>` : ""}
+        ${tmdbOnly ? "" : `
+          <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}" data-logo-url="${escapeAttribute(show.logo_url || "")}">Edit Images</button>
+          <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">Fix Match</button>
+          <button class="action-pill media-merge-show-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">Merge</button>
+        `}
+      </div>
+    </details>
     ${showImdbLinkHtml}
   `);
 
@@ -10412,9 +10450,14 @@ async function renderMovieImmersiveModalContent(movie) {
 
   const localPoster = posterUrlFor(movie) || "/favicon.svg";
   setMediaDetailActions(`
-    <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
-    <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}">Edit Images</button>
-    <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
+    <details class="media-actions-menu">
+      <summary class="action-pill media-actions-menu-trigger">Movie actions</summary>
+      <div class="media-actions-menu-panel">
+        <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
+        <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}">Edit Images</button>
+        <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
+      </div>
+    </details>
   `);
   root.innerHTML = `
     <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(localPoster)}');"></div>
@@ -10481,7 +10524,21 @@ async function renderMovieImmersiveModalContent(movie) {
   ` : "";
 
   const imdbId = movie.imdb_id || tmdbData?.imdb_id || "";
-  const imdbLinkHtml = imdbId ? `<a class="action-pill" href="https://www.imdb.com/title/${escapeAttribute(imdbId)}" target="_blank" rel="noopener noreferrer">View on IMDb</a>` : "";
+  let imdbRating = null;
+  if (imdbId && state.savedConfig?.omdb?.configured) {
+    const omdbRes = await fetch(`/api/omdb-rating?imdbId=${encodeURIComponent(imdbId)}`, { headers: authHeaders() }).catch(() => null);
+    if (omdbRes?.ok) {
+      const omdbData = await omdbRes.json().catch(() => null);
+      if (omdbData?.imdbRating) imdbRating = omdbData.imdbRating;
+    }
+    if (_mediaRenderToken !== renderToken) return;
+  }
+  const imdbPillHtml = imdbId ? ratingPillHtml({
+    label: "IMDb",
+    value: imdbRating ? `${Math.round(parseFloat(imdbRating) * 10)}%` : "View",
+    href: `https://www.imdb.com/title/${escapeAttribute(imdbId)}`,
+    title: imdbRating ? `IMDb rating: ${imdbRating}/10` : "Open on IMDb",
+  }) : "";
 
   const sourceBadgeHtml = movie.source ? `
     <span class="source-badge ${sourceClass(movie.source)}" style="display: inline-flex;">${escapeHtml(platformBadge(movie.source))}</span>
@@ -10502,12 +10559,16 @@ async function renderMovieImmersiveModalContent(movie) {
     ? `<a class="action-pill" href="${escapeAttribute(movie.youtube_url)}" target="_blank" rel="noopener noreferrer">Watch on YouTube</a>`
     : "";
   setMediaDetailActions(`
-    <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
-    <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}">Edit Images</button>
-    <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
+    <details class="media-actions-menu">
+      <summary class="action-pill media-actions-menu-trigger">Movie actions</summary>
+      <div class="media-actions-menu-panel">
+        <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
+        <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}">Edit Images</button>
+        <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
+        <button class="action-pill action-pill-danger" type="button" ${isSaving ? "disabled" : ""} data-delete-media-id="${escapeAttribute(movie.id)}" data-delete-media-title="${escapeAttribute(movie.title || "this movie")}">Delete</button>
+      </div>
+    </details>
     ${ytWatchBtn}
-    ${imdbLinkHtml}
-    <button class="action-pill action-pill-danger" type="button" ${isSaving ? "disabled" : ""} data-delete-media-id="${escapeAttribute(movie.id)}" data-delete-media-title="${escapeAttribute(movie.title || "this movie")}">Delete</button>
   `);
 
   root.innerHTML = `
@@ -10522,6 +10583,7 @@ async function renderMovieImmersiveModalContent(movie) {
 
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
+            ${imdbPillHtml}
             ${renderSeerrRequestPill("movie", tmdbData?.id || movie.tmdb_id, true)}
             ${syncStatusBlockHtml}
           </div>
@@ -13177,6 +13239,9 @@ function attachEvents() {
   });
   elements.saveFanartConfigButton?.addEventListener("click", () => {
     saveSectionConfig("fanart");
+  });
+  elements.saveOmdbConfigButton?.addEventListener("click", () => {
+    saveSectionConfig("omdb");
   });
   elements.saveSeerrConfigButton?.addEventListener("click", () => {
     saveSectionConfig("seerr");

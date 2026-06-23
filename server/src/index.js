@@ -75,6 +75,7 @@ import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
 import { cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, prewarmTmdbLibrary, searchTmdb, getCachedTvdbId } from "./utils/tmdbGateway.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "./utils/fanartGateway.js";
+import { getOmdbRating } from "./utils/omdbGateway.js";
 import { BACKUP_FORMAT, BACKUP_VERSION, backupManifest, exportCollectionPage, importCollectionBatch } from "./utils/backup.js";
 import {
   createWatchHistoryBackup,
@@ -3588,6 +3589,25 @@ async function handleYoutubeMeta(req, res) {
   return sendJson(res, { videoId, title, channelName, description, publishedAt, duration, thumbnails });
 }
 
+async function handleOmdbRating(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const imdbId = String(req.query.imdbId || "").trim();
+  if (!imdbId) return sendJson(res, { error: "imdbId is required" }, 400);
+
+  const config = await loadMediaConfig();
+  if (!config.omdb?.apiKey) return sendJson(res, { error: "OMDb API key not configured" }, 503);
+
+  try {
+    const rating = await getOmdbRating(imdbId, config.omdb.apiKey);
+    return sendJson(res, rating || {});
+  } catch (err) {
+    return sendJson(res, { error: err.message }, 500);
+  }
+}
+
 async function handleMergeShows(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -3733,6 +3753,7 @@ async function dispatch(req, res) {
     if (path === "fanart-images") return handleFanartImages(req, res);
     if (path === "tmdb-person") return handleTmdbPerson(req, res);
     if (path === "youtube-meta") return handleYoutubeMeta(req, res);
+    if (path === "omdb-rating") return handleOmdbRating(req, res);
     if (path === "webhook") return handleWebhook(req, res);
     if (path === "test-connection") return handleTestConnection(req, res);
     if (path === "test-plex-notifications") return handleTestPlexNotifications(req, res);

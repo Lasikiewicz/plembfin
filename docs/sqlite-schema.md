@@ -21,6 +21,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `tmdb_search_cache` | TMDB search results | tmdb-search handler | TMDB search |
 | `tmdb_season_cache` | TMDB season details | tmdb-season handler | TV detail pages |
 | `tmdb_person_cache` | TMDB person details, key `person_${personId}` | tmdb-person handler | cast pages |
+| `omdb_cache` | OMDb/IMDb ratings, 7-day TTL, key is the IMDb ID (`tt…`) | omdb-rating handler | movie detail pages |
 | `audit_log` | Security-relevant event log (login, credential change, rotation) | `writeAuditLog()` in `db.js` | ops/debugging only |
 
 ## `live_tracking_cache`

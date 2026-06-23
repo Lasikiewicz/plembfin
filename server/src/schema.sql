@@ -190,6 +190,12 @@ CREATE TABLE IF NOT EXISTS tmdb_person_cache (
   updated_at_ms INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS omdb_cache (
+  id TEXT PRIMARY KEY,     -- IMDb ID (tt...)
+  data TEXT,               -- JSON
+  updated_at_ms INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ts INTEGER NOT NULL,
