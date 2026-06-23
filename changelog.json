@@ -1,7 +1,22 @@
 {
-  "version": "0.2.9",
-  "updatedAt": "2026-06-21T19:14:32+01:00",
+  "version": "0.2.10",
+  "updatedAt": "2026-06-23T10:25:52+01:00",
   "entries": [
+    {
+      "version": "0.2.10",
+      "date": "2026-06-23T10:25:52+01:00",
+      "commit": "04c415d1e032d089c873726d2fc5fb2b0e78ad59",
+      "message": "feat: IMDb ratings via OMDb, collapsible mobile action menus, and movie refresh fix",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add OMDb integration: configure an API key in Settings → Integrations to display IMDb ratings as a % badge next to TMDB on movie pages, cached 7 days (also via OMDB_API_KEY env var)",
+        "Move IMDb link from top-bar actions into the ratings row as a styled rating pill",
+        "Wrap movie and TV show action buttons in a collapsible \"Movie/Show actions\" menu on mobile (≤640px), keeping IMDb and YouTube links outside the menu",
+        "Fix mobile top bar layout: title truncates with ellipsis, actions area becomes full-width horizontal scroll row",
+        "Fix movie page refresh \"Content not found\" for titles with special characters (e.g. Angels & Demons) — normalize special chars in title search comparison and add first-word fallback search on the client",
+        "Add omdb_cache SQLite table (id = IMDb tt-id, 7-day TTL)"
+      ]
+    },
     {
       "version": "0.2.9",
       "date": "2026-06-21T19:14:32+01:00",
