@@ -1,7 +1,21 @@
 {
-  "version": "0.2.16",
-  "updatedAt": "2026-06-23T12:10:18+01:00",
+  "version": "0.2.17",
+  "updatedAt": "2026-06-23T12:36:58+01:00",
   "entries": [
+    {
+      "version": "0.2.17",
+      "date": "2026-06-23T12:36:58+01:00",
+      "commit": "2f936c1cbed175fafab8e7aa48e7a64dd6b91f86",
+      "message": "feat: inline calendar date+time picker for mark-watched prompt",
+      "author": "Lasikiewicz",
+      "details": [
+        "Replace plain date input with a full inline calendar picker in the mark-watched dialog",
+        "Add hour/minute selects so users can set an exact time alongside the date",
+        "Selected day uses theme colour variable (var(--blue)) for consistent theming",
+        "Primary button colour now references var(--blue) CSS token instead of hardcoded hex",
+        "Remove the redundant Now button from the time picker section"
+      ]
+    },
     {
       "version": "0.2.16",
       "date": "2026-06-23T12:10:18+01:00",
