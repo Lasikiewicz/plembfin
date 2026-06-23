@@ -1,7 +1,21 @@
 {
-  "version": "0.2.10",
-  "updatedAt": "2026-06-23T10:25:52+01:00",
+  "version": "0.2.11",
+  "updatedAt": "2026-06-23T10:28:39+01:00",
   "entries": [
+    {
+      "version": "0.2.11",
+      "date": "2026-06-23T10:28:39+01:00",
+      "commit": "d722969466e9dd3a753d3a0fafd31e921864e592",
+      "message": "feat: add IMDb rating badge to TV show pages",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fetch OMDb rating for TV shows in hydrateImmersiveShowModal when OMDb is configured, same as movies",
+        "Display as a % rating pill (e.g. IMDb 85%) in the ratings row next to the TMDB badge",
+        "Fall back to a plain \"IMDb View\" pill (no OMDb key needed) when only the IMDb ID is known",
+        "Remove \"View on IMDb\" action button from the top-bar actions menu for shows",
+        "Use tmdbData external_ids.imdb_id as an additional IMDb ID source for shows"
+      ]
+    },
     {
       "version": "0.2.10",
       "date": "2026-06-23T10:25:52+01:00",
