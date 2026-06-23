@@ -621,8 +621,8 @@ h2 {
 }
 
 .button-primary {
-  border-color: #2f6da8;
-  background: #4b96e6;
+  border-color: color-mix(in srgb, var(--blue) 60%, #000);
+  background: var(--blue);
   color: #071018;
 }
 
@@ -4743,9 +4743,11 @@ details[open] .tool-accordion-chevron::before {
 
 .watch-date-custom {
   display: grid;
-  gap: 0.4rem;
-  border-top: 1px solid var(--line);
-  padding-top: var(--space-3);
+  gap: 0.7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #141b22;
+  padding: 0.9rem 1rem;
 }
 
 .watch-date-custom label {
@@ -4756,25 +4758,201 @@ details[open] .tool-accordion-chevron::before {
   letter-spacing: 0.03em;
 }
 
-.watch-date-custom-row {
-  display: flex;
+/* Custom inline date + time picker */
+.watch-date-picker {
+  display: grid;
   gap: var(--space-2);
 }
 
-.watch-date-custom-row input {
-  flex: 1;
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #080d11;
+.wd-display {
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
   color: var(--text);
-  font-size: 0.9rem;
-  padding: 0.65rem 0.75rem;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.6rem;
 }
 
-.watch-date-custom-row .button-primary {
-  flex: none;
-  white-space: nowrap;
+.wd-body {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.wd-calendar {
+  display: grid;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.wd-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.wd-month {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.wd-nav {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--field);
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.wd-nav:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  color: var(--blue);
+}
+
+.wd-nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.wd-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.wd-dow {
+  text-align: center;
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 1px 0;
+}
+
+.wd-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+}
+
+.wd-day {
+  width: 100%;
+  height: 100%;
+  min-height: 26px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.wd-day:hover:not(:disabled) {
+  background: var(--field);
+  border-color: var(--line-strong);
+}
+
+.wd-day.is-today {
+  border-color: var(--line-strong);
+}
+
+.wd-day.is-selected {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+
+.wd-day:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+}
+
+.wd-empty {
+  pointer-events: none;
+}
+
+.wd-time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  border-left: 1px solid var(--line);
+  padding-left: var(--space-3);
+  justify-content: flex-start;
+}
+
+.wd-time-label {
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  align-self: flex-start;
+}
+
+.wd-time-selects {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.wd-colon {
+  font-weight: 800;
+  color: var(--text);
+}
+
+.wd-select {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--field);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.3rem 0.4rem;
+  cursor: pointer;
+}
+
+.wd-select:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.wd-now-btn {
+  margin-left: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--field);
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.wd-now-btn:hover {
+  border-color: var(--line-strong);
+  color: var(--blue);
+}
+
+.wd-use {
+  width: 100%;
 }
 
 /* Ghost / secondary variant of .action-pill used for destructive-ish actions
@@ -9490,16 +9668,14 @@ html.light-mode .watch-date-pick-sub {
 }
 
 html.light-mode .watch-date-custom {
-  border-top-color: var(--line);
+  background: var(--panel-2);
+  border-color: var(--line);
 }
 
 html.light-mode .watch-date-custom label {
   color: var(--muted);
 }
 
-html.light-mode .watch-date-custom-row input {
-  background: #ffffff;
-  border-color: var(--line);
-  color: var(--text);
-}
+/* The picker uses theme variables (--field, --blue, --line, --text, --muted),
+   so it inherits the light palette automatically — no overrides needed. */
 
