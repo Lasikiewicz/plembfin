@@ -1,7 +1,18 @@
 {
-  "version": "0.2.13",
-  "updatedAt": "2026-06-23T11:18:01+01:00",
+  "version": "0.2.14",
+  "updatedAt": "2026-06-23T11:45:04+01:00",
   "entries": [
+    {
+      "version": "0.2.14",
+      "date": "2026-06-23T11:45:04+01:00",
+      "commit": "12c6de432d85b877444801d8389c7c6f0b41f19c",
+      "message": "feat: instant media detail loads and clickable Part Watched posters",
+      "author": "Lasikiewicz",
+      "details": [
+        "Remove the blank flash when opening or refreshing a TV show, movie, or person page by rendering the local library data immediately instead of waiting for settings to finish loading",
+        "Make Part Watched posters clickable so they link through to the show or movie page"
+      ]
+    },
     {
       "version": "0.2.13",
       "date": "2026-06-23T11:18:01+01:00",
