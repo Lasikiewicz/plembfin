@@ -3933,7 +3933,7 @@ function cronSyncGuide() {
 
 X-Api-Key: <your-api-key>`, "http")}
       <h3>What this runs</h3>
-      <p>The worker writes a heartbeat timestamp, polls Plex, Emby, and Jellyfin for active playback, updates live-session cache rows, detects completed sessions after 90% progress, writes completed watches to <code>watch_history</code>, dispatches outbound watched-state sync, and checks recent Plex items for unwatched removals.</p>
+      <p>The worker writes a heartbeat timestamp, polls Plex, Emby, and Jellyfin for active playback, updates live-session cache rows, detects completed sessions after 90% progress, writes completed watches to <code>watch_history</code>, dispatches outbound watched-state sync, checks recent Plex items for unwatched removals, and maintains <code>data/next-airing-cache.json</code> for TV show upcoming episode dates.</p>
     </section>
   `;
 }
@@ -4719,13 +4719,16 @@ function syncPageTopbar() {
   }
 
   if (elements.topbarControlsMenu) {
-    elements.topbarControlsMenu.classList.toggle("hidden", !activeControls);
+    elements.topbarControlsMenu.classList.toggle("hidden", !mobileTopbarControls || !activeControls);
   }
 
   const mediaDetailActions = document.getElementById("mediaDetailActions");
   if (elements.pageTopbarActions) {
-    if (activeControls && elements.topbarControlsPanel) {
+    if (activeControls && mobileTopbarControls && elements.topbarControlsPanel) {
       elements.topbarControlsPanel.appendChild(activeControls);
+      activeControls.classList.remove("hidden");
+    } else if (activeControls && !mobileTopbarControls) {
+      elements.pageTopbarActions.insertBefore(activeControls, mediaDetailActions || null);
       activeControls.classList.remove("hidden");
     }
     if (mediaDetailActions && mediaDetailActions.parentElement !== elements.pageTopbarActions) {
@@ -5777,12 +5780,19 @@ function showStatusLabel(status) {
 // Returns { text, isStatus } so the caller can style status differently.
 function nextAiringCell(tmdb) {
   if (!tmdb) return { text: "", isStatus: false };
-  // Prefer the backend-derived next_airing_date (computed from the season episode
-  // list); fall back to TMDB's own next_episode_to_air when it isn't present.
-  const raw = tmdb.next_airing_date || tmdb.next_episode_to_air?.air_date || "";
+  const raw = nextAiringDateValue(tmdb);
   const date = raw ? futureListDate(raw) : "";
   if (date) return { text: date, isStatus: false };
   return { text: showStatusLabel(tmdb.status), isStatus: true };
+}
+
+function nextAiringDateValue(tmdb) {
+  if (!tmdb) return "";
+  // Prefer the backend-derived next_airing_date (computed from season episode
+  // lists); fall back to TMDB's own next_episode_to_air when it isn't present.
+  const raw = tmdb.next_airing_date || tmdb.next_episode_to_air?.air_date || "";
+  const today = new Date().toISOString().slice(0, 10);
+  return raw && raw >= today ? raw : "";
 }
 
 function formatDateShort(date) {
@@ -6323,11 +6333,14 @@ function renderExplorer() {
     button.classList.toggle("active", button.dataset.explorerMode === state.explorerMode);
   }
   const activeView = currentExplorerView();
+  const lockNextAirList = state.explorerMode === "shows" && state.explorerSortShows === "next_air_asc";
   for (const button of elements.explorerViewButtons || []) {
     button.classList.toggle("active", button.dataset.explorerView === activeView);
   }
+  const viewToggle = elements.explorerViewButtons?.[0]?.closest(".explorer-view-toggle");
+  viewToggle?.classList.toggle("hidden", lockNextAirList);
   if (elements.explorerPosterSizeLabel) {
-    elements.explorerPosterSizeLabel.style.display = activeView === "overview" ? "none" : "";
+    elements.explorerPosterSizeLabel.style.display = activeView === "posters" ? "" : "none";
   }
   applyExplorerPosterWidth();
   if (elements.explorerSort) {
@@ -6706,6 +6719,7 @@ function scheduleNextAirResort() {
 }
 
 function currentExplorerView() {
+  if (state.explorerMode === "shows" && state.explorerSortShows === "next_air_asc") return "list";
   return state.explorerMode === "shows" ? state.explorerViewShows : state.explorerViewMovies;
 }
 
@@ -6754,6 +6768,15 @@ function sortArrow(colKey) {
 }
 
 function applyListHeaderSort(key) {
+  if (key === "next_air") {
+    setCurrentExplorerSort("next_air_asc");
+    if (elements.explorerSort) elements.explorerSort.value = currentExplorerSort();
+    if (state.explorerMode === "shows") {
+      state.showsRaw = []; state.showsOffset = 0; state.showsHasMore = true; state.showsLoading = false;
+    }
+    renderExplorer();
+    return;
+  }
   const asc = `${key}_asc`, desc = `${key}_desc`;
   setCurrentExplorerSort(currentExplorerSort() === asc ? desc : asc);
   if (elements.explorerSort) elements.explorerSort.value = currentExplorerSort();
@@ -6767,10 +6790,13 @@ function applyListHeaderSort(key) {
 
 function resolvedTmdbCache(mediaType, tmdbId, title) {
   if (!tmdbId && !title) return null;
-  const key = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}`;
-  const cached = state.tmdbDetailsCache.get(key);
-  if (!cached || typeof cached.then === "function") return null;
-  return cached;
+  const baseKey = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}`;
+  const keys = [baseKey, `${baseKey}||`];
+  for (const key of keys) {
+    const cached = state.tmdbDetailsCache.get(key);
+    if (cached && typeof cached.then !== "function") return cached;
+  }
+  return null;
 }
 
 function renderMovieCard(movie) {
@@ -7323,8 +7349,8 @@ function renderShowExplorer() {
     ? [...state.showsRaw].sort((a, b) => {
       const tmdbA = resolvedTmdbCache("tv", a.tmdb_id, a.title);
       const tmdbB = resolvedTmdbCache("tv", b.tmdb_id, b.title);
-      const dateA = tmdbA?.next_episode_to_air?.air_date;
-      const dateB = tmdbB?.next_episode_to_air?.air_date;
+      const dateA = nextAiringDateValue(tmdbA || a);
+      const dateB = nextAiringDateValue(tmdbB || b);
       if (dateA && dateB) return dateA.localeCompare(dateB);
       if (dateA) return -1;
       if (dateB) return 1;
@@ -7350,7 +7376,7 @@ async function loadExplorerShows() {
     const url = new URL("/api/shows", window.location.origin);
     url.searchParams.set("limit", String(EXPLORER_PAGE_SIZE));
     url.searchParams.set("offset", String(state.showsOffset));
-    url.searchParams.set("sort", state.explorerSortShows === "next_air_asc" ? "title_asc" : state.explorerSortShows);
+    url.searchParams.set("sort", state.explorerSortShows);
     if (state.explorerSearch) url.searchParams.set("search", state.explorerSearch);
     if (state.hideWatchedShows) url.searchParams.set("hideWatched", "true");
     if (state.hideEndedShows) url.searchParams.set("hideEnded", "true");
@@ -7531,7 +7557,7 @@ function renderShowRecord(show = {}) {
     const tmdbShow = resolvedTmdbCache("tv", tmdbId, displayTitle);
     const year = tmdbShow?.first_air_date?.slice(0, 4) || "";
     const totalEps = show.total_episodes || tmdbShow?.number_of_episodes || 0;
-    const nextAiring = nextAiringCell(tmdbShow);
+    const nextAiring = nextAiringCell(tmdbShow || show);
     const pct = totalEps ? Math.round((episodeCount / totalEps) * 100) : null;
     const episodeProgressHtml = totalEps
       ? `<div class="list-eps-progress" data-list-eps data-watched="${episodeCount}" data-total="${totalEps}"><div class="list-eps-bar-track"><div class="list-eps-bar-fill" style="width:${pct}%"></div></div><span class="list-eps-label">${episodeCount} / ${totalEps}</span></div>`
@@ -11199,12 +11225,15 @@ function syncMediaActionsMenuState() {
 
 function syncTopbarControlsMenuState() {
   const menu = elements.topbarControlsMenu;
-  if (!menu || menu.classList.contains("hidden")) return;
+  if (!menu || menu.classList.contains("hidden")) {
+    menu?.removeAttribute("open");
+    return;
+  }
   const isMobileControls = window.matchMedia("(max-width: 640px)").matches;
   if (isMobileControls) {
     menu.removeAttribute("open");
   } else {
-    menu.setAttribute("open", "");
+    menu.removeAttribute("open");
   }
 }
 

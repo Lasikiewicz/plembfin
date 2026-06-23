@@ -3,6 +3,7 @@ import { db, getDataVersion, bumpDataVersion, parseJson, toJson, transaction } f
 import { loadMediaConfig } from "./configStore.js";
 import { fetchPosterFromTmdb } from "./tmdbClient.js";
 import { getTmdbDetails, getTmdbSeason } from "./tmdbGateway.js";
+import { cachedNextAiringFor, readNextAiringCache } from "./nextAiringCache.js";
 import {
   initShowProgressCache,
   getCachedShowProgress,
@@ -1977,8 +1978,19 @@ export async function queryShows({ search = "", sort = "title_asc", limit = 6, o
   const safeOffset = Number(offset) || 0;
 
   const allShows = await getCachedShows();
+  const nextAiringCache = await readNextAiringCache();
+  const showsWithNextAiring = allShows.map((show) => {
+    const cached = cachedNextAiringFor(nextAiringCache.entries, show.tmdb_id, show.title);
+    if (!cached) return show;
+    return {
+      ...show,
+      status: show.status || cached.status || "",
+      next_airing_date: cached.nextAiringDate || "",
+      next_airing_updated_at: cached.updatedAt || 0,
+    };
+  });
   const needle = cleanString(search).toLowerCase();
-  const filtered = dedupeShowSummaries(allShows).filter((show) => {
+  const filtered = dedupeShowSummaries(showsWithNextAiring).filter((show) => {
     if (needle && !titleContainsSearch(show.title, needle)) return false;
     if (hideWatched) {
       const isWatched = show.total_episodes > 0 && show.episode_count >= show.total_episodes;
@@ -2040,6 +2052,14 @@ function sortRows(rows, sort) {
 
 function sortShowRows(rows, sort) {
   return [...rows].sort((a, b) => {
+    if (sort === "next_air_asc") {
+      const dateA = a.next_airing_date || "";
+      const dateB = b.next_airing_date || "";
+      if (dateA && dateB) return dateA.localeCompare(dateB) || a.title.localeCompare(b.title);
+      if (dateA) return -1;
+      if (dateB) return 1;
+      return a.title.localeCompare(b.title) || b.latest_watched_at.localeCompare(a.latest_watched_at);
+    }
     if (sort === "title_asc") return a.title.localeCompare(b.title) || b.latest_watched_at.localeCompare(a.latest_watched_at);
     if (sort === "title_desc") return b.title.localeCompare(a.title) || b.latest_watched_at.localeCompare(a.latest_watched_at);
     if (sort === "watched_asc") return a.earliest_watched_at.localeCompare(b.earliest_watched_at) || a.title.localeCompare(b.title);
@@ -2118,18 +2138,17 @@ export async function computeTvNextAiringDate(details, tmdbId) {
     const maxSeason = Math.max(0, ...(details.seasons || []).map((s) => Number(s.season_number) || 0));
     if (maxSeason > 0) candidates.add(maxSeason);
 
+    let earliest = null;
     const seasonNums = [...candidates].filter((n) => n > 0).sort((a, b) => a - b);
     for (const n of seasonNums) {
       const season = await getTmdbSeason({ tmdbId, seasonNumber: n, showStatus: details.status }).catch(() => null);
       if (!season) continue;
-      let earliest = null;
       for (const ep of season.episodes || []) {
         const d = ep.air_date;
         if (d && d >= today && (!earliest || d < earliest)) earliest = d;
       }
-      if (earliest) return earliest;
     }
-    return null;
+    return earliest;
   } catch (e) {
     console.error("Failed computing TV next airing date", e);
     return null;

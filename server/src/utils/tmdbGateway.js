@@ -7,7 +7,7 @@ import { getFanartMovieArt, getFanartTvArt } from "./fanartGateway.js";
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DETAILS_SCHEMA_VERSION = 4;
+const DETAILS_SCHEMA_VERSION = 5;
 const PERSON_SCHEMA_VERSION = 5;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const MISSING_TTL_MS = DAY_MS;
@@ -312,12 +312,13 @@ async function deriveNextAiring(details, tmdbId) {
   if (Number.isInteger(lastSeason)) { candidates.add(lastSeason); candidates.add(lastSeason + 1); }
   const maxSeason = Math.max(0, ...(details.seasons || []).map((season) => Number(season.season_number) || 0));
   if (maxSeason) candidates.add(maxSeason);
+  let earliest = null;
   for (const seasonNumber of [...candidates].filter((value) => value > 0).sort((a, b) => a - b)) {
     const season = await getTmdbSeason({ tmdbId, seasonNumber, showStatus: details.status }).catch(() => null);
     const dates = (season?.episodes || []).map((episode) => episode.air_date).filter((date) => date && date >= today).sort();
-    if (dates[0]) return dates[0];
+    if (dates[0] && (!earliest || dates[0] < earliest)) earliest = dates[0];
   }
-  return null;
+  return earliest;
 }
 
 export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false }) {

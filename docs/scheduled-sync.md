@@ -33,6 +33,12 @@ Implementation lives in `server/src/scheduled.js`.
 This is how a play that finishes without a final scrobble webhook still gets
 recorded: the poller sees it hit ≥ 90% then disappear, and completes it.
 
+4. **TV next-airing cache** â€” `runScheduledTick()` maintains
+   `data/next-airing-cache.json` from TMDB. The first run after startup builds the
+   cache for every show with a TMDB ID, and later runs refresh stale entries so the
+   TV Shows page can sort by upcoming episode date without querying TMDB for every
+   row.
+
 ## Why it matters for Now Playing
 
 `live_tracking_cache` is the **primary** source for Now Playing (see

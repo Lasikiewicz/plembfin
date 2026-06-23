@@ -75,6 +75,13 @@ import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
 import { cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, prewarmTmdbLibrary, searchTmdb, getCachedTvdbId } from "./utils/tmdbGateway.js";
+import {
+  cachedNextAiringFor,
+  mergeNextAiringCacheEntries,
+  nextAiringCacheEntryStale,
+  nextAiringCacheKey,
+  readNextAiringCache,
+} from "./utils/nextAiringCache.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "./utils/fanartGateway.js";
 import { getOmdbRating } from "./utils/omdbGateway.js";
 import { BACKUP_FORMAT, BACKUP_VERSION, backupManifest, exportCollectionPage, importCollectionBatch } from "./utils/backup.js";
@@ -101,6 +108,11 @@ import {
 } from "./utils/watchHistoryBackups.js";
 import { deviceCodeEndpoint, tokenEndpoint, ONEDRIVE_SCOPE } from "./utils/backupDestinations/onedrive.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "./paths.js";
+
+const NEXT_AIRING_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
+const NEXT_AIRING_REFRESH_LIMIT = 5000;
+let lastNextAiringRefreshAt = 0;
+let nextAiringInitialBuildPending = true;
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -3886,12 +3898,63 @@ export { dispatch };
 
 export { backfillUnknownShowTitles };
 
+async function refreshNextAiringCache({ limit = NEXT_AIRING_REFRESH_LIMIT, forceAll = false } = {}) {
+  const cache = await readNextAiringCache();
+  const shows = await getCachedShows();
+  const candidates = shows
+    .map((show) => {
+      const key = nextAiringCacheKey(show.tmdb_id, show.title);
+      const cached = cachedNextAiringFor(cache.entries, show.tmdb_id, show.title);
+      const status = show.status || cached?.status || "";
+      return { ...show, key, cached, status };
+    })
+    .filter((show) => show.key && show.tmdb_id && (forceAll || nextAiringCacheEntryStale(show.cached, show.status)))
+    .sort((a, b) => Number(a.cached?.updatedAt || 0) - Number(b.cached?.updatedAt || 0))
+    .slice(0, Math.max(1, Number(limit) || NEXT_AIRING_REFRESH_LIMIT));
+
+  if (!candidates.length) return { checked: 0, written: 0 };
+  console.log(`Next airing cache refresh: checking ${candidates.length} show${candidates.length === 1 ? "" : "s"}${forceAll ? " (full build)" : ""}...`);
+
+  const updates = [];
+  for (const show of candidates) {
+    try {
+      const details = await getTmdbDetails({ mediaType: "tv", tmdbId: show.tmdb_id, title: show.title, force: true });
+      updates.push({
+        key: show.key,
+        title: show.title,
+        tmdbId: show.tmdb_id,
+        nextAiringDate: details?.next_airing_date || details?.next_episode_to_air?.air_date || "",
+        status: details?.status || show.status || "",
+      });
+    } catch (error) {
+      console.error(`Failed to refresh next airing for ${show.title}`, error);
+      updates.push({
+        key: show.key,
+        title: show.title,
+        tmdbId: show.tmdb_id,
+        nextAiringDate: show.cached?.nextAiringDate || "",
+        status: show.status || "",
+      });
+    }
+  }
+
+  const result = await mergeNextAiringCacheEntries(updates);
+  console.log(`Next airing cache refresh complete: checked ${candidates.length}, wrote ${result.written || 0}.`);
+  return { checked: candidates.length, written: result.written || 0 };
+}
+
 // Invoked once per minute by the in-process scheduler in server.js
 // (replacing the scheduledSync Cloud Function).
 export async function runScheduledTick() {
   await runScheduledSync();
   await Promise.resolve(runScheduledWatchBackup()).catch((error) => console.error("Scheduled watch-history backup failed", error));
   await prewarmTmdbLibrary({ limit: 4 }).catch((error) => console.error("TMDB prewarm failed", error));
+  if (Date.now() - lastNextAiringRefreshAt > NEXT_AIRING_REFRESH_INTERVAL_MS) {
+    lastNextAiringRefreshAt = Date.now();
+    const forceAll = nextAiringInitialBuildPending;
+    nextAiringInitialBuildPending = false;
+    await refreshNextAiringCache({ forceAll }).catch((error) => console.error("Next airing cache refresh failed", error));
+  }
 }
 
 // ---------------------------------------------------------------------------

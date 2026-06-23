@@ -74,6 +74,7 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 *   🔒 **Self-Hosted & Private**: Built on a local SQLite database running in WAL mode. All poster assets, metadata, and watch histories reside on your own hardware.
 *   🛡️ **Security Hardening**: Ships with strict HTTP security headers (CSP, `X-Frame-Options`, `Permissions-Policy`), scrypt password hashing, rate-limited login, HMAC-signed sessions, and a forced first-login password change when the default credentials are in use. See [`docs/hardening.md`](docs/hardening.md) for the full production checklist.
 *   🖼️ **Art Pipeline & Caching**: Fetches posters, backdrops, and logo art from your media servers, TMDB, and Fanart.tv (in parallel), resizes them with `sharp`, and caches them locally under `data/media` for near-instant rendering.
+*   📺 **TV Next-Airing Cache**: Builds and maintains `data/next-airing-cache.json` from TMDB so the TV Shows library can list upcoming episodes without checking every show during page loads.
 *   🧹 **Echo Loop Prevention**: Utilizes a memory-mapped loop detector to suppress echo webhooks triggered by Plembfin's own updates.
 *   ☁️ **Automated Backups**: Backs up your database daily to a local folder and optionally mirrors to Backblaze B2 cloud storage.
 *   🔍 **Seerr Integration**: Integrates with Overseerr/Jellyseerr/Seerr to manage requests from movie and show detail views, while verifying availability against your configured Plex, Emby, and Jellyfin libraries.
@@ -277,7 +278,7 @@ Plembfin runs as a single-process Node application:
 *   **Web Server**: Powered by Express (`server/server.js`), static-serving the SPA interface (`public/`) and poster binaries (`data/media`).
 *   **Manual Router**: A lightweight dispatcher routing API endpoints to specific controllers.
 *   **Database**: Uses `better-sqlite3` in WAL mode for rapid reading/writing and locks safety.
-*   **Scheduler**: Runs in-process on a `setInterval` timer (no crontab required). It executes once per minute to reconcile active play states, check sync queues, and perform nightly backups.
+*   **Scheduler**: Runs in-process on a `setInterval` timer (no crontab required). It executes once per minute to reconcile active play states, check sync queues, maintain the TV next-airing cache, and perform nightly backups.
 *   **Pre-push build check**: Before code is deployed or pushed, `npm run build` is run automatically. This checks JavaScript syntax and boots the server temporarily in a clean directory on port 0 to verify startup health.
 
 ---

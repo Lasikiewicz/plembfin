@@ -49,6 +49,11 @@ The same logic runs on demand via:
 - `POST /api/force-sync` — runs and stores progress in `runtime_state` for the
   dashboard to poll; `stop-force-sync` cancels.
 
+The scheduler also maintains `data/next-airing-cache.json`. On startup it builds a
+full TMDB-backed TV next-airing cache for every show with a TMDB ID, then refreshes
+stale entries periodically so the TV Shows library can sort by upcoming episodes
+without making per-row TMDB calls during page loads.
+
 ## Changelog & update check
 
 Each build ships with a bundled `changelog.json` at the repo root (served verbatim at
