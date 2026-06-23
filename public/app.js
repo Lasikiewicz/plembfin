@@ -9331,6 +9331,7 @@ function renderShowModalContent(show, {
   seasonDetailsByNumber = new Map(),
   loading = false,
   tmdbOnly = false,
+  imdbPillHtml = "",
 } = {}) {
   const root = mediaDetailRoot();
   const isSaving = state.savingWatchAction;
@@ -9479,8 +9480,8 @@ function renderShowModalContent(show, {
     </section>
   ` : "";
 
-  const showImdbId = show.imdb_id || representativeEpisode(seasonsMap)?.imdb_id || "";
-  const showImdbLinkHtml = showImdbId ? `<a class="action-pill" href="https://www.imdb.com/title/${escapeAttribute(showImdbId)}" target="_blank" rel="noopener noreferrer">View on IMDb</a>` : "";
+  const showImdbId = show.imdb_id || representativeEpisode(seasonsMap)?.imdb_id || tmdbData?.external_ids?.imdb_id || "";
+  const showImdbBasePill = showImdbId && !imdbPillHtml ? ratingPillHtml({ label: "IMDb", value: "View", href: `https://www.imdb.com/title/${escapeAttribute(showImdbId)}`, title: "Open on IMDb" }) : "";
 
   setMediaDetailActions(`
     <details class="media-actions-menu">
@@ -9497,7 +9498,6 @@ function renderShowModalContent(show, {
         `}
       </div>
     </details>
-    ${showImdbLinkHtml}
   `);
 
   root.innerHTML = `
@@ -9511,6 +9511,7 @@ function renderShowModalContent(show, {
           <div class="media-detail-bottom-stack">
             <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
               ${ratingPillsHtml}
+              ${imdbPillHtml || showImdbBasePill}
               ${showModalStatus(loading, hasTmdbKey, Boolean(tmdbData))}
               ${renderSeerrRequestPill("tv", tvSeerrTmdbId, showIsNowPlaying)}
             </div>
@@ -9576,7 +9577,26 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
   }
 
   const seasonsList = (tmdbData?.seasons?.length ? tmdbData.seasons : fallbackSeasonList(seasonsFromShowRecord(show))).filter((season) => Number(season.season_number) > 0);
-  renderShowModalContent(show, { activeSeasonNum, tmdbData, seasonDetailsByNumber: new Map(), loading: true });
+
+  const showImdbId = show.imdb_id || tmdbData?.external_ids?.imdb_id || "";
+  let imdbPillHtml = "";
+  if (showImdbId && state.savedConfig?.omdb?.configured) {
+    const omdbRes = await fetch(`/api/omdb-rating?imdbId=${encodeURIComponent(showImdbId)}`, { headers: authHeaders() }).catch(() => null);
+    if (omdbRes?.ok) {
+      const omdbData = await omdbRes.json().catch(() => null);
+      if (omdbData?.imdbRating) {
+        imdbPillHtml = ratingPillHtml({
+          label: "IMDb",
+          value: `${Math.round(parseFloat(omdbData.imdbRating) * 10)}%`,
+          href: `https://www.imdb.com/title/${escapeAttribute(showImdbId)}`,
+          title: `IMDb rating: ${omdbData.imdbRating}/10`,
+        });
+      }
+    }
+    if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
+  }
+
+  renderShowModalContent(show, { activeSeasonNum, tmdbData, seasonDetailsByNumber: new Map(), loading: true, imdbPillHtml });
 
   const seasonDetailsByNumber = new Map();
   if (tmdbData?.id && activeSeasonNum != null) {
@@ -9590,6 +9610,7 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
     tmdbData,
     seasonDetailsByNumber,
     loading: false,
+    imdbPillHtml,
   });
 }
 
