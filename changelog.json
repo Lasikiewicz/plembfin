@@ -1,7 +1,21 @@
 {
-  "version": "0.2.22",
-  "updatedAt": "2026-06-23T14:11:41+01:00",
+  "version": "0.2.23",
+  "updatedAt": "2026-06-23T17:03:30+01:00",
   "entries": [
+    {
+      "version": "0.2.23",
+      "date": "2026-06-23T17:03:30+01:00",
+      "commit": "b2f97d6d88753157492b084186216c631028a7be",
+      "message": "fix: cache TV next airing dates",
+      "author": "Lasikiewicz",
+      "details": [
+        "Build and maintain a local next-airing cache for TV shows from TMDB.",
+        "Use cached upcoming episode dates for TV Shows sorting and list display.",
+        "Keep Next Airing locked to the list view with earliest episodes first.",
+        "Keep desktop controls inline while preserving the mobile Controls menu.",
+        "Document the scheduler-managed next-airing cache."
+      ]
+    },
     {
       "version": "0.2.22",
       "date": "2026-06-23T14:11:41+01:00",
