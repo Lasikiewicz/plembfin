@@ -78,6 +78,7 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 *   ☁️ **Automated Backups**: Backs up your database daily to a local folder and optionally mirrors to Backblaze B2 cloud storage.
 *   🔍 **Seerr Integration**: Integrates with Overseerr/Jellyseerr/Seerr to check request and availability statuses directly from the movie and show detail views.
 *   📅 **In-Process Scheduler**: An in-memory scheduler checks for active play sessions, processes manual sync overrides, and triggers catch-up syncs every minute.
+*   🆕 **Update Notifications**: Settings → Changelog shows your running version and checks GitHub for newer releases, highlighting what's changed since your build.
 
 ---
 
@@ -292,7 +293,7 @@ npm run dev      # start with auto-reload on http://localhost:5055
 
 ## 📜 License
 
-Plembfin is private software. See the [changelog.json](changelog.json) for the version history and commit logs.
+Plembfin is private software. See the [changelog.json](changelog.json) for the version history and commit logs, or open **Settings → Changelog** in the app to see your current version and any newer releases pulled from GitHub.
 
 ---
 

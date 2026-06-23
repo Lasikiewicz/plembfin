@@ -100,7 +100,7 @@ import {
   watchBackupStatus,
 } from "./utils/watchHistoryBackups.js";
 import { deviceCodeEndpoint, tokenEndpoint, ONEDRIVE_SCOPE } from "./utils/backupDestinations/onedrive.js";
-import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR } from "./paths.js";
+import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "./paths.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -3702,10 +3702,113 @@ async function handleClearCache(req, res) {
   return sendJson(res, { ok: true, deleted, freed });
 }
 
+// ---------------------------------------------------------------------------
+// Changelog
+//
+// Each build ships with a bundled changelog.json (served at /changelog.json) that
+// records the version this instance was built from. A running instance also polls
+// the changelog.json published on GitHub so the Settings → Changelog screen can
+// show the user their current version alongside any newer releases. The browser
+// can't reach GitHub directly (CSP connect-src 'self'), so we proxy + cache it here.
+// ---------------------------------------------------------------------------
+
+const REMOTE_CHANGELOG_URL =
+  "https://raw.githubusercontent.com/Lasikiewicz/plembfin/main/changelog.json";
+const REMOTE_CHANGELOG_TTL_MS = 30 * 60 * 1000; // 30 minutes
+let remoteChangelogCache = { fetchedAt: 0, data: null };
+
+function readLocalChangelog() {
+  try {
+    const raw = fs.readFileSync(nodePath.resolve(PUBLIC_DIR, "..", "changelog.json"), "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchRemoteChangelog({ force = false } = {}) {
+  const now = Date.now();
+  if (!force && remoteChangelogCache.data && now - remoteChangelogCache.fetchedAt < REMOTE_CHANGELOG_TTL_MS) {
+    return remoteChangelogCache.data;
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(REMOTE_CHANGELOG_URL, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`GitHub responded ${response.status}`);
+    const data = await response.json();
+    remoteChangelogCache = { fetchedAt: now, data };
+    return data;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function parseSemver(value) {
+  const match = String(value || "").trim().match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function compareSemver(a, b) {
+  const pa = parseSemver(a);
+  const pb = parseSemver(b);
+  if (!pa || !pb) return 0;
+  for (let i = 0; i < 3; i++) {
+    if (pa[i] > pb[i]) return 1;
+    if (pa[i] < pb[i]) return -1;
+  }
+  return 0;
+}
+
+async function handleChangelog(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+
+  const local = readLocalChangelog();
+  const currentVersion = local?.version || null;
+  const localEntries = Array.isArray(local?.entries) ? local.entries : [];
+
+  let remote = null;
+  let remoteError = null;
+  try {
+    remote = await fetchRemoteChangelog({ force: req.query?.refresh === "1" });
+  } catch (error) {
+    remoteError = error?.message || "Unable to reach GitHub";
+  }
+
+  const remoteAvailable = Boolean(remote && Array.isArray(remote.entries));
+  const entries = remoteAvailable ? remote.entries : localEntries;
+  const latestVersion = remoteAvailable ? remote.version || currentVersion : currentVersion;
+
+  const newer = currentVersion
+    ? entries.filter((entry) => compareSemver(entry.version, currentVersion) > 0)
+    : [];
+
+  return sendJson(
+    res,
+    {
+      current: currentVersion,
+      latest: latestVersion,
+      updateAvailable: newer.length > 0,
+      remoteAvailable,
+      remoteError,
+      newer,
+      entries,
+    },
+    200,
+    { "Cache-Control": "no-store" }
+  );
+}
+
 async function dispatch(req, res) {
   try {
     const path = routePath(req);
     if (path === "ping") return handlePing(req, res);
+    if (path === "changelog") return handleChangelog(req, res);
     if (path === "diagnostic-logs") return handleDiagnosticLogs(req, res);
     if (path === "login") return handleLogin(req, res);
     if (path === "logout") return handleLogout(req, res);

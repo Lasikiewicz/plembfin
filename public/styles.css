@@ -3337,6 +3337,40 @@ details[open] .tool-accordion-chevron::before {
   gap: var(--space-3);
 }
 
+.changelog-status {
+  display: grid;
+  gap: var(--space-1);
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.changelog-status b {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.changelog-status span {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.changelog-status-update {
+  border-left-color: var(--accent, #6366f1);
+}
+
+.changelog-status-ok {
+  border-left-color: #22c55e;
+}
+
+.changelog-status-muted {
+  border-left-color: var(--muted);
+}
+
 .changelog-entry {
   display: grid;
   gap: var(--space-2);
@@ -3344,6 +3378,32 @@ details[open] .tool-accordion-chevron::before {
   border-radius: var(--radius);
   background: var(--panel-2);
   padding: var(--space-3);
+}
+
+.changelog-entry-new {
+  border-color: var(--accent, #6366f1);
+}
+
+.changelog-tag {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
+.changelog-tag-new {
+  background: var(--accent, #6366f1);
+  color: #fff;
+}
+
+.changelog-tag-current {
+  background: var(--line);
+  color: var(--muted);
 }
 
 .changelog-entry-head {

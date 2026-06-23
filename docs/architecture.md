@@ -49,6 +49,22 @@ The same logic runs on demand via:
 - `POST /api/force-sync` — runs and stores progress in `runtime_state` for the
   dashboard to poll; `stop-force-sync` cancels.
 
+## Changelog & update check
+
+Each build ships with a bundled `changelog.json` at the repo root (served verbatim at
+`GET /changelog.json`) that records the version this instance was built from — this is what
+the sidebar version badge shows.
+
+`GET /api/changelog` (`handleChangelog` in `index.js`) layers an update check on top: it
+reads the bundled `changelog.json` for the current version and fetches the published
+`changelog.json` from GitHub raw (`Lasikiewicz/plembfin@main`), cached in-process for 30
+minutes (force-refresh with `?refresh=1`, 8-second fetch timeout). The browser cannot reach
+GitHub directly because the CSP is `connect-src 'self'`, so the server proxies and caches it.
+The response is `{ current, latest, updateAvailable, remoteAvailable, remoteError, newer,
+entries }`, where `newer` lists releases with a higher semver than the running build. If
+GitHub is unreachable it falls back to the bundled entries. Settings → Changelog renders the
+current version, an update banner, and the full release list with newer versions highlighted.
+
 ## Data layer (`server/src/db.js` + `schema.sql`)
 
 `better-sqlite3` opens `data/plembfin.db` in WAL mode and applies `schema.sql` on

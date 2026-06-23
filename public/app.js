@@ -243,6 +243,7 @@ function bindElements() {
     appShell: document.querySelector("#appShell"),
     appVersion: document.querySelector("#appVersion"),
     changelogPanel: document.querySelector("#changelogPanel"),
+    changelogRefreshButton: document.querySelector("#changelogRefreshButton"),
     authForm: document.querySelector("#authForm"),
     authPanel: document.querySelector("#authPanel"),
     adminToken: document.querySelector("#adminToken"),
@@ -472,42 +473,94 @@ async function loadAppVersion() {
   }
 }
 
-async function loadChangelogData() {
-  if (state.changelog?.entries) return state.changelog;
-  const response = await fetch("/changelog.json", { cache: "no-store" });
-  const changelog = await response.json();
-  if (!response.ok) throw new Error(changelog?.error || `Changelog unavailable (${response.status})`);
-  state.changelog = changelog;
-  if (elements.appVersion && changelog.version) elements.appVersion.textContent = `v${changelog.version}`;
-  return changelog;
+function compareChangelogVersions(a, b) {
+  const parse = (value) => {
+    const match = String(value || "").trim().match(/^(\d+)\.(\d+)\.(\d+)/);
+    return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+  };
+  const pa = parse(a);
+  const pb = parse(b);
+  if (!pa || !pb) return 0;
+  for (let i = 0; i < 3; i++) {
+    if (pa[i] > pb[i]) return 1;
+    if (pa[i] < pb[i]) return -1;
+  }
+  return 0;
 }
 
-async function renderChangelog() {
+// Pulls the published changelog from GitHub (proxied by the server) so we can show
+// the user's current build version alongside any newer releases.
+async function loadChangelogData(force = false) {
+  const response = await fetch(`/api/changelog${force ? "?refresh=1" : ""}`, {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error || `Changelog unavailable (${response.status})`);
+  state.changelog = data;
+  if (elements.appVersion && data.current) elements.appVersion.textContent = `v${data.current}`;
+  return data;
+}
+
+async function renderChangelog(force = false) {
   if (!elements.changelogPanel) return;
   elements.changelogPanel.innerHTML = `<div class="idle-state"><b>Loading changelog...</b></div>`;
   try {
-    const changelog = await loadChangelogData();
-    const entries = Array.isArray(changelog.entries) ? changelog.entries : [];
+    const data = await loadChangelogData(force);
+    const entries = Array.isArray(data.entries) ? data.entries : [];
+    const current = data.current || null;
+    const latest = data.latest || current;
+    const newerCount = Array.isArray(data.newer) ? data.newer.length : 0;
+
+    let banner;
+    if (!data.remoteAvailable) {
+      banner = `
+        <div class="changelog-status changelog-status-muted">
+          <b>Current version v${escapeHtml(current || "?")}</b>
+          <span>Couldn't reach GitHub to check for newer releases${data.remoteError ? ` (${escapeHtml(data.remoteError)})` : ""}.</span>
+        </div>`;
+    } else if (data.updateAvailable) {
+      banner = `
+        <div class="changelog-status changelog-status-update">
+          <b>Update available — v${escapeHtml(latest)}</b>
+          <span>You're running v${escapeHtml(current || "?")}. ${newerCount} newer release${newerCount === 1 ? "" : "s"} listed below.</span>
+        </div>`;
+    } else {
+      banner = `
+        <div class="changelog-status changelog-status-ok">
+          <b>You're up to date — v${escapeHtml(current || "?")}</b>
+          <span>Running the latest published release.</span>
+        </div>`;
+    }
+
     if (!entries.length) {
-      elements.changelogPanel.innerHTML = `<div class="idle-state"><b>No changelog entries found.</b></div>`;
+      elements.changelogPanel.innerHTML = `${banner}<div class="idle-state"><b>No changelog entries found.</b></div>`;
       return;
     }
 
-    elements.changelogPanel.innerHTML = entries
-      .map((entry) => {
-        const details = Array.isArray(entry.details) ? entry.details.filter(Boolean) : [];
-        return `
-          <article class="changelog-entry">
-            <div class="changelog-entry-head">
-              <b>v${escapeHtml(entry.version || "")}</b>
-              <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
-            </div>
-            <p>${escapeHtml(entry.message || "Release update")}</p>
-            ${details.length ? `<ul>${details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("")}</ul>` : ""}
-          </article>
-        `;
-      })
-      .join("");
+    const renderEntry = (entry) => {
+      const details = Array.isArray(entry.details) ? entry.details.filter(Boolean) : [];
+      const isCurrent = current && entry.version === current;
+      const isNewer = current && compareChangelogVersions(entry.version, current) > 0;
+      const tag = isNewer
+        ? `<span class="changelog-tag changelog-tag-new">New</span>`
+        : isCurrent
+          ? `<span class="changelog-tag changelog-tag-current">Current</span>`
+          : "";
+      const cls = `changelog-entry${isNewer ? " changelog-entry-new" : ""}${isCurrent ? " changelog-entry-current" : ""}`;
+      return `
+        <article class="${cls}">
+          <div class="changelog-entry-head">
+            <b>v${escapeHtml(entry.version || "")}${tag}</b>
+            <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
+          </div>
+          <p>${escapeHtml(entry.message || "Release update")}</p>
+          ${details.length ? `<ul>${details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("")}</ul>` : ""}
+        </article>
+      `;
+    };
+
+    elements.changelogPanel.innerHTML = banner + entries.map(renderEntry).join("");
   } catch (error) {
     elements.changelogPanel.innerHTML = `<div class="idle-state"><b>${escapeHtml(error.message || "Unable to load changelog.")}</b></div>`;
   }
@@ -12682,6 +12735,10 @@ function attachEvents() {
 
   elements.appVersion?.addEventListener("click", () => {
     navigateTo("/settings/changelog");
+  });
+
+  elements.changelogRefreshButton?.addEventListener("click", () => {
+    renderChangelog(true).catch(() => { });
   });
 
   elements.lockButton.addEventListener("click", lockDashboard);
