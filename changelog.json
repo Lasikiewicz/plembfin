@@ -1,7 +1,18 @@
 {
-  "version": "0.2.21",
-  "updatedAt": "2026-06-23T14:01:48+01:00",
+  "version": "0.2.22",
+  "updatedAt": "2026-06-23T14:11:41+01:00",
   "entries": [
+    {
+      "version": "0.2.22",
+      "date": "2026-06-23T14:11:41+01:00",
+      "commit": "728483ec4a2e7fbb0efdc1770d0b566ca8c78bb0",
+      "message": "fix: stop local watches implying availability",
+      "author": "Lasikiewicz",
+      "details": [
+        "Prevent watched movie records from forcing the Available in 1080p badge",
+        "Keep Seerr request pills tied to verified app availability status"
+      ]
+    },
     {
       "version": "0.2.21",
       "date": "2026-06-23T14:01:48+01:00",
