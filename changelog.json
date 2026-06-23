@@ -1,7 +1,19 @@
 {
-  "version": "0.2.17",
-  "updatedAt": "2026-06-23T12:36:58+01:00",
+  "version": "0.2.18",
+  "updatedAt": "2026-06-23T13:17:34+01:00",
   "entries": [
+    {
+      "version": "0.2.18",
+      "date": "2026-06-23T13:17:34+01:00",
+      "commit": "0aa29afa181c6689e401331f71feb8abfe7c3c71",
+      "message": "fix: send TV 4K Seerr seasons",
+      "author": "Lasikiewicz",
+      "details": [
+        "Send missing season numbers with whole-show TV 4K Seerr requests",
+        "Keep season-specific Seerr requests using their single selected season",
+        "Add scratch helpers used while checking local layout and style diagnostics"
+      ]
+    },
     {
       "version": "0.2.17",
       "date": "2026-06-23T12:36:58+01:00",
