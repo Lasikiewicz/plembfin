@@ -76,7 +76,7 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 *   🖼️ **Art Pipeline & Caching**: Fetches posters, backdrops, and logo art from your media servers, TMDB, and Fanart.tv (in parallel), resizes them with `sharp`, and caches them locally under `data/media` for near-instant rendering.
 *   🧹 **Echo Loop Prevention**: Utilizes a memory-mapped loop detector to suppress echo webhooks triggered by Plembfin's own updates.
 *   ☁️ **Automated Backups**: Backs up your database daily to a local folder and optionally mirrors to Backblaze B2 cloud storage.
-*   🔍 **Seerr Integration**: Integrates with Overseerr/Jellyseerr/Seerr to check request and availability statuses directly from the movie and show detail views.
+*   🔍 **Seerr Integration**: Integrates with Overseerr/Jellyseerr/Seerr to manage requests from movie and show detail views, while verifying availability against your configured Plex, Emby, and Jellyfin libraries.
 *   📅 **In-Process Scheduler**: An in-memory scheduler checks for active play sessions, processes manual sync overrides, and triggers catch-up syncs every minute.
 *   🆕 **Update Notifications**: Settings → Changelog shows your running version and checks GitHub for newer releases, highlighting what's changed since your build.
 
@@ -189,6 +189,7 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 #### 🔍 Seerr (Request Manager)
 *   **Seerr Server URL**: Your Overseerr or Jellyseerr server URL (e.g., `http://192.168.1.100:5055`).
 *   **Seerr API Key**: Copy the API key from your Seerr Settings → General.
+*   Availability badges are based on Plembfin's configured Plex, Emby, and Jellyfin apps, not Seerr's cached availability state.
 
 ---
 

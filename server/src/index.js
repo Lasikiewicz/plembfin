@@ -693,12 +693,10 @@ async function handleSeerrMediaStatus(req, res) {
     const status4k = Number(media?.status4k ?? media?.mediaStatus4k ?? 0);
     const requested = Boolean(media?.requests?.some?.((request) => !request?.is4k) || media?.request || media?.requested);
     const requested4k = Boolean(media?.requests?.some?.((request) => request?.is4k) || media?.request4k || media?.requested4k);
-    const available = configuredAppStatus.checked
-      ? configuredAppStatus.available
-      : Boolean(media?.available || status === 5);
-    const available4k = configuredAppStatus.checked
-      ? configuredAppStatus.available4k
-      : Boolean(media?.available4k || status4k === 5);
+    const seerrAvailable = Boolean(media?.available || status === 5);
+    const seerrAvailable4k = Boolean(media?.available4k || status4k === 5);
+    const available = configuredAppStatus.checked ? configuredAppStatus.available : false;
+    const available4k = configuredAppStatus.checked ? configuredAppStatus.available4k : false;
     const pending = !available && Boolean(requested || [2, 3, 4].includes(status));
     const pending4k = !available4k && Boolean(requested4k || [2, 3, 4].includes(status4k));
 
@@ -712,8 +710,10 @@ async function handleSeerrMediaStatus(req, res) {
       pending4k,
       status,
       status4k,
-      availabilitySource: configuredAppStatus.checked ? "configured_apps" : "seerr",
+      availabilitySource: configuredAppStatus.checked ? "configured_apps" : "none",
       configuredAppStatus,
+      seerrAvailable,
+      seerrAvailable4k,
     });
   } catch (err) {
     return sendJson(res, { ok: false, error: err.message || "Connection to Seerr failed" }, 502);
