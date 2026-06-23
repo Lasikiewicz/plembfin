@@ -6859,12 +6859,15 @@ function renderPartWatchedCard(entry) {
   const formattedTime = entry.updated_at ? formatDate(entry.updated_at) : "";
   const prefetchType = isEpisode ? "tv" : "movie";
   const prefetchTitle = isEpisode ? displayTitle : entry.title;
+  const mediaHref = isEpisode
+    ? `/tvshow/${encodeURIComponent(slug(displayTitle))}`
+    : `/movie/${encodeURIComponent(slug(entry.title || displayTitle))}`;
 
   return `
     <div class="part-watched-page-card" data-part-watched-card-id="${entry.id}" data-part-watched-media-key="${escapeAttribute(entry.media_key)}" data-prefetch-type="${prefetchType}" data-prefetch-title="${escapeAttribute(prefetchTitle)}"${entry.tmdb_id ? ` data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id)}"` : ""}>
-      <div class="part-watched-card-poster-wrapper">
+      <a class="part-watched-card-poster-wrapper" href="${escapeAttribute(mediaHref)}" data-part-watched-href="${escapeAttribute(mediaHref)}" aria-label="View ${escapeAttribute(displayTitle)}">
         ${posterMarkup(entry, "part-watched-page-poster")}
-      </div>
+      </a>
       <div class="part-watched-card-details">
         <div class="part-watched-card-header">
           <b class="part-watched-card-title" title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</b>
@@ -13645,6 +13648,12 @@ function attachEvents() {
   });
 
   elements.partWatchedPanel?.addEventListener("click", async (event) => {
+    const posterLink = event.target.closest("[data-part-watched-href]");
+    if (posterLink) {
+      event.preventDefault();
+      navigateTo(posterLink.dataset.partWatchedHref);
+      return;
+    }
     const watchBtn = event.target.closest("[data-action-watch]");
     const unwatchBtn = event.target.closest("[data-action-unwatch]");
     if (!watchBtn && !unwatchBtn) return;
@@ -13888,6 +13897,13 @@ function initialize() {
       if (isConfigSensitiveRoute(fullPath) && !state.mustChangePassword) {
         primeSensitiveRouteState(fullPath);
         applyActiveView();
+        // Paint the media detail immediately using local data (e.g. /api/show)
+        // instead of waiting for loadSavedConfig() — which is three sequential
+        // round-trips (/api/config → /api/seerr/status → /api/appearance). The
+        // local show record (title, poster, episodes, progress) needs no config,
+        // so rendering now removes the blank flash on a direct load/refresh. The
+        // post-config handleRouting below re-renders to layer in TMDB/IMDb data.
+        handleRouting(fullPath);
       } else {
         selectView(state.activeView);
       }

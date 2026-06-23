@@ -9212,6 +9212,10 @@ html.light-mode .review-card {
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   transition: transform 130ms ease, box-shadow 130ms ease;
+  display: block;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
 }
 
 .part-watched-page-card:hover .part-watched-card-poster-wrapper {
