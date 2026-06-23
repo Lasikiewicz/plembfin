@@ -1,7 +1,19 @@
 {
-  "version": "0.2.20",
-  "updatedAt": "2026-06-23T13:50:37+01:00",
+  "version": "0.2.21",
+  "updatedAt": "2026-06-23T14:01:48+01:00",
   "entries": [
+    {
+      "version": "0.2.21",
+      "date": "2026-06-23T14:01:48+01:00",
+      "commit": "75f154e27506ec2beceb3d03a4f0d7c66a3012d2",
+      "message": "fix: verify Seerr availability against apps",
+      "author": "Lasikiewicz",
+      "details": [
+        "Use configured Plex, Emby, and Jellyfin lookups for availability badges instead of Seerr cached status",
+        "Preserve Seerr request and pending-state handling on detail pages",
+        "Document that availability badges come from configured media apps"
+      ]
+    },
     {
       "version": "0.2.20",
       "date": "2026-06-23T13:50:37+01:00",
