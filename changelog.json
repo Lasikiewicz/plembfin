@@ -1,7 +1,19 @@
 {
-  "version": "0.2.18",
-  "updatedAt": "2026-06-23T13:17:34+01:00",
+  "version": "0.2.19",
+  "updatedAt": "2026-06-23T13:38:28+01:00",
   "entries": [
+    {
+      "version": "0.2.19",
+      "date": "2026-06-23T13:38:28+01:00",
+      "commit": "af1242e93a96ed4419a3e62e4d4491dd40a546aa",
+      "message": "fix: collapse mobile page controls",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep page controls expanded on desktop while collapsing them into a Controls dropdown on mobile",
+        "Apply the mobile dropdown pattern to explorer, history, search, part watched, stats, settings, and help navigation",
+        "Keep media detail actions grouped consistently across movie and TV pages"
+      ]
+    },
     {
       "version": "0.2.18",
       "date": "2026-06-23T13:17:34+01:00",
