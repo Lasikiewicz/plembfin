@@ -474,12 +474,12 @@ function updateVersionBadge(data) {
     : "Open changelog";
 }
 
-// Quick update check on dashboard load: pulls the version + GitHub update status
-// (server-cached) so the sidebar badge can flag when a newer release exists.
+// Quick update check on dashboard load: refreshes the GitHub update status so
+// the sidebar badge flags new releases as soon as the changelog commit lands.
 async function loadAppVersion() {
   if (!elements.appVersion) return;
   try {
-    const response = await fetch("/api/changelog", { cache: "no-store", headers: authHeaders() });
+    const response = await fetch("/api/changelog?refresh=1", { cache: "no-store", headers: authHeaders() });
     const data = await response.json();
     if (response.ok) {
       state.changelog = data;
