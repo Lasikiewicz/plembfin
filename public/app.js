@@ -458,14 +458,27 @@ function authHeaders() {
   return buildAuthHeaders(state.token);
 }
 
+function updateVersionBadge(data) {
+  if (!elements.appVersion || !data?.current) return;
+  elements.appVersion.textContent = data.updateAvailable
+    ? `v${data.current} - Update available`
+    : `v${data.current}`;
+  elements.appVersion.classList.toggle("app-version-update", Boolean(data.updateAvailable));
+  elements.appVersion.title = data.updateAvailable
+    ? `Update available — v${data.latest || data.current}. Open changelog`
+    : "Open changelog";
+}
+
+// Quick update check on dashboard load: pulls the version + GitHub update status
+// (server-cached) so the sidebar badge can flag when a newer release exists.
 async function loadAppVersion() {
   if (!elements.appVersion) return;
   try {
-    const response = await fetch("/changelog.json", { cache: "no-store" });
-    const changelog = await response.json();
+    const response = await fetch("/api/changelog", { cache: "no-store", headers: authHeaders() });
+    const data = await response.json();
     if (response.ok) {
-      state.changelog = changelog;
-      if (changelog.version) elements.appVersion.textContent = `v${changelog.version}`;
+      state.changelog = data;
+      updateVersionBadge(data);
       if (state.activeView === "settings" && state.activeSettingsTab === "changelog") renderChangelog().catch(() => { });
     }
   } catch {
@@ -498,7 +511,7 @@ async function loadChangelogData(force = false) {
   const data = await response.json();
   if (!response.ok) throw new Error(data?.error || `Changelog unavailable (${response.status})`);
   state.changelog = data;
-  if (elements.appVersion && data.current) elements.appVersion.textContent = `v${data.current}`;
+  updateVersionBadge(data);
   return data;
 }
 

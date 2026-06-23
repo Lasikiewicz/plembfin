@@ -53,7 +53,9 @@ The same logic runs on demand via:
 
 Each build ships with a bundled `changelog.json` at the repo root (served verbatim at
 `GET /changelog.json`) that records the version this instance was built from — this is what
-the sidebar version badge shows.
+the sidebar version badge shows. On dashboard load `loadAppVersion()` calls `/api/changelog`
+for a quick update check; when a newer release exists the badge changes from `v0.2.15` to
+`v0.2.15 - Update available` (accent-tinted).
 
 `GET /api/changelog` (`handleChangelog` in `index.js`) layers an update check on top: it
 reads the bundled `changelog.json` for the current version and fetches the published

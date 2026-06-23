@@ -5491,6 +5491,10 @@ h1 {
   text-decoration: underline;
 }
 
+.app-version-update {
+  color: var(--accent, #6366f1);
+}
+
 .sidebar-footer .button-ghost {
   width: 100%;
   justify-content: flex-start;
