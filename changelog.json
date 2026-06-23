@@ -1,7 +1,18 @@
 {
-  "version": "0.2.19",
-  "updatedAt": "2026-06-23T13:38:28+01:00",
+  "version": "0.2.20",
+  "updatedAt": "2026-06-23T13:50:37+01:00",
   "entries": [
+    {
+      "version": "0.2.20",
+      "date": "2026-06-23T13:50:37+01:00",
+      "commit": "1b5922b90c99239296e0244cbebbae7f47560c7b",
+      "message": "fix: refresh sidebar update check",
+      "author": "Lasikiewicz",
+      "details": [
+        "Refresh GitHub changelog metadata during sidebar version checks so newly published releases are flagged immediately",
+        "Keep architecture docs aligned with the refreshed update-check behavior"
+      ]
+    },
     {
       "version": "0.2.19",
       "date": "2026-06-23T13:38:28+01:00",
