@@ -1,7 +1,19 @@
 {
-  "version": "0.2.11",
-  "updatedAt": "2026-06-23T10:28:39+01:00",
+  "version": "0.2.12",
+  "updatedAt": "2026-06-23T10:46:38+01:00",
   "entries": [
+    {
+      "version": "0.2.12",
+      "date": "2026-06-23T10:46:38+01:00",
+      "commit": "9e1dee4cc948bbbc67f73b0851b332421be0b534",
+      "message": "fix: resolve TV show episodes displaying as \"Unknown Show\" in watch history",
+      "author": "Lasikiewicz",
+      "details": [
+        "Plex episode webhooks no longer use the episode title as a fallback for the show name when grandparentTitle is missing",
+        "New episodes arriving with an unresolvable show title now recover the correct name from existing DB records with the same TMDB or TVDB ID",
+        "On each server startup, existing \"Unknown Show\" episode records are automatically backfilled with the correct show title if a match can be found in the database"
+      ]
+    },
     {
       "version": "0.2.11",
       "date": "2026-06-23T10:28:39+01:00",
