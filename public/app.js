@@ -268,6 +268,10 @@ function bindElements() {
     explorerPanel: document.querySelector("#explorerPanel"),
     pageTopbar: document.querySelector("#pageTopbar"),
     pageTopbarActions: document.querySelector("#pageTopbarActions"),
+    topbarControlsMenu: document.querySelector("#topbarControlsMenu"),
+    topbarControlsPanel: document.querySelector("#topbarControlsPanel"),
+    settingsSubMenu: document.querySelector("#sidebarSettingsMenu"),
+    helpSubMenu: document.querySelector("#helpMenu"),
     historyPanel: document.querySelector("#historyPanel"),
     alphaFilterNav: document.querySelector("#alphaFilterNav"),
     explorerSearchInput: document.querySelector("#explorerSearchInput"),
@@ -289,6 +293,7 @@ function bindElements() {
     historyTopbarControls: document.querySelector("#historyTopbarControls"),
     searchTopbarControls: document.querySelector("#searchTopbarControls"),
     partWatchedTopbarControls: document.querySelector("#partWatchedTopbarControls"),
+    statsTopbarControls: document.querySelector("#statsTopbarControls"),
     explorerSubtitle: document.querySelector("#explorerSubtitle"),
     explorerTitle: document.querySelector("#explorerTitle"),
     terminalModal: document.querySelector("#terminalModal"),
@@ -4632,7 +4637,16 @@ function syncPageTopbar() {
   const query = new URLSearchParams(window.location.search);
   const isPersonDetail = path.startsWith("/person/");
   const isInlineDetail = state.mediaDetailInline || isPersonDetail;
-  const controlGroups = [elements.explorerTopbarControls, elements.historyTopbarControls, elements.searchTopbarControls, elements.partWatchedTopbarControls].filter(Boolean);
+  const mobileTopbarControls = window.matchMedia("(max-width: 640px)").matches;
+  const controlGroups = [
+    elements.explorerTopbarControls,
+    elements.historyTopbarControls,
+    elements.searchTopbarControls,
+    elements.partWatchedTopbarControls,
+    elements.statsTopbarControls,
+    elements.settingsSubMenu,
+    elements.helpSubMenu,
+  ].filter(Boolean);
   let title = "Dashboard";
   let subtitle = "Overview";
   let activeControls = null;
@@ -4662,12 +4676,15 @@ function syncPageTopbar() {
   } else if (state.activeView === "stats") {
     title = "Stats";
     subtitle = "";
+    activeControls = elements.statsTopbarControls;
   } else if (state.activeView === "settings") {
     title = settingsTopbarTitle();
     subtitle = "";
+    activeControls = mobileTopbarControls ? elements.settingsSubMenu : null;
   } else if (state.activeView === "help") {
     title = activeHelpTitle();
     subtitle = "Help";
+    activeControls = mobileTopbarControls ? elements.helpSubMenu : null;
   } else if (state.activeView === "search") {
     const searchQuery = state.searchQuery || query.get("q") || "";
     title = searchQuery ? `Search Results for "${searchQuery}"` : "Search Results";
@@ -4690,17 +4707,45 @@ function syncPageTopbar() {
   backButton?.classList.toggle("hidden", !isInlineDetail);
 
   for (const group of controlGroups) {
+    restoreTopbarControlGroup(group);
     group.classList.add("hidden");
+  }
+
+  if (!mobileTopbarControls && state.activeView === "settings" && elements.settingsSubMenu) {
+    elements.settingsSubMenu.classList.remove("hidden");
+  }
+  if (!mobileTopbarControls && state.activeView === "help" && elements.helpSubMenu) {
+    elements.helpSubMenu.classList.remove("hidden");
+  }
+
+  if (elements.topbarControlsMenu) {
+    elements.topbarControlsMenu.classList.toggle("hidden", !activeControls);
   }
 
   const mediaDetailActions = document.getElementById("mediaDetailActions");
   if (elements.pageTopbarActions) {
-    if (activeControls) {
-      elements.pageTopbarActions.appendChild(activeControls);
+    if (activeControls && elements.topbarControlsPanel) {
+      elements.topbarControlsPanel.appendChild(activeControls);
       activeControls.classList.remove("hidden");
     }
     if (mediaDetailActions && mediaDetailActions.parentElement !== elements.pageTopbarActions) {
       elements.pageTopbarActions.appendChild(mediaDetailActions);
+    }
+  }
+  syncTopbarControlsMenuState();
+}
+
+function restoreTopbarControlGroup(group) {
+  if (!group) return;
+  if (group.id === "sidebarSettingsMenu") {
+    const settingsButton = document.querySelector('[data-view="settings"]');
+    if (settingsButton && group.parentElement !== settingsButton.parentElement) {
+      settingsButton.after(group);
+    }
+  } else if (group.id === "helpMenu") {
+    const helpButton = document.querySelector('[data-view="help"]');
+    if (helpButton && group.parentElement !== helpButton.parentElement) {
+      helpButton.after(group);
     }
   }
 }
@@ -11108,7 +11153,59 @@ function prepareInlineMediaDetail(mode = state.explorerMode || "movies") {
 function setMediaDetailActions(html) {
   const el = document.getElementById("mediaDetailActions");
   if (el) el.innerHTML = html || "";
+  normalizeMediaDetailActions(el);
+  syncMediaActionsMenuState();
   syncPageTopbar();
+}
+
+function normalizeMediaDetailActions(el) {
+  if (!el || !el.childNodes.length) return;
+
+  let menu = el.querySelector(":scope > .media-actions-menu");
+  if (!menu) {
+    const actionHtml = el.innerHTML;
+    el.innerHTML = `
+      <details class="media-actions-menu">
+        <summary class="action-pill media-actions-menu-trigger">Actions</summary>
+        <div class="media-actions-menu-panel">${actionHtml}</div>
+      </details>
+    `;
+    return;
+  }
+
+  const panel = menu.querySelector(".media-actions-menu-panel");
+  if (!panel) return;
+
+  for (const node of [...el.childNodes]) {
+    if (node === menu) continue;
+    if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) {
+      node.remove();
+      continue;
+    }
+    panel.appendChild(node);
+  }
+}
+
+function syncMediaActionsMenuState() {
+  const isMobileActions = window.matchMedia("(max-width: 640px)").matches;
+  for (const menu of document.querySelectorAll("#mediaDetailActions .media-actions-menu")) {
+    if (isMobileActions) {
+      menu.removeAttribute("open");
+    } else {
+      menu.setAttribute("open", "");
+    }
+  }
+}
+
+function syncTopbarControlsMenuState() {
+  const menu = elements.topbarControlsMenu;
+  if (!menu || menu.classList.contains("hidden")) return;
+  const isMobileControls = window.matchMedia("(max-width: 640px)").matches;
+  if (isMobileControls) {
+    menu.removeAttribute("open");
+  } else {
+    menu.setAttribute("open", "");
+  }
 }
 
 function clearMediaDetailState() {
@@ -13839,6 +13936,8 @@ function attachEvents() {
     applyExplorerPosterWidth();
     applyHistoryPosterWidth();
     applyPartWatchedPosterWidth();
+    syncPageTopbar();
+    syncMediaActionsMenuState();
     window.clearTimeout(state.dashboardHistoryResizeTimer);
     state.dashboardHistoryResizeTimer = window.setTimeout(() => {
       if (state.activeView === "dashboard") renderDashboard();

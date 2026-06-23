@@ -813,6 +813,21 @@ h2 {
   display: none;
 }
 
+.topbar-controls-menu {
+  display: flex;
+  min-width: 0;
+}
+
+.topbar-controls-panel {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.topbar-controls-trigger {
+  display: none;
+}
+
 .glass-panel {
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -3999,6 +4014,64 @@ details[open] .tool-accordion-chevron::before {
   body #mediaDetailActions::-webkit-scrollbar {
     display: none;
   }
+
+  body .topbar-controls-menu:not(.hidden) {
+    display: block;
+    width: 100%;
+  }
+
+  body .topbar-controls-trigger {
+    display: flex;
+    width: 100%;
+    min-height: 2rem;
+    justify-content: space-between;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  body .topbar-controls-trigger::-webkit-details-marker {
+    display: none;
+  }
+
+  body .topbar-controls-trigger::after {
+    content: "";
+    width: 0.45rem;
+    height: 0.45rem;
+    border-bottom: 2px solid var(--muted);
+    border-right: 2px solid var(--muted);
+    transform: rotate(45deg);
+    transition: transform 150ms ease;
+  }
+
+  body .topbar-controls-menu[open] .topbar-controls-trigger::after {
+    transform: rotate(225deg);
+  }
+
+  body .topbar-controls-panel {
+    display: none;
+  }
+
+  body .topbar-controls-menu[open] .topbar-controls-panel {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+    margin-top: 0.5rem;
+  }
+
+  body .topbar-controls-panel > .stats-controls,
+  body .topbar-controls-panel > .sidebar-sub-menu {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+  }
+
+  body .topbar-controls-panel > .stats-controls .compact-field,
+  body .topbar-controls-panel > .sidebar-sub-menu .settings-tab,
+  body .topbar-controls-panel > .sidebar-sub-menu .help-menu-item {
+    width: 100%;
+  }
 }
 
 .modal-panel--immersive {
@@ -4237,9 +4310,16 @@ details[open] .tool-accordion-chevron::before {
   opacity: 0.48;
 }
 
-.media-actions-menu,
+.media-actions-menu {
+  display: flex;
+  min-width: 0;
+}
+
 .media-actions-menu-panel {
-  display: contents;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .media-actions-menu-trigger {

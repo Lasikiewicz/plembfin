@@ -113,6 +113,10 @@
             </div>
           </div>
           <div id="pageTopbarActions" class="page-topbar-actions">
+            <details id="topbarControlsMenu" class="topbar-controls-menu hidden">
+              <summary class="action-pill topbar-controls-trigger">Controls</summary>
+              <div id="topbarControlsPanel" class="topbar-controls-panel"></div>
+            </details>
             <div id="mediaDetailActions"></div>
           </div>
         </header>
@@ -199,8 +203,8 @@
         </section>
 
         <section id="stats-view" class="view-panel hidden" data-view-panel="stats">
-          <section class="stats-toolbar glass-panel" aria-label="Stats filters">
-            <div class="stats-controls">
+          <section class="view-control-source stats-toolbar glass-panel" aria-label="Stats filters">
+            <div id="statsTopbarControls" class="stats-controls">
               <label class="compact-field">
                 <span>Media</span>
                 <select id="statsMediaFilter" class="field">
