@@ -53,6 +53,9 @@ const deleteByMediaKeyStmt = db.prepare("DELETE FROM watch_history WHERE media_k
 const findExistingStmt = db.prepare("SELECT * FROM watch_history WHERE media_key = ? AND watched_at = ? LIMIT 1");
 const findWatchedByKeyStmt = db.prepare("SELECT * FROM watch_history WHERE media_key = ? AND sync_action = 'watched' LIMIT 1");
 const getTmdbShowDetailsStmt = db.prepare("SELECT details FROM tmdb_metadata_cache WHERE id = ?");
+const recoverShowTitleByTmdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tmdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
+const recoverShowTitleByTvdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tvdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
+const selectUnknownShowRowsStmt = db.prepare("SELECT id, title, tmdb_id, tvdb_id FROM watch_history WHERE media_type = 'episode' AND show_title_lower = 'unknown show'");
 
 function cachedTmdbShowDetails(tmdbId) {
   const id = cleanString(tmdbId);
@@ -275,9 +278,25 @@ function validateWatchRecord(record) {
   return errors;
 }
 
+function recoverShowTitle(tmdbId, tvdbId) {
+  if (tmdbId) {
+    const row = recoverShowTitleByTmdbStmt.get(String(tmdbId));
+    if (row?.show_title) return row.show_title;
+  }
+  if (tvdbId) {
+    const row = recoverShowTitleByTvdbStmt.get(String(tvdbId));
+    if (row?.show_title) return row.show_title;
+  }
+  return null;
+}
+
 // Build the column params for a watch_history row (excludes id/created_at).
 function watchRowParams(record) {
-  const showTitle = record.media_type === "episode" ? showTitleFrom(record.show_title || record.title) : null;
+  let showTitle = record.media_type === "episode" ? showTitleFrom(record.show_title || record.title) : null;
+  if (record.media_type === "episode" && (!showTitle || showTitle === "Unknown Show")) {
+    const recovered = recoverShowTitle(record.tmdb_id, record.tvdb_id);
+    if (recovered) showTitle = recovered;
+  }
   return {
     title: record.title,
     title_lower: record.title.toLowerCase(),
@@ -1521,6 +1540,27 @@ export async function mergeShows(sourceTitle, targetTitle) {
   });
   await invalidateHistoryDerivedCaches();
   return { merged: docs.length };
+}
+
+export async function backfillUnknownShowTitles() {
+  const rows = selectUnknownShowRowsStmt.all();
+  if (!rows.length) return 0;
+  let fixed = 0;
+  transaction(() => {
+    for (const row of rows) {
+      const recovered = recoverShowTitle(row.tmdb_id, row.tvdb_id);
+      if (!recovered) continue;
+      const oldTitle = row.title || "";
+      const newTitle = oldTitle.replace(/^Unknown Show(\s+-\s+S\d)/i, `${recovered}$1`);
+      updateShowTitleStmt.run(newTitle, newTitle.toLowerCase(), recovered, recovered.toLowerCase(), Date.now(), row.id);
+      fixed++;
+    }
+  });
+  if (fixed) {
+    await invalidateHistoryDerivedCaches();
+    console.log(`[firestoreRepo] backfillUnknownShowTitles: fixed ${fixed} of ${rows.length} records`);
+  }
+  return fixed;
 }
 
 export async function deleteWatchRecordById(id, { skipInvalidate = false } = {}) {

@@ -11,7 +11,7 @@ import { loadLocalEnv } from "./src/env.js";
 loadLocalEnv();
 
 const { DATA_DIR, PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
-const { dispatch, runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener } = await import("./src/index.js");
+const { dispatch, runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener, backfillUnknownShowTitles } = await import("./src/index.js");
 const { db } = await import("./src/db.js");
 
 ensureDataDirs();
@@ -121,6 +121,8 @@ server.on("listening", () => {
     });
     return;
   }
+  // Fix any episodes stored with "Unknown Show" title when a better title is now known.
+  backfillUnknownShowTitles().catch((err) => console.error("backfillUnknownShowTitles failed", err));
   // Kick once shortly after boot, then every minute.
   setTimeout(tick, 10_000);
   setInterval(tick, 60_000);

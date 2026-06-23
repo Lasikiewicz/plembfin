@@ -68,6 +68,7 @@ import {
   deleteWatchRecordsByIds,
   deleteMovieByWatchId,
   deletePosterCacheByMediaKey,
+  backfillUnknownShowTitles,
 } from "./utils/firestoreRepo.js";
 import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
@@ -3779,6 +3780,8 @@ async function dispatch(req, res) {
 }
 
 export { dispatch };
+
+export { backfillUnknownShowTitles };
 
 // Invoked once per minute by the in-process scheduler in server.js
 // (replacing the scheduledSync Cloud Function).

@@ -64,7 +64,7 @@ function extractTitle(type, metadata, source) {
   const hasEpisodeCoordinates = season != null || episode != null;
 
   if (source === "plex") {
-    const showTitle = decodeHtmlEntities(metadata.grandparentTitle || metadata.title);
+    const showTitle = decodeHtmlEntities(metadata.grandparentTitle || "");
     const movieTitle = decodeHtmlEntities(metadata.title);
     if (type === "episode") {
       if (hasEpisodeCoordinates) {
