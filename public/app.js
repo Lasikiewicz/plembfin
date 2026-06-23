@@ -8878,7 +8878,7 @@ function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false) {
   if (!state.seerrConfigured || !tmdbId) return "";
   const status = state.seerrMediaStatusCache.get(`${mediaType}:${tmdbId}`) || {};
   const isTv = mediaType === "tv";
-  const isAvailable = status.available || localAvailable;
+  const isAvailable = Boolean(status.available);
   const supports4k = mediaType === "movie" ? state.seerrSupports4k.movie : state.seerrSupports4k.tv;
   const seerrBaseUrl = String(state.savedConfig?.seerr?.baseUrl || "").replace(/\/+$/, "");
   const seerrIconHtml = seerrBaseUrl
