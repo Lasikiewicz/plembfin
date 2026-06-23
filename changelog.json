@@ -1,7 +1,19 @@
 {
-  "version": "0.2.15",
-  "updatedAt": "2026-06-23T11:55:41+01:00",
+  "version": "0.2.16",
+  "updatedAt": "2026-06-23T12:10:18+01:00",
   "entries": [
+    {
+      "version": "0.2.16",
+      "date": "2026-06-23T12:10:18+01:00",
+      "commit": "4e4df07004009d719ed16de54d36c2f0d935693f",
+      "message": "feat: flag available updates on the sidebar version badge",
+      "author": "Lasikiewicz",
+      "details": [
+        "Dashboard load now runs a quick update check against GitHub",
+        "When a newer release exists, the bottom-left badge shows \"vX.Y.Z - Update available\"",
+        "The update state is accent-highlighted and links to the changelog as before"
+      ]
+    },
     {
       "version": "0.2.15",
       "date": "2026-06-23T11:55:41+01:00",
