@@ -1,7 +1,21 @@
 {
-  "version": "0.2.24",
-  "updatedAt": "2026-06-24T10:21:09+01:00",
+  "version": "0.2.25",
+  "updatedAt": "2026-06-24T10:33:10+01:00",
   "entries": [
+    {
+      "version": "0.2.25",
+      "date": "2026-06-24T10:33:10+01:00",
+      "commit": "0e229d2726b36394f2dcbb2017ebb16ac95be84f",
+      "message": "chore: remove scratch files and add project hygiene files",
+      "author": "Lasikiewicz",
+      "details": [
+        "Remove entire scratch/ directory (40 debug scripts, logs, diffs — never belonged in git)",
+        "Remove dated security audit snapshot (docs/security-audit-2026-06-20.md)",
+        "Add scratch/ to .gitignore so it stays out permanently",
+        "Add .editorconfig for consistent indentation and line endings",
+        "Add .gitattributes to normalise line endings to LF on commit"
+      ]
+    },
     {
       "version": "0.2.24",
       "date": "2026-06-24T10:21:09+01:00",
