@@ -346,6 +346,7 @@ function bindElements() {
     monthChart: document.querySelector("#monthChart"),
     nowPlayingGrid: document.querySelector("#nowPlayingGrid"),
     nowPlayingStatus: document.querySelector("#nowPlayingStatus"),
+    timelineView: document.querySelector("#timeline-view"),
     refreshSyncButton: document.querySelector("#refreshSyncButton"),
     runCronSyncButton: document.querySelector("#runCronSyncButton"),
     forceSyncButton: document.querySelector("#forceSyncButton"),
@@ -5697,6 +5698,7 @@ function renderActiveSessions() {
       </div>
     `;
     if (elements.nowPlayingStatus) elements.nowPlayingStatus.textContent = "";
+    updateDashboardSplitState();
     return;
   }
 
@@ -5706,7 +5708,9 @@ function renderActiveSessions() {
       const href = nowPlayingHref(session);
       return `
         <button class="now-card-large live-now-card" type="button" data-now-playing-href="${escapeAttribute(href)}" aria-label="Open ${escapeAttribute(session.title)} details">
-          ${posterMarkup(session, "now-poster-large")}
+          <span class="now-poster-large-wrapper">
+            ${posterMarkup(session, "now-poster-large")}
+          </span>
           <div class="now-meta">
             <div class="now-card-head">
               <span class="source-badge ${sourceClass(session.source)}">${escapeHtml(platformBadge(session.source))}</span>
@@ -5725,6 +5729,7 @@ function renderActiveSessions() {
   if (elements.nowPlayingStatus) {
     elements.nowPlayingStatus.textContent = "";
   }
+  updateDashboardSplitState();
 }
 
 function formatBytes(bytes) {
@@ -7163,6 +7168,18 @@ function renderPartWatchedCard(entry) {
 // Max part-watched cards to show in the dashboard horizontal row.
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
 
+// Set the dashboard split state from what's actually showing:
+//   1 = playing + part-watched      → 20 / 20 / 60
+//   2 = idle + part-watched         → 15 / 25 / 60
+//   3 = idle + nothing part-watched → 20 /  0 / 80
+function updateDashboardSplitState() {
+  if (!elements.timelineView) return;
+  const playing = state.activeSessions.length > 0;
+  const hasPartWatched = state.partWatchedRaw.length > 0;
+  const dashState = hasPartWatched ? (playing ? "1" : "2") : "3";
+  elements.timelineView.dataset.dashState = dashState;
+}
+
 function renderPartWatched() {
   if (!elements.partWatchedPanel) return;
   const key = "default";
@@ -7183,6 +7200,7 @@ function renderPartWatched() {
       if (elements.partWatchedSection) elements.partWatchedSection.classList.add("hidden");
       elements.partWatchedPanel.innerHTML = "";
     }
+    updateDashboardSplitState();
     return;
   }
 
@@ -7191,6 +7209,7 @@ function renderPartWatched() {
   elements.partWatchedPanel.innerHTML = items.map(renderPartWatchedCard).join("");
   hydratePosters(elements.partWatchedPanel);
   observeExplorerTmdbPrefetch(elements.partWatchedPanel);
+  updateDashboardSplitState();
 }
 
 async function loadPartWatched() {

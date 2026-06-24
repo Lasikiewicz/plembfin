@@ -6063,38 +6063,36 @@ h1 {
   gap: 0.7rem;
 }
 
-/* Fixed vertical split: Now Playing 30%, Part Watched 20%, Watch History 50%. */
-.page-shell[data-active-view="dashboard"] .live-panel {
-  display: flex;
-  flex: 30 1 0;
-  min-height: 0;
-  overflow: hidden;
-  flex-direction: column;
-}
-
-.page-shell[data-active-view="dashboard"] #partWatchedDashboardSection {
-  display: flex;
-  flex: 20 1 0;
-  min-height: 0;
-  overflow: hidden;
-  flex-direction: column;
-}
-
+/* Vertical split varies by dashboard state (set on #timeline-view):
+   state 1 (playing + part-watched)      → 20 / 20 / 60
+   state 2 (idle + part-watched)         → 15 / 25 / 60
+   state 3 (idle + nothing part-watched) → 20 /  0 / 80   */
+.page-shell[data-active-view="dashboard"] .live-panel,
+.page-shell[data-active-view="dashboard"] #partWatchedDashboardSection,
 .page-shell[data-active-view="dashboard"] .history-timeline-panel:not(#partWatchedDashboardSection) {
   display: flex;
-  flex: 50 1 0;
   min-height: 0;
   overflow: hidden;
   flex-direction: column;
+  flex: 1 1 0;
 }
 
-/* When nothing is part-watched the section is hidden; split becomes 30/70. */
+/* Default / state 1 — 20 / 20 / 60 */
+#timeline-view .live-panel { flex-grow: 20; }
+#timeline-view #partWatchedDashboardSection { flex-grow: 20; }
+#timeline-view .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 60; }
+
+/* State 2 — idle + part-watched → 15 / 25 / 60 */
+#timeline-view[data-dash-state="2"] .live-panel { flex-grow: 15; }
+#timeline-view[data-dash-state="2"] #partWatchedDashboardSection { flex-grow: 25; }
+#timeline-view[data-dash-state="2"] .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 60; }
+
+/* State 3 — idle + nothing part-watched → 20 / 0 / 80 (Part Watched hidden) */
+#timeline-view[data-dash-state="3"] .live-panel { flex-grow: 20; }
+#timeline-view[data-dash-state="3"] .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 80; }
+
 .page-shell[data-active-view="dashboard"] #partWatchedDashboardSection.hidden {
   display: none;
-}
-
-.page-shell[data-active-view="dashboard"] #partWatchedDashboardSection.hidden ~ .history-timeline-panel:not(#partWatchedDashboardSection) {
-  flex-grow: 70;
 }
 
 /* ---- Now Playing: card fills the slice; poster width follows its height ---- */
@@ -6102,6 +6100,9 @@ h1 {
   flex: 1 1 0;
   min-height: 0;
   align-items: stretch;
+  gap: var(--space-3);
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .page-shell[data-active-view="dashboard"] .now-playing-grid .idle-state {
@@ -6112,25 +6113,40 @@ h1 {
 }
 
 .page-shell[data-active-view="dashboard"] .now-card-large {
-  /* Poster width is keyed to the slice (~30vh tall) so the 2:3 poster fits
-     the height; the meta takes the rest. */
-  --dashboard-now-poster-width: clamp(7rem, 16vh, 12rem);
-  grid-template-columns: var(--dashboard-now-poster-width) minmax(0, 1fr);
-  width: 100%;
-  max-width: 34rem;
+  /* Poster height is bounded by the card (the slice), so it never overflows at
+     any viewport height; its width follows from the 2:3 ratio. Fixed card width
+     so multiple sessions sit side by side without overlap. */
+  grid-template-columns: auto minmax(0, 1fr);
+  flex: 0 0 auto;
+  width: min(34rem, 80vw);
   height: 100%;
   min-height: 0;
-  align-items: center;
+  align-items: stretch;
   gap: var(--space-3);
   padding: var(--space-3);
+  overflow: hidden;
+}
+
+/* Wrapper (a non-replaced element) carries the 2:3 ratio reliably; the <img>
+   fills it and crops via object-fit. Height-driven, so it tracks the card. */
+.page-shell[data-active-view="dashboard"] .now-poster-large-wrapper {
+  height: 100%;
+  width: auto;
+  aspect-ratio: 2 / 3;
+  flex: 0 0 auto;
+  align-self: center;
+  justify-self: start;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--line);
 }
 
 .page-shell[data-active-view="dashboard"] .now-poster-large {
-  width: var(--dashboard-now-poster-width);
-  height: calc(var(--dashboard-now-poster-width) * 1.5);
-  max-height: 100%;
-  aspect-ratio: auto;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
+  border: 0;
+  border-radius: 0;
 }
 
 /* ---- Part Watched: card + poster fill the 20% slice ---- */
@@ -6284,6 +6300,12 @@ h1 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Episode title accent (matches the Part Watched section). */
+.page-shell[data-active-view="dashboard"] #tvHistoryRow .history-card-episode-title {
+  color: #e5a00d;
+  font-weight: 700;
 }
 
 .glass-panel {
