@@ -1,7 +1,14 @@
 {
-  "version": "0.2.25",
-  "updatedAt": "2026-06-24T10:33:10+01:00",
+  "version": "0.2.26",
+  "updatedAt": "2026-06-24T10:35:21+01:00",
   "entries": [
+    {
+      "version": "0.2.26",
+      "date": "2026-06-24T10:35:21+01:00",
+      "commit": "389e9f9f1fd75be62044b720af5203ba1da88f72",
+      "message": "chore: add AGPL-3.0 license",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.2.25",
       "date": "2026-06-24T10:33:10+01:00",
