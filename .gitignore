@@ -3,6 +3,7 @@ node_modules/
 .env.*
 !.env.example
 .random
+scratch/
 
 # Local runtime data: SQLite database, cached artwork, generated config.json
 data/

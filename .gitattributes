@@ -1,0 +1,8 @@
+# Normalize line endings to LF on commit
+* text=auto eol=lf
+
+# Force binary treatment for assets
+*.png binary
+*.jpg binary
+*.ico binary
+*.svg text eol=lf
