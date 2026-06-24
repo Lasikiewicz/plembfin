@@ -1,7 +1,21 @@
 {
-  "version": "0.2.23",
-  "updatedAt": "2026-06-23T17:03:30+01:00",
+  "version": "0.2.24",
+  "updatedAt": "2026-06-24T10:21:09+01:00",
   "entries": [
+    {
+      "version": "0.2.24",
+      "date": "2026-06-24T10:21:09+01:00",
+      "commit": "b3040439b4fb0948446590ae2d61cb9175b34a0a",
+      "message": "fix: apply custom Edit Images poster across the site",
+      "author": "Lasikiewicz",
+      "details": [
+        "Choosing a poster via Edit Images now updates the dashboard, explorer and detail pages, not just the page you set it on",
+        "Propagate a chosen poster to every episode of a show / every play of a movie so artwork stays consistent everywhere",
+        "Resolve the picker's proxy image URLs so the selected poster actually caches instead of silently failing",
+        "Add a version token to changed posters so a new choice replaces the old image instead of showing a stale cached one",
+        "Media detail pages now prefer your chosen poster over the default TMDB artwork"
+      ]
+    },
     {
       "version": "0.2.23",
       "date": "2026-06-23T17:03:30+01:00",
