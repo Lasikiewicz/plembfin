@@ -1,7 +1,19 @@
 {
-  "version": "0.2.26",
-  "updatedAt": "2026-06-24T10:35:21+01:00",
+  "version": "0.2.27",
+  "updatedAt": "2026-06-24T13:32:43+01:00",
   "entries": [
+    {
+      "version": "0.2.27",
+      "date": "2026-06-24T13:32:43+01:00",
+      "commit": "1b5a8e75fa808d0b803ed7dcd677123af8a80371",
+      "message": "fix: redesign stats report layout",
+      "author": "Lasikiewicz",
+      "details": [
+        "Reworked the Stats page into KPI, leaderboard, split, platform, bookend, and activity sections",
+        "Made the Most Played report use consistent poster cards, rank columns, stat pills, and bottom-aligned progress bars",
+        "Updated the Stats help topic to match the redesigned report layout"
+      ]
+    },
     {
       "version": "0.2.26",
       "date": "2026-06-24T10:35:21+01:00",
