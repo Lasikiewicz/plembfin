@@ -6237,7 +6237,7 @@ h1 {
   /* Width follows the poster (poster grows to fill the row height; width comes
      from the 2:3 ratio). Capped so it never gets absurdly wide. */
   width: auto;
-  max-width: 14rem;
+  max-width: 16rem;
   flex: 0 0 auto;
   flex-direction: column;
   align-items: center;
