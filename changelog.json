@@ -1,7 +1,17 @@
 {
-  "version": "0.2.29",
-  "updatedAt": "2026-06-24T21:55:04+01:00",
+  "version": "0.2.30",
+  "updatedAt": "2026-06-24T22:02:17+01:00",
   "entries": [
+    {
+      "version": "0.2.30",
+      "date": "2026-06-24T22:02:17+01:00",
+      "commit": "a96155960af603d9cd71b54f27a3093b8bd764f4",
+      "message": "fix: widen dashboard history cards when no active content",
+      "author": "Lasikiewicz",
+      "details": [
+        "Increase max-width on history row cards from 14rem to 16rem so posters fill the taller row in the idle/no-part-watched dashboard state"
+      ]
+    },
     {
       "version": "0.2.29",
       "date": "2026-06-24T21:55:04+01:00",
