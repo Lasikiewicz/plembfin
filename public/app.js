@@ -98,7 +98,7 @@ const HIDE_WATCHED_KEY_SHOWS = "plembfin:hideWatched:shows";
 const HIDE_ENDED_KEY_SHOWS = "plembfin:hideEnded:shows";
 const EXPLORER_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_LIMIT = 24;
-const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "search", "history", "part-watched"];
+const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "search", "history"];
 const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs", "appearance", "changelog", "cache"];
 
 const state = {
@@ -280,8 +280,8 @@ function bindElements() {
     historyViewButtons: [...document.querySelectorAll("[data-history-view]")],
     explorerPosterSize: document.querySelector("#explorerPosterSize"),
     historyPosterSize: document.querySelector("#historyPosterSize"),
-    partWatchedPosterSize: document.querySelector("#partWatchedPosterSize"),
-    partWatchedPanel: document.querySelector("#partWatchedPanel"),
+    partWatchedPanel: document.querySelector("#partWatchedRow"),
+    partWatchedSection: document.querySelector("#partWatchedDashboardSection"),
     explorerPosterSizeLabel: document.querySelector(".explorer-size-slider"),
     explorerSort: document.querySelector("#explorerSort"),
     explorerHideWatchedLabel: document.querySelector("#explorerHideWatchedLabel"),
@@ -292,7 +292,6 @@ function bindElements() {
     explorerTopbarControls: document.querySelector("#explorerTopbarControls"),
     historyTopbarControls: document.querySelector("#historyTopbarControls"),
     searchTopbarControls: document.querySelector("#searchTopbarControls"),
-    partWatchedTopbarControls: document.querySelector("#partWatchedTopbarControls"),
     statsTopbarControls: document.querySelector("#statsTopbarControls"),
     explorerSubtitle: document.querySelector("#explorerSubtitle"),
     explorerTitle: document.querySelector("#explorerTitle"),
@@ -4443,10 +4442,6 @@ function handleRouting(path) {
     state.activeView = "history";
     state.mediaDetailInline = false;
     clearMediaDetailState();
-  } else if (pathname === "/part-watched") {
-    state.activeView = "part-watched";
-    state.mediaDetailInline = false;
-    clearMediaDetailState();
   } else if (pathname === "/search") {
     state.activeView = "search";
     state.mediaDetailInline = false;
@@ -4647,7 +4642,6 @@ function syncPageTopbar() {
     elements.explorerTopbarControls,
     elements.historyTopbarControls,
     elements.searchTopbarControls,
-    elements.partWatchedTopbarControls,
     elements.statsTopbarControls,
     elements.settingsSubMenu,
     elements.helpSubMenu,
@@ -4674,10 +4668,6 @@ function syncPageTopbar() {
     title = "Watch History";
     subtitle = "";
     activeControls = elements.historyTopbarControls;
-  } else if (state.activeView === "part-watched") {
-    title = "Part Watched";
-    subtitle = "In progress items across connected apps";
-    activeControls = elements.partWatchedTopbarControls;
   } else if (state.activeView === "stats") {
     title = "Stats";
     subtitle = "";
@@ -4795,7 +4785,6 @@ function applyActiveView() {
   if (state.activeView === "explorer") renderExplorer();
   if (state.activeView === "search") renderSearchPage();
   if (state.activeView === "history") renderHistoryView();
-  if (state.activeView === "part-watched") renderPartWatched();
   if (state.activeView !== "explorer") {
     state.explorerLoadObserver?.disconnect();
     state.explorerLoadObserver = undefined;
@@ -4806,7 +4795,7 @@ function applyActiveView() {
     state.historyViewLoadObserver?.disconnect();
     state.historyViewLoadObserver = undefined;
   }
-  if (state.activeView !== "part-watched") {
+  if (state.activeView !== "dashboard") {
     state.partWatchedLoadObserver?.disconnect();
     state.partWatchedLoadObserver = undefined;
   }
@@ -5569,6 +5558,8 @@ function prefetchDashboardHistoryTmdb(tvEntries, movieEntries) {
 }
 
 function renderDashboard() {
+  renderPartWatched();
+
   if (!state.history.length) {
     if (elements.tvHistoryRow) {
       elements.tvHistoryRow.innerHTML = `
@@ -5668,18 +5659,14 @@ function renderHistoryCard(entry) {
     const href = `/tvshow/${showKeySlug}`;
 
     return `
-      <a class="movie-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(showTitle || "")}">
-        ${posterMarkup(entry, "movie-poster")}
-        <div class="movie-card-body">
-          <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.15rem; min-width: 0; width: 100%; flex-direction: column;">
-            <b style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; font-size: 0.95rem;" title="${escapeAttribute(showTitle)}">${escapeHtml(showTitle)}</b>
-            <span class="history-card-episode-title" style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; color: var(--text); font-size: 0.85rem;" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>
-            <span class="history-card-coord" style="color: var(--muted); font-size: 0.75rem;">S${entry.season}·E${entry.episode}</span>
-            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 0.15rem;">
-              <span class="history-card-watched-date" style="color: var(--muted); font-size: 0.75rem;">${formatDate(entry.watched_at)}</span>
-              ${renderSyncStatusDot(entry, "")}
-            </div>
-          </div>
+      <a class="history-mini-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(showTitle || "")}">
+        <span class="history-mini-card-poster-wrapper">
+          ${posterMarkup(entry, "history-mini-poster")}
+        </span>
+        <div class="history-mini-card-details">
+          <b class="history-mini-card-title" title="${escapeAttribute(showTitle)}">${escapeHtml(showTitle)}</b>
+          <span class="history-mini-card-sub history-card-episode-title" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>
+          <span class="history-mini-card-sub">S${entry.season} · E${entry.episode} · ${formatDate(entry.watched_at)}</span>
         </div>
       </a>
     `;
@@ -5687,16 +5674,13 @@ function renderHistoryCard(entry) {
     // Movie
     const href = entry.tmdb_id ? `/movie/tmdb/${entry.tmdb_id}` : movieHref(entry);
     return `
-      <a class="movie-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(entry.title || "")}">
-        ${posterMarkup(entry, "movie-poster")}
-        <div class="movie-card-body">
-          <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.15rem; min-width: 0; width: 100%; flex-direction: column;">
-            <b style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; font-size: 0.95rem;" title="${escapeAttribute(entry.title)}">${escapeHtml(entry.title)}</b>
-            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 0.15rem;">
-              <span class="history-card-watched-date" style="color: var(--muted); font-size: 0.75rem;">${formatDate(entry.watched_at)}</span>
-              ${renderSyncStatusDot(entry, "")}
-            </div>
-          </div>
+      <a class="history-mini-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(entry.title || "")}">
+        <span class="history-mini-card-poster-wrapper">
+          ${posterMarkup(entry, "history-mini-poster")}
+        </span>
+        <div class="history-mini-card-details">
+          <b class="history-mini-card-title" title="${escapeAttribute(entry.title)}">${escapeHtml(entry.title)}</b>
+          <span class="history-mini-card-sub">${formatDate(entry.watched_at)}</span>
         </div>
       </a>
     `;
@@ -7087,11 +7071,7 @@ async function loadExplorerMovies() {
 }
 
 function applyPartWatchedPosterWidth() {
-  const isMobile = window.innerWidth <= 760;
-  const defaultSize = isMobile ? "90px" : "120px";
-  const saved = localStorage.getItem("plembfin:partWatched:posterWidth") || defaultSize;
-  document.documentElement.style.setProperty("--part-watched-poster-width", saved);
-  if (elements.partWatchedPosterSize) elements.partWatchedPosterSize.value = parseInt(saved) || (isMobile ? 90 : 120);
+  document.documentElement.style.setProperty("--part-watched-poster-width", "128px");
 }
 
 function resetPartWatchedView(key = "") {
@@ -7180,8 +7160,11 @@ function renderPartWatchedCard(entry) {
   `;
 }
 
+// Max part-watched cards to show in the dashboard horizontal row.
+const PART_WATCHED_DASHBOARD_LIMIT = 30;
+
 function renderPartWatched() {
-  if (state.mediaDetailInline) return;
+  if (!elements.partWatchedPanel) return;
   const key = "default";
   if (state.partWatchedQueryKey !== key) resetPartWatchedView(key);
 
@@ -7189,30 +7172,30 @@ function renderPartWatched() {
     loadPartWatched().catch((error) => setMessage(error.message, "error"));
   }
 
-  if (!state.partWatchedRaw.length && state.partWatchedLoading) {
-    elements.partWatchedPanel.innerHTML = emptyExplorer("Loading partly watched items...");
+  applyPartWatchedPosterWidth();
+
+  if (!state.partWatchedRaw.length) {
+    if (state.partWatchedLoading) {
+      if (elements.partWatchedSection) elements.partWatchedSection.classList.remove("hidden");
+      elements.partWatchedPanel.innerHTML = `<div class="empty-log"><b>Loading partly watched items…</b></div>`;
+    } else {
+      // Nothing in progress — hide the whole section so the dashboard stays tidy.
+      if (elements.partWatchedSection) elements.partWatchedSection.classList.add("hidden");
+      elements.partWatchedPanel.innerHTML = "";
+    }
     return;
   }
 
-  applyPartWatchedPosterWidth();
-
-  const gridContent = state.partWatchedRaw.length
-    ? `<div class="part-watched-list">${state.partWatchedRaw.map(renderPartWatchedCard).join("")}</div><div class="explorer-scroll-sentinel" data-part-watched-sentinel aria-live="polite"><span>${state.partWatchedLoading ? "Loading..." : ""}</span></div>`
-    : emptyExplorer("No partly watched items found");
-  elements.partWatchedPanel.innerHTML = gridContent;
+  if (elements.partWatchedSection) elements.partWatchedSection.classList.remove("hidden");
+  const items = state.partWatchedRaw.slice(0, PART_WATCHED_DASHBOARD_LIMIT);
+  elements.partWatchedPanel.innerHTML = items.map(renderPartWatchedCard).join("");
   hydratePosters(elements.partWatchedPanel);
-  observePartWatchedSentinel();
   observeExplorerTmdbPrefetch(elements.partWatchedPanel);
-  state.partWatchedScrollArmed = true;
 }
 
 async function loadPartWatched() {
   if (state.partWatchedLoading || !state.partWatchedHasMore) return;
   state.partWatchedLoading = true;
-  if (elements.partWatchedPanel) {
-    const sentinel = elements.partWatchedPanel.querySelector("[data-part-watched-sentinel] span");
-    if (sentinel) sentinel.textContent = "Loading...";
-  }
 
   try {
     const url = new URL("/api/playback-progress", window.location.origin);
@@ -7226,29 +7209,12 @@ async function loadPartWatched() {
     const items = Array.isArray(body.progress) ? body.progress : [];
     state.partWatchedRaw = dedupePlaybackProgress([...state.partWatchedRaw, ...items]);
     state.partWatchedOffset += items.length;
-    state.partWatchedHasMore = items.length === EXPLORER_PAGE_SIZE;
+    // One page is plenty for the dashboard row — stop paginating.
+    state.partWatchedHasMore = false;
   } finally {
     state.partWatchedLoading = false;
     renderPartWatched();
   }
-}
-
-function observePartWatchedSentinel() {
-  state.partWatchedLoadObserver?.disconnect();
-  state.partWatchedLoadObserver = undefined;
-
-  const sentinel = elements.partWatchedPanel?.querySelector("[data-part-watched-sentinel]");
-  if (!sentinel || !("IntersectionObserver" in window)) return;
-
-  state.partWatchedLoadObserver = new IntersectionObserver(
-    (entries) => {
-      if (!entries.some((entry) => entry.isIntersecting)) return;
-      if (!state.partWatchedScrollArmed) return;
-      loadPartWatched().catch((error) => setMessage(error.message, "error"));
-    },
-    { rootMargin: "1200px 0px 1200px 0px" },
-  );
-  state.partWatchedLoadObserver.observe(sentinel);
 }
 
 function applyHistoryPosterWidth() {
@@ -11303,8 +11269,12 @@ function closeDebugModal() {
 }
 
 function mediaDetailRoot() {
-  if (state.activeView === "part-watched") return elements.partWatchedPanel;
-  return state.mediaDetailInline ? elements.explorerPanel : elements.modalBody;
+  if (state.mediaDetailInline) return elements.explorerPanel;
+  // The watch-date prompt is opened from the dashboard Part Watched row while the
+  // diagnostic modal is closed (and #modalBody therefore display:none, which would
+  // suppress the fixed overlay). Anchor to <body> so the overlay always renders.
+  if (state.activeView === "dashboard") return document.body;
+  return elements.modalBody;
 }
 
 function prepareInlineMediaDetail(mode = state.explorerMode || "movies") {
@@ -14121,7 +14091,6 @@ function attachEvents() {
   window.addEventListener("resize", () => {
     applyExplorerPosterWidth();
     applyHistoryPosterWidth();
-    applyPartWatchedPosterWidth();
     syncPageTopbar();
     syncMediaActionsMenuState();
     window.clearTimeout(state.dashboardHistoryResizeTimer);
@@ -14131,13 +14100,11 @@ function attachEvents() {
   });
 
   window.addEventListener("scroll", () => {
-    if (state.activeView !== "explorer" && state.activeView !== "history" && state.activeView !== "part-watched") return;
+    if (state.activeView !== "explorer" && state.activeView !== "history") return;
     if (state.activeView === "explorer") {
       state.explorerScrollArmed = true;
     } else if (state.activeView === "history") {
       state.historyViewScrollArmed = true;
-    } else if (state.activeView === "part-watched") {
-      state.partWatchedScrollArmed = true;
     }
     if (state.posterHydrateScrollScheduled) return;
     state.posterHydrateScrollScheduled = true;
@@ -14145,7 +14112,7 @@ function attachEvents() {
       state.posterHydrateScrollScheduled = false;
       const container = state.activeView === "explorer"
         ? elements.explorerPanel
-        : (state.activeView === "part-watched" ? elements.partWatchedPanel : elements.historyPanel);
+        : elements.historyPanel;
       hydratePosters(container);
     });
   }, { passive: true });
@@ -14175,12 +14142,6 @@ function attachEvents() {
     const val = e.target.value;
     document.documentElement.style.setProperty("--history-poster-width", `${val}px`);
     localStorage.setItem("plembfin:history:posterWidth", `${val}px`);
-  });
-
-  elements.partWatchedPosterSize?.addEventListener("input", (e) => {
-    const val = e.target.value;
-    document.documentElement.style.setProperty("--part-watched-poster-width", `${val}px`);
-    localStorage.setItem("plembfin:partWatched:posterWidth", `${val}px`);
   });
 
   elements.partWatchedPanel?.addEventListener("click", async (event) => {

@@ -6042,47 +6042,248 @@ h1 {
   width: 100%;
 }
 
+.page-shell[data-active-view="dashboard"] {
+  /* Lock the dashboard to the viewport so the 30/20/50 split is computed
+     against a fixed height instead of growing with content. */
+  overflow: hidden;
+}
+
 .page-shell[data-active-view="dashboard"] .app-shell {
-  min-height: 100%;
+  min-height: 0;
+  height: 100%;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .page-shell[data-active-view="dashboard"] #timeline-view {
   display: flex;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   flex-direction: column;
+  gap: 0.7rem;
 }
 
+/* Fixed vertical split: Now Playing 30%, Part Watched 20%, Watch History 50%. */
 .page-shell[data-active-view="dashboard"] .live-panel {
   display: flex;
-  flex: 0 0 auto;
+  flex: 30 1 0;
+  min-height: 0;
+  overflow: hidden;
   flex-direction: column;
 }
 
+.page-shell[data-active-view="dashboard"] #partWatchedDashboardSection {
+  display: flex;
+  flex: 20 1 0;
+  min-height: 0;
+  overflow: hidden;
+  flex-direction: column;
+}
+
+.page-shell[data-active-view="dashboard"] .history-timeline-panel:not(#partWatchedDashboardSection) {
+  display: flex;
+  flex: 50 1 0;
+  min-height: 0;
+  overflow: hidden;
+  flex-direction: column;
+}
+
+/* When nothing is part-watched the section is hidden; split becomes 30/70. */
+.page-shell[data-active-view="dashboard"] #partWatchedDashboardSection.hidden {
+  display: none;
+}
+
+.page-shell[data-active-view="dashboard"] #partWatchedDashboardSection.hidden ~ .history-timeline-panel:not(#partWatchedDashboardSection) {
+  flex-grow: 70;
+}
+
+/* ---- Now Playing: card fills the slice; poster width follows its height ---- */
 .page-shell[data-active-view="dashboard"] .now-playing-grid {
-  min-height: clamp(14rem, 24vh, 24rem);
+  flex: 1 1 0;
+  min-height: 0;
   align-items: stretch;
 }
 
 .page-shell[data-active-view="dashboard"] .now-playing-grid .idle-state {
   display: grid;
-  min-height: 100%;
+  min-height: 0;
+  height: 100%;
   place-items: center;
 }
 
 .page-shell[data-active-view="dashboard"] .now-card-large {
-  --dashboard-now-poster-width: clamp(9.5rem, 8.5vw, 12rem);
-  grid-template-columns: var(--dashboard-now-poster-width) minmax(17rem, 1fr);
-  min-height: 100%;
+  /* Poster width is keyed to the slice (~30vh tall) so the 2:3 poster fits
+     the height; the meta takes the rest. */
+  --dashboard-now-poster-width: clamp(7rem, 16vh, 12rem);
+  grid-template-columns: var(--dashboard-now-poster-width) minmax(0, 1fr);
+  width: 100%;
+  max-width: 34rem;
+  height: 100%;
+  min-height: 0;
   align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
 }
 
 .page-shell[data-active-view="dashboard"] .now-poster-large {
   width: var(--dashboard-now-poster-width);
   height: calc(var(--dashboard-now-poster-width) * 1.5);
+  max-height: 100%;
+  aspect-ratio: auto;
+  object-fit: cover;
 }
 
-.page-shell[data-active-view="dashboard"] .history-timeline-panel {
-  margin-top: auto;
+/* ---- Part Watched: card + poster fill the 20% slice ---- */
+.page-shell[data-active-view="dashboard"] #partWatchedRow {
+  flex: 1 1 0;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-page-card {
+  height: 100%;
+  align-items: stretch;
+  overflow: hidden;
+  padding: 0.55rem;
+  gap: 0.7rem;
+}
+
+.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-poster-wrapper {
+  flex: 0 0 auto;
+  height: 100%;
+  width: auto;
+  aspect-ratio: 2 / 3;
+}
+
+/* Compact the details so the whole card (incl. buttons) fits the 20% slice. */
+.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-details {
+  gap: 0.2rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-title {
+  font-size: 0.95rem;
+}
+
+.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-episode {
+  font-size: 0.8rem;
+}
+
+.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-meta {
+  gap: 0.12rem;
+  font-size: 0.72rem;
+}
+
+.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-progress-container {
+  margin-top: 0;
+  gap: 0.15rem;
+}
+
+.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-actions {
+  margin-top: 0;
+}
+
+.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-action-btn {
+  min-height: 0;
+  padding: 0.3rem 0.5rem;
+}
+
+/* ---- Watch History: two stacked rows split the 50%; posters fill row height ---- */
+.page-shell[data-active-view="dashboard"] .history-timeline-panel:not(#partWatchedDashboardSection) .dashboard-history-rows {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.page-shell[data-active-view="dashboard"] .dashboard-row-section {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0 !important;
+}
+
+.page-shell[data-active-view="dashboard"] .dashboard-row-section .horizontal-scroll-row {
+  flex: 1 1 0;
+  min-height: 0;
+  padding-bottom: 0;
+}
+
+/* Vertical card: poster on top, compact centered text below. The text block
+   has a fixed height so every poster ends up the same size. */
+.page-shell[data-active-view="dashboard"] #tvHistoryRow .history-mini-card,
+.page-shell[data-active-view="dashboard"] #movieHistoryRow .history-mini-card {
+  height: 100%;
+  /* Width follows the poster (poster grows to fill the row height; width comes
+     from the 2:3 ratio). Capped so it never gets absurdly wide. */
+  width: auto;
+  max-width: 14rem;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  overflow: hidden;
+}
+
+/* Poster grows to fill the height left after the fixed-height caption; width
+   follows from the 2:3 ratio (centered, not stretched) → true aspect & biggest
+   possible poster. The poster's width sets the card width. */
+.page-shell[data-active-view="dashboard"] #tvHistoryRow .history-mini-card-poster-wrapper,
+.page-shell[data-active-view="dashboard"] #movieHistoryRow .history-mini-card-poster-wrapper {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  width: auto;
+  aspect-ratio: 2 / 3;
+}
+
+/* Caption: fixed height (2-line title + 2 sub lines) so posters stay a uniform
+   size across the TV and Movies rows. Width tracks the card without widening it. */
+.page-shell[data-active-view="dashboard"] #tvHistoryRow .history-mini-card-details,
+.page-shell[data-active-view="dashboard"] #movieHistoryRow .history-mini-card-details {
+  flex: 0 0 auto;
+  height: 4rem;
+  width: 0;
+  min-width: 100%;
+  gap: 0.05rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  text-align: center;
+  overflow: hidden;
+}
+
+/* Title reserves two lines: a 1-line title leaves a blank line (the gap) below
+   it; a 2-line title uses that space instead. */
+.page-shell[data-active-view="dashboard"] #tvHistoryRow .history-mini-card-title,
+.page-shell[data-active-view="dashboard"] #movieHistoryRow .history-mini-card-title {
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.2;
+  max-width: 100%;
+  height: 2.4em;          /* exactly two lines */
+  white-space: normal;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+}
+
+.page-shell[data-active-view="dashboard"] #tvHistoryRow .history-mini-card-sub,
+.page-shell[data-active-view="dashboard"] #movieHistoryRow .history-mini-card-sub {
+  font-size: 0.7rem;
+  line-height: 1.25;
+  color: #9b9b9b;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .glass-panel {
@@ -6101,12 +6302,12 @@ h1 {
 }
 
 .section-heading {
-  min-height: 2.4rem;
-  margin-bottom: 0.8rem;
+  min-height: 0;
+  margin-bottom: 0.45rem;
 }
 
 .section-heading p {
-  font-size: 1.02rem;
+  font-size: 0.95rem;
   font-weight: 850;
 }
 
@@ -6946,17 +7147,18 @@ h1 {
     scroll-snap-type: x proximity;
   }
 
-  .history-timeline-panel .horizontal-scroll-row .movie-card {
+  .history-timeline-panel .horizontal-scroll-row .movie-card,
+  .history-timeline-panel .horizontal-scroll-row .history-mini-card {
     scroll-snap-align: start;
   }
 }
 
 /* Dashboard Row Title styling */
 .dashboard-row-title {
-  font-size: 0.95rem;
-  font-weight: 850;
-  color: var(--text);
-  margin: 0 0 var(--space-3);
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--muted);
+  margin: 0 0 var(--space-1);
   padding-left: 0.2rem;
 }
 
@@ -8023,6 +8225,131 @@ html.light-mode .pill-toggle.active {
   flex: 1 1 180px;
   flex-shrink: 0;
   max-width: 220px;
+}
+
+/* Dashboard watch-history mini cards (poster + details, ~2 posters wide) */
+#tvHistoryRow.horizontal-scroll-row,
+#movieHistoryRow.horizontal-scroll-row {
+  /* Room for the hover lift so the card border isn't clipped by overflow */
+  padding-top: 6px;
+  padding-bottom: 10px;
+}
+
+.history-mini-card {
+  display: flex;
+  gap: 0.8rem;
+  padding: 0.75rem;
+  width: 360px;
+  flex: 0 0 360px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  text-decoration: none;
+  align-items: stretch;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.history-mini-card:hover {
+  border-color: var(--yellow);
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-2px);
+}
+
+.history-mini-card-poster-wrapper {
+  flex: 0 0 118px;
+  width: 118px;
+  aspect-ratio: 2 / 3;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: transform 130ms ease, box-shadow 130ms ease;
+  display: block;
+}
+
+.history-mini-card:hover .history-mini-card-poster-wrapper {
+  transform: scale(1.02);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.history-mini-card-poster-wrapper img,
+.history-mini-card-poster-wrapper span {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.history-mini-card-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.history-mini-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.history-mini-card-title {
+  font-size: 1rem;
+  font-weight: 850;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-mini-card-episode {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #e5a00d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  width: 100%;
+}
+
+.history-mini-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.76rem;
+  color: #9b9b9b;
+}
+
+.history-mini-card-meta > span {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.history-mini-card-apps .source-badge {
+  font-size: 0.62rem;
+}
+
+html.light-mode .history-mini-card-title {
+  color: var(--text);
+}
+
+@media (max-width: 480px) {
+  .history-mini-card {
+    width: 84vw;
+    flex: 0 0 84vw;
+    max-width: 320px;
+  }
+
+  .history-mini-card-poster-wrapper {
+    flex-basis: 84px;
+    width: 84px;
+  }
 }
 
 /* Person modal drawer styling */
@@ -9704,28 +10031,22 @@ html.light-mode .review-card {
 }
 
 /* Part Watched Page List Layout */
-.part-watched-list {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.9rem;
-  width: 100%;
+/* Part Watched cards live in the dashboard horizontal scroll row */
+#partWatchedRow.horizontal-scroll-row {
+  padding-top: 6px;
+  padding-bottom: 10px;
 }
 
-@media (max-width: 1400px) {
-  .part-watched-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+#partWatchedRow .part-watched-page-card {
+  width: 400px;
+  flex: 0 0 400px;
 }
 
-@media (max-width: 1000px) {
-  .part-watched-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 600px) {
-  .part-watched-list {
-    grid-template-columns: 1fr;
+@media (max-width: 480px) {
+  #partWatchedRow .part-watched-page-card {
+    width: 86vw;
+    flex: 0 0 86vw;
+    max-width: 360px;
   }
 }
 

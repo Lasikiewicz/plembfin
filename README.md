@@ -34,8 +34,8 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/part-watched.png" alt="Part Watched view" width="100%" />
-  <em>In-progress items with resume progress and quick mark-watched actions</em>
+  <img src="docs/screenshots/part-watched.png" alt="Part Watched section" width="100%" />
+  <em>Part Watched dashboard section: in-progress items with resume progress and quick mark-watched actions</em>
 </p>
 
 <p align="center">

@@ -42,7 +42,6 @@
             <button class="nav-tab active" type="button" data-view="dashboard">Dashboard</button>
             <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="movies">Movies</button>
             <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="shows">TV Shows</button>
-            <button class="nav-tab" type="button" data-view="part-watched">Part Watched</button>
             <button class="nav-tab" type="button" data-view="history">History</button>
             <button class="nav-tab" type="button" data-view="stats">Stats</button>
           </div>
@@ -131,6 +130,15 @@
             <div id="nowPlayingGrid" class="now-playing-grid" aria-live="polite"></div>
           </section>
 
+          <section id="partWatchedDashboardSection" class="glass-panel p-section history-timeline-panel">
+            <div class="section-heading">
+              <div>
+                <p>Part Watched</p>
+              </div>
+            </div>
+            <div id="partWatchedRow" class="horizontal-scroll-row" aria-live="polite"></div>
+          </section>
+
           <section class="glass-panel p-section history-timeline-panel">
             <div class="section-heading">
               <div>
@@ -138,14 +146,16 @@
               </div>
             </div>
             
-            <div class="dashboard-row-section">
-              <h3 class="dashboard-row-title">TV Shows</h3>
-              <div id="tvHistoryRow" class="horizontal-scroll-row" aria-live="polite"></div>
-            </div>
+            <div class="dashboard-history-rows">
+              <div class="dashboard-row-section">
+                <h3 class="dashboard-row-title">TV Shows</h3>
+                <div id="tvHistoryRow" class="horizontal-scroll-row" aria-live="polite"></div>
+              </div>
 
-            <div class="dashboard-row-section" style="margin-top: 1.8rem;">
-              <h3 class="dashboard-row-title">Movies</h3>
-              <div id="movieHistoryRow" class="horizontal-scroll-row" aria-live="polite"></div>
+              <div class="dashboard-row-section" style="margin-top: 0.9rem;">
+                <h3 class="dashboard-row-title">Movies</h3>
+                <div id="movieHistoryRow" class="horizontal-scroll-row" aria-live="polite"></div>
+              </div>
             </div>
           </section>
         </section>
@@ -182,22 +192,6 @@
             </div>
             <div class="explorer-with-alpha">
               <div id="historyPanel" class="explorer-panel"></div>
-            </div>
-          </section>
-        </section>
-
-        <section id="part-watched-view" class="view-panel hidden" data-view-panel="part-watched">
-          <section class="glass-panel p-section">
-            <div class="view-control-source">
-              <div id="partWatchedTopbarControls" class="explorer-controls">
-                <label class="compact-field explorer-size-slider">
-                  <span>Size</span>
-                  <input id="partWatchedPosterSize" type="range" min="60" max="180" value="120" />
-                </label>
-              </div>
-            </div>
-            <div class="explorer-with-alpha">
-              <div id="partWatchedPanel" class="explorer-panel"></div>
             </div>
           </section>
         </section>
