@@ -33,6 +33,7 @@ import {
   invalidateHistoryDerivedCaches,
   insertWatchRecord,
   listLibraryItemsForRefresh,
+  relatedPosterRows,
   setWatchPosterUrls,
   listPlaybackProgressRowsForReplay,
   listWatchedPlaystateRowsForReplay,
@@ -3498,6 +3499,25 @@ async function handleTmdbPerson(req, res) {
 }
 
 
+// The poster picker hands us app-relative proxy URLs (/api/tmdb-poster?path=...)
+// alongside absolute and already-cached /media/ storage URLs. cachePosterFromUrl
+// needs an absolute URL (or a /media/ path), so resolve the proxy form back to
+// its upstream TMDB image URL before caching.
+function resolveCustomPosterFetchUrl(rawUrl) {
+  const value = String(rawUrl || "").trim();
+  if (!value) return "";
+  if (value.startsWith("/api/tmdb-poster")) {
+    try {
+      const proxied = new URL(value, "http://localhost");
+      const posterPath = proxied.searchParams.get("path") || "";
+      return posterPath ? `https://image.tmdb.org/t/p/w500${posterPath}` : "";
+    } catch {
+      return "";
+    }
+  }
+  return value;
+}
+
 async function handleUpdateWatch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "PATCH" && req.method !== "POST") return methodNotAllowed(res);
@@ -3518,6 +3538,44 @@ async function handleUpdateWatch(req, res) {
   const result = await updateWatchRecord(id, fields);
   if (!result.ok) return sendJson(res, { error: result.error }, 400);
 
+  // If a custom poster was chosen, make it authoritative across the site. The
+  // poster pipeline serves /api/poster from the poster cache (keyed by
+  // media_key) before it ever looks at a row's poster_url, so simply stamping
+  // one row leaves the dashboard showing the old cached image. Cache the chosen
+  // image and propagate it to every related record (other plays of the same
+  // movie, or every episode of the same show) so each one resolves to it.
+  let customPosterUrl;
+  let customPosterIds;
+  const chosenPoster = String(body.poster_url ?? "").trim();
+  const chosenPosterFetchUrl = resolveCustomPosterFetchUrl(chosenPoster);
+  if (chosenPosterFetchUrl) {
+    const editedRow = await getWatchRecordByIdLight(id).catch(() => null);
+    const editedKey = editedRow?.media_key || (editedRow ? mediaKeyFor(editedRow) : null);
+    if (editedKey) {
+      const cached = await cachePosterFromUrl(editedKey, chosenPosterFetchUrl, "custom").catch(() => null);
+      if (cached?.url) {
+        // The storage path is derived from media_key, so re-saving a poster
+        // overwrites the same file at the same URL — browsers and the client
+        // poster cache would keep serving the previous image. Append a version
+        // token so each change yields a fresh URL that busts those caches.
+        const versionedUrl = `${cached.url}${cached.url.includes("?") ? "&" : "?"}v=${Date.now()}`;
+        customPosterUrl = versionedUrl;
+        const related = relatedPosterRows(id);
+        const seenKeys = new Set([editedKey]);
+        for (const row of related) {
+          if (row.media_key && !seenKeys.has(row.media_key)) {
+            seenKeys.add(row.media_key);
+            // Cheap upsert for an already-cached storage URL (no re-download).
+            await cachePosterFromUrl(row.media_key, cached.url, "custom").catch(() => null);
+          }
+        }
+        await setWatchPosterUrls(related.map((row) => ({ id: row.id, posterUrl: versionedUrl }))).catch(() => null);
+        await invalidateHistoryDerivedCaches().catch(() => null);
+        customPosterIds = related.map((row) => row.id);
+      }
+    }
+  }
+
   // If TMDB ID changed, clear any cached TMDB data for this record
   if (body.tmdb_id !== undefined) {
     const row = await getWatchRecordByIdLight(id).catch(() => null);
@@ -3533,7 +3591,7 @@ async function handleUpdateWatch(req, res) {
     }
   }
 
-  return sendJson(res, { ok: true });
+  return sendJson(res, { ok: true, poster_url: customPosterUrl, updated_ids: customPosterIds });
 }
 
 function extractYouTubeVideoId(url) {

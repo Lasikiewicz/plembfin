@@ -2264,9 +2264,9 @@ function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, onSaved
     status.textContent = "Saving…";
     try {
       const field = activeTab === "logo" ? "logo_url" : "poster_url";
-      await apiUpdateWatch(id, { [field]: url });
+      const saved = await apiUpdateWatch(id, { [field]: url });
       overlay.remove();
-      onSaved?.({ [field]: url });
+      onSaved?.({ [field]: url, storage_url: saved?.poster_url, updated_ids: saved?.updated_ids });
     } catch (err) {
       status.textContent = `Error: ${err.message}`;
     }
@@ -9618,7 +9618,9 @@ function renderShowModalContent(show, {
   const progressPercent = Math.max(0, Math.min(100, Math.round((watchedCount / totalCount) * 100)));
   const representative = representativeEpisode(seasonsMap);
   const backdropUrl = tmdbData?.cached_backdrop_url || tmdbImage(tmdbData?.backdrop_path, "original");
-  const posterUrl = tmdbData?.cached_poster_url || tmdbPoster(tmdbData?.poster_path, tmdbData?.id, "tv") || posterUrlFor(representative);
+  // Prefer a locally cached/custom poster so a poster chosen via "Edit Images"
+  // wins over the TMDB default and stays consistent with the dashboard.
+  const posterUrl = posterUrlFor(representative) || tmdbData?.cached_poster_url || tmdbPoster(tmdbData?.poster_path, tmdbData?.id, "tv");
   const logoUrl = show.logo_url || bestTmdbLogo(tmdbData);
   const overview = tmdbData?.overview || "No synopsis available.";
   const premiered = tmdbData?.first_air_date ? `Premiered ${formatTmdbDate(tmdbData.first_air_date)}` : "Release date unknown";
@@ -10813,7 +10815,9 @@ async function renderMovieImmersiveModalContent(movie) {
     if (tmdbData.backdrop_path) {
       backdropUrl = tmdbData.cached_backdrop_url || `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`;
     }
-    if (tmdbData.poster_path) {
+    // Keep a locally cached/custom poster (from "Edit Images") over the TMDB
+    // default so the detail page matches what the dashboard shows.
+    if (tmdbData.poster_path && !posterUrl) {
       posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path, tmdbData.id, "movie");
     }
     overview = tmdbData.overview || overview;
@@ -13210,13 +13214,22 @@ function attachEvents() {
       if (!tmdbData && entry?.tmdb_id && entry.media_type === "movie") {
         tmdbData = { id: entry.tmdb_id, title: entry.title };
       }
-      openEditImageDialog(container, id, editImageBtn.dataset.posterUrl, tmdbData, ({ poster_url, logo_url }) => {
+      openEditImageDialog(container, id, editImageBtn.dataset.posterUrl, tmdbData, ({ poster_url, logo_url, storage_url, updated_ids }) => {
         if (poster_url) {
           editImageBtn.dataset.posterUrl = poster_url;
           const posterImg = container.querySelector(".immersive-poster-img");
           if (posterImg) posterImg.src = poster_url;
           const backdrop = container.querySelector(".modal-backdrop-image");
           if (backdrop) backdrop.style.backgroundImage = `url('${poster_url}')`;
+          // The backend cached the chosen poster and propagated it to every
+          // related record. Point the client poster cache at that stored image
+          // so the dashboard and explorer cards (which resolve posters by record
+          // id) pick it up instead of the previously cached artwork.
+          if (storage_url && isCachedStorageImageUrl(storage_url)) {
+            for (const updatedId of (Array.isArray(updated_ids) ? updated_ids : [id])) {
+              rememberPosterLookup(String(updatedId), storage_url);
+            }
+          }
         }
         if (logo_url !== undefined) {
           editImageBtn.dataset.logoUrl = logo_url;

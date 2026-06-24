@@ -1424,6 +1424,34 @@ export async function updateWatchPosterUrl(id, posterUrl) {
   return true;
 }
 
+// Returns the sibling watch records that should share a custom poster with `id`:
+// every other play of the same movie, or every episode of the same show. Each
+// entry carries its `id` (for stamping `poster_url`) and `media_key` (which
+// /api/poster reads from the poster cache before falling back to `poster_url`).
+export function relatedPosterRows(id) {
+  const existing = selectByIdStmt.get(String(id));
+  if (!existing) return [];
+  let rows;
+  if (existing.media_type === "episode") {
+    const showLower = existing.show_title_lower || showTitleFrom(existing.title || "").toLowerCase();
+    rows = showLower ? selectEpisodesByShowLowerStmt.all(showLower) : [];
+    if (!rows.length) {
+      const showKey = canonicalTitleKey(existing.show_title || showTitleFrom(existing.title));
+      rows = selectAllEpisodesStmt.all().filter((row) => canonicalTitleKey(row.show_title || showTitleFrom(row.title)) === showKey);
+    }
+  } else {
+    rows = existing.media_key ? selectByMediaKeyStmt.all(existing.media_key) : [existing];
+  }
+  const seen = new Set();
+  const result = [];
+  for (const row of rows) {
+    if (!row.id || seen.has(row.id)) continue;
+    seen.add(row.id);
+    result.push({ id: row.id, media_key: row.media_key || mediaKeyFor(row) });
+  }
+  return result;
+}
+
 // Bulk-stamp poster URLs (caller invalidates derived caches once afterwards).
 export async function setWatchPosterUrls(updates = []) {
   let changed = 0;
