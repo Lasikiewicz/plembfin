@@ -410,7 +410,12 @@ function bindElements() {
     statsPeriodValue: document.querySelector("#statsPeriodValue"),
     statsActivityTitle: document.querySelector("#statsActivityTitle"),
     statsActivitySubtitle: document.querySelector("#statsActivitySubtitle"),
+    statsLeaderboardSubtitle: document.querySelector("#statsLeaderboardSubtitle"),
     topMediaReport: document.querySelector("#topMediaReport"),
+    statsKpiStrip: document.querySelector("#statsKpiStrip"),
+    statsLeaderboard: document.querySelector("#statsLeaderboard"),
+    statsMoviesTvSplit: document.querySelector("#statsMoviesTvSplit"),
+    statsBookends: document.querySelector("#statsBookends"),
     startImportButton: document.querySelector("#startImportButton"),
     statusPill: document.querySelector("#statusPill"),
     totalMovies: document.querySelector("#totalMovies"),
@@ -4118,7 +4123,7 @@ const HELP_TOPICS = [
     badges: [],
     body: () => `
             <p>The <b>Stats</b> page turns your local watch history into review reports. Use the Media, Period, and Range controls to switch between all-time, yearly, and monthly views for movies, TV shows, or both.</p>
-            <p>The top section shows the selected media type, period, play totals, poster-ranked most-played items, and first/last plays. All-time reports also include the most used platform and the full tracking span.</p>
+            <p>The report starts with KPI cards for the selected range, then shows poster-ranked most-played items with play counts and share of activity. Supporting panels show the movie/TV split, playback platform breakdown, first/last plays, and watch activity.</p>
             <p>Click any poster card in the report to open that movie or TV show page.</p>
           `,
   },
@@ -5920,8 +5925,12 @@ function renderStats() {
   syncStatsPeriodOptions();
   const report = selectedStatsReport();
   const periodLabel = statsPeriodLabel(report?.period || "all");
-  renderRankingTable(elements.sourceRanking, report?.sourceBreakdown || state.stats.sourceBreakdown || [], "platform");
-  renderStatsPosterReport(elements.topMediaReport, statsFilteredRows(report), { report, periodLabel });
+  renderStatsKpis(report);
+  renderStatsLeaderboard(elements.statsLeaderboard, statsFilteredRows(report), { report, periodLabel });
+  renderStatsMoviesTvSplit(elements.statsMoviesTvSplit, report);
+  renderStatsPlatformRows(elements.sourceRanking, report?.sourceBreakdown || state.stats.sourceBreakdown || []);
+  renderStatsBookends(elements.statsBookends, report);
+  if (elements.statsLeaderboardSubtitle) elements.statsLeaderboardSubtitle.textContent = `${periodLabel} - ${statsSelectedMediaLabel()} by plays`;
   if (elements.statsActivityTitle) elements.statsActivityTitle.textContent = state.statsPeriodType === "all" ? "Watch Activity" : "Range Activity";
   if (elements.statsActivitySubtitle) elements.statsActivitySubtitle.textContent = state.statsPeriodType === "all" ? "Monthly archive volume" : `${periodLabel} selection`;
   if (elements.monthChart) renderMonthChart();
@@ -5959,7 +5968,68 @@ function renderRankingTable(container, rows = [], labelKey) {
   `;
 }
 
-function renderStatsPosterReport(container, rows = [], { report = selectedStatsReport(), periodLabel = "All time" } = {}) {
+function statsMediaHref(item = {}) {
+  const title = item.title || "unknown";
+  if (item.type === "movie") return `/movie/${encodeURIComponent(item.id || slug(title))}`;
+  return `/tvshow/${encodeURIComponent(slug(title))}`;
+}
+
+function shortMonthLabel(isoMonth = "") {
+  if (!isoMonth) return "";
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const [year, month] = isoMonth.split("-");
+  const idx = parseInt(month, 10) - 1;
+  return `${monthNames[idx] || month} '${(year || "").slice(2)}`;
+}
+
+function renderStatsKpis(report = selectedStatsReport()) {
+  const container = elements.statsKpiStrip;
+  if (!container) return;
+
+  const activity = state.stats.monthlyActivity || [];
+  let peakMonth = null;
+  if (activity.length) {
+    peakMonth = activity.reduce((best, row) => Number(row.count) > Number(best.count) ? row : best, activity[0]);
+  }
+
+  const topSrc = report?.topSource || state.stats.topSource || "none";
+  const topSrcCount = report?.sourceBreakdown?.[0]?.count || state.stats.topSourceCount || 0;
+  const total = Number(report?.total || state.stats.totalWatches || 0) || 1;
+  const topSrcShare = topSrcCount ? `${Math.round((topSrcCount / total) * 100)}% of plays` : "";
+
+  const kpis = [];
+  if (state.statsMediaFilter === "movie") {
+    kpis.push(
+      { label: "Plays", value: formatNumber(report?.movieWatches || 0), sub: "movie plays", color: "" },
+      { label: "Movies", value: formatNumber(report?.uniqueMovies || 0), sub: `${formatNumber(report?.movieWatches || 0)} plays`, color: "" },
+    );
+  } else if (state.statsMediaFilter === "episode") {
+    kpis.push(
+      { label: "Plays", value: formatNumber(report?.tvWatches || 0), sub: "episode plays", color: "" },
+      { label: "TV Shows", value: formatNumber(report?.uniqueShows || 0), sub: `${formatNumber(report?.tvWatches || 0)} episodes`, color: "" },
+    );
+  } else {
+    kpis.push(
+      { label: "Plays", value: formatNumber(report?.total || 0), sub: "all logged events", color: "" },
+      { label: "Movies", value: formatNumber(report?.uniqueMovies || 0), sub: `${formatNumber(report?.movieWatches || 0)} plays`, color: "" },
+      { label: "TV Shows", value: formatNumber(report?.uniqueShows || 0), sub: `${formatNumber(report?.tvWatches || 0)} episodes`, color: "" },
+    );
+  }
+  kpis.push(
+    { label: "Top platform", value: statsPlatformLabel(topSrc), sub: topSrcShare, color: "var(--blue)" },
+    { label: "Busiest month", value: peakMonth ? formatNumber(peakMonth.count) : "-", sub: peakMonth ? shortMonthLabel(peakMonth.month) : "N/A", color: "var(--green)" },
+  );
+
+  container.innerHTML = kpis.map((k) => `
+    <div class="stats-kpi-card">
+      <span>${escapeHtml(k.label)}</span>
+      <b${k.color ? ` style="color:${k.color}"` : ""}>${escapeHtml(k.value)}</b>
+      <small>${escapeHtml(k.sub)}</small>
+    </div>
+  `).join("");
+}
+
+function renderStatsLeaderboard(container, rows = [], { report = selectedStatsReport(), periodLabel = "All time" } = {}) {
   if (!container) return;
   if (!rows.length) {
     container.innerHTML = `<div class="empty-log"><b>No matching report data</b><span>Try another media type or period.</span></div>`;
@@ -5967,81 +6037,153 @@ function renderStatsPosterReport(container, rows = [], { report = selectedStatsR
   }
   const max = Math.max(...rows.map((row) => Number(row.count || 0)), 1);
   const leader = rows[0];
-  const sideRanks = rows.slice(1, 3);
-  const remaining = rows.slice(3, 10);
-  container.innerHTML = `
-    <div class="stats-review-intro">
-      ${statsIntroCards(report, periodLabel).map((card) => `
-        <div>
-          <span>${escapeHtml(card.label)}</span>
-          <b>${escapeHtml(card.value)}</b>
-        </div>
-      `).join("")}
+  const podium = rows.slice(1, 3);
+  const ranked = rows.slice(3, 10);
+  const total = rows.reduce((sum, row) => sum + Number(row.count || 0), 0);
+  const leaderCount = Number(leader.count || 0);
+  const leaderPct = total ? Math.round((leaderCount / total) * 100) : 0;
+  const oneIn = leaderPct > 0 ? Math.round(100 / leaderPct) : 0;
+  const renderFacts = (row, count) => `
+    <div class="stats-review-facts">
+      <b>${row.type === "movie" ? "Movie" : "TV show"}</b>
+      <b>${formatNumber(count)} plays</b>
+      <b>${total ? Math.round((count / total) * 100) : 0}% of plays</b>
     </div>
-    <div class="stats-review-feature-grid">
-      <article class="stats-review-leader" data-stats-media-href="${escapeAttribute(statsMediaHref(leader))}" role="link" tabindex="0">
-        ${posterMarkup(leader, "stats-review-poster")}
-        <div class="stats-review-copy">
-          <span>#1 most played</span>
+  `;
+
+  container.innerHTML = `
+    <div class="stats-lb-leader" data-stats-media-href="${escapeAttribute(statsMediaHref(leader))}" role="link" tabindex="0">
+      <span class="stats-lb-rank-badge">#1</span>
+      <div class="stats-lb-leader-poster-wrap">
+        ${posterMarkup(leader, "stats-lb-leader-poster")}
+      </div>
+      <div class="stats-lb-leader-copy">
+        <div class="stats-lb-main-copy">
           <h3>${escapeHtml(leader.title || "Unknown media")}</h3>
-          <p>${formatNumber(leader.count || 0)} play${Number(leader.count || 0) === 1 ? "" : "s"} made this your top ${leader.type === "movie" ? "movie" : "show"} for ${escapeHtml(periodLabel)}.</p>
-          <div class="stats-review-facts">
-            <b>${leader.type === "movie" ? "Movie" : "TV show"}</b>
-            <b>${formatNumber(Math.round((Number(leader.count || 0) / Math.max(Number(report?.total || 0), 1)) * 100))}% of plays</b>
-          </div>
+          <p>${formatNumber(leaderCount)} plays - your most-watched title for ${escapeHtml(periodLabel)}${oneIn > 1 ? `, just over 1 in ${oneIn} of every play logged` : ""}.</p>
         </div>
-      </article>
-      <div class="stats-review-side-stack">
-        ${sideRanks.map((row, index) => renderStatsRankCard(row, index + 2, max)).join("")}
+        <div class="stats-lb-card-bottom">
+          ${renderFacts(leader, leaderCount)}
+          <div class="stats-media-meter" aria-hidden="true"><span style="width:100%"></span></div>
+        </div>
       </div>
     </div>
-    <div class="stats-review-rank-grid">
-      ${remaining.map((row, index) => renderStatsRankCard(row, index + 4, max)).join("")}
-    </div>
-    <div class="stats-first-last">
-      ${renderStatsReviewPlay("First play", report?.firstPlay)}
-      ${renderStatsReviewPlay("Last play", report?.lastPlay)}
+    ${podium.length ? `
+      <div class="stats-lb-podium">
+        ${podium.map((row, index) => {
+    const rank = index + 2;
+    const wpct = Math.round((Number(row.count || 0) / max) * 100);
+    return `
+          <div class="stats-lb-podium-card" data-stats-media-href="${escapeAttribute(statsMediaHref(row))}" role="link" tabindex="0">
+            <span class="stats-lb-rank-badge">#${rank}</span>
+            <div class="stats-lb-podium-poster-wrap">
+              ${posterMarkup(row, "stats-lb-podium-poster")}
+            </div>
+            <div class="stats-lb-podium-body">
+              <b class="stats-lb-podium-title">${escapeHtml(row.title || "Unknown media")}</b>
+              <div class="stats-lb-card-bottom">
+                ${renderFacts(row, Number(row.count || 0))}
+                <div class="stats-media-meter" aria-hidden="true"><span style="width:${wpct}%"></span></div>
+              </div>
+            </div>
+          </div>
+        `;
+  }).join("")}
+      </div>
+    ` : ""}
+    <div class="stats-lb-rows">
+      ${ranked.map((row, index) => {
+    const wpct = Math.round((Number(row.count || 0) / max) * 100);
+    return `
+          <div class="stats-lb-row" data-stats-media-href="${escapeAttribute(statsMediaHref(row))}" role="link" tabindex="0">
+            <span class="stats-lb-rank-badge">#${index + 4}</span>
+            <div class="stats-lb-row-poster-wrap">
+              ${posterMarkup(row, "stats-lb-row-poster")}
+            </div>
+            <div class="stats-lb-row-body">
+              <span class="stats-lb-row-title">${escapeHtml(row.title || "Unknown media")}</span>
+              <div class="stats-lb-card-bottom">
+                ${renderFacts(row, Number(row.count || 0))}
+                <div class="stats-media-meter" aria-hidden="true"><span style="width:${wpct}%"></span></div>
+              </div>
+            </div>
+          </div>
+        `;
+  }).join("")}
     </div>
   `;
   hydratePosterFallbacks(container).catch(() => { });
 }
 
-function statsMediaHref(item = {}) {
-  const title = item.title || "unknown";
-  if (item.type === "movie") return `/movie/${encodeURIComponent(item.id || slug(title))}`;
-  return `/tvshow/${encodeURIComponent(slug(title))}`;
-}
+function renderStatsMoviesTvSplit(container, report = selectedStatsReport()) {
+  if (!container) return;
+  const moviePlays = Number(report?.movieWatches || 0);
+  const tvPlays = Number(report?.tvWatches || 0);
+  const totalPlays = moviePlays + tvPlays;
+  const moviePct = totalPlays ? ((moviePlays / totalPlays) * 100).toFixed(1) : "0.0";
+  const tvPct = totalPlays ? (100 - parseFloat(moviePct)).toFixed(1) : "0.0";
 
-function renderStatsRankCard(row, rank, max) {
-  return `
-    <article class="stats-media-card" data-stats-media-href="${escapeAttribute(statsMediaHref(row))}" role="link" tabindex="0">
-      ${posterMarkup(row, "stats-report-poster")}
-      <div class="stats-media-body">
-        <div>
-          <span>#${rank}</span>
-          <b>${escapeHtml(row.title || "Unknown media")}</b>
-          <small>${row.type === "movie" ? "Movie" : "TV show"}</small>
-        </div>
-        <div class="stats-media-meter" aria-hidden="true"><span style="width: ${(Number(row.count || 0) / max) * 100}%"></span></div>
-        <em>${formatNumber(row.count || 0)} play${Number(row.count || 0) === 1 ? "" : "s"}</em>
+  container.innerHTML = `
+    <h2 class="stats-split-title">Movies vs TV</h2>
+    <div class="stats-split-bar">
+      <div style="width:${moviePct}%;background:var(--blue)"></div>
+      <div style="width:${tvPct}%;background:var(--green)"></div>
+    </div>
+    <div class="stats-split-labels">
+      <div>
+        <span><span class="stats-dot" style="background:var(--blue)"></span>Movie plays</span>
+        <b>${escapeHtml(formatNumber(moviePlays))} <em>${moviePct}%</em></b>
       </div>
-    </article>
+      <div style="text-align:right">
+        <span style="justify-content:flex-end">TV episodes<span class="stats-dot" style="background:var(--green)"></span></span>
+        <b>${escapeHtml(formatNumber(tvPlays))} <em>${tvPct}%</em></b>
+      </div>
+    </div>
   `;
 }
 
-function renderStatsReviewPlay(label, item = null) {
-  if (!item) {
-    return `<article class="stats-review-play"><div><span>${escapeHtml(label)}</span><b>No play logged</b></div></article>`;
+function renderStatsPlatformRows(container, rows = []) {
+  if (!container) return;
+  if (!rows.length) {
+    container.innerHTML = `<div class="empty-log"><b>No data yet</b><span>Import history or wait for completed webhooks.</span></div>`;
+    return;
   }
-  return `
-    <article class="stats-review-play" data-stats-media-href="${escapeAttribute(statsMediaHref(item))}" role="link" tabindex="0">
-      ${posterMarkup(item, "stats-review-play-poster")}
-      <div>
-        <span>${escapeHtml(label)}</span>
-        <b>${escapeHtml(item.title || "Unknown media")}</b>
-        <small>${escapeHtml(formatDate(item.latestWatch))}</small>
+  const max = Math.max(...rows.map((r) => Number(r.count || 0)), 1);
+  const total = rows.reduce((sum, r) => sum + Number(r.count || 0), 0) || 1;
+  container.innerHTML = rows.map((row) => {
+    const count = Number(row.count || 0);
+    const share = ((count / total) * 100).toFixed(count / total < 0.01 ? 1 : 0) + "%";
+    const wpct = Math.round((count / max) * 100);
+    return `
+      <div class="stats-platform-row">
+        <div class="stats-platform-row-head">
+          <b>${escapeHtml(platformName(row.source))}</b>
+          <em><b>${escapeHtml(formatNumber(count))}</b> - ${share}</em>
+        </div>
+        <div class="stats-media-meter" aria-hidden="true"><span style="width:${wpct}%;background:var(--blue)"></span></div>
       </div>
-    </article>
+    `;
+  }).join("");
+}
+
+function renderStatsBookends(container, report = selectedStatsReport()) {
+  if (!container) return;
+  const first = report?.firstPlay;
+  const last = report?.lastPlay;
+  container.innerHTML = `
+    <h2 class="stats-bookends-title">Bookends</h2>
+    <div class="stats-bookends">
+      <div>
+        <span>First play</span>
+        <b>${first ? escapeHtml(first.title || "Unknown") : "No play logged"}</b>
+        ${first ? `<small>${escapeHtml(formatDate(first.latestWatch))}</small>` : ""}
+      </div>
+      <div>
+        <span>Last play</span>
+        <b>${last ? escapeHtml(last.title || "Unknown") : "No play logged"}</b>
+        ${last ? `<small>${escapeHtml(formatDate(last.latestWatch))}</small>` : ""}
+      </div>
+    </div>
   `;
 }
 
@@ -6059,18 +6201,20 @@ function renderMonthChart() {
     return;
   }
 
-  const max = Math.max(...rows.map((row) => Number(row.count || 0)), 1);
-  elements.monthChart.innerHTML = rows
-    .map(
-      (row) => `
-        <article class="month-column">
-          <span style="height: ${Math.max(8, (Number(row.count || 0) / max) * 100)}%"></span>
-          <b>${formatNumber(row.count)}</b>
-          <small>${escapeHtml(row.month)}</small>
-        </article>
-      `,
-    )
-    .join("");
+  const peakCount = Math.max(...rows.map((row) => Number(row.count || 0)), 1);
+  const BAR_MAX_PX = 110;
+  elements.monthChart.innerHTML = rows.map((row) => {
+    const count = Number(row.count || 0);
+    const isPeak = count === peakCount;
+    const barH = Math.max(3, Math.round((count / peakCount) * BAR_MAX_PX));
+    return `
+      <article class="month-column">
+        <b${isPeak ? ` style="color:var(--green)"` : ""}>${formatNumber(count)}</b>
+        <span style="height:${barH}px;${isPeak ? "background:var(--green);border-color:var(--green)" : ""}"></span>
+        <small>${escapeHtml(shortMonthLabel(row.month))}</small>
+      </article>
+    `;
+  }).join("");
 }
 
 function syncExplorerControlsState() {
@@ -12990,12 +13134,12 @@ function attachEvents() {
     state.statsPeriodValue = elements.statsPeriodValue.value || "all";
     renderStats();
   });
-  elements.topMediaReport?.addEventListener("click", (event) => {
+  document.querySelector("#stats-view")?.addEventListener("click", (event) => {
     const card = event.target.closest("[data-stats-media-href]");
     if (!card) return;
     navigateTo(card.dataset.statsMediaHref);
   });
-  elements.topMediaReport?.addEventListener("keydown", (event) => {
+  document.querySelector("#stats-view")?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     const card = event.target.closest("[data-stats-media-href]");
     if (!card) return;

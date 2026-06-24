@@ -208,7 +208,7 @@
               <label class="compact-field">
                 <span>Media</span>
                 <select id="statsMediaFilter" class="field">
-                  <option value="all">Movies & TV</option>
+                  <option value="all">Movies &amp; TV</option>
                   <option value="movie">Movies</option>
                   <option value="episode">TV shows</option>
                 </select>
@@ -228,30 +228,44 @@
             </div>
           </section>
 
-          <section class="glass-panel p-section stats-review-section">
-            <div id="topMediaReport" class="stats-poster-report"></div>
-          </section>
+          <section id="statsKpiStrip" class="stats-kpi-strip"></section>
 
-          <section class="insight-grid">
-            <article class="glass-panel p-section">
+          <section class="stats-body-grid">
+            <article class="glass-panel p-section stats-leaderboard-panel" id="topMediaReport">
               <div class="section-heading">
                 <div>
-                  <p>Most Active Playback Platforms</p>
-                  <span>Ranked by stored watch events</span>
+                  <p>Most Played</p>
+                  <span id="statsLeaderboardSubtitle">All time - by plays</span>
                 </div>
               </div>
-              <div id="sourceRanking" class="insight-list"></div>
+              <div id="statsLeaderboard" class="stats-lb-content"></div>
             </article>
 
-            <article class="glass-panel p-section">
-              <div class="section-heading">
-                <div>
-                  <p id="statsActivityTitle">Watch Activity</p>
-                  <span id="statsActivitySubtitle">Monthly archive volume</span>
+            <div class="stats-insight-col">
+              <article class="glass-panel p-section" id="statsMoviesTvSplit"></article>
+
+              <article class="glass-panel p-section">
+                <div class="section-heading">
+                  <div>
+                    <p>Playback Platforms</p>
+                    <span>by watch events</span>
+                  </div>
                 </div>
-              </div>
-              <div id="monthChart" class="month-chart"></div>
-            </article>
+                <div id="sourceRanking" class="stats-platform-rows"></div>
+              </article>
+
+              <article class="glass-panel p-section" id="statsBookends"></article>
+
+              <article class="glass-panel p-section">
+                <div class="section-heading">
+                  <div>
+                    <p id="statsActivityTitle">Watch Activity</p>
+                    <span id="statsActivitySubtitle">Monthly archive volume</span>
+                  </div>
+                </div>
+                <div id="monthChart" class="month-chart"></div>
+              </article>
+            </div>
           </section>
         </section>
 
