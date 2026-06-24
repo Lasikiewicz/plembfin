@@ -1,7 +1,21 @@
 {
-  "version": "0.2.27",
-  "updatedAt": "2026-06-24T13:32:43+01:00",
+  "version": "0.2.28",
+  "updatedAt": "2026-06-24T21:32:29+01:00",
   "entries": [
+    {
+      "version": "0.2.28",
+      "date": "2026-06-24T21:32:29+01:00",
+      "commit": "ad7cd7c042265ecfa8b2571dbbee24a7e6ff02cf",
+      "message": "feat: redesign dashboard with Part Watched section and card-based history",
+      "author": "Lasikiewicz",
+      "details": [
+        "Moved Part Watched onto the dashboard as a horizontal row between Now Playing and Watch History, and removed the standalone Part Watched page and nav tab",
+        "Split the dashboard into fixed proportions (Now Playing 30%, Part Watched 20%, Watch History 50%), collapsing to 30/70 when nothing is part-watched",
+        "Reserved a consistent Now Playing height so the layout no longer jumps when playback stops",
+        "Turned Watch History into vertical poster cards with a centred title, episode title (TV), season/episode, and watched date",
+        "Established a poster-size hierarchy that steps down from Now Playing through Part Watched to Watch History"
+      ]
+    },
     {
       "version": "0.2.27",
       "date": "2026-06-24T13:32:43+01:00",
