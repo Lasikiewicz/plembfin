@@ -2029,6 +2029,7 @@ h2 {
   border: 1px solid var(--line-strong);
   border-radius: 10px;
   align-items: start;
+  overflow: hidden;
 }
 
 .stats-lb-leader[data-stats-media-href] {
@@ -2042,6 +2043,8 @@ h2 {
 
 .stats-lb-leader-poster-wrap {
   position: relative;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .stats-lb-leader-poster {
