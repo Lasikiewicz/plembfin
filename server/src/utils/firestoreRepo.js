@@ -53,6 +53,8 @@ const deleteByIdStmt = db.prepare("DELETE FROM watch_history WHERE id = ?");
 const deleteByMediaKeyStmt = db.prepare("DELETE FROM watch_history WHERE media_key = ?");
 const findExistingStmt = db.prepare("SELECT * FROM watch_history WHERE media_key = ? AND watched_at = ? LIMIT 1");
 const findWatchedByKeyStmt = db.prepare("SELECT * FROM watch_history WHERE media_key = ? AND sync_action = 'watched' LIMIT 1");
+const findWatchedByCoordinatesStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = ? AND (season IS ? OR season = ?) AND (episode IS ? OR episode = ?) AND title_lower = ? AND sync_action = 'watched' LIMIT 1");
+const findWatchedByShowCoordinatesStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = 'episode' AND season = ? AND episode = ? AND show_title_lower = ? AND sync_action = 'watched' LIMIT 1");
 const getTmdbShowDetailsStmt = db.prepare("SELECT details FROM tmdb_metadata_cache WHERE id = ?");
 const recoverShowTitleByTmdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tmdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
 const recoverShowTitleByTvdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tvdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
@@ -1681,9 +1683,10 @@ export async function findWatchedByMediaKey(mediaKey) {
   return rowToWatch(findWatchedByKeyStmt.get(mediaKey));
 }
 
-// Checks all possible key formats for the same media item (IMDB, TMDB, TVDB, title).
-// Prevents false "not found" results when backup records were keyed by a different ID type
-// than the one returned by the platform API (e.g. Plex stored TMDB, Emby returns IMDB).
+// Checks all possible key formats for the same media item (IMDB, TMDB, TVDB, title),
+// then falls back to coordinate-based lookup (type+season+episode+title/show_title)
+// to match records that were imported with a different ID type (e.g. Trakt IMDB keys
+// vs Emby TVDB keys) or keyed by title.
 export async function findWatchedByAnyMediaKey(media) {
   const ids = media.ids || {};
   const seen = new Set();
@@ -1699,6 +1702,32 @@ export async function findWatchedByAnyMediaKey(media) {
     const row = findWatchedByKeyStmt.get(key);
     if (row) return rowToWatch(row);
   }
+
+  // Coordinate fallback: match by season+episode+show_title or title when no ID matched.
+  // Handles Trakt-imported records (IMDB-keyed) being looked up via Emby/Jellyfin (TVDB-keyed).
+  const type = String(media.media_type || media.type || "").toLowerCase();
+  const season = media.season ?? null;
+  const episode = media.episode ?? null;
+  if (type === "episode" && season != null && episode != null) {
+    const rawShowTitle = media.show_title || media.showTitle || media.title?.split(" - S")[0] || "";
+    const showTitleLower = rawShowTitle.trim().toLowerCase();
+    if (showTitleLower) {
+      const row = findWatchedByShowCoordinatesStmt.get(season, episode, showTitleLower);
+      if (row) return rowToWatch(row);
+    }
+    const titleLower = (media.title || "").trim().toLowerCase();
+    if (titleLower) {
+      const row = findWatchedByCoordinatesStmt.get("episode", season, season, episode, episode, titleLower);
+      if (row) return rowToWatch(row);
+    }
+  } else if (type === "movie") {
+    const titleLower = (media.title || "").trim().toLowerCase();
+    if (titleLower) {
+      const row = findWatchedByCoordinatesStmt.get("movie", null, null, null, null, titleLower);
+      if (row) return rowToWatch(row);
+    }
+  }
+
   return null;
 }
 

@@ -109,9 +109,6 @@ function watchedAtForEmbyLikeItem(item = {}, fallbackTimestamp = Date.now()) {
   const playedAt = embyLikePlayedDate(item);
   if (playedAt) return { watchedAt: playedAt, reason: "played" };
 
-  const releaseDate = releaseDateForItem(item);
-  if (releaseDate) return { watchedAt: releaseDate, reason: "release date" };
-
   if (isEmbyLikePlayed(item)) {
     return { watchedAt: new Date(fallbackTimestamp).toISOString(), reason: "poll time" };
   }
@@ -555,17 +552,6 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
     return false;
   }
 
-  if (existingPlaystate) {
-    logger(`Resume Sync: ${media.title} from ${media.source} - checking playstate`, {
-      playstateState: existingPlaystate.state,
-      playstateUpdatedAt,
-      resumeUpdatedAt,
-      resumeHasTimestamp: resumeUpdatedAt > 0,
-      skipDueToWatched: existingPlaystate.state === "watched",
-      skipDueToUnwatched: existingPlaystate.state === "unwatched" && (resumeUpdatedAt <= 0 || playstateUpdatedAt >= resumeUpdatedAt),
-      skipDueToTimestamp: resumeUpdatedAt > 0 && playstateUpdatedAt >= resumeUpdatedAt,
-    });
-  }
 
   if (existingPlaystate?.state === "unwatched" && (resumeUpdatedAt <= 0 || playstateUpdatedAt >= resumeUpdatedAt)) {
     await deletePlaybackProgress(requireDb(), media).catch(() => null);
@@ -582,15 +568,6 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
   const existingProgress = await getPlaybackProgressForMedia(requireDb(), media).catch(() => null);
   const progressUpdatedAt = Number(existingProgress?.updated_at || 0);
 
-  if (existingProgress) {
-    logger(`Resume Sync: ${media.title} from ${media.source} - checking existing progress`, {
-      progressUpdatedAt,
-      resumeUpdatedAt,
-      resumeHasTimestamp: resumeUpdatedAt > 0,
-      skipDueToUnchangedNoTimestamp: resumeUpdatedAt <= 0 && resumePositionUnchanged(existingProgress, media),
-      skipDueToProgress: resumeUpdatedAt > 0 && progressUpdatedAt >= resumeUpdatedAt,
-    });
-  }
 
   if (existingProgress && resumeUpdatedAt <= 0 && resumePositionUnchanged(existingProgress, media)) {
     logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (unchanged resume progress without timestamp)`);
@@ -820,18 +797,9 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
         media.episodeTitle = item.title;
       }
 
-      const key = mediaKeyFor(media);
-      const existing = await findExistingWatch(key, watchedAt);
+      const existing = await findWatchedByAnyMediaKey(media);
 
       if (!existing) {
-        // Invariant: never re-date an already-watched item to today. If plembfin already has it
-        // marked watched, preserve the earlier date and skip — the app reporting it watched (e.g.
-        // because a restore just scrobbled it) must not create a today-dated record.
-        const knownPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
-        if (knownPlaystate?.state === "watched") {
-          logger(`Plex: ${media.title} already watched; preserving earlier date (no today-dated record)`);
-          continue;
-        }
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
         if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
           logger(`Plex: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
@@ -925,12 +893,6 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
       const existing = await findWatchedByAnyMediaKey(media);
 
       if (!existing) {
-        // Invariant: never re-date an already-watched item to today (see Plex path above).
-        const knownPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
-        if (knownPlaystate?.state === "watched") {
-          logger(`Emby: ${media.title} already watched; preserving earlier date (no today-dated record)`);
-          continue;
-        }
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
         if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
           logger(`Emby: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
@@ -1023,12 +985,6 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       const existing = await findWatchedByAnyMediaKey(media);
 
       if (!existing) {
-        // Invariant: never re-date an already-watched item to today (see Plex path above).
-        const knownPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
-        if (knownPlaystate?.state === "watched") {
-          logger(`Jellyfin: ${media.title} already watched; preserving earlier date (no today-dated record)`);
-          continue;
-        }
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
         if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
           logger(`Jellyfin: skipped pre-restore item (played ${watchedAt}): ${media.title}`);

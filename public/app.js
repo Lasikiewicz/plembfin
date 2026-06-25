@@ -7930,7 +7930,9 @@ async function renderLogs() {
     state.renderedLogsText = localLogs || "[no diagnostic logs captured yet]";
     elements.logsTerminal.textContent = state.renderedLogsText;
   }
-  elements.logsTerminal.scrollTop = elements.logsTerminal.scrollHeight;
+  const el = elements.logsTerminal;
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  if (atBottom) el.scrollTop = el.scrollHeight;
 }
 
 function syncLogsRefresh() {

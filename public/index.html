@@ -1326,15 +1326,43 @@
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Server Logs</p>
-                        <span>Troubleshooting</span>
+                        <p>Understanding Logs</p>
+                        <span>What you might see</span>
                       </div>
-                      <p class="tool-accordion-desc">
-                        Logs include recent local server terminal output, scheduler messages, restore progress, sync warnings, and frontend diagnostics.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        To download raw log files on the host system, navigate to the `data/logs` folder in the Plembfin root workspace.
-                      </p>
+                      <p class="tool-accordion-desc">Logs are captured in memory from the moment the server starts. They reset on restart and hold up to 1,000 entries. The panel refreshes every 3 seconds automatically.</p>
+
+                      <details style="margin-top: var(--space-3);" open>
+                        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Normal activity</summary>
+                        <ul class="tool-accordion-desc" style="margin-top: var(--space-2); padding-left: var(--space-4); line-height: 1.7;">
+                          <li><b>Scheduled Sync: starting background sync workflow</b> — the per-minute background worker has fired. Completely normal; you will see this every 60 seconds.</li>
+                          <li><b>Plex / Emby / Jellyfin: checking recently watched</b> — each server's recent history is being polled for new watches.</li>
+                          <li><b>detected new watched item</b> — an item was found on a server that isn't yet in Plembfin's history. It will be imported and synced.</li>
+                          <li><b>Resume Sync: … skipped (item is watched / unchanged)</b> — a partial-play resume position was checked but not propagated because the item is already fully watched or the position hasn't changed. Normal.</li>
+                          <li><b>Webhook received</b> — a play event arrived from Plex, Emby, or Jellyfin in real time.</li>
+                        </ul>
+                      </details>
+
+                      <details style="margin-top: var(--space-2);">
+                        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Pre-restore skips</summary>
+                        <p class="tool-accordion-desc" style="margin-top: var(--space-2);"><b>skipped pre-restore item</b> — After importing a backup, Plembfin sets a restore timestamp. Any item whose play date falls at or before that timestamp is skipped during scheduled sync to prevent the same history being imported twice. These entries are expected after a restore and will stop appearing once the timestamp clears or the items age out.</p>
+                      </details>
+
+                      <details style="margin-top: var(--space-2);">
+                        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Warnings and errors</summary>
+                        <ul class="tool-accordion-desc" style="margin-top: var(--space-2); padding-left: var(--space-4); line-height: 1.7;">
+                          <li><b>[WARN]</b> — A non-critical issue, such as a missing metadata field or a server returning unexpected data. Sync continues.</li>
+                          <li><b>[ERROR]</b> — Something failed, such as a network error reaching Plex, Emby, or Jellyfin, or a failed sync dispatch. Check your server URLs and API keys in Settings → Apps if these repeat.</li>
+                          <li><b>Plex / Emby / Jellyfin ERROR: failed to fetch watched items</b> — The scheduled sync could not reach that server. Usually a network or credential issue.</li>
+                          <li><b>loop detected</b> — A sync propagation triggered a webhook back from the target server. The loop guard blocked it. Normal when all three platforms are connected.</li>
+                        </ul>
+                      </details>
+
+                      <details style="margin-top: var(--space-2);">
+                        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Force sync logs</summary>
+                        <p class="tool-accordion-desc" style="margin-top: var(--space-2);">When you run a force sync from Settings → Tools, progress is streamed here in real time: how many items were fetched from each server, how many were reconciled, and the result of each mark-played or mark-unplayed call. A <b>Force Sync: process complete</b> line confirms it finished.</p>
+                      </details>
+
+                      <p class="tool-accordion-desc" style="margin-top: var(--space-3); font-size: 0.8rem; color: var(--text-muted);">Use <b>Clear Logs</b> to wipe the in-memory buffer, or <b>Copy Logs</b> to paste them when reporting an issue.</p>
                     </article>
                   </div>
                 </div>
