@@ -1,7 +1,23 @@
 {
-  "version": "0.2.32",
-  "updatedAt": "2026-06-25T08:51:58+01:00",
+  "version": "0.2.33",
+  "updatedAt": "2026-06-25T09:06:01+01:00",
   "entries": [
+    {
+      "version": "0.2.33",
+      "date": "2026-06-25T09:06:01+01:00",
+      "commit": "1a14ed31b596568b8b702aed5b24d8885367fbf8",
+      "message": "fix: restore mobile layout for dashboard and stats pages",
+      "author": "Lasikiewicz",
+      "details": [
+        "Dashboard now scrolls vertically on mobile instead of cramming into fixed-height column splits",
+        "Now Playing, Part Watched, and Watch History rows each get a natural scrollable height on mobile",
+        "Stats toolbar and controls stack vertically on narrow screens",
+        "Stats KPI strip uses 3 columns so 5 cards lay out as 3+2 (no lone orphan card)",
+        "Stats leaderboard leader card description no longer overflows the card edge on mobile",
+        "Stats leaderboard podium collapses to single column on small screens",
+        "Added responsive design guide comment at top of styles.css for future reference"
+      ]
+    },
     {
       "version": "0.2.32",
       "date": "2026-06-25T08:51:58+01:00",
