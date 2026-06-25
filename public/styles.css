@@ -699,10 +699,12 @@ h2 {
 
 .page-shell {
   flex: 1;
+  min-width: 0;
   height: 100%;
   margin: 0;
   padding: 0 var(--control-inline-padding) var(--control-inline-padding);
   background: var(--bg);
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -1996,7 +1998,7 @@ h2 {
 
 .stats-body-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   align-items: start;
 }
