@@ -5706,20 +5706,38 @@ function renderActiveSessions() {
     .map((session) => {
       const progress = Math.max(0, Math.min(100, Number(session.progress ?? computeProgress(session.offsetMs, session.durationMs))));
       const href = nowPlayingHref(session);
+      const isEpisode = session.mediaType === "episode" || (session.season != null && session.episode != null);
+      const showTitle = isEpisode ? (session.showTitle || showName(session.title)) : session.title;
+      const epLabel = isEpisode && session.season != null && session.episode != null
+        ? `S${String(session.season).padStart(2, "0")}E${String(session.episode).padStart(2, "0")}${session.episodeTitle ? ` – ${session.episodeTitle}` : ""}`
+        : "";
+      const userName = session.client?.userName || "";
+      const deviceName = session.client?.deviceName || "";
       return `
         <button class="now-card-large live-now-card" type="button" data-now-playing-href="${escapeAttribute(href)}" aria-label="Open ${escapeAttribute(session.title)} details">
           <span class="now-poster-large-wrapper">
             ${posterMarkup(session, "now-poster-large")}
           </span>
-          <div class="now-meta">
-            <div class="now-card-head">
-              <span class="source-badge ${sourceClass(session.source)}">${escapeHtml(platformBadge(session.source))}</span>
-              <span class="stream-indicator">Live</span>
+          <div class="now-card-details">
+            <div class="now-card-header">
+              <div class="now-card-head">
+                <span class="stream-indicator">Live</span>
+              </div>
+              <b class="now-card-title" title="${escapeAttribute(showTitle)}">${escapeHtml(showTitle)}</b>
+              ${epLabel ? `<span class="now-card-episode">${escapeHtml(epLabel)}</span>` : ""}
             </div>
-            <b>${escapeHtml(session.title)}</b>
-            <small>${escapeHtml(formatNowPlayingMeta(session))}</small>
-            <div class="progress-track" aria-label="Playback progress"><span style="width: ${progress}%"></span></div>
-            <time>${escapeHtml(formatPlaybackClock(session.offsetMs, session.durationMs))}</time>
+            <div class="now-card-meta">
+              ${isEpisode && session.season != null ? `<span><span class="meta-label">Season/Ep:</span> S${session.season} · E${session.episode}</span>` : ""}
+              ${userName ? `<span><span class="meta-label">User:</span> ${escapeHtml(userName)}</span>` : ""}
+              ${deviceName ? `<span><span class="meta-label">Device:</span> ${escapeHtml(deviceName)}</span>` : ""}
+              <span><span class="meta-label">App Used:</span> <span class="source-badge ${sourceClass(session.source)}">${escapeHtml(platformBadge(session.source))}</span></span>
+            </div>
+            <div class="now-card-progress-container">
+              <div class="now-card-progress-bar">
+                <div class="now-card-progress-fill" style="width: ${progress}%;"></div>
+              </div>
+              <span class="now-card-progress-text">${escapeHtml(formatPlaybackClock(session.offsetMs, session.durationMs))}</span>
+            </div>
           </div>
         </button>
       `;
