@@ -1,7 +1,21 @@
 {
-  "version": "0.2.30",
-  "updatedAt": "2026-06-24T22:02:17+01:00",
+  "version": "0.2.31",
+  "updatedAt": "2026-06-25T08:44:18+01:00",
   "entries": [
+    {
+      "version": "0.2.31",
+      "date": "2026-06-25T08:44:18+01:00",
+      "commit": "5dde278b72f8e39fbd8f16c60702eaeb8348e08d",
+      "message": "feat: redesign Now Playing card to match Part Watched layout",
+      "author": "Lasikiewicz",
+      "details": [
+        "Show title on its own line in bold, episode label below in orange",
+        "Meta rows for Season/Ep, User, Device, and App Used pill",
+        "App Used source badge moved below Device in meta rows",
+        "Progress bar and playback clock at bottom of details column",
+        "Card uses same flex layout, poster sizing, and spacing as Part Watched"
+      ]
+    },
     {
       "version": "0.2.30",
       "date": "2026-06-24T22:02:17+01:00",
