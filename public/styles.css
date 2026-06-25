@@ -2072,6 +2072,7 @@ h2 {
 
 .stats-lb-leader-copy {
   min-width: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-self: stretch;
@@ -2082,6 +2083,8 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .stats-lb-leader-copy .stats-label-accent {
@@ -2106,8 +2109,8 @@ h2 {
   color: var(--soft);
   font-size: 0.86rem;
   line-height: 1.4;
-  max-width: min(46ch, 100%);
   overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .stats-lb-leader-copy .stats-review-facts {
