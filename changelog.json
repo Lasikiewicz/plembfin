@@ -1,7 +1,17 @@
 {
-  "version": "0.2.35",
-  "updatedAt": "2026-06-25T09:15:55+01:00",
+  "version": "0.2.36",
+  "updatedAt": "2026-06-25T09:22:13+01:00",
   "entries": [
+    {
+      "version": "0.2.36",
+      "date": "2026-06-25T09:22:13+01:00",
+      "commit": "49a34ef45a19631a1c0d8d73130877c4b6f8137f",
+      "message": "fix: prevent stats leaderboard panel from overflowing viewport on mobile",
+      "author": "Lasikiewicz",
+      "details": [
+        "Change stats-body-grid column from 1fr to minmax(0, 1fr) so the grid"
+      ]
+    },
     {
       "version": "0.2.35",
       "date": "2026-06-25T09:15:55+01:00",
