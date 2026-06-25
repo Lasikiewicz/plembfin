@@ -1,7 +1,23 @@
 {
-  "version": "0.2.36",
-  "updatedAt": "2026-06-25T09:22:13+01:00",
+  "version": "0.2.37",
+  "updatedAt": "2026-06-25T18:31:33+01:00",
   "entries": [
+    {
+      "version": "0.2.37",
+      "date": "2026-06-25T18:31:33+01:00",
+      "commit": "b17b0a619b15e45af5285ec138a44359bded9fdf",
+      "message": "fix: prevent watched items from being silently dropped from history",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix scheduled sync skipping items that had a playstate record but no history row — these were permanently blocked from being logged",
+        "Add coordinate-based fallback lookup (season + episode + show title) so items imported via Trakt with IMDB keys are found when Emby or Jellyfin returns TVDB keys",
+        "Switch Plex sync path to use multi-key lookup instead of exact key match, fixing cross-ID misses",
+        "Remove release date fallback from Emby/Jellyfin watch timestamp logic to prevent bogus historical dates being recorded when no real play date is available",
+        "Clean up verbose resume sync debug log lines that dumped internal state objects on every tick",
+        "Expand logs page help panel with plain-English explanations of every log entry type",
+        "Fix logs terminal auto-scrolling to bottom when user has scrolled up to read earlier entries"
+      ]
+    },
     {
       "version": "0.2.36",
       "date": "2026-06-25T09:22:13+01:00",
