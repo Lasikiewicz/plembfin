@@ -1,3 +1,20 @@
+/*
+ * RESPONSIVE DESIGN GUIDE
+ * ========================
+ * Breakpoints (max-width):
+ *   ≤1100px  — sidebar collapses from 16rem to compact; dashboard history grid adapts
+ *   ≤980px   — stats/settings go to single column; leaderboard podium collapses
+ *   ≤760px   — nav becomes collapsible top bar; dashboard reverts to scrollable stacked
+ *              layout (NOT a fixed-height column split); layout is column-stacked
+ *   ≤640px   — further text/spacing shrinks; stats toolbar/KPI stack; topbar stacks
+ *   ≤480px   — smallest adjustments (part-watched card width, mini-card sizing)
+ *
+ * IMPORTANT: When adding or changing dashboard or stats layouts, always verify on
+ * mobile (≤760px). The dashboard uses a fixed-height flex split on desktop that is
+ * explicitly overridden to scrollable sections at ≤760px (see that media block).
+ * New panels added to #timeline-view must also work in the scrollable mobile mode.
+ */
+
 :root {
   color-scheme: dark;
   --bg: #0b0f12;
@@ -2089,7 +2106,8 @@ h2 {
   color: var(--soft);
   font-size: 0.86rem;
   line-height: 1.4;
-  max-width: 46ch;
+  max-width: min(46ch, 100%);
+  overflow-wrap: break-word;
 }
 
 .stats-lb-leader-copy .stats-review-facts {
@@ -7128,6 +7146,122 @@ h1 {
     white-space: normal;
     word-wrap: break-word;
   }
+
+  /* ---- Dashboard: revert fixed-height column split to scrollable sections ---- */
+  .page-shell[data-active-view="dashboard"] {
+    overflow-y: auto;
+  }
+
+  .page-shell[data-active-view="dashboard"] .app-shell {
+    height: auto;
+    grid-template-rows: auto;
+  }
+
+  .page-shell[data-active-view="dashboard"] #timeline-view {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    gap: 0.75rem;
+  }
+
+  .page-shell[data-active-view="dashboard"] .live-panel,
+  .page-shell[data-active-view="dashboard"] #partWatchedDashboardSection,
+  .page-shell[data-active-view="dashboard"] .history-timeline-panel:not(#partWatchedDashboardSection) {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  /* Reset flex-grow overrides that size the desktop column splits */
+  #timeline-view .live-panel,
+  #timeline-view[data-dash-state="2"] .live-panel,
+  #timeline-view[data-dash-state="3"] .live-panel { flex-grow: 0; }
+  #timeline-view #partWatchedDashboardSection,
+  #timeline-view[data-dash-state="2"] #partWatchedDashboardSection { flex-grow: 0; }
+  #timeline-view .history-timeline-panel:not(#partWatchedDashboardSection),
+  #timeline-view[data-dash-state="2"] .history-timeline-panel:not(#partWatchedDashboardSection),
+  #timeline-view[data-dash-state="3"] .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 0; }
+
+  /* Now Playing: let cards wrap naturally at a good mobile height */
+  .page-shell[data-active-view="dashboard"] .now-playing-grid {
+    flex: 0 0 auto;
+    overflow-x: auto;
+    overflow-y: visible;
+    min-height: 10rem;
+  }
+
+  .page-shell[data-active-view="dashboard"] .now-card-large {
+    flex: 0 0 auto;
+    width: min(88vw, 26rem);
+    height: 9rem;
+    align-items: stretch;
+  }
+
+  .page-shell[data-active-view="dashboard"] .now-poster-large-wrapper {
+    height: 100%;
+    width: auto;
+  }
+
+  /* Part Watched: horizontal scroll row with natural card heights */
+  .page-shell[data-active-view="dashboard"] #partWatchedRow {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow-x: auto;
+  }
+
+  .page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-page-card {
+    height: 9rem;
+    width: min(88vw, 26rem);
+    flex: 0 0 auto;
+    align-items: stretch;
+    overflow: hidden;
+  }
+
+  .page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-poster-wrapper {
+    height: 100%;
+    width: auto;
+    flex: 0 0 auto;
+  }
+
+  /* Watch History rows: natural scrollable height */
+  .page-shell[data-active-view="dashboard"] .history-timeline-panel:not(#partWatchedDashboardSection) .dashboard-history-rows {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+
+  .page-shell[data-active-view="dashboard"] .dashboard-row-section {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+
+  .page-shell[data-active-view="dashboard"] .dashboard-row-section .horizontal-scroll-row {
+    flex: 0 0 auto;
+    min-height: 9rem;
+  }
+
+  .page-shell[data-active-view="dashboard"] #tvHistoryRow .history-mini-card,
+  .page-shell[data-active-view="dashboard"] #movieHistoryRow .history-mini-card {
+    height: 9rem;
+    max-width: 12rem;
+  }
+
+  .page-shell[data-active-view="dashboard"] #tvHistoryRow .history-mini-card-poster-wrapper,
+  .page-shell[data-active-view="dashboard"] #movieHistoryRow .history-mini-card-poster-wrapper {
+    flex: 1 1 auto;
+    height: auto;
+    width: auto;
+  }
+
+  /* Stats leaderboard leader card: shrink poster on mobile */
+  .stats-lb-leader {
+    grid-template-columns: 1.8rem 5rem minmax(0, 1fr);
+  }
+
+  .stats-lb-leader-copy h3 {
+    font-size: 1.4rem;
+  }
 }
 
 @media (max-width: 640px) {
@@ -7183,6 +7317,56 @@ h1 {
   body #mediaDetailActions .media-actions-menu-panel .action-pill {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  /* Stats: collapse toolbar to stacked column on narrow screens */
+  .stats-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .stats-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .stats-controls .compact-field {
+    grid-template-columns: 6rem 1fr;
+  }
+
+  /* Stats KPI: 3-column so 5 cards fit neatly (3+2) without a lone orphan */
+  .stats-kpi-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* Stats leader (#1): compact the poster, clamp the description */
+  .stats-lb-leader {
+    grid-template-columns: 1.8rem 4.5rem minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .stats-lb-leader-copy {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .stats-lb-leader-copy h3 {
+    font-size: 1.25rem;
+    overflow-wrap: anywhere;
+  }
+
+  .stats-lb-leader-copy p {
+    font-size: 0.8rem;
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  /* Stats podium: single column on small screens */
+  .stats-lb-podium {
+    grid-template-columns: 1fr;
   }
 }
 
