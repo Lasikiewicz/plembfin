@@ -10314,6 +10314,28 @@ html.light-mode .review-card {
   white-space: nowrap;
 }
 
+.part-watched-action-btn[data-action-watch] {
+  background: rgba(37, 99, 235, 0.12);
+  border-color: rgba(37, 99, 235, 0.4);
+  color: #2563eb;
+}
+
+.part-watched-action-btn[data-action-watch]:hover {
+  background: rgba(37, 99, 235, 0.2);
+  border-color: rgba(37, 99, 235, 0.6);
+}
+
+html.light-mode .part-watched-action-btn[data-action-watch] {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.35);
+  color: #2563eb;
+}
+
+html.light-mode .part-watched-action-btn[data-action-watch]:hover {
+  background: rgba(37, 99, 235, 0.15);
+  border-color: rgba(37, 99, 235, 0.55);
+}
+
 html.light-mode .part-watched-page-card {
   background: var(--panel);
   border-color: var(--line);
