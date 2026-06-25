@@ -1,7 +1,19 @@
 {
-  "version": "0.2.33",
-  "updatedAt": "2026-06-25T09:06:01+01:00",
+  "version": "0.2.34",
+  "updatedAt": "2026-06-25T09:13:16+01:00",
   "entries": [
+    {
+      "version": "0.2.34",
+      "date": "2026-06-25T09:13:16+01:00",
+      "commit": "f504e9df829be7ff99e991e4033d4bc720b2c92e",
+      "message": "fix: prevent stats leaderboard leader card description from overflowing",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add min-width: 0 and overflow: hidden to stats-lb-main-copy and stats-lb-leader-copy",
+        "Remove max-width: 46ch from description paragraph so container constrains it",
+        "Add word-break: break-word as fallback for long unbroken text"
+      ]
+    },
     {
       "version": "0.2.33",
       "date": "2026-06-25T09:06:01+01:00",
