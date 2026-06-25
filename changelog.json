@@ -1,7 +1,19 @@
 {
-  "version": "0.2.31",
-  "updatedAt": "2026-06-25T08:44:18+01:00",
+  "version": "0.2.32",
+  "updatedAt": "2026-06-25T08:51:58+01:00",
   "entries": [
+    {
+      "version": "0.2.32",
+      "date": "2026-06-25T08:51:58+01:00",
+      "commit": "e13ba2071d313034798db502396ad9fb3e40ac1d",
+      "message": "feat: style Part Watched Mark Watched button to match active nav colour",
+      "author": "Lasikiewicz",
+      "details": [
+        "Mark Watched button now uses the same light blue wash as the active nav tab background",
+        "Blue text and border to match the nav tab colour language",
+        "Hover state deepens the blue tint slightly"
+      ]
+    },
     {
       "version": "0.2.31",
       "date": "2026-06-25T08:44:18+01:00",
