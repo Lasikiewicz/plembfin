@@ -1,7 +1,18 @@
 {
-  "version": "0.2.34",
-  "updatedAt": "2026-06-25T09:13:16+01:00",
+  "version": "0.2.35",
+  "updatedAt": "2026-06-25T09:15:55+01:00",
   "entries": [
+    {
+      "version": "0.2.35",
+      "date": "2026-06-25T09:15:55+01:00",
+      "commit": "84d155e6189dce167cc66f8cba2eab5f5032e574",
+      "message": "fix: contain stats leader card overflow at base level",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add overflow: hidden to .stats-lb-leader at base (not just in media query)",
+        "Add min-width: 0 and overflow: hidden to .stats-lb-leader-poster-wrap"
+      ]
+    },
     {
       "version": "0.2.34",
       "date": "2026-06-25T09:13:16+01:00",
