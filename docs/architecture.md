@@ -5,11 +5,12 @@
 **Frontend** (`public/`) — a plain ES-module SPA served as static files.
 No framework, no bundler, no TypeScript.
 - `public/index.html` — shell + element IDs the JS queries.
-- `public/app.js` (~9000 lines) — everything: state, routing, rendering, all
-  API calls. A single `state` object holds app state; rendering is manual
+- `public/app.js` — orchestrator: startup, routing, event wiring, `bindElements`.
+  A single `state` object holds app state; rendering is manual
   (`renderDashboard`, `renderNowPlaying`, etc.).
-- `public/modules/` — thin helpers: `auth.js`, `logs.js`, `settings.js`,
-  `timeline.js`.
+- `public/modules/` — feature modules: `state.js`, `utils.js`, `images.js`,
+  `auth.js`, `logs.js`, `settings.js`, `timeline.js`, `help-content.js`,
+  `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`.
 - `public/styles.css` — all styling.
 
 **Backend** (`server/`) — a single Express process.

@@ -45,10 +45,10 @@ For every changed file, check whether the corresponding doc **and** the relevant
 Update any doc **and** the matching README section that is out of date before proceeding.
 
 ### 3 — Sync in-app help
-For every changed feature or setting, check `public/app.js`:
+For every changed feature or setting, check the relevant frontend module in `public/modules/` or `public/app.js`:
 - **`HELP_TOPICS`** array — update or add topic bodies if flows changed
 - **`renderSettingsInlineHelp()`** — check that the inline help content in each settings panel still matches the current behaviour
-- **`webhookWarning()` / `plexWebhookSetup()` / `embyWebhookSetup()` / `jellyfinWebhookSetup()`** — update if webhook setup steps changed
+- **`webhookWarning()` / `plexWebhookSetup()` / `embyWebhookSetup()` / `jellyfinWebhookSetup()`** — update if webhook setup steps changed (live in `modules/help-content.js` after refactor)
 - **`cronSyncGuide()`** — update if scheduler endpoint or behaviour changed
 - **`adminTokenGuide()`** — update if auth flow changed
 
@@ -100,6 +100,48 @@ The app listens on `PORT` (default `5055`). Default admin login on a fresh insta
 variables. On first boot the server writes `data/config.json` with the admin credentials,
 a generated API key, and a session secret.
 
+## Frontend Module Discipline
+
+> These rules prevent `app.js` from growing back into a monolith.
+
+### File size limits
+- **`public/app.js`** — orchestrator only. Must stay under **3,000 lines**. If it approaches this limit, extract the next logical group into a module.
+- **`public/modules/*.js`** — individual modules. Soft limit **1,000 lines**; hard limit **1,500 lines**. If a module exceeds 1,000 lines, split it before adding more to it.
+
+### Where new code goes
+When adding frontend code, place it in the most specific existing module that owns that feature area:
+
+| Feature area | Module |
+| --- | --- |
+| Formatting, string escaping, date helpers | `modules/utils.js` |
+| Poster URLs, image caching, `posterMarkup` | `modules/images.js` |
+| Static help/guide HTML | `modules/help-content.js` |
+| Sync status, sync history, now-playing polling | `modules/sync.js` |
+| Dashboard rendering | `modules/dashboard.js` |
+| Stats rendering | `modules/stats.js` |
+| Explorer grid, history page, search page | `modules/explorer.js` |
+| TV/movie detail modals, person profiles, edit dialogs | `modules/media-detail.js` |
+| Backup, import, cache, appearance, maintenance tools | `modules/tools.js` |
+| Auth, session, tokens | `modules/auth.js` |
+| Debug/diagnostic logs | `modules/logs.js` |
+| Connection config payloads | `modules/settings.js` |
+| Live session fetching/normalisation | `modules/timeline.js` |
+| Shared `state` and `elements` objects | `modules/state.js` |
+| App startup, routing, event wiring, `bindElements` | `app.js` |
+
+### Creating a new module
+If a new feature area doesn't fit any existing module and would exceed 150 lines:
+1. Create `public/modules/<feature>.js` using named ES module exports
+2. Add `<link rel="modulepreload" href="/modules/<feature>.js" />` to `index.html`
+3. Import it in `app.js` (or the owning module)
+4. Update this table above
+
+### Dependency rules
+- Modules may import from `state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`
+- `sync.js` may be imported by `dashboard.js` and `media-detail.js` — not the reverse
+- No module may import from `app.js`
+- Avoid circular dependencies — if you need A→B and B→A, the shared logic belongs in a third module
+
 ## Architecture
 
 This is a **self-hosted, single-process app** in the style of Sonarr/Radarr/Jellyseerr.
@@ -119,8 +161,7 @@ folder** under `data/`.
 prefix and routes to `handleWebhook`, `handleHistory`, `handleMovies`, etc. `dispatch` is
 imported and mounted by `server.js`.
 
-**Frontend** (`public/`) — a plain ES module SPA with no build step (`app.js` ~9000 lines
-plus `public/modules/`). No framework, bundler, or TypeScript.
+**Frontend** (`public/`) — a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `timeline.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`). No framework, bundler, or TypeScript.
 
 ### Data layer (`server/src/db.js` + `schema.sql`)
 
