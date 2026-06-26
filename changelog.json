@@ -1,7 +1,20 @@
 {
-  "version": "0.2.43",
-  "updatedAt": "2026-06-26T10:47:20+01:00",
+  "version": "0.2.44",
+  "updatedAt": "2026-06-26T16:20:34+01:00",
   "entries": [
+    {
+      "version": "0.2.44",
+      "date": "2026-06-26T16:20:34+01:00",
+      "commit": "f883d433bff76f2baa571a5085ade2450de063fd",
+      "message": "fix: restore local media detail routing",
+      "author": "Lasikiewicz",
+      "details": [
+        "Split media detail, person, lightbox, maintenance, TMDB, and app event code into dedicated frontend modules",
+        "Load direct movie detail pages from the local archive when memory state is empty",
+        "Restore movie metadata actions and person profile rendering after the module split",
+        "Update frontend architecture notes for the module ownership changes"
+      ]
+    },
     {
       "version": "0.2.43",
       "date": "2026-06-26T10:47:20+01:00",
