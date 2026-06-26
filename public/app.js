@@ -9,7 +9,7 @@ import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinB
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling } from "./modules/sync.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
-import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js";
+import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js";
 
 // Warm the backend the moment the app loads (no auth needed), so the Cloud
 // Function is hot by the time the user clicks into anything. A light keep-alive
@@ -1752,7 +1752,10 @@ function handleRouting(path) {
     state.activeShowModalKey = showKey;
     state.activeShowModalSeason = seasonNum;
     state.activeShowModalEpisode = episodeNum;
-    openShowInlineDetail(showKey, seasonNum, episodeNum).catch((error) => setMessage(error.message, "error"));
+    openShowInlineDetail(showKey, seasonNum, episodeNum).catch((error) => {
+      console.error("Failed to open show detail", error);
+      setMessage(error.message, "error");
+    });
   } else if (pathname === "/" || pathname === "" || pathname === "/dashboard") {
     state.activeView = "dashboard";
     state.mediaDetailInline = false;
@@ -2115,7 +2118,7 @@ function applyActiveView() {
     renderStats();
     loadStats().catch((error) => setMessage(error.message, "error"));
   }
-  if (state.activeView === "explorer") renderExplorer();
+  if (state.activeView === "explorer" && !state.mediaDetailInline) renderExplorer();
   if (state.activeView === "search") renderSearchPage();
   if (state.activeView === "history") renderHistoryView();
   if (state.activeView !== "explorer") {
@@ -4784,11 +4787,12 @@ async function renderImmersiveShowModal(showKey, activeSeasonNum = null, activeE
       </div>
     `;
     hydratePosters(root);
-    show = await loadShowDetail(show).catch((error) => {
+    const detailedShow = await loadShowDetail(show).catch((error) => {
       console.error("Failed to load show detail", error);
       setMessage(`Failed to load show details: ${error.message}`, "error");
-      return show;
+      return null;
     });
+    if (detailedShow) show = detailedShow;
     if (!Array.isArray(show.episodes) || !show.episodes.length) {
       root.innerHTML = `
         <div class="modal-backdrop-image"></div>
@@ -5544,12 +5548,8 @@ async function openRecommendedMovieInlineDetail(tmdbId) {
 }
 
 async function openShowInlineDetail(showKey, activeSeasonNum = null, activeEpisodeNum = null) {
-  if (state.mediaDetailInline && state.activeShowModalKey === showKey) {
-    await renderImmersiveShowModal(showKey, activeSeasonNum, activeEpisodeNum);
-  } else {
-    prepareInlineMediaDetail("shows");
-    await renderImmersiveShowModal(showKey, activeSeasonNum, activeEpisodeNum);
-  }
+  prepareInlineMediaDetail("shows");
+  await renderImmersiveShowModal(showKey, activeSeasonNum, activeEpisodeNum);
 }
 
 // Monotonic token guarding async media-detail renders. Each render captures the
@@ -9376,4 +9376,3 @@ async function hydratePersonFilmographyWatchStatuses(personId, credits = []) {
     });
   }));
 }
-

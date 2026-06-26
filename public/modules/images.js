@@ -210,6 +210,9 @@ export async function lookupPosterUrl(posterId, { fallback = false } = {}) {
     lookup = fetch(url, { headers: buildAuthHeaders(state.token) })
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
+        if (response.status === 404) {
+          return "MISSING";
+        }
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }

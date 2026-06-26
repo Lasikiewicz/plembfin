@@ -1242,10 +1242,19 @@ export async function loadShowDetail(show = {}) {
     const url = new URL("/api/show", window.location.origin);
     if (show.id) url.searchParams.set("id", show.id);
     if (showTitle) url.searchParams.set("title", showTitle);
-    const response = await fetch(url, { headers: authHeaders() });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || `Show detail failed ${response.status}`);
-    return mergeShowDetail(body.show || null);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(url, { headers: authHeaders(), cache: "no-store", signal: controller.signal });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Show detail failed ${response.status}`);
+      return mergeShowDetail(body.show || null);
+    } catch (error) {
+      if (error?.name === "AbortError") throw new Error("Show detail request timed out");
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   })().finally(() => state.showDetailInflight.delete(cacheKey));
 
   state.showDetailInflight.set(cacheKey, request);
@@ -1311,7 +1320,7 @@ function earliestWatched(seasons) {
   return times.length ? Math.min(...times) : 0;
 }
 
-function representativeEpisode(seasons) {
+export function representativeEpisode(seasons) {
   return sortExplorerItems(allSeasonEpisodes(seasons), "watched_desc")[0] || {};
 }
 
@@ -1329,7 +1338,7 @@ function groupShows(episodes) {
   return shows;
 }
 
-function seasonsFromShowRecord(show = {}) {
+export function seasonsFromShowRecord(show = {}) {
   const seasons = new Map();
   for (const episode of show.episodes || []) {
     if (!isWatchedHistoryAction(episode)) continue;
@@ -1356,7 +1365,7 @@ function summaryEpisodeFromShow(show = {}) {
   };
 }
 
-function tmdbLookupIdsFromShow(show = {}, seasons = null) {
+export function tmdbLookupIdsFromShow(show = {}, seasons = null) {
   const representative = show.representative_episode || show.representativeEpisode || representativeEpisode(seasons || seasonsFromShowRecord(show));
   return {
     imdbId: show.imdb_id || representative?.imdb_id || "",

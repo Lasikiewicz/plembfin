@@ -4,6 +4,7 @@ node_modules/
 !.env.example
 .random
 scratch/
+plan/
 
 # Local runtime data: SQLite database, cached artwork, generated config.json
 data/

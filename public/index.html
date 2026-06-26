@@ -24,10 +24,10 @@
   </head>
   <body>
     <!-- Prevent aggressive browser password managers from autofilling search inputs -->
-    <div style="position: absolute; top: -9999px; left: -9999px; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none;" aria-hidden="true">
+    <form style="position: absolute; top: -9999px; left: -9999px; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none;" aria-hidden="true" autocomplete="on">
       <input type="text" name="plembfin_dummy_username" autocomplete="username" tabindex="-1" />
       <input type="password" name="plembfin_dummy_password" autocomplete="current-password" tabindex="-1" />
-    </div>
+    </form>
 
     <div class="app-chassis">
       <nav class="topnav" aria-label="Primary navigation">
