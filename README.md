@@ -44,6 +44,11 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 </p>
 
 <p align="center">
+  <img src="docs/screenshots/media.png" alt="Media detail view" width="100%" />
+  <em>Movie and show detail pages with cast, trailers, reviews, images, and recommendations</em>
+</p>
+
+<p align="center">
   <img src="docs/screenshots/history.png" alt="Watch history view" width="100%" />
   <em>Complete watch log across all connected platforms</em>
 </p>
@@ -306,4 +311,3 @@ Plembfin uses the following third-party services for artwork and metadata — th
 
 *   **[The Movie Database (TMDB)](https://www.themoviedb.org)** — The primary source for movie and TV show metadata, posters, backdrops, cast information, and logo art. This product uses the TMDB API but is not endorsed or certified by TMDB.
 *   **[Fanart.tv](https://fanart.tv)** — Community-driven source of high-quality poster art, backdrop images, and transparent logo art used as a fallback when TMDB images are unavailable. Thank you to all the fanart.tv contributors who upload and curate artwork.
-
