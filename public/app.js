@@ -78,6 +78,7 @@ const DASHBOARD_HISTORY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const HISTORY_PREVIEW_LIMIT = 120;
 const DASHBOARD_HISTORY_ROWS = 2;
 const EXPLORER_PAGE_SIZE = 240;
+const MANUAL_WATCH_BATCH_SIZE = 100;
 const EXPLORER_CACHE_TTL_MS = 30 * 60 * 1000;
 const EXPLORER_PERSISTED_CACHE_KEY = "plembfin:explorerPageCache:v3";
 const EXPLORER_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -4729,7 +4730,7 @@ async function renderImmersiveShowModal(showKey, activeSeasonNum = null, activeE
       </div>
     `;
     try {
-      const response = await fetch(`/api/show?id=${encodeURIComponent(showKey)}`, { headers: authHeaders() });
+      const response = await fetch(`/api/show?id=${encodeURIComponent(showKey)}`, { headers: authHeaders(), cache: "no-store" });
       const body = await response.json().catch(() => ({}));
       if (response.ok && body.show) {
         show = body.show;
@@ -5124,8 +5125,8 @@ async function postManualWatchRecords(records, onProgress) {
   let propagated = 0;
   let syncQueued = 0;
 
-  for (let index = 0; index < records.length; index += IMPORT_BATCH_SIZE) {
-    const batch = records.slice(index, index + IMPORT_BATCH_SIZE);
+  for (let index = 0; index < records.length; index += MANUAL_WATCH_BATCH_SIZE) {
+    const batch = records.slice(index, index + MANUAL_WATCH_BATCH_SIZE);
     const response = await fetch("/api/manual-watch", {
       method: "POST",
       headers: { ...authHeaders(), "Content-Type": "application/json" },
