@@ -14,14 +14,7 @@ Implementation lives in `server/src/scheduled.js`.
 
 ## What it does each run
 
-1. **Catch-up watched sync** — for each active platform, pull recently-watched items
-   and propagate any that haven't been synced yet:
-   - `syncRecentlyWatchedFromPlex` / `...FromEmby` / `...FromJellyfin`
-     (`scheduled.js`). Each is wrapped in try/catch so one platform failing doesn't
-     abort the run.
-2. **Manual dispatch queue** — `syncPendingManualDispatches` processes anything
-   queued by the UI (manual mark-watched, retries).
-3. **Live session tracking** (this feeds Now Playing):
+1. **Live session tracking** (this feeds Now Playing) — **runs every minute**:
    - `fetchLiveSessions(config)` polls the configured servers for what's playing now.
    - `buildCacheRow()` shapes each session; `upsertLiveTrackingCache()` writes them
      to the `live_tracking_cache` SQLite table.
@@ -29,6 +22,11 @@ Implementation lives in `server/src/scheduled.js`.
      longer playing** and had `last_progress >= 90` is treated as a **completed
      watch** (`processCompletedSession` → inserts history + propagates). Sessions
      that vanish below the threshold are marked/cleared as stale.
+2. **Manual dispatch queue** — **runs every minute**:
+   - `syncPendingManualDispatches` processes anything queued by the UI (manual mark-watched, retries).
+3. **Catch-up library sync** — **runs every 15 minutes** (configurable via `CATCHUP_SYNC_INTERVAL_MS` env variable) to avoid heavy redundant API queries:
+   - Pulls recently-watched and continue-watching (resumable) items from each active server: `syncRecentlyWatchedFromPlex`/`syncRecentlyResumableFromPlex` (and Emby/Jellyfin equivalents) in `scheduled.js`.
+   - Propagates playstate changes that were missed by webhooks. Each is wrapped in try/catch so one platform failing doesn't abort the run.
 
 This is how a play that finishes without a final scrobble webhook still gets
 recorded: the poller sees it hit ≥ 90% then disappear, and completes it.

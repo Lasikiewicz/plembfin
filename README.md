@@ -269,6 +269,7 @@ The following environment variables can be set in your system or defined in `doc
 | `COOKIE_SECURE` | `false` | Set to `true` when the app is served behind an HTTPS reverse proxy — enables `Secure` cookie flag and `Strict-Transport-Security` header. |
 | `FANART_API_KEY` | _none_ | Optional personal Fanart.tv API key for higher rate limits. A built-in project key is used when this is unset. |
 | `OMDB_API_KEY` | _none_ | Optional OMDb API key. When set, IMDb ratings are fetched and displayed as a rating badge on movie detail pages. Free tier: 1,000 req/day. |
+| `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | The frequency (in milliseconds) of database-heavy catch-up library scans on Plex/Emby/Jellyfin. |
 
 ---
 

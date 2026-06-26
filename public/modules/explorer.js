@@ -759,7 +759,7 @@ export function applyListHeaderSort(key) {
   renderExplorer();
 }
 
-function resolvedTmdbCache(mediaType, tmdbId, title) {
+export function resolvedTmdbCache(mediaType, tmdbId, title) {
   if (!tmdbId && !title) return null;
   const baseKey = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}`;
   const keys = [baseKey, `${baseKey}||`];

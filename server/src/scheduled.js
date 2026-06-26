@@ -40,6 +40,12 @@ const SCHEDULED_RESUME_LIMIT = 50;
 const PLEX_UNWATCHED_POLL_INTERVAL_MS = 6 * 60 * 60 * 1000;
 let lastPlexUnwatchedPollAt = 0;
 
+// Cadence for background catch-up library syncs (recently watched & continue watching lists).
+// These serve as backstops for events missed by webhooks/live session tracking, so they
+// do not need to run on every 1-minute tick.
+const CATCHUP_SYNC_INTERVAL_MS = Number(process.env.CATCHUP_SYNC_INTERVAL_MS || process.env.CATCHUP_SYNC_INTERVAL || 15 * 60 * 1000);
+let lastCatchupSyncAt = 0;
+
 function buildTelemetry(media, summary) {
   const targetStates = summary?.targetStates || [];
   return [
@@ -1215,58 +1221,66 @@ export async function runScheduledSync(logger = console.log) {
   let jellyfinResumeSynced = 0;
   let manualSynced = 0;
 
-  if (plexActive) {
-    try {
-      logger("Scheduled Sync: checking Plex recently watched...");
-      plexSynced = await syncRecentlyWatchedFromPlex(config, loopStore, logger);
-    } catch (error) {
-      logger(`Scheduled Sync ERROR: Plex sync failed: ${error.message}`);
-    }
-  }
+  const shouldRunCatchup = !lastCatchupSyncAt || (Date.now() - lastCatchupSyncAt >= CATCHUP_SYNC_INTERVAL_MS);
+  if (shouldRunCatchup) {
+    lastCatchupSyncAt = Date.now();
+    logger(`Scheduled Sync: running catch-up library checks (interval: ${CATCHUP_SYNC_INTERVAL_MS / 60000}m)...`);
 
-  if (embyActive) {
-    try {
-      logger("Scheduled Sync: checking Emby recently watched...");
-      embySynced = await syncRecentlyWatchedFromEmby(config, loopStore, logger);
-    } catch (error) {
-      logger(`Scheduled Sync ERROR: Emby sync failed: ${error.message}`);
+    if (plexActive) {
+      try {
+        logger("Scheduled Sync: checking Plex recently watched...");
+        plexSynced = await syncRecentlyWatchedFromPlex(config, loopStore, logger);
+      } catch (error) {
+        logger(`Scheduled Sync ERROR: Plex sync failed: ${error.message}`);
+      }
     }
-  }
 
-  if (jellyfinActive) {
-    try {
-      logger("Scheduled Sync: checking Jellyfin recently watched...");
-      jellyfinSynced = await syncRecentlyWatchedFromJellyfin(config, loopStore, logger);
-    } catch (error) {
-      logger(`Scheduled Sync ERROR: Jellyfin sync failed: ${error.message}`);
+    if (embyActive) {
+      try {
+        logger("Scheduled Sync: checking Emby recently watched...");
+        embySynced = await syncRecentlyWatchedFromEmby(config, loopStore, logger);
+      } catch (error) {
+        logger(`Scheduled Sync ERROR: Emby sync failed: ${error.message}`);
+      }
     }
-  }
 
-  if (plexActive) {
-    try {
-      logger("Scheduled Sync: checking Plex continue watching...");
-      plexResumeSynced = await syncRecentlyResumableFromPlex(config, loopStore, logger);
-    } catch (error) {
-      logger(`Scheduled Sync ERROR: Plex resume sync failed: ${error.message}`);
+    if (jellyfinActive) {
+      try {
+        logger("Scheduled Sync: checking Jellyfin recently watched...");
+        jellyfinSynced = await syncRecentlyWatchedFromJellyfin(config, loopStore, logger);
+      } catch (error) {
+        logger(`Scheduled Sync ERROR: Jellyfin sync failed: ${error.message}`);
+      }
     }
-  }
 
-  if (embyActive) {
-    try {
-      logger("Scheduled Sync: checking Emby continue watching...");
-      embyResumeSynced = await syncRecentlyResumableFromEmby(config, loopStore, logger);
-    } catch (error) {
-      logger(`Scheduled Sync ERROR: Emby resume sync failed: ${error.message}`);
+    if (plexActive) {
+      try {
+        logger("Scheduled Sync: checking Plex continue watching...");
+        plexResumeSynced = await syncRecentlyResumableFromPlex(config, loopStore, logger);
+      } catch (error) {
+        logger(`Scheduled Sync ERROR: Plex resume sync failed: ${error.message}`);
+      }
     }
-  }
 
-  if (jellyfinActive) {
-    try {
-      logger("Scheduled Sync: checking Jellyfin continue watching...");
-      jellyfinResumeSynced = await syncRecentlyResumableFromJellyfin(config, loopStore, logger);
-    } catch (error) {
-      logger(`Scheduled Sync ERROR: Jellyfin resume sync failed: ${error.message}`);
+    if (embyActive) {
+      try {
+        logger("Scheduled Sync: checking Emby continue watching...");
+        embyResumeSynced = await syncRecentlyResumableFromEmby(config, loopStore, logger);
+      } catch (error) {
+        logger(`Scheduled Sync ERROR: Emby resume sync failed: ${error.message}`);
+      }
     }
+
+    if (jellyfinActive) {
+      try {
+        logger("Scheduled Sync: checking Jellyfin continue watching...");
+        jellyfinResumeSynced = await syncRecentlyResumableFromJellyfin(config, loopStore, logger);
+      } catch (error) {
+        logger(`Scheduled Sync ERROR: Jellyfin resume sync failed: ${error.message}`);
+      }
+    }
+  } else {
+    logger("Scheduled Sync: skipping catch-up library checks (already run recently).");
   }
 
   try {

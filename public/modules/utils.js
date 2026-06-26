@@ -259,3 +259,58 @@ export function normalizeHeader(value) {
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_|_$/g, "");
 }
+
+// ── TMDB / episode formatting helpers ────────────────────────────────────────
+
+export function formatTmdbDate(dateStr) {
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  const date = new Date(parts[0], parts[1] - 1, parts[2]);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date);
+}
+
+export function ordinalDay(day) {
+  const value = Number(day) || 0;
+  const suffix = (value % 100 >= 11 && value % 100 <= 13)
+    ? "th"
+    : ({ 1: "st", 2: "nd", 3: "rd" }[value % 10] || "th");
+  return `${value}${suffix}`;
+}
+
+export function formatLongAiringDate(dateStr) {
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  const date = new Date(parts[0], parts[1] - 1, parts[2]);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  const month = new Intl.DateTimeFormat(undefined, { month: "long" }).format(date);
+  return `${ordinalDay(date.getDate())} ${month} ${date.getFullYear()}`;
+}
+
+export function knownShowAirtime(showTitle = "") {
+  return String(showTitle || "").trim().toLowerCase() === "from" ? "9:00 p.m. ET" : "";
+}
+
+export function formatEpisodeAirtime(episode = {}, showTitle = "") {
+  const raw = episode.airTime || episode.air_time || episode.airtime || "";
+  if (!raw) return knownShowAirtime(showTitle) || "Airtime TBA";
+  const text = String(raw).trim();
+  if (/^\d{1,2}:\d{2}$/.test(text)) return text;
+  const date = new Date(text);
+  if (!Number.isNaN(date.getTime())) return formatShortTime(date);
+  return text;
+}
+
+export function showEpisodeKey(seasonNumber, episodeNumber) {
+  return `S${String(seasonNumber).padStart(2, "0")}E${String(episodeNumber).padStart(2, "0")}`;
+}
+
+export function episodeCode(seasonNumber, episodeNumber) {
+  return `S${String(seasonNumber || 0).padStart(2, "0")}E${String(episodeNumber || 0).padStart(2, "0")}`;
+}
+
+export function seasonLabel(seasonNumber) {
+  return `Season ${seasonNumber}`;
+}

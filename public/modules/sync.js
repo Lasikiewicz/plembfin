@@ -863,3 +863,302 @@ export function syncNowPlayingPolling() {
 
   stopHistoryPolling();
 }
+
+// ── Sync trigger actions ───────────────────────────────────────────────────
+
+export async function triggerRetrySync(id, button) {
+  if (!id || !button) return;
+  button.disabled = true;
+  const originalText = button.textContent;
+  button.textContent = "Syncing...";
+
+  const titleEl = document.getElementById("terminalModalTitle");
+  if (titleEl) titleEl.textContent = "Retry Sync Terminal";
+
+  elements.terminalModal?.classList.remove("hidden");
+  if (elements.retryTerminalOutput) elements.retryTerminalOutput.innerHTML = "";
+
+  function termLog(text, tone = "info") {
+    if (!elements.retryTerminalOutput) return;
+    const span = document.createElement("span");
+    if (tone === "error") { span.style.color = "#fb7185"; span.style.fontWeight = "bold"; }
+    else if (tone === "success") { span.style.color = "#34d399"; span.style.fontWeight = "bold"; }
+    else if (tone === "warn") { span.style.color = "#f59e0b"; }
+    else if (tone === "header") { span.style.color = "#38bdf8"; span.style.fontWeight = "bold"; }
+    else { span.style.color = "#e8edf2"; }
+    span.textContent = text + "\n";
+    elements.retryTerminalOutput.appendChild(span);
+    elements.retryTerminalOutput.scrollTop = elements.retryTerminalOutput.scrollHeight;
+  }
+
+  termLog("plembfin@server:~$ ./retry-sync --id=" + id, "header");
+  termLog("Initializing sync connection...", "info");
+  termLog("POST /api/retry-sync HTTP/1.1", "info");
+
+  try {
+    const response = await fetch("/api/retry-sync", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      termLog("[ERROR] Sync request failed with status: " + response.status, "error");
+      if (body.error) termLog("Reason: " + body.error, "error");
+      throw new Error(body.error || `Retry failed with status ${response.status}`);
+    }
+
+    termLog("Response received: HTTP 200 OK", "success");
+    termLog("Fetching updated watch record from database...", "info");
+
+    const refreshRes = await fetch(`/api/history?id=${encodeURIComponent(id)}`, { headers: authHeaders() });
+    const refreshBody = await refreshRes.json().catch(() => ({}));
+    if (refreshRes.ok && refreshBody.row) {
+      const updatedRow = refreshBody.row;
+      if (Array.isArray(state.history)) {
+        const idx = state.history.findIndex((x) => x.id === id);
+        if (idx !== -1) state.history[idx] = updatedRow;
+      }
+      if (Array.isArray(state.moviesRaw)) {
+        const idx = state.moviesRaw.findIndex((x) => x.id === id);
+        if (idx !== -1) state.moviesRaw[idx] = updatedRow;
+      }
+      if (Array.isArray(state.showsRaw)) {
+        for (const show of state.showsRaw) {
+          if (Array.isArray(show.episodes)) {
+            const idx = show.episodes.findIndex((x) => x.id === id);
+            if (idx !== -1) show.episodes[idx] = updatedRow;
+          }
+        }
+      }
+
+      termLog("\n--- Sync Telemetry Dispatch Output ---", "header");
+      const telemetry = String(updatedRow.sync_dispatch_telemetry || updatedRow.syncDispatchTelemetry || "");
+      if (telemetry) {
+        for (const line of telemetry.split(/\r?\n/)) {
+          if (line.toLowerCase().includes("status: success") || line.toLowerCase().includes("resolved status to success")) {
+            termLog(line, "success");
+          } else if (line.toLowerCase().includes("status: error") || line.toLowerCase().includes("status: failed") || line.toLowerCase().includes("error") || line.toLowerCase().includes("fail")) {
+            termLog(line, "error");
+          } else if (line.toLowerCase().includes("status: pending") || line.toLowerCase().includes("pending")) {
+            termLog(line, "warn");
+          } else {
+            termLog(line, "info");
+          }
+        }
+      } else {
+        termLog("No dispatch telemetry recorded.", "warn");
+      }
+
+      const targetStatuses = getMediaTargetSyncStatus(updatedRow);
+      const errors = targetStatuses.filter((t) => t.status === "error" || t.status === "failed");
+      const pendings = targetStatuses.filter((t) => t.status === "pending");
+
+      if (errors.length > 0) {
+        termLog("\n⚠️ Sync failure detected for one or more targets!", "error");
+        for (const err of errors) {
+          termLog(`\n[DIAGNOSTICS & FIX FOR ${err.target.toUpperCase()}]:`, "warn");
+          const telLine = telemetry.split("\n").find((l) => l.toLowerCase().includes(err.target) && l.toLowerCase().includes("error"));
+          termLog(`Details: ${telLine || "Connection failed"}`, "info");
+          const errLower = (telLine || "").toLowerCase();
+          if (errLower.includes("unauthorized") || errLower.includes("401") || errLower.includes("token") || errLower.includes("auth")) {
+            termLog("👉 FIX: Go to the settings tab for this app (Settings -> Apps) and verify that the API Key or Token is correct, valid, and not expired.", "success");
+          } else if (errLower.includes("refused") || errLower.includes("timeout") || errLower.includes("conn") || errLower.includes("reach") || errLower.includes("address")) {
+            termLog("👉 FIX: Verify that the Server URL is correct, the target server is currently online, and there are no network rules or firewalls blocking the connection from the machine running Plembfin.", "success");
+          } else if (errLower.includes("not found") || errLower.includes("404") || errLower.includes("match")) {
+            termLog("👉 FIX: The media item was not found on the target platform. Ensure the TMDB/IMDB/TVDB IDs are correct and that the media is properly scanned/matched in your Plex/Emby/Jellyfin library.", "success");
+          } else {
+            termLog("👉 FIX: Check the Settings -> Apps configuration for this platform. Try testing the connection to verify credentials and endpoint URLs.", "success");
+          }
+        }
+      } else if (pendings.length > 0) {
+        termLog("\n⚠️ One or more sync dispatches are still pending or queued.", "warn");
+        termLog("👉 SUGGESTION: The target sync is in progress or propagation is queued. Wait a few moments and retry.", "info");
+      } else {
+        termLog("\n✨ Sync completed successfully! All configured targets are fully up to date.", "success");
+      }
+
+      _cb.clearDerivedUiCaches?.({ resetExplorer: false });
+      _cb.renderDashboard?.();
+      _cb.renderStats?.();
+      await Promise.all([
+        _cb.loadSyncJobs?.({ force: true }),
+        _cb.loadSyncHistory?.({ force: true }),
+      ]).catch(() => null);
+
+      if (state.activeView === "explorer") _cb.renderExplorer?.();
+      if (state.activeShowModalKey) _cb.renderImmersiveShowModal?.(state.activeShowModalKey, state.activeShowModalSeason, state.activeShowModalEpisode);
+
+      _cb.setMessage?.("Retry sync completed.", "success");
+    } else {
+      throw new Error("Could not fetch the updated sync state from server.");
+    }
+  } catch (error) {
+    termLog(`\n[FATAL ERROR] Retry sync process aborted: ${error.message}`, "error");
+    button.disabled = false;
+    button.textContent = originalText;
+    _cb.setMessage?.(`Retry sync failed: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
+export async function triggerCronSync() {
+  const button = elements.runCronSyncButton;
+  const terminal = elements.forceSyncTerminal;
+  if (!button) return;
+
+  if (terminal) { terminal.classList.remove("hidden"); terminal.textContent = "Cron Sync started...\n"; }
+
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Syncing...";
+
+  try {
+    const response = await fetch("/api/cron-sync", { method: "POST", headers: authHeaders() });
+    if (!response.ok) throw new Error(`Cron sync failed with HTTP ${response.status}`);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    let finalResult = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.startsWith("RESULT: ")) {
+          try { finalResult = JSON.parse(trimmed.substring(8)); } catch (e) { console.error("Failed to parse final result JSON", e); }
+        } else if (terminal) {
+          terminal.textContent += `${trimmed}\n`;
+          terminal.scrollTop = terminal.scrollHeight;
+        }
+      }
+    }
+
+    if (buffer.trim()) {
+      const trimmed = buffer.trim();
+      if (trimmed.startsWith("RESULT: ")) {
+        try { finalResult = JSON.parse(trimmed.substring(8)); } catch (e) { console.error("Failed to parse final result JSON", e); }
+      } else if (terminal) {
+        terminal.textContent += `${trimmed}\n`;
+        terminal.scrollTop = terminal.scrollHeight;
+      }
+    }
+
+    if (finalResult) {
+      const detail = `Cron run complete! Sessions: ${finalResult.sessions ?? 0}, completions: ${finalResult.completions ?? 0}, cached: ${finalResult.cached ?? 0}`;
+      _cb.showToast?.(detail);
+      if (terminal) { terminal.textContent += `\nSUCCESS: ${detail}\n`; terminal.scrollTop = terminal.scrollHeight; }
+    } else {
+      throw new Error("No final result returned from server");
+    }
+
+    await Promise.all([_cb.loadSyncJobs?.({ force: true }), _cb.loadSyncHistory?.({ force: true })]);
+  } catch (error) {
+    _cb.showToast?.(`Error: ${error.message}`);
+    if (terminal) { terminal.textContent += `\nERROR: ${error.message}\n`; terminal.scrollTop = terminal.scrollHeight; }
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
+export async function triggerStopSync() {
+  const button = elements.stopSyncButton;
+  if (!button) return;
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Stopping...";
+  try {
+    const response = await fetch("/api/stop-force-sync", { method: "POST", headers: authHeaders() });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Stop sync failed with HTTP ${response.status}`);
+    _cb.showToast?.("Stop sync request sent.");
+  } catch (error) {
+    _cb.showToast?.(`Error stopping sync: ${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
+export async function triggerForceSync() {
+  const button = elements.forceSyncButton;
+  const stopButton = elements.stopSyncButton;
+  const terminal = elements.forceSyncTerminal;
+  if (!button) return;
+
+  _cb.showConfirmModal?.(
+    "Are you sure you want to run Force Sync?\n\nThis will check all configured media servers (Plex, Emby, Jellyfin) and resolve their watched/unwatched states based on the newest timestamp. It may take some time.",
+    async () => {
+      if (terminal) { terminal.classList.remove("hidden"); terminal.textContent = "Force Sync starting...\n"; }
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = "Syncing...";
+      button.classList.add("hidden");
+      if (stopButton) stopButton.classList.remove("hidden");
+
+      try {
+        const startResponse = await fetch("/api/force-sync", { method: "POST", headers: authHeaders() });
+        if (!startResponse.ok) {
+          const body = await startResponse.json().catch(() => ({}));
+          throw new Error(body.error || `Force sync failed with HTTP ${startResponse.status}`);
+        }
+
+        let seenLines = 0;
+        let finalResult = null;
+        let pollActive = true;
+
+        while (pollActive) {
+          await new Promise((r) => setTimeout(r, 2000));
+          let statusBody;
+          try {
+            const statusRes = await fetch("/api/force-sync", { headers: authHeaders(), cache: "no-store" });
+            statusBody = await statusRes.json();
+          } catch (err) { continue; }
+
+          const log = Array.isArray(statusBody.log) ? statusBody.log : [];
+          for (let i = seenLines; i < log.length; i++) {
+            const line = log[i];
+            if (line && line.startsWith("RESULT: ")) {
+              try { finalResult = JSON.parse(line.substring(8)); } catch (_) { }
+            } else if (terminal && line) {
+              terminal.textContent += `${line}\n`;
+              terminal.scrollTop = terminal.scrollHeight;
+            }
+          }
+          seenLines = log.length;
+          if (!statusBody.active) { finalResult = finalResult || statusBody.result; pollActive = false; }
+        }
+
+        if (finalResult && finalResult.success) {
+          const stats = finalResult.stats || {};
+          const detail = finalResult.aborted
+            ? `Force Sync stopped! Found: ${stats.totalWatchedFoundAcrossServers ?? 0}, added: ${stats.addedToHistory ?? 0}, deleted: ${stats.deletedFromHistory ?? 0}, propagated: ${stats.propagatedUpdates ?? 0}`
+            : `Force Sync complete! Targets: ${(finalResult.activeTargets || []).join(", ") || "none"}. Found: ${stats.totalWatchedFoundAcrossServers ?? 0}, added: ${stats.addedToHistory ?? 0}, deleted: ${stats.deletedFromHistory ?? 0}, propagated: ${stats.propagatedUpdates ?? 0}`;
+          _cb.showToast?.(detail);
+          if (terminal) { terminal.textContent += `\n${finalResult.aborted ? "ABORTED" : "SUCCESS"}: ${detail}\n`; terminal.scrollTop = terminal.scrollHeight; }
+        } else if (finalResult) {
+          throw new Error(finalResult.error || "Force Sync ended with an unknown error.");
+        }
+
+        await Promise.all([_cb.loadSyncJobs?.({ force: true }), _cb.loadSyncHistory?.({ force: true })]);
+      } catch (error) {
+        _cb.showToast?.(`Error: ${error.message}`);
+        if (terminal) { terminal.textContent += `\nERROR: ${error.message}\n`; terminal.scrollTop = terminal.scrollHeight; }
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+        button.classList.remove("hidden");
+        if (stopButton) stopButton.classList.add("hidden");
+      }
+    }
+  );
+}
