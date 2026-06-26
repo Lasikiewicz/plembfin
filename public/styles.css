@@ -8291,6 +8291,7 @@ h1 {
   overflow: hidden;
   width: 96vw;
   height: calc(96vh - 60px);
+  cursor: pointer;
 }
 
 .photo-lightbox-img-wrap.grabbing {
@@ -8316,6 +8317,7 @@ h1 {
   border-radius: 10px;
   padding: 0.4rem 0.55rem;
   box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  z-index: 2;
 }
 
 .photo-lightbox-btn {
@@ -8328,6 +8330,8 @@ h1 {
   cursor: pointer;
   line-height: 1;
   font-weight: 700;
+  min-width: 2.25rem;
+  min-height: 2rem;
 }
 
 .photo-lightbox-btn:hover {
@@ -8346,7 +8350,7 @@ h1 {
   padding: 0.5rem 0.75rem;
   cursor: pointer;
   border-radius: 6px;
-  z-index: 1;
+  z-index: 2;
 }
 
 .photo-lightbox-nav:hover { background: rgba(0,0,0,0.8); }
@@ -10640,4 +10644,3 @@ html.light-mode .watch-date-custom label {
 
 /* The picker uses theme variables (--field, --blue, --line, --text, --muted),
    so it inherits the light palette automatically — no overrides needed. */
-

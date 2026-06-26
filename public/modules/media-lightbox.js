@@ -39,9 +39,61 @@ window.playTrailer = function (el, videoKey, videoName) {
   let panAtDragX = 0;
   let panAtDragY = 0;
 
+  function showPrevious() {
+    current = (current - 1 + photos.length) % photos.length;
+    render();
+  }
+
+  function showNext() {
+    current = (current + 1) % photos.length;
+    render();
+  }
+
+  function changeZoom(delta) {
+    if (delta === 0) {
+      scale = 1;
+      panX = 0;
+      panY = 0;
+    } else if (delta > 0) {
+      scale = Math.min(scale + 0.5, 5);
+    } else {
+      scale = Math.max(scale - 0.5, 0.5);
+      if (scale === 1) {
+        panX = 0;
+        panY = 0;
+      }
+    }
+    applyTransform();
+  }
+
+  function visibleImageRect(img, wrap) {
+    const wrapRect = wrap.getBoundingClientRect();
+    if (!img.naturalWidth || !img.naturalHeight) return wrapRect;
+    const imageRatio = img.naturalWidth / img.naturalHeight;
+    const wrapRatio = wrapRect.width / wrapRect.height;
+    let width;
+    let height;
+
+    if (wrapRatio > imageRatio) {
+      height = wrapRect.height;
+      width = height * imageRatio;
+    } else {
+      width = wrapRect.width;
+      height = width / imageRatio;
+    }
+
+    return {
+      left: wrapRect.left + ((wrapRect.width - width) / 2),
+      right: wrapRect.left + ((wrapRect.width + width) / 2),
+      top: wrapRect.top + ((wrapRect.height - height) / 2),
+      bottom: wrapRect.top + ((wrapRect.height + height) / 2),
+    };
+  }
+
   function applyTransform() {
     const img = lb.querySelector('.photo-lightbox-img');
     const wrap = lb.querySelector('.photo-lightbox-img-wrap');
+    lb.classList.toggle('photo-lightbox--zoomed', scale !== 1);
     if (scale === 1) {
       img.style.transform = '';
       wrap.classList.remove('grabbing');
@@ -68,18 +120,21 @@ window.playTrailer = function (el, videoKey, videoName) {
     if (!lb) {
       lb = document.createElement('div');
       lb.className = 'photo-lightbox';
+      lb.setAttribute('role', 'dialog');
+      lb.setAttribute('aria-modal', 'true');
+      lb.setAttribute('aria-label', 'Image viewer');
       lb.innerHTML = `
         <div class="photo-lightbox-img-wrap">
-          <button class="photo-lightbox-nav photo-lightbox-nav--prev">&#8249;</button>
           <img class="photo-lightbox-img" alt="" draggable="false" />
-          <button class="photo-lightbox-nav photo-lightbox-nav--next">&#8250;</button>
+          <button class="photo-lightbox-nav photo-lightbox-nav--prev" type="button" aria-label="Previous image" title="Previous image">&#8249;</button>
+          <button class="photo-lightbox-nav photo-lightbox-nav--next" type="button" aria-label="Next image" title="Next image">&#8250;</button>
         </div>
-        <div class="photo-lightbox-controls">
-          <button class="photo-lightbox-btn" data-lb-zoom="-1">－</button>
-          <button class="photo-lightbox-btn" data-lb-zoom="0">1:1</button>
-          <button class="photo-lightbox-btn" data-lb-zoom="1">＋</button>
-          <span class="photo-lightbox-counter"></span>
-          <button class="photo-lightbox-btn" data-lb-close>✕</button>
+        <div class="photo-lightbox-controls" aria-label="Image controls">
+          <button class="photo-lightbox-btn" type="button" data-lb-zoom="-1" aria-label="Zoom out" title="Zoom out">-</button>
+          <button class="photo-lightbox-btn" type="button" data-lb-zoom="0" aria-label="Reset zoom" title="Reset zoom">1:1</button>
+          <button class="photo-lightbox-btn" type="button" data-lb-zoom="1" aria-label="Zoom in" title="Zoom in">+</button>
+          <span class="photo-lightbox-counter" aria-live="polite"></span>
+          <button class="photo-lightbox-btn" type="button" data-lb-close aria-label="Close image viewer" title="Close">x</button>
         </div>
       `;
 
@@ -89,14 +144,28 @@ window.playTrailer = function (el, videoKey, videoName) {
         if (e.target.dataset.lbClose !== undefined || e.target === lb) { close(); return; }
         const z = e.target.dataset.lbZoom;
         if (z === undefined) return;
-        if (z === '0') { scale = 1; panX = 0; panY = 0; }
-        else if (z === '1') scale = Math.min(scale + 0.5, 5);
-        else { scale = Math.max(scale - 0.5, 0.5); if (scale === 1) { panX = 0; panY = 0; } }
-        applyTransform();
+        changeZoom(Number(z));
       });
 
       // Wheel zoom
       const wrap = lb.querySelector('.photo-lightbox-img-wrap');
+      wrap.addEventListener('click', (e) => {
+        if (dragging || scale > 1 || e.target.closest('button')) return;
+        const img = lb.querySelector('.photo-lightbox-img');
+        const rect = visibleImageRect(img, wrap);
+        const isInsideImage = e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
+        if (!isInsideImage) {
+          close();
+          return;
+        }
+        if (photos.length <= 1) return;
+        if (e.clientX < rect.left + ((rect.right - rect.left) / 2)) {
+          showPrevious();
+        } else {
+          showNext();
+        }
+      });
+
       wrap.addEventListener('wheel', (e) => {
         e.preventDefault();
         scale = Math.min(5, Math.max(0.5, scale - e.deltaY * 0.001));
@@ -130,8 +199,14 @@ window.playTrailer = function (el, videoKey, videoName) {
       });
 
       // Nav arrows
-      lb.querySelector('.photo-lightbox-nav--prev').addEventListener('click', (e) => { e.stopPropagation(); current = (current - 1 + photos.length) % photos.length; render(); });
-      lb.querySelector('.photo-lightbox-nav--next').addEventListener('click', (e) => { e.stopPropagation(); current = (current + 1) % photos.length; render(); });
+      lb.querySelector('.photo-lightbox-nav--prev').addEventListener('click', (e) => {
+        e.stopPropagation();
+        showPrevious();
+      });
+      lb.querySelector('.photo-lightbox-nav--next').addEventListener('click', (e) => {
+        e.stopPropagation();
+        showNext();
+      });
 
       document.body.appendChild(lb);
     }
@@ -149,10 +224,9 @@ window.playTrailer = function (el, videoKey, videoName) {
   document.addEventListener('keydown', (e) => {
     if (!lb || lb.style.display === 'none') return;
     if (e.key === 'Escape') close();
-    if (e.key === 'ArrowLeft') { current = (current - 1 + photos.length) % photos.length; render(); }
-    if (e.key === 'ArrowRight') { current = (current + 1) % photos.length; render(); }
+    if (e.key === 'ArrowLeft') showPrevious();
+    if (e.key === 'ArrowRight') showNext();
   });
 
   window.openPhotoLightbox = function (srcs, index) { open(srcs, index); };
 })();
-
