@@ -1,7 +1,19 @@
 {
-  "version": "0.2.44",
-  "updatedAt": "2026-06-26T16:20:34+01:00",
+  "version": "0.2.45",
+  "updatedAt": "2026-06-26T16:34:16+01:00",
   "entries": [
+    {
+      "version": "0.2.45",
+      "date": "2026-06-26T16:34:16+01:00",
+      "commit": "e1b803e70c8c7d9c4d392c0c61cbe26773a43942",
+      "message": "fix: improve photo lightbox controls",
+      "author": "Lasikiewicz",
+      "details": [
+        "Close the photo viewer when clicking outside the rendered image",
+        "Navigate to previous or next photos by clicking the left or right side of the image",
+        "Add accessible labels and clearer sizing for lightbox controls"
+      ]
+    },
     {
       "version": "0.2.44",
       "date": "2026-06-26T16:20:34+01:00",
