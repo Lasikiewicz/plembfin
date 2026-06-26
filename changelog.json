@@ -1,7 +1,18 @@
 {
-  "version": "0.2.39",
-  "updatedAt": "2026-06-26T08:54:54+01:00",
+  "version": "0.2.40",
+  "updatedAt": "2026-06-26T09:02:06+01:00",
   "entries": [
+    {
+      "version": "0.2.40",
+      "date": "2026-06-26T09:02:06+01:00",
+      "commit": "fa6ce79db8f1a44127fe474a9f49186e983e3748",
+      "message": "fix: save manual episode watches",
+      "author": "Lasikiewicz",
+      "details": [
+        "Save manually watched TV episodes with the correct episode number field",
+        "Prevent watch date prompt buttons from triggering native page navigation"
+      ]
+    },
     {
       "version": "0.2.39",
       "date": "2026-06-26T08:54:54+01:00",
