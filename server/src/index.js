@@ -23,6 +23,7 @@ import {
   countWatchedPlaystateRows,
   deletePlaybackProgress,
   deleteWatchRecord,
+  deleteWatchRecordById,
   updateWatchRecord,
   mergeShows,
   getWatchRecordById,
@@ -1635,11 +1636,19 @@ function mediaFromWatchRecord(record) {
 // Core of "mark unwatched": delete the watched record, write a superseding
 // unwatched record, flip the playstate cache, and propagate unplayed to the other
 // platforms. Shared by the webhook `unplayed` phase and the manual-unwatch handler.
-async function applyManualUnwatch(media, config, loopStore) {
-  const wasDeleted = await deleteWatchRecord(requireDb(), media, { skipInvalidate: true }).catch((error) => {
+async function applyManualUnwatch(media, config, loopStore, recordId = "") {
+  let wasDeleted = false;
+  if (recordId) {
+    wasDeleted = await deleteWatchRecordById(recordId, { skipInvalidate: true }).catch((error) => {
+      console.error("Failed to delete watch record by id", error);
+      return false;
+    });
+  }
+  const wasDeletedByMediaKey = await deleteWatchRecord(requireDb(), media, { skipInvalidate: true }).catch((error) => {
     console.error("Failed to delete watch record", error);
     return false;
   });
+  wasDeleted = wasDeleted || wasDeletedByMediaKey;
   await deletePlaybackProgress(requireDb(), media).catch(() => null);
 
   const pendingSummary = { skipped: false, status: "pending", details: "Unwatched propagation queued", targetStates: [] };
@@ -1690,7 +1699,7 @@ async function handleManualUnwatch(req, res) {
   const loopStore = createLoopStore();
 
   try {
-    const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore);
+    const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, id);
     return sendJson(res, { ok: true, id: unwatchedId, status: summary.status, targetStates: summary.targetStates || [] });
   } catch (error) {
     console.error("Manual unwatch failed", error);
