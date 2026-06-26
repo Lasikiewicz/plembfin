@@ -1,7 +1,18 @@
 {
-  "version": "0.2.40",
-  "updatedAt": "2026-06-26T09:02:06+01:00",
+  "version": "0.2.41",
+  "updatedAt": "2026-06-26T09:16:05+01:00",
   "entries": [
+    {
+      "version": "0.2.41",
+      "date": "2026-06-26T09:16:05+01:00",
+      "commit": "bc36d50b7b8670de7fd6f20881e87754a3a279fa",
+      "message": "fix: complete manual episode watch saves",
+      "author": "Lasikiewicz",
+      "details": [
+        "Restore manual episode watch batching so the save request is sent",
+        "Bypass cached show detail responses after a watch update"
+      ]
+    },
     {
       "version": "0.2.40",
       "date": "2026-06-26T09:02:06+01:00",
