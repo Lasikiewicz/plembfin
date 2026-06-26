@@ -1,7 +1,20 @@
 {
-  "version": "0.2.42",
-  "updatedAt": "2026-06-26T09:24:10+01:00",
+  "version": "0.2.43",
+  "updatedAt": "2026-06-26T10:47:20+01:00",
   "entries": [
+    {
+      "version": "0.2.43",
+      "date": "2026-06-26T10:47:20+01:00",
+      "commit": "9d0855ad3b9b219cc0c133a4ab6349789a4b5ace",
+      "message": "feat: throttle background sync checks and refactor frontend modules",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add configuration to run catch-up library syncs every 15 minutes by default instead of every minute",
+        "Maintain real-time live session tracking and manual dispatches on the 1-minute tick",
+        "Refactor dashboard sync operations, tool options, and utility helpers into separate modules",
+        "Update scheduled sync documentation and configuration reference table in README"
+      ]
+    },
     {
       "version": "0.2.42",
       "date": "2026-06-26T09:24:10+01:00",
