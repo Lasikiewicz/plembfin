@@ -1,7 +1,18 @@
 {
-  "version": "0.2.41",
-  "updatedAt": "2026-06-26T09:16:05+01:00",
+  "version": "0.2.42",
+  "updatedAt": "2026-06-26T09:24:10+01:00",
   "entries": [
+    {
+      "version": "0.2.42",
+      "date": "2026-06-26T09:24:10+01:00",
+      "commit": "f5e28dcfb04fbb597e92908c31eade9c4621908b",
+      "message": "fix: delete exact row on manual unwatch",
+      "author": "Lasikiewicz",
+      "details": [
+        "Remove the clicked watch-history row by id before applying unplayed state",
+        "Keep the existing media-key cleanup path for related duplicate rows"
+      ]
+    },
     {
       "version": "0.2.41",
       "date": "2026-06-26T09:16:05+01:00",
