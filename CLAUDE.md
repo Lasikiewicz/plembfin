@@ -120,14 +120,21 @@ When adding frontend code, place it in the most specific existing module that ow
 | Dashboard rendering | `modules/dashboard.js` |
 | Stats rendering | `modules/stats.js` |
 | Explorer grid, history page, search page | `modules/explorer.js` |
-| TV/movie detail modals, person profiles, edit dialogs | `modules/media-detail.js` |
-| Backup, import, cache, appearance, maintenance tools | `modules/tools.js` |
+| TV/movie detail modals | `modules/media-detail.js` |
+| Person profiles and filmography | `modules/media-person.js` |
+| Edit dialogs and watched-date/image/match tools | `modules/edit-dialogs.js` |
+| Manual watched/unwatched actions | `modules/watch-action.js` |
+| TMDB detail/season/person enrichment helpers | `modules/tmdb.js` |
+| Trailer playback and photo lightbox | `modules/media-lightbox.js` |
+| Backup, import, cache, appearance tools | `modules/tools.js` |
+| Maintenance diagnostics and sync repair tools | `modules/tools-maintenance.js` |
 | Auth, session, tokens | `modules/auth.js` |
 | Debug/diagnostic logs | `modules/logs.js` |
 | Connection config payloads | `modules/settings.js` |
 | Live session fetching/normalisation | `modules/timeline.js` |
 | Shared `state` and `elements` objects | `modules/state.js` |
-| App startup, routing, event wiring, `bindElements` | `app.js` |
+| App event wiring | `modules/app-events.js` |
+| App startup, routing, `bindElements` | `app.js` |
 
 ### Creating a new module
 If a new feature area doesn't fit any existing module and would exceed 150 lines:
@@ -239,4 +246,3 @@ page size 240. A second observer (`observeExplorerTmdbPrefetch`) pre-fetches TMD
 - `ADMIN_USERNAME` / `ADMIN_PASSWORD` — admin login (default `admin` / `admin`)
 - `API_KEY` — pin the webhook/integration key (otherwise generated into `data/config.json`)
 - `SESSION_SECRET` — pin the session signing secret (otherwise generated)
-

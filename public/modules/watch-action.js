@@ -1,5 +1,5 @@
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, formatDate, toDateInputValue, toDateTimeInputValue, episodeCode, formatTmdbDate, showEpisodeKey } from "./utils.js";
+import { escapeHtml, escapeAttribute, formatDate, toDateInputValue, toDateTimeInputValue, episodeCode, seasonLabel, formatTmdbDate, showEpisodeKey } from "./utils.js";
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { mergeShowDetail } from "./explorer.js";
@@ -271,6 +271,40 @@ export function renderWatchDatePrompt(action) {
 }
 
 // ── Watch date prompt open/close ───────────────────────────────────────────
+
+export function watchActionFromButton(button) {
+  const scope = button?.dataset.watchScope;
+  if (!scope) return null;
+
+  let episodes = [];
+  if (scope === "episode") {
+    const episode = state.showModalEpisodeIndex.get(button.dataset.episodeKey);
+    if (episode && !episode.watched) episodes = [episode];
+  } else if (scope === "season") {
+    const seasonNumber = Number(button.dataset.seasonNumber);
+    episodes = state.showModalEpisodes.filter((episode) => episode.seasonNumber === seasonNumber && !episode.watched);
+  } else if (scope === "show") {
+    episodes = state.showModalEpisodes.filter((episode) => !episode.watched);
+  }
+
+  if (!episodes.length) return null;
+
+  const showTitle = episodes[0]?.showTitle || "Show";
+  const label = scope === "episode"
+    ? `Mark ${episodeCode(episodes[0].seasonNumber, episodes[0].episodeNumber)} watched`
+    : scope === "season"
+      ? `Mark ${showTitle} ${seasonLabel(episodes[0].seasonNumber)} watched`
+      : `Mark ${showTitle} watched`;
+
+  return {
+    scope,
+    showTitle,
+    showTmdbId: episodes[0]?.showTmdbId || "",
+    episodes,
+    label,
+    countLabel: `${episodes.length} episode${episodes.length === 1 ? "" : "s"}`,
+  };
+}
 
 export function openWatchDatePrompt(action) {
   if (!action) {

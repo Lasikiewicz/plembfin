@@ -94,7 +94,9 @@ boot. All database access uses prepared statements.
 
 ## Frontend state & routing
 
-- One global `state` object in `app.js` (no framework).
+- One global `state` object in `public/modules/state.js` (no framework), with
+  feature code split across `public/modules/` and `app.js` kept to startup,
+  routing, shared callbacks, and element binding.
 - SPA navigation via `navigateTo(url)` / `handleRouting()` / `history.pushState`.
   Routes: `/` dashboard, `/stats`, `/movie/:id`, `/tvshow/:key`, `/person/:id`, `/settings/:tab`, `/help/:topic`.
 - Auth handled by `onAuthChange()` (`modules/auth.js`) — which checks
@@ -113,6 +115,10 @@ boot. All database access uses prepared statements.
   all-time, yearly, and monthly review reports with poster-backed rankings,
   first/last plays, platform breakdowns, and watch activity without re-querying
   for each filter change.
+- Media detail routes are backed by dedicated modules for detail pages, TMDB
+  enrichment, person profiles, lightboxes, edit dialogs, and watch actions so
+  direct `/movie/:id`, `/tvshow/:key`, and `/person/:id` loads can hydrate the
+  same UI as in-app navigation.
 
 ## Access logging
 
