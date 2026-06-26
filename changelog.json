@@ -1,7 +1,22 @@
 {
-  "version": "0.2.37",
-  "updatedAt": "2026-06-25T18:31:33+01:00",
+  "version": "0.2.38",
+  "updatedAt": "2026-06-26T08:12:36+01:00",
   "entries": [
+    {
+      "version": "0.2.38",
+      "date": "2026-06-26T08:12:36+01:00",
+      "commit": "13ea19797b59a9b3e3fe8cb003fecb47be2ccc8d",
+      "message": "fix: show missing future episodes and restore episode thumbnail images on TV show detail pages",
+      "author": "Lasikiewicz",
+      "details": [
+        "TV show season now synthesizes placeholder rows for episodes announced in season count but not yet published in TMDB season detail endpoint (e.g. upcoming episodes not yet fully listed)",
+        "next_episode_to_air data from the show-level TMDB response is used to populate title, air date, and overview for those synthesized rows",
+        "Episode thumbnails now correctly fall back to the season poster when TMDB has no still image for a newly-aired episode (safeImageUrl was rejecting the relative /api/tmdb-poster URL)",
+        "Episode still images that fail to load from TMDB CDN now automatically swap to the season poster via onerror handler",
+        "Refactored public/app.js into ES modules under public/modules/ (dashboard, explorer, help-content, images, state, stats, sync, tools, utils)",
+        "Updated CLAUDE.md and docs/architecture.md to reflect the modular frontend structure"
+      ]
+    },
     {
       "version": "0.2.37",
       "date": "2026-06-25T18:31:33+01:00",
