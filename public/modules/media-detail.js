@@ -310,6 +310,101 @@ export function renderRelatedShowsSection(tmdbData) {
     </section>
   `;
 }
+
+function recommendationTitle(item = {}, mediaType = "movie") {
+  return mediaType === "tv" ? (item.name || item.original_name || "") : (item.title || item.original_title || "");
+}
+
+function recommendationDate(item = {}, mediaType = "movie") {
+  return mediaType === "tv" ? (item.first_air_date || "") : (item.release_date || "");
+}
+
+function rankedRecommendations(tmdbData, mediaType = "movie", { includeSource = false } = {}) {
+  const ranked = [];
+  const add = (items = [], sourceRank = 0) => {
+    items.forEach((item, index) => {
+      if (!item?.id) return;
+      ranked.push({ ...item, _sourceRank: sourceRank, _sourceIndex: index });
+    });
+  };
+
+  if (includeSource && tmdbData?.id) add([tmdbData], 0);
+  add(tmdbData?.similar?.results || [], includeSource ? 1 : 0);
+  add(tmdbData?.recommendations?.results || [], includeSource ? 2 : 1);
+
+  const byId = new Map();
+  for (const item of ranked) {
+    const key = String(item.id);
+    const existing = byId.get(key);
+    if (!existing || item._sourceRank < existing._sourceRank || (item._sourceRank === existing._sourceRank && item._sourceIndex < existing._sourceIndex)) {
+      byId.set(key, item);
+    }
+  }
+
+  return [...byId.values()]
+    .sort((a, b) => a._sourceRank - b._sourceRank || a._sourceIndex - b._sourceIndex)
+    .filter((item) => recommendationTitle(item, mediaType));
+}
+
+function titleCandidatesForTvRecommendations(movieTitle, tmdbData = null) {
+  const candidates = [];
+  const add = (title) => {
+    const cleaned = String(title || "")
+      .replace(/\s*\([^)]*\)\s*$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (cleaned && !candidates.some((candidate) => slug(candidate) === slug(cleaned))) candidates.push(cleaned);
+  };
+
+  add(tmdbData?.title);
+  add(tmdbData?.original_title);
+  add(movieTitle);
+  for (const title of [...candidates]) {
+    const colonBase = title.split(":")[0]?.trim();
+    if (colonBase && colonBase.length >= 4) add(colonBase);
+  }
+  return candidates.slice(0, 4);
+}
+
+function titlesLookRelated(movieTitle, tvTitle) {
+  const movieSlug = slug(movieTitle || "");
+  const tvSlug = slug(tvTitle || "");
+  if (!movieSlug || !tvSlug) return false;
+  return movieSlug === tvSlug || movieSlug.startsWith(`${tvSlug}-`) || tvSlug.startsWith(`${movieSlug}-`) || movieSlug.includes(tvSlug) || tvSlug.includes(movieSlug);
+}
+
+async function recommendedTvShowsForMovie(movieTitle, tmdbData = null) {
+  for (const candidate of titleCandidatesForTvRecommendations(movieTitle, tmdbData)) {
+    const tvData = await fetchTmdbDetails("tv", null, candidate).catch(() => null);
+    const tvTitle = recommendationTitle(tvData, "tv");
+    if (!tvData?.id || !titlesLookRelated(candidate, tvTitle)) continue;
+    return rankedRecommendations(tvData, "tv", { includeSource: true }).slice(0, 15);
+  }
+  return [];
+}
+
+function renderRecommendationSection({ title, items = [], mediaType = "movie" }) {
+  if (!items.length) return "";
+  const isTv = mediaType === "tv";
+  return `
+        <section class="seasons-section">
+          <h3>${escapeHtml(title)}</h3>
+          <div class="horizontal-scroll-row">
+            ${items.slice(0, 15).map((item) => {
+    const itemTitle = recommendationTitle(item, mediaType);
+    const year = recommendationDate(item, mediaType).slice(0, 4);
+    const poster = item.poster_path ? tmdbPoster(item.poster_path, item.id, mediaType) : "/favicon.svg";
+    return `
+                  <a class="season-poster-card" ${isTv ? `data-immersive-related-tmdb="${escapeAttribute(String(item.id))}" href="/tvshow/tmdb/${escapeAttribute(String(item.id))}"` : `data-immersive-movie-id="${escapeAttribute(String(item.id))}" href="/movie/tmdb/${escapeAttribute(String(item.id))}"`}>
+                    <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(itemTitle)}" data-err="fav" />
+                    <span class="season-poster-name">${escapeHtml(itemTitle)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
+                  </a>
+                `;
+  }).join("")}
+          </div>
+        </section>
+      `;
+}
 export function renderRichTmdbDetails(tmdbData) {
   return renderTrailersReviewsSection(tmdbData);
 }
@@ -1282,6 +1377,7 @@ export async function renderMovieImmersiveModalContent(movie) {
   let released = "Unknown Release Date";
   let rating = "N/A";
   let recommendations = [];
+  let tvRecommendations = [];
   if (tmdbData) {
     if (tmdbData.backdrop_path) {
       backdropUrl = tmdbData.cached_backdrop_url || `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`;
@@ -1294,7 +1390,9 @@ export async function renderMovieImmersiveModalContent(movie) {
     overview = tmdbData.overview || overview;
     released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : released;
     rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : rating;
-    recommendations = tmdbData.recommendations?.results || [];
+    recommendations = rankedRecommendations(tmdbData, "movie");
+    tvRecommendations = await recommendedTvShowsForMovie(movieTitle, tmdbData);
+    if (_mediaRenderToken !== renderToken) return;
   } else if (youtubeMeta) {
     if (youtubeMeta.thumbnails?.[0]) posterUrl = youtubeMeta.thumbnails[0];
     overview = youtubeMeta.description || overview;
@@ -1379,27 +1477,8 @@ export async function renderMovieImmersiveModalContent(movie) {
       ${renderCastSection(tmdbData)}
       ${renderRichTmdbDetails(tmdbData)}
       ${renderMediaImagesSection(tmdbData)}
-      ${recommendations.length > 0 ? `
-        <section class="seasons-section">
-          <h3>Recommended movies</h3>
-          <div class="horizontal-scroll-row">
-            ${recommendations
-        .slice(0, 15)
-        .map((rec) => {
-          const recPoster = rec.poster_path
-            ? tmdbPoster(rec.poster_path)
-            : "/favicon.svg";
-          return `
-                  <a class="season-poster-card" data-immersive-movie-id="${rec.id}" href="/movie/tmdb/${rec.id}">
-                    <img class="season-poster-img" src="${recPoster}" alt="${escapeHtml(rec.title)}" data-err="fav" />
-                    <span class="season-poster-name">${escapeHtml(rec.title)}</span>
-                  </a>
-                `;
-        })
-        .join("")}
-          </div>
-        </section>
-      ` : ""}
+      ${renderRecommendationSection({ title: "Recommended movies", items: recommendations, mediaType: "movie" })}
+      ${renderRecommendationSection({ title: "Recommended TV Shows", items: tvRecommendations, mediaType: "tv" })}
     </div>
   `;
   const movieSeerrTmdbId = tmdbData?.id || movie.tmdb_id;
@@ -1474,7 +1553,8 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   let released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : "Unknown Release Date";
   let rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "N/A";
   let recommendations = [];
-  recommendations = tmdbData.recommendations?.results || [];
+  recommendations = rankedRecommendations(tmdbData, "movie");
+  const tvRecommendations = await recommendedTvShowsForMovie(movieTitle, tmdbData);
   const logoUrl = bestTmdbLogo(tmdbData);
   const ratingBadgeHtml = rating !== "N/A" ? `
     ${renderExternalRatingPills("movie", tmdbData, movieTitle, rating)}
@@ -1514,27 +1594,8 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
       ${renderMediaFacts(tmdbData, "movie")}
       ${renderCastSection(tmdbData)}
       ${renderRichTmdbDetails(tmdbData)}
-      ${recommendations.length > 0 ? `
-        <section class="seasons-section">
-          <h3>Recommended movies</h3>
-          <div class="horizontal-scroll-row">
-            ${recommendations
-        .slice(0, 15)
-        .map((rec) => {
-          const recPoster = rec.poster_path
-            ? tmdbPoster(rec.poster_path)
-            : "/favicon.svg";
-          return `
-                  <a class="season-poster-card" data-immersive-movie-id="${rec.id}" href="/movie/tmdb/${rec.id}">
-                    <img class="season-poster-img" src="${recPoster}" alt="${escapeHtml(rec.title)}" data-err="fav" />
-                    <span class="season-poster-name">${escapeHtml(rec.title)}</span>
-                  </a>
-                `;
-        })
-        .join("")}
-          </div>
-        </section>
-      ` : ""}
+      ${renderRecommendationSection({ title: "Recommended movies", items: recommendations, mediaType: "movie" })}
+      ${renderRecommendationSection({ title: "Recommended TV Shows", items: tvRecommendations, mediaType: "tv" })}
     </div>
   `;
   fetchSeerrMediaStatus("movie", tmdbId)
