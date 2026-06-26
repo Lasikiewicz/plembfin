@@ -1,7 +1,19 @@
 {
-  "version": "0.2.46",
-  "updatedAt": "2026-06-26T16:46:49+01:00",
+  "version": "0.2.47",
+  "updatedAt": "2026-06-26T16:58:21+01:00",
   "entries": [
+    {
+      "version": "0.2.47",
+      "date": "2026-06-26T16:58:21+01:00",
+      "commit": "7422bd4a46e9b177cc427c18af7fd020050ceda9",
+      "message": "chore: clean up repository metadata",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add the media detail screenshot to the README gallery",
+        "Remove the obsolete missing telemetry cleanup script",
+        "Rename the agent instructions file to AGENTS.md for standard discovery"
+      ]
+    },
     {
       "version": "0.2.46",
       "date": "2026-06-26T16:46:49+01:00",
