@@ -1,7 +1,19 @@
 {
-  "version": "0.2.45",
-  "updatedAt": "2026-06-26T16:34:16+01:00",
+  "version": "0.2.46",
+  "updatedAt": "2026-06-26T16:46:49+01:00",
   "entries": [
+    {
+      "version": "0.2.46",
+      "date": "2026-06-26T16:46:49+01:00",
+      "commit": "9cf125ec1082cc1e3e8becd85b5d4d5a4bfcd93d",
+      "message": "feat: improve media recommendations",
+      "author": "Lasikiewicz",
+      "details": [
+        "Sort recommended movies by closest TMDB relevance first",
+        "Add recommended TV shows to movie detail pages when a matching show can be found",
+        "Reuse existing movie and TV detail navigation from recommendation cards"
+      ]
+    },
     {
       "version": "0.2.45",
       "date": "2026-06-26T16:34:16+01:00",
