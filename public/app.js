@@ -4913,7 +4913,7 @@ function watchRecordFromEpisode(episode, watchedAt) {
     source: "manual",
     tmdb_id: episode.showTmdbId || null,
     season: episode.seasonNumber,
-    episode_number: episode.episodeNumber,
+    episode: episode.episodeNumber,
     poster_url: episode.posterUrl || episode.stillUrl || null,
   };
 }
@@ -7562,12 +7562,14 @@ function attachEvents() {
 
     const watchDateCancel = event.target.closest("[data-watch-date-cancel]");
     if (watchDateCancel) {
+      event.preventDefault();
       closeWatchDatePrompt();
       return;
     }
 
     const watchDateChoice = event.target.closest("[data-watch-date-choice]");
     if (watchDateChoice) {
+      event.preventDefault();
       applyWatchDateChoice(watchDateChoice.dataset.watchDateChoice).catch((error) => setMessage(error.message, "error"));
       return;
     }
@@ -7606,6 +7608,7 @@ function attachEvents() {
 
     const watchButton = event.target.closest("[data-watch-scope]");
     if (watchButton) {
+      event.preventDefault();
       openWatchDatePrompt(watchActionFromButton(watchButton));
       return;
     }
