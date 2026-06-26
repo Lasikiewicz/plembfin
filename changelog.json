@@ -1,7 +1,20 @@
 {
-  "version": "0.2.38",
-  "updatedAt": "2026-06-26T08:12:36+01:00",
+  "version": "0.2.39",
+  "updatedAt": "2026-06-26T08:54:54+01:00",
   "entries": [
+    {
+      "version": "0.2.39",
+      "date": "2026-06-26T08:54:54+01:00",
+      "commit": "51da4248b12d1ee51076d66040e9dff0a2287e26",
+      "message": "fix: restore tv show detail pages",
+      "author": "Lasikiewicz",
+      "details": [
+        "Restore direct TV show pages so local episode history and TMDB metadata render reliably",
+        "Prevent inline media detail views from being overwritten by the explorer list during startup",
+        "Treat missing poster fallbacks as quiet misses and wrap the hidden password manager fields in a form",
+        "Ignore local plan workspace output"
+      ]
+    },
     {
       "version": "0.2.38",
       "date": "2026-06-26T08:12:36+01:00",
