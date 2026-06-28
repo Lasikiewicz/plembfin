@@ -259,9 +259,20 @@ function renderDashboardHistoryPageCard(entry) {
           ${isEpisode ? `<span class="history-card-episode" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>` : ""}
         </div>
         <div class="history-card-meta">
-          ${isEpisode ? `<span><span class="meta-label">Season/Ep:</span> S${entry.season} &middot; E${entry.episode}</span>` : ""}
-          <span><span class="meta-label">Watched:</span> ${formatDate(entry.watched_at)}</span>
-          <span><span class="meta-label">App Used:</span> ${sourceBadge}</span>
+          ${isEpisode ? `
+            <div class="history-card-meta-row">
+              <span class="meta-label">Season/Ep:</span>
+              <span class="meta-value">S${entry.season} &middot; E${entry.episode}</span>
+            </div>
+          ` : ""}
+          <div class="history-card-meta-row">
+            <span class="meta-label">Last Played:</span>
+            <span class="meta-value">${formatDate(entry.watched_at)}</span>
+          </div>
+        </div>
+        <div class="history-card-footer">
+          <span class="meta-label">App Used:</span>
+          ${sourceBadge}
         </div>
       </div>
     </a>

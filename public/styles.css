@@ -9944,7 +9944,7 @@ details[open] > .tool-section-summary::before {
   text-decoration: none;
   color: var(--text);
   transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
-  align-items: center;
+  align-items: stretch;
 }
 
 .history-page-card:hover {
@@ -9980,6 +9980,7 @@ details[open] > .tool-section-summary::before {
   flex: 1;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: 0.35rem;
   min-width: 0;
 }
@@ -9994,18 +9995,18 @@ details[open] > .tool-section-summary::before {
   font-size: 1.05rem;
   font-weight: 850;
   color: #fff;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .history-card-episode {
   font-size: 0.88rem;
   font-weight: 700;
   color: #e5a00d;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .history-card-meta {
@@ -10021,6 +10022,25 @@ details[open] > .tool-section-summary::before {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+.history-card-meta .history-card-meta-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+}
+
+.history-card-meta-row .meta-value {
+  color: var(--text);
+  font-size: 0.76rem;
+}
+
+.history-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.76rem;
 }
 
 .meta-label {

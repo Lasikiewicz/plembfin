@@ -368,6 +368,17 @@ export function normalizeWatchRecordForInsert(record, fallbackSource = record?.s
 
 function rowToWatch(row) {
   if (!row) return null;
+  let tmdbId = row.tmdb_id || null;
+  if (row.media_type === "episode" && !tmdbId) {
+    const showTitle = row.show_title || showTitleFrom(row.title);
+    if (showTitle) {
+      const showKey = canonicalTitleKey(showTitle) || normalizeKeyPart(showTitle);
+      const cachedProgress = getCachedShowProgress(showKey);
+      if (cachedProgress?.tmdb_id) {
+        tmdbId = String(cachedProgress.tmdb_id);
+      }
+    }
+  }
   return {
     id: row.id,
     title: decodeBasicHtmlEntities(row.title || ""),
@@ -375,7 +386,7 @@ function rowToWatch(row) {
     watched_at: row.watched_at || "",
     source: row.source || "",
     imdb_id: row.imdb_id || null,
-    tmdb_id: row.tmdb_id || null,
+    tmdb_id: tmdbId,
     tvdb_id: row.tvdb_id || null,
     season: row.season ?? null,
     episode: row.episode ?? null,
@@ -1264,6 +1275,9 @@ function compactHistoryPreviewRow(row = {}) {
     sync_dispatch_telemetry: row.sync_dispatch_telemetry,
     media_key: row.media_key,
     show_title: row.show_title,
+    episode_title: row.episode_title,
+    tmdb_id: row.tmdb_id,
+    tvdb_id: row.tvdb_id,
   };
 }
 
