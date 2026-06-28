@@ -211,6 +211,63 @@ export function renderHistoryCard(entry) {
   }
 }
 
+function renderDashboardHistoryPageCard(entry) {
+  const isEpisode = entry.media_type === "episode";
+  let displayTitle = entry.title;
+  let epTitle = "";
+  let href = "";
+
+  if (isEpisode) {
+    displayTitle = entry.show_title || showTitleFrom(entry.title);
+    epTitle = entry.episode_title;
+    let needsResolve = false;
+    if (!epTitle || /^Episode \d+$/i.test(String(epTitle).trim())) {
+      const text = String(entry.title || "").trim();
+      const suffixMatch = text.match(/S\d{1,2}E\d{1,2}\s+-\s+(.+)$/i);
+      if (suffixMatch?.[1]) {
+        epTitle = suffixMatch[1].trim();
+      } else {
+        if (!epTitle) {
+          epTitle = `Episode ${entry.episode}`;
+        }
+        needsResolve = true;
+      }
+    }
+
+    if (needsResolve) {
+      setTimeout(() => {
+        const el = document.querySelector(`[data-history-id="${entry.id}"] .history-card-episode`);
+        _cb.resolveEpisodeTitleFromTmdb?.(entry, el);
+      }, 50);
+    }
+
+    const canonicalShowName = entry.show_title || showName(entry.title);
+    href = `/tvshow/${slug(canonicalShowName)}`;
+  } else {
+    href = entry.tmdb_id ? `/movie/tmdb/${entry.tmdb_id}` : movieHref(entry);
+  }
+
+  const sourceBadge = entry.source ? `<span class="source-badge ${sourceClass(entry.source)}">${escapeHtml(platformBadge(entry.source))}</span>` : "None";
+  return `
+    <a class="history-page-card dashboard-history-page-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
+      <div class="history-card-poster-wrapper">
+        ${posterMarkup(entry, "history-page-poster")}
+      </div>
+      <div class="history-card-details">
+        <div class="history-card-header">
+          <b class="history-card-title" title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</b>
+          ${isEpisode ? `<span class="history-card-episode" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>` : ""}
+        </div>
+        <div class="history-card-meta">
+          ${isEpisode ? `<span><span class="meta-label">Season/Ep:</span> S${entry.season} &middot; E${entry.episode}</span>` : ""}
+          <span><span class="meta-label">Watched:</span> ${formatDate(entry.watched_at)}</span>
+          <span><span class="meta-label">App Used:</span> ${sourceBadge}</span>
+        </div>
+      </div>
+    </a>
+  `;
+}
+
 export function observeDashboardPosters() {
   state.dashboardPosterObserver?.disconnect();
   if (!("IntersectionObserver" in window)) return;
@@ -263,8 +320,22 @@ export function observeDashboardPosters() {
   }
 }
 
+function syncDashboardHistoryViewButtons() {
+  for (const button of elements.dashboardHistoryViewButtons || []) {
+    button.classList.toggle("active", button.dataset.dashboardHistoryView === state.dashboardHistoryViewMode);
+  }
+}
+
+function setDashboardHistoryRowMode(row) {
+  if (!row) return;
+  row.classList.toggle("dashboard-history-card-row", state.dashboardHistoryViewMode === "cards");
+}
+
 export function renderDashboard() {
   renderPartWatched();
+  syncDashboardHistoryViewButtons();
+  setDashboardHistoryRowMode(elements.tvHistoryRow);
+  setDashboardHistoryRowMode(elements.movieHistoryRow);
 
   if (!state.history.length) {
     if (elements.tvHistoryRow) {
@@ -298,7 +369,9 @@ export function renderDashboard() {
     } else {
       const tvFitLimit = getRowFitLimit(elements.tvHistoryRow);
       visibleTv = tvHistory.slice(0, tvFitLimit);
-      elements.tvHistoryRow.innerHTML = visibleTv.map(renderHistoryCard).join("");
+      elements.tvHistoryRow.innerHTML = visibleTv
+        .map(state.dashboardHistoryViewMode === "cards" ? renderDashboardHistoryPageCard : renderHistoryCard)
+        .join("");
       hydratePosters(elements.tvHistoryRow);
     }
   }
@@ -314,7 +387,9 @@ export function renderDashboard() {
     } else {
       const movieFitLimit = getRowFitLimit(elements.movieHistoryRow);
       visibleMovies = movieHistory.slice(0, movieFitLimit);
-      elements.movieHistoryRow.innerHTML = visibleMovies.map(renderHistoryCard).join("");
+      elements.movieHistoryRow.innerHTML = visibleMovies
+        .map(state.dashboardHistoryViewMode === "cards" ? renderDashboardHistoryPageCard : renderHistoryCard)
+        .join("");
       hydratePosters(elements.movieHistoryRow);
     }
   }

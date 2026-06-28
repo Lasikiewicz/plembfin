@@ -1,7 +1,7 @@
 import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./auth.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js";
 import { connectionLabel, connectionPayloadFromElements } from "./settings.js";
-import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS, SETTINGS_TABS } from "./state.js";
+import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, DASHBOARD_HISTORY_VIEW_KEY, DASHBOARD_HISTORY_VIEW_MODES, PRIMARY_VIEWS, SETTINGS_TABS } from "./state.js";
 import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSlug, movieHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js";
 import { adminTokenGuide, plexCredentialGuide, embyCredentialGuide, jellyfinCredentialGuide, buildWebhookUrl, plexWebhookSetup, embyWebhookSetup, jellyfinWebhookSetup, webhookWarning, cronSyncGuide, renderSettingsInlineHelp, visibleHelpTopics, HELP_TOPICS } from "./help-content.js";
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile } from "./images.js";
@@ -1518,6 +1518,17 @@ function attachEvents() {
       state.historyViewMode = view;
       localStorage.setItem(HISTORY_VIEW_KEY, view);
       renderHistoryView();
+    });
+  }
+
+  for (const btn of elements.dashboardHistoryViewButtons || []) {
+    btn.addEventListener("click", () => {
+      const view = btn.dataset.dashboardHistoryView || "cards";
+      if (!DASHBOARD_HISTORY_VIEW_MODES.includes(view)) return;
+      if (view === state.dashboardHistoryViewMode) return;
+      state.dashboardHistoryViewMode = view;
+      localStorage.setItem(DASHBOARD_HISTORY_VIEW_KEY, view);
+      renderDashboard();
     });
   }
 

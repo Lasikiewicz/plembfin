@@ -131,6 +131,7 @@ function bindElements() {
     historySearchInput: document.querySelector("#historySearchInput"),
     historyFilterButtons: [...document.querySelectorAll("[data-history-filter]")],
     historyViewButtons: [...document.querySelectorAll("[data-history-view]")],
+    dashboardHistoryViewButtons: [...document.querySelectorAll("[data-dashboard-history-view]")],
     explorerPosterSize: document.querySelector("#explorerPosterSize"),
     historyPosterSize: document.querySelector("#historyPosterSize"),
     partWatchedPanel: document.querySelector("#partWatchedRow"),

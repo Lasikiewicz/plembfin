@@ -17,6 +17,8 @@ export const HISTORY_VIEW_KEY = "plembfin:historyView";
 export const HISTORY_FILTER_KEY = "plembfin:historyFilter";
 export const HISTORY_VIEW_MODES = ["grid", "list", "cards"];
 export const HISTORY_FILTERS = ["all", "movies", "shows"];
+export const DASHBOARD_HISTORY_VIEW_KEY = "plembfin:dashboardHistoryView";
+export const DASHBOARD_HISTORY_VIEW_MODES = ["cards", "posters"];
 export const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "search", "history"];
 export const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs", "appearance", "changelog", "cache"];
 
@@ -45,6 +47,7 @@ export const state = {
   historyVersion: "",
   historyLoadPromise: null,
   dashboardHistoryFilter: "all",
+  dashboardHistoryViewMode: DASHBOARD_HISTORY_VIEW_MODES.includes(localStorage.getItem(DASHBOARD_HISTORY_VIEW_KEY)) ? localStorage.getItem(DASHBOARD_HISTORY_VIEW_KEY) : "cards",
   dashboardHistoryResizeTimer: undefined,
   activeSessions: [],
   syncJobs: [],

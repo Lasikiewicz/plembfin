@@ -6250,6 +6250,52 @@ h1 {
   font-weight: 700;
 }
 
+.sidebar-view-toggle {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0 0.4rem 0.85rem;
+}
+
+.sidebar-view-toggle .nav-label {
+  padding: 0 0.25rem;
+}
+
+.sidebar-segmented-control {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.2rem;
+}
+
+.sidebar-segmented-btn {
+  min-height: 2rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #c8c8c8;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-align: left;
+  padding: 0.35rem 0.45rem;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.sidebar-segmented-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.sidebar-segmented-btn.active {
+  border-color: rgba(229, 160, 13, 0.35);
+  background: rgba(229, 160, 13, 0.14);
+  color: #e5a00d;
+}
+
 .nav-tab {
   display: flex;
   width: 100%;
@@ -6572,6 +6618,48 @@ h1 {
 .page-shell[data-active-view="dashboard"] #tvHistoryRow .history-card-episode-title {
   color: #e5a00d;
   font-weight: 700;
+}
+
+.page-shell[data-active-view="dashboard"] .dashboard-history-card-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.45rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.2rem 0.2rem 0.45rem 0;
+}
+
+.page-shell[data-active-view="dashboard"] .dashboard-history-card-row .dashboard-history-page-card {
+  flex: 0 0 385px;
+  min-width: 0;
+  gap: 0.85rem;
+  padding: 0.65rem;
+}
+
+.page-shell[data-active-view="dashboard"] .dashboard-history-card-row .history-card-poster-wrapper {
+  flex: 0 0 auto;
+  width: auto;
+  height: 100%;
+  max-height: 100%;
+  aspect-ratio: 2 / 3;
+}
+
+.page-shell[data-active-view="dashboard"] .dashboard-history-card-row .history-card-title {
+  font-size: 1rem;
+}
+
+.page-shell[data-active-view="dashboard"] .dashboard-history-card-row .history-card-episode {
+  font-size: 0.86rem;
+}
+
+.page-shell[data-active-view="dashboard"] .dashboard-history-card-row .history-card-meta {
+  gap: 0.28rem;
+  font-size: 0.76rem;
+}
+
+.page-shell[data-active-view="dashboard"] .dashboard-history-card-row .meta-label {
+  font-size: 0.66rem;
 }
 
 .glass-panel {
