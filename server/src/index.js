@@ -2652,6 +2652,38 @@ async function handleTestPlexNotifications(req, res) {
 // Maps mediaKey -> Promise that resolves when poster processing is complete.
 const inflight = new Map();
 
+// A currently-playing item often has no watch_history or playback_progress row
+// yet — it only lives in the live-tracking cache / active sessions. Resolve it by
+// media_key here so /api/poster can fetch and cache its artwork (the raw Plex/Emby
+// thumb path can't be loaded directly from a browser on an https page when the
+// media server is http). Returns a synthesized row carrying poster_url, or null.
+async function findLiveSessionPosterRow(mediaKey) {
+  if (!mediaKey) return null;
+  const [cacheRows, activeRows] = await Promise.all([
+    loadLiveTrackingCache(requireDb(), { includeCompleted: false }).catch(() => []),
+    listActiveSessions().catch(() => []),
+  ]);
+  const sessions = [...cacheRows.map(hydrateCachedSession), ...activeRows];
+  for (const session of sessions) {
+    if (mediaKeyFor(session) !== mediaKey) continue;
+    const ids = session.ids || {};
+    return {
+      id: mediaKey,
+      media_key: mediaKey,
+      title: session.title,
+      media_type: session.mediaType || session.media_type,
+      source: session.source,
+      imdb_id: ids.imdb || null,
+      tmdb_id: ids.tmdb || null,
+      tvdb_id: ids.tvdb || null,
+      season: session.season ?? null,
+      episode: session.episode ?? null,
+      poster_url: session.posterUrl || session.poster_url || null,
+    };
+  }
+  return null;
+}
+
 async function handlePoster(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -2681,6 +2713,9 @@ async function handlePoster(req, res) {
           poster_url: null,
         };
       }
+    }
+    if (!row) {
+      row = await findLiveSessionPosterRow(rowId).catch(() => null);
     }
     if (!row) return sendJson(res, { error: "not found" }, 404);
 

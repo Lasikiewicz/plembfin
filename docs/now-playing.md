@@ -56,6 +56,25 @@ even when Plembfin itself can't reach those servers (e.g. the server is on a
 different network segment): the browser is on the LAN and can reach them directly.
 Sessions are de-duped against the server-returned list.
 
+## Posters
+
+A live session's `posterUrl` is the **raw media-server thumb path** (e.g. Plex
+`/library/metadata/.../thumb/...`), not a cached image. A browser on the public
+`https://` site can't load that directly — the media server is usually `http://`
+on the LAN (mixed-content blocked, and the LAN address isn't reachable remotely).
+So the now-playing card renders a `poster-fallback` span and hydrates it through
+`/api/poster?id=<media_key>`, the same server-side fetch-and-cache pipeline that
+backs history posters (artwork lands in `/media/posters/*.webp`).
+
+`handlePoster` resolves the `id` in this order: watch record → `media_key` →
+`playback_progress` → **live session**. The live-session step
+(`findLiveSessionPosterRow`) matches the `media_key` against `live_tracking_cache`
+and `active_sessions`, then synthesises a row carrying the thumb path as
+`poster_url`. Without it, a currently-playing item that has never been watched
+exists in none of the watch tables, so `/api/poster` returns **404** and the
+poster never loads. The cache is keyed by `media_key`, so once the episode becomes
+a real watch record it reuses the same cached artwork.
+
 ## Why the SSE approach broke (historical)
 
 **Symptom (June 2026):** all three apps playing; local dev showed Now Playing; the
