@@ -13,6 +13,7 @@ loadLocalEnv();
 const { DATA_DIR, PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
 const { dispatch, runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener, backfillUnknownShowTitles } = await import("./src/index.js");
 const { db } = await import("./src/db.js");
+const { loadMediaConfig } = await import("./src/utils/configStore.js");
 
 ensureDataDirs();
 const LOGS_DIR = path.join(DATA_DIR, "logs");
@@ -52,7 +53,7 @@ if (!COOKIE_SECURE) {
 }
 
 // HTTP security headers.
-app.use((_req, res, next) => {
+app.use(async (_req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "same-origin");
@@ -60,9 +61,36 @@ app.use((_req, res, next) => {
   if (COOKIE_SECURE) {
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
+
+  let extraImgSrc = "";
+  try {
+    const config = await loadMediaConfig();
+    const urls = [];
+    if (config.plex?.serverUrl) urls.push(config.plex.serverUrl);
+    if (config.emby?.serverUrl) urls.push(config.emby.serverUrl);
+    if (config.jellyfin?.serverUrl) urls.push(config.jellyfin.serverUrl);
+    if (config.seerr?.baseUrl) urls.push(config.seerr.baseUrl);
+    
+    const origins = urls
+      .map(url => {
+        try {
+          return new URL(url).origin;
+        } catch {
+          return "";
+        }
+      })
+      .filter(Boolean);
+      
+    if (origins.length) {
+      extraImgSrc = " " + [...new Set(origins)].join(" ");
+    }
+  } catch {
+    // Fail-safe: ignore configuration errors
+  }
+
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'self'; img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com https://assets.fanart.tv https://fanart.tv; " +
+    `default-src 'self'; img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com https://assets.fanart.tv https://fanart.tv${extraImgSrc}; ` +
     "script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; " +
     "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; " +
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com;"

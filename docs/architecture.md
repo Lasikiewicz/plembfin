@@ -133,6 +133,8 @@ Morgan `combined`-format request logs are written to `data/logs/access.log`. The
 
 The CSP keeps scripts and connections same-origin, allows local/TMDB/YouTube/Fanart.tv images, sets `frame-ancestors 'none'`, and permits YouTube embeds only in frames.
 
+The `img-src` directive is extended dynamically at request time: `server.js` reads the stored media config and appends the origins of any configured Plex, Emby, Jellyfin, and Seerr server URLs to the whitelist. This ensures artwork served directly by those servers (e.g. backdrop images) is not blocked by the CSP, without permanently whitelisting arbitrary external origins.
+
 Every response carries: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, and a `Content-Security-Policy` that allows frames only from YouTube. `Strict-Transport-Security` is added when `COOKIE_SECURE=true`. `x-powered-by` is suppressed.
 
 Startup runs `logSecuritySummary()` (in `appConfig.js`) which warns if the admin password is still the default, or if any pinned secret is shorter than the minimum length. A separate `[security]` warning is emitted if `COOKIE_SECURE` is not set, reminding operators to enable it when the app is behind an HTTPS reverse proxy.
