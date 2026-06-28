@@ -1,7 +1,22 @@
 {
-  "version": "0.2.57",
-  "updatedAt": "2026-06-28T19:36:28+01:00",
+  "version": "0.2.58",
+  "updatedAt": "2026-06-28T20:05:56+01:00",
   "entries": [
+    {
+      "version": "0.2.58",
+      "date": "2026-06-28T20:05:56+01:00",
+      "commit": "67a619b33927de82bc56bd8e5c230dcf560fe4e0",
+      "message": "fix: resolve movie loading stuck and optimize history defaults",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a bug causing movie detail pages to stay stuck on \"Loading metadata\" if no matching TV show recommendations are found",
+        "Configured the History page to default to Card View",
+        "Set default card size slider on the History page to 75% (150px)",
+        "Optimized TV next-airing cache background refresh batch size to prevent server timeouts on large libraries",
+        "Updated scheduled sync documentation to cover next-airing cache batching",
+        "Removed misleading debug console logs that resembled runtime errors"
+      ]
+    },
     {
       "version": "0.2.57",
       "date": "2026-06-28T19:36:28+01:00",
