@@ -167,7 +167,7 @@ export function posterUrlFor(item = {}) {
   const raw = item.poster_url || item.posterUrl || item.imageUrl || item.thumb || "";
   if (isCachedStorageImageUrl(raw)) return raw;
   if (raw.startsWith("https://img.youtube.com/")) return raw;
-  if (idValue != null) return "";
+  if (idValue != null && !item.prefer_raw_poster) return "";
   if (raw) {
     return configuredImageUrl(raw, item);
   }

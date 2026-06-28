@@ -1,7 +1,7 @@
 import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, platformBadge, sourceClass, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js";
-import { posterMarkup } from "./images.js";
+import { hydratePosters, posterMarkup } from "./images.js";
 
 const NOW_PLAYING_POLL_MS = 10000;
 
@@ -706,6 +706,17 @@ export function setActiveSessions(sessions = [], { force = false } = {}) {
   return true;
 }
 
+function nowPlayingPosterItem(session = {}) {
+  const posterId = session.media_key || session.mediaKey || "";
+  if (posterId) {
+    return { ...session, id: posterId, media_key: posterId, prefer_raw_poster: true };
+  }
+
+  const item = { ...session };
+  delete item.id;
+  return item;
+}
+
 export function renderActiveSessions() {
   if (!elements.nowPlayingGrid) return;
 
@@ -724,6 +735,7 @@ export function renderActiveSessions() {
     .map((session) => {
       const progress = Math.max(0, Math.min(100, Number(session.progress ?? computeProgress(session.offsetMs, session.durationMs))));
       const href = _cb.nowPlayingHref?.(session) ?? "";
+      const posterItem = nowPlayingPosterItem(session);
       const isEpisode = session.mediaType === "episode" || (session.season != null && session.episode != null);
       const showTitle = isEpisode ? (session.showTitle || showName(session.title)) : session.title;
       const epLabel = isEpisode && session.season != null && session.episode != null
@@ -734,7 +746,7 @@ export function renderActiveSessions() {
       return `
         <button class="now-card-large live-now-card" type="button" data-now-playing-href="${escapeAttribute(href)}" aria-label="Open ${escapeAttribute(session.title)} details">
           <span class="now-poster-large-wrapper">
-            ${posterMarkup(session, "now-poster-large")}
+            ${posterMarkup(posterItem, "now-poster-large")}
           </span>
           <div class="now-card-details">
             <div class="now-card-header">
@@ -761,6 +773,8 @@ export function renderActiveSessions() {
       `;
     })
     .join("");
+
+  hydratePosters(elements.nowPlayingGrid);
 
   if (elements.nowPlayingStatus) {
     elements.nowPlayingStatus.textContent = "";

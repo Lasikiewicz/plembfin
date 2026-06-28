@@ -6675,6 +6675,10 @@ h1 {
   font-size: 0.66rem;
 }
 
+#timeline-view[data-dash-state="2"] .dashboard-history-card-row .dashboard-history-page-card {
+  flex: 0 0 430px;
+}
+
 #timeline-view[data-dash-state="3"] .dashboard-history-card-row .dashboard-history-page-card {
   flex: 0 0 500px;
 }

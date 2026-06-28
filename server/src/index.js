@@ -1988,7 +1988,12 @@ async function handleNowPlaying(req, res) {
     loadRuntimeState(),
   ]);
 
-  const sessions = cacheRows.map(hydrateCachedSession).filter((session) => !session.completedAt);
+  const withMediaKey = (session = {}) => {
+    const mediaKey = session.media_key || session.mediaKey || mediaKeyFor(session);
+    return { ...session, media_key: mediaKey, mediaKey };
+  };
+
+  const sessions = cacheRows.map(hydrateCachedSession).filter((session) => !session.completedAt).map(withMediaKey);
   const merged = [...sessions];
   for (const active of activeRows) {
     const isDuplicate = merged.some(
@@ -1999,7 +2004,7 @@ async function handleNowPlaying(req, res) {
         (s.episode == null ? null : Number(s.episode)) === (active.episode == null ? null : Number(active.episode))
     );
     if (!isDuplicate) {
-      merged.push({
+      merged.push(withMediaKey({
         sessionId: active.key,
         source: active.source,
         title: active.title,
@@ -2014,7 +2019,7 @@ async function handleNowPlaying(req, res) {
         client: active.client,
         updatedAt: active.updatedAt,
         completedAt: null,
-      });
+      }));
     }
   }
   merged.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -2657,6 +2662,9 @@ async function handlePoster(req, res) {
     const rowId = String(req.query.id || "");
     let row = await getWatchRecordByIdLight(rowId);
     if (!row) {
+      row = await getWatchRecordByMediaKey(rowId).catch(() => null);
+    }
+    if (!row) {
       const progressRow = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?").get(rowId);
       if (progressRow) {
         row = {
@@ -2679,6 +2687,7 @@ async function handlePoster(req, res) {
     const fallbackRequested = ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase());
     const config = await loadMediaConfig().catch(() => ({}));
     const mediaKey = row.media_key || mediaKeyFor(row);
+    const posterUpdateId = row.id || rowId;
 
     // Check for fresh cached result first (before deduplication check).
     // However, ignore negative cache for items without poster_url - these should retry TMDB fallback.
@@ -2746,7 +2755,7 @@ async function handlePoster(req, res) {
 
           // If the URL is already a cached storage image, return it directly
           if (isCachedStorageUrl(candidate.url)) {
-            await updateWatchPosterUrl(rowId, candidate.url).catch((error) => {
+            await updateWatchPosterUrl(posterUpdateId, candidate.url).catch((error) => {
               console.error("Failed to persist poster URL", { id: row.id, title: row.title, error: error.message || String(error) });
             });
             return { url: candidate.url, cached: true, source: candidate.source };
@@ -2754,7 +2763,7 @@ async function handlePoster(req, res) {
 
           const cachedPoster = await cachePosterFromUrl(mediaKey, candidate.url, candidate.source);
           if (cachedPoster?.url) {
-            await updateWatchPosterUrl(rowId, cachedPoster.url).catch((error) => {
+            await updateWatchPosterUrl(posterUpdateId, cachedPoster.url).catch((error) => {
               console.error("Failed to persist cached poster URL", { id: row.id, title: row.title, error: error.message || String(error) });
             });
             return cachedPoster;
