@@ -8,6 +8,10 @@ import { dedupeMediaRecords } from "./dashboard.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260626";
 import { renderWatchDatePrompt } from "./watch-action.js";
 let _cb = {};
+let _playbackProgressRows = [];
+let _playbackProgressLoaded = false;
+let _playbackProgressLoadPromise = null;
+const _seasonDetailsInflight = new Set();
 export function initMediaDetail(callbacks = {}) {
   _cb = callbacks;
 }
@@ -678,6 +682,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     // state.showsRaw/state.history aren't populated yet — still reflects what is
     // already marked watched (otherwise the show looks unwatched after a refresh).
     loadShowDetail({ title: showTitle }).catch(() => null),
+    ensurePlaybackProgressLoaded(),
     ...seasons.map(async (season) => {
       const seasonNumber = Number(season.season_number);
       const details = await fetchTmdbSeasonDetails(tmdbData.id, seasonNumber);
@@ -714,8 +719,83 @@ function watchedEpisodesByKey(show = {}) {
   return map;
 }
 
+function playbackProgressTitle(row = {}) {
+  return showTitleFrom(row.show_title || row.grandparent_title || row.series_title || row.title || "");
+}
+
+function playbackProgressMatchesShow(row = {}, showTitle = "", resolvedTmdbId = "") {
+  if (String(row.media_type || "").toLowerCase() !== "episode") return false;
+  if (row.season == null || row.episode == null) return false;
+  if (resolvedTmdbId && String(row.tmdb_id || "") === String(resolvedTmdbId)) return true;
+  return slug(playbackProgressTitle(row)) === slug(showTitle);
+}
+
+function playbackProgressByEpisode(show = {}, resolvedTmdbId = "") {
+  const map = new Map();
+  const showTitle = show.title || "";
+  for (const row of [...(state.partWatchedRaw || []), ..._playbackProgressRows]) {
+    if (!playbackProgressMatchesShow(row, showTitle, resolvedTmdbId || show.tmdb_id || "")) continue;
+    const progress = Number(row.progress || 0);
+    if (!Number.isFinite(progress) || progress <= 0) continue;
+    const key = showEpisodeKey(row.season, row.episode);
+    const existing = map.get(key);
+    if (!existing || Number(row.updated_at || 0) >= Number(existing.updated_at || 0)) {
+      map.set(key, { ...row, progress: Math.max(0, Math.min(100, progress)) });
+    }
+  }
+  return map;
+}
+
+async function ensurePlaybackProgressLoaded() {
+  if (_playbackProgressLoaded || _playbackProgressLoadPromise) return _playbackProgressLoadPromise;
+  _playbackProgressLoadPromise = fetch("/api/playback-progress?limit=100", { headers: authHeaders(), cache: "no-store" })
+    .then(async (response) => {
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+      _playbackProgressRows = Array.isArray(body.progress) ? body.progress : [];
+      _playbackProgressLoaded = true;
+      return _playbackProgressRows;
+    })
+    .catch((error) => {
+      console.error("Failed to load playback progress for media detail", error);
+      return _playbackProgressRows;
+    })
+    .finally(() => {
+      _playbackProgressLoadPromise = null;
+    });
+  return _playbackProgressLoadPromise;
+}
+
+function hydrateMissingSeasonDetails(show, activeSeasonNum, tmdbData, seasonDetailsByNumber, loading) {
+  if (loading || !tmdbData?.id || activeSeasonNum == null) return;
+  const seasonNumber = Number(activeSeasonNum);
+  if (!Number.isFinite(seasonNumber) || seasonDetailsByNumber.has(seasonNumber)) return;
+  const cacheKey = `${tmdbData.id}|${seasonNumber}`;
+  if (_seasonDetailsInflight.has(cacheKey)) return;
+
+  _seasonDetailsInflight.add(cacheKey);
+  fetchTmdbSeasonDetails(tmdbData.id, seasonNumber)
+    .then((details) => {
+      if (!details) return;
+      seasonDetailsByNumber.set(seasonNumber, details);
+      const current = state.activeShowRenderContext;
+      const currentTmdbId = current?.tmdbData?.id || tmdbData.id;
+      if (Number(state.activeShowModalSeason) !== seasonNumber || String(currentTmdbId) !== String(tmdbData.id)) return;
+      renderShowModalContent(current?.show || show, {
+        ...current,
+        activeSeasonNum: seasonNumber,
+        tmdbData,
+        seasonDetailsByNumber,
+        loading: false,
+      });
+    })
+    .catch((error) => console.error("Failed to hydrate season episode thumbnails", error))
+    .finally(() => _seasonDetailsInflight.delete(cacheKey));
+}
+
 function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolvedTmdbId = "", tmdbData = null) {
   const watchedMap = watchedEpisodesByKey(show);
+  const progressMap = playbackProgressByEpisode(show, resolvedTmdbId);
   const localSeasons = seasonsFromShowRecord(show);
   const rows = [];
 
@@ -749,8 +829,9 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
           airDate: episode.air_date || "",
           airTime: episode.air_time || episode.airTime || episode.airtime || "",
           stillUrl: tmdbImage(episode.still_path, "w300"),
-          posterUrl: tmdbPoster(season.poster_path) || posterUrlFor(watched || representativeEpisode(localSeasons)),
+          posterUrl: fallbackPosterUrl,
           watched,
+          progress: progressMap.get(showEpisodeKey(seasonNumber, episodeNumber)) || null,
         });
       }
 
@@ -772,6 +853,7 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
           stillUrl: hint ? tmdbImage(hint.still_path, "w300") : "",
           posterUrl: fallbackPosterUrl,
           watched: null,
+          progress: progressMap.get(key) || null,
         });
       }
 
@@ -790,9 +872,10 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
         overview: "TMDB metadata is still loading.",
         airDate: "",
         airTime: "",
-        stillUrl: posterUrlFor(watched),
-        posterUrl: posterUrlFor(watched),
+        stillUrl: "",
+        posterUrl: fallbackPosterUrl,
         watched,
+        progress: progressMap.get(showEpisodeKey(seasonNumber, episodeNumber)) || null,
       });
     }
   }
@@ -813,6 +896,32 @@ function episodeThumbMarkup(episode) {
 
 function episodeReleaseLabel(airDate) {
   return airDate ? `Released ${formatTmdbDate(airDate)}` : "Release date unknown";
+}
+
+function episodeProgressHtml(episode) {
+  if (episode.watched || !episode.progress) return "";
+  const progressPercent = Math.max(0, Math.min(100, Math.round(Number(episode.progress.progress || 0))));
+  if (!progressPercent) return "";
+  return `
+    <span class="episode-progress-badge" title="${escapeAttribute(`${progressPercent}% watched`)}">
+      <span>Part watched</span>
+      <small>${progressPercent}%</small>
+    </span>
+  `;
+}
+
+function episodeProgressBarHtml(episode) {
+  if (episode.watched || !episode.progress) return "";
+  const progressPercent = Math.max(0, Math.min(100, Math.round(Number(episode.progress.progress || 0))));
+  if (!progressPercent) return "";
+  return `
+    <div class="episode-progress-inline" aria-label="${escapeAttribute(`${progressPercent}% watched`)}">
+      <div class="episode-progress-track">
+        <div class="episode-progress-fill" style="width: ${progressPercent}%;"></div>
+      </div>
+      <span>${progressPercent}% watched</span>
+    </div>
+  `;
 }
 
 function showModalStatus(loading, hasTmdbKey, hasTmdbData) {
@@ -901,7 +1010,9 @@ export function renderShowModalContent(show, {
   const selectedSeasonNumber = selectedSeasonRecord ? Number(selectedSeasonRecord.season_number) : null;
   const selectedSeasonEpisodes = selectedSeasonNumber == null
     ? []
-    : episodeRows.filter((episode) => episode.seasonNumber === selectedSeasonNumber);
+    : episodeRows
+      .filter((episode) => episode.seasonNumber === selectedSeasonNumber)
+      .sort((a, b) => Number(a.episodeNumber || 0) - Number(b.episodeNumber || 0));
   const isUnreleased = (episode) => {
     if (episode.watched) return false;
     if (!episode.airDate) return false;
@@ -941,9 +1052,11 @@ export function renderShowModalContent(show, {
                   <b style="display: inline-flex; align-items: center; gap: 0.35rem;">
                     ${escapeHtml(episodeCode(episode.seasonNumber, episode.episodeNumber))} ${escapeHtml(episode.title)}
                     ${syncStatusDotHtml}
+                    ${episodeProgressHtml(episode)}
                   </b>
                 </div>
                 <div class="immersive-episode-copy-wrap"><p>${escapeHtml(episode.overview)}</p></div>
+                ${episodeProgressBarHtml(episode)}
                 <div class="immersive-episode-meta-row">
                   <span class="immersive-episode-dates">
                     <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
@@ -966,6 +1079,8 @@ export function renderShowModalContent(show, {
       </div>
     </section>
   ` : "";
+
+  hydrateMissingSeasonDetails(show, selectedSeasonNumber, tmdbData, seasonDetailsByNumber, loading);
 
   const seasonsAccordionHtml = seasonsList.map((season) => {
     const seasonNumber = Number(season.season_number);
@@ -1271,6 +1386,8 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
 
   state.activeShowModalSeason = activeSeasonNum;
   const requestToken = ++state.showModalRequestToken;
+  await ensurePlaybackProgressLoaded();
+  if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
 
   renderShowModalContent(show, {
     activeSeasonNum,

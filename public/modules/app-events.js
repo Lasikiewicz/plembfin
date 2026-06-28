@@ -13,7 +13,7 @@ import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, 
 import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./edit-dialogs.js";
 import { initWatchAction, rerenderWatchDateCustomPicker, openWatchDatePrompt, closeWatchDatePrompt, watchActionFromButton, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./watch-action.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./tmdb.js?v=20260626";
-import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderShowModalContent, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail.js?v=20260626c";
+import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderShowModalContent, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail.js?v=20260628a";
 import { closePersonProfile, loadCastMemberDetails } from "./media-person.js";
 import { initMediaLightbox } from "./media-lightbox.js";
 
@@ -815,10 +815,28 @@ function attachEvents() {
       if (event.target.closest("button") || event.target.closest("a") || event.target.closest(".avail-pill")) {
         return;
       }
+      event.preventDefault();
       const episodeNum = Number(episodeRow.dataset.immersiveEpisodeNum);
       const seasonNum = Number(episodeRow.dataset.immersiveSeasonNum);
-      if (state.activeShowModalKey) {
-        navigateTo(`/tvshow/${state.activeShowModalKey}#season${seasonNum}ep${episodeNum}`);
+      const shouldClear = Number(state.activeShowModalEpisode) === episodeNum && Number(state.activeShowModalSeason) === seasonNum;
+      state.activeShowModalSeason = seasonNum;
+      state.activeShowModalEpisode = shouldClear ? null : episodeNum;
+      const ctx = state.activeShowRenderContext;
+      if (ctx?.show) {
+        renderShowModalContent(ctx.show, {
+          ...ctx,
+          activeSeasonNum: seasonNum,
+          activeEpisodeNum: state.activeShowModalEpisode,
+        });
+      }
+      const baseUrl = state.activeShowModalKey
+        ? `/tvshow/${state.activeShowModalKey}`
+        : state.activeShowTmdbId
+          ? `/tvshow/tmdb/${state.activeShowTmdbId}`
+          : "";
+      if (baseUrl) {
+        const hash = state.activeShowModalEpisode == null ? `#season${seasonNum}` : `#season${seasonNum}ep${episodeNum}`;
+        window.history.replaceState({}, "", `${baseUrl}${hash}`);
       }
       return;
     }

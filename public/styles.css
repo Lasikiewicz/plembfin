@@ -8853,49 +8853,165 @@ html.light-mode .history-mini-card-title {
 
 .season-accordion-panel .show-episode-list {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 0;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-3);
 }
 
 .media-detail-page .season-accordion-panel .immersive-episode-row {
   display: grid;
-  grid-template-columns: 16rem minmax(0, 1fr);
-  grid-template-rows: auto;
-  grid-template-areas: "thumb copy";
-  gap: var(--space-3);
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "thumb"
+    "copy";
+  gap: var(--space-2);
+  align-content: start;
+  align-items: start;
+  height: 100%;
   min-height: 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  padding: var(--space-3) 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel-2), transparent 48%);
+  padding: var(--space-2);
   box-shadow: none;
+  cursor: pointer;
 }
 
 .media-detail-page .season-accordion-panel .immersive-episode-row:last-child {
-  border-bottom: 0;
+  border-bottom: 1px solid var(--line);
 }
 
 .media-detail-page .season-accordion-panel .immersive-episode-row:hover {
-  border-color: var(--line);
-  background: color-mix(in srgb, var(--panel-3), transparent 55%);
+  border-color: color-mix(in srgb, var(--line-strong), transparent 10%);
+  background: color-mix(in srgb, var(--panel-3), transparent 38%);
   box-shadow: none;
+}
+
+.media-detail-page .season-accordion-panel .immersive-episode-row.is-highlighted .immersive-episode-copy p {
+  display: block !important;
+  overflow: visible;
+  -webkit-line-clamp: unset;
 }
 
 .season-accordion-panel .episode-thumb {
   grid-area: thumb;
   width: 100%;
-  max-width: 16rem;
+  max-width: none;
   justify-self: start;
 }
 
 .season-accordion-panel .immersive-episode-copy {
+  display: flex;
+  flex-direction: column;
   grid-area: copy;
+  height: 100%;
+  min-height: 0;
 }
 
 .season-accordion-panel .immersive-episode-actions {
+  justify-content: flex-end;
+}
+
+.season-accordion-panel .immersive-episode-title-row b {
+  flex-wrap: wrap;
+}
+
+.season-accordion-panel .immersive-episode-meta-row {
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+
+.season-accordion-panel .immersive-episode-dates {
   justify-content: flex-start;
+}
+
+.episode-progress-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid rgba(161, 98, 7, 0.5);
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.18);
+  color: #92400e;
+  padding: 0.14rem 0.38rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.episode-progress-badge small {
+  color: inherit;
+  font-size: 0.62rem;
+  opacity: 0.9;
+}
+
+.episode-progress-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #92400e;
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.episode-progress-track {
+  flex: 1 1 5rem;
+  height: 0.28rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(161, 98, 7, 0.22);
+}
+
+.episode-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #d97706;
+}
+
+html:not(.light-mode) .episode-progress-badge {
+  border-color: rgba(234, 179, 8, 0.55);
+  background: rgba(234, 179, 8, 0.14);
+  color: #facc15;
+}
+
+html:not(.light-mode) .episode-progress-inline {
+  color: #facc15;
+}
+
+html:not(.light-mode) .episode-progress-track {
+  background: rgba(148, 163, 184, 0.28);
+}
+
+html:not(.light-mode) .episode-progress-fill {
+  background: #facc15;
+}
+
+@media (max-width: 1700px) {
+  .season-accordion-panel .show-episode-list {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1400px) {
+  .season-accordion-panel .show-episode-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1120px) {
+  .season-accordion-panel .show-episode-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .season-accordion-panel .show-episode-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -8911,6 +9027,10 @@ html.light-mode .history-mini-card-title {
     padding-inline: var(--space-3);
   }
 
+  .season-accordion-panel .show-episode-list {
+    grid-template-columns: 1fr;
+  }
+
   .media-detail-page .season-accordion-panel .immersive-episode-row {
     grid-template-columns: 7rem minmax(0, 1fr);
     grid-template-rows: auto;
@@ -8920,7 +9040,11 @@ html.light-mode .history-mini-card-title {
   }
 
   .season-accordion-panel .immersive-episode-actions {
-    justify-content: flex-start;
+    justify-content: flex-end;
+  }
+
+  .episode-progress-inline {
+    gap: 0.25rem;
   }
 }
 
