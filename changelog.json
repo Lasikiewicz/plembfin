@@ -1,7 +1,19 @@
 {
-  "version": "0.2.58",
-  "updatedAt": "2026-06-28T20:05:56+01:00",
+  "version": "0.2.59",
+  "updatedAt": "2026-06-28T20:14:24+01:00",
   "entries": [
+    {
+      "version": "0.2.59",
+      "date": "2026-06-28T20:14:24+01:00",
+      "commit": "f1de1aace191375209e98cfee462b765015ad040",
+      "message": "fix: dynamically extend CSP img-src with configured media server origins",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed Content Security Policy violations that blocked poster and backdrop images served directly by configured Plex, Emby, Jellyfin, or Seerr servers",
+        "Server now reads stored media config at request time and appends configured server origins to the CSP img-src whitelist",
+        "Updated docs/architecture.md to document the dynamic img-src behaviour"
+      ]
+    },
     {
       "version": "0.2.58",
       "date": "2026-06-28T20:05:56+01:00",
