@@ -1,7 +1,22 @@
 {
-  "version": "0.2.56",
-  "updatedAt": "2026-06-28T19:21:36+01:00",
+  "version": "0.2.57",
+  "updatedAt": "2026-06-28T19:36:28+01:00",
   "entries": [
+    {
+      "version": "0.2.57",
+      "date": "2026-06-28T19:36:28+01:00",
+      "commit": "942728e3648b7828d08bc234fa6cf5a9857d1c78",
+      "message": "security: fix CodeQL code-scanning findings",
+      "author": "Lasikiewicz",
+      "details": [
+        "Match YouTube/TMDB hosts exactly instead of substring checks, blocking spoofed hostnames like youtube.com.evil.com",
+        "Pass user-supplied values as console format args to prevent tainted format strings in logs",
+        "Add cloud-metadata SSRF guard to the admin server connection test (LAN/localhost still allowed)",
+        "Add general API and static request rate limiters with high ceilings so normal dashboard use is never throttled",
+        "Tighten the trailing-year title regex to remove polynomial ReDoS backtracking",
+        "Decode HTML entities in a single pass to prevent double-unescaping"
+      ]
+    },
     {
       "version": "0.2.56",
       "date": "2026-06-28T19:21:36+01:00",
