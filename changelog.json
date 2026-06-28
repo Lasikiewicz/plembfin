@@ -1,7 +1,21 @@
 {
-  "version": "0.2.52",
-  "updatedAt": "2026-06-28T15:43:55+01:00",
+  "version": "0.2.53",
+  "updatedAt": "2026-06-28T16:10:01+01:00",
   "entries": [
+    {
+      "version": "0.2.53",
+      "date": "2026-06-28T16:10:01+01:00",
+      "commit": "e50a5be88eaa78f1061798b3f2c42702410dc790",
+      "message": "fix: polish dashboard settings and artwork flows",
+      "author": "Lasikiewicz",
+      "details": [
+        "Allow legitimate external artwork hosts through the image CSP",
+        "Resolve Fanart.tv TV artwork using show-level identifiers when episode IDs are present",
+        "Update dashboard layout splits, row padding, and Watch History view icon toggles",
+        "Keep settings refreshes on the current section while main Settings opens General",
+        "Reduce password manager update prompts on dashboard refresh"
+      ]
+    },
     {
       "version": "0.2.52",
       "date": "2026-06-28T15:43:55+01:00",
