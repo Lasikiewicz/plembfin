@@ -1,7 +1,23 @@
 {
-  "version": "0.2.47",
-  "updatedAt": "2026-06-26T16:58:21+01:00",
+  "version": "0.2.48",
+  "updatedAt": "2026-06-28T12:12:34+01:00",
   "entries": [
+    {
+      "version": "0.2.48",
+      "date": "2026-06-28T12:12:34+01:00",
+      "commit": "d2c1d0505740f792ab5b911fa9ab80eb39b13a5c",
+      "message": "security: harden webhook auth and sync operations",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add header and Bearer webhook auth while keeping query-token compatibility",
+        "Redact sensitive request and diagnostic log values before storage",
+        "Stop storing the global API key in browser localStorage",
+        "Add outbound URL validation, fetch timeouts, and cron status reporting",
+        "Strengthen force-sync locking and isolate scheduled maintenance work",
+        "Fix season accordion scrolling and improve mobile watch controls",
+        "Update webhook, scheduler, architecture, troubleshooting, README, and in-app help docs"
+      ]
+    },
     {
       "version": "0.2.47",
       "date": "2026-06-26T16:58:21+01:00",
