@@ -1,7 +1,20 @@
 {
-  "version": "0.2.48",
-  "updatedAt": "2026-06-28T12:12:34+01:00",
+  "version": "0.2.49",
+  "updatedAt": "2026-06-28T12:48:11+01:00",
   "entries": [
+    {
+      "version": "0.2.49",
+      "date": "2026-06-28T12:48:11+01:00",
+      "commit": "28a4c009639674f8920994923fa962aa10f731f1",
+      "message": "fix: improve TV episode season cards",
+      "author": "Lasikiewicz",
+      "details": [
+        "Show part-watched progress on TV episode cards with clearer inline styling",
+        "Lay season episodes out in a responsive six-card grid with stable footer actions",
+        "Load season metadata on demand so episode thumbnails update without wrong repeated artwork",
+        "Expand and highlight an episode card in place instead of routing when it is clicked"
+      ]
+    },
     {
       "version": "0.2.48",
       "date": "2026-06-28T12:12:34+01:00",
