@@ -373,39 +373,75 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
 
   let activeTab = "poster";
+  const mediaTitle = tmdbData?.title || tmdbData?.name || "";
+  const imageSections = {
+    poster: { label: "Poster", searchLabel: "posters", saveLabel: "Save poster", field: "poster_url" },
+    logo: { label: "Logo", searchLabel: "logo art", saveLabel: "Save logo", field: "logo_url" },
+    background: { label: "Background", searchLabel: "background art", saveLabel: "Save background", field: "backdrop_url" },
+    youtube: { label: "YouTube Show", searchLabel: "", saveLabel: "Save YouTube show", field: "youtube_url" },
+  };
+
+  const searchLinks = (kind) => {
+    const query = encodeURIComponent(`${mediaTitle || "media"} ${imageSections[kind]?.searchLabel || "artwork"}`);
+    return `
+      <div class="edit-image-search-links">
+        <a href="https://www.google.com/search?tbm=isch&q=${query}" target="_blank" rel="noopener noreferrer">Google</a>
+        <a href="https://www.bing.com/images/search?q=${query}" target="_blank" rel="noopener noreferrer">Bing</a>
+        <a href="https://duckduckgo.com/?iax=images&ia=images&q=${query}" target="_blank" rel="noopener noreferrer">DuckDuckGo</a>
+      </div>
+    `;
+  };
+
+  const resolvedMediaType = () => {
+    if (tmdbData?.media_type === "movie" || tmdbData?.mediaType === "movie") return "movie";
+    if (tmdbData?.media_type === "tv" || tmdbData?.mediaType === "tv") return "tv";
+    return tmdbData?.title !== undefined && tmdbData?.name === undefined ? "movie" : "tv";
+  };
 
   const overlay = document.createElement("div");
   overlay.className = "edit-dialog-overlay";
   overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
   overlay.innerHTML = `
-    <div class="edit-dialog edit-dialog--wide glass-panel">
-      <div class="edit-image-tabs">
+    <div class="edit-dialog edit-dialog--wide edit-image-dialog glass-panel">
+      <div class="edit-image-tabs edit-image-sidebar">
         <button class="edit-image-tab active" type="button" data-tab="poster">Poster</button>
-        <button class="edit-image-tab" type="button" data-tab="logo">Logo / Title Art</button>
+        <button class="edit-image-tab" type="button" data-tab="logo">Logo</button>
+        <button class="edit-image-tab" type="button" data-tab="background">Background</button>
         <button class="edit-image-tab" type="button" data-tab="youtube">YouTube Show</button>
-        <button class="edit-image-tab" type="button" data-tab="custom">Custom Image</button>
       </div>
-      <p class="edit-dialog-status" style="margin:0;"></p>
-      <div class="edit-image-grid poster-search-grid"></div>
-      <div class="edit-image-yt-row" style="display:none;">
-        <label class="field-label" style="margin-top: 0.75rem;">
-          YouTube URL <span class="muted-copy" style="font-weight:normal;">(paste to fetch thumbnails)</span>
-          <div style="display:flex;gap:0.5rem;">
-            <input type="url" class="field yt-url-input" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;" />
-            <button class="button-ghost yt-fetch-btn" type="button">Fetch</button>
+      <div class="edit-image-main">
+        <div class="edit-image-header">
+          <div>
+            <h3 class="edit-image-title">Poster</h3>
+            <p class="muted-copy edit-image-subtitle">Choose TMDB artwork, use fanart.tv fallback, or upload your own image.</p>
           </div>
-        </label>
-      </div>
-      <div class="edit-image-custom-row" style="display:none;">
-        <label class="field-label" style="margin-top: 0.5rem;">
-          Custom image URL
-          <input type="url" class="field edit-image-custom-input" placeholder="https://..." value="" />
-        </label>
-      </div>
-      <input type="hidden" class="edit-image-input" value="" />
-      <div class="edit-dialog-actions">
-        <button class="button-primary edit-dialog-save" type="button">Save poster</button>
-        <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
+          <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
+        </div>
+        <p class="edit-dialog-status" style="margin:0;"></p>
+        <div class="edit-image-yt-row" style="display:none;">
+          <label class="field-label" style="margin-top: 0.75rem;">
+            YouTube URL <span class="muted-copy" style="font-weight:normal;">(paste to fetch thumbnails)</span>
+            <div style="display:flex;gap:0.5rem;">
+              <input type="url" class="field yt-url-input" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;" />
+              <button class="button-ghost yt-fetch-btn" type="button">Fetch</button>
+            </div>
+          </label>
+        </div>
+        <div class="edit-image-grid poster-search-grid"></div>
+        <div class="edit-image-tools">
+          <button class="button-ghost edit-image-custom-toggle" type="button">Custom Image</button>
+          <div class="edit-image-custom-panel" hidden>
+            <div class="edit-image-links-slot">${searchLinks("poster")}</div>
+            <label class="button-primary edit-image-upload-label">
+              Upload Image
+              <input class="edit-image-file-input" type="file" accept="image/*" />
+            </label>
+          </div>
+        </div>
+        <input type="hidden" class="edit-image-input" value="" />
+        <div class="edit-dialog-actions">
+          <button class="button-primary edit-dialog-save" type="button">Save poster</button>
+        </div>
       </div>
     </div>
   `;
@@ -414,24 +450,48 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   const status = overlay.querySelector(".edit-dialog-status");
   const urlInput = overlay.querySelector(".edit-image-input");
   const ytRow = overlay.querySelector(".edit-image-yt-row");
-  const customRow = overlay.querySelector(".edit-image-custom-row");
-  const customInput = overlay.querySelector(".edit-image-custom-input");
+  const fileInput = overlay.querySelector(".edit-image-file-input");
+  const customToggle = overlay.querySelector(".edit-image-custom-toggle");
+  const customPanel = overlay.querySelector(".edit-image-custom-panel");
   const ytInput = overlay.querySelector(".yt-url-input");
   const ytFetchBtn = overlay.querySelector(".yt-fetch-btn");
   const saveBtn = overlay.querySelector(".edit-dialog-save");
+  const titleEl = overlay.querySelector(".edit-image-title");
+  const subtitleEl = overlay.querySelector(".edit-image-subtitle");
+  const toolsEl = overlay.querySelector(".edit-image-tools");
+  const linksSlot = overlay.querySelector(".edit-image-links-slot");
 
-  customInput.addEventListener("input", () => { urlInput.value = customInput.value; });
+  customToggle.addEventListener("click", () => {
+    customPanel.hidden = !customPanel.hidden;
+  });
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { status.textContent = "Please choose an image file."; return; }
+    if (file.size > 10 * 1024 * 1024) { status.textContent = "Please choose an image under 10 MB."; return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result || "");
+      urlInput.value = url;
+      customPanel.hidden = true;
+      renderGrid([{ url, source: "Upload" }], activeTab === "logo", true, activeTab === "background");
+      status.textContent = "";
+    };
+    reader.onerror = () => { status.textContent = "Could not read that image file."; };
+    reader.readAsDataURL(file);
+  });
 
-  const renderGrid = (items, isLogo = false, selectFirst = true) => {
+  const renderGrid = (items, isLogo = false, selectFirst = true, isBackdrop = false) => {
     gridEl.classList.toggle("edit-image-grid--logo", isLogo);
+    gridEl.classList.toggle("edit-image-grid--backdrop", isBackdrop);
     gridEl.innerHTML = items.map((item, i) => {
       const url = typeof item === "string" ? item : item.url;
       const lang = typeof item === "object" && item.lang ? item.lang : null;
       const source = typeof item === "object" && item.source ? item.source : null;
       const hasBadges = lang || source;
       return `
-        <button class="edit-image-option${isLogo ? " edit-image-option--logo" : ""}" type="button" data-url="${escapeAttribute(url)}">
-          <img src="${escapeAttribute(url)}" alt="${isLogo ? "Logo" : "Poster"} ${i + 1}" loading="lazy" data-err="hide-closest-btn" />
+        <button class="edit-image-option${isLogo ? " edit-image-option--logo" : ""}${isBackdrop ? " edit-image-option--backdrop" : ""}" type="button" data-url="${escapeAttribute(url)}">
+          <img src="${escapeAttribute(url)}" alt="${isLogo ? "Logo" : isBackdrop ? "Background" : "Poster"} ${i + 1}" loading="lazy" data-err="hide-closest-btn" />
           ${hasBadges ? `<span class="edit-image-badge-row">${lang ? `<span class="edit-image-logo-lang">${escapeAttribute(lang.toUpperCase())}</span>` : ""}${source ? `<span class="edit-image-source-badge edit-image-source-badge--${escapeAttribute(source.toLowerCase())}">${escapeAttribute(source)}</span>` : ""}</span>` : ""}
         </button>
       `;
@@ -479,7 +539,7 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   const getTmdbImages = async () => {
     if (tmdbImages) return tmdbImages;
     const tmdbId = tmdbData?.id;
-    const mediaType = tmdbData?.title !== undefined ? "movie" : "tv";
+    const mediaType = resolvedMediaType();
     if (state.savedConfig?.tmdb?.configured && tmdbId) {
       try {
         const res = await fetch(`/api/tmdb-images?mediaType=${encodeURIComponent(mediaType)}&tmdbId=${encodeURIComponent(tmdbId)}`, { headers: authHeaders() });
@@ -495,10 +555,13 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   const getFanartImages = async () => {
     if (fanartImages) return fanartImages;
     const tmdbId = tmdbData?.id;
-    const mediaType = tmdbData?.title !== undefined ? "movie" : "tv";
+    const mediaType = resolvedMediaType();
+    const tvdbId = tmdbData?.tvdb_id || tmdbData?.tvdbId || tmdbData?.external_ids?.tvdb_id || "";
     if (tmdbId) {
       try {
-        const res = await fetch(`/api/fanart-images?mediaType=${encodeURIComponent(mediaType)}&tmdbId=${encodeURIComponent(tmdbId)}`, { headers: authHeaders() });
+        const params = new URLSearchParams({ mediaType, tmdbId: String(tmdbId) });
+        if (tvdbId) params.set("tvdbId", String(tvdbId));
+        const res = await fetch(`/api/fanart-images?${params.toString()}`, { headers: authHeaders() });
         fanartImages = await res.json();
       } catch { fanartImages = {}; }
     } else {
@@ -507,23 +570,33 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
     return fanartImages;
   };
 
+  const fanartItems = (fanartData, kind, seen) => {
+    const key = kind === "background" ? "backdrops" : `${kind}s`;
+    return (fanartData?.[key] || []).reduce((items, item) => {
+      if (item.url && !seen.has(item.url)) {
+        seen.add(item.url);
+        items.push({ url: item.url, lang: item.lang || "", source: "Fanart" });
+      }
+      return items;
+    }, []);
+  };
+
   const loadPosters = async () => {
     status.textContent = "Loading posters…";
     urlInput.value = "";
-    const [tmdbData_, fanartData] = await Promise.all([getTmdbImages(), getFanartImages()]);
+    const tmdbData_ = await getTmdbImages();
     const seen = new Set();
     const items = [];
     for (const p of (tmdbData_.posters || []).slice(0, 20)) {
       const url = tmdbPoster(p.file_path);
       if (!seen.has(url)) { seen.add(url); items.push({ url, source: "TMDB" }); }
     }
-    for (const p of (fanartData?.posters || [])) {
-      if (p.url && !seen.has(p.url)) { seen.add(p.url); items.push({ url: p.url, lang: p.lang || "", source: "Fanart" }); }
-    }
+    status.textContent = items.length ? "Checking fanart.tv..." : "No TMDB posters found. Checking fanart.tv...";
+    const fanartPosterItems = fanartItems(await getFanartImages(), "poster", seen);
+    items.push(...fanartPosterItems);
     if (items.length) { status.textContent = ""; renderGrid(items, false); return; }
     const fallback = [];
     if (tmdbData?.poster_path) fallback.push(tmdbPoster(tmdbData.poster_path));
-    if (tmdbData?.backdrop_path) fallback.push(`https://image.tmdb.org/t/p/w780${tmdbData.backdrop_path}`);
     if (currentPosterUrl) fallback.push(currentPosterUrl);
     if (fallback.length) { status.textContent = ""; renderGrid(fallback, false); }
     else { status.textContent = state.savedConfig?.tmdb?.configured ? "No posters found." : "Configure a TMDB API key to browse posters."; gridEl.innerHTML = ""; }
@@ -533,7 +606,7 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
     status.textContent = "Loading logos…";
     urlInput.value = "";
     gridEl.innerHTML = "";
-    const [tmdbData_, fanartData] = await Promise.all([getTmdbImages(), getFanartImages()]);
+    const tmdbData_ = await getTmdbImages();
     const seen = new Set();
     const items = [];
     const logos = (tmdbData_.logos || []);
@@ -546,15 +619,12 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
         items.push({ url, lang: l.iso_639_1 ? l.iso_639_1.toUpperCase() : "—", source: "TMDB" });
       }
     }
-    for (const l of (fanartData?.logos || [])) {
-      if (l.url && !seen.has(l.url)) {
-        seen.add(l.url);
-        items.push({ url: l.url, lang: l.lang ? l.lang.toUpperCase() : "", source: "Fanart" });
-      }
-    }
+    status.textContent = items.length ? "Checking fanart.tv..." : "No TMDB logos found. Checking fanart.tv...";
+    const fanartLogoItems = fanartItems(await getFanartImages(), "logo", seen);
+    items.push(...fanartLogoItems);
     if (items.length) {
       const hasEnTmdb = enLogos.length > 0;
-      const hasEnFanart = (fanartData?.logos || []).some(l => l.lang === "en");
+      const hasEnFanart = items.some(l => l.source === "Fanart" && String(l.lang || "").toLowerCase() === "en");
       status.textContent = (!hasEnTmdb && !hasEnFanart && items.length > 0) ? "No English logo found — showing other languages." : "";
       renderGrid(items, true, true);
       return;
@@ -562,31 +632,51 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
     status.textContent = state.savedConfig?.tmdb?.configured ? "No logo art found for this title." : "Configure a TMDB API key to browse logos.";
   };
 
+  const loadBackgrounds = async () => {
+    status.textContent = "Loading backgrounds...";
+    urlInput.value = "";
+    gridEl.innerHTML = "";
+    const tmdbData_ = await getTmdbImages();
+    const seen = new Set();
+    const items = [];
+    for (const b of (tmdbData_.backdrops || []).slice(0, 24)) {
+      const url = tmdbImage(b.file_path, "original");
+      if (url && !seen.has(url)) { seen.add(url); items.push({ url, source: "TMDB" }); }
+    }
+    status.textContent = items.length ? "Checking fanart.tv..." : "No TMDB backgrounds found. Checking fanart.tv...";
+    const fanartBackgroundItems = fanartItems(await getFanartImages(), "background", seen);
+    items.push(...fanartBackgroundItems);
+    if (items.length) { status.textContent = ""; renderGrid(items, false, true, true); return; }
+    const fallback = [];
+    if (tmdbData?.backdrop_path) fallback.push(`https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`);
+    if (fallback.length) { status.textContent = ""; renderGrid(fallback, false, true, true); }
+    else { status.textContent = state.savedConfig?.tmdb?.configured ? "No backgrounds found." : "Configure a TMDB API key to browse backgrounds."; gridEl.innerHTML = ""; }
+  };
+
   const switchTab = (tab) => {
     activeTab = tab;
     overlay.querySelectorAll(".edit-image-tab").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tab));
     urlInput.value = "";
+    fileInput.value = "";
+    customPanel.hidden = true;
     gridEl.style.display = "";
-    gridEl.classList.remove("edit-image-grid--logo");
+    gridEl.classList.remove("edit-image-grid--logo", "edit-image-grid--backdrop");
     ytRow.style.display = "none";
-    customRow.style.display = "none";
+    toolsEl.style.display = tab === "youtube" ? "none" : "";
+    titleEl.textContent = imageSections[tab]?.label || "Poster";
+    subtitleEl.textContent = tab === "youtube" ? "Paste a YouTube URL and choose the thumbnail to use." : "Choose TMDB artwork, use fanart.tv fallback, or upload your own image.";
+    saveBtn.textContent = imageSections[tab]?.saveLabel || "Save";
+    linksSlot.innerHTML = tab === "youtube" ? "" : searchLinks(tab);
     if (tab === "poster") {
-      saveBtn.textContent = "Save poster";
       loadPosters();
     } else if (tab === "logo") {
-      saveBtn.textContent = "Save logo";
       loadLogos();
+    } else if (tab === "background") {
+      loadBackgrounds();
     } else if (tab === "youtube") {
-      saveBtn.textContent = "Save poster";
       gridEl.innerHTML = "";
       status.textContent = "";
       ytRow.style.display = "";
-    } else if (tab === "custom") {
-      saveBtn.textContent = "Save image";
-      gridEl.style.display = "none";
-      status.textContent = "";
-      customRow.style.display = "";
-      customInput.value = "";
     }
   };
 
@@ -597,13 +687,23 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
   saveBtn.addEventListener("click", async () => {
     const url = urlInput.value.trim();
-    if (!url) { status.textContent = "Please select or enter an image URL."; return; }
+    if (activeTab === "youtube" && !ytInput.value.trim()) { status.textContent = "Please enter a YouTube URL."; return; }
+    if (activeTab !== "youtube" && !url) { status.textContent = "Please select or upload an image."; return; }
     status.textContent = "Saving…";
     try {
-      const field = activeTab === "logo" ? "logo_url" : "poster_url";
-      const saved = await apiUpdateWatch(id, { [field]: url });
+      const field = imageSections[activeTab]?.field || "poster_url";
+      const payload = activeTab === "youtube"
+        ? { youtube_url: ytInput.value.trim(), ...(url ? { poster_url: url } : {}) }
+        : { [field]: url };
+      const saved = await apiUpdateWatch(id, payload);
       overlay.remove();
-      onSaved?.({ [field]: url, storage_url: saved?.poster_url, updated_ids: saved?.updated_ids });
+      onSaved?.({
+        ...payload,
+        ...(saved?.poster_url ? { poster_url: saved.poster_url } : {}),
+        ...(saved?.backdrop_url ? { backdrop_url: saved.backdrop_url } : {}),
+        storage_url: saved?.poster_url,
+        updated_ids: saved?.updated_ids,
+      });
     } catch (err) {
       status.textContent = `Error: ${err.message}`;
     }

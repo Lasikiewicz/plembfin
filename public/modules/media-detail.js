@@ -983,7 +983,7 @@ export function renderShowModalContent(show, {
   const watchedCount = watchedRows.length || [...watchedEpisodesByKey(show).keys()].length;
   const progressPercent = Math.max(0, Math.min(100, Math.round((watchedCount / totalCount) * 100)));
   const representative = representativeEpisode(seasonsMap);
-  const backdropUrl = tmdbData?.cached_backdrop_url || tmdbImage(tmdbData?.backdrop_path, "original");
+  const backdropUrl = show.backdrop_url || tmdbData?.cached_backdrop_url || tmdbImage(tmdbData?.backdrop_path, "original");
   const posterUrl = posterUrlFor(representative) || tmdbData?.cached_poster_url || tmdbPoster(tmdbData?.poster_path, tmdbData?.id, "tv");
   const logoUrl = show.logo_url || bestTmdbLogo(tmdbData);
   const overview = tmdbData?.overview || "No synopsis available.";
@@ -1117,9 +1117,6 @@ export function renderShowModalContent(show, {
     </section>
   ` : "";
 
-  const showImdbId = show.imdb_id || representativeEpisode(seasonsMap)?.imdb_id || tmdbData?.external_ids?.imdb_id || "";
-  const showImdbBasePill = showImdbId && !imdbPillHtml ? ratingPillHtml({ label: "IMDb", value: "View", href: `https://www.imdb.com/title/${escapeAttribute(showImdbId)}`, title: "Open on IMDb" }) : "";
-
   setMediaDetailActions(`
     <details class="media-actions-menu">
       <summary class="action-pill media-actions-menu-trigger">Show actions</summary>
@@ -1129,7 +1126,7 @@ export function renderShowModalContent(show, {
         </button>
         ${watchedRows.length ? `<button class="action-pill media-edit-show-date-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">Edit Show Watch Date</button>` : ""}
         ${tmdbOnly ? "" : `
-          <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}" data-logo-url="${escapeAttribute(show.logo_url || "")}">Edit Images</button>
+          <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}" data-logo-url="${escapeAttribute(show.logo_url || "")}" data-backdrop-url="${escapeAttribute(show.backdrop_url || "")}">Edit Images</button>
           <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">Fix Match</button>
           <button class="action-pill media-merge-show-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">Merge</button>
         `}
@@ -1148,7 +1145,7 @@ export function renderShowModalContent(show, {
           <div class="media-detail-bottom-stack">
             <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
               ${ratingPillsHtml}
-              ${imdbPillHtml || showImdbBasePill}
+              ${imdbPillHtml}
               ${showModalStatus(loading, hasTmdbKey, Boolean(tmdbData))}
               ${renderSeerrRequestPill("tv", tvSeerrTmdbId, showIsNowPlaying)}
             </div>
@@ -1453,7 +1450,7 @@ export async function renderMovieImmersiveModalContent(movie) {
       <summary class="action-pill media-actions-menu-trigger">Movie actions</summary>
       <div class="media-actions-menu-panel">
         <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
-        <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}">Edit Images</button>
+        <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">Edit Images</button>
         <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
       </div>
     </details>
@@ -1496,7 +1493,9 @@ export async function renderMovieImmersiveModalContent(movie) {
   let recommendations = [];
   let tvRecommendations = [];
   if (tmdbData) {
-    if (tmdbData.backdrop_path) {
+    if (movie.backdrop_url) {
+      backdropUrl = movie.backdrop_url;
+    } else if (tmdbData.backdrop_path) {
       backdropUrl = tmdbData.cached_backdrop_url || `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`;
     }
     // Keep a locally cached/custom poster (from "Edit Images") over the TMDB
@@ -1529,11 +1528,11 @@ export async function renderMovieImmersiveModalContent(movie) {
     }
     if (_mediaRenderToken !== renderToken) return;
   }
-  const imdbPillHtml = imdbId ? ratingPillHtml({
+  const imdbPillHtml = imdbId && imdbRating ? ratingPillHtml({
     label: "IMDb",
-    value: imdbRating ? `${Math.round(parseFloat(imdbRating) * 10)}%` : "View",
+    value: `${Math.round(parseFloat(imdbRating) * 10)}%`,
     href: `https://www.imdb.com/title/${escapeAttribute(imdbId)}`,
-    title: imdbRating ? `IMDb rating: ${imdbRating}/10` : "Open on IMDb",
+    title: `IMDb rating: ${imdbRating}/10`,
   }) : "";
   const sourceBadgeHtml = movie.source ? `
     <span class="source-badge ${sourceClass(movie.source)}" style="display: inline-flex;">${escapeHtml(platformBadge(movie.source))}</span>
@@ -1556,7 +1555,7 @@ export async function renderMovieImmersiveModalContent(movie) {
       <summary class="action-pill media-actions-menu-trigger">Movie actions</summary>
       <div class="media-actions-menu-panel">
         <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
-        <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}">Edit Images</button>
+        <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">Edit Images</button>
         <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
         <button class="action-pill action-pill-danger" type="button" ${isSaving ? "disabled" : ""} data-delete-media-id="${escapeAttribute(movie.id)}" data-delete-media-title="${escapeAttribute(movie.title || "this movie")}">Delete</button>
       </div>

@@ -34,7 +34,7 @@ export async function getHistoryCacheVersion() {
 const WATCH_COLUMNS = [
   "id", "title", "title_lower", "media_type", "watched_at", "source",
   "imdb_id", "tmdb_id", "tvdb_id", "season", "episode", "poster_url", "logo_url",
-  "youtube_url", "sync_action", "sync_dispatch_telemetry", "media_key",
+  "backdrop_url", "youtube_url", "sync_action", "sync_dispatch_telemetry", "media_key",
   "show_title", "show_title_lower", "episode_title", "created_at", "updated_at",
 ];
 
@@ -344,6 +344,7 @@ function watchRowParams(record) {
     episode: record.episode,
     poster_url: record.poster_url || null,
     logo_url: record.logo_url || null,
+    backdrop_url: record.backdrop_url || null,
     youtube_url: null,
     sync_action: record.sync_action || "watched",
     sync_dispatch_telemetry: record.sync_dispatch_telemetry || null,
@@ -380,6 +381,7 @@ function rowToWatch(row) {
     episode: row.episode ?? null,
     poster_url: row.poster_url || null,
     logo_url: row.logo_url || null,
+    backdrop_url: row.backdrop_url || null,
     youtube_url: row.youtube_url || null,
     sync_action: row.sync_action || "watched",
     sync_dispatch_telemetry: row.sync_dispatch_telemetry || null,
@@ -1414,6 +1416,7 @@ export async function getWatchRecordByIdLight(id) {
 }
 
 const updatePosterStmt = db.prepare("UPDATE watch_history SET poster_url = ?, updated_at = ? WHERE id = ?");
+const updateBackdropStmt = db.prepare("UPDATE watch_history SET backdrop_url = ?, updated_at = ? WHERE id = ?");
 
 export async function updateWatchPosterUrl(id, posterUrl) {
   const cleanUrl = cleanString(posterUrl);
@@ -1466,6 +1469,14 @@ export async function setWatchPosterUrls(updates = []) {
     }
   });
   return changed;
+}
+
+export async function setWatchBackdropUrl(id, backdropUrl) {
+  const url = cleanString(backdropUrl);
+  if (!id || !url) return false;
+  updateBackdropStmt.run(url, Date.now(), String(id));
+  await invalidateHistoryDerivedCaches();
+  return true;
 }
 
 export async function listLibraryItemsForRefresh() {
@@ -1539,6 +1550,7 @@ export async function updateWatchRecord(id, fields = {}) {
   }
   if (fields.poster_url != null) { sets.push("poster_url = ?"); params.push(String(fields.poster_url).trim()); }
   if (fields.logo_url != null) { sets.push("logo_url = ?"); params.push(String(fields.logo_url).trim()); }
+  if (fields.backdrop_url != null) { sets.push("backdrop_url = ?"); params.push(String(fields.backdrop_url).trim()); }
   if (fields.tmdb_id != null) { sets.push("tmdb_id = ?"); params.push(String(fields.tmdb_id).trim()); }
   if (fields.title != null) {
     const title = String(fields.title).trim();
@@ -1945,6 +1957,7 @@ function groupShowRows(rows = []) {
       representative_episode: null,
       poster_url: null,
       logo_url: null,
+      backdrop_url: null,
       tmdb_id: null,
     };
     group.title = preferredShowTitle(group.title, title);
@@ -1962,6 +1975,9 @@ function groupShowRows(rows = []) {
     if (row.logo_url && !group.logo_url) {
       group.logo_url = row.logo_url;
     }
+    if (row.backdrop_url && !group.backdrop_url) {
+      group.backdrop_url = row.backdrop_url;
+    }
     if (row.tmdb_id && !group.tmdb_id) {
       group.tmdb_id = row.tmdb_id;
     }
@@ -1973,6 +1989,7 @@ function groupShowRows(rows = []) {
     seasons: undefined,
     poster_url: group.poster_url || group.representative_episode?.poster_url || null,
     logo_url: group.logo_url || group.representative_episode?.logo_url || null,
+    backdrop_url: group.backdrop_url || group.representative_episode?.backdrop_url || null,
     tmdb_id: group.tmdb_id || group.representative_episode?.tmdb_id || null,
     representative_episode: group.representative_episode ? { ...group.representative_episode, show_title: group.title } : null,
     episodes: group.episodes

@@ -10,12 +10,20 @@ async function userKey() {
 
 async function fetchFanart(path) {
   const clientKey = await userKey();
-  const url = new URL(`${API_ROOT}/${path}`);
-  url.searchParams.set("api_key", PROJECT_KEY);
-  if (clientKey) url.searchParams.set("client_key", clientKey);
-  const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
-  if (!response.ok) return null;
-  return response.json().catch(() => null);
+  const request = async (apiKey, extra = {}) => {
+    const url = new URL(`${API_ROOT}/${path}`);
+    url.searchParams.set("api_key", apiKey);
+    for (const [key, value] of Object.entries(extra)) {
+      if (value) url.searchParams.set(key, value);
+    }
+    const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+    if (!response.ok) return null;
+    return response.json().catch(() => null);
+  };
+
+  const projectResult = await request(PROJECT_KEY, clientKey ? { client_key: clientKey } : {});
+  if (projectResult || !clientKey) return projectResult;
+  return request(clientKey);
 }
 
 function bestImage(arr = []) {
@@ -72,6 +80,7 @@ export async function getAllFanartMovieImages(tmdbId) {
     return {
       posters: allImages(data.movieposter),
       logos: allImages([...(data.hdmovielogo || []), ...(data.movielogo || [])]),
+      backdrops: allImages(data.moviebackground),
     };
   } catch {
     return null;
@@ -86,6 +95,7 @@ export async function getAllFanartTvImages(tvdbId) {
     return {
       posters: allImages(data.tvposter),
       logos: allImages([...(data.hdtvlogo || []), ...(data.clearlogo || [])]),
+      backdrops: allImages([...(data.showbackground || []), ...(data.tvbackground || [])]),
     };
   } catch {
     return null;

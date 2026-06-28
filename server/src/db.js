@@ -19,6 +19,7 @@ db.exec(schema);
 try {
   const watchCols = db.pragma("table_info(watch_history)").map(c => c.name);
   if (!watchCols.includes("logo_url")) db.exec("ALTER TABLE watch_history ADD COLUMN logo_url TEXT");
+  if (!watchCols.includes("backdrop_url")) db.exec("ALTER TABLE watch_history ADD COLUMN backdrop_url TEXT");
 } catch { /* column already exists */ }
 
 // ---------------------------------------------------------------------------

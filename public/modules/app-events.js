@@ -519,13 +519,26 @@ function attachEvents() {
           const tvKey = `tv|${show.tmdb_id || ""}|${String(show.title || "").toLowerCase()}`;
           const cached = state.tmdbDetailsCache.get(tvKey);
           if (cached && !(cached instanceof Promise)) tmdbData = cached;
-          if (!tmdbData && show.tmdb_id) tmdbData = { id: show.tmdb_id, name: show.title };
+          if (!tmdbData && show.tmdb_id) {
+            tmdbData = {
+              id: show.tmdb_id,
+              name: show.title,
+              media_type: "tv",
+              tvdb_id: show.tvdb_id || show.representative_episode?.tvdb_id || "",
+            };
+          } else if (tmdbData) {
+            tmdbData = {
+              ...tmdbData,
+              media_type: "tv",
+              tvdb_id: tmdbData.tvdb_id || tmdbData.external_ids?.tvdb_id || show.tvdb_id || show.representative_episode?.tvdb_id || "",
+            };
+          }
         }
       }
       if (!tmdbData && entry?.tmdb_id && entry.media_type === "movie") {
-        tmdbData = { id: entry.tmdb_id, title: entry.title };
+        tmdbData = { id: entry.tmdb_id, title: entry.title, media_type: "movie" };
       }
-      openEditImageDialog(container, id, editImageBtn.dataset.posterUrl, tmdbData, ({ poster_url, logo_url, storage_url, updated_ids }) => {
+      openEditImageDialog(container, id, editImageBtn.dataset.posterUrl, tmdbData, ({ poster_url, logo_url, backdrop_url, youtube_url, storage_url, updated_ids }) => {
         if (poster_url) {
           editImageBtn.dataset.posterUrl = poster_url;
           const posterImg = container.querySelector(".immersive-poster-img");
@@ -564,6 +577,14 @@ function attachEvents() {
               titleEl?.classList.remove("sr-only");
             }
           }
+        }
+        if (backdrop_url !== undefined) {
+          editImageBtn.dataset.backdropUrl = backdrop_url;
+          const backdrop = container.querySelector(".modal-backdrop-image");
+          if (backdrop) backdrop.style.backgroundImage = `url('${backdrop_url}')`;
+        }
+        if (youtube_url !== undefined) {
+          editImageBtn.dataset.youtubeUrl = youtube_url;
         }
       });
       return;

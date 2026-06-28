@@ -30,6 +30,7 @@ function publicMediaUrl(storagePath) {
 }
 
 function sanitizedRemoteUrl(value = "") {
+  if (String(value || "").startsWith("data:image/")) return "data:image-upload";
   try {
     const url = new URL(String(value || ""));
     for (const key of [...url.searchParams.keys()]) {
@@ -129,71 +130,9 @@ export async function cacheLogoFromUrl(mediaKey = "", remoteUrl = "", source = "
 export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source = "unknown", { variant = "poster", width = 340, quality = 80 } = {}) {
   if (!mediaKey || !remoteUrl) return null;
 
-  // Handle local cached storage URLs directly without fetching.
-  if (String(remoteUrl).startsWith("/media/")) {
-    const storagePath = remoteUrl.replace(/^\/media\//, "");
-    const absolutePath = path.join(MEDIA_DIR, storagePath);
-    if (existsSync(absolutePath)) {
-      try {
-        const stat = await fs.stat(absolutePath).catch(() => null);
-        const cacheId = cacheIdFor(mediaKey, variant);
-        const extension = path.extname(storagePath).replace(/^\./, "");
-        const contentType = extension === "webp" ? "image/webp" : extension === "png" ? "image/png" : "image/jpeg";
-        upsertStmt.run({
-          id: cacheId,
-          media_key: mediaKey,
-          variant,
-          status: "cached",
-          source,
-          detail: null,
-          original_url: sanitizedRemoteUrl(remoteUrl),
-          storage_path: storagePath,
-          content_type: contentType,
-          size_bytes: stat ? stat.size : null,
-          url: remoteUrl,
-          updated_at_ms: Date.now(),
-        });
-        return { url: remoteUrl, cached: true, source };
-      } catch (error) {
-        console.error("Local poster cache update failed", error);
-      }
-    }
-  }
-
-  try {
-    // Move X-Plex-Token from the URL to a request header so the token does not
-    // appear in HTTP access logs on the upstream server.
-    const fetchUrl = new URL(normalizeHttpUrl(remoteUrl, { label: "artwork URL" }));
-    const fetchHeaders = { Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8" };
-    const plexToken = fetchUrl.searchParams.get("X-Plex-Token");
-    if (plexToken) {
-      fetchUrl.searchParams.delete("X-Plex-Token");
-      fetchHeaders["X-Plex-Token"] = plexToken;
-    }
-    const response = await fetchWithTimeout(fetchUrl.toString(), { headers: fetchHeaders }, 12_000);
-    if (!response.ok) {
-      // Don't persist rate-limit failures — they're transient and would block retries.
-      if (response.status !== 429 && response.status !== 503) {
-        await markPosterFailure(mediaKey, source, `HTTP ${response.status}`, remoteUrl, variant);
-      }
-      return null;
-    }
-
-    const contentType = response.headers.get("content-type") || "image/jpeg";
-    if (!String(contentType).toLowerCase().startsWith("image/")) {
-      await markPosterFailure(mediaKey, source, `Unexpected content type ${contentType}`, remoteUrl, variant);
-      return null;
-    }
-
-    const contentLength = Number(response.headers.get("content-length") || 0);
-    if (contentLength > MAX_ARTWORK_BYTES) {
-      await markPosterFailure(mediaKey, source, `Artwork exceeds ${MAX_ARTWORK_BYTES} bytes`, remoteUrl, variant);
-      return null;
-    }
-
-    const buffer = Buffer.from(await response.arrayBuffer());
+  const persistBuffer = async (buffer, contentType, originalUrl) => {
     if (!buffer.length || buffer.length > MAX_ARTWORK_BYTES) {
-      await markPosterFailure(mediaKey, source, "Artwork body is empty or too large", remoteUrl, variant);
+      await markPosterFailure(mediaKey, source, "Artwork body is empty or too large", originalUrl, variant);
       return null;
     }
 
@@ -227,7 +166,7 @@ export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source 
       status: "cached",
       source,
       detail: null,
-      original_url: sanitizedRemoteUrl(remoteUrl),
+      original_url: sanitizedRemoteUrl(originalUrl),
       storage_path: storagePath,
       content_type: finalContentType,
       size_bytes: finalBuffer.length,
@@ -235,6 +174,80 @@ export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source 
       updated_at_ms: Date.now(),
     });
     return { url, cached: false, source };
+  };
+
+  // Handle local cached storage URLs directly without fetching.
+  if (String(remoteUrl).startsWith("/media/")) {
+    const storagePath = remoteUrl.replace(/^\/media\//, "");
+    const absolutePath = path.join(MEDIA_DIR, storagePath);
+    if (existsSync(absolutePath)) {
+      try {
+        const stat = await fs.stat(absolutePath).catch(() => null);
+        const cacheId = cacheIdFor(mediaKey, variant);
+        const extension = path.extname(storagePath).replace(/^\./, "");
+        const contentType = extension === "webp" ? "image/webp" : extension === "png" ? "image/png" : "image/jpeg";
+        upsertStmt.run({
+          id: cacheId,
+          media_key: mediaKey,
+          variant,
+          status: "cached",
+          source,
+          detail: null,
+          original_url: sanitizedRemoteUrl(remoteUrl),
+          storage_path: storagePath,
+          content_type: contentType,
+          size_bytes: stat ? stat.size : null,
+          url: remoteUrl,
+          updated_at_ms: Date.now(),
+        });
+        return { url: remoteUrl, cached: true, source };
+      } catch (error) {
+        console.error("Local poster cache update failed", error);
+      }
+    }
+  }
+
+  if (String(remoteUrl).startsWith("data:image/")) {
+    const match = String(remoteUrl).match(/^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i);
+    if (!match) {
+      await markPosterFailure(mediaKey, source, "Invalid image data URL", remoteUrl, variant);
+      return null;
+    }
+    return persistBuffer(Buffer.from(match[2], "base64"), match[1].toLowerCase(), remoteUrl);
+  }
+
+  try {
+    // Move X-Plex-Token from the URL to a request header so the token does not
+    // appear in HTTP access logs on the upstream server.
+    const fetchUrl = new URL(normalizeHttpUrl(remoteUrl, { label: "artwork URL" }));
+    const fetchHeaders = { Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8" };
+    const plexToken = fetchUrl.searchParams.get("X-Plex-Token");
+    if (plexToken) {
+      fetchUrl.searchParams.delete("X-Plex-Token");
+      fetchHeaders["X-Plex-Token"] = plexToken;
+    }
+    const response = await fetchWithTimeout(fetchUrl.toString(), { headers: fetchHeaders }, 12_000);
+    if (!response.ok) {
+      // Don't persist rate-limit failures — they're transient and would block retries.
+      if (response.status !== 429 && response.status !== 503) {
+        await markPosterFailure(mediaKey, source, `HTTP ${response.status}`, remoteUrl, variant);
+      }
+      return null;
+    }
+
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    if (!String(contentType).toLowerCase().startsWith("image/")) {
+      await markPosterFailure(mediaKey, source, `Unexpected content type ${contentType}`, remoteUrl, variant);
+      return null;
+    }
+
+    const contentLength = Number(response.headers.get("content-length") || 0);
+    if (contentLength > MAX_ARTWORK_BYTES) {
+      await markPosterFailure(mediaKey, source, `Artwork exceeds ${MAX_ARTWORK_BYTES} bytes`, remoteUrl, variant);
+      return null;
+    }
+
+    return persistBuffer(Buffer.from(await response.arrayBuffer()), contentType, remoteUrl);
   } catch (error) {
     if (error?.name !== "AbortError") {
       await markPosterFailure(mediaKey, source, error?.message || String(error), remoteUrl, variant).catch(() => null);

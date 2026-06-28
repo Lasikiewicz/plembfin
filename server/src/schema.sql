@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS watch_history (
   episode INTEGER,
   poster_url TEXT,
   logo_url TEXT,
+  backdrop_url TEXT,
   youtube_url TEXT,
   sync_action TEXT,
   sync_dispatch_telemetry TEXT,

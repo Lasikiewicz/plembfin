@@ -78,7 +78,7 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 *   📈 **Stats Reviews**: Year, month, and all-time reports highlight most-played movies and TV shows with poster rankings, first/last plays, platform breakdowns, and watch activity.
 *   🔒 **Self-Hosted & Private**: Built on a local SQLite database running in WAL mode. All poster assets, metadata, and watch histories reside on your own hardware.
 *   🛡️ **Security Hardening**: Ships with strict HTTP security headers (CSP, `X-Frame-Options`, `Permissions-Policy`), scrypt password hashing, rate-limited login, HMAC-signed sessions, and a forced first-login password change when the default credentials are in use. See [`docs/hardening.md`](docs/hardening.md) for the full production checklist.
-*   🖼️ **Art Pipeline & Caching**: Fetches posters, backdrops, and logo art from your media servers, TMDB, and Fanart.tv (in parallel), resizes them with `sharp`, and caches them locally under `data/media` for near-instant rendering.
+*   🖼️ **Art Pipeline & Caching**: Fetches posters, backdrops, and logo art from your media servers and TMDB, then falls back to Fanart.tv when extra artwork is needed. Artwork is resized with `sharp` and cached locally under `data/media` for near-instant rendering.
 *   📺 **TV Next-Airing Cache**: Builds and maintains `data/next-airing-cache.json` from TMDB so the TV Shows library can list upcoming episodes without checking every show during page loads.
 *   🧹 **Echo Loop Prevention**: Utilizes a memory-mapped loop detector to suppress echo webhooks triggered by Plembfin's own updates.
 *   ☁️ **Automated Backups**: Backs up your database daily to a local folder and optionally mirrors to Backblaze B2 cloud storage.
@@ -185,12 +185,12 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 *   **TMDB API Key**: Obtain a free API key from [TheMovieDB](https://www.themoviedb.org/documentation/api) and paste it here. This enables search capability on the dashboard, rich cast lists, and poster fallbacks.
 
 #### 🎨 Fanart.tv (Artwork Fallback)
-*   Plembfin includes a built-in project key for [Fanart.tv](https://fanart.tv) — no setup is required. Fanart.tv is queried in parallel with TMDB as a fallback source for posters, backdrops, and transparent logo art.
+*   Plembfin includes a built-in project key for [Fanart.tv](https://fanart.tv) — no setup is required. Fanart.tv is queried after TMDB as a fallback/additional source for posters, backdrops, and transparent logo art.
 *   **Personal API Key (optional)**: Register at fanart.tv and enter your personal key under **Settings → API Keys → Fanart.tv** to get higher rate limits and access to your own uploaded artwork.
 
 #### ⭐ OMDb (IMDb Ratings)
 *   **Optional**: Register for a free API key at [omdbapi.com](https://www.omdbapi.com/apikey.aspx) (1,000 req/day free tier) and paste it under **Settings → Integrations → OMDb Setup**.
-*   When configured, IMDb ratings appear as a rating badge (e.g. **IMDb 85%**) next to the TMDB score on movie detail pages. Ratings are cached locally for 7 days. Can also be set via the `OMDB_API_KEY` environment variable.
+*   When configured, IMDb ratings appear as a rating badge (e.g. **IMDb 85%**) next to the TMDB score on media detail pages. If no OMDb key is configured, IMDb rating badges are hidden. Ratings are cached locally for 7 days. Can also be set via the `OMDB_API_KEY` environment variable.
 
 #### 🔍 Seerr (Request Manager)
 *   **Seerr Server URL**: Your Overseerr or Jellyseerr server URL (e.g., `http://192.168.1.100:5055`).
@@ -273,7 +273,7 @@ The following environment variables can be set in your system or defined in `doc
 | `SESSION_SECRET` | _generated_ | Signing secret for the dashboard session cookie. |
 | `COOKIE_SECURE` | `false` | Set to `true` when the app is served behind an HTTPS reverse proxy — enables `Secure` cookie flag and `Strict-Transport-Security` header. |
 | `FANART_API_KEY` | _none_ | Optional personal Fanart.tv API key for higher rate limits. A built-in project key is used when this is unset. |
-| `OMDB_API_KEY` | _none_ | Optional OMDb API key. When set, IMDb ratings are fetched and displayed as a rating badge on movie detail pages. Free tier: 1,000 req/day. |
+| `OMDB_API_KEY` | _none_ | Optional OMDb API key. When set, IMDb ratings are fetched and displayed as a rating badge on media detail pages. Free tier: 1,000 req/day. |
 | `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | The frequency (in milliseconds) of database-heavy catch-up library scans on Plex/Emby/Jellyfin. |
 
 ---

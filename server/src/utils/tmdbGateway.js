@@ -201,14 +201,6 @@ async function cacheCanonicalArtwork(mediaType, tmdbId, details) {
   let logo = logoState?.url || null;
 
   const hasTmdbLogos = (details.images?.logos || []).length > 0;
-  const needsFanart = !posterState || !backdropState || (!logo && !hasTmdbLogos && !logoState);
-
-  // Start fanart.tv metadata lookup in parallel with TMDB image downloads so both
-  // services are queried simultaneously rather than sequentially.
-  const tvdbId = String(details.external_ids?.tvdb_id || "");
-  const fanartPromise = needsFanart
-    ? (mediaType === "movie" ? getFanartMovieArt(tmdbId) : getFanartTvArt(tvdbId)).catch(() => null)
-    : Promise.resolve(null);
 
   const tmdbJobs = [];
   if (!posterState && details.poster_path) {
@@ -218,11 +210,22 @@ async function cacheCanonicalArtwork(mediaType, tmdbId, details) {
     tmdbJobs.push(cacheBackdropFromUrl(mediaKey, `${IMAGE_ROOT}/original${details.backdrop_path}`, "tmdb").then((v) => { backdrop = v?.url || backdrop; }));
   }
 
-  // Wait for TMDB downloads and fanart metadata at the same time.
-  const [, fanartArt] = await Promise.all([Promise.all(tmdbJobs), fanartPromise]);
+  await Promise.all(tmdbJobs);
 
-  // Download any fanart images needed to fill gaps left by TMDB.
-  if (fanartArt) {
+  const needsFanart = !poster || !backdrop || (!logo && !hasTmdbLogos && !logoState);
+  if (needsFanart) {
+    const tvdbId = String(details.external_ids?.tvdb_id || "");
+    const fanartArt = await (mediaType === "movie" ? getFanartMovieArt(tmdbId) : getFanartTvArt(tvdbId)).catch(() => null);
+    if (!fanartArt) {
+      if (!logo && !hasTmdbLogos && !logoState) {
+        await markPosterMissing(mediaKey, "fanart", "No fanart data", "logo");
+      }
+      return {
+        cached_poster_url: poster,
+        cached_backdrop_url: backdrop,
+        ...(logo ? { cached_logo_url: logo } : {}),
+      };
+    }
     const fanartJobs = [];
     if (!poster && fanartArt.poster) {
       fanartJobs.push(cachePosterFromUrl(mediaKey, fanartArt.poster, "fanart").then((v) => { poster = v?.url || poster; }));
@@ -237,8 +240,6 @@ async function cacheCanonicalArtwork(mediaType, tmdbId, details) {
     if (!logo && !hasTmdbLogos && !fanartArt.logo) {
       await markPosterMissing(mediaKey, "fanart", "No logo on fanart.tv", "logo");
     }
-  } else if (needsFanart && !logo && !hasTmdbLogos && !logoState) {
-    await markPosterMissing(mediaKey, "fanart", "No fanart data", "logo");
   }
 
   return {

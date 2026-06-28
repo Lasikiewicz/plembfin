@@ -21,7 +21,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `tmdb_search_cache` | TMDB search results | tmdb-search handler | TMDB search |
 | `tmdb_season_cache` | TMDB season details | tmdb-season handler | TV detail pages |
 | `tmdb_person_cache` | TMDB person details, key `person_${personId}` | tmdb-person handler | cast pages |
-| `omdb_cache` | OMDb/IMDb ratings, 7-day TTL, key is the IMDb ID (`tt…`) | omdb-rating handler | movie detail pages |
+| `omdb_cache` | OMDb/IMDb ratings, 7-day TTL, key is the IMDb ID (`tt…`) | omdb-rating handler | media detail pages |
 | `audit_log` | Security-relevant event log (login, credential change, rotation) | `writeAuditLog()` in `db.js` | ops/debugging only |
 
 ## `live_tracking_cache`
@@ -60,8 +60,18 @@ JSON blob with:
 ## `settings` (single row)
 
 JSON blob with the full connection configuration: Plex URL/token, Emby/Jellyfin
-URL/API key/user ID, TMDB key, YouTube key, and Seerr credentials. Written by
+URL/API key/user ID, TMDB key, Fanart.tv key, YouTube key, OMDb key, and Seerr credentials. Written by
 `POST /api/config`, read by everything that calls the media server APIs.
+
+## `watch_history` artwork columns
+
+Custom artwork selected from media detail pages is stored on each watch row:
+- `poster_url` — selected poster or locally cached `/media/posters/...` URL
+- `logo_url` — selected transparent logo/title art URL
+- `backdrop_url` — selected background/backdrop or locally cached `/media/backdrops/...` URL
+
+For TV shows, grouped show summaries inherit the first available poster, logo, and
+backdrop from their episode rows.
 
 ## `audit_log`
 

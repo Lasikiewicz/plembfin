@@ -66,6 +66,8 @@ const collections = {
       season: row.season,
       episode: row.episode,
       posterUrl: row.poster_url,
+      logoUrl: row.logo_url,
+      backdropUrl: row.backdrop_url,
       youtubeUrl: row.youtube_url,
       syncAction: row.sync_action,
       syncDispatchTelemetry: row.sync_dispatch_telemetry,
@@ -77,13 +79,13 @@ const collections = {
       updatedAt: row.updated_at,
     }),
     insert: db.prepare(`INSERT OR REPLACE INTO watch_history
-      (id,title,title_lower,media_type,watched_at,source,imdb_id,tmdb_id,tvdb_id,season,episode,poster_url,youtube_url,sync_action,sync_dispatch_telemetry,media_key,show_title,show_title_lower,episode_title,created_at,updated_at)
-      VALUES (@id,@title,@title_lower,@media_type,@watched_at,@source,@imdb_id,@tmdb_id,@tvdb_id,@season,@episode,@poster_url,@youtube_url,@sync_action,@sync_dispatch_telemetry,@media_key,@show_title,@show_title_lower,@episode_title,@created_at,@updated_at)`),
+      (id,title,title_lower,media_type,watched_at,source,imdb_id,tmdb_id,tvdb_id,season,episode,poster_url,logo_url,backdrop_url,youtube_url,sync_action,sync_dispatch_telemetry,media_key,show_title,show_title_lower,episode_title,created_at,updated_at)
+      VALUES (@id,@title,@title_lower,@media_type,@watched_at,@source,@imdb_id,@tmdb_id,@tvdb_id,@season,@episode,@poster_url,@logo_url,@backdrop_url,@youtube_url,@sync_action,@sync_dispatch_telemetry,@media_key,@show_title,@show_title_lower,@episode_title,@created_at,@updated_at)`),
     dataToRow: (id, d) => ({
       id, title: d.title || "", title_lower: d.titleLower || String(d.title || "").toLowerCase(),
       media_type: d.mediaType || "", watched_at: d.watchedAt || "", source: d.source || "",
       imdb_id: d.ids?.imdb || null, tmdb_id: d.ids?.tmdb || d.tmdbId || null, tvdb_id: d.ids?.tvdb || null,
-      season: d.season ?? null, episode: d.episode ?? null, poster_url: d.posterUrl || null, youtube_url: d.youtubeUrl || null,
+      season: d.season ?? null, episode: d.episode ?? null, poster_url: d.posterUrl || null, logo_url: d.logoUrl || null, backdrop_url: d.backdropUrl || null, youtube_url: d.youtubeUrl || null,
       sync_action: d.syncAction || "watched", sync_dispatch_telemetry: d.syncDispatchTelemetry || null,
       media_key: d.mediaKey || null, show_title: d.showTitle || null, show_title_lower: d.showTitleLower || null,
       episode_title: d.episodeTitle || null, created_at: toMs(d.createdAt), updated_at: toMs(d.updatedAt),

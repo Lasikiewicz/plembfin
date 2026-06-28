@@ -37,6 +37,7 @@ import {
   listLibraryItemsForRefresh,
   relatedPosterRows,
   setWatchPosterUrls,
+  setWatchBackdropUrl,
   listPlaybackProgressRowsForReplay,
   listWatchedPlaystateRowsForReplay,
   mediaToPlaybackProgressRecord,
@@ -76,7 +77,7 @@ import {
 import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
-import { cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
+import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, prewarmTmdbLibrary, searchTmdb, getCachedTvdbId } from "./utils/tmdbGateway.js";
 import {
   cachedNextAiringFor,
@@ -2849,24 +2850,15 @@ async function handleTmdbPoster(req, res) {
 
   const remoteUrl = `https://image.tmdb.org/t/p/w500${posterPath}`;
   const downloadPromise = (async () => {
-    // Start fanart.tv metadata lookup immediately, in parallel with waiting for a
-    // TMDB download slot. If TMDB succeeds the result is discarded; if it fails
-    // the fanart URL is already in hand with no extra round-trip.
-    let fanartPromise = Promise.resolve(null);
-    if (tmdbId) {
-      const tvdbId = mediaType === "tv" ? getCachedTvdbId(tmdbId) : "";
-      fanartPromise = (mediaType === "tv"
-        ? getFanartTvArt(tvdbId)
-        : getFanartMovieArt(tmdbId)).catch(() => null);
-    }
-
     await _acquireTmdbPosterSlot();
     try {
-      const [tmdbResult, fanartArt] = await Promise.all([
-        cachePosterFromUrl(mediaKey, remoteUrl, "tmdb"),
-        fanartPromise,
-      ]);
+      const tmdbResult = await cachePosterFromUrl(mediaKey, remoteUrl, "tmdb");
       if (tmdbResult) return tmdbResult;
+      if (!tmdbId) return null;
+      const tvdbId = mediaType === "tv" ? getCachedTvdbId(tmdbId) : "";
+      const fanartArt = await (mediaType === "tv"
+        ? getFanartTvArt(tvdbId)
+        : getFanartMovieArt(tmdbId)).catch(() => null);
       if (fanartArt?.poster) {
         return cachePosterFromUrl(mediaKey, fanartArt.poster, "fanart");
       }
@@ -3398,14 +3390,19 @@ async function handleFanartImages(req, res) {
   try {
     const mediaType = req.query.mediaType || req.query.type;
     const tmdbId = String(req.query.tmdbId || req.query.id || "").trim();
+    const tvdbIdParam = String(req.query.tvdbId || req.query.tvdb_id || "").trim();
     let result = null;
     if (mediaType === "movie") {
       result = await getAllFanartMovieImages(tmdbId);
     } else {
-      const tvdbId = getCachedTvdbId(tmdbId);
+      let tvdbId = tvdbIdParam || getCachedTvdbId(tmdbId);
+      if (!tvdbId && tmdbId) {
+        const details = await getTmdbDetails({ mediaType: "tv", tmdbId }).catch(() => null);
+        tvdbId = String(details?.external_ids?.tvdb_id || "");
+      }
       result = await getAllFanartTvImages(tvdbId);
     }
-    return sendJson(res, result || { posters: [], logos: [] });
+    return sendJson(res, result || { posters: [], logos: [], backdrops: [] });
   } catch (error) {
     return sendJson(res, { error: error.message }, 500);
   }
@@ -3577,6 +3574,7 @@ async function handleUpdateWatch(req, res) {
   if (body.watched_at !== undefined) fields.watched_at = body.watched_at;
   if (body.poster_url !== undefined) fields.poster_url = body.poster_url;
   if (body.logo_url !== undefined) fields.logo_url = body.logo_url;
+  if (body.backdrop_url !== undefined) fields.backdrop_url = body.backdrop_url;
   if (body.tmdb_id !== undefined) fields.tmdb_id = body.tmdb_id;
   if (body.title !== undefined) fields.title = body.title;
   if (body.youtube_url !== undefined) fields.youtube_url = body.youtube_url;
@@ -3592,6 +3590,7 @@ async function handleUpdateWatch(req, res) {
   // movie, or every episode of the same show) so each one resolves to it.
   let customPosterUrl;
   let customPosterIds;
+  let customBackdropUrl;
   const chosenPoster = String(body.poster_url ?? "").trim();
   const chosenPosterFetchUrl = resolveCustomPosterFetchUrl(chosenPoster);
   if (chosenPosterFetchUrl) {
@@ -3622,6 +3621,20 @@ async function handleUpdateWatch(req, res) {
     }
   }
 
+  const chosenBackdrop = String(body.backdrop_url ?? "").trim();
+  const chosenBackdropFetchUrl = resolveCustomPosterFetchUrl(chosenBackdrop);
+  if (chosenBackdropFetchUrl) {
+    const editedRow = await getWatchRecordByIdLight(id).catch(() => null);
+    const editedKey = editedRow?.media_key || (editedRow ? mediaKeyFor(editedRow) : null);
+    if (editedKey) {
+      const cached = await cacheBackdropFromUrl(editedKey, chosenBackdropFetchUrl, "custom").catch(() => null);
+      if (cached?.url) {
+        customBackdropUrl = `${cached.url}${cached.url.includes("?") ? "&" : "?"}v=${Date.now()}`;
+        await setWatchBackdropUrl(id, customBackdropUrl).catch(() => null);
+      }
+    }
+  }
+
   // If TMDB ID changed, clear any cached TMDB data for this record
   if (body.tmdb_id !== undefined) {
     const row = await getWatchRecordByIdLight(id).catch(() => null);
@@ -3637,7 +3650,7 @@ async function handleUpdateWatch(req, res) {
     }
   }
 
-  return sendJson(res, { ok: true, poster_url: customPosterUrl, updated_ids: customPosterIds });
+  return sendJson(res, { ok: true, poster_url: customPosterUrl, backdrop_url: customBackdropUrl, updated_ids: customPosterIds });
 }
 
 function extractYouTubeVideoId(url) {
