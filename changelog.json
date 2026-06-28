@@ -1,7 +1,22 @@
 {
-  "version": "0.2.49",
-  "updatedAt": "2026-06-28T12:48:11+01:00",
+  "version": "0.2.50",
+  "updatedAt": "2026-06-28T13:48:49+01:00",
   "entries": [
+    {
+      "version": "0.2.50",
+      "date": "2026-06-28T13:48:49+01:00",
+      "commit": "32cc1c44fa95087a4558cc8e108e461731a6180b",
+      "message": "feat: improve media artwork editing",
+      "author": "Lasikiewicz",
+      "details": [
+        "Redesign the edit images dialog with poster, logo, background, and YouTube sections",
+        "Add custom artwork upload controls with search links for finding poster, logo, and background images",
+        "Load Fanart.tv artwork after TMDB and improve TVDB/key handling for fanart results",
+        "Store custom background artwork on media records and include it in backups",
+        "Standardize primary action button styling across the app",
+        "Hide IMDb rating badges unless OMDb is configured"
+      ]
+    },
     {
       "version": "0.2.49",
       "date": "2026-06-28T12:48:11+01:00",
