@@ -1,7 +1,20 @@
 {
-  "version": "0.2.59",
-  "updatedAt": "2026-06-28T20:14:24+01:00",
+  "version": "0.2.60",
+  "updatedAt": "2026-06-28T20:36:43+01:00",
   "entries": [
+    {
+      "version": "0.2.60",
+      "date": "2026-06-28T20:36:43+01:00",
+      "commit": "67eb9d0a5525603ff4d0e0852b569e3658058b70",
+      "message": "fix: movie detail pages now show local content immediately; hide alphabet picker on detail pages",
+      "author": "Lasikiewicz",
+      "details": [
+        "Movie pages render title, poster, watch date and status instantly without waiting for TMDB",
+        "TMDB metadata (synopsis, cast, rating, trailers) patches in as soon as it arrives",
+        "IMDb rating and TV show recommendations load in parallel afterwards, no longer blocking the page",
+        "Alphabet letter picker no longer appears on movie/show detail pages or cast member profile pages"
+      ]
+    },
     {
       "version": "0.2.59",
       "date": "2026-06-28T20:14:24+01:00",
