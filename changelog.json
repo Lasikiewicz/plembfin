@@ -1,7 +1,19 @@
 {
-  "version": "0.2.54",
-  "updatedAt": "2026-06-28T16:29:46+01:00",
+  "version": "0.2.55",
+  "updatedAt": "2026-06-28T16:49:56+01:00",
   "entries": [
+    {
+      "version": "0.2.55",
+      "date": "2026-06-28T16:49:56+01:00",
+      "commit": "3bbd39b924ec8c1cc581f457c7602948191a933b",
+      "message": "fix: load now-playing posters for unwatched live sessions",
+      "author": "Lasikiewicz",
+      "details": [
+        "Now-playing posters now resolve through the cached artwork pipeline so they load on remote https sites",
+        "/api/poster falls back to the live session cache when an item has never been watched, instead of returning 404",
+        "Documented now-playing poster resolution and its failure mode in docs/now-playing.md"
+      ]
+    },
     {
       "version": "0.2.54",
       "date": "2026-06-28T16:29:46+01:00",
