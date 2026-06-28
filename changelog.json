@@ -1,7 +1,20 @@
 {
-  "version": "0.2.50",
-  "updatedAt": "2026-06-28T13:48:49+01:00",
+  "version": "0.2.51",
+  "updatedAt": "2026-06-28T14:24:43+01:00",
   "entries": [
+    {
+      "version": "0.2.51",
+      "date": "2026-06-28T14:24:43+01:00",
+      "commit": "b902e657ee9e036b7a1d6fb8e88892d6e0b38f70",
+      "message": "feat: add dashboard watch history view toggle",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add Card View and Poster View controls to the left menu above More",
+        "Make Card View the default dashboard watch history layout",
+        "Keep TV Shows and Movies history as single horizontal rows in both view modes",
+        "Scale Card View posters to the card height instead of a fixed poster width"
+      ]
+    },
     {
       "version": "0.2.50",
       "date": "2026-06-28T13:48:49+01:00",
