@@ -1,7 +1,20 @@
 {
-  "version": "0.2.53",
-  "updatedAt": "2026-06-28T16:10:01+01:00",
+  "version": "0.2.54",
+  "updatedAt": "2026-06-28T16:29:46+01:00",
   "entries": [
+    {
+      "version": "0.2.54",
+      "date": "2026-06-28T16:29:46+01:00",
+      "commit": "a2697de2c3a15a2b0b493615ba16ba771a8777bc",
+      "message": "fix: fix now-playing poster images and dashboard card width",
+      "author": "Lasikiewicz",
+      "details": [
+        "Now-playing sessions now always carry a media_key so posters load correctly",
+        "Poster lookup falls back to media_key when the row ID is not a numeric watch record",
+        "Dashboard watch history view (state 2) cards now have the correct 430px width",
+        "posterUpdateId uses the row's actual id so poster URLs persist to the right record"
+      ]
+    },
     {
       "version": "0.2.53",
       "date": "2026-06-28T16:10:01+01:00",
