@@ -1,7 +1,17 @@
 {
-  "version": "0.2.51",
-  "updatedAt": "2026-06-28T14:24:43+01:00",
+  "version": "0.2.52",
+  "updatedAt": "2026-06-28T15:43:55+01:00",
   "entries": [
+    {
+      "version": "0.2.52",
+      "date": "2026-06-28T15:43:55+01:00",
+      "commit": "7764040cdec1677bb22449ed5435e1f4f643dfd9",
+      "message": "fix: widen dashboard card view cards when nothing is playing or part-watched",
+      "author": "Lasikiewicz",
+      "details": [
+        "Increase card width from 385px to 460px in dashboard state 3 (no active session, no part-watched items)"
+      ]
+    },
     {
       "version": "0.2.51",
       "date": "2026-06-28T14:24:43+01:00",
