@@ -78,10 +78,12 @@ function canonicalTitle(value = "") {
 
 function titleSearchParts(value = "") {
   const title = String(value || "").trim();
-  const match = title.match(/\s*\((\d{4})\)\s*$/);
+  // Match a trailing "(YYYY)" on the already-trimmed string. Anchoring tightly with no
+  // leading/trailing \s* avoids the polynomial backtracking CodeQL flagged.
+  const match = title.match(/\((\d{4})\)$/);
   if (!match) return { title, year: "" };
   return {
-    title: title.replace(/\s*\(\d{4}\)\s*$/, "").trim(),
+    title: title.slice(0, match.index).trim(),
     year: match[1],
   };
 }

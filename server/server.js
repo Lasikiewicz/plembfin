@@ -75,6 +75,12 @@ app.use("/api/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHea
 app.use("/api/webhook", rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/tmdb-poster", rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/tmdb-profile", rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
+// General API limiter — generous ceiling so the poster-heavy dashboard/explorer is never
+// throttled in normal use, while still capping abusive bursts. Applied after the tighter
+// per-route limiters above so those still take precedence for their paths.
+app.use("/api", rateLimit({ windowMs: 60 * 1000, max: 1200, standardHeaders: true, legacyHeaders: false }));
+// Static asset / SPA fallback limiter — high ceiling, just bounds runaway requests.
+app.use(rateLimit({ windowMs: 60 * 1000, max: 2000, standardHeaders: true, legacyHeaders: false }));
 
 // Capture the raw request body for /api so webhook/JSON handlers can parse it
 // themselves (multipart via busboy, JSON via readJson). express.raw sets

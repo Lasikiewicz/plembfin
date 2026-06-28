@@ -11,7 +11,7 @@ import { AUTH, verifyWebhookToken } from "./appConfig.js";
 import { getLogs as getDiagnosticLogs, clearLogs as clearDiagnosticLogs } from "./utils/diagnosticLogger.js";
 import { readFormData, readJson } from "./utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed, notFound } from "./utils/http.js";
-import { fetchWithTimeout } from "./utils/outbound.js";
+import { fetchWithTimeout, assertSafeOutboundUrl } from "./utils/outbound.js";
 import { appendSyncHistory, loadMediaConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "./utils/configStore.js";
 import { db, parseJson, toJson, writeAuditLog } from "./db.js";
 import { createLoopStore } from "./utils/loopStore.js";
@@ -2323,11 +2323,11 @@ async function handleWebhook(req, res) {
         episodes = await fetchEmbyEpisodes(config.emby, media.itemId);
       }
     } catch (error) {
-      console.error(`Failed to fetch child episodes for ${media.type} ${media.itemId}`, error);
+      console.error("Failed to fetch child episodes for %s %s", media.type, media.itemId, error);
       return sendJson(res, { error: `Failed to fetch episodes for ${media.type}`, details: error.message }, 500);
     }
 
-    console.log(`Found ${episodes.length} episodes under ${media.type} ${media.itemId}`);
+    console.log("Found %d episodes under %s %s", episodes.length, media.type, media.itemId);
 
     const results = [];
     const targetPlayed = media.phase === "completed";
@@ -2600,17 +2600,18 @@ async function handleTestConnection(req, res) {
     if (!["http:", "https:"].includes(parsedBase.protocol)) {
       return sendJson(res, { ok: false, error: "Only http and https URLs are allowed" }, 400);
     }
-  } catch {
-    return sendJson(res, { ok: false, error: "Invalid URL" }, 400);
+    assertSafeOutboundUrl(baseUrl, { label: "Server URL" });
+  } catch (error) {
+    return sendJson(res, { ok: false, error: error.message || "Invalid URL" }, 400);
   }
 
   try {
     let response;
     if (type === "plex") {
-      const url = new URL(`${baseUrl}/identity`);
+      const url = assertSafeOutboundUrl(`${baseUrl}/identity`);
       response = await fetch(url, { headers: { Accept: "application/json, application/xml, text/xml", "X-Plex-Token": token } });
     } else if (type === "emby" || type === "jellyfin") {
-      const url = new URL(`${baseUrl}/System/Info/Public`);
+      const url = assertSafeOutboundUrl(`${baseUrl}/System/Info/Public`);
       response = await fetch(url, { headers: { Accept: "application/json", "X-Emby-Token": token, "X-MediaBrowser-Token": token } });
     } else {
       return sendJson(res, { ok: false, error: "Unsupported connection type" }, 400);
@@ -3716,8 +3717,9 @@ async function handleUpdateWatch(req, res) {
 function extractYouTubeVideoId(url) {
   try {
     const u = new URL(url);
-    if (u.hostname === "youtu.be") return u.pathname.slice(1).split("?")[0] || null;
-    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v") || null;
+    const host = u.hostname.toLowerCase().replace(/^www\./, "");
+    if (host === "youtu.be") return u.pathname.slice(1).split("?")[0] || null;
+    if (host === "youtube.com" || host === "m.youtube.com") return u.searchParams.get("v") || null;
   } catch { /* invalid URL */ }
   return null;
 }

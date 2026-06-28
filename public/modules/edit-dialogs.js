@@ -363,8 +363,9 @@ export function openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes =
 function extractYouTubeId(url) {
   try {
     const u = new URL(url);
-    if (u.hostname === "youtu.be") return u.pathname.slice(1).split("?")[0];
-    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v") || null;
+    const host = u.hostname.toLowerCase().replace(/^www\./, "");
+    if (host === "youtu.be") return u.pathname.slice(1).split("?")[0];
+    if (host === "youtube.com" || host === "m.youtube.com") return u.searchParams.get("v") || null;
   } catch { /* invalid URL */ }
   return null;
 }

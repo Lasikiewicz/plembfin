@@ -4,16 +4,21 @@ const PLEX_COMPLETE_EVENTS = ["media.scrobble", "user.playrate"];
 const EMBY_ACTIVE_EVENTS = ["playback.start", "playback.unpause", "playback.progress", "playback.pause"];
 const JELLYFIN_ACTIVE_EVENTS = ["PlaybackStart", "PlaybackProgress", "PlaybackPause"];
 
+const NAMED_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+
+// Single-pass decode so each entity is expanded exactly once. Decoding in chained
+// .replace() calls double-unescapes inputs like "&#38;amp;" (numeric -> "&amp;" -> "&");
+// matching all forms in one regex avoids that.
 export function decodeHtmlEntities(str) {
-  return String(str ?? "")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'");
+  return String(str ?? "").replace(
+    /&#x([0-9a-f]+);|&#(\d+);|&(amp|lt|gt|quot|apos|#39);/gi,
+    (match, hex, dec, named) => {
+      if (hex !== undefined) return String.fromCharCode(parseInt(hex, 16));
+      if (dec !== undefined) return String.fromCharCode(Number(dec));
+      if (named === "#39") return "'";
+      return NAMED_ENTITIES[named.toLowerCase()] ?? match;
+    }
+  );
 }
 
 function normalizeType(value) {

@@ -140,7 +140,7 @@ function stablePosterKey(value) {
   if (lowered.includes("favicon") || lowered.includes("placeholder") || lowered.includes("no-poster")) return "";
   try {
     const url = new URL(poster);
-    if (url.hostname.toLowerCase().includes("image.tmdb.org")) {
+    if (url.hostname.toLowerCase() === "image.tmdb.org") {
       return `tmdb-poster:${url.pathname.split("/").filter(Boolean).pop() || poster}`;
     }
     url.search = "";

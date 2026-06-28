@@ -35,7 +35,7 @@ function stablePosterIdentity(value = "") {
   if (lowered.includes("favicon") || lowered.includes("placeholder") || lowered.includes("no-poster")) return "";
   try {
     const url = new URL(raw, window.location.origin);
-    if (url.hostname.toLowerCase().includes("image.tmdb.org")) {
+    if (url.hostname.toLowerCase() === "image.tmdb.org") {
       return `tmdb-poster:${url.pathname.split("/").filter(Boolean).pop() || raw}`;
     }
     url.search = "";
