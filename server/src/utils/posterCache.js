@@ -5,6 +5,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { db } from "../db.js";
 import { MEDIA_DIR } from "../paths.js";
+import { fetchWithTimeout, normalizeHttpUrl } from "./outbound.js";
 
 const FAILED_RETRY_MS = 24 * 60 * 60 * 1000;
 const MISSING_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
@@ -162,14 +163,14 @@ export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source 
   try {
     // Move X-Plex-Token from the URL to a request header so the token does not
     // appear in HTTP access logs on the upstream server.
-    const fetchUrl = new URL(remoteUrl);
+    const fetchUrl = new URL(normalizeHttpUrl(remoteUrl, { label: "artwork URL" }));
     const fetchHeaders = { Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8" };
     const plexToken = fetchUrl.searchParams.get("X-Plex-Token");
     if (plexToken) {
       fetchUrl.searchParams.delete("X-Plex-Token");
       fetchHeaders["X-Plex-Token"] = plexToken;
     }
-    const response = await fetch(fetchUrl.toString(), { headers: fetchHeaders });
+    const response = await fetchWithTimeout(fetchUrl.toString(), { headers: fetchHeaders }, 12_000);
     if (!response.ok) {
       // Don't persist rate-limit failures — they're transient and would block retries.
       if (response.status !== 429 && response.status !== 503) {
@@ -235,7 +236,9 @@ export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source 
     });
     return { url, cached: false, source };
   } catch (error) {
-    await markPosterFailure(mediaKey, source, error?.message || String(error), remoteUrl, variant).catch(() => null);
+    if (error?.name !== "AbortError") {
+      await markPosterFailure(mediaKey, source, error?.message || String(error), remoteUrl, variant).catch(() => null);
+    }
     return null;
   }
 }

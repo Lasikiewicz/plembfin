@@ -6,11 +6,12 @@ import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRating
 import { createPlexNotificationListener, probePlexNotificationSocket } from "./utils/plexNotificationListener.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "./utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes } from "./utils/jellyfinClient.js";
-import { requireAdmin, handleLogin, handleLogout, handleAuthStatus, handleAuthApiKey, handleAuthWebhookSecret, handleAuthCredentials, handleRevokeAllSessions } from "./utils/auth.js";
+import { requireAdmin, resolveAdminPrincipal, handleLogin, handleLogout, handleAuthStatus, handleAuthApiKey, handleAuthWebhookSecret, handleAuthCredentials, handleRevokeAllSessions } from "./utils/auth.js";
 import { AUTH, verifyWebhookToken } from "./appConfig.js";
 import { getLogs as getDiagnosticLogs, clearLogs as clearDiagnosticLogs } from "./utils/diagnosticLogger.js";
 import { readFormData, readJson } from "./utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed, notFound } from "./utils/http.js";
+import { fetchWithTimeout } from "./utils/outbound.js";
 import { appendSyncHistory, loadMediaConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "./utils/configStore.js";
 import { db, parseJson, toJson, writeAuditLog } from "./db.js";
 import { createLoopStore } from "./utils/loopStore.js";
@@ -2045,13 +2046,29 @@ async function handleCronSync(req, res) {
 
   try {
     const result = await runScheduledSync(logger);
+    await setRuntimeState({ lastCronResult: { ok: true, result, finishedAt: Date.now() } }).catch(() => null);
     res.write(`RESULT: ${JSON.stringify(result)}\n`);
     res.end();
   } catch (error) {
     logger(`ERROR: Cron Sync failed: ${error.message}`);
+    await setRuntimeState({ lastCronResult: { ok: false, error: error.message, finishedAt: Date.now() } }).catch(() => null);
+    res.write(`RESULT: ${JSON.stringify({ success: false, error: error.message })}\n`);
     res.end();
   }
 }
+
+async function handleCronSyncStatus(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const runtime = await loadRuntimeState();
+  return sendJson(res, {
+    lastCron: runtime.lastCronExecution || null,
+    lastResult: runtime.lastCronResult || null,
+  }, 200, { "Cache-Control": "no-store" });
+}
+
+let forceSyncRunning = false;
 
 async function handleForceSync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
@@ -2073,9 +2090,14 @@ async function handleForceSync(req, res) {
   if (!(await requireAdmin(req, res))) return;
 
   const runtime = await loadRuntimeState();
-  const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
-  if (runtime.forceSyncActive === true && runtime.forceSyncStartedAt && runtime.forceSyncStartedAt > tenMinutesAgo) {
+  const FORCE_SYNC_HEARTBEAT_STALE_MS = 3 * 60 * 1000;
+  const heartbeat = Number(runtime.forceSyncHeartbeat || runtime.forceSyncStartedAt || 0);
+  const stale = !heartbeat || heartbeat < Date.now() - FORCE_SYNC_HEARTBEAT_STALE_MS;
+  if (forceSyncRunning || (runtime.forceSyncActive === true && !stale)) {
     return sendJson(res, { ok: false, error: "Another force sync job is already running." }, 409);
+  }
+  if (runtime.forceSyncActive === true && stale) {
+    await setRuntimeState({ forceSyncActive: false, forceSyncCancelRequested: false }).catch(() => null);
   }
 
   // Clear the previous log and mark as active before returning
@@ -2084,8 +2106,10 @@ async function handleForceSync(req, res) {
     forceSyncResult: null,
     forceSyncActive: true,
     forceSyncStartedAt: Date.now(),
+    forceSyncHeartbeat: Date.now(),
     forceSyncCancelRequested: false,
   });
+  forceSyncRunning = true;
 
   // Batch log writes: collect lines in memory, flush every 3s.
   const logBuffer = [];
@@ -2110,6 +2134,10 @@ async function handleForceSync(req, res) {
 
   // Kick off in background — HTTP response returned below without awaiting this
   Promise.resolve().then(async () => {
+    const heartbeatTimer = setInterval(() => {
+      setRuntimeState({ forceSyncHeartbeat: Date.now() }).catch(() => null);
+    }, 30_000);
+    heartbeatTimer.unref?.();
     try {
       const result = await runForceSync(logLine, { lockAlreadyClaimed: true });
       if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
@@ -2118,6 +2146,7 @@ async function handleForceSync(req, res) {
       await setRuntimeState({
         forceSyncActive: false,
         forceSyncResult: result,
+        forceSyncHeartbeat: Date.now(),
       }).catch(() => null);
     } catch (error) {
       const msg = `ERROR: Force Sync failed: ${error.message}`;
@@ -2128,7 +2157,11 @@ async function handleForceSync(req, res) {
       await setRuntimeState({
         forceSyncActive: false,
         forceSyncResult: { success: false, error: error.message },
+        forceSyncHeartbeat: Date.now(),
       }).catch(() => null);
+    } finally {
+      clearInterval(heartbeatTimer);
+      forceSyncRunning = false;
     }
   });
 
@@ -2156,7 +2189,10 @@ async function handleStopForceSync(req, res) {
 async function handleWebhook(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
-  if (!verifyWebhookToken(String(req.query?.token || ""))) {
+  const headerToken = String(req.get("x-plembfin-webhook-secret") || "").trim();
+  const authToken = String(req.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  const queryToken = String(req.query?.token || "").trim();
+  if (![headerToken, authToken, queryToken].some((token) => verifyWebhookToken(token))) {
     return sendJson(res, { error: "Unauthorized" }, 401);
   }
 
@@ -3176,6 +3212,7 @@ async function handleTmdbDetails(req, res) {
 // page load so the server is warm by the time the user clicks into anything.
 function handlePing(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET" && req.method !== "HEAD") return methodNotAllowed(res);
   return sendJson(res, { ok: true, ts: Date.now() }, 200, { "Cache-Control": "no-store" });
 }
 
@@ -3810,20 +3847,13 @@ async function fetchRemoteChangelog({ force = false } = {}) {
   if (!force && remoteChangelogCache.data && now - remoteChangelogCache.fetchedAt < REMOTE_CHANGELOG_TTL_MS) {
     return remoteChangelogCache.data;
   }
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  try {
-    const response = await fetch(REMOTE_CHANGELOG_URL, {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`GitHub responded ${response.status}`);
-    const data = await response.json();
-    remoteChangelogCache = { fetchedAt: now, data };
-    return data;
-  } finally {
-    clearTimeout(timeout);
-  }
+  const response = await fetchWithTimeout(REMOTE_CHANGELOG_URL, {
+    headers: { Accept: "application/json" },
+  }, 8000);
+  if (!response.ok) throw new Error(`GitHub responded ${response.status}`);
+  const data = await response.json();
+  remoteChangelogCache = { fetchedAt: now, data };
+  return data;
 }
 
 function parseSemver(value) {
@@ -3854,7 +3884,7 @@ async function handleChangelog(req, res) {
   let remote = null;
   let remoteError = null;
   try {
-    remote = await fetchRemoteChangelog({ force: req.query?.refresh === "1" });
+    remote = await fetchRemoteChangelog({ force: req.query?.refresh === "1" && Boolean(resolveAdminPrincipal(req)) });
   } catch (error) {
     remoteError = error?.message || "Unable to reach GitHub";
   }
@@ -3922,6 +3952,7 @@ async function dispatch(req, res) {
     if (path === "now-playing") return handleNowPlaying(req, res);
     if (path === "active-sessions") return handleActiveSessions(req, res);
     if (path === "cron-sync") return handleCronSync(req, res);
+    if (path === "cron-sync/status") return handleCronSyncStatus(req, res);
     if (path === "force-sync") return handleForceSync(req, res);
     if (path === "stop-force-sync") return handleStopForceSync(req, res);
     if (path === "dedup-history") return handleDedupHistory(req, res);
@@ -4010,17 +4041,43 @@ async function refreshNextAiringCache({ limit = NEXT_AIRING_REFRESH_LIMIT, force
   return { checked: candidates.length, written: result.written || 0 };
 }
 
+const scheduledTasksInFlight = new Map();
+
+async function runWithTimeBudget(label, task, timeoutMs) {
+  if (scheduledTasksInFlight.has(label)) {
+    console.warn(`${label} is still running from a previous tick; skipping this tick.`);
+    return;
+  }
+  let timeout;
+  const taskPromise = Promise.resolve()
+    .then(task)
+    .finally(() => scheduledTasksInFlight.delete(label));
+  scheduledTasksInFlight.set(label, taskPromise);
+  try {
+    await Promise.race([
+      taskPromise,
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } catch (error) {
+    console.error(`${label} failed`, error);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // Invoked once per minute by the in-process scheduler in server.js
 // (replacing the scheduledSync Cloud Function).
 export async function runScheduledTick() {
-  await runScheduledSync();
-  await Promise.resolve(runScheduledWatchBackup()).catch((error) => console.error("Scheduled watch-history backup failed", error));
-  await prewarmTmdbLibrary({ limit: 4 }).catch((error) => console.error("TMDB prewarm failed", error));
+  await runWithTimeBudget("Scheduled sync", () => runScheduledSync(), 50_000);
+  await runWithTimeBudget("Scheduled watch-history backup", () => runScheduledWatchBackup(), 30_000);
+  await runWithTimeBudget("TMDB prewarm", () => prewarmTmdbLibrary({ limit: 4 }), 30_000);
   if (Date.now() - lastNextAiringRefreshAt > NEXT_AIRING_REFRESH_INTERVAL_MS) {
     lastNextAiringRefreshAt = Date.now();
     const forceAll = nextAiringInitialBuildPending;
     nextAiringInitialBuildPending = false;
-    await refreshNextAiringCache({ forceAll }).catch((error) => console.error("Next airing cache refresh failed", error));
+    await runWithTimeBudget("Next airing cache refresh", () => refreshNextAiringCache({ forceAll }), 45_000);
   }
 }
 

@@ -7018,8 +7018,8 @@ h1 {
   .immersive-header {
     grid-template-columns: 1fr;
     min-height: auto;
-    justify-items: start;
-    text-align: left;
+    justify-items: center;
+    text-align: center;
   }
 
   .immersive-poster-img {
@@ -7130,6 +7130,7 @@ h1 {
 
   .immersive-meta {
     gap: 0.5rem;
+    align-items: center;
   }
 
   /* Button layout */
@@ -7220,17 +7221,30 @@ h1 {
   }
 
   .page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-page-card {
-    height: 9rem;
+    height: auto;
+    min-height: 10.5rem;
     width: min(88vw, 26rem);
     flex: 0 0 auto;
     align-items: stretch;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-poster-wrapper {
-    height: 100%;
-    width: auto;
-    flex: 0 0 auto;
+    width: 6.5rem;
+    height: 9.75rem;
+    flex: 0 0 6.5rem;
+  }
+
+  .page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+  }
+
+  .page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-action-btn {
+    min-height: 2.4rem;
+    padding: 0.45rem 0.5rem !important;
+    white-space: normal;
   }
 
   /* Watch History rows: natural scrollable height */
@@ -7251,15 +7265,15 @@ h1 {
 
   .page-shell[data-active-view="dashboard"] #tvHistoryRow .history-mini-card,
   .page-shell[data-active-view="dashboard"] #movieHistoryRow .history-mini-card {
-    height: 9rem;
-    max-width: 12rem;
+    height: 12.25rem;
+    max-width: 9rem;
   }
 
   .page-shell[data-active-view="dashboard"] #tvHistoryRow .history-mini-card-poster-wrapper,
   .page-shell[data-active-view="dashboard"] #movieHistoryRow .history-mini-card-poster-wrapper {
-    flex: 1 1 auto;
-    height: auto;
-    width: auto;
+    flex: 0 0 8rem;
+    height: 8rem;
+    width: 100%;
   }
 
   /* Stats leaderboard leader card: shrink poster on mobile */

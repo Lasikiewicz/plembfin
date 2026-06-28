@@ -34,8 +34,9 @@ browser ──/media/──────────▶ Express ──▶ static 
    `data/media`.
 2. `dispatch()` (`server/src/index.js`) strips the `/api/` prefix and routes by
    path to a `handleX` function. The full route table is the body of `dispatch()`.
-3. Auth: webhook routes use `verifyWebhookToken(token)` (from the `?token=` URL
-   param). All other protected routes call `requireAdmin(req, res)`, which accepts
+3. Auth: webhook routes use `verifyWebhookToken(token)` from
+   `X-Plembfin-Webhook-Secret`, `Authorization: Bearer`, or the compatibility
+   `?token=` URL param. All other protected routes call `requireAdmin(req, res)`, which accepts
    either a signed HttpOnly session cookie (`plembfin_session`) or an API key
    (`X-Api-Key` header / `Authorization: Bearer`).
 
@@ -46,6 +47,7 @@ browser ──/media/──────────▶ Express ──▶ static 
 running when the next fires, the new tick is skipped.
 
 The same logic runs on demand via:
+- `GET /api/cron-sync/status` — returns the last cron trigger/result as JSON for automation.
 - `POST /api/cron-sync` — streams a text log of what the tick did.
 - `POST /api/force-sync` — runs and stores progress in `runtime_state` for the
   dashboard to poll; `stop-force-sync` cancels.
@@ -90,7 +92,8 @@ boot. All database access uses prepared statements.
 - API key: 48-hex-char random string, stored in `data/config.json`. Sent as
   `X-Api-Key` header or `Authorization: Bearer`.
 - Webhook secret: separate 48-hex-char key, rotatable independently. Sent as
-  `?token=` URL parameter (the only auth method webhook senders can use).
+  `X-Plembfin-Webhook-Secret`, `Authorization: Bearer`, or the compatibility
+  `?token=` URL parameter.
 
 ## Frontend state & routing
 
@@ -101,9 +104,9 @@ boot. All database access uses prepared statements.
   Routes: `/` dashboard, `/stats`, `/movie/:id`, `/tvshow/:key`, `/person/:id`, `/settings/:tab`, `/help/:topic`.
 - Auth handled by `onAuthChange()` (`modules/auth.js`) — which checks
   `/api/auth/status`. The auth panel is hidden until a session is confirmed.
-- After every successful auth operation, `fetchAndCacheApiKey()` is called to
-  populate `cachedToken` in `auth.js`; this token goes into `X-Api-Key` headers
-  for all subsequent API calls.
+- Browser API calls use the HttpOnly session cookie after authentication.
+  `fetchAndCacheApiKey()` keeps the integration API key in memory only for
+  authenticated display/copy flows; it is not persisted to localStorage.
 - The explorer and history grids use `IntersectionObserver` (1200px rootMargin,
   240-item pages) to pre-fetch the next page. The history endpoint returns an
   explicit `hasMore` flag so the dedicated History page can continue lazy-loading
@@ -122,9 +125,13 @@ boot. All database access uses prepared statements.
 
 ## Access logging
 
+Sensitive query parameters such as `token`, `api_key`, `secret`, and `password` are redacted before request log formatting.
+
 Morgan `combined`-format request logs are written to `data/logs/access.log`. The file rotates daily and the last 14 days of logs are retained. Logs are never written to stdout — only to the file — so container log streams stay clean.
 
 ## Security headers
+
+The CSP keeps scripts and connections same-origin, allows TMDB images, sets `frame-ancestors 'none'`, and permits YouTube embeds only in frames.
 
 Every response carries: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, and a `Content-Security-Policy` that allows frames only from YouTube. `Strict-Transport-Security` is added when `COOKIE_SECURE=true`. `x-powered-by` is suppressed.
 
@@ -140,7 +147,7 @@ Startup runs `logSecuritySummary()` (in `appConfig.js`) which warns if the admin
 - `DATA_DIR` — data directory (default `<repo>/data`; Docker sets `/data`)
 - `ADMIN_USERNAME` / `ADMIN_PASSWORD` — admin login (default `admin` / `admin`)
 - `API_KEY` — pin the webhook/integration key
-- `WEBHOOK_SECRET` — pin the webhook URL secret token
+- `WEBHOOK_SECRET` — pin the webhook secret used by header/Bearer auth and the compatibility `?token=` URL
 - `SESSION_SECRET` — pin the session signing secret
 - `COOKIE_SECURE` — set to `true` when behind an HTTPS reverse proxy
 - `OMDB_API_KEY` — optional OMDb API key; when set, enables IMDb rating badges on movie detail pages (free tier: 1,000 req/day from omdbapi.com). Can also be configured in Settings → Integrations.

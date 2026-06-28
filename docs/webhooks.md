@@ -2,20 +2,31 @@
 
 ## Authentication
 
-The webhook endpoint is at `/api/webhook` and requires a secret token in the URL:
+The webhook endpoint is at `/api/webhook` and requires the webhook secret. Media servers commonly use the compatibility query-token URL:
 
 ```
 POST /api/webhook?token=<webhookSecret>
 ```
+
+Header auth is preferred for custom automation clients that can set request headers:
+
+```
+POST /api/webhook
+X-Plembfin-Webhook-Secret: <webhookSecret>
+```
+
+`Authorization: Bearer <webhookSecret>` is also accepted. Plex, Emby, and Jellyfin
+setups can continue using the query-token URL above when custom headers are not
+available; access logs redact sensitive query parameters before writing to disk.
 
 `webhookSecret` is generated on first boot and stored in `data/config.json`. Copy the
 full URL (including token) from **Settings → API Endpoints** in the dashboard. You can
 rotate it independently via the "Rotate Secret" button without affecting the admin
 password or API key.
 
-> The `?token=` approach mirrors Sonarr/Radarr/Overseerr and is the only auth method
-> webhook senders (Plex, Emby, Jellyfin) can use, since they cannot set custom HTTP
-> headers on outbound notifications.
+> The `?token=` approach mirrors Sonarr/Radarr/Overseerr and remains the compatibility
+> method for webhook senders such as Plex, Emby, and Jellyfin when they cannot set
+> custom HTTP headers on outbound notifications.
 
 ## Normalization → phases
 

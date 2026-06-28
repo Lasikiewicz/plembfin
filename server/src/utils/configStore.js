@@ -1,4 +1,5 @@
 import { db, parseJson, toJson } from "../db.js";
+import { normalizeHttpUrl } from "./outbound.js";
 
 const SETTINGS_ID = "mediaConfig";
 const RUNTIME_ID = "main";
@@ -192,11 +193,20 @@ export async function saveMediaConfig(config) {
 
 export function validateConfig(config = {}) {
   const errors = [];
+  const validateBaseUrl = (value, label) => {
+    if (!value) return;
+    try {
+      normalizeHttpUrl(value, { label });
+    } catch (error) {
+      errors.push(error.message);
+    }
+  };
 
   if (config.plex) {
     const plexEnabled = !config.plex.disabled;
     if (plexEnabled) {
       if (!config.plex.baseUrl) errors.push("plex.baseUrl is required when Plex is enabled");
+      validateBaseUrl(config.plex.baseUrl, "plex.baseUrl");
       if (!config.plex.token) errors.push("plex.token is required when Plex is enabled");
       if (!config.plex.username) errors.push("plex.username is required when Plex is enabled");
     }
@@ -206,6 +216,7 @@ export function validateConfig(config = {}) {
     const embyEnabled = !config.emby.disabled;
     if (embyEnabled) {
       if (!config.emby.baseUrl) errors.push("emby.baseUrl is required when Emby is enabled");
+      validateBaseUrl(config.emby.baseUrl, "emby.baseUrl");
       if (!config.emby.apiKey) errors.push("emby.apiKey is required when Emby is enabled");
       if (!config.emby.userId) errors.push("emby.userId is required when Emby is enabled");
     }
@@ -215,9 +226,14 @@ export function validateConfig(config = {}) {
     const jellyfinEnabled = !config.jellyfin.disabled;
     if (jellyfinEnabled) {
       if (!config.jellyfin.baseUrl) errors.push("jellyfin.baseUrl is required when Jellyfin is enabled");
+      validateBaseUrl(config.jellyfin.baseUrl, "jellyfin.baseUrl");
       if (!config.jellyfin.apiKey) errors.push("jellyfin.apiKey is required when Jellyfin is enabled");
       if (!config.jellyfin.userId) errors.push("jellyfin.userId is required when Jellyfin is enabled");
     }
+  }
+
+  if (config.seerr && !config.seerr.disabled && config.seerr.baseUrl) {
+    validateBaseUrl(config.seerr.baseUrl, "seerr.baseUrl");
   }
 
   return errors;

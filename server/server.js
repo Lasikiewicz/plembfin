@@ -29,7 +29,21 @@ setGlobalDispatcher(new Agent({ keepAliveTimeout: 15000, connections: 64 }));
 const PORT = Number(process.env.PORT || 5055);
 const app = express();
 app.disable("x-powered-by");
-app.use(morgan("combined", { stream: accessLogStream }));
+
+function redactedUrl(req) {
+  try {
+    const url = new URL(req.originalUrl || req.url || "", "http://localhost");
+    for (const key of [...url.searchParams.keys()]) {
+      if (/token|api[_-]?key|secret|password|authorization/i.test(key)) url.searchParams.set(key, "redacted");
+    }
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return String(req.originalUrl || req.url || "").replace(/([?&](?:token|api[_-]?key|secret|password|authorization)=)[^&\s"]+/gi, "$1redacted");
+  }
+}
+
+morgan.token("safe-url", redactedUrl);
+app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"', { stream: accessLogStream }));
 app.use(cookieParser());
 
 const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
@@ -48,8 +62,9 @@ app.use((_req, res, next) => {
   }
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'self'; img-src 'self' data: blob: https:; " +
+    "default-src 'self'; img-src 'self' data: blob: https://image.tmdb.org; " +
     "script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; " +
+    "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; " +
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com;"
   );
   next();

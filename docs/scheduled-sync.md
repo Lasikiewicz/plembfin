@@ -5,6 +5,8 @@ The in-process scheduler runs `runScheduledTick()` **every minute** via
 still running when the next fires, the new tick is skipped.
 
 The same logic runs on demand via:
+- `GET /api/cron-sync/status` - returns the last cron trigger/result as JSON for
+  automation that needs a reliable success/failure signal after a streamed run.
 - `POST /api/cron-sync` — `handleCronSync` (streams a text log back, auth by API key
   or session cookie).
 - `POST /api/force-sync` — runs it and stores progress in `runtime_state` for the

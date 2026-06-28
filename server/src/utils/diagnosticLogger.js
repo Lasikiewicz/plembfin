@@ -8,18 +8,26 @@ const originalLog = console.log;
 const originalError = console.error;
 const originalWarn = console.warn;
 
+function redactSecrets(value = "") {
+  let text = String(value || "");
+  text = text.replace(/([?&](?:token|api[_-]?key|secret|password|authorization|cookie)=)[^&\s'"]+/gi, "$1[redacted]");
+  text = text.replace(/\b(authorization|cookie|x-api-key|x-plex-token|api[_-]?key|token|password|secret)(['"]?\s*[:=]\s*['"]?)[^,'"\s}]+/gi, "$1$2[redacted]");
+  text = text.replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer [redacted]");
+  return text;
+}
+
 function addLog(level, args) {
   if (!isCapturing) return;
 
   const timestamp = new Date().toISOString();
   const message = args.map((arg) => {
     if (arg instanceof Error) {
-      return arg.stack || arg.message || String(arg);
+      return redactSecrets(arg.stack || arg.message || String(arg));
     }
     if (typeof arg === 'object') {
-      return util.inspect(arg, { depth: 6, breakLength: 120, compact: false });
+      return redactSecrets(util.inspect(arg, { depth: 6, breakLength: 120, compact: false }));
     }
-    return String(arg);
+    return redactSecrets(arg);
   }).join(' ');
 
   logs.push({ timestamp, level, message });

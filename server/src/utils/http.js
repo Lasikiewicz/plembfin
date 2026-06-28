@@ -1,6 +1,5 @@
 export const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Admin-Token",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Admin-Token, X-Api-Key, X-Plembfin-Webhook-Secret",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
 };
 

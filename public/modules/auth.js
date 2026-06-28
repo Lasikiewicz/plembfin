@@ -1,12 +1,10 @@
 // Local authentication client. Calls the self-hosted /api/login, /api/logout,
 // and /api/auth/status endpoints. The browser holds an HttpOnly session cookie
 // (sent automatically on same-origin requests); the API key is fetched from
-// /api/auth/apikey after login and kept in memory + localStorage for use in
-// X-Api-Key request headers.
+// /api/auth/apikey after login and kept in memory only for display/copy flows.
+// Normal browser API calls use the HttpOnly same-origin session cookie.
 
-const API_KEY_STORAGE = "plembfinApiKey";
-
-let cachedToken = localStorage.getItem(API_KEY_STORAGE) || "";
+let cachedToken = "";
 let cachedWebhookToken = "";
 let cachedUser = null;
 
@@ -23,7 +21,6 @@ function clearSession() {
   cachedUser = null;
   cachedToken = "";
   cachedWebhookToken = "";
-  localStorage.removeItem(API_KEY_STORAGE);
 }
 
 // Fetches the admin API key from the server and caches it. Called after any
@@ -35,7 +32,6 @@ async function fetchAndCacheApiKey() {
     const data = await res.json().catch(() => ({}));
     if (data.apiKey) {
       cachedToken = data.apiKey;
-      localStorage.setItem(API_KEY_STORAGE, cachedToken);
     }
   } catch { /* network error — session cookie covers same-origin requests */ }
 }
@@ -71,7 +67,7 @@ export function onAuthChange(callback) {
       if (data.authenticated) {
         setSession(data.username);
         await Promise.all([fetchAndCacheApiKey(), fetchAndCacheWebhookToken()]);
-        callback(cachedUser, cachedToken || "session", data.mustChangePassword === true);
+        callback(cachedUser, "session", data.mustChangePassword === true);
       } else {
         clearSession();
         callback(null, "");
@@ -97,7 +93,7 @@ export async function signInAdmin(username, password) {
   }
   setSession(data.username);
   await Promise.all([fetchAndCacheApiKey(), fetchAndCacheWebhookToken()]);
-  return { user: cachedUser, token: cachedToken || "session" };
+  return { user: cachedUser, token: "session" };
 }
 
 export async function signOutAdmin() {
@@ -120,7 +116,7 @@ export async function updateAdminCredentials({ username, currentPassword, newPas
   if (!res.ok) throw new Error(data.error || "Login update failed");
   setSession(data.username);
   await fetchAndCacheApiKey();
-  return { user: cachedUser, token: cachedToken || "session" };
+  return { user: cachedUser, token: "session" };
 }
 
 export async function rotateWebhookSecret() {
@@ -137,7 +133,7 @@ export async function rotateWebhookSecret() {
 
 export function buildAuthHeaders(token) {
   const headers = { "Content-Type": "application/json" };
-  const key = token && token !== "session" ? token : cachedToken;
+  const key = token && token !== "session" ? token : "";
   if (key) headers["X-Api-Key"] = key;
   return headers;
 }

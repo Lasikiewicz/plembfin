@@ -391,7 +391,7 @@
                           <code id="webhookUrl">/api/webhook</code>
                           <button id="rotateWebhookButton" class="button-ghost" type="button" title="Generate a new webhook secret — update the URL in all media servers after rotating">Rotate Secret</button>
                         </div>
-                        <p>Point Plex, Emby, and Jellyfin webhooks here. The URL contains a secret token — copy it from the Webhook Setup help topic. After rotating, update it in every media server.</p>
+                        <p>Point Plex, Emby, and Jellyfin webhooks here. The URL contains the compatibility secret token. Automation can also send the secret with a webhook header. After rotating, update every sender.</p>
                         <code id="cronSyncUrl">/api/cron-sync</code>
                         <p>Background scheduler URL for syncing states between platforms.</p>
                       </div>

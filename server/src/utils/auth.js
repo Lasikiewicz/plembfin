@@ -49,7 +49,7 @@ function matchesApiKey(value) {
 
 // Resolve the authenticated principal from either a valid session cookie or the
 // API key, without sending a response. Returns the principal or null.
-function resolvePrincipal(req) {
+export function resolveAdminPrincipal(req) {
   const cookieToken = req.cookies?.[COOKIE_NAME];
   const session = cookieToken ? verifySession(cookieToken) : null;
   if (session) return { username: session.username, via: "session" };
@@ -58,7 +58,7 @@ function resolvePrincipal(req) {
 }
 
 export async function requireAdmin(req, res) {
-  const principal = resolvePrincipal(req);
+  const principal = resolveAdminPrincipal(req);
   if (!principal) {
     sendJson(res, { error: "Unauthorized" }, 401);
     return null;
@@ -94,7 +94,7 @@ export async function handleLogout(req, res) {
 }
 
 export async function handleAuthStatus(req, res) {
-  const principal = resolvePrincipal(req);
+  const principal = resolveAdminPrincipal(req);
   if (!principal) return sendJson(res, { authenticated: false });
   return sendJson(res, {
     authenticated: true,

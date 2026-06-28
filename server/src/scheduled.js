@@ -1159,11 +1159,12 @@ export async function runScheduledSync(logger = console.log) {
   logger("Scheduled Sync: starting background sync workflow...");
   const runtime = await loadRuntimeState();
   
-  const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
-  const isForceSyncStale = runtime.forceSyncStartedAt ? Number(runtime.forceSyncStartedAt) < tenMinutesAgo : true;
+  const FORCE_SYNC_HEARTBEAT_STALE_MS = 3 * 60 * 1000;
+  const forceSyncHeartbeat = Number(runtime.forceSyncHeartbeat || runtime.forceSyncStartedAt || 0);
+  const isForceSyncStale = !forceSyncHeartbeat || forceSyncHeartbeat < Date.now() - FORCE_SYNC_HEARTBEAT_STALE_MS;
 
   if (runtime.forceSyncActive === true && isForceSyncStale) {
-    logger("Scheduled Sync: detected stale forceSyncActive flag, resetting...");
+    logger("Scheduled Sync: force-sync heartbeat is cold (>3m); resetting stale forceSyncActive flag...");
     await setRuntimeState({ forceSyncActive: false, forceSyncCancelRequested: false }).catch(() => null);
     runtime.forceSyncActive = false;
   }
@@ -1379,15 +1380,22 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
   if (!lockAlreadyClaimed) {
     logger("Force Sync: checking if another sync job is already running...");
     const runtime = await loadRuntimeState();
-    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+    const FORCE_SYNC_HEARTBEAT_STALE_MS = 3 * 60 * 1000;
+    const heartbeat = Number(runtime.forceSyncHeartbeat || runtime.forceSyncStartedAt || 0);
+    const stale = !heartbeat || heartbeat < Date.now() - FORCE_SYNC_HEARTBEAT_STALE_MS;
 
-    if (runtime.forceSyncActive === true && runtime.forceSyncStartedAt && runtime.forceSyncStartedAt > tenMinutesAgo) {
+    if (runtime.forceSyncActive === true && !stale) {
       logger("Force Sync ERROR: Another force sync job is already running.");
       throw new Error("Another force sync job is already running.");
     }
 
-    await setRuntimeState({ forceSyncActive: true, forceSyncStartedAt: Date.now(), forceSyncCancelRequested: false });
+    await setRuntimeState({ forceSyncActive: true, forceSyncStartedAt: Date.now(), forceSyncHeartbeat: Date.now(), forceSyncCancelRequested: false });
   }
+
+  const heartbeatTimer = setInterval(() => {
+    setRuntimeState({ forceSyncHeartbeat: Date.now() }).catch(() => null);
+  }, 30_000);
+  heartbeatTimer.unref?.();
 
   try {
     logger("Force Sync: loading media configuration...");
@@ -1820,7 +1828,8 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
     }
   };
   } finally {
+    clearInterval(heartbeatTimer);
     await invalidateHistoryDerivedCaches().catch(() => null);
-    await setRuntimeState({ forceSyncActive: false, forceSyncCancelRequested: false }).catch(() => null);
+    await setRuntimeState({ forceSyncActive: false, forceSyncCancelRequested: false, forceSyncHeartbeat: Date.now() }).catch(() => null);
   }
 }

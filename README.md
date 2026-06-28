@@ -201,14 +201,14 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 
 ## ⚡ Webhook Setup (Critical for Live Sync)
 
-Playback events are sent to Plembfin via webhooks. Each webhook URL contains a secret token for authentication — copy the full URL from **Settings → General → API Endpoints** after signing in. It will look like:
+Playback events are sent to Plembfin via webhooks. Plembfin accepts the webhook secret in the `X-Plembfin-Webhook-Secret` header, as `Authorization: Bearer <secret>`, or in the compatibility query-token URL used by Plex/Emby/Jellyfin. Copy the full URL from **Settings → General → API Endpoints** after signing in. It will look like:
 
 ```
 http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 ```
 
 > [!IMPORTANT]
-> Always use the full URL including the `?token=` parameter. If you rotate the secret via the **Rotate Secret** button, update the URL in every media server.
+> Use the full URL including the `?token=` parameter for media servers that cannot set custom headers. If you rotate the secret via the **Rotate Secret** button, update the URL or header value in every sender.
 
 ### Media Server Settings
 
@@ -269,7 +269,7 @@ The following environment variables can be set in your system or defined in `doc
 | `ADMIN_USERNAME` | `admin` | Default administrator username for fresh setups. |
 | `ADMIN_PASSWORD` | `admin` | Default administrator password for fresh setups. |
 | `API_KEY` | _generated_ | Security token used to authorize incoming webhooks and API calls. |
-| `WEBHOOK_SECRET` | _generated_ | Secret token embedded in the webhook URL (`?token=`). Rotatable independently of the API key. |
+| `WEBHOOK_SECRET` | _generated_ | Secret used by webhook header/Bearer auth and the compatibility `?token=` URL. Rotatable independently of the API key. |
 | `SESSION_SECRET` | _generated_ | Signing secret for the dashboard session cookie. |
 | `COOKIE_SECURE` | `false` | Set to `true` when the app is served behind an HTTPS reverse proxy — enables `Secure` cookie flag and `Strict-Transport-Security` header. |
 | `FANART_API_KEY` | _none_ | Optional personal Fanart.tv API key for higher rate limits. A built-in project key is used when this is unset. |

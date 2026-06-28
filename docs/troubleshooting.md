@@ -72,10 +72,11 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
 
 ## "Webhook returns 401"
 
-- The `?token=` query parameter is missing or wrong. Copy the full webhook URL from
-  **Settings → API Endpoints** — it already includes the token.
+- The webhook secret is missing or wrong. Media-server setup usually uses the
+  `?token=` URL from **Settings -> API Endpoints**; automation can send
+  `X-Plembfin-Webhook-Secret` or `Authorization: Bearer <secret>`.
 - If you rotated the webhook secret ("Rotate Secret" button), all media servers need
-  to be updated with the new URL.
+  to be updated with the new URL or header value.
 
 ## "Scheduler / background sync not running"
 

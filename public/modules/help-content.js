@@ -24,7 +24,7 @@ export function adminTokenGuide() {
         <li>Defaults to <code>admin</code> / <code>admin</code> on first run — you will be prompted to change the password immediately on first login.</li>
         <li>Override by setting <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> environment variables (e.g. in <code>docker-compose.yml</code>).</li>
         <li>Use that username and password to sign in to this dashboard. Change credentials here at any time.</li>
-        <li>Webhooks use a separate secret token embedded in the webhook URL. Copy it from <b>Settings → API Endpoints</b>. You can rotate it independently without affecting your admin password or API key.</li>
+        <li>Webhooks use a separate secret token. Media servers can use the token in the webhook URL; automation clients can send it with <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code>. You can rotate it independently without affecting your admin password or API key.</li>
       </ol>
     </div>
   `;
@@ -128,6 +128,7 @@ export function plexWebhookSetup() {
       <b>Plex Webhook Setup</b>
       <p style="margin: var(--space-1) 0; font-size: 0.8rem; color: var(--muted);">Webhook URL:</p>
       <code style="word-break: break-all; font-size: 0.75rem;">${escapeHtml(url)}</code>
+      <p style="margin: var(--space-2) 0 0; font-size: 0.75rem; color: var(--muted);">Automation clients can also call <code>/api/webhook</code> with <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code>.</p>
       <ul style="padding-left: 1.2rem; margin: var(--space-2) 0 0; display: grid; gap: 4px;">
         <li>Set up webhooks per the <a href="https://support.plex.tv/articles/115002267687-webhooks/?utm_campaign=Plex%20Apps&utm_medium=Plex%20Web&utm_source=Plex%20Apps" target="_blank" rel="noopener noreferrer" style="color: var(--blue); text-decoration: underline;">Plex Webhook Documentation</a>. Point them to the URL above.</li>
         <li>Enable events: <code>media.play</code>, <code>media.resume</code>, <code>media.pause</code>, <code>media.stop</code>, <code>media.scrobble</code>.</li>
@@ -145,6 +146,7 @@ export function embyWebhookSetup() {
       <b>Emby Webhook Setup</b>
       <p style="margin: var(--space-1) 0; font-size: 0.8rem; color: var(--muted);">Webhook URL:</p>
       <code style="word-break: break-all; font-size: 0.75rem;">${escapeHtml(url)}</code>
+      <p style="margin: var(--space-2) 0 0; font-size: 0.75rem; color: var(--muted);">Automation clients can also call <code>/api/webhook</code> with <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code>.</p>
       <ul style="padding-left: 1.2rem; margin: var(--space-2) 0 0; display: grid; gap: 4px;">
         <li>Go to Emby Server Settings ➔ <b>Webhooks</b> and add a new webhook pointing to the URL above.</li>
         <li>Under <b>Events → Playback</b>, check: <code>Start</code>, <code>Pause</code>, <code>Unpause</code>, <code>Stop</code>.</li>
@@ -162,6 +164,7 @@ export function jellyfinWebhookSetup() {
       <b>Jellyfin Webhook Setup</b>
       <p style="margin: var(--space-1) 0; font-size: 0.8rem; color: var(--muted);">Webhook URL:</p>
       <code style="word-break: break-all; font-size: 0.75rem;">${escapeHtml(url)}</code>
+      <p style="margin: var(--space-2) 0 0; font-size: 0.75rem; color: var(--muted);">Automation clients can also call <code>/api/webhook</code> with <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code>.</p>
       <ul style="padding-left: 1.2rem; margin: var(--space-2) 0 0; display: grid; gap: 4px;">
         <li>Install the <b>Webhooks</b> plugin in the Jellyfin Dashboard (Plugins → Catalog).</li>
         <li>Add a new <b>Generic Webhook</b> named <code>plembfin</code> pointing to the URL above. Check <b>Enable</b>.</li>
