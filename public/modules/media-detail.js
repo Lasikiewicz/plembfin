@@ -1447,37 +1447,21 @@ export async function renderMovieImmersiveModalContent(movie) {
   }
   const root = mediaDetailRoot();
   const isSaving = state.savingWatchAction;
-  const localPoster = posterUrlFor(movie) || "/favicon.svg";
-  setMediaDetailActions(`
-    <details class="media-actions-menu">
-      <summary class="action-pill media-actions-menu-trigger">Movie actions</summary>
-      <div class="media-actions-menu-panel">
-        <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
-        <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">Edit Images</button>
-        <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
-      </div>
-    </details>
-  `);
-  root.innerHTML = `
-    <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(localPoster)}');"></div>
-    <div class="immersive-container media-detail-page is-loading-metadata">
-      <header class="immersive-header">
-        <img class="immersive-poster-img" src="${escapeAttribute(localPoster)}" alt="${escapeAttribute(movie.title || "Movie")} poster" data-err="fav" />
-        <div class="immersive-meta">
-          <span class="media-kicker">Movie · Loading metadata</span>
-          <h2 class="immersive-title">${escapeHtml(movie.title || "Unknown movie")}</h2>
-          <p class="immersive-overview">Your library record is ready. Synopsis, cast, providers and related media are loading.</p>
-        </div>
-      </header>
-    </div>
-  `;
+
+  // Phase 1: Render immediately with all available local data — no blank screen.
+  _renderWatchedMovieContent(root, movie, { tmdbData: null, loading: true, imdbPillHtml: "", tvRecommendations: [], isSaving });
+
+
+  // Fetch TMDB details (primary enrichment).
   const tmdbData = await fetchTmdbDetails("movie", movie.tmdb_id, movie.title);
   console.log("[render] fetchTmdbDetails resolved, token=", renderToken, "current=", _mediaRenderToken, "tmdbData=", tmdbData?.id);
   if (_mediaRenderToken !== renderToken) { console.log("[render] ABORTED - token mismatch!"); return; } // navigated away while loading
+
   if (tmdbData && tmdbData.id) {
     state.activeMovieTmdbId = String(tmdbData.id);
   }
-  // For YouTube-only content, fetch metadata from our backend
+
+  // For YouTube-only content, fetch metadata from our backend.
   let youtubeMeta = null;
   if (!tmdbData && movie.youtube_url) {
     try {
@@ -1487,59 +1471,86 @@ export async function renderMovieImmersiveModalContent(movie) {
     } catch { /* non-fatal */ }
     if (_mediaRenderToken !== renderToken) return; // navigated away while loading
   }
-  const movieTitle = movie.title;
-  let backdropUrl = "";
+
+  // Phase 2: Render with TMDB data immediately — don't wait for OMDb/TV recs.
+  _renderWatchedMovieContent(root, movie, { tmdbData, youtubeMeta, loading: false, imdbPillHtml: "", tvRecommendations: [], isSaving });
+
+  // Phase 3: Fetch OMDb rating and TV recommendations in parallel.
+  const imdbId = movie.imdb_id || tmdbData?.imdb_id || "";
+  const [omdbRes, tvRecommendations] = await Promise.all([
+    imdbId && state.savedConfig?.omdb?.configured
+      ? fetch(`/api/omdb-rating?imdbId=${encodeURIComponent(imdbId)}`, { headers: authHeaders() }).catch(() => null)
+      : Promise.resolve(null),
+    tmdbData ? recommendedTvShowsForMovie(movie.title, tmdbData).catch(() => []) : Promise.resolve([]),
+  ]);
+  if (_mediaRenderToken !== renderToken) return;
+
+  let imdbPillHtml = "";
+  if (omdbRes?.ok) {
+    const omdbData = await omdbRes.json().catch(() => null);
+    if (omdbData?.imdbRating) {
+      imdbPillHtml = ratingPillHtml({
+        label: "IMDb",
+        value: `${Math.round(parseFloat(omdbData.imdbRating) * 10)}%`,
+        href: `https://www.imdb.com/title/${escapeAttribute(imdbId)}`,
+        title: `IMDb rating: ${omdbData.imdbRating}/10`,
+      });
+    }
+  }
+  if (_mediaRenderToken !== renderToken) return;
+
+  // Phase 3 render: patch in OMDb pill and TV recommendations if anything new arrived.
+  if (imdbPillHtml || tvRecommendations.length) {
+    _renderWatchedMovieContent(root, movie, { tmdbData, youtubeMeta, loading: false, imdbPillHtml, tvRecommendations, isSaving });
+  }
+
+  const movieSeerrTmdbId = tmdbData?.id || movie.tmdb_id;
+  if (movieSeerrTmdbId) {
+    fetchSeerrMediaStatus("movie", movieSeerrTmdbId)
+      .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus("movie", movieSeerrTmdbId); });
+  }
+  hydratePosters(root);
+}
+
+// Shared renderer for a watched movie. Called up to three times per navigation:
+// (1) immediately with local data only, (2) once TMDB resolves, (3) once OMDb +
+// TV recs resolve. Only re-renders when there is new data to add.
+function _renderWatchedMovieContent(root, movie, {
+  tmdbData = null,
+  youtubeMeta = null,
+  loading = false,
+  imdbPillHtml = "",
+  tvRecommendations = [],
+  isSaving = null,
+} = {}) {
+  const localPoster = posterUrlFor(movie) || "/favicon.svg";
+  let backdropUrl = movie.backdrop_url || "";
   let posterUrl = posterUrlFor(movie);
-  let overview = "No synopsis available.";
+  let overview = loading ? "Loading synopsis…" : "No synopsis available.";
   let released = "Unknown Release Date";
-  let rating = "N/A";
+  let rating = "";
   let recommendations = [];
-  let tvRecommendations = [];
+
   if (tmdbData) {
-    if (movie.backdrop_url) {
-      backdropUrl = movie.backdrop_url;
-    } else if (tmdbData.backdrop_path) {
+    if (!backdropUrl && tmdbData.backdrop_path) {
       backdropUrl = tmdbData.cached_backdrop_url || `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`;
     }
-    // Keep a locally cached/custom poster (from "Edit Images") over the TMDB
-    // default so the detail page matches what the dashboard shows.
     if (tmdbData.poster_path && !posterUrl) {
       posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path, tmdbData.id, "movie");
     }
-    overview = tmdbData.overview || overview;
+    overview = tmdbData.overview || "No synopsis available.";
     released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : released;
-    rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : rating;
+    rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "";
     recommendations = rankedRecommendations(tmdbData, "movie");
-    tvRecommendations = await recommendedTvShowsForMovie(movieTitle, tmdbData);
-    if (_mediaRenderToken !== renderToken) return;
   } else if (youtubeMeta) {
     if (youtubeMeta.thumbnails?.[0]) posterUrl = youtubeMeta.thumbnails[0];
-    overview = youtubeMeta.description || overview;
+    overview = youtubeMeta.description || "No synopsis available.";
     if (youtubeMeta.publishedAt) released = `Published ${formatTmdbDate(youtubeMeta.publishedAt.slice(0, 10))}`;
   }
+
+  const movieTitle = movie.title;
   const logoUrl = movie.logo_url || bestTmdbLogo(tmdbData);
-  const ratingBadgeHtml = rating !== "N/A" ? `
-    ${renderExternalRatingPills("movie", tmdbData, movieTitle, rating)}
-  ` : "";
-  const imdbId = movie.imdb_id || tmdbData?.imdb_id || "";
-  let imdbRating = null;
-  if (imdbId && state.savedConfig?.omdb?.configured) {
-    const omdbRes = await fetch(`/api/omdb-rating?imdbId=${encodeURIComponent(imdbId)}`, { headers: authHeaders() }).catch(() => null);
-    if (omdbRes?.ok) {
-      const omdbData = await omdbRes.json().catch(() => null);
-      if (omdbData?.imdbRating) imdbRating = omdbData.imdbRating;
-    }
-    if (_mediaRenderToken !== renderToken) return;
-  }
-  const imdbPillHtml = imdbId && imdbRating ? ratingPillHtml({
-    label: "IMDb",
-    value: `${Math.round(parseFloat(imdbRating) * 10)}%`,
-    href: `https://www.imdb.com/title/${escapeAttribute(imdbId)}`,
-    title: `IMDb rating: ${imdbRating}/10`,
-  }) : "";
-  const sourceBadgeHtml = movie.source ? `
-    <span class="source-badge ${sourceClass(movie.source)}" style="display: inline-flex;">${escapeHtml(platformBadge(movie.source))}</span>
-  ` : "";
+  const ratingBadgeHtml = rating ? renderExternalRatingPills("movie", tmdbData, movieTitle, rating) : "";
   const syncStatusDotHtml = renderSyncStatusDot(movie);
   const visibleSyncStatuses = getMediaTargetSyncStatus(movie).filter((s) => !s.hidden);
   const allSynced = !visibleSyncStatuses.length || visibleSyncStatuses.every((s) => s.status === "success" || s.status === "skipped");
@@ -1553,6 +1564,7 @@ export async function renderMovieImmersiveModalContent(movie) {
   const ytWatchBtn = movie.youtube_url
     ? `<a class="action-pill" href="${escapeAttribute(movie.youtube_url)}" target="_blank" rel="noopener noreferrer">Watch on YouTube</a>`
     : "";
+
   setMediaDetailActions(`
     <details class="media-actions-menu">
       <summary class="action-pill media-actions-menu-trigger">Movie actions</summary>
@@ -1565,16 +1577,17 @@ export async function renderMovieImmersiveModalContent(movie) {
     </details>
     ${ytWatchBtn}
   `);
+
   root.innerHTML = `
-    <div class="modal-backdrop-image" style="background-image: url('${backdropUrl || posterUrl}');"></div>
-    <div class="immersive-container media-detail-page">
+    <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || localPoster)}');"></div>
+    <div class="immersive-container media-detail-page${loading ? " is-loading-metadata" : ""}">
       <header class="immersive-header">
-        <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
+        <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || localPoster)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
         <div class="immersive-meta">
           ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
-          <p class="immersive-subtitle">${released}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
+          <p class="immersive-subtitle">${escapeHtml(released)}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-            ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
+            ${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}
             ${imdbPillHtml}
             ${renderSeerrRequestPill("movie", tmdbData?.id || movie.tmdb_id, true)}
             ${syncStatusBlockHtml}
@@ -1593,18 +1606,14 @@ export async function renderMovieImmersiveModalContent(movie) {
         </div>
         ${renderMediaFacts(tmdbData, "movie", "sidebar")}
       </header>
-      ${renderCastSection(tmdbData)}
-      ${renderRichTmdbDetails(tmdbData)}
-      ${renderMediaImagesSection(tmdbData)}
+      ${tmdbData ? renderCastSection(tmdbData) : ""}
+      ${tmdbData ? renderRichTmdbDetails(tmdbData) : ""}
+      ${tmdbData ? renderMediaImagesSection(tmdbData) : ""}
       ${renderRecommendationSection({ title: "Recommended movies", items: recommendations, mediaType: "movie" })}
       ${renderRecommendationSection({ title: "Recommended TV Shows", items: tvRecommendations, mediaType: "tv" })}
     </div>
+    ${renderWatchDatePrompt(state.pendingWatchAction)}
   `;
-  const movieSeerrTmdbId = tmdbData?.id || movie.tmdb_id;
-  if (movieSeerrTmdbId) {
-    fetchSeerrMediaStatus("movie", movieSeerrTmdbId)
-      .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus("movie", movieSeerrTmdbId); });
-  }
   hydratePosters(root);
 }
 // Authoritatively check whether a movie is already in watch history. state.history
@@ -1666,26 +1675,23 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   if (persistedWatched) return renderMovieImmersiveModalContent(persistedWatched);
   const isSaving = state.savingWatchAction;
   const isSavingThisMovie = isSaving && isSaving.scope === "movie" && String(isSaving.movie?.tmdbId || "") === String(tmdbId);
-  let backdropUrl = tmdbData.cached_backdrop_url || (tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "");
-  let posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path, tmdbData.id, "movie") || "/favicon.svg";
-  let overview = tmdbData.overview || "No synopsis available.";
-  let released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : "Unknown Release Date";
-  let rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "N/A";
-  let recommendations = [];
-  recommendations = rankedRecommendations(tmdbData, "movie");
-  const tvRecommendations = await recommendedTvShowsForMovie(movieTitle, tmdbData);
+  const backdropUrl = tmdbData.cached_backdrop_url || (tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "");
+  const posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path, tmdbData.id, "movie") || "/favicon.svg";
+  const overview = tmdbData.overview || "No synopsis available.";
+  const released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : "Unknown Release Date";
+  const rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "N/A";
+  const recommendations = rankedRecommendations(tmdbData, "movie");
   const logoUrl = bestTmdbLogo(tmdbData);
-  const ratingBadgeHtml = rating !== "N/A" ? `
-    ${renderExternalRatingPills("movie", tmdbData, movieTitle, rating)}
-  ` : "";
-  root.innerHTML = `
-    <div class="modal-backdrop-image" style="background-image: url('${backdropUrl || posterUrl}');"></div>
+  const ratingBadgeHtml = rating !== "N/A" ? `${renderExternalRatingPills("movie", tmdbData, movieTitle, rating)}` : "";
+
+  const buildUnwatchedHtml = (tvRecommendations = []) => `
+    <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl)}');"></div>
     <div class="immersive-container media-detail-page">
       <header class="immersive-header">
-        <img class="immersive-poster-img" src="${posterUrl}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
+        <img class="immersive-poster-img" src="${escapeAttribute(posterUrl)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
         <div class="immersive-meta">
           ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
-          <p class="immersive-subtitle">${released}</p>
+          <p class="immersive-subtitle">${escapeHtml(released)}</p>
           <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
             ${renderSeerrRequestPill("movie", tmdbId, false)}
@@ -1717,10 +1723,23 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
       ${renderRecommendationSection({ title: "Recommended TV Shows", items: tvRecommendations, mediaType: "tv" })}
     </div>
   `;
+
+  // Render immediately with TMDB data — no waiting for TV recs.
+  root.innerHTML = buildUnwatchedHtml([]);
+  hydratePosters(root);
   fetchSeerrMediaStatus("movie", tmdbId)
     .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus("movie", tmdbId); });
-  hydratePosters(root);
+
+  // Fetch TV recommendations non-blocking and patch the page when ready.
+  recommendedTvShowsForMovie(movieTitle, tmdbData).then((tvRecommendations) => {
+    if (!tvRecommendations.length) return;
+    // Only patch if still on this page.
+    if (String(state.activeMovieTmdbId) !== String(tmdbId)) return;
+    root.innerHTML = buildUnwatchedHtml(tvRecommendations);
+    hydratePosters(root);
+  }).catch(() => {/* non-fatal */});
 }
+
 export function openDebugModal(entry) {
   if (!entry) return;
   const status = syncStatus(entry);
@@ -1792,6 +1811,8 @@ export function prepareInlineMediaDetail(mode = state.explorerMode || "movies") 
   elements.explorerPanel.scrollIntoView({ block: "start" });
   document.querySelector("#explorerBackButton")?.classList.remove("hidden");
   elements.explorerTopbarControls?.classList.add("hidden");
+  // Hide the alphabet picker — it should only appear on the bare movie/show explorer.
+  elements.alphaFilterNav?.classList.add("hidden");
   syncPageTopbar();
 }
 export function setMediaDetailActions(html) {

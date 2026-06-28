@@ -71,6 +71,9 @@ export async function loadCastMemberDetails(personId, personName = null) {
   elements.explorerPanel.scrollIntoView({ block: "start" });
   document.querySelector("#explorerBackButton")?.classList.remove("hidden");
   elements.explorerTopbarControls?.classList.add("hidden");
+  // Hide the alphabet picker — it should only appear on the bare movie/show explorer.
+  elements.alphaFilterNav?.classList.add("hidden");
+
 
   const root = mediaDetailRoot();
 
