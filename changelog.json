@@ -1,7 +1,22 @@
 {
-  "version": "0.2.55",
-  "updatedAt": "2026-06-28T16:49:56+01:00",
+  "version": "0.2.56",
+  "updatedAt": "2026-06-28T19:21:36+01:00",
   "entries": [
+    {
+      "version": "0.2.56",
+      "date": "2026-06-28T19:21:36+01:00",
+      "commit": "d6e157805953199afff2e2547cd54d1dfc785f98",
+      "message": "fix: watch history layout update and episode title resolution on dashboard",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add episode names to watch history cards if known instead of generic \"Episode X\"",
+        "Resolve episode titles from TMDB for cards lacking explicit tmdb_id using the show progress cache",
+        "Include episode title and TMDB/TVDB IDs in the dashboard history preview payload",
+        "Redesign watch history card details to use vertical stacked metadata layout",
+        "Anchor show and episode titles to top of card with word wrapping",
+        "Anchor App Used source badge to the bottom of the card"
+      ]
+    },
     {
       "version": "0.2.55",
       "date": "2026-06-28T16:49:56+01:00",
