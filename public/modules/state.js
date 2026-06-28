@@ -113,7 +113,7 @@ export const state = {
   explorerScrollArmed: false,
   posterHydrateScrollScheduled: false,
   historyViewSearch: "",
-  historyViewMode: HISTORY_VIEW_MODES.includes(localStorage.getItem(HISTORY_VIEW_KEY)) ? localStorage.getItem(HISTORY_VIEW_KEY) : "grid",
+  historyViewMode: HISTORY_VIEW_MODES.includes(localStorage.getItem(HISTORY_VIEW_KEY)) ? localStorage.getItem(HISTORY_VIEW_KEY) : "cards",
   historyViewFilter: HISTORY_FILTERS.includes(localStorage.getItem(HISTORY_FILTER_KEY)) ? localStorage.getItem(HISTORY_FILTER_KEY) : "all",
   historyViewSearchTimer: undefined,
   historyViewRaw: [],

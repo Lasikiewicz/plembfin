@@ -837,10 +837,10 @@ export async function loadExplorerMovies() {
 // ---------------------------------------------------------------------------
 export function applyHistoryPosterWidth() {
   const isMobile = window.innerWidth <= 760;
-  const defaultSize = isMobile ? "64px" : "86px";
+  const defaultSize = "150px";
   const saved = localStorage.getItem("plembfin:history:posterWidth") || defaultSize;
   document.documentElement.style.setProperty("--history-poster-width", saved);
-  if (elements.historyPosterSize) elements.historyPosterSize.value = parseInt(saved) || (isMobile ? 64 : 86);
+  if (elements.historyPosterSize) elements.historyPosterSize.value = parseInt(saved) || 150;
 }
 export function resetHistoryView(key = "") {
   state.historyViewRaw = [];

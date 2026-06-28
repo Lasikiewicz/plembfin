@@ -316,10 +316,12 @@ export function renderRelatedShowsSection(tmdbData) {
 }
 
 function recommendationTitle(item = {}, mediaType = "movie") {
+  if (!item) return "";
   return mediaType === "tv" ? (item.name || item.original_name || "") : (item.title || item.original_title || "");
 }
 
 function recommendationDate(item = {}, mediaType = "movie") {
+  if (!item) return "";
   return mediaType === "tv" ? (item.first_air_date || "") : (item.release_date || "");
 }
 
@@ -380,8 +382,9 @@ function titlesLookRelated(movieTitle, tvTitle) {
 async function recommendedTvShowsForMovie(movieTitle, tmdbData = null) {
   for (const candidate of titleCandidatesForTvRecommendations(movieTitle, tmdbData)) {
     const tvData = await fetchTmdbDetails("tv", null, candidate).catch(() => null);
+    if (!tvData) continue;
     const tvTitle = recommendationTitle(tvData, "tv");
-    if (!tvData?.id || !titlesLookRelated(candidate, tvTitle)) continue;
+    if (!tvData.id || !titlesLookRelated(candidate, tvTitle)) continue;
     return rankedRecommendations(tvData, "tv", { includeSource: true }).slice(0, 15);
   }
   return [];
@@ -1430,7 +1433,7 @@ export async function openShowInlineDetail(showKey, activeSeasonNum = null, acti
 let _mediaRenderToken = 0;
 export async function renderMovieImmersiveModalContent(movie) {
   const renderToken = ++_mediaRenderToken;
-  console.log("[render] renderMovieImmersiveModalContent called, token=", renderToken, "movie=", movie?.title, new Error().stack);
+  console.log("[render] renderMovieImmersiveModalContent called, token=", renderToken, "movie=", movie?.title);
   state.showModalRequestToken += 1; // invalidate any in-flight show hydrate
   state.activeMovieModalId = movie.id;
   state.activeMovieTmdbId = movie.tmdb_id ? String(movie.tmdb_id) : null;
@@ -1847,7 +1850,7 @@ export function syncTopbarControlsMenuState() {
 }
 export function clearMediaDetailState() {
   _mediaRenderToken += 1; // invalidate any in-flight detail render (movie/show)
-  console.log("[render] clearMediaDetailState bumped token to", _mediaRenderToken, new Error().stack);
+  console.log("[render] clearMediaDetailState bumped token to", _mediaRenderToken);
   state.activeShowModalKey = null;
   state.activeShowTmdbId = null;
   state.activeShowModalSeason = null;

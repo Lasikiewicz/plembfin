@@ -114,7 +114,7 @@ import { deviceCodeEndpoint, tokenEndpoint, ONEDRIVE_SCOPE } from "./utils/backu
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "./paths.js";
 
 const NEXT_AIRING_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
-const NEXT_AIRING_REFRESH_LIMIT = 5000;
+const NEXT_AIRING_REFRESH_LIMIT = 40;
 let lastNextAiringRefreshAt = 0;
 let nextAiringInitialBuildPending = true;
 
