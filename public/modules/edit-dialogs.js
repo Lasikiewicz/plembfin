@@ -556,11 +556,9 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
     if (fanartImages) return fanartImages;
     const tmdbId = tmdbData?.id;
     const mediaType = resolvedMediaType();
-    const tvdbId = tmdbData?.tvdb_id || tmdbData?.tvdbId || tmdbData?.external_ids?.tvdb_id || "";
     if (tmdbId) {
       try {
         const params = new URLSearchParams({ mediaType, tmdbId: String(tmdbId) });
-        if (tvdbId) params.set("tvdbId", String(tvdbId));
         const res = await fetch(`/api/fanart-images?${params.toString()}`, { headers: authHeaders() });
         fanartImages = await res.json();
       } catch { fanartImages = {}; }

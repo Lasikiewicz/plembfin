@@ -61,8 +61,10 @@ Tick a box when the fix is merged. For each item the affected file(s) and the mi
     res.setHeader("Referrer-Policy", "same-origin");
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; img-src 'self' data: https://image.tmdb.org; " +
-      "script-src 'self'; style-src 'self' 'unsafe-inline';"
+      "default-src 'self'; img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com https://assets.fanart.tv https://fanart.tv; " +
+      "script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; " +
+      "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; " +
+      "frame-src https://www.youtube.com https://www.youtube-nocookie.com;"
     );
     next();
   });

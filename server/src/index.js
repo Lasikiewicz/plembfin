@@ -3395,12 +3395,28 @@ async function handleFanartImages(req, res) {
     if (mediaType === "movie") {
       result = await getAllFanartMovieImages(tmdbId);
     } else {
-      let tvdbId = tvdbIdParam || getCachedTvdbId(tmdbId);
-      if (!tvdbId && tmdbId) {
+      const tvdbIds = [];
+      const addTvdbId = (value) => {
+        const id = String(value || "").trim();
+        if (id && !tvdbIds.includes(id)) tvdbIds.push(id);
+      };
+
+      addTvdbId(tvdbIdParam);
+      addTvdbId(getCachedTvdbId(tmdbId));
+      if (tmdbId) {
         const details = await getTmdbDetails({ mediaType: "tv", tmdbId }).catch(() => null);
-        tvdbId = String(details?.external_ids?.tvdb_id || "");
+        addTvdbId(details?.external_ids?.tvdb_id);
       }
-      result = await getAllFanartTvImages(tvdbId);
+
+      for (const tvdbId of tvdbIds) {
+        const candidate = await getAllFanartTvImages(tvdbId);
+        const hasImages = Boolean(candidate?.posters?.length || candidate?.logos?.length || candidate?.backdrops?.length);
+        if (hasImages) {
+          result = candidate;
+          break;
+        }
+        if (!result) result = candidate;
+      }
     }
     return sendJson(res, result || { posters: [], logos: [], backdrops: [] });
   } catch (error) {

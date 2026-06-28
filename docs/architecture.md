@@ -131,7 +131,7 @@ Morgan `combined`-format request logs are written to `data/logs/access.log`. The
 
 ## Security headers
 
-The CSP keeps scripts and connections same-origin, allows TMDB images, sets `frame-ancestors 'none'`, and permits YouTube embeds only in frames.
+The CSP keeps scripts and connections same-origin, allows local/TMDB/YouTube/Fanart.tv images, sets `frame-ancestors 'none'`, and permits YouTube embeds only in frames.
 
 Every response carries: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, and a `Content-Security-Policy` that allows frames only from YouTube. `Strict-Transport-Security` is added when `COOKIE_SECURE=true`. `x-powered-by` is suppressed.
 

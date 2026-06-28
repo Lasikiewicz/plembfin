@@ -31,12 +31,6 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <!-- Prevent aggressive browser password managers from autofilling search inputs -->
-    <form style="position: absolute; top: -9999px; left: -9999px; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none;" aria-hidden="true" autocomplete="on">
-      <input type="text" name="plembfin_dummy_username" autocomplete="username" tabindex="-1" />
-      <input type="password" name="plembfin_dummy_password" autocomplete="current-password" tabindex="-1" />
-    </form>
-
     <div class="app-chassis">
       <nav class="topnav" aria-label="Primary navigation">
         <div class="brand-search">
@@ -66,8 +60,24 @@
             <div class="sidebar-view-toggle" aria-label="Watch history view">
               <span class="nav-label">Watch history view</span>
               <div class="sidebar-segmented-control" role="group" aria-label="Dashboard watch history view">
-                <button class="sidebar-segmented-btn active" type="button" data-dashboard-history-view="cards">Card View</button>
-                <button class="sidebar-segmented-btn" type="button" data-dashboard-history-view="posters">Poster View</button>
+                <button class="sidebar-segmented-btn active" type="button" data-dashboard-history-view="cards" aria-label="Card View" title="Card View">
+                  <svg viewBox="0 0 18 18" aria-hidden="true">
+                    <rect x="2" y="3" width="5" height="12" rx="1.2" fill="currentColor" opacity="0.72" />
+                    <rect x="9" y="4" width="7" height="2" rx="1" fill="currentColor" />
+                    <rect x="9" y="8" width="6" height="1.6" rx="0.8" fill="currentColor" opacity="0.72" />
+                    <rect x="9" y="11.6" width="4" height="1.6" rx="0.8" fill="currentColor" opacity="0.56" />
+                  </svg>
+                  <span class="sr-only">Card View</span>
+                </button>
+                <button class="sidebar-segmented-btn" type="button" data-dashboard-history-view="posters" aria-label="Poster View" title="Poster View">
+                  <svg viewBox="0 0 18 18" aria-hidden="true">
+                    <rect x="2" y="2" width="5" height="6.5" rx="1" fill="currentColor" />
+                    <rect x="11" y="2" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.72" />
+                    <rect x="2" y="9.5" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.72" />
+                    <rect x="11" y="9.5" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.56" />
+                  </svg>
+                  <span class="sr-only">Poster View</span>
+                </button>
               </div>
             </div>
             <span class="nav-label">More</span>
@@ -112,14 +122,14 @@
           <h2>Unlock your archive</h2>
           <p class="muted-copy">Sign in with your admin username and password to browse your library, import Trakt history, and review webhook appends.</p>
         </div>
-        <form id="authForm" class="auth-form" method="post">
+        <form id="authForm" class="auth-form" method="post" autocomplete="off" data-lpignore="true" data-1p-ignore="true">
           <label class="field-label" for="adminEmail">
             Admin email or username
-            <input id="adminEmail" name="adminEmail" type="text" autocomplete="username" class="field" />
+            <input id="adminEmail" name="adminEmail" type="text" autocomplete="off" data-lpignore="true" data-1p-ignore="true" class="field" />
           </label>
           <label class="field-label" for="adminToken">
             Password
-            <input id="adminToken" name="adminToken" type="password" autocomplete="current-password" class="field" />
+            <input id="adminToken" name="adminToken" type="password" autocomplete="off" data-lpignore="true" data-1p-ignore="true" class="field" />
           </label>
           <button class="button-primary" type="submit">Sign In</button>
         </form>
@@ -351,23 +361,23 @@
                           <span>Local username and password session</span>
                         </div>
                       </div>
-                      <form id="adminCredentialsForm" class="admin-credentials-form">
+                      <form id="adminCredentialsForm" class="admin-credentials-form" autocomplete="off" data-lpignore="true" data-1p-ignore="true">
                         <label class="field-label" for="settingsUsername">
                           Username
-                          <input id="settingsUsername" class="field" type="text" autocomplete="username" maxlength="128" required />
+                          <input id="settingsUsername" class="field" type="text" autocomplete="off" data-lpignore="true" data-1p-ignore="true" maxlength="128" required />
                         </label>
                         <div class="admin-credentials-grid">
                           <label class="field-label" for="currentAdminPassword">
                             Current password
-                            <input id="currentAdminPassword" class="field" type="password" autocomplete="current-password" required />
+                            <input id="currentAdminPassword" class="field" type="password" autocomplete="off" data-lpignore="true" data-1p-ignore="true" required />
                           </label>
                           <label class="field-label" for="newAdminPassword">
                             New password
-                            <input id="newAdminPassword" class="field" type="password" autocomplete="new-password" minlength="8" maxlength="256" placeholder="Leave blank to keep current" />
+                            <input id="newAdminPassword" class="field" type="password" autocomplete="off" data-lpignore="true" data-1p-ignore="true" minlength="8" maxlength="256" placeholder="Leave blank to keep current" />
                           </label>
                           <label class="field-label" for="confirmAdminPassword">
                             Confirm new password
-                            <input id="confirmAdminPassword" class="field" type="password" autocomplete="new-password" minlength="8" maxlength="256" />
+                            <input id="confirmAdminPassword" class="field" type="password" autocomplete="off" data-lpignore="true" data-1p-ignore="true" minlength="8" maxlength="256" />
                           </label>
                         </div>
                         <p id="adminCredentialsStatus" class="message" role="status" aria-live="polite">Saving changes signs out other dashboard sessions.</p>

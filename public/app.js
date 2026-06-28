@@ -872,10 +872,31 @@ function setUnlocked(isUnlocked) {
   elements.authPanel.classList.toggle("hidden", isUnlocked);
   elements.appShell.classList.toggle("hidden", !isUnlocked);
   elements.lockButton.classList.toggle("hidden", !isUnlocked);
+  setLoginAutocompleteEnabled(!isUnlocked);
   if (elements.statusPill) {
     elements.statusPill.className = `session-dot ${isUnlocked ? "unlocked" : "locked"}`;
     elements.statusPill.setAttribute("aria-label", isUnlocked ? "Unlocked session" : "Locked session");
     elements.statusPill.title = isUnlocked ? "Unlocked" : "Locked";
+  }
+}
+
+function setLoginAutocompleteEnabled(enabled) {
+  const fields = [
+    { element: elements.adminEmail, autocomplete: "username" },
+    { element: elements.adminToken, autocomplete: "current-password" },
+  ];
+  elements.authForm?.setAttribute("autocomplete", enabled ? "on" : "off");
+  for (const attr of ["data-lpignore", "data-1p-ignore"]) {
+    if (enabled) elements.authForm?.removeAttribute(attr);
+    else elements.authForm?.setAttribute(attr, "true");
+  }
+  for (const { element, autocomplete } of fields) {
+    if (!element) continue;
+    element.setAttribute("autocomplete", enabled ? autocomplete : "off");
+    for (const attr of ["data-lpignore", "data-1p-ignore"]) {
+      if (enabled) element.removeAttribute(attr);
+      else element.setAttribute(attr, "true");
+    }
   }
 }
 
@@ -907,7 +928,13 @@ function applyMustChangePassword() {
 }
 
 function isConfigSensitiveRoute(path = "") {
-  return path.startsWith("/movie/") || path.startsWith("/tvshow/") || path.startsWith("/person/") || path.startsWith("/search");
+  return path.startsWith("/movie/")
+    || path.startsWith("/tvshow/")
+    || path.startsWith("/person/")
+    || path.startsWith("/search")
+    || path.startsWith("/settings")
+    || path.startsWith("/sync")
+    || path.startsWith("/logs");
 }
 
 function handleRouting(path) {
@@ -1170,7 +1197,7 @@ function selectView(view) {
   } else if (targetView === "explorer") {
     url = state.explorerMode === "shows" ? "/tvshows" : "/movies";
   } else if (targetView === "settings") {
-    url = `/settings/${legacySettingsTab || state.activeSettingsTab}`;
+    url = `/settings/${legacySettingsTab || "general"}`;
   } else if (targetView === "help") {
     url = `/help/${state.activeHelpTopic}`;
   } else if (targetView === "search") {

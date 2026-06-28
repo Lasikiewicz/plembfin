@@ -6251,6 +6251,9 @@ h1 {
 }
 
 .sidebar-view-toggle {
+  --sidebar-view-blue: #4b96e6;
+  --sidebar-view-blue-soft: color-mix(in srgb, var(--sidebar-view-blue), transparent 88%);
+  --sidebar-view-blue-hover: color-mix(in srgb, var(--sidebar-view-blue), transparent 94%);
   display: grid;
   gap: 0.4rem;
   padding: 0 0.4rem 0.85rem;
@@ -6262,38 +6265,47 @@ h1 {
 
 .sidebar-segmented-control {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.2rem;
-  border: 1px solid var(--line);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--sidebar-view-blue), transparent 78%);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 0.2rem;
+  background: color-mix(in srgb, var(--sidebar-view-blue), transparent 96%);
+  padding: 0.25rem;
 }
 
 .sidebar-segmented-btn {
-  min-height: 2rem;
+  display: grid;
+  min-width: 0;
+  min-height: 2.15rem;
+  place-items: center;
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
-  color: #c8c8c8;
+  color: var(--muted);
   cursor: pointer;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-align: left;
-  padding: 0.35rem 0.45rem;
+  padding: 0.35rem;
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 
+.sidebar-segmented-btn svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
 .sidebar-segmented-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: var(--sidebar-view-blue-hover);
+  color: var(--sidebar-view-blue);
 }
 
 .sidebar-segmented-btn.active {
-  border-color: rgba(229, 160, 13, 0.35);
-  background: rgba(229, 160, 13, 0.14);
-  color: #e5a00d;
+  border-color: color-mix(in srgb, var(--sidebar-view-blue), transparent 55%);
+  background: var(--sidebar-view-blue-soft);
+  color: var(--sidebar-view-blue);
+}
+
+.sidebar-segmented-btn:focus-visible {
+  outline: 2px solid var(--sidebar-view-blue);
+  outline-offset: 2px;
 }
 
 .nav-tab {
@@ -6373,7 +6385,7 @@ h1 {
 /* Vertical split varies by dashboard state (set on #timeline-view):
    state 1 (playing + part-watched)      → 20 / 20 / 60
    state 2 (idle + part-watched)         → 15 / 25 / 60
-   state 3 (idle + nothing part-watched) → 20 /  0 / 80   */
+   state 3 (idle + nothing part-watched) → 30 / 10 / 60   */
 .page-shell[data-active-view="dashboard"] .live-panel,
 .page-shell[data-active-view="dashboard"] #partWatchedDashboardSection,
 .page-shell[data-active-view="dashboard"] .history-timeline-panel:not(#partWatchedDashboardSection) {
@@ -6394,9 +6406,10 @@ h1 {
 #timeline-view[data-dash-state="2"] #partWatchedDashboardSection { flex-grow: 25; }
 #timeline-view[data-dash-state="2"] .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 60; }
 
-/* State 3 — idle + nothing part-watched → 20 / 0 / 80 (Part Watched hidden) */
-#timeline-view[data-dash-state="3"] .live-panel { flex-grow: 20; }
-#timeline-view[data-dash-state="3"] .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 80; }
+/* State 3 — idle + nothing part-watched → 30 / 10 / 60 (Part Watched hidden) */
+#timeline-view[data-dash-state="3"] .live-panel { flex-grow: 30; }
+#timeline-view[data-dash-state="3"] #partWatchedDashboardSection { flex-grow: 10; }
+#timeline-view[data-dash-state="3"] .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 60; }
 
 .page-shell[data-active-view="dashboard"] #partWatchedDashboardSection.hidden {
   display: none;
@@ -8796,7 +8809,11 @@ html.light-mode .pill-toggle.active {
 #movieHistoryRow.horizontal-scroll-row {
   /* Room for the hover lift so the card border isn't clipped by overflow */
   padding-top: 6px;
+  padding-left: 6px;
+  padding-right: 6px;
   padding-bottom: 10px;
+  scroll-padding-left: 6px;
+  scroll-padding-right: 6px;
 }
 
 .history-mini-card {
@@ -10145,6 +10162,10 @@ html.light-mode .nav-label {
   color: var(--muted);
 }
 
+html.light-mode .sidebar-view-toggle {
+  --sidebar-view-blue: var(--blue);
+}
+
 html.light-mode .nav-tab {
   color: var(--text);
   border-left: 3px solid transparent;
@@ -10728,7 +10749,11 @@ html.light-mode .review-card {
 /* Part Watched cards live in the dashboard horizontal scroll row */
 #partWatchedRow.horizontal-scroll-row {
   padding-top: 6px;
+  padding-left: 6px;
+  padding-right: 6px;
   padding-bottom: 10px;
+  scroll-padding-left: 6px;
+  scroll-padding-right: 6px;
 }
 
 #partWatchedRow .part-watched-page-card {
