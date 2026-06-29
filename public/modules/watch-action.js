@@ -110,9 +110,10 @@ function formatCustomDisplay(date) {
 function syncCustomTimeFromSelects() {
   const wd = state.watchDateCustom;
   if (!wd?.selected) return;
-  const root = mediaDetailRoot();
-  const hourEl = root.querySelector("[data-wd-hour]");
-  const minuteEl = root.querySelector("[data-wd-minute]");
+  // The overlay is a singleton — query document directly so it's found
+  // regardless of which element it was appended to.
+  const hourEl = document.querySelector("[data-wd-hour]");
+  const minuteEl = document.querySelector("[data-wd-minute]");
   if (hourEl) wd.selected.setHours(Number(hourEl.value));
   if (minuteEl) wd.selected.setMinutes(Number(minuteEl.value));
   wd.selected.setSeconds(0, 0);
@@ -189,7 +190,10 @@ export function watchDateCustomCardHtml() {
 }
 
 export function rerenderWatchDateCustomPicker() {
-  const host = mediaDetailRoot().querySelector("[data-watch-date-picker]");
+  // The overlay is a singleton — query document directly so it's found
+  // regardless of which element it was appended to (explorerPanel, modalBody,
+  // document.body, etc.).
+  const host = document.querySelector("[data-watch-date-picker]");
   if (host) host.innerHTML = renderWatchDateCustomPicker();
 }
 
@@ -203,6 +207,31 @@ export function wireWatchDateCustomPicker(root) {
     const display = host.querySelector(".wd-display");
     if (display && state.watchDateCustom?.selected) {
       display.textContent = formatCustomDisplay(state.watchDateCustom.selected);
+    }
+  });
+  host.addEventListener("click", (event) => {
+    const navBtn = event.target.closest("[data-wd-nav]");
+    if (navBtn && state.watchDateCustom) {
+      syncCustomTimeFromSelects();
+      const dir = navBtn.dataset.wdNav === "next" ? 1 : -1;
+      let month = state.watchDateCustom.month + dir;
+      let year = state.watchDateCustom.year;
+      if (month < 0) { month = 11; year -= 1; }
+      if (month > 11) { month = 0; year += 1; }
+      state.watchDateCustom.year = year;
+      state.watchDateCustom.month = month;
+      rerenderWatchDateCustomPicker();
+      return;
+    }
+    const dayBtn = event.target.closest("[data-wd-day]");
+    if (dayBtn && state.watchDateCustom) {
+      syncCustomTimeFromSelects();
+      const [year, month, day] = dayBtn.dataset.wdDay.split("-").map(Number);
+      state.watchDateCustom.selected.setFullYear(year, month - 1, day);
+      state.watchDateCustom.year = year;
+      state.watchDateCustom.month = month - 1;
+      rerenderWatchDateCustomPicker();
+      return;
     }
   });
 }
@@ -313,15 +342,19 @@ export function openWatchDatePrompt(action) {
   }
   state.pendingWatchAction = action;
   initWatchDateCustomState();
-  const root = mediaDetailRoot();
-  root.querySelector(".watch-date-overlay")?.remove();
-  root.insertAdjacentHTML("beforeend", renderWatchDatePrompt(action));
-  wireWatchDateCustomPicker(root);
+  // Always mount on document.body so that position:fixed inset:0 covers the
+  // full viewport. Mounting inside mediaDetailRoot() would place the overlay
+  // inside an ancestor that has backdrop-filter, which — per the CSS spec —
+  // creates a new containing block for fixed-positioned descendants, breaking
+  // the fullscreen overlay and misaligning click targets.
+  document.querySelector(".watch-date-overlay")?.remove();
+  document.body.insertAdjacentHTML("beforeend", renderWatchDatePrompt(action));
+  wireWatchDateCustomPicker(document.body);
 }
 
 export function closeWatchDatePrompt() {
   state.pendingWatchAction = null;
-  mediaDetailRoot().querySelector(".watch-date-overlay")?.remove();
+  document.querySelector(".watch-date-overlay")?.remove();
 }
 
 // ── Date/time helpers ──────────────────────────────────────────────────────
@@ -503,7 +536,7 @@ async function applyMovieWatchDateChoice(choice) {
   const watchedAt = watchedAtForChoice(choice, { airDate: movie.releaseDate }, customDate);
   const record = watchRecordFromMovie(movie, watchedAt);
 
-  root.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]").forEach((button) => {
+  document.querySelector(".watch-date-overlay")?.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]").forEach((button) => {
     button.disabled = true;
   });
 
@@ -612,7 +645,6 @@ async function applyPartWatchedWatchDateChoice(choice) {
   const action = state.pendingWatchAction;
   if (!action) return;
 
-  const root = mediaDetailRoot();
   const customDate = getCustomWatchDateValue();
 
   const episode = action.episodes?.[0] || {};
@@ -630,7 +662,7 @@ async function applyPartWatchedWatchDateChoice(choice) {
         tvdb_id: episode.tvdbId || null,
       };
 
-  root.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]").forEach((button) => {
+  document.querySelector(".watch-date-overlay")?.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]").forEach((button) => {
     button.disabled = true;
   });
 
@@ -663,7 +695,8 @@ export async function applyWatchDateChoice(choice) {
   const customDate = getCustomWatchDateValue();
   const watchedRows = action.episodes.map((episode) => localWatchRowFromEpisode(episode, watchedAtForChoice(choice, episode, customDate)));
   const records = action.episodes.map((episode, index) => watchRecordFromEpisode(episode, watchedRows[index].watched_at));
-  const buttons = [...root.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]")];
+  const overlay = document.querySelector(".watch-date-overlay");
+  const buttons = [...(overlay?.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]") ?? [])];
   buttons.forEach((button) => {
     button.disabled = true;
   });
