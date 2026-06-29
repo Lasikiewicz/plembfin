@@ -1,7 +1,19 @@
 {
-  "version": "0.2.63",
-  "updatedAt": "2026-06-29T09:39:23+01:00",
+  "version": "0.2.64",
+  "updatedAt": "2026-06-29T10:55:34+01:00",
   "entries": [
+    {
+      "version": "0.2.64",
+      "date": "2026-06-29T10:55:34+01:00",
+      "commit": "28aafdf11c19a4637fcc1eb89ab32554d5b9ec23",
+      "message": "fix: Re-render active view after marking item as unwatched",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add renderActiveView callback to re-render dashboard/explorer/history after state changes",
+        "Call renderActiveView after closing media detail when marking non-episode items as unwatched",
+        "Ensures UI updates immediately without requiring page refresh"
+      ]
+    },
     {
       "version": "0.2.63",
       "date": "2026-06-29T09:39:23+01:00",
