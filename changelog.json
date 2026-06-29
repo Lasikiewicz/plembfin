@@ -1,7 +1,22 @@
 {
-  "version": "0.2.61",
-  "updatedAt": "2026-06-29T08:32:04+01:00",
+  "version": "0.2.62",
+  "updatedAt": "2026-06-29T09:07:20+01:00",
   "entries": [
+    {
+      "version": "0.2.62",
+      "date": "2026-06-29T09:07:20+01:00",
+      "commit": "03315729d409c0c5bcc4742567dbc396bb4e27ab",
+      "message": "feat: Redesign settings pages to use top sub-tabs and clean visual layout",
+      "author": "Lasikiewicz",
+      "details": [
+        "Balanced column proportions to 65% forms and 35% side help guidelines",
+        "Added top sub-tab navigation to General, Apps, API Keys, Appearance, Sync, and Tools panels",
+        "Cleaned up app integration cards using uniform boundaries and subtle brand accent switch tracks",
+        "Integrated clean typography (Outfit) and macOS-style developer console window decorations",
+        "Replaced the image cache stats table with clean visual storage progress meters",
+        "Validated and refined light theme settings page colors and layout responsiveness"
+      ]
+    },
     {
       "version": "0.2.61",
       "date": "2026-06-29T08:32:04+01:00",
