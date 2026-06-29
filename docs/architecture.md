@@ -101,7 +101,7 @@ boot. All database access uses prepared statements.
   feature code split across `public/modules/` and `app.js` kept to startup,
   routing, shared callbacks, and element binding.
 - SPA navigation via `navigateTo(url)` / `handleRouting()` / `history.pushState`.
-  Routes: `/` dashboard, `/stats`, `/movie/:id`, `/tvshow/:key`, `/person/:id`, `/settings/:tab`, `/help/:topic`.
+  Routes: `/` dashboard, `/stats`, `/movie/:id`, `/tvshow/:key`, `/person/:id`, `/settings/:tab`.
 - Auth handled by `onAuthChange()` (`modules/auth.js`) — which checks
   `/api/auth/status`. The auth panel is hidden until a session is confirmed.
 - Browser API calls use the HttpOnly session cookie after authentication.

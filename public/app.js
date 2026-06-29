@@ -3,7 +3,7 @@ import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchD
 import { connectionLabel, connectionPayloadFromElements } from "./modules/settings.js";
 import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS, SETTINGS_TABS } from "./modules/state.js";
 import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSlug, movieHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./modules/utils.js";
-import { adminTokenGuide, plexCredentialGuide, embyCredentialGuide, jellyfinCredentialGuide, buildWebhookUrl, plexWebhookSetup, embyWebhookSetup, jellyfinWebhookSetup, webhookWarning, cronSyncGuide, renderSettingsInlineHelp, visibleHelpTopics, HELP_TOPICS } from "./modules/help-content.js";
+import { adminTokenGuide, plexCredentialGuide, embyCredentialGuide, jellyfinCredentialGuide, buildWebhookUrl, plexWebhookSetup, embyWebhookSetup, jellyfinWebhookSetup, webhookWarning, cronSyncGuide, renderSettingsInlineHelp } from "./modules/help-content.js";
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile } from "./modules/images.js";
 import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, addBackupDestination, saveBackupDestinationCard, testBackupDestinationCard, removeBackupDestinationCard, listRemoteBackupsForCard, restoreRemoteBackupFromCard, connectBackupDestinationCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runDedupHistory, runTraktBackfill, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./modules/tools.js";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync } from "./modules/sync.js";
@@ -124,7 +124,6 @@ function bindElements() {
     topbarControlsMenu: document.querySelector("#topbarControlsMenu"),
     topbarControlsPanel: document.querySelector("#topbarControlsPanel"),
     settingsSubMenu: document.querySelector("#sidebarSettingsMenu"),
-    helpSubMenu: document.querySelector("#helpMenu"),
     historyPanel: document.querySelector("#historyPanel"),
     alphaFilterNav: document.querySelector("#alphaFilterNav"),
     explorerSearchInput: document.querySelector("#explorerSearchInput"),
@@ -182,8 +181,6 @@ function bindElements() {
     appearShowReviews: document.querySelector("#appearShowReviews"),
     appearShowImages: document.querySelector("#appearShowImages"),
     appearShowRelated: document.querySelector("#appearShowRelated"),
-    helpCanvas: document.querySelector("#helpCanvas"),
-    helpMenu: document.querySelector("#helpMenu"),
     tvHistoryRow: document.querySelector("#tvHistoryRow"),
     movieHistoryRow: document.querySelector("#movieHistoryRow"),
     importFile: document.querySelector("#importFile"),
@@ -1104,17 +1101,7 @@ function handleRouting(path) {
     } else {
       state.activeSettingsTab = "general";
     }
-  } else if (pathname.startsWith("/help")) {
-    state.activeView = "help";
-    state.mediaDetailInline = false;
-    clearMediaDetailState();
-    const parts = pathname.split("/");
-    const topics = visibleHelpTopics();
-    if (parts[2] && topics.some((topic) => topic.id === parts[2])) {
-      state.activeHelpTopic = parts[2];
-    } else {
-      state.activeHelpTopic = topics[0]?.id || "getting-started";
-    }
+
   } else {
     state.activeView = "dashboard";
     state.mediaDetailInline = false;
@@ -1198,8 +1185,7 @@ function selectView(view) {
     url = state.explorerMode === "shows" ? "/tvshows" : "/movies";
   } else if (targetView === "settings") {
     url = `/settings/${legacySettingsTab || "general"}`;
-  } else if (targetView === "help") {
-    url = `/help/${state.activeHelpTopic}`;
+
   } else if (targetView === "search") {
     const q = state.searchQuery || new URLSearchParams(window.location.search).get("q") || "";
     url = `/search${q ? `?q=${encodeURIComponent(q)}` : ""}`;
@@ -1254,10 +1240,7 @@ function settingsTopbarTitle() {
   return `Settings - ${labels[state.activeSettingsTab] || "General"}`;
 }
 
-function activeHelpTitle() {
-  const topic = visibleHelpTopics().find((item) => item.id === state.activeHelpTopic);
-  return topic?.title || "Help";
-}
+
 
 function syncPageTopbar() {
   if (!elements.pageTopbar) return;
@@ -1273,7 +1256,6 @@ function syncPageTopbar() {
     elements.searchTopbarControls,
     elements.statsTopbarControls,
     elements.settingsSubMenu,
-    elements.helpSubMenu,
   ].filter(Boolean);
   let title = "Dashboard";
   let subtitle = "Overview";
@@ -1307,10 +1289,7 @@ function syncPageTopbar() {
     title = settingsTopbarTitle();
     subtitle = "";
     activeControls = mobileTopbarControls ? elements.settingsSubMenu : null;
-  } else if (state.activeView === "help") {
-    title = activeHelpTitle();
-    subtitle = "Help";
-    activeControls = mobileTopbarControls ? elements.helpSubMenu : null;
+
   } else if (state.activeView === "search") {
     const searchQuery = state.searchQuery || query.get("q") || "";
     title = searchQuery ? `Search Results for "${searchQuery}"` : "Search Results";
@@ -1340,9 +1319,7 @@ function syncPageTopbar() {
   if (!mobileTopbarControls && state.activeView === "settings" && elements.settingsSubMenu) {
     elements.settingsSubMenu.classList.remove("hidden");
   }
-  if (!mobileTopbarControls && state.activeView === "help" && elements.helpSubMenu) {
-    elements.helpSubMenu.classList.remove("hidden");
-  }
+
 
   if (elements.topbarControlsMenu) {
     elements.topbarControlsMenu.classList.toggle("hidden", !mobileTopbarControls || !activeControls);
@@ -1371,11 +1348,7 @@ function restoreTopbarControlGroup(group) {
     if (settingsButton && group.parentElement !== settingsButton.parentElement) {
       settingsButton.after(group);
     }
-  } else if (group.id === "helpMenu") {
-    const helpButton = document.querySelector('[data-view="help"]');
-    if (helpButton && group.parentElement !== helpButton.parentElement) {
-      helpButton.after(group);
-    }
+
   }
 }
 
@@ -1394,16 +1367,10 @@ function applyActiveView() {
     panel.classList.toggle("hidden", panel.dataset.viewPanel !== state.activeView);
   }
 
-  const helpSubMenu = document.querySelector("#helpMenu");
   const settingsSubMenu = document.querySelector("#sidebarSettingsMenu");
-  if (helpSubMenu) {
-    helpSubMenu.classList.toggle("hidden", state.activeView !== "help");
-  }
   if (settingsSubMenu) {
     settingsSubMenu.classList.toggle("hidden", state.activeView !== "settings");
   }
-
-  if (state.activeView === "help") renderHelp();
   if (state.activeView === "dashboard") {
     applyCachedDashboardHistory();
     renderDashboard();
@@ -1444,6 +1411,11 @@ function applyActiveView() {
     }
     for (const panel of elements.settingsPanels || []) {
       panel.classList.toggle("hidden", panel.dataset.settingsPanel !== state.activeSettingsTab);
+    }
+    if (state.activeSettingsTab === "appearance") {
+      for (const button of elements.dashboardHistoryViewButtons || []) {
+        button.classList.toggle("active", button.dataset.dashboardHistoryView === state.dashboardHistoryViewMode);
+      }
     }
     if (state.activeSettingsTab === "sync") {
       renderSyncJobs();
@@ -1941,84 +1913,7 @@ function renderDbStatus(isOnline) {
   `;
 }
 
-function helpBadgeValue(token = "") {
-  const key = String(token || "").trim().toUpperCase();
-  if (key === "ADMIN_AUTH") return { label: "ADMIN", value: state.currentUser?.username || state.currentUser?.email || "" };
-  if (key === "PLEX_URL") return { label: "PLEX_URL", value: state.savedConfig.plex?.baseUrl || state.savedConfig.plex?.url || "" };
-  if (key === "PLEX_TOKEN") return { label: "PLEX_TOKEN", value: state.savedConfig.plex?.token || state.savedConfig.plex?.apiKey || "" };
-  if (key === "EMBY_API_KEY") return { label: "EMBY_API_KEY", value: state.savedConfig.emby?.apiKey || state.savedConfig.emby?.api_key || "" };
-  if (key === "EMBY_USER_ID") return { label: "EMBY_USER_ID", value: state.savedConfig.emby?.userId || "" };
-  if (key === "JELLYFIN_API_KEY") return { label: "JELLYFIN_API_KEY", value: state.savedConfig.jellyfin?.apiKey || state.savedConfig.jellyfin?.api_key || "" };
-  if (key === "JELLYFIN_USER_ID") return { label: "JELLYFIN_USER_ID", value: state.savedConfig.jellyfin?.userId || "" };
-  return { label: key || "UNKNOWN", value: "" };
-}
 
-function tokenBadges(tokens = []) {
-  const badges = tokens
-    .map((token) => {
-      const entry = helpBadgeValue(token);
-      const value = String(entry.value || "");
-      if (!value) {
-        return `<span class="help-badge help-badge--required"><span>Required: ${escapeHtml(entry.label)}</span></span>`;
-      }
-
-      return `
-        <span class="help-badge help-badge--ready" tabindex="0">
-          <span>Available: ${escapeHtml(entry.label)}</span>
-          <button class="help-badge-copy" type="button" data-copy="${escapeAttribute(value)}">Copy</button>
-        </span>
-      `;
-    })
-    .join("");
-
-  return `<div class="help-badges">${badges}</div>`;
-}
-
-function renderHelp() {
-  const topics = visibleHelpTopics();
-  const categories = [...new Set(topics.map((topic) => topic.category))];
-  elements.helpMenu.innerHTML = categories
-    .map(
-      (category) => `
-        <section class="help-menu-group">
-          <p>${escapeHtml(category)}</p>
-          ${topics.filter((topic) => topic.category === category)
-          .map(
-            (topic) => `
-                <button class="help-menu-item ${topic.id === state.activeHelpTopic ? "active" : ""}" type="button" data-help-topic="${topic.id}">
-                  <span class="help-menu-item-title">${escapeHtml(topic.title)}</span>
-                  ${topic.description ? `<span class="help-menu-item-desc">${escapeHtml(topic.description)}</span>` : ""}
-                </button>
-              `,
-          )
-          .join("")}
-        </section>
-      `,
-    )
-    .join("");
-
-  const topic = topics.find((item) => item.id === state.activeHelpTopic) || topics[0];
-  if (!topic) {
-    elements.helpCanvas.innerHTML = `<div class="idle-state"><b>No help topics available.</b></div>`;
-    return;
-  }
-  state.activeHelpTopic = topic.id;
-  elements.helpCanvas.innerHTML = `
-    <div class="help-hero">
-      <div class="help-hero-eyebrow">${escapeHtml(topic.category)}</div>
-      <h2>${escapeHtml(topic.title)}</h2>
-      ${topic.description ? `<p class="help-hero-desc">${escapeHtml(topic.description)}</p>` : ""}
-      ${tokenBadges(topic.badges)}
-    </div>
-    <div class="help-doc-body">${topic.body()}</div>
-  `;
-}
-
-function openHelpTopic(topicId) {
-  if (!visibleHelpTopics().some((topic) => topic.id === topicId)) return;
-  navigateTo(`/help/${topicId}`);
-  window.setTimeout(() => elements.helpCanvas?.scrollIntoView({ block: "start" }), 0);
-}
 
 async function renderLogs() {
   if (!elements.logsTerminal) return;
@@ -2183,11 +2078,7 @@ async function testConnection(type, button) {
   setConnectionStatus(type, `✘ Failed: ${errorMessage} (${statusText})`, "error");
 }
 
-function refreshHelpIfVisible() {
-  if (state.activeView === "help") {
-    renderHelp();
-  }
-}
+function refreshHelpIfVisible() {}
 
 function toggleSet(set, key) {
   if (set.has(key)) set.delete(key);
@@ -2490,7 +2381,6 @@ function initialize() {
     loadHistory,
     loadStats,
     loadSavedConfig,
-    renderHelp,
     renderDbStatus,
     showErrorExplainModal,
     runRefreshMetadataWorkflow,
@@ -2522,7 +2412,6 @@ function initialize() {
   renderActiveSessions();
   renderStats();
   if (!state.mediaDetailInline) renderExplorer();
-  renderHelp();
   renderLogs().catch(() => { });
   renderImportPreview();
   renderWatchBackups();

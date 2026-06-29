@@ -89,4 +89,4 @@ platforms.
 - Plex does **not** send unwatched (unscrobble) events. Plembfin compensates via
   the built-in Plex WebSocket notification listener, which connects automatically
   using the configured Plex URL and token.
-- The in-app Help → "Webhook Setup" page documents per-server configuration.
+- The in-app Settings → Apps webhook setup guide documents per-server configuration.

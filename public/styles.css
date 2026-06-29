@@ -11066,3 +11066,92 @@ html.light-mode .watch-date-custom label {
 
 /* The picker uses theme variables (--field, --blue, --line, --text, --muted),
    so it inherits the light palette automatically — no overrides needed. */
+
+/* Watch History View Segmented Control inside Settings */
+.settings-segmented-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.settings-segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.25rem;
+  max-width: 320px;
+}
+
+/* Light mode overrides for settings segmented control */
+html.light-mode .settings-segmented-control {
+  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* Reusing sidebar-segmented-btn inside settings card */
+.settings-segmented-control .sidebar-segmented-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.35rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0.4rem 0.8rem;
+  transition: all 140ms ease;
+  font-size: 0.8rem;
+}
+
+.settings-segmented-control .sidebar-segmented-btn svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.settings-segmented-control .sidebar-segmented-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.settings-segmented-control .sidebar-segmented-btn.active {
+  border-color: color-mix(in srgb, var(--blue), transparent 50%);
+  background: color-mix(in srgb, var(--blue), transparent 90%);
+  color: var(--blue);
+}
+
+/* Sign out button restyling inside settings submenu */
+.sidebar-sub-menu .settings-tab.button-signout {
+  margin-top: var(--space-3) !important;
+  border-top: 1px solid var(--line) !important;
+  padding-top: var(--space-3) !important;
+  color: var(--red) !important;
+  border-radius: 0 0 4px 4px !important;
+}
+
+.sidebar-sub-menu .settings-tab.button-signout:hover {
+  border-color: transparent !important;
+  background: rgba(244, 63, 94, 0.08) !important;
+  color: #ffa1b2 !important;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 900px) {
+  .sidebar-sub-menu .settings-tab.button-signout {
+    padding-left: 1.5rem !important;
+    border-left: 3px solid transparent !important;
+  }
+  .sidebar-sub-menu .settings-tab.button-signout:hover {
+    border-left-color: var(--red) !important;
+  }
+}
+
