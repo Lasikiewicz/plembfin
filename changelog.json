@@ -1,7 +1,20 @@
 {
-  "version": "0.2.60",
-  "updatedAt": "2026-06-28T20:36:43+01:00",
+  "version": "0.2.61",
+  "updatedAt": "2026-06-29T08:32:04+01:00",
   "entries": [
+    {
+      "version": "0.2.61",
+      "date": "2026-06-29T08:32:04+01:00",
+      "commit": "03e8e6726c3d2a7dec3f5019d648b44de9fec1e6",
+      "message": "feat: simplify left menu and update settings layout",
+      "author": "Lasikiewicz",
+      "details": [
+        "Remove the standalone Help page and sidebar tab",
+        "Remove the \"More\" sidebar separator to clean up navigation",
+        "Relocate \"Watch History View\" segmented control to Settings - Appearance card",
+        "Relocate and restyle the \"Sign out\" button to the bottom of the Settings sub-menu"
+      ]
+    },
     {
       "version": "0.2.60",
       "date": "2026-06-28T20:36:43+01:00",
