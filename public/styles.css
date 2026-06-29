@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
 /*
  * RESPONSIVE DESIGN GUIDE
  * ========================
@@ -17,21 +19,21 @@
 
 :root {
   color-scheme: dark;
-  --bg: #0b0f12;
-  --panel: #12161a;
-  --panel-2: #14181c;
-  --panel-3: #0f1317;
-  --line: #1f262d;
-  --line-strong: #2b343d;
-  --text: #e8edf2;
-  --soft: #b7c0c8;
-  --muted: #7f8a94;
-  --blue: #4b96e6;
+  --bg: #05080c;
+  --panel: rgba(18, 22, 28, 0.45);
+  --panel-2: rgba(18, 22, 28, 0.55);
+  --panel-3: #080b0f;
+  --line: rgba(255, 255, 255, 0.05);
+  --line-strong: rgba(255, 255, 255, 0.12);
+  --text: #f1f5f9;
+  --soft: #cbd5e1;
+  --muted: #64748b;
+  --blue: #3b82f6;
   --green: #10b981;
   --yellow: #eab308;
   --red: #f43f5e;
   --field: #0d1115;
-  --radius: 6px;
+  --radius: 8px;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -41,7 +43,7 @@
   --control-inline-padding: 0.7rem;
   --right-topbar-height: 3rem;
   --right-topbar-content-offset: 0.7rem;
-  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 * {
@@ -854,8 +856,11 @@ h2 {
 .glass-panel {
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: #12161a;
-  box-shadow: none;
+  background: var(--panel);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.24);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .auth-panel,
@@ -9303,49 +9308,7 @@ html:not(.light-mode) .episode-progress-fill {
   }
 }
 
-/* ── Redesigned 60/40 Settings Layout ── */
-.settings-pane {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  width: 100%;
-}
 
-.settings-row {
-  display: flex;
-  gap: var(--space-4);
-  align-items: start;
-  width: 100%;
-}
-
-.settings-row-main {
-  flex: 40;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.settings-row-help {
-  flex: 60;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-/* Card adjustments */
-.settings-row-help .settings-card {
-  border-left: 2px solid var(--blue);
-  background: rgba(13, 20, 30, 0.4);
-}
-
-.settings-row-help .tool-accordion-desc {
-  line-height: 1.6;
-  color: var(--soft);
-  margin-bottom: var(--space-3);
-  font-size: 0.85rem;
-}
 
 /* Tools tab collapsible sections */
 .tool-section-summary {
@@ -9447,114 +9410,7 @@ details[open] > .tool-section-summary::before {
   }
 }
 
-/* Compact settings adjustments */
-.settings-pane .settings-row {
-  margin-top: var(--space-2) !important;
-  gap: var(--space-2) !important;
-}
-
-.settings-pane .settings-row-main,
-.settings-pane .settings-row-help {
-  gap: var(--space-2) !important;
-}
-
-.settings-pane .settings-card {
-  padding: 0.6rem 0.8rem !important;
-}
-
-.settings-pane .section-heading {
-  margin-bottom: var(--space-1) !important;
-}
-
-.settings-pane .section-heading p {
-  font-size: 0.88rem !important;
-  line-height: 1.2 !important;
-}
-
-.settings-pane .section-heading span {
-  font-size: 0.72rem !important;
-  line-height: 1.2 !important;
-}
-
-.settings-pane .field-label {
-  margin-bottom: 0.35rem !important;
-  font-size: 0.78rem !important;
-  gap: 0.15rem !important;
-}
-
-.settings-pane .field {
-  height: 1.85rem !important;
-  min-height: 1.85rem !important;
-  padding: 0.2rem 0.4rem !important;
-  font-size: 0.8rem !important;
-}
-
-.settings-pane button {
-  padding: 0.2rem 0.5rem !important;
-  font-size: 0.76rem !important;
-  min-height: 1.85rem !important;
-}
-
-.settings-pane .settings-actions {
-  margin-top: 0.4rem !important;
-  gap: 0.4rem !important;
-}
-
-.settings-pane .checkbox-label {
-  margin-bottom: 0.35rem !important;
-}
-
-.settings-pane .integration-toggle {
-  margin-bottom: 0 !important;
-}
-
-.settings-pane[data-settings-panel="apps"] .settings-card {
-  gap: var(--space-2);
-  padding-block: 0.5rem !important;
-}
-
-.settings-pane[data-settings-panel="apps"] .settings-row {
-  align-items: stretch;
-}
-
-.settings-pane[data-settings-panel="apps"] .settings-row-main,
-.settings-pane[data-settings-panel="apps"] .settings-row-help {
-  align-self: stretch;
-}
-
-.settings-pane[data-settings-panel="apps"] .section-heading {
-  min-height: 1.45rem;
-}
-
-.settings-pane[data-settings-panel="apps"] .integration-fields {
-  gap: 0.35rem 0.5rem;
-}
-
-.settings-pane[data-settings-panel="apps"] .integration-fields .field-label {
-  margin-bottom: 0 !important;
-}
-
-.settings-pane[data-settings-panel="apps"] .settings-actions {
-  margin-top: auto !important;
-}
-
-.settings-pane p.tool-accordion-desc,
-.settings-pane ol.tool-accordion-desc,
-.settings-pane ul.tool-accordion-desc,
-.settings-pane .destination-help {
-  margin-bottom: var(--space-2) !important;
-  font-size: 0.76rem !important;
-  line-height: 1.35 !important;
-}
-
-.settings-pane .p-section[style*="margin-top"] {
-  margin-top: var(--space-2) !important;
-}
-
-.settings-pane .backup-settings-panel[style*="margin-top"],
-.settings-pane .sync-panel[style*="margin-top"] {
-  margin-top: var(--space-2) !important;
-}
+/* Removed compact settings adjustments in favor of modern spacious layout */
 
 /* Alpha filter sidebar */
 
@@ -11154,4 +11010,512 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
     border-left-color: var(--red) !important;
   }
 }
+
+/* ── Settings Redesign (Outfit & Glassmorphic Aesthetics) ── */
+.settings-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  width: 100%;
+  padding-top: 0.5rem;
+}
+
+.settings-row {
+  display: flex;
+  gap: 2rem;
+  align-items: start;
+  width: 100%;
+}
+
+.settings-row-main {
+  flex: 65;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.settings-row-help {
+  flex: 35;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.settings-card {
+  padding: 1.5rem !important;
+  gap: 1.5rem !important;
+  transition: all 0.3s ease;
+}
+
+.settings-row-help .settings-card {
+  border-left: 3px solid var(--blue);
+  background: rgba(30, 41, 59, 0.25);
+}
+
+.settings-row-help .tool-accordion-desc {
+  line-height: 1.6;
+  color: var(--soft);
+  margin-bottom: var(--space-3);
+  font-size: 0.85rem;
+}
+
+.settings-pane .field-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.settings-pane .field {
+  height: 2.6rem !important;
+  min-height: 2.6rem !important;
+  border-radius: 8px;
+  padding: 0.5rem 0.85rem !important;
+  font-size: 0.9rem !important;
+  background: rgba(7, 10, 15, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.settings-pane .field:focus {
+  border-color: var(--blue) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2), inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+.settings-pane button {
+  height: 2.5rem !important;
+  min-height: 2.5rem !important;
+  border-radius: 8px !important;
+  padding: 0.5rem 1.25rem !important;
+  font-size: 0.84rem !important;
+  font-weight: 600;
+  transition: all 0.2s ease !important;
+}
+
+.settings-pane .button-primary {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+
+.settings-pane .button-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
+  transform: translateY(-1px);
+}
+
+.settings-pane .button-ghost {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: var(--text) !important;
+}
+
+.settings-pane .button-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(-1px);
+}
+
+/* Custom Slide Switch */
+.settings-pane .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.settings-pane .checkbox-label input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 2.6rem;
+  height: 1.4rem;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  position: relative;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  margin: 0;
+}
+
+.settings-pane .checkbox-label input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  top: 0.07rem;
+  left: 0.07rem;
+  background: #cbd5e1;
+  transition: transform 0.3s ease, background 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.settings-pane .checkbox-label input[type="checkbox"]:checked {
+  background: var(--blue);
+}
+
+.settings-pane .checkbox-label input[type="checkbox"]:checked::before {
+  transform: translateX(1.25rem);
+  background: #ffffff;
+}
+
+.settings-pane .appearance-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  margin: 0;
+}
+
+.settings-pane .appearance-toggle-row:last-child {
+  border-bottom: none;
+}
+
+/* Branded Integration Cards */
+.integration-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.integration-card .section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding-bottom: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.integration-card .section-heading p {
+  font-size: 1.1rem !important;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* Disabled state desaturation */
+.integration-card:has(.integration-toggle input:not(:checked)) .integration-fields,
+.integration-card:has(.integration-toggle input:not(:checked)) .settings-actions button:not(.integration-toggle) {
+  opacity: 0.35;
+  filter: saturate(0.1);
+  pointer-events: none;
+}
+
+/* Checked integration switch accents (subtle, unified design) */
+.integration-card.integration-plex .integration-toggle input[type="checkbox"]:checked {
+  background: var(--yellow) !important;
+}
+
+.integration-card.integration-emby .integration-toggle input[type="checkbox"]:checked {
+  background: var(--green) !important;
+}
+
+.integration-card.integration-jellyfin .integration-toggle input[type="checkbox"]:checked {
+  background: #00a4dc !important;
+}
+
+.integration-card.integration-seerr .integration-toggle input[type="checkbox"]:checked {
+  background: var(--red) !important;
+}
+
+/* Brand icon styling */
+.integration-brand-logo {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: currentColor;
+  flex-shrink: 0;
+}
+
+/* macOS Developer Terminal Console */
+.terminal-wrapper {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: #06090e;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  margin-top: 1rem;
+}
+
+.terminal-wrapper:has(.hidden) {
+  display: none !important;
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.terminal-header-dots {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.terminal-header-dots span {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.terminal-header-dots .dot-red { background: #f43f5e; }
+.terminal-header-dots .dot-yellow { background: #eab308; }
+.terminal-header-dots .dot-green { background: #10b981; }
+
+.terminal-header-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.terminal-header-right {
+  width: 2.2rem;
+}
+
+.settings-pane .logs-terminal,
+.settings-pane .import-terminal {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  font-family: 'JetBrains Mono', 'Cascadia Mono', monospace !important;
+  font-size: 0.76rem !important;
+  line-height: 1.6 !important;
+  padding: 1rem !important;
+  color: #e2e8f0 !important;
+}
+
+/* Cache Gauges */
+.cache-gauge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1.25rem;
+}
+
+.cache-gauge-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.cache-gauge-card:hover {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.cache-gauge-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.cache-gauge-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.cache-gauge-size {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--blue);
+}
+
+.cache-gauge-count {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.cache-gauge-bar {
+  height: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.cache-gauge-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), #6366f1);
+  border-radius: 999px;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 900px) {
+  .settings-row {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .settings-row-main,
+  .settings-row-help {
+    flex: none;
+    width: 100%;
+  }
+}
+
+/* Light Mode Overrides */
+html.light-mode .settings-row-help .settings-card {
+  border-left-color: var(--blue);
+  background: rgba(15, 23, 42, 0.03);
+}
+
+html.light-mode .settings-pane .field {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: #0f172a !important;
+}
+
+html.light-mode .settings-pane .field:focus {
+  border-color: var(--blue) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+}
+
+html.light-mode .settings-pane .button-ghost {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: #0f172a !important;
+}
+
+html.light-mode .settings-pane .button-ghost:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.02) !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+html.light-mode .terminal-wrapper {
+  background: #f1f5f9;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+html.light-mode .terminal-header {
+  background: rgba(0, 0, 0, 0.02);
+  border-bottom-color: rgba(0, 0, 0, 0.05);
+}
+
+html.light-mode .settings-pane .logs-terminal,
+html.light-mode .settings-pane .import-terminal {
+  color: #0f172a !important;
+}
+
+html.light-mode .settings-pane .checkbox-label input[type="checkbox"] {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+html.light-mode .settings-pane .checkbox-label input[type="checkbox"]::before {
+  background: #ffffff;
+}
+
+html.light-mode .settings-pane .checkbox-label input[type="checkbox"]:checked {
+  background: var(--blue);
+}
+
+html.light-mode .cache-gauge-card {
+  background: rgba(0, 0, 0, 0.01);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Top Sub-tabs Navigation inside Settings Panels */
+.settings-top-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.75rem;
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.settings-top-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-sub-tab {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 6px !important;
+  padding: 0.5rem 1rem !important;
+  font-size: 0.82rem !important;
+  font-weight: 700 !important;
+  color: var(--muted) !important;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease !important;
+  height: 2.2rem !important;
+  min-height: 2.2rem !important;
+}
+
+.settings-sub-tab:hover {
+  color: var(--text) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.settings-sub-tab.active {
+  border-color: rgba(59, 130, 246, 0.25) !important;
+  background: rgba(59, 130, 246, 0.08) !important;
+  color: var(--blue) !important;
+}
+
+html.light-mode .settings-sub-tab:hover {
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+
+html.light-mode .settings-sub-tab.active {
+  border-color: rgba(59, 130, 246, 0.2) !important;
+  background: rgba(59, 130, 246, 0.06) !important;
+}
+
+/* Refined Trakt drop zone */
+.settings-pane .drop-zone {
+  min-height: 10rem;
+  border: 1px dashed rgba(255, 255, 255, 0.15) !important;
+  background: rgba(255, 255, 255, 0.01) !important;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.settings-pane .drop-zone:hover {
+  border-color: var(--blue) !important;
+  background: rgba(59, 130, 246, 0.03) !important;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.05);
+}
+
+html.light-mode .settings-pane .drop-zone {
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  background: rgba(0, 0, 0, 0.01) !important;
+}
+
+html.light-mode .settings-pane .drop-zone:hover {
+  border-color: var(--blue) !important;
+  background: rgba(59, 130, 246, 0.01) !important;
+}
+
 

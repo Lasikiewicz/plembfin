@@ -169,6 +169,26 @@ function attachEvents() {
     button.addEventListener("click", () => selectSettingsTab(button.dataset.settingsTab));
   });
 
+  // Generic settings top-tab switching handler
+  document.addEventListener("click", (e) => {
+    const subTabBtn = e.target.closest("[data-sub-tab]");
+    if (!subTabBtn) return;
+    
+    const subTabName = subTabBtn.dataset.subTab;
+    const settingsPane = subTabBtn.closest(".settings-pane");
+    if (!settingsPane) return;
+    
+    // Toggle active status on subtab buttons
+    settingsPane.querySelectorAll("[data-sub-tab]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.subTab === subTabName);
+    });
+    
+    // Show/hide sub-panels
+    settingsPane.querySelectorAll("[data-sub-panel]").forEach((panel) => {
+      panel.classList.toggle("hidden", panel.dataset.subPanel !== subTabName);
+    });
+  });
+
   elements.backupsSubTabButtons.forEach((button) => {
     button.addEventListener("click", () => selectBackupsTab(button.dataset.backupsTab));
   });

@@ -326,7 +326,13 @@
 
             <div class="settings-content">
               <section class="settings-pane" data-settings-panel="general">
-                <div class="settings-row">
+                <div class="settings-top-tabs">
+                  <button class="settings-sub-tab active" type="button" data-sub-tab="general-login">Admin Login</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="general-endpoints">API Endpoints</button>
+                </div>
+
+                <!-- Admin Login Tab -->
+                <div class="settings-row" data-sub-panel="general-login">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
@@ -371,7 +377,12 @@
                       </div>
                       <div id="adminLoginHelp"></div>
                     </article>
+                  </div>
+                </div>
 
+                <!-- API Endpoints Tab -->
+                <div class="settings-row hidden" data-sub-panel="general-endpoints">
+                  <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
                         <p>API Endpoints</p>
@@ -388,17 +399,35 @@
                       </div>
                     </article>
                   </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Endpoints Guide</p>
+                        <span>Integration Webhooks</span>
+                      </div>
+                      <p class="tool-accordion-desc">Webhooks allow Plex, Emby, and Jellyfin to push play states immediately to Plembfin as they happen.</p>
+                      <p class="tool-accordion-desc">The cron-sync endpoint is polled by a background job to run the periodic synchronization loop between all integrations.</p>
+                    </article>
+                  </div>
                 </div>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="apps">
+                <div class="settings-top-tabs">
+                  <button class="settings-sub-tab active" type="button" data-sub-tab="apps-plex">Plex</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="apps-emby">Emby</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="apps-jellyfin">Jellyfin</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="apps-seerr">Seerr</button>
+                </div>
+
                 <!-- Plex Row -->
-                <div class="settings-row">
+                <div class="settings-row" data-sub-panel="apps-plex">
                   <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card">
+                    <article class="glass-panel p-section settings-card integration-card integration-plex">
                       <div class="section-heading">
                         <div>
-                          <p>Plex Setup</p>
+                          <p><svg class="integration-brand-logo" viewBox="0 0 24 24" style="color: #eab308;"><path fill="currentColor" d="M19 12l-12-10v20z"/></svg>Plex Setup</p>
                         </div>
                         <label class="checkbox-label integration-toggle">
                           <input id="plexEnabled" type="checkbox" />
@@ -440,12 +469,12 @@
                 </div>
 
                 <!-- Emby Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+                <div class="settings-row hidden" data-sub-panel="apps-emby">
                   <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card">
+                    <article class="glass-panel p-section settings-card integration-card integration-emby">
                       <div class="section-heading">
                         <div>
-                          <p>Emby Setup</p>
+                          <p><svg class="integration-brand-logo" viewBox="0 0 24 24" style="color: #10b981;"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>Emby Setup</p>
                         </div>
                         <label class="checkbox-label integration-toggle">
                           <input id="embyEnabled" type="checkbox" />
@@ -487,12 +516,12 @@
                 </div>
 
                 <!-- Jellyfin Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+                <div class="settings-row hidden" data-sub-panel="apps-jellyfin">
                   <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card">
+                    <article class="glass-panel p-section settings-card integration-card integration-jellyfin">
                       <div class="section-heading">
                         <div>
-                          <p>Jellyfin Setup</p>
+                          <p><svg class="integration-brand-logo" viewBox="0 0 24 24" style="color: #00a4dc;"><path fill="currentColor" d="M12 2a10 10 0 00-7.07 17.07l1.41-1.41A8 8 0 1112 20v2a10 10 0 000-20z"/></svg>Jellyfin Setup</p>
                         </div>
                         <label class="checkbox-label integration-toggle">
                           <input id="jellyfinEnabled" type="checkbox" />
@@ -534,12 +563,12 @@
                 </div>
 
                 <!-- Seerr Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+                <div class="settings-row hidden" data-sub-panel="apps-seerr">
                   <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card">
+                    <article class="glass-panel p-section settings-card integration-card integration-seerr">
                       <div class="section-heading">
                         <div>
-                          <p>Seerr Setup</p>
+                          <p><svg class="integration-brand-logo" viewBox="0 0 24 24" style="color: #e11d48;"><path fill="currentColor" d="M12 22a2 2 0 002-2h-4a2 2 0 002 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4a1.5 1.5 0 00-3 0v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>Seerr Setup</p>
                         </div>
                         <label class="checkbox-label integration-toggle">
                           <input id="seerrEnabled" type="checkbox" />
@@ -586,8 +615,15 @@
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="api-keys">
+                <div class="settings-top-tabs">
+                  <button class="settings-sub-tab active" type="button" data-sub-tab="api-tmdb">TMDB</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="api-youtube">YouTube</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="api-fanart">Fanart.tv</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="api-omdb">OMDb</button>
+                </div>
+
                 <!-- TMDB Row -->
-                <div class="settings-row">
+                <div class="settings-row" data-sub-panel="api-tmdb">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
@@ -626,7 +662,7 @@
                 </div>
 
                 <!-- YouTube Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+                <div class="settings-row hidden" data-sub-panel="api-youtube">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
@@ -665,7 +701,7 @@
                 </div>
 
                 <!-- Fanart.tv Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+                <div class="settings-row hidden" data-sub-panel="api-fanart">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
@@ -705,8 +741,9 @@
                     </article>
                   </div>
                 </div>
+
                 <!-- OMDb Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+                <div class="settings-row hidden" data-sub-panel="api-omdb">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
@@ -746,31 +783,28 @@
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="tools">
-                <!-- System Integrity Check -->
-                <div class="settings-row">
+                <div class="settings-top-tabs">
+                  <button class="settings-sub-tab active" type="button" data-sub-tab="tools-diagnostics">Diagnostics</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="tools-migration">Migration &amp; Import</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="tools-repairs">Database Repairs</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="tools-sync">Sync &amp; Cache</button>
+                </div>
+
+                <!-- Diagnostics Tab -->
+                <div class="settings-row" data-sub-panel="tools-diagnostics">
                   <div class="settings-row-main">
-                    <details open style="margin-bottom: var(--space-4);">
-                      <summary class="tool-section-summary">
-                    <span class="tool-section-summary-text">
-                      <b>System Integrity Check</b>
-                      <span>Verify local database state and media server reachability</span>
-                    </span>
-                  </summary>
-                  <div class="settings-row" style="margin-top: var(--space-3);">
-                    <div class="settings-row-main">
-                      <article class="glass-panel p-section settings-card">
-                        <div class="tool-item-row">
-                          <div class="tool-item-meta">
-                            <div class="tool-item-title-desc">
-                              <b>System Integrity Check</b>
-                              <span>Verify local database state and media server reachability</span>
-                            </div>
+                    <article class="glass-panel p-section settings-card">
+                      <div class="tool-item-row">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>System Integrity Check</b>
+                            <span>Verify local database state and media server reachability</span>
                           </div>
-                          <button id="runCompleteCheckButton" class="button-primary" style="align-self: flex-start;" type="button">Run System Diagnostic</button>
-                          <div id="completeCheckResults" class="complete-check-results hidden" style="display: grid; gap: var(--space-2);"></div>
                         </div>
-                      </article>
-                    </details>
+                        <button id="runCompleteCheckButton" class="button-primary" style="align-self: flex-start;" type="button">Run System Diagnostic</button>
+                        <div id="completeCheckResults" class="complete-check-results hidden" style="display: grid; gap: var(--space-2); margin-top: var(--space-3);"></div>
+                      </div>
+                    </article>
                   </div>
 
                   <div class="settings-row-help">
@@ -782,78 +816,62 @@
                       <p class="tool-accordion-desc">
                         <b>System Integrity Check:</b> Tests end-to-end database connectivity and verifies if configured media servers are accessible.
                       </p>
-                      <p class="tool-accordion-desc">
-                        <b>Repair History Rows:</b> Fixes rows containing wrong media types (TV vs Movie) and pulls missing posters.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Clean Duplicates:</b> Runs a deduplication routine over watch entries to keep the history database clean and fast.
-                      </p>
                     </article>
                   </div>
                 </div>
 
-                <!-- Migration & Import Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+                <!-- Migration & Import Tab -->
+                <div class="settings-row hidden" data-sub-panel="tools-migration">
                   <div class="settings-row-main">
-                    <details style="margin-bottom: var(--space-4);">
-                      <summary class="tool-section-summary">
-                    <span class="tool-section-summary-text">
-                      <b>Migration &amp; Import</b>
-                      <span>Transfer watch histories and configs</span>
-                    </span>
-                  </summary>
-                  <div class="settings-row" style="margin-top: var(--space-3);">
-                    <div class="settings-row-main">
-                      <article class="glass-panel p-section settings-card tool-section-card">
-                        <!-- Backup & Transfer -->
-                        <div class="tool-item-row">
-                          <div class="tool-item-meta">
-                            <div class="tool-item-title-desc">
-                              <b>Backup &amp; Transfer</b>
-                              <span>Export this setup or restore a Plembfin database archive</span>
-                            </div>
-                            <span id="backupTransferStatus" class="status-pill status-muted">Idle</span>
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <!-- Backup & Transfer -->
+                      <div class="tool-item-row">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Backup &amp; Transfer</b>
+                            <span>Export this setup or restore a Plembfin database archive</span>
                           </div>
-                          <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
-                            <button id="backupExportButton" class="button-primary" type="button">Export Backup</button>
-                            <label class="button-ghost" style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: var(--space-2) var(--space-3); border-radius: var(--radius); font-weight: 700; font-size: 0.8rem; margin: 0; height: 100%;">
-                              Choose file
-                              <input id="backupImportFile" type="file" accept=".json,application/json" style="display: none;" />
-                            </label>
-                            <button id="backupImportButton" class="button-primary" type="button" disabled>Import Backup</button>
-                          </div>
-                          <pre id="backupTransferLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Select Export or choose a backup file.</pre>
+                          <span id="backupTransferStatus" class="status-pill status-muted">Idle</span>
                         </div>
-
-                        <!-- Trakt Importer -->
-                        <div class="tool-item-row">
-                          <div class="tool-item-meta">
-                            <div class="tool-item-title-desc">
-                              <b>Trakt History Importer</b>
-                              <span>Bulk import records from a Trakt.tv export</span>
-                            </div>
-                            <span id="importProgress" class="status-pill status-muted">Idle</span>
-                          </div>
-                          <label id="dropZone" class="drop-zone" for="importFile" style="padding: 1.5rem; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); cursor: pointer; display: flex; flex-direction: column; gap: var(--space-1); background: rgba(0,0,0,0.2);">
-                            <input id="importFile" type="file" accept=".csv,.json,application/json,text/csv" multiple style="display: none;" />
-                            <b>Choose Trakt export files</b>
-                            <span style="font-size: 0.75rem; color: var(--muted);">Drop CSV or JSON files here, or click to browse.</span>
+                        <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+                          <button id="backupExportButton" class="button-primary" type="button">Export Backup</button>
+                          <label class="button-ghost" style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: var(--space-2) var(--space-3); border-radius: var(--radius); font-weight: 700; font-size: 0.8rem; margin: 0; height: 100%;">
+                            Choose file
+                            <input id="backupImportFile" type="file" accept=".json,application/json" style="display: none;" />
                           </label>
-                          <div style="display: flex; gap: var(--space-2); align-items: center;">
-                            <button id="startImportButton" class="button-primary" type="button" disabled>Start Import</button>
-                            <button id="clearImportButton" class="button-ghost" type="button">Clear</button>
-                          </div>
-                          <div class="import-progress-row" style="display: flex; align-items: center; gap: var(--space-2);">
-                            <div class="import-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden;">
-                              <span id="importProgressFill" style="display: block; height: 100%; width: 0%; background: var(--blue); transition: width 0.2s;"></span>
-                            </div>
-                            <span id="importProgressPercent" style="font-size: 0.75rem;">0%</span>
-                          </div>
-                          <pre id="importTerminal" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for files.</pre>
-                          <div id="importPreview" class="import-preview"></div>
+                          <button id="backupImportButton" class="button-primary" type="button" disabled>Import Backup</button>
                         </div>
-                      </article>
-                    </details>
+                        <pre id="backupTransferLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Select Export or choose a backup file.</pre>
+                      </div>
+
+                      <!-- Trakt Importer -->
+                      <div class="tool-item-row" style="margin-top: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-4);">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Trakt History Importer</b>
+                            <span>Bulk import records from a Trakt.tv export</span>
+                          </div>
+                          <span id="importProgress" class="status-pill status-muted">Idle</span>
+                        </div>
+                        <label id="dropZone" class="drop-zone" for="importFile" style="padding: 1.5rem; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); cursor: pointer; display: flex; flex-direction: column; gap: var(--space-1); background: rgba(0,0,0,0.2);">
+                          <input id="importFile" type="file" accept=".csv,.json,application/json,text/csv" multiple style="display: none;" />
+                          <b>Choose Trakt export files</b>
+                          <span style="font-size: 0.75rem; color: var(--muted);">Drop CSV or JSON files here, or click to browse.</span>
+                        </label>
+                        <div style="display: flex; gap: var(--space-2); align-items: center; margin-top: var(--space-2);">
+                          <button id="startImportButton" class="button-primary" type="button" disabled>Start Import</button>
+                          <button id="clearImportButton" class="button-ghost" type="button">Clear</button>
+                        </div>
+                        <div class="import-progress-row" style="display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2);">
+                          <div class="import-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden;">
+                            <span id="importProgressFill" style="display: block; height: 100%; width: 0%; background: var(--blue); transition: width 0.2s;"></span>
+                          </div>
+                          <span id="importProgressPercent" style="font-size: 0.75rem;">0%</span>
+                        </div>
+                        <pre id="importTerminal" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for files.</pre>
+                        <div id="importPreview" class="import-preview"></div>
+                      </div>
+                    </article>
                   </div>
 
                   <div class="settings-row-help">
@@ -867,46 +885,36 @@
                   </div>
                 </div>
 
-                <!-- Integrity & Repairs Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+                <!-- Database Repairs Tab -->
+                <div class="settings-row hidden" data-sub-panel="tools-repairs">
                   <div class="settings-row-main">
-                    <details style="margin-bottom: var(--space-4);">
-                      <summary class="tool-section-summary">
-                    <span class="tool-section-summary-text">
-                      <b>Integrity &amp; Repairs</b>
-                      <span>Audit database records and repair anomalies</span>
-                    </span>
-                  </summary>
-                  <div class="settings-row" style="margin-top: var(--space-3);">
-                    <div class="settings-row-main">
-                      <article class="glass-panel p-section settings-card tool-section-card">
-                        <!-- Repair Rows -->
-                        <div class="tool-item-row">
-                          <div class="tool-item-meta">
-                            <div class="tool-item-title-desc">
-                              <b>Repair History Rows</b>
-                              <span>Correct mislabelled media types and fetch missing posters</span>
-                            </div>
-                            <span id="repairStatus" class="status-pill status-muted">Idle</span>
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <!-- Repair Rows -->
+                      <div class="tool-item-row">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Repair History Rows</b>
+                            <span>Correct mislabelled media types and fetch missing posters</span>
                           </div>
-                          <button id="runRepairButton" class="button-primary" style="align-self: flex-start;" type="button">Repair History Now</button>
-                          <div id="repairLog" class="import-terminal compact-terminal">Repair log will appear here.</div>
+                          <span id="repairStatus" class="status-pill status-muted">Idle</span>
                         </div>
+                        <button id="runRepairButton" class="button-primary" style="align-self: flex-start;" type="button">Repair History Now</button>
+                        <div id="repairLog" class="import-terminal compact-terminal">Repair log will appear here.</div>
+                      </div>
 
-                        <!-- Clean Duplicates -->
-                        <div class="tool-item-row">
-                          <div class="tool-item-meta">
-                            <div class="tool-item-title-desc">
-                              <b>Clean Duplicate History Rows</b>
-                              <span>Safely remove redundant scrobble events</span>
-                            </div>
-                            <span id="dedupHistoryStatus" class="status-pill status-muted">Idle</span>
+                      <!-- Clean Duplicates -->
+                      <div class="tool-item-row" style="margin-top: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-4);">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Clean Duplicate History Rows</b>
+                            <span>Safely remove redundant scrobble events</span>
                           </div>
-                          <button id="dedupHistoryButton" class="button-primary" style="align-self: flex-start;" type="button">Clean Duplicates</button>
-                          <div id="dedupHistoryLog" class="import-terminal compact-terminal">Dedup log will appear here.</div>
+                          <span id="dedupHistoryStatus" class="status-pill status-muted">Idle</span>
                         </div>
-                      </article>
-                    </details>
+                        <button id="dedupHistoryButton" class="button-primary" style="align-self: flex-start;" type="button">Clean Duplicates</button>
+                        <div id="dedupHistoryLog" class="import-terminal compact-terminal">Dedup log will appear here.</div>
+                      </div>
+                    </article>
                   </div>
 
                   <div class="settings-row-help">
@@ -915,9 +923,6 @@
                         <p>Integrity Help</p>
                         <span>Database Care</span>
                       </div>
-                      <p class="tool-accordion-desc">
-                        <b>System Integrity Check:</b> Tests end-to-end database connectivity and verifies if configured media servers are accessible.
-                      </p>
                       <p class="tool-accordion-desc">
                         <b>Repair History Rows:</b> Fixes rows containing wrong media types (TV vs Movie) and pulls missing posters.
                       </p>
@@ -928,69 +933,59 @@
                   </div>
                 </div>
 
-                <!-- Sync & Cache Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+                <!-- Sync & Cache Tab -->
+                <div class="settings-row hidden" data-sub-panel="tools-sync">
                   <div class="settings-row-main">
-                    <details style="margin-bottom: var(--space-4);">
-                      <summary class="tool-section-summary">
-                    <span class="tool-section-summary-text">
-                      <b>Sync &amp; Cache Tools</b>
-                      <span>Ingest caching and server backfills</span>
-                    </span>
-                  </summary>
-                  <div class="settings-row" style="margin-top: var(--space-3);">
-                    <div class="settings-row-main">
-                      <article class="glass-panel p-section settings-card tool-section-card">
-                        <!-- Full Sync -->
-                        <div class="tool-item-row">
-                          <div class="tool-item-meta">
-                            <div class="tool-item-title-desc">
-                              <b>Full Sync Watchstates</b>
-                              <span>Push your entire watched archive back to media server lists</span>
-                            </div>
-                            <span id="fullSyncStatus" class="status-pill status-muted">Idle</span>
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <!-- Full Sync -->
+                      <div class="tool-item-row">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Full Sync Watchstates</b>
+                            <span>Push your entire watched archive back to media server lists</span>
                           </div>
-                          <button id="fullSyncButton" class="button-primary" style="align-self: flex-start;" type="button">Full Sync Watchstates</button>
-                          <pre id="fullSyncLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for restore request.</pre>
+                          <span id="fullSyncStatus" class="status-pill status-muted">Idle</span>
                         </div>
+                        <button id="fullSyncButton" class="button-primary" style="align-self: flex-start;" type="button">Full Sync Watchstates</button>
+                        <pre id="fullSyncLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for restore request.</pre>
+                      </div>
 
-                        <!-- Refresh TMDB -->
-                        <div class="tool-item-row">
-                          <div class="tool-item-meta">
-                            <div class="tool-item-title-desc">
-                              <b>Refresh All TMDB Metadata</b>
-                              <span>Pre-cache trailers, posters, cast, and summaries locally</span>
-                            </div>
-                            <span id="refreshMetadataStatus" class="status-pill status-muted">Idle</span>
+                      <!-- Refresh TMDB -->
+                      <div class="tool-item-row" style="margin-top: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-4);">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Refresh All TMDB Metadata</b>
+                            <span>Pre-cache trailers, posters, cast, and summaries locally</span>
                           </div>
-                          <button id="refreshMetadataButton" class="button-primary" style="align-self: flex-start;" type="button">Refresh Metadata Now</button>
-                          <div id="refreshMetadataLog" class="import-terminal compact-terminal">Refresh log will appear here.</div>
+                          <span id="refreshMetadataStatus" class="status-pill status-muted">Idle</span>
                         </div>
+                        <button id="refreshMetadataButton" class="button-primary" style="align-self: flex-start;" type="button">Refresh Metadata Now</button>
+                        <div id="refreshMetadataLog" class="import-terminal compact-terminal">Refresh log will appear here.</div>
+                      </div>
 
-                        <!-- Backfill Trakt -->
-                        <div class="tool-item-row">
-                          <div class="tool-item-meta">
-                            <div class="tool-item-title-desc">
-                              <b>Backfill Trakt Imports</b>
-                              <span>Fetch missing posters for imported Trakt events</span>
-                            </div>
-                            <span id="traktBackfillStatus" class="status-pill status-muted">Idle</span>
+                      <!-- Backfill Trakt -->
+                      <div class="tool-item-row" style="margin-top: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-4);">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Backfill Trakt Imports</b>
+                            <span>Fetch missing posters for imported Trakt events</span>
                           </div>
-                          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); max-width: 400px;">
-                            <label class="field-label" style="margin:0;">
-                              Batch size
-                              <input id="traktBackfillLimit" class="field" type="number" min="1" max="2000" value="500" />
-                            </label>
-                            <label class="field-label" style="margin:0;">
-                              Rate limit delay (ms)
-                              <input id="traktBackfillRate" class="field" type="number" min="50" max="5000" value="300" />
-                            </label>
-                          </div>
-                          <button id="traktBackfillButton" class="button-primary" style="align-self: flex-start;" type="button">Backfill Trakt Imports</button>
-                          <div id="traktBackfillLog" class="import-terminal compact-terminal">Trakt backfill log will appear here.</div>
+                          <span id="traktBackfillStatus" class="status-pill status-muted">Idle</span>
                         </div>
-                      </article>
-                    </details>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); max-width: 400px; margin-bottom: var(--space-3);">
+                          <label class="field-label" style="margin:0;">
+                            Batch size
+                            <input id="traktBackfillLimit" class="field" type="number" min="1" max="2000" value="500" />
+                          </label>
+                          <label class="field-label" style="margin:0;">
+                            Rate limit delay (ms)
+                            <input id="traktBackfillRate" class="field" type="number" min="50" max="5000" value="300" />
+                          </label>
+                        </div>
+                        <button id="traktBackfillButton" class="button-primary" style="align-self: flex-start;" type="button">Backfill Trakt Imports</button>
+                        <div id="traktBackfillLog" class="import-terminal compact-terminal">Trakt backfill log will appear here.</div>
+                      </div>
+                    </article>
                   </div>
 
                   <div class="settings-row-help">
@@ -1012,6 +1007,10 @@
 
               <!-- Backups Settings Panel -->
               <section class="settings-pane hidden" data-settings-panel="backups" data-backups-panel="settings">
+                <div class="settings-top-tabs">
+                  <button class="settings-sub-tab active" type="button" data-backups-tab="settings">Settings</button>
+                  <button class="settings-sub-tab" type="button" data-backups-tab="restore">Restore</button>
+                </div>
                 <!-- Automatic Local Backups row -->
                 <div class="settings-row">
                   <div class="settings-row-main">
@@ -1102,6 +1101,10 @@
 
               <!-- Backups Restore Panel -->
               <section class="settings-pane hidden" data-settings-panel="backups" data-backups-panel="restore">
+                <div class="settings-top-tabs">
+                  <button class="settings-sub-tab" type="button" data-backups-tab="settings">Settings</button>
+                  <button class="settings-sub-tab active" type="button" data-backups-tab="restore">Restore</button>
+                </div>
                 <div class="settings-row">
                   <div class="settings-row-main">
                     <!-- Available Backups -->
@@ -1164,8 +1167,14 @@
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="sync">
+                <div class="settings-top-tabs">
+                  <button class="settings-sub-tab active" type="button" data-sub-tab="sync-issues">Sync Issues</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="sync-history">Sync History</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="sync-tools">Sync Tools</button>
+                </div>
+
                 <!-- Sync Issues Row -->
-                <div class="settings-row">
+                <div class="settings-row" data-sub-panel="sync-issues">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section sync-panel">
                       <button id="syncIssuesToggle" class="section-heading sync-heading" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
@@ -1174,10 +1183,10 @@
                             <p style="margin: 0;">Sync Issues</p>
                             <span id="syncSummary" class="status-pill status-muted">Loading...</span>
                           </div>
-                          <span id="syncIssuesToggleIcon" style="font-size: 1.2rem;">▶</span>
+                          <span id="syncIssuesToggleIcon" style="font-size: 1.2rem;">▼</span>
                         </div>
                       </button>
-                      <div id="syncIssuesContent" class="hidden" style="margin-top: var(--space-3);">
+                      <div id="syncIssuesContent" style="margin-top: var(--space-3);">
                         <div id="syncIssuesContainer" aria-live="polite"></div>
                       </div>
                     </section>
@@ -1224,7 +1233,7 @@
                 </div>
 
                 <!-- Sync History Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+                <div class="settings-row hidden" data-sub-panel="sync-history">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section sync-panel">
                       <button id="syncHistoryToggle" class="section-heading sync-heading" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
@@ -1233,10 +1242,10 @@
                             <p style="margin: 0;">Sync History</p>
                             <span id="syncHistorySummary" class="status-pill status-muted">Loading...</span>
                           </div>
-                          <span id="syncHistoryToggleIcon" style="font-size: 1.2rem;">▶</span>
+                          <span id="syncHistoryToggleIcon" style="font-size: 1.2rem;">▼</span>
                         </div>
                       </button>
-                      <div id="syncHistoryContent" class="hidden" style="margin-top: var(--space-3);">
+                      <div id="syncHistoryContent" style="margin-top: var(--space-3);">
                         <div id="syncHistoryPanel" class="sync-history-panel" aria-live="polite"></div>
                       </div>
                     </section>
@@ -1270,22 +1279,35 @@
                 </div>
 
                 <!-- Sync Tools Row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+                <div class="settings-row hidden" data-sub-panel="sync-tools">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section sync-panel">
                       <button id="syncToolsToggle" class="section-heading sync-heading" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
                         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                           <p style="margin: 0;">Sync Tools</p>
-                          <span id="syncToolsToggleIcon" style="font-size: 1.2rem;">▶</span>
+                          <span id="syncToolsToggleIcon" style="font-size: 1.2rem;">▼</span>
                         </div>
                       </button>
-                      <div id="syncToolsContent" class="hidden" style="margin-top: var(--space-3); display: flex; gap: var(--space-2); flex-wrap: wrap;">
-                        <button id="runCronSyncButton" class="button-primary sync-action-btn" type="button" title="Run the scheduled sync job immediately">Run Cron Sync</button>
-                        <button id="forceSyncButton" class="button-primary sync-action-btn" type="button" title="Force an immediate sync of all pending watched states">Force Sync</button>
-                        <button id="stopSyncButton" class="button-danger hidden" type="button" title="Stop the currently running sync">Stop Sync</button>
-                        <button id="refreshSyncButton" class="button-ghost sync-btn" type="button" title="Refresh the sync issues list">Refresh</button>
+                      <div id="syncToolsContent" style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+                          <button id="runCronSyncButton" class="button-primary sync-action-btn" type="button" title="Run the scheduled sync job immediately">Run Cron Sync</button>
+                          <button id="forceSyncButton" class="button-primary sync-action-btn" type="button" title="Force an immediate sync of all pending watched states">Force Sync</button>
+                          <button id="stopSyncButton" class="button-danger hidden" type="button" title="Stop the currently running sync">Stop Sync</button>
+                          <button id="refreshSyncButton" class="button-ghost sync-btn" type="button" title="Refresh the sync issues list">Refresh</button>
+                        </div>
+                        <div class="terminal-wrapper">
+                          <div class="terminal-header">
+                            <div class="terminal-header-dots">
+                              <span class="dot-red"></span>
+                              <span class="dot-yellow"></span>
+                              <span class="dot-green"></span>
+                            </div>
+                            <span class="terminal-header-title">Sync Console</span>
+                            <div class="terminal-header-right"></div>
+                          </div>
+                          <pre id="forceSyncTerminal" class="import-terminal compact-terminal hidden" aria-live="polite">[idle] Waiting for force sync.</pre>
+                        </div>
                       </div>
-                      <pre id="forceSyncTerminal" class="import-terminal compact-terminal hidden" style="margin-top: 1rem;" aria-live="polite">[idle] Waiting for force sync.</pre>
                     </section>
                   </div>
 
@@ -1327,7 +1349,18 @@
                           <button id="copyLogsButton" class="button-primary" type="button">Copy Logs</button>
                         </div>
                       </div>
-                      <pre id="logsTerminal" class="logs-terminal" aria-live="polite" style="margin-top: var(--space-3);"></pre>
+                      <div class="terminal-wrapper">
+                        <div class="terminal-header">
+                          <div class="terminal-header-dots">
+                            <span class="dot-red"></span>
+                            <span class="dot-yellow"></span>
+                            <span class="dot-green"></span>
+                          </div>
+                          <span class="terminal-header-title">Server Console</span>
+                          <div class="terminal-header-right"></div>
+                        </div>
+                        <pre id="logsTerminal" class="logs-terminal" aria-live="polite"></pre>
+                      </div>
                     </section>
                   </div>
 
@@ -1376,7 +1409,66 @@
                 </div>
               </section>
               <section class="settings-pane hidden" data-settings-panel="appearance">
-                <div class="settings-row">
+                <div class="settings-top-tabs">
+                  <button class="settings-sub-tab active" type="button" data-sub-tab="appearance-dashboard">Dashboard</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="appearance-media">Media Pages</button>
+                </div>
+
+                <!-- Dashboard (Watch History View) Tab -->
+                <div class="settings-row" data-sub-panel="appearance-dashboard">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Watch History View</p>
+                          <span>Choose the layout style for the watch history on the dashboard</span>
+                        </div>
+                      </div>
+                      <div class="appearance-toggles">
+                        <div class="settings-segmented-row">
+                          <div class="settings-segmented-control" role="group" aria-label="Dashboard watch history view">
+                            <button class="sidebar-segmented-btn active" type="button" data-dashboard-history-view="cards" aria-label="Card View" title="Card View">
+                              <svg viewBox="0 0 18 18" aria-hidden="true">
+                                <rect x="2" y="3" width="5" height="12" rx="1.2" fill="currentColor" opacity="0.72" />
+                                <rect x="9" y="4" width="7" height="2" rx="1" fill="currentColor" />
+                                <rect x="9" y="8" width="6" height="1.6" rx="0.8" fill="currentColor" opacity="0.72" />
+                                <rect x="9" y="11.6" width="4" height="1.6" rx="0.8" fill="currentColor" opacity="0.56" />
+                              </svg>
+                              <span>Card View</span>
+                            </button>
+                            <button class="sidebar-segmented-btn" type="button" data-dashboard-history-view="posters" aria-label="Poster View" title="Poster View">
+                              <svg viewBox="0 0 18 18" aria-hidden="true">
+                                <rect x="2" y="2" width="5" height="6.5" rx="1" fill="currentColor" />
+                                <rect x="11" y="2" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.72" />
+                                <rect x="2" y="9.5" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.72" />
+                                <rect x="11" y="9.5" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.56" />
+                              </svg>
+                              <span>Poster View</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Dashboard Help</p>
+                        <span>Watch History Layout</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        <b>Card View</b> — Displays watch history items as wide cards with title descriptions, play dates, and metadata alongside the backdrop thumbnail.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Poster View</b> — A compact grid of vertical movie/show posters. Ideal for displaying more items on the screen at once.
+                      </p>
+                    </article>
+                  </div>
+                </div>
+
+                <!-- Media Pages Tab -->
+                <div class="settings-row hidden" data-sub-panel="appearance-media">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
@@ -1412,39 +1504,8 @@
                         </label>
                       </div>
                     </article>
-                    <article class="glass-panel p-section settings-card" style="margin-top: var(--space-4);">
-                      <div class="section-heading">
-                        <div>
-                          <p>Watch History View</p>
-                          <span>Choose the layout style for the watch history on the dashboard</span>
-                        </div>
-                      </div>
-                      <div class="appearance-toggles">
-                        <div class="settings-segmented-row">
-                          <div class="settings-segmented-control" role="group" aria-label="Dashboard watch history view">
-                            <button class="sidebar-segmented-btn active" type="button" data-dashboard-history-view="cards" aria-label="Card View" title="Card View">
-                              <svg viewBox="0 0 18 18" aria-hidden="true">
-                                <rect x="2" y="3" width="5" height="12" rx="1.2" fill="currentColor" opacity="0.72" />
-                                <rect x="9" y="4" width="7" height="2" rx="1" fill="currentColor" />
-                                <rect x="9" y="8" width="6" height="1.6" rx="0.8" fill="currentColor" opacity="0.72" />
-                                <rect x="9" y="11.6" width="4" height="1.6" rx="0.8" fill="currentColor" opacity="0.56" />
-                              </svg>
-                              <span>Card View</span>
-                            </button>
-                            <button class="sidebar-segmented-btn" type="button" data-dashboard-history-view="posters" aria-label="Poster View" title="Poster View">
-                              <svg viewBox="0 0 18 18" aria-hidden="true">
-                                <rect x="2" y="2" width="5" height="6.5" rx="1" fill="currentColor" />
-                                <rect x="11" y="2" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.72" />
-                                <rect x="2" y="9.5" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.72" />
-                                <rect x="11" y="9.5" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.56" />
-                              </svg>
-                              <span>Poster View</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </article>
                   </div>
+
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
@@ -1469,14 +1530,7 @@
                       <p class="tool-accordion-desc">
                         <b>Show Related Shows</b> — A row of similar titles recommended by TMDB. Clicking one navigates directly to that show's page.
                       </p>
-                    </article>
-
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Notes</p>
-                        <span>Behaviour &amp; storage</span>
-                      </div>
-                      <p class="tool-accordion-desc">
+                      <p class="tool-accordion-desc" style="border-top:1px solid var(--line); padding-top:var(--space-2); margin-top:var(--space-2);">
                         Trailers, Reviews, Images, Cast, and Related content all require a configured TMDB API key under <b>Settings → API Keys</b>.
                       </p>
                     </article>

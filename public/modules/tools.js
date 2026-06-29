@@ -609,39 +609,39 @@ export function renderCachePanel() {
   ];
   const totalCount = rows.reduce((sum, r) => sum + (disk[r.key]?.count || 0), 0);
   const totalSize = rows.reduce((sum, r) => sum + (disk[r.key]?.size || 0), 0);
+
+  const maxBytes = Math.max(...rows.map(({ key }) => disk[key]?.size || 0), 1);
+
   panel.innerHTML = `
-    <table style="width:100%;border-collapse:collapse;margin-top:var(--space-3);">
-      <thead>
-        <tr>
-          <th style="text-align:left;padding:var(--space-2) 0;font-size:0.78rem;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);">Type</th>
-          <th style="text-align:right;padding:var(--space-2) 0;font-size:0.78rem;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);">Files</th>
-          <th style="text-align:right;padding:var(--space-2) 0;font-size:0.78rem;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);">Size</th>
-          <th style="border-bottom:1px solid var(--border);"></th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows.map(({ key, label }) => `
-          <tr>
-            <td style="padding:var(--space-3) 0;border-bottom:1px solid var(--border);"><b>${label}</b></td>
-            <td style="text-align:right;padding:var(--space-3) 0;border-bottom:1px solid var(--border);">${(disk[key]?.count || 0).toLocaleString()}</td>
-            <td style="text-align:right;padding:var(--space-3) 0;border-bottom:1px solid var(--border);">${fmtCacheBytes(disk[key]?.size || 0)}</td>
-            <td style="text-align:right;padding:var(--space-3) 0;border-bottom:1px solid var(--border);">
-              <button class="button-ghost" type="button" style="font-size:0.8rem;padding:0.2em 0.7em;" data-clear-cache="${key}">Clear</button>
-            </td>
-          </tr>
-        `).join("")}
-      </tbody>
-      <tfoot>
-        <tr>
-          <td style="padding:var(--space-3) 0;font-weight:600;">Total</td>
-          <td style="text-align:right;padding:var(--space-3) 0;font-weight:600;">${totalCount.toLocaleString()}</td>
-          <td style="text-align:right;padding:var(--space-3) 0;font-weight:600;">${fmtCacheBytes(totalSize)}</td>
-          <td style="text-align:right;padding:var(--space-3) 0;">
-            <button class="button-primary" type="button" style="font-size:0.8rem;padding:0.2em 0.7em;" data-clear-cache="all">Clear All</button>
-          </td>
-        </tr>
-      </tfoot>
-    </table>
+    <div class="cache-gauge-grid">
+      ${rows.map(({ key, label }) => {
+        const count = disk[key]?.count || 0;
+        const size = disk[key]?.size || 0;
+        const percent = Math.max(5, Math.round((size / maxBytes) * 100));
+        return `
+          <div class="cache-gauge-card">
+            <div class="cache-gauge-meta">
+              <span class="cache-gauge-title">${label}</span>
+              <span class="cache-gauge-count">${count.toLocaleString()} files</span>
+            </div>
+            <div class="cache-gauge-size">${fmtCacheBytes(size)}</div>
+            <div class="cache-gauge-bar">
+              <div class="cache-gauge-fill" style="width: ${percent}%;"></div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:0.25rem;">
+              <button class="button-ghost" type="button" style="font-size:0.76rem; padding:0.25rem 0.65rem; min-height:1.85rem; height:1.85rem;" data-clear-cache="${key}">Clear</button>
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--line); flex-wrap:wrap; gap:1rem;">
+      <div style="display:flex; gap:1.5rem; font-size:0.85rem;">
+        <div><span style="color:var(--muted)">Total Files:</span> <strong style="color:var(--text); margin-left:0.3rem;">${totalCount.toLocaleString()}</strong></div>
+        <div><span style="color:var(--muted)">Total Size:</span> <strong style="color:var(--text); margin-left:0.3rem;">${fmtCacheBytes(totalSize)}</strong></div>
+      </div>
+      <button class="button-primary" type="button" style="font-size:0.8rem; padding:0.25rem 0.85rem; height:2.2rem; min-height:2.2rem;" data-clear-cache="all">Clear All</button>
+    </div>
   `;
   for (const btn of panel.querySelectorAll("[data-clear-cache]")) {
     btn.addEventListener("click", () => clearCacheType(btn.dataset.clearCache));
