@@ -1,7 +1,19 @@
 {
-  "version": "0.2.62",
-  "updatedAt": "2026-06-29T09:07:20+01:00",
+  "version": "0.2.63",
+  "updatedAt": "2026-06-29T09:39:23+01:00",
   "entries": [
+    {
+      "version": "0.2.63",
+      "date": "2026-06-29T09:39:23+01:00",
+      "commit": "ac1d9ec1f18340851b92a859f1002c8a98fe5391",
+      "message": "fix: Make date picker day and month buttons clickable",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add click event listeners to calendar day buttons and month navigation arrows",
+        "Fix DOM queries to use document.querySelector instead of mediaDetailRoot() to ensure overlay is found regardless of mount location",
+        "Overlay now mounts on document.body for proper fixed positioning and click target alignment"
+      ]
+    },
     {
       "version": "0.2.62",
       "date": "2026-06-29T09:07:20+01:00",
