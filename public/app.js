@@ -2295,12 +2295,18 @@ function initialize() {
     openShowImmersiveModalByTmdbId,
     navigateTo,
   });
+  const renderActiveView = () => {
+    if (state.activeView === "dashboard") renderDashboard();
+    if (state.activeView === "explorer" && !state.mediaDetailInline) renderExplorer();
+    if (state.activeView === "history") renderHistoryView();
+  };
   initWatchAction({
     setMessage,
     openConfirmDialog,
     clearDerivedUiCaches,
     loadHistory,
     closeMediaDetail,
+    renderActiveView,
     showErrorExplainModal,
     fetchSeerrMediaStatus,
     refreshActiveMediaDetailAfterSeerrStatus,

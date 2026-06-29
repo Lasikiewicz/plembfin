@@ -11,6 +11,7 @@ let _openConfirmDialog = async () => false;
 let _clearDerivedUiCaches = () => {};
 let _loadHistory = async () => {};
 let _closeMediaDetail = () => {};
+let _renderActiveView = () => {};
 let _showErrorExplainModal = () => {};
 let _fetchSeerrMediaStatus = async () => null;
 let _refreshActiveMediaDetailAfterSeerrStatus = () => {};
@@ -24,6 +25,7 @@ export function initWatchAction(callbacks) {
   if (callbacks.clearDerivedUiCaches) _clearDerivedUiCaches = callbacks.clearDerivedUiCaches;
   if (callbacks.loadHistory) _loadHistory = callbacks.loadHistory;
   if (callbacks.closeMediaDetail) _closeMediaDetail = callbacks.closeMediaDetail;
+  if (callbacks.renderActiveView) _renderActiveView = callbacks.renderActiveView;
   if (callbacks.showErrorExplainModal) _showErrorExplainModal = callbacks.showErrorExplainModal;
   if (callbacks.fetchSeerrMediaStatus) _fetchSeerrMediaStatus = callbacks.fetchSeerrMediaStatus;
   if (callbacks.refreshActiveMediaDetailAfterSeerrStatus) _refreshActiveMediaDetailAfterSeerrStatus = callbacks.refreshActiveMediaDetailAfterSeerrStatus;
@@ -778,18 +780,18 @@ export async function confirmAndMarkUnwatched(button) {
 
     _clearDerivedUiCaches({ resetExplorer: kind === "movie" });
     _setMessage(`Marked "${label}" unwatched; pushed unplayed to media apps.`, "success");
+    await _loadHistory().catch(() => null);
 
     if (kind === "episode" && (state.activeShowModalKey || state.activeShowTmdbId)) {
       if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
-      await _loadHistory().catch(() => null);
       if (state.activeShowModalKey) {
         _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
       } else {
         await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
       }
     } else {
-      await _loadHistory().catch(() => null);
       _closeMediaDetail();
+      _renderActiveView();
     }
   } catch (error) {
     button.disabled = false;
