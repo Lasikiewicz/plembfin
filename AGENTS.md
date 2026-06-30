@@ -19,3 +19,4 @@ The full rules are in `CLAUDE.md`. Key points reproduced here for quick referenc
 - **No unsolicited actions** — do only what was asked, nothing more
 - **No tests or browser actions** unless explicitly requested
 - **"Push to git"** triggers the full pre-push checklist defined in `CLAUDE.md` (doc sync, help sync, descriptive commit message, then push)
+- **Minimize thinking and analysis**: Keep reasoning, planning, and explanations brief and direct. Act immediately on instructions without over-analyzing simple tasks.

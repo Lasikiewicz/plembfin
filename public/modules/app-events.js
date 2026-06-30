@@ -5,7 +5,7 @@ import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SOR
 import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSlug, movieHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js";
 import { adminTokenGuide, plexCredentialGuide, embyCredentialGuide, jellyfinCredentialGuide, buildWebhookUrl, plexWebhookSetup, embyWebhookSetup, jellyfinWebhookSetup, webhookWarning, cronSyncGuide, renderSettingsInlineHelp } from "./help-content.js";
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile } from "./images.js";
-import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, addBackupDestination, saveBackupDestinationCard, testBackupDestinationCard, removeBackupDestinationCard, listRemoteBackupsForCard, restoreRemoteBackupFromCard, connectBackupDestinationCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runDedupHistory, runTraktBackfill, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog } from "./tools.js";
+import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, addBackupDestination, saveBackupDestinationCard, testBackupDestinationCard, removeBackupDestinationCard, listRemoteBackupsForCard, restoreRemoteBackupFromCard, connectBackupDestinationCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runDedupHistory, runTraktBackfill, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog, loadPlembfinBackups, savePlembfinBackupSettings, createPlembfinBackupNow, downloadPlembfinBackup, deletePlembfinBackupFile, restorePlembfinBackupFromServer, renderPlembfinBackups, updatePlembfinButtonsState } from "./tools.js";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync } from "./sync.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./dashboard.js";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, renderRankingTable } from "./stats.js";
@@ -221,7 +221,7 @@ function attachEvents() {
     state.watchBackups = null;
     loadWatchBackups({ force: true }).catch((error) => setMessage(error.message, "error"));
   });
-  elements.watchBackupList?.addEventListener("click", (event) => {
+  const handleWatchBackupListClick = (event) => {
     const download = event.target.closest("[data-watch-backup-download]");
     if (download) {
       downloadWatchBackup(download.dataset.watchBackupDownload).catch((error) => setMessage(error.message, "error"));
@@ -242,14 +242,18 @@ function attachEvents() {
         restoreWatchBackup(restore.dataset.watchBackupRestore, clearMode).catch((error) => setMessage(error.message, "error"));
       }
     }
-  });
+  };
+  elements.watchBackupList?.addEventListener("click", handleWatchBackupListClick);
+  elements.remoteWatchBackupList?.addEventListener("click", handleWatchBackupListClick);
 
-  elements.watchBackupList?.addEventListener("change", (event) => {
+  const handleWatchBackupListChange = (event) => {
     const clearModeInput = event.target.closest("[data-restore-clear-mode]");
     if (clearModeInput) {
       state.restoreClearMode = clearModeInput.value === "wipe" ? "wipe" : "reconcile";
     }
-  });
+  };
+  elements.watchBackupList?.addEventListener("change", handleWatchBackupListChange);
+  elements.remoteWatchBackupList?.addEventListener("change", handleWatchBackupListChange);
 
   elements.watchBackupRuntime?.addEventListener("click", (event) => {
     const clearBtn = event.target.closest("[data-clear-restore-status]");
@@ -1168,8 +1172,53 @@ function attachEvents() {
     setMessage("Import selection cleared.");
   });
 
-  elements.backupExportButton?.addEventListener("click", () => {
-    exportPlembfinBackup().catch((error) => setMessage(error.message, "error"));
+  elements.backupExportPassphrase?.addEventListener("input", () => {
+    updatePlembfinButtonsState();
+  });
+
+  elements.savePlembfinBackupConfigButton?.addEventListener("click", () => {
+    savePlembfinBackupSettings().catch((error) => setMessage(error.message, "error"));
+  });
+
+  elements.createPlembfinBackupButton?.addEventListener("click", () => {
+    createPlembfinBackupNow().catch((error) => setMessage(error.message, "error"));
+  });
+
+  elements.plembfinBackupList?.addEventListener("click", (event) => {
+    const downloadBtn = event.target.closest("[data-plembfin-backup-download]");
+    if (downloadBtn) {
+      const filename = downloadBtn.dataset.plembfinBackupDownload;
+      downloadPlembfinBackup(filename).catch((error) => setMessage(error.message, "error"));
+    }
+    const restoreBtn = event.target.closest("[data-plembfin-backup-restore]");
+    if (restoreBtn) {
+      const filename = restoreBtn.dataset.plembfinBackupRestore;
+      restorePlembfinBackupFromServer(filename).catch((error) => setMessage(error.message, "error"));
+    }
+    const deleteBtn = event.target.closest("[data-plembfin-backup-delete]");
+    if (deleteBtn) {
+      const filename = deleteBtn.dataset.plembfinBackupDelete;
+      deletePlembfinBackupFile(filename).catch((error) => setMessage(error.message, "error"));
+    }
+  });
+
+  elements.backupRestorePassphrase?.addEventListener("input", () => {
+    const disabled = elements.backupRestorePassphrase.value.trim().length < 12;
+    if (elements.backupImportFile) {
+      elements.backupImportFile.disabled = disabled;
+    }
+    const fileLabel = document.querySelector(".backup-file-button");
+    if (fileLabel) {
+      if (disabled) {
+        fileLabel.classList.add("disabled");
+        fileLabel.style.opacity = "0.5";
+        fileLabel.style.pointerEvents = "none";
+      } else {
+        fileLabel.classList.remove("disabled");
+        fileLabel.style.opacity = "";
+        fileLabel.style.pointerEvents = "";
+      }
+    }
   });
 
   elements.backupImportFile?.addEventListener("change", async () => {
@@ -1177,16 +1226,17 @@ function attachEvents() {
     elements.backupImportButton.disabled = true;
     const file = elements.backupImportFile.files?.[0];
     if (!file) {
-      setBackupTransferState("Idle", "muted", "[idle] Select Export or choose a backup file.");
+      setBackupTransferState("Idle", "muted", "[idle] Enter a passphrase, then choose an encrypted Plembfin backup.", "restore");
       return;
     }
     try {
       state.backupImport = await readPlembfinBackup(file);
       const documentCount = state.backupImport.included.reduce((sum, name) => sum + state.backupImport.backup.collections[name].length, 0);
       elements.backupImportButton.disabled = false;
-      setBackupTransferState("Ready", "ready", `${file.name}\n${formatNumber(documentCount)} documents across ${formatNumber(state.backupImport.included.length)} supported collections.`);
+      const encryptionLabel = state.backupImport.encrypted ? "Encrypted Plembfin backup" : "Legacy unencrypted Plembfin backup";
+      setBackupTransferState("Ready", "ready", `${encryptionLabel}: ${file.name}\n${formatNumber(documentCount)} documents across ${formatNumber(state.backupImport.included.length)} supported collections.`, "restore");
     } catch (error) {
-      setBackupTransferState("Invalid", "error", `Backup file rejected: ${error.message}`);
+      setBackupTransferState("Invalid", "error", `Backup file rejected: ${error.message}`, "restore");
       setMessage(error.message, "error");
     }
   });

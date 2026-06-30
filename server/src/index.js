@@ -110,6 +110,17 @@ import {
   updateDestinationSecrets,
   watchBackupStatus,
 } from "./utils/watchHistoryBackups.js";
+import {
+  createPlembfinBackup,
+  deletePlembfinBackup,
+  loadPlembfinBackupConfig,
+  loadPlembfinBackupRuntime,
+  listPlembfinBackups,
+  plembfinBackupStatus,
+  readPlembfinBackupFile,
+  runScheduledPlembfinBackup,
+  savePlembfinBackupConfig,
+} from "./utils/plembfinBackups.js";
 import { deviceCodeEndpoint, tokenEndpoint, ONEDRIVE_SCOPE } from "./utils/backupDestinations/onedrive.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "./paths.js";
 
@@ -1561,6 +1572,50 @@ async function handleWatchBackups(req, res) {
     return sendJson(res, { error: "Unknown watch backup action" }, 400);
   } catch (error) {
     return sendJson(res, { error: error.message }, 400);
+  }
+}
+
+async function handlePlembfinBackups(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  if (req.method === "GET") {
+    const filename = String(req.query?.download || "").trim();
+    if (!filename) {
+      return sendJson(res, plembfinBackupStatus());
+    }
+    try {
+      const file = readPlembfinBackupFile(filename);
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      const buffer = Buffer.from(file.content, "utf8");
+      res.setHeader("Content-Length", String(buffer.length));
+      return res.end(buffer);
+    } catch (error) {
+      return sendJson(res, { error: error.message }, 404);
+    }
+  }
+
+  if (req.method !== "POST") return methodNotAllowed(res);
+  const body = await readJson(req);
+  const action = String(body.action || "").trim();
+  try {
+    if (action === "configure") {
+      return sendJson(res, { ok: true, config: savePlembfinBackupConfig(body.config || {}) });
+    }
+    if (action === "create") {
+      const passphrase = String(body.passphrase || "").trim();
+      return sendJson(res, { ok: true, backup: await createPlembfinBackup({ reason: "manual", passphrase }) });
+    }
+    if (action === "delete") {
+      const filename = String(body.filename || "").trim();
+      if (!filename) return sendJson(res, { error: "filename is required" }, 400);
+      return sendJson(res, { ok: true, ...deletePlembfinBackup(filename) });
+    }
+    return sendJson(res, { error: `Unsupported action: ${action}` }, 400);
+  } catch (error) {
+    return sendJson(res, { error: error.message }, 500);
   }
 }
 
@@ -4016,6 +4071,7 @@ async function dispatch(req, res) {
     if (path === "backup/export") return handleBackupExport(req, res);
     if (path === "backup/import") return handleBackupImport(req, res);
     if (path === "watch-backups") return handleWatchBackups(req, res);
+    if (path === "plembfin-backups") return handlePlembfinBackups(req, res);
     if (path === "manual-watch") return handleManualWatch(req, res);
     if (path === "manual-unwatch") return handleManualUnwatch(req, res);
     if (path === "playback-progress") return handlePlaybackProgressList(req, res);
@@ -4147,6 +4203,7 @@ async function runWithTimeBudget(label, task, timeoutMs) {
 export async function runScheduledTick() {
   await runWithTimeBudget("Scheduled sync", () => runScheduledSync(), 50_000);
   await runWithTimeBudget("Scheduled watch-history backup", () => runScheduledWatchBackup(), 30_000);
+  await runWithTimeBudget("Scheduled Plembfin backup", () => runScheduledPlembfinBackup(), 30_000);
   await runWithTimeBudget("TMDB prewarm", () => prewarmTmdbLibrary({ limit: 4 }), 30_000);
   if (Date.now() - lastNextAiringRefreshAt > NEXT_AIRING_REFRESH_INTERVAL_MS) {
     lastNextAiringRefreshAt = Date.now();

@@ -37,16 +37,21 @@ const BACKUP_BATCH_SIZE = 250;
 const BACKUP_MAX_REQUEST_BYTES = 512 * 1024;
 const BACKUP_FORMAT = "plembfin-backup";
 const BACKUP_VERSION = 1;
-const BACKUP_COLLECTIONS = ["watchHistory", "playstate", "playbackProgress", "activeSessions", "liveTrackingCache", "syncHistory", "settings", "runtimeState", "loopKeys", "posterCache", "tmdbMetadataCache", "tmdbSearchCache", "tmdbSeasonCache", "tmdbPersonCache"];
+const ENCRYPTED_BACKUP_FORMAT = "plembfin-encrypted-backup";
+const ENCRYPTED_BACKUP_VERSION = 1;
+const BACKUP_KDF_ITERATIONS = 250000;
+const BACKUP_COLLECTIONS = ["watchHistory", "playstate", "playbackProgress", "activeSessions", "liveTrackingCache", "syncHistory", "settings", "runtimeState", "loopKeys"];
 // ── Backup transfer state ──────────────────────────────────────────────────
-export function setBackupTransferState(label, tone = "muted", log = "") {
-  if (elements.backupTransferStatus) {
-    elements.backupTransferStatus.textContent = label;
-    elements.backupTransferStatus.className = `status-pill status-${tone}`;
+export function setBackupTransferState(label, tone = "muted", log = "", area = "restore") {
+  const status = area === "export" ? elements.backupExportStatus : elements.backupRestoreStatus;
+  const output = area === "export" ? elements.backupExportLog : elements.backupRestoreLog;
+  if (status) {
+    status.textContent = label;
+    status.className = `status-pill status-${tone}`;
   }
-  if (log && elements.backupTransferLog) {
-    elements.backupTransferLog.textContent = log;
-    elements.backupTransferLog.scrollTop = elements.backupTransferLog.scrollHeight;
+  if (log && output) {
+    output.textContent = log;
+    output.scrollTop = output.scrollHeight;
   }
 }
 // ── Backup export ──────────────────────────────────────────────────────────
@@ -59,6 +64,89 @@ function downloadJsonFile(value, filename) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+function base64ToBytes(value) {
+  const binary = atob(String(value || ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+function backupPassphrase(area = "restore") {
+  const input = area === "export" ? elements.backupExportPassphrase : elements.backupRestorePassphrase;
+  return String(input?.value || "").trim();
+}
+async function backupCryptoKey(passphrase, salt) {
+  const cryptoApi = globalThis.crypto;
+  const keyMaterial = await cryptoApi.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(passphrase),
+    "PBKDF2",
+    false,
+    ["deriveKey"],
+  );
+  return cryptoApi.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: BACKUP_KDF_ITERATIONS, hash: "SHA-256" },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+async function encryptPlembfinBackup(backup, passphrase) {
+  const cryptoApi = globalThis.crypto;
+  if (!cryptoApi?.subtle) throw new Error("This browser does not support encrypted backups.");
+  if (passphrase.length < 12) throw new Error("Use an encryption passphrase of at least 12 characters.");
+  const salt = cryptoApi.getRandomValues(new Uint8Array(16));
+  const iv = cryptoApi.getRandomValues(new Uint8Array(12));
+  const key = await backupCryptoKey(passphrase, salt);
+  const payload = new TextEncoder().encode(JSON.stringify(backup));
+  const encrypted = new Uint8Array(await cryptoApi.subtle.encrypt({ name: "AES-GCM", iv }, key, payload));
+  return {
+    format: ENCRYPTED_BACKUP_FORMAT,
+    version: ENCRYPTED_BACKUP_VERSION,
+    encryptedAt: new Date().toISOString(),
+    encryption: {
+      algorithm: "AES-256-GCM",
+      kdf: "PBKDF2",
+      hash: "SHA-256",
+      iterations: BACKUP_KDF_ITERATIONS,
+      salt: bytesToBase64(salt),
+      iv: bytesToBase64(iv),
+    },
+    payload: bytesToBase64(encrypted),
+  };
+}
+async function decryptPlembfinBackup(encryptedBackup, passphrase) {
+  const cryptoApi = globalThis.crypto;
+  if (!cryptoApi?.subtle) throw new Error("This browser does not support encrypted backups.");
+  if (!passphrase) throw new Error("Enter the passphrase used when this Plembfin backup was exported.");
+  const encryption = encryptedBackup?.encryption || {};
+  if (encryptedBackup?.format !== ENCRYPTED_BACKUP_FORMAT || Number(encryptedBackup?.version) !== ENCRYPTED_BACKUP_VERSION) {
+    throw new Error("This is not a supported encrypted Plembfin backup file.");
+  }
+  if (encryption.algorithm !== "AES-256-GCM" || encryption.kdf !== "PBKDF2") {
+    throw new Error("This encrypted backup uses an unsupported encryption method.");
+  }
+  try {
+    const salt = base64ToBytes(encryption.salt);
+    const iv = base64ToBytes(encryption.iv);
+    const payload = base64ToBytes(encryptedBackup.payload);
+    const key = await backupCryptoKey(passphrase, salt);
+    const decrypted = await cryptoApi.subtle.decrypt({ name: "AES-GCM", iv }, key, payload);
+    return JSON.parse(new TextDecoder().decode(decrypted));
+  } catch (error) {
+    throw new Error("Could not decrypt this Plembfin backup. Check the passphrase and file.");
+  }
 }
 function validatePlembfinBackup(value) {
   if (!value || value.format !== BACKUP_FORMAT || Number(value.version) !== BACKUP_VERSION) {
@@ -132,10 +220,12 @@ async function sendBackupImportBatch(collection, documents, reset, onImported) {
 export async function exportPlembfinBackup() {
   const button = elements.backupExportButton;
   if (!button) return;
+  const passphrase = backupPassphrase("export");
   button.disabled = true;
   button.textContent = "Exporting...";
-  setBackupTransferState("Exporting", "warning", "Starting authenticated backup export...");
+  setBackupTransferState("Exporting", "warning", "Collecting Plembfin data before browser-side encryption...", "export");
   try {
+    if (passphrase.length < 12) throw new Error("Enter an encryption passphrase of at least 12 characters.");
     const manifestResponse = await fetch("/api/backup/export", { headers: authHeaders() });
     const manifest = await manifestResponse.json().catch(() => ({}));
     if (!manifestResponse.ok) throw new Error(manifest.error || `Backup manifest failed with ${manifestResponse.status}`);
@@ -155,32 +245,37 @@ export async function exportPlembfinBackup() {
         documents.push(...(page.documents || []));
         cursor = page.nextCursor || "";
         hasMore = Boolean(page.hasMore && cursor);
-        setBackupTransferState("Exporting", "warning", `Exporting ${collection}: ${formatNumber(documents.length)} documents\nTotal collected: ${formatNumber(totalDocuments + documents.length)}`);
+        setBackupTransferState("Exporting", "warning", `Exporting ${collection}: ${formatNumber(documents.length)} documents\nTotal collected: ${formatNumber(totalDocuments + documents.length)}`, "export");
       }
       backup.collections[collection] = documents;
       totalDocuments += documents.length;
     }
-    downloadJsonFile(backup, `plembfin-backup-${new Date().toISOString().slice(0, 10)}.json`);
-    setBackupTransferState("Downloaded", "ready", `Backup complete: ${formatNumber(totalDocuments)} documents across ${formatNumber(collectionNames.length)} collections.\nKeep this file secure because it can contain saved credentials.`);
-    _setMessage("Plembfin backup downloaded.", "success");
+    setBackupTransferState("Encrypting", "warning", `Encrypting ${formatNumber(totalDocuments)} documents in this browser...`, "export");
+    const encryptedBackup = await encryptPlembfinBackup(backup, passphrase);
+    downloadJsonFile(encryptedBackup, `plembfin-backup-${new Date().toISOString().slice(0, 10)}.encrypted.json`);
+    setBackupTransferState("Downloaded", "ready", `Encrypted backup downloaded: ${formatNumber(totalDocuments)} documents across ${formatNumber(collectionNames.length)} collections.\nKeep the passphrase separately. Plembfin cannot recover it.`, "export");
+    _setMessage("Encrypted Plembfin backup downloaded.", "success");
   } catch (error) {
-    setBackupTransferState("Failed", "error", `Backup failed: ${error.message}`);
+    setBackupTransferState("Failed", "error", `Backup failed: ${error.message}`, "export");
     _setMessage(error.message, "error");
   } finally {
     button.disabled = false;
-    button.textContent = "Export Backup";
+    button.textContent = "Export Plembfin Backup";
   }
 }
 export async function readPlembfinBackup(file) {
   const parsed = JSON.parse(await file.text());
-  return validatePlembfinBackup(parsed);
+  if (parsed?.format === ENCRYPTED_BACKUP_FORMAT) {
+    return { ...validatePlembfinBackup(await decryptPlembfinBackup(parsed, backupPassphrase("restore"))), encrypted: true };
+  }
+  return { ...validatePlembfinBackup(parsed), encrypted: false };
 }
 export async function importPlembfinBackup() {
   if (!state.backupImport) return;
   const approved = await _openConfirmDialog({
-    title: "Replace Plembfin data?",
-    body: "This import replaces every collection included in the backup. Your local admin username and password will stay unchanged.",
-    confirmLabel: "Import Backup",
+    title: "Restore Plembfin backup?",
+    body: "This replaces every collection included in the Plembfin backup. Your local admin username and password stay unchanged. Watch-history restores are safer for ordinary history rollback; use this for a full Plembfin move or rebuild.",
+    confirmLabel: "Restore Plembfin Backup",
     danger: true,
   });
   if (!approved) return;
@@ -189,8 +284,8 @@ export async function importPlembfinBackup() {
   const { backup, included } = state.backupImport;
   button.disabled = true;
   input.disabled = true;
-  button.textContent = "Importing...";
-  setBackupTransferState("Importing", "warning", "Starting backup import...");
+  button.textContent = "Restoring...";
+  setBackupTransferState("Restoring", "warning", "Starting Plembfin backup restore...", "restore");
   let totalDocuments = 0;
   try {
     for (const collection of included) {
@@ -201,7 +296,7 @@ export async function importPlembfinBackup() {
         await sendBackupImportBatch(collection, batches[batchIndex], batchIndex === 0, (count) => {
           collectionImported += count;
           totalDocuments += count;
-          setBackupTransferState("Importing", "warning", `Imported ${collection}: ${formatNumber(collectionImported)} of ${formatNumber(documents.length)} documents\nTotal imported: ${formatNumber(totalDocuments)} documents`);
+          setBackupTransferState("Importing", "warning", `Imported ${collection}: ${formatNumber(collectionImported)} of ${formatNumber(documents.length)} documents\nTotal imported: ${formatNumber(totalDocuments)} documents`, "restore");
         });
       }
     }
@@ -215,15 +310,15 @@ export async function importPlembfinBackup() {
       _loadActiveSessions(),
       _loadStats({ force: true }),
     ]);
-    setBackupTransferState("Complete", "ready", `Import complete: ${formatNumber(totalDocuments)} documents across ${formatNumber(included.length)} collections.`);
-    _setMessage("Plembfin backup imported.", "success");
+    setBackupTransferState("Complete", "ready", `Restore complete: ${formatNumber(totalDocuments)} documents across ${formatNumber(included.length)} collections.`, "restore");
+    _setMessage("Plembfin backup restored.", "success");
   } catch (error) {
-    setBackupTransferState("Failed", "error", `Import failed: ${error.message}`);
+    setBackupTransferState("Failed", "error", `Restore failed: ${error.message}`, "restore");
     _setMessage(error.message, "error");
   } finally {
     input.disabled = false;
     button.disabled = !state.backupImport;
-    button.textContent = "Import Backup";
+    button.textContent = "Restore Plembfin Backup";
   }
 }
 // ── Watch-history backups ──────────────────────────────────────────────────
@@ -245,7 +340,9 @@ export function renderWatchBackups() {
   if (!data) {
     elements.watchBackupSummary && (elements.watchBackupSummary.textContent = state.watchBackupsLoading ? "Loading" : "Not loaded");
     elements.watchBackupSummary && (elements.watchBackupSummary.className = `status-pill status-${state.watchBackupsLoading ? "warning" : "muted"}`);
-    elements.watchBackupList.innerHTML = `<div class="empty-log"><b>${state.watchBackupsLoading ? "Loading backups..." : "Backups not loaded"}</b></div>`;
+    const loadingCopy = `<div class="empty-log"><b>${state.watchBackupsLoading ? "Loading backups..." : "Backups not loaded"}</b><span>Watch-history backups and Plembfin backups restore from separate sections.</span></div>`;
+    elements.watchBackupList.innerHTML = loadingCopy;
+    if (elements.remoteWatchBackupList) elements.remoteWatchBackupList.innerHTML = loadingCopy;
     return;
   }
   const config = data.config || {};
@@ -263,8 +360,9 @@ export function renderWatchBackups() {
     if (elements.watchBackupRuntime) {
       elements.watchBackupRuntime.innerHTML = `
         <div><span>Last successful backup</span><b>${escapeHtml(watchBackupDate(runtime.lastSuccessAt))}</b></div>
-        <div style="display: flex; gap: 1rem; align-items: center;">
-          <div style="flex: 1;"><span>Last restore</span><b>${escapeHtml(watchBackupDate(runtime.lastRestoreAt))}</b></div>
+        <div class="backup-runtime-with-action">
+          <span>Last restore</span>
+          <b>${escapeHtml(watchBackupDate(runtime.lastRestoreAt))}</b>
           ${runtime.lastRestoreAt ? `<button class="button-ghost" type="button" data-clear-restore-status>Clear Status</button>` : ""}
         </div>
         <div><span>Storage</span><b>${formatNumber(files.length)} file${files.length === 1 ? "" : "s"}</b></div>
@@ -288,13 +386,13 @@ export function renderWatchBackups() {
   }
   const localEntries = files.map((f) => ({ ...f, source: "local", destId: null, destLabel: "Local" }));
   const remoteEntries = (state.remoteBackupFiles || []);
-  const allEntries = [...localEntries, ...remoteEntries].sort((a, b) => {
+  const sortNewest = (entries) => [...entries].sort((a, b) => {
     return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
   });
   const cronPausedUntil = runtime.cronSyncPausedUntil;
   const cronPausedBanner = cronPausedUntil && Date.now() < cronPausedUntil
-    ? `<div class="backup-runtime" style="margin-bottom: var(--space-3); border-left: 3px solid var(--accent); padding: var(--space-2) var(--space-3); background: rgba(255,165,0,0.08);">
-        <span style="font-size: 0.85rem;">⏸ Cron sync manually paused until ${escapeHtml(new Date(cronPausedUntil).toLocaleTimeString())}.</span>
+    ? `<div class="backup-runtime" style="margin-bottom: var(--space-3); padding: var(--space-2) var(--space-3); background: rgba(255,165,0,0.08);">
+        <span style="font-size: 0.85rem;">Cron sync is paused until ${escapeHtml(new Date(cronPausedUntil).toLocaleTimeString())} while restore work settles.</span>
        </div>`
     : "";
   let remoteLoading = "";
@@ -308,17 +406,19 @@ export function renderWatchBackups() {
   const clearMode = state.restoreClearMode || "reconcile";
   const clearModeSelector = `
     <div class="restore-clear-mode" style="margin-bottom: var(--space-3);">
-      <div class="restore-clear-intro">Restoring makes this backup the source of truth — it is pushed to every connected app. Choose how to clear the apps first:</div>
+      <div class="restore-clear-intro">Watch-history restore makes the selected backup the source of truth and pushes it to every connected app. Choose how Plembfin should handle existing app state first:</div>
       <label>
         <input type="radio" name="restoreClearMode" value="reconcile" ${clearMode === "reconcile" ? "checked" : ""} data-restore-clear-mode>
-        <span><b>Reconcile tracked items</b> — push only the items this backup knows about. Fast. Apps keep any extra watched items the backup never tracked.</span>
+        <span><b>Reconcile tracked items</b> — push only items in this backup. Faster, and apps keep watched items that the backup does not know about.</span>
       </label>
       <label>
         <input type="radio" name="restoreClearMode" value="wipe" ${clearMode === "wipe" ? "checked" : ""} data-restore-clear-mode>
-        <span><b>Full wipe then push</b> — mark every currently-watched item on each app as unwatched, then re-apply only the backup's watched set. Apps end up matching the backup exactly. Slower.</span>
+        <span><b>Full wipe then push</b> — first mark every watched item in each app as unwatched, then re-apply only this backup's watched set. Slower, but the apps end up matching the backup.</span>
       </label>
     </div>`;
-  elements.watchBackupList.innerHTML = cronPausedBanner + (allEntries.length ? clearModeSelector : "") + remoteLoading + (allEntries.length ? allEntries.map((entry) => `
+  const renderEntries = (entries, emptyCopy) => {
+    const sorted = sortNewest(entries);
+    return sorted.length ? sorted.map((entry) => `
     <article class="watch-backup-row">
       <div class="watch-backup-copy">
         <b>${escapeHtml(entry.name)}</b>
@@ -331,11 +431,20 @@ export function renderWatchBackups() {
         <button class="button-primary" type="button"
           data-watch-backup-restore="${escapeAttribute(entry.name)}"
           ${entry.destId ? `data-restore-dest-id="${escapeAttribute(entry.destId)}"` : ""}>
-          Watch History Wipe / Restore
+          Restore Watch History
         </button>
       </div>
     </article>
-  `).join("") : (state.remoteBackupFilesLoading ? "" : `<div class="empty-log"><b>No backups found</b><span>Backups will appear here once created or after remote destinations are configured.</span></div>`));
+  `).join("") : emptyCopy;
+  };
+  const localEmpty = `<div class="empty-log"><b>No local watch-history backups</b><span>Use Back Up Now on the Backups tab or add a .json.gz file from your computer.</span></div>`;
+  const remoteEmpty = state.remoteBackupFilesLoading
+    ? ""
+    : `<div class="empty-log"><b>No remote watch-history backups</b><span>Configure a remote destination on the Backups tab, then create a watch-history backup.</span></div>`;
+  elements.watchBackupList.innerHTML = cronPausedBanner + (localEntries.length ? clearModeSelector : "") + renderEntries(localEntries, localEmpty);
+  if (elements.remoteWatchBackupList) {
+    elements.remoteWatchBackupList.innerHTML = remoteLoading + (remoteEntries.length ? clearModeSelector : "") + renderEntries(remoteEntries, remoteEmpty);
+  }
 }
 export async function loadRemoteBackupsForRestoreTab() {
   const data = state.watchBackups;
@@ -441,10 +550,8 @@ function renderWatchBackupDestinations(data) {
           <button class="button-primary" type="button" data-dest-action="save">Save</button>
           <button class="button-ghost" type="button" data-dest-action="test">Test</button>
           ${form.oauth ? `<button class="button-ghost" type="button" data-dest-action="connect">${connected ? "Reconnect" : "Connect"}</button>` : ""}
-          <button class="button-ghost" type="button" data-dest-action="restore-list">Restore from here</button>
           <button class="button-danger" type="button" data-dest-action="remove">Remove</button>
         </div>
-        <div class="destination-restore" data-dest-restore hidden></div>
       </article>
     `;
   }).join("");
@@ -528,7 +635,7 @@ export async function listRemoteBackupsForCard(card) {
           <span>${escapeHtml(watchBackupDate(file.createdAt))} · ${escapeHtml(formatBytes(file.sizeBytes))}</span>
         </div>
         <div class="watch-backup-actions">
-          <button class="button-danger" type="button" data-dest-restore-file="${escapeAttribute(file.name)}">Wipe / Restore</button>
+          <button class="button-danger" type="button" data-dest-restore-file="${escapeAttribute(file.name)}">Restore Watch History</button>
         </div>
       </div>
     `).join("")}
@@ -537,7 +644,7 @@ export async function listRemoteBackupsForCard(card) {
 export async function restoreRemoteBackupFromCard(card, filename, clearMode = "reconcile") {
   const wipe = clearMode === "wipe";
   const approved = await _openConfirmDialog({
-    title: "⚠️ Watch History Wipe / Restore",
+    title: "Restore watch history?",
     body: `⚠️ AUTHORITATIVE RESTORE — this backup becomes the source of truth.\n\nWill DELETE all current watch history, playstate and resume progress, restore from:\n\n${filename}\n\nand push that state to every connected app.\n\n${wipe
       ? "Clear mode: FULL WIPE — every currently-watched item on each app is first marked unwatched."
       : "Clear mode: RECONCILE — only items tracked by the backup are pushed."}\n\nThis cannot be undone.`,
@@ -671,6 +778,173 @@ export async function postWatchBackupAction(payload) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Backup action failed with ${response.status}`);
   return body;
+}
+export async function loadPlembfinBackups({ force = false } = {}) {
+  if (!state.token || state.plembfinBackupsLoading || (state.plembfinBackups && !force)) return state.plembfinBackups;
+  state.plembfinBackupsLoading = true;
+  renderPlembfinBackups();
+  try {
+    const response = await fetch("/api/plembfin-backups", { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Plembfin backup status failed with ${response.status}`);
+    state.plembfinBackups = body;
+    return body;
+  } finally {
+    state.plembfinBackupsLoading = false;
+    renderPlembfinBackups();
+  }
+}
+export async function postPlembfinBackupAction(payload) {
+  const response = await fetch("/api/plembfin-backups", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Plembfin backup action failed with ${response.status}`);
+  return body;
+}
+export function updatePlembfinButtonsState() {
+  const passphrase = elements.backupExportPassphrase?.value.trim() || "";
+  const disabled = passphrase.length < 12;
+  if (elements.savePlembfinBackupConfigButton) elements.savePlembfinBackupConfigButton.disabled = disabled;
+  if (elements.createPlembfinBackupButton) elements.createPlembfinBackupButton.disabled = disabled;
+}
+export function renderPlembfinBackups() {
+  if (!elements.plembfinBackupList) return;
+  const data = state.plembfinBackups;
+  if (!data) {
+    elements.plembfinBackupSummary && (elements.plembfinBackupSummary.textContent = state.plembfinBackupsLoading ? "Loading" : "Not loaded");
+    elements.plembfinBackupSummary && (elements.plembfinBackupSummary.className = `status-pill status-${state.plembfinBackupsLoading ? "warning" : "muted"}`);
+    const loadingCopy = `<div class="empty-log"><b>${state.plembfinBackupsLoading ? "Loading backups..." : "Backups not loaded"}</b><span>Watch-history backups and Plembfin backups restore from separate sections.</span></div>`;
+    elements.plembfinBackupList.innerHTML = loadingCopy;
+    return;
+  }
+  const config = data.config || {};
+  const runtime = data.runtime || {};
+  const files = Array.isArray(data.files) ? data.files : [];
+  
+  elements.plembfinBackupEnabled && (elements.plembfinBackupEnabled.checked = Boolean(config.enabled));
+  elements.plembfinBackupTime && (elements.plembfinBackupTime.value = config.time || "03:00");
+  elements.plembfinBackupRetention && (elements.plembfinBackupRetention.value = String(config.retention || 7));
+  if (elements.backupExportPassphrase && !elements.backupExportPassphrase.value) {
+    elements.backupExportPassphrase.value = config.passphrase || "";
+  }
+  
+  elements.plembfinBackupSummary && (elements.plembfinBackupSummary.textContent = config.enabled ? "Scheduled" : "Disabled");
+  elements.plembfinBackupSummary && (elements.plembfinBackupSummary.className = `status-pill status-${config.enabled ? "ready" : "muted"}`);
+  
+  if (elements.plembfinBackupRuntime) {
+    elements.plembfinBackupRuntime.innerHTML = `
+      <div><span>Last successful backup</span><b>${escapeHtml(watchBackupDate(runtime.lastSuccessAt))}</b></div>
+      <div class="backup-runtime-with-action">
+        <span>Last restore</span>
+        <b>${escapeHtml(watchBackupDate(runtime.lastRestoreAt))}</b>
+      </div>
+      <div><span>Storage</span><b>${formatNumber(files.length)} file${files.length === 1 ? "" : "s"}</b></div>
+      ${runtime.lastError ? `<p class="backup-runtime-error">${escapeHtml(runtime.lastError)}</p>` : ""}
+    `;
+  }
+  
+  elements.plembfinBackupList.innerHTML = files.length ? files.map((file) => `
+    <article class="watch-backup-row">
+      <div class="watch-backup-copy">
+        <b>${escapeHtml(file.name)}</b>
+        <span>${escapeHtml(watchBackupDate(file.createdAt))} · ${escapeHtml(formatBytes(file.sizeBytes))}</span>
+      </div>
+      <div class="watch-backup-actions">
+        <button class="button-ghost" type="button" data-plembfin-backup-download="${escapeAttribute(file.name)}">Download</button>
+        <button class="button-primary" type="button" data-plembfin-backup-restore="${escapeAttribute(file.name)}">Restore</button>
+        <button class="button-ghost" type="button" data-plembfin-backup-delete="${escapeAttribute(file.name)}">Delete</button>
+      </div>
+    </article>
+  `).join("") : `<div class="empty-log"><b>No scheduled Plembfin backups yet</b><span>Use Back Up Now or enable the daily schedule.</span></div>`;
+
+  updatePlembfinButtonsState();
+}
+export async function savePlembfinBackupSettings() {
+  const config = {
+    enabled: elements.plembfinBackupEnabled.checked,
+    time: elements.plembfinBackupTime.value || "03:00",
+    retention: Number(elements.plembfinBackupRetention.value) || 7,
+    passphrase: elements.backupExportPassphrase.value.trim(),
+  };
+  await postPlembfinBackupAction({ action: "configure", config });
+  state.plembfinBackups = null;
+  await loadPlembfinBackups({ force: true });
+  _setMessage("Plembfin backup schedule saved.", "success");
+}
+export async function createPlembfinBackupNow() {
+  const button = elements.createPlembfinBackupButton;
+  button.disabled = true;
+  button.textContent = "Backing up...";
+  try {
+    const result = await postPlembfinBackupAction({
+      action: "create",
+      passphrase: elements.backupExportPassphrase.value.trim()
+    });
+    state.plembfinBackups = null;
+    await loadPlembfinBackups({ force: true });
+    _setMessage(`Created ${result.backup?.name || "Plembfin backup"}.`, "success");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Back Up Now";
+    updatePlembfinButtonsState();
+  }
+}
+export async function downloadPlembfinBackup(filename) {
+  const response = await fetch(`/api/plembfin-backups?download=${encodeURIComponent(filename)}`, { headers: authHeaders() });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Backup download failed with ${response.status}`);
+  }
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+export async function deletePlembfinBackupFile(filename) {
+  const approved = await _openConfirmDialog({
+    title: "Delete Plembfin backup?",
+    body: `Are you sure you want to permanently delete the backup file ${filename} from the server?`,
+    confirmLabel: "Delete Backup",
+    danger: true,
+  });
+  if (!approved) return;
+  await postPlembfinBackupAction({ action: "delete", filename });
+  state.plembfinBackups = null;
+  await loadPlembfinBackups({ force: true });
+  _setMessage("Backup deleted successfully.", "success");
+}
+export async function restorePlembfinBackupFromServer(filename) {
+  const passphrase = elements.backupRestorePassphrase?.value.trim() || "";
+  if (passphrase.length < 12) {
+    throw new Error("Enter a restore passphrase of at least 12 characters.");
+  }
+  setBackupTransferState("Downloading", "warning", "Downloading encrypted backup from server...", "restore");
+  try {
+    const response = await fetch(`/api/plembfin-backups?download=${encodeURIComponent(filename)}`, { headers: authHeaders() });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || `Failed to download backup file from server`);
+    }
+    const encryptedBackup = await response.json();
+    setBackupTransferState("Decrypting", "warning", "Decrypting backup file in browser...", "restore");
+    const decrypted = await decryptPlembfinBackup(encryptedBackup, passphrase);
+    state.backupImport = {
+      backup: decrypted,
+      included: BACKUP_COLLECTIONS.filter((name) => Object.hasOwn(decrypted.collections, name)),
+      encrypted: true
+    };
+    await importPlembfinBackup();
+  } catch (error) {
+    setBackupTransferState("Failed", "error", `Restore failed: ${error.message}`, "restore");
+    _setMessage(error.message, "error");
+  }
 }
 // ── Appearance settings ────────────────────────────────────────────────────
 export const APPEARANCE_DEFAULTS = {

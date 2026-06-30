@@ -12,11 +12,6 @@ export const BACKUP_COLLECTIONS = [
   "settings",
   "runtimeState",
   "loopKeys",
-  "posterCache",
-  "tmdbMetadataCache",
-  "tmdbSearchCache",
-  "tmdbSeasonCache",
-  "tmdbPersonCache",
 ];
 
 function portableValue(value) {
@@ -153,9 +148,24 @@ export function backupManifest(origin = "") {
     collections: BACKUP_COLLECTIONS,
     notes: [
       "This backup can contain media-server URLs, usernames, tokens, and API keys.",
-      "Artwork binaries are not embedded; poster cache metadata and URLs are included.",
+      "Artwork binaries, poster cache rows, and TMDB metadata cache rows are not included.",
     ],
   };
+}
+
+export function getFullBackup(origin = "") {
+  const backup = backupManifest(origin);
+  backup.collections = {};
+  for (const name of BACKUP_COLLECTIONS) {
+    const config = collections[name];
+    if (!config) continue;
+    const rows = db.prepare(`SELECT * FROM ${config.table} ORDER BY ${config.key}`).all();
+    backup.collections[name] = rows.map((row) => ({
+      id: String(row[config.key]),
+      data: portableValue(config.rowToData(row)),
+    }));
+  }
+  return backup;
 }
 
 export function exportCollectionPage(name, { cursor = "", limit = 250 } = {}) {

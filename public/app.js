@@ -5,7 +5,7 @@ import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SOR
 import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSlug, movieHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./modules/utils.js";
 import { adminTokenGuide, plexCredentialGuide, embyCredentialGuide, jellyfinCredentialGuide, buildWebhookUrl, plexWebhookSetup, embyWebhookSetup, jellyfinWebhookSetup, webhookWarning, cronSyncGuide, renderSettingsInlineHelp } from "./modules/help-content.js";
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile } from "./modules/images.js";
-import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, addBackupDestination, saveBackupDestinationCard, testBackupDestinationCard, removeBackupDestinationCard, listRemoteBackupsForCard, restoreRemoteBackupFromCard, connectBackupDestinationCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runDedupHistory, runTraktBackfill, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./modules/tools.js";
+import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, addBackupDestination, saveBackupDestinationCard, testBackupDestinationCard, removeBackupDestinationCard, listRemoteBackupsForCard, restoreRemoteBackupFromCard, connectBackupDestinationCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runDedupHistory, runTraktBackfill, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups } from "./modules/tools.js";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync } from "./modules/sync.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
@@ -155,11 +155,23 @@ function bindElements() {
     fullSyncButton: document.querySelector("#fullSyncButton"),
     fullSyncLog: document.querySelector("#fullSyncLog"),
     fullSyncStatus: document.querySelector("#fullSyncStatus"),
-    backupExportButton: document.querySelector("#backupExportButton"),
+    backupExportButton: document.querySelector("#createPlembfinBackupButton"),
+    backupExportPassphrase: document.querySelector("#backupExportPassphrase"),
+    backupExportLog: document.querySelector("#backupExportLog"),
+    backupExportStatus: document.querySelector("#plembfinBackupSummary"),
     backupImportButton: document.querySelector("#backupImportButton"),
     backupImportFile: document.querySelector("#backupImportFile"),
-    backupTransferLog: document.querySelector("#backupTransferLog"),
-    backupTransferStatus: document.querySelector("#backupTransferStatus"),
+    backupRestorePassphrase: document.querySelector("#backupRestorePassphrase"),
+    backupRestoreLog: document.querySelector("#backupRestoreLog"),
+    backupRestoreStatus: document.querySelector("#backupRestoreStatus"),
+    plembfinBackupSummary: document.querySelector("#plembfinBackupSummary"),
+    plembfinBackupEnabled: document.querySelector("#plembfinBackupEnabled"),
+    plembfinBackupTime: document.querySelector("#plembfinBackupTime"),
+    plembfinBackupRetention: document.querySelector("#plembfinBackupRetention"),
+    savePlembfinBackupConfigButton: document.querySelector("#savePlembfinBackupConfigButton"),
+    createPlembfinBackupButton: document.querySelector("#createPlembfinBackupButton"),
+    plembfinBackupRuntime: document.querySelector("#plembfinBackupRuntime"),
+    plembfinBackupList: document.querySelector("#plembfinBackupList"),
     watchBackupSummary: document.querySelector("#watchBackupSummary"),
     watchBackupEnabled: document.querySelector("#watchBackupEnabled"),
     watchBackupTime: document.querySelector("#watchBackupTime"),
@@ -172,6 +184,7 @@ function bindElements() {
     refreshWatchBackupsButton: document.querySelector("#refreshWatchBackupsButton"),
     watchBackupRuntime: document.querySelector("#watchBackupRuntime"),
     watchBackupList: document.querySelector("#watchBackupList"),
+    remoteWatchBackupList: document.querySelector("#remoteWatchBackupList"),
     watchBackupDestinations: document.querySelector("#watchBackupDestinations"),
     watchBackupDestinationType: document.querySelector("#watchBackupDestinationType"),
     addWatchBackupDestinationButton: document.querySelector("#addWatchBackupDestinationButton"),
@@ -1230,7 +1243,7 @@ function settingsTopbarTitle() {
     apps: "Apps",
     "api-keys": "API Keys",
     tools: "Tools",
-    backups: state.activeBackupsTab === "restore" ? "Backups - Restore" : "Backups",
+    backups: state.activeBackupsTab === "restore" ? "Restore" : "Backups",
     sync: "Sync",
     logs: "Logs",
     appearance: "Appearance",
@@ -1439,6 +1452,8 @@ function applyActiveView() {
 
       renderWatchBackups();
       loadWatchBackups().catch((error) => setMessage(error.message, "error"));
+      renderPlembfinBackups();
+      loadPlembfinBackups().catch((error) => setMessage(error.message, "error"));
       if (state.activeBackupsTab === "restore" && !state.remoteBackupFilesLoading && !state.remoteBackupFiles.length) {
         loadRemoteBackupsForRestoreTab().catch((error) => setMessage(error.message, "error"));
       }
@@ -2421,6 +2436,7 @@ function initialize() {
   renderLogs().catch(() => { });
   renderImportPreview();
   renderWatchBackups();
+  renderPlembfinBackups();
   renderDbStatus(false);
   renderSettingsStatus("Configuration not loaded yet.");
 

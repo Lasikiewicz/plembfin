@@ -240,12 +240,13 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 
 ## 💾 Backup & Restore System
 
-Plembfin runs an automated daily backup at a customizable time. Backups store your entire database state (watch histories, resume markers, settings, and cached poster references).
+Plembfin runs automated daily backups at a customizable time. 
 
-### Supported Destinations
+### Supported Backup Types
 
-*   📁 **Local**: Backups are written to `data/backups/watch-history` on the server running Plembfin. Configure the daily time and how many copies to retain under **Settings → Backups → Automatic Local Backups**.
-*   ☁️ **Backblaze B2**: Mirror each backup to a private B2 bucket. Enter Region (e.g. `us-west-004`), Bucket Name, keyID, and Application Key under **Settings → Backups → Automatic Remote Backups**. Backblaze offers a free 10 GB tier.
+*   📁 **Local Watch History Backups**: Capture watch history snapshots, playstates, and resume markers. Saved to `data/backups/watch-history`.
+*   🔒 **Local Plembfin Backups**: Create full, AES-256-GCM encrypted database backups (including settings, API keys, credentials, and play history, excluding cache). Requires a secure passphrase. Saved to `data/backups/plembfin`.
+*   ☁️ **Remote Backups**: Mirror local watch history backups to a private Backblaze B2 bucket under **Settings → Backups → Remote Backups**.
 
 ---
 

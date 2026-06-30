@@ -2578,11 +2578,120 @@ details[open] .tool-accordion-chevron::before {
   gap: var(--space-4);
 }
 
+.backup-type-stack {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.backup-section-heading {
+  align-items: center;
+}
+
+.backup-section-heading .status-pill {
+  justify-self: end;
+}
+
+.backup-section-heading .status-muted {
+  border-color: rgba(148, 163, 184, 0.32);
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--soft);
+}
+
+.backup-type-card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-3);
+}
+
+.backup-type-card-muted {
+  background: color-mix(in srgb, var(--panel-3) 78%, transparent);
+}
+
+.backup-type-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.backup-type-head > div:first-child {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.backup-type-head > div:first-child:has(b + span) {
+  display: block !important;
+}
+
+.backup-type-head > div:first-child:has(b + span) > b,
+.backup-type-head > div:first-child:has(b + span) > span {
+  display: inline !important;
+}
+
+.backup-type-head > div:first-child > b:has(+ span)::after {
+  content: " - ";
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.backup-type-head b {
+  color: var(--text);
+  font-size: 0.94rem;
+}
+
+.backup-type-head span:not(.status-pill) {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.backup-type-note {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
 .backup-settings-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
   align-items: end;
+}
+
+.backup-settings-inline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.backup-settings-left {
+  flex: 1;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.backup-settings-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.backup-settings-right {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .backup-enable-row {
@@ -2591,6 +2700,36 @@ details[open] .tool-accordion-chevron::before {
   align-items: center;
   gap: var(--space-2);
   font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.backup-settings-inline .backup-enable-row {
+  grid-column: auto;
+  min-height: 2.05rem;
+  display: flex;
+  align-items: center;
+}
+
+.settings-pane[data-settings-panel="backups"] .backup-settings-inline .button-primary,
+.settings-pane[data-settings-panel="backups"] .backup-settings-inline .button-ghost {
+  height: 2.05rem !important;
+}
+
+.backup-settings-inline .field-label {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  grid-column: auto !important;
+  white-space: nowrap !important;
+  flex-wrap: nowrap !important;
+  margin-bottom: 0 !important;
+}
+
+.backup-settings-inline .field-label .field {
+  flex: 1 !important;
+  min-width: 150px !important;
 }
 
 .backup-enable-row input {
@@ -2601,6 +2740,25 @@ details[open] .tool-accordion-chevron::before {
 
 .backup-settings-actions {
   justify-content: flex-start;
+}
+
+.backup-action-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.backup-file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin: 0;
+}
+
+.backup-restore-section {
+  margin-bottom: var(--space-4);
 }
 
 .backup-runtime {
@@ -2616,6 +2774,22 @@ details[open] .tool-accordion-chevron::before {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel-3);
+}
+
+.backup-runtime-with-action {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.backup-runtime-with-action span,
+.backup-runtime-with-action b {
+  grid-column: 1;
+}
+
+.backup-runtime-with-action button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
 }
 
 .backup-runtime span {
@@ -2690,7 +2864,6 @@ details[open] .tool-accordion-chevron::before {
   margin-bottom: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
   border-radius: var(--radius);
   background: rgba(120, 170, 255, 0.08);
   font-size: 0.82rem;
@@ -2888,6 +3061,35 @@ details[open] .tool-accordion-chevron::before {
   .backup-settings-grid,
   .backup-runtime {
     grid-template-columns: 1fr;
+  }
+
+  .backup-settings-inline {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .backup-settings-left,
+  .backup-settings-center,
+  .backup-settings-right {
+    flex: none;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .backup-settings-center {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .backup-type-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .backup-destination-add {
+    justify-content: flex-start;
   }
 
   .watch-backup-row {
@@ -6706,6 +6908,26 @@ h1 {
 .section-heading {
   min-height: 0;
   margin-bottom: 0.45rem;
+}
+
+/* Settings Section Headings inline layout with hyphen */
+.settings-pane .section-heading > div:has(p + span),
+.settings-pane .section-heading:not(:has(div)):has(p + span) {
+  display: block !important;
+}
+
+.settings-pane .section-heading > div:has(p + span) > p,
+.settings-pane .section-heading > div:has(p + span) > span,
+.settings-pane .section-heading:not(:has(div)):has(p + span) > p,
+.settings-pane .section-heading:not(:has(div)):has(p + span) > span {
+  display: inline !important;
+}
+
+.settings-pane .section-heading > div > p:has(+ span)::after,
+.settings-pane .section-heading:not(:has(div)) > p:has(+ span)::after {
+  content: " - ";
+  color: var(--muted);
+  font-weight: normal;
 }
 
 .section-heading p {
@@ -11015,7 +11237,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 .settings-pane {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.25rem;
   width: 100%;
   padding-top: 0.5rem;
 }
@@ -11119,6 +11341,64 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   background: rgba(255, 255, 255, 0.07) !important;
   border-color: rgba(255, 255, 255, 0.2) !important;
   transform: translateY(-1px);
+}
+
+.settings-pane[data-settings-panel="backups"] .button-primary,
+.settings-pane[data-settings-panel="backups"] .button-ghost,
+.settings-pane[data-settings-panel="backups"] .button-danger,
+.settings-pane[data-settings-panel="backups"] .backup-file-button {
+  min-height: 2.05rem !important;
+  height: auto !important;
+  border-radius: 4px !important;
+  padding: 0.45rem 0.72rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+}
+
+.settings-pane[data-settings-panel="backups"] .button-primary {
+  border: 1px solid rgba(37, 99, 235, 0.4) !important;
+  background: rgba(37, 99, 235, 0.12) !important;
+  color: #2563eb !important;
+}
+
+.backup-settings-inline .field {
+  height: 2.05rem !important;
+  min-height: 2.05rem !important;
+}
+
+.settings-pane[data-settings-panel="backups"] .button-primary:hover:not(:disabled) {
+  border-color: rgba(37, 99, 235, 0.6) !important;
+  background: rgba(37, 99, 235, 0.2) !important;
+  color: #2563eb !important;
+  transform: none !important;
+}
+
+.settings-pane[data-settings-panel="backups"] .button-ghost,
+.settings-pane[data-settings-panel="backups"] .backup-file-button {
+  border: 1px solid var(--line-strong) !important;
+  background: #111820 !important;
+  color: var(--soft) !important;
+}
+
+.settings-pane[data-settings-panel="backups"] .button-ghost:hover:not(:disabled),
+.settings-pane[data-settings-panel="backups"] .backup-file-button:hover {
+  border-color: #3a7fc2 !important;
+  color: #f4f8fb !important;
+  transform: none !important;
+}
+
+.settings-pane[data-settings-panel="backups"] .button-danger {
+  border: 1px solid rgba(244, 63, 94, 0.55) !important;
+  background: rgba(244, 63, 94, 0.14) !important;
+  color: #fecdd3 !important;
+}
+
+.settings-pane[data-settings-panel="backups"] .button-danger:hover:not(:disabled) {
+  border-color: #3a7fc2 !important;
+  color: #f4f8fb !important;
+  transform: none !important;
 }
 
 /* Custom Slide Switch */
@@ -11393,6 +11673,12 @@ html.light-mode .settings-pane .field:focus {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
 }
 
+html.light-mode .backup-section-heading .status-muted {
+  border-color: rgba(100, 116, 139, 0.24);
+  background: rgba(100, 116, 139, 0.1);
+  color: #475569;
+}
+
 html.light-mode .settings-pane .button-ghost {
   background: #ffffff !important;
   border: 1px solid rgba(0, 0, 0, 0.12) !important;
@@ -11402,6 +11688,38 @@ html.light-mode .settings-pane .button-ghost {
 html.light-mode .settings-pane .button-ghost:hover:not(:disabled) {
   background: rgba(0, 0, 0, 0.02) !important;
   border-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+html.light-mode .settings-pane[data-settings-panel="backups"] .button-primary {
+  border: 1px solid rgba(37, 99, 235, 0.35) !important;
+  background: rgba(37, 99, 235, 0.08) !important;
+  color: #2563eb !important;
+  box-shadow: none !important;
+}
+
+html.light-mode .settings-pane[data-settings-panel="backups"] .button-primary:hover:not(:disabled) {
+  border-color: rgba(37, 99, 235, 0.55) !important;
+  background: rgba(37, 99, 235, 0.15) !important;
+  color: #2563eb !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+html.light-mode .settings-pane[data-settings-panel="backups"] .button-ghost,
+html.light-mode .settings-pane[data-settings-panel="backups"] .backup-file-button {
+  border: 1px solid var(--line) !important;
+  background: #ffffff !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+}
+
+html.light-mode .settings-pane[data-settings-panel="backups"] .button-ghost:hover:not(:disabled),
+html.light-mode .settings-pane[data-settings-panel="backups"] .backup-file-button:hover {
+  border-color: var(--line-strong) !important;
+  background: var(--panel-2) !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 html.light-mode .terminal-wrapper {
@@ -11443,7 +11761,7 @@ html.light-mode .cache-gauge-card {
   gap: 0.5rem;
   border-bottom: 1px solid var(--line);
   padding-bottom: 0.75rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -11517,5 +11835,3 @@ html.light-mode .settings-pane .drop-zone:hover {
   border-color: var(--blue) !important;
   background: rgba(59, 130, 246, 0.01) !important;
 }
-
-

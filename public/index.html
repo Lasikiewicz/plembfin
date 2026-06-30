@@ -65,7 +65,7 @@
               <button class="settings-tab" type="button" data-settings-tab="apps">Apps</button>
               <button class="settings-tab" type="button" data-settings-tab="backups">Backups</button>
               <div id="sidebarBackupsMenu" class="sidebar-sub-menu hidden">
-                <button class="backups-sub-tab active" type="button" data-backups-tab="settings">Settings</button>
+                <button class="backups-sub-tab active" type="button" data-backups-tab="settings">Backups</button>
                 <button class="backups-sub-tab" type="button" data-backups-tab="restore">Restore</button>
               </div>
               <button class="settings-tab" type="button" data-settings-tab="logs">Logs</button>
@@ -824,28 +824,8 @@
                 <div class="settings-row hidden" data-sub-panel="tools-migration">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card tool-section-card">
-                      <!-- Backup & Transfer -->
-                      <div class="tool-item-row">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Backup &amp; Transfer</b>
-                            <span>Export this setup or restore a Plembfin database archive</span>
-                          </div>
-                          <span id="backupTransferStatus" class="status-pill status-muted">Idle</span>
-                        </div>
-                        <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
-                          <button id="backupExportButton" class="button-primary" type="button">Export Backup</button>
-                          <label class="button-ghost" style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: var(--space-2) var(--space-3); border-radius: var(--radius); font-weight: 700; font-size: 0.8rem; margin: 0; height: 100%;">
-                            Choose file
-                            <input id="backupImportFile" type="file" accept=".json,application/json" style="display: none;" />
-                          </label>
-                          <button id="backupImportButton" class="button-primary" type="button" disabled>Import Backup</button>
-                        </div>
-                        <pre id="backupTransferLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Select Export or choose a backup file.</pre>
-                      </div>
-
                       <!-- Trakt Importer -->
-                      <div class="tool-item-row" style="margin-top: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-4);">
+                      <div class="tool-item-row">
                         <div class="tool-item-meta">
                           <div class="tool-item-title-desc">
                             <b>Trakt History Importer</b>
@@ -1008,42 +988,90 @@
               <!-- Backups Settings Panel -->
               <section class="settings-pane hidden" data-settings-panel="backups" data-backups-panel="settings">
                 <div class="settings-top-tabs">
-                  <button class="settings-sub-tab active" type="button" data-backups-tab="settings">Settings</button>
+                  <button class="settings-sub-tab active" type="button" data-backups-tab="settings">Backups</button>
                   <button class="settings-sub-tab" type="button" data-backups-tab="restore">Restore</button>
                 </div>
-                <!-- Automatic Local Backups row -->
+                <!-- Local Backups row -->
                 <div class="settings-row">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section backup-settings-panel">
-                      <div class="section-heading sync-heading">
+                      <div class="section-heading sync-heading backup-section-heading">
                         <div>
-                          <p>Automatic Local Backups</p>
-                          <span>Local watch history backup schedule settings</span>
+                          <p>Local Backups</p>
                         </div>
-                        <span id="watchBackupSummary" class="status-pill status-muted">Not loaded</span>
                       </div>
 
-                      <div class="backup-settings-grid">
-                        <label class="checkbox-label backup-enable-row" style="cursor: pointer; user-select: none;">
-                          <input id="watchBackupEnabled" type="checkbox" />
-                          <span>Enable daily backups</span>
-                        </label>
-                        <label class="field-label">
-                          Backup time (local)
-                          <input id="watchBackupTime" class="field" type="time" value="03:00" />
-                        </label>
-                        <label class="field-label">
-                          Backups to retain
-                          <input id="watchBackupRetention" class="field" type="number" min="1" max="365" value="14" />
-                        </label>
-                      </div>
+                      <div class="backup-type-stack">
+                        <article class="backup-type-card">
+                          <div class="backup-type-head">
+                            <div>
+                              <b>Local Watch History Backups</b>
+                              <span>Enable scheduled local snapshots of watched state, playstate, and resume progress.</span>
+                            </div>
+                          </div>
+                          <div class="backup-settings-grid backup-settings-inline">
+                            <div class="backup-settings-left">
+                              <label class="checkbox-label backup-enable-row">
+                                <input id="watchBackupEnabled" type="checkbox" />
+                                <span>Enable daily backups</span>
+                              </label>
+                            </div>
+                            <div class="backup-settings-center">
+                              <label class="field-label">
+                                Backup time (local)
+                                <input id="watchBackupTime" class="field" type="time" value="03:00" />
+                              </label>
+                              <label class="field-label">
+                                Backups to retain
+                                <input id="watchBackupRetention" class="field" type="number" min="1" max="365" value="14" />
+                              </label>
+                            </div>
+                            <div class="backup-settings-right">
+                              <button id="saveWatchBackupConfigButton" class="button-primary" type="button">Save Schedule</button>
+                              <button id="createWatchBackupButton" class="button-ghost" type="button">Back Up Now</button>
+                            </div>
+                          </div>
+                          <div id="watchBackupRuntime" class="backup-runtime" aria-live="polite"></div>
+                        </article>
 
-                      <div class="settings-actions backup-settings-actions">
-                        <button id="saveWatchBackupConfigButton" class="button-primary" type="button">Save Schedule</button>
-                        <button id="createWatchBackupButton" class="button-ghost" type="button">Back Up Now</button>
-                      </div>
+                        <article class="backup-type-card backup-type-card-muted">
+                          <div class="backup-type-head">
+                            <div>
+                              <b>Local Plembfin Backups</b>
+                              <span>Create an encrypted full Plembfin backup and download it to your computer.</span>
+                            </div>
+                          </div>
+                          
+                          <div class="backup-settings-grid backup-settings-inline">
+                            <div class="backup-settings-left">
+                              <label class="checkbox-label backup-enable-row">
+                                <input id="plembfinBackupEnabled" type="checkbox" />
+                                <span>Enable daily backups</span>
+                              </label>
+                            </div>
+                            <div class="backup-settings-center" style="flex: 2.2;">
+                              <label class="field-label">
+                                Backup time (local)
+                                <input id="plembfinBackupTime" class="field" type="time" value="03:00" />
+                              </label>
+                              <label class="field-label">
+                                Backups to retain
+                                <input id="plembfinBackupRetention" class="field" type="number" min="1" max="365" value="7" />
+                              </label>
+                              <label class="field-label" style="flex: 1.5 !important;">
+                                Passphrase - <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">At least 12 chars</span>
+                                <input id="backupExportPassphrase" class="field" type="password" autocomplete="new-password" />
+                              </label>
+                            </div>
+                            <div class="backup-settings-right">
+                              <button id="savePlembfinBackupConfigButton" class="button-primary" type="button" disabled>Save Schedule</button>
+                              <button id="createPlembfinBackupButton" class="button-ghost" type="button" disabled>Back Up Now</button>
+                            </div>
+                          </div>
 
-                      <div id="watchBackupRuntime" class="backup-runtime" aria-live="polite"></div>
+                          <div id="plembfinBackupRuntime" class="backup-runtime" aria-live="polite"></div>
+                        </article>
+                      </div>
                     </section>
                   </div>
 
@@ -1054,30 +1082,51 @@
                         <span>Disaster Recovery</span>
                       </div>
                       <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-2);">
-                        Backups are saved to <code id="watchBackupLocalPath">data/backups/watch-history</code> on the server running Plembfin.
+                        Watch-history backups are saved to <code id="watchBackupLocalPath">data/backups/watch-history</code> on the server running Plembfin.
                       </p>
                       <p class="tool-accordion-desc" style="font-size: 0.8rem; margin: 0;">
-                        Set a daily backup time, choose how many copies to retain, then click <b>Save Schedule</b>. Use <b>Back Up Now</b> to create an immediate snapshot.
+                        Plembfin backup files include settings and API keys, so they require a passphrase before export. Image files and metadata cache are excluded.
                       </p>
                     </article>
                   </div>
                 </div>
 
-                <!-- Automatic Remote Backups row -->
+                <!-- Remote Backups row -->
                 <div class="settings-row" style="margin-top: var(--space-4);">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section backup-settings-panel">
                       <div class="section-heading">
                         <div>
-                          <p>Automatic Remote Backups</p>
-                          <span>Mirror backups to Backblaze B2 cloud storage</span>
-                        </div>
-                        <div class="backup-destination-add" style="display: flex; gap: var(--space-2); margin-top: var(--space-2);">
-                          <input id="watchBackupDestinationType" type="hidden" value="backblaze" />
-                          <button id="addWatchBackupDestinationButton" class="button-primary" type="button">Add Backblaze B2</button>
+                          <p>Remote Backups</p>
+                          <span>Backups mirrored away from this Plembfin server</span>
                         </div>
                       </div>
-                      <div id="watchBackupDestinations" class="watch-backup-destinations" aria-live="polite"></div>
+                      <div class="backup-type-stack">
+                        <article class="backup-type-card">
+                          <div class="backup-type-head">
+                            <div>
+                              <b>Remote Watch History Backups</b>
+                              <span>Enable remote mirroring for scheduled watch-history backups.</span>
+                            </div>
+                            <div class="backup-destination-add">
+                              <input id="watchBackupDestinationType" type="hidden" value="backblaze" />
+                              <button id="addWatchBackupDestinationButton" class="button-primary" type="button">Add Backblaze B2</button>
+                            </div>
+                          </div>
+                          <div id="watchBackupDestinations" class="watch-backup-destinations" aria-live="polite"></div>
+                        </article>
+
+                        <article class="backup-type-card backup-type-card-muted">
+                          <div class="backup-type-head">
+                            <div>
+                              <b>Remote Plembfin Backups</b>
+                              <span>Store encrypted Plembfin backup files off-server manually.</span>
+                            </div>
+                            <span class="status-pill status-muted">Manual</span>
+                          </div>
+                          <p class="backup-type-note">Automatic remote Plembfin backups are not available yet because the full backup passphrase is only entered during export and restore.</p>
+                        </article>
+                      </div>
                     </section>
                   </div>
 
@@ -1091,9 +1140,9 @@
                         <li>Create a free account at <a href="https://www.backblaze.com/sign-up/cloud-storage" target="_blank" rel="noopener" style="color: var(--accent);">backblaze.com</a> and enable <b>B2 Cloud Storage</b>.</li>
                         <li><b>Buckets → Create a Bucket</b>: pick a globally-unique name, set files <b>Private</b>. Note the <b>Endpoint</b> shown (e.g. <code>s3.us-west-004.backblazeb2.com</code>) — the middle part is your <b>Region</b> (<code>us-west-004</code>).</li>
                         <li><b>Application Keys → Add a New Application Key</b>: restrict it to that one bucket, then create. Copy the <b>keyID</b> and <b>applicationKey</b> — shown only once.</li>
-                        <li>Fill in Region, Bucket, keyID, applicationKey, <b>Save</b>, then <b>Test</b>. Tick <b>Enabled</b> and click <b>Back Up Now</b>.</li>
+                        <li>Fill in Region, Bucket, keyID, applicationKey, <b>Save</b>, then <b>Test</b>. Tick <b>Enabled</b> and use <b>Back Up Now</b> under Local Watch History Backups.</li>
                       </ol>
-                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin: 0;">The endpoint is derived from the region automatically. Backups are pruned to your retention count here too.</p>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin: 0;">This mirrors watch-history backups only. Full Plembfin backups are encrypted manual downloads.</p>
                     </article>
                   </div>
                 </div>
@@ -1102,26 +1151,96 @@
               <!-- Backups Restore Panel -->
               <section class="settings-pane hidden" data-settings-panel="backups" data-backups-panel="restore">
                 <div class="settings-top-tabs">
-                  <button class="settings-sub-tab" type="button" data-backups-tab="settings">Settings</button>
+                  <button class="settings-sub-tab" type="button" data-backups-tab="settings">Backups</button>
                   <button class="settings-sub-tab active" type="button" data-backups-tab="restore">Restore</button>
                 </div>
                 <div class="settings-row">
                   <div class="settings-row-main">
-                    <!-- Available Backups -->
+                    <section class="glass-panel p-section backup-settings-panel backup-restore-section">
+                      <div class="section-heading">
+                        <div>
+                          <p>Local Backups</p>
+                          <span>Restore from files on this server or from your computer</span>
+                        </div>
+                      </div>
+
+                      <div class="backup-type-stack">
+                        <article class="backup-type-card">
+                          <div class="backup-type-head">
+                            <div>
+                              <b>Local Watch History Backups</b>
+                              <span>Restore a watch-history backup stored on this server or upload one from your computer.</span>
+                            </div>
+                          </div>
+                          <div class="restore-upload-panel">
+                            <input id="watchBackupUploadFile" type="file" accept=".gz,application/gzip,application/x-gzip" hidden />
+                            <button id="chooseWatchBackupFileButton" class="button-ghost" type="button">Add Watch-History File</button>
+                            <span id="watchBackupUploadStatus">No watch-history file selected</span>
+                          </div>
+                          <div id="watchBackupList" class="watch-backup-list" data-watch-backup-list="local" aria-live="polite"></div>
+                        </article>
+
+                        <article class="backup-type-card">
+                          <div class="backup-type-head">
+                            <div>
+                              <b>Local Plembfin Backups</b>
+                              <span>Restore an encrypted full Plembfin backup.</span>
+                            </div>
+                            <span id="backupRestoreStatus" class="status-pill status-muted">Idle</span>
+                          </div>
+                          
+                          <div class="backup-settings-grid backup-settings-inline">
+                            <div class="backup-settings-left" style="flex: 2;">
+                              <label class="field-label" style="width: 100%;">
+                                Backup encryption passphrase - <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">Required to restore full backups</span>
+                                <input id="backupRestorePassphrase" class="field" type="password" autocomplete="new-password" />
+                              </label>
+                            </div>
+                            <div class="backup-settings-right">
+                              <label class="button-ghost backup-file-button" style="opacity: 0.5; pointer-events: none;">
+                                Upload Backup File
+                                <input id="backupImportFile" type="file" accept=".json,.plembfin,application/json" style="display: none;" disabled />
+                              </label>
+                              <button id="backupImportButton" class="button-primary" type="button" disabled>Restore Plembfin Backup</button>
+                            </div>
+                          </div>
+
+                          <div id="plembfinBackupList" class="watch-backup-list" data-watch-backup-list="local" aria-live="polite" style="margin-top: var(--space-3);"></div>
+                          <pre id="backupRestoreLog" class="import-terminal compact-terminal" aria-live="polite" style="margin-top: var(--space-2);">[idle] Enter a passphrase, then choose a local or uploaded encrypted Plembfin backup.</pre>
+                        </article>
+                      </div>
+
+                      <pre id="restoreProgressTerminal" class="import-terminal compact-terminal hidden" aria-live="polite" style="margin-top: var(--space-3);"></pre>
+                    </section>
+
                     <section class="glass-panel p-section backup-settings-panel">
                       <div class="section-heading">
                         <div>
-                          <p>Restore Watch History</p>
-                          <span>Select a backup to restore. Plembfin will become the source of truth and sync to all connected apps.</span>
+                          <p>Remote Backups</p>
+                          <span>Restore backups from configured remote destinations</span>
                         </div>
                       </div>
-                      <div class="restore-upload-panel">
-                        <input id="watchBackupUploadFile" type="file" accept=".gz,application/gzip,application/x-gzip" hidden />
-                        <button id="chooseWatchBackupFileButton" class="button-ghost" type="button">Choose Backup File</button>
-                        <span id="watchBackupUploadStatus">No PC file selected</span>
+                      <div class="backup-type-stack">
+                        <article class="backup-type-card">
+                          <div class="backup-type-head">
+                            <div>
+                              <b>Remote Watch History Backups</b>
+                              <span>Restore a watch-history backup mirrored to Backblaze B2.</span>
+                            </div>
+                          </div>
+                          <div id="remoteWatchBackupList" class="watch-backup-list" data-watch-backup-list="remote" aria-live="polite"></div>
+                        </article>
+
+                        <article class="backup-type-card backup-type-card-muted">
+                          <div class="backup-type-head">
+                            <div>
+                              <b>Remote Plembfin Backups</b>
+                              <span>Download your encrypted Plembfin backup from remote storage, then restore it as a Local Plembfin Backup.</span>
+                            </div>
+                            <span class="status-pill status-muted">Manual</span>
+                          </div>
+                        </article>
                       </div>
-                      <div id="watchBackupList" class="watch-backup-list" aria-live="polite"></div>
-                      <pre id="restoreProgressTerminal" class="import-terminal compact-terminal hidden" aria-live="polite" style="margin-top: var(--space-3);"></pre>
                     </section>
                   </div>
 
@@ -1129,17 +1248,25 @@
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
                         <p>Restore Guide</p>
-                        <span>How to restore</span>
+                        <span>Choose the right backup</span>
                       </div>
 
-                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">What a restore does</h4>
+                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Two backup types</h4>
                       <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-2);">
-                        The selected backup becomes the single source of truth. Plembfin runs an authoritative restore:
+                        <b>Watch-history backups</b> contain watched state, playstate, and resume progress. Use them to roll watch history back to a known point and push that state to Plex, Emby, and Jellyfin.
+                      </p>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
+                        <b>Plembfin backups</b> contain the full Plembfin database data and saved settings. They are encrypted because they can include API keys and server credentials.
+                      </p>
+
+                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Watch-history restore</h4>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-2);">
+                        The selected watch-history backup becomes the source of truth:
                       </p>
                       <ol class="tool-accordion-desc" style="margin: 0 0 var(--space-3); padding-left: 1.2rem; font-size: 0.8rem; list-style: decimal;">
                         <li>Wipes the local watch history, playstate and resume progress, and reloads them from the backup.</li>
                         <li>Pushes that state out to every connected app (Plex, Emby, Jellyfin).</li>
-                        <li>Stamps a restore watermark so the background sync can never re-import the apps' state afterwards.</li>
+                        <li>Stamps a restore watermark so background sync does not re-import the previous app state.</li>
                       </ol>
                       <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
                         While the restore is running, the cron sync and incoming webhooks are ignored, so nothing is written to watch history mid-restore. <b>Watch dates are always preserved</b> — an item already watched on an earlier date is never re-added as watched today.
@@ -1158,8 +1285,8 @@
                       <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Restore onto New Instance</h4>
                       <ol class="tool-accordion-desc" style="margin: 0; padding-left: 1.2rem; font-size: 0.8rem; list-style: decimal;">
                         <li>Install a fresh Plembfin.</li>
-                        <li>Go to Backups → Settings and configure remote destinations.</li>
-                        <li>Go to Backups → Restore and click "Watch History Wipe / Restore" on a backup from your remote destination.</li>
+                        <li>Go to Backups and configure remote watch-history destinations.</li>
+                        <li>Go to Restore and choose either a local or remote watch-history backup.</li>
                       </ol>
                     </article>
                   </div>

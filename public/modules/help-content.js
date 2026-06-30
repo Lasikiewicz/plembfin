@@ -391,7 +391,6 @@ export function renderSettingsInlineHelp() {
   const migrationHelp = document.getElementById("migrationHelp");
   if (migrationHelp) {
     migrationHelp.innerHTML = `
-      <p class="tool-accordion-desc"><b>Backup &amp; Transfer:</b> Export native JSON database archives or import existing backups containing metadata, watch states, and user configurations.</p>
       <p class="tool-accordion-desc"><b>Trakt Importer:</b> Drag and drop CSV or JSON logs exported from Trakt.tv to populate your local database in bulk.</p>
       <details style="margin-top: var(--space-3);">
         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Export Plex History Guide</summary>
