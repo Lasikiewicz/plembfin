@@ -1,7 +1,22 @@
 {
-  "version": "0.2.66",
-  "updatedAt": "2026-06-30T09:13:26+01:00",
+  "version": "0.2.67",
+  "updatedAt": "2026-06-30T11:24:13+01:00",
   "entries": [
+    {
+      "version": "0.2.67",
+      "date": "2026-06-30T11:24:13+01:00",
+      "commit": "3584d7a97f4f333a5689ce63052aa98d0e1773b9",
+      "message": "feat: add scheduled local Plembfin backups with passphrase encryption",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add daily scheduled full Plembfin database backups with AES-256-GCM encryption",
+        "Add scheduling configuration UI for Plembfin backups matching watch history styling",
+        "Add password/passphrase input to configure and manually trigger full backups",
+        "Integrate Plembfin scheduled backups run checking with the per-minute cron tick",
+        "Add Local Watch History Backups runtime stats inside its card border",
+        "Support downloading, deleting, and restoring Plembfin backups from UI"
+      ]
+    },
     {
       "version": "0.2.66",
       "date": "2026-06-30T09:13:26+01:00",
