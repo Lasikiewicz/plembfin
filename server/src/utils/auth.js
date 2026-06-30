@@ -89,6 +89,7 @@ export async function handleLogin(req, res) {
 }
 
 export async function handleLogout(req, res) {
+  if (req.method !== "POST") return sendJson(res, { error: "Method not allowed" }, 405);
   res.clearCookie(COOKIE_NAME, { path: "/" });
   return sendJson(res, { ok: true });
 }

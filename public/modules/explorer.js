@@ -309,7 +309,9 @@ export function renderExplorer() {
   const activeView = currentExplorerView();
   const lockNextAirList = state.explorerMode === "shows" && state.explorerSortShows === "next_air_asc";
   for (const button of elements.explorerViewButtons || []) {
-    button.classList.toggle("active", button.dataset.explorerView === activeView);
+    const isActive = button.dataset.explorerView === activeView;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
   }
   const viewToggle = elements.explorerViewButtons?.[0]?.closest(".explorer-view-toggle");
   viewToggle?.classList.toggle("hidden", lockNextAirList);
@@ -990,10 +992,14 @@ export function renderHistoryView() {
     elements.historySearchInput.value = state.historyViewSearch;
   }
   for (const button of elements.historyFilterButtons || []) {
-    button.classList.toggle("active", button.dataset.historyFilter === state.historyViewFilter);
+    const isActive = button.dataset.historyFilter === state.historyViewFilter;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
   }
   for (const button of elements.historyViewButtons || []) {
-    button.classList.toggle("active", button.dataset.historyView === state.historyViewMode);
+    const isActive = button.dataset.historyView === state.historyViewMode;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
   }
   elements.historyPanel.innerHTML = renderHistoryItems();
   hydratePosters(elements.historyPanel);
