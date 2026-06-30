@@ -1,7 +1,20 @@
 {
-  "version": "0.2.68",
-  "updatedAt": "2026-06-30T11:34:35+01:00",
+  "version": "0.2.69",
+  "updatedAt": "2026-06-30T11:43:20+01:00",
   "entries": [
+    {
+      "version": "0.2.69",
+      "date": "2026-06-30T11:43:20+01:00",
+      "commit": "0d939303158ff3680801932eb877831964340025",
+      "message": "chore: remove AI agent clutter and clean up README",
+      "author": "Lasikiewicz",
+      "details": [
+        "Deleted AGENTS.md (redundant pointer to CLAUDE.md)",
+        "Deleted .Jules/ directory (empty, Jules not in use)",
+        "Added .Jules/ to .gitignore so it stays out if recreated",
+        "Removed emoji decorators from all README section headings and feature bullet points"
+      ]
+    },
     {
       "version": "0.2.68",
       "date": "2026-06-30T11:34:35+01:00",
