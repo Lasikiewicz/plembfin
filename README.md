@@ -15,9 +15,24 @@
 
 ---
 
-**Plembfin** is a self-hosted **personal watch history tracker and playstate sync** for Plex, Emby, and Jellyfin. It listens for playback webhooks from your media servers, records everything you watch in a local SQLite database, and keeps your watched/unwatched state in sync across all connected platforms automatically. Plembfin is easy to configure and comes with a clean, polished UI with both light and dark theme options.
+**Plembfin** is a self-hosted watch history tracker and playstate sync tool for Plex, Emby, and Jellyfin. It records everything you watch in a local SQLite database and keeps your watched/unwatched state in sync across all your media servers automatically.
 
-With an in-process scheduler, Trakt history imports, Seerr requests, and automatic cloud backups, Plembfin keeps your entire media ecosystem in perfect sync without requiring cloud dependencies.
+---
+
+## Features
+
+| | |
+|---|---|
+| **Bi-directional sync** | Watched/unwatched states stay in sync across Plex, Emby, and Jellyfin automatically |
+| **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |
+| **Now Playing dashboard** | Real-time active sessions, weekly charts, and recent watch history |
+| **Stats** | All-time and per-period reports with top shows, platform breakdowns, and watch trends |
+| **Trakt import** | Import your full Trakt history and push it out to all connected servers |
+| **Seerr integration** | Request movies and shows from detail pages via Overseerr or Jellyseerr |
+| **Automated backups** | Daily local backups with optional mirror to Backblaze B2 |
+| **Self-hosted & private** | SQLite on your own hardware — no cloud accounts required |
+| **Security hardening** | Strict CSP headers, scrypt hashing, rate-limited login, HMAC-signed sessions |
+| **Artwork pipeline** | Posters and logos fetched from TMDB and Fanart.tv, resized and cached locally |
 
 ---
 
@@ -67,24 +82,6 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
   <img src="docs/screenshots/search.png" alt="Global search" width="100%" />
   <em>Instant search results across movies, TV shows, and people</em>
 </p>
-
----
-
-## Key Features
-
-*   **Bi-directional Synchronization**: Syncs watched and unwatched states between Plex, Emby, and Jellyfin.
-*   **Resume Progress Sync**: Automatically propagates playback progress (resume offsets) so you can pause a movie on Plex and pick up exactly where you left off on Jellyfin.
-*   **Real-Time Dashboard**: A clean, single-page dashboard displaying real-time "Now Playing" activity, weekly viewing charts, and detailed history.
-*   **Stats Reviews**: Year, month, and all-time reports highlight most-played movies and TV shows with poster rankings, first/last plays, platform breakdowns, and watch activity.
-*   **Self-Hosted & Private**: Built on a local SQLite database running in WAL mode. All poster assets, metadata, and watch histories reside on your own hardware.
-*   **Security Hardening**: Ships with strict HTTP security headers (CSP, `X-Frame-Options`, `Permissions-Policy`), scrypt password hashing, rate-limited login, HMAC-signed sessions, and a forced first-login password change when the default credentials are in use. See [`docs/hardening.md`](docs/hardening.md) for the full production checklist.
-*   **Art Pipeline & Caching**: Fetches posters, backdrops, and logo art from your media servers and TMDB, then falls back to Fanart.tv when extra artwork is needed. Artwork is resized with `sharp` and cached locally under `data/media` for near-instant rendering.
-*   **TV Next-Airing Cache**: Builds and maintains `data/next-airing-cache.json` from TMDB so the TV Shows library can list upcoming episodes without checking every show during page loads.
-*   **Echo Loop Prevention**: Utilizes a memory-mapped loop detector to suppress echo webhooks triggered by Plembfin's own updates.
-*   **Automated Backups**: Backs up your database daily to a local folder and optionally mirrors to Backblaze B2 cloud storage.
-*   **Seerr Integration**: Integrates with Overseerr/Jellyseerr/Seerr to manage requests from movie and show detail views, while verifying availability against your configured Plex, Emby, and Jellyfin libraries.
-*   **In-Process Scheduler**: An in-memory scheduler checks for active play sessions, processes manual sync overrides, and triggers catch-up syncs every minute.
-*   **Update Notifications**: Settings → Changelog shows your running version and checks GitHub for newer releases, highlighting what's changed since your build.
 
 ---
 
