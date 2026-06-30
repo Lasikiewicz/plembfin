@@ -1,7 +1,21 @@
 {
-  "version": "0.2.70",
-  "updatedAt": "2026-06-30T11:46:14+01:00",
+  "version": "0.2.71",
+  "updatedAt": "2026-06-30T11:50:41+01:00",
   "entries": [
+    {
+      "version": "0.2.71",
+      "date": "2026-06-30T11:50:41+01:00",
+      "commit": "21a6c111e6bfcffcf5045db5101f89ae4df7a088",
+      "message": "chore: tighten CLAUDE.md agent instructions",
+      "author": "Lasikiewicz",
+      "details": [
+        "Made header agent-neutral (removed Claude Code branding)",
+        "Removed redundant constraint preamble blockquote",
+        "Added direct-action rule: act immediately on simple requests without over-analysis",
+        "Fixed stale app.js references to modules/images.js for posterMarkup, hydratePosterFallbacks, isCachedStorageImageUrl",
+        "Expanded module list in Architecture section to include all current modules"
+      ]
+    },
     {
       "version": "0.2.70",
       "date": "2026-06-30T11:46:14+01:00",
