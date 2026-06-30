@@ -342,7 +342,7 @@ async function applyRemoteRetention(adapter, retention) {
 
 // Mirror a freshly written local backup to every enabled remote. A remote failure is
 // recorded per-destination but never invalidates or deletes the local backup.
-async function pushBackupToRemotes(localAbsolutePath, filename, retention) {
+export async function pushBackupToRemotes(localAbsolutePath, filename, retention) {
   const destinations = loadBackupDestinations().filter((item) => item.enabled);
   if (!destinations.length) return [];
 

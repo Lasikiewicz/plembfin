@@ -246,7 +246,7 @@ Plembfin runs automated daily backups at a customizable time.
 
 *   📁 **Local Watch History Backups**: Capture watch history snapshots, playstates, and resume markers. Saved to `data/backups/watch-history`.
 *   🔒 **Local Plembfin Backups**: Create full, AES-256-GCM encrypted database backups (including settings, API keys, credentials, and play history, excluding cache). Requires a secure passphrase. Saved to `data/backups/plembfin`.
-*   ☁️ **Remote Backups**: Mirror local watch history backups to a private Backblaze B2 bucket under **Settings → Backups → Remote Backups**.
+*   ☁️ **Remote Backups**: Mirror local watch-history and full encrypted Plembfin backups to a private Backblaze B2 bucket under **Settings → Backups → Remote Backups**.
 
 ---
 

@@ -1108,23 +1108,75 @@
                               <b>Remote Watch History Backups</b>
                               <span>Enable remote mirroring for scheduled watch-history backups.</span>
                             </div>
-                            <div class="backup-destination-add">
-                              <input id="watchBackupDestinationType" type="hidden" value="backblaze" />
-                              <button id="addWatchBackupDestinationButton" class="button-primary" type="button">Add Backblaze B2</button>
+                          </div>
+                          
+                          <div class="backup-settings-grid backup-settings-inline">
+                            <div class="backup-settings-left">
+                              <label class="checkbox-label backup-enable-row">
+                                <input id="watchBackupRemoteEnabled" type="checkbox" />
+                                <span>Enable remote mirroring</span>
+                              </label>
+                            </div>
+                            <div class="backup-settings-center" style="display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: var(--muted); font-weight: 500; text-align: center;">Runs daily after local backups</div>
+                            <div class="backup-settings-right">
+                              <button id="saveWatchBackupRemoteButton" class="button-primary" type="button">Save Settings</button>
+                              <button id="testWatchBackupRemoteButton" class="button-ghost" type="button">Test Connection</button>
                             </div>
                           </div>
-                          <div id="watchBackupDestinations" class="watch-backup-destinations" aria-live="polite"></div>
+
+                          <div class="destination-fields" style="margin-top: var(--space-3); border-top: 1px solid var(--line); padding-top: var(--space-3);">
+                            <label class="field-label">
+                              Region or endpoint (e.g. eu-central-003)
+                              <input id="watchBackupRemoteRegion" class="field" type="text" placeholder="eu-central-003" />
+                            </label>
+                            <label class="field-label">
+                              Bucket name
+                              <input id="watchBackupRemoteBucket" class="field" type="text" placeholder="plembfinlocal" />
+                            </label>
+                            <label class="field-label">
+                              keyID
+                              <input id="watchBackupRemoteKeyId" class="field" type="text" placeholder="003ec1fd6658cde000000000003" />
+                            </label>
+                            <label class="field-label">
+                              Key prefix (optional)
+                              <input id="watchBackupRemotePrefix" class="field" type="text" placeholder="plembfin/" />
+                            </label>
+                            <label class="field-label">
+                              applicationKey
+                              <input id="watchBackupRemoteAppKey" class="field" type="password" placeholder="•••••••• (saved — leave blank to keep)" />
+                            </label>
+                          </div>
+
+                          <div id="watchBackupRemoteRuntime" class="backup-runtime" aria-live="polite"></div>
                         </article>
 
                         <article class="backup-type-card backup-type-card-muted">
                           <div class="backup-type-head">
                             <div>
                               <b>Remote Plembfin Backups</b>
-                              <span>Store encrypted Plembfin backup files off-server manually.</span>
+                              <span>Store encrypted Plembfin backup files off-server automatically on a schedule.</span>
                             </div>
-                            <span class="status-pill status-muted">Manual</span>
                           </div>
-                          <p class="backup-type-note">Automatic remote Plembfin backups are not available yet because the full backup passphrase is only entered during export and restore.</p>
+                          
+                          <div class="backup-settings-grid backup-settings-inline">
+                            <div class="backup-settings-left">
+                              <label class="checkbox-label backup-enable-row">
+                                <input id="plembfinBackupRemoteEnabled" type="checkbox" />
+                                <span>Enable remote mirroring</span>
+                              </label>
+                            </div>
+                            <div class="backup-settings-center" style="flex: 2.2;">
+                              <label class="field-label" style="flex: 1.5 !important;">
+                                Passphrase - <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">At least 12 chars</span>
+                                <input id="plembfinBackupRemotePassphrase" class="field" type="password" autocomplete="new-password" />
+                              </label>
+                            </div>
+                            <div class="backup-settings-right">
+                              <button id="savePlembfinBackupRemoteButton" class="button-primary" type="button" disabled>Save Settings</button>
+                            </div>
+                          </div>
+
+                          <div id="plembfinBackupRemoteRuntime" class="backup-runtime" aria-live="polite"></div>
                         </article>
                       </div>
                     </section>
@@ -1142,7 +1194,7 @@
                         <li><b>Application Keys → Add a New Application Key</b>: restrict it to that one bucket, then create. Copy the <b>keyID</b> and <b>applicationKey</b> — shown only once.</li>
                         <li>Fill in Region, Bucket, keyID, applicationKey, <b>Save</b>, then <b>Test</b>. Tick <b>Enabled</b> and use <b>Back Up Now</b> under Local Watch History Backups.</li>
                       </ol>
-                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin: 0;">This mirrors watch-history backups only. Full Plembfin backups are encrypted manual downloads.</p>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin: 0;">This mirrors watch-history and Plembfin backups.</p>
                     </article>
                   </div>
                 </div>
@@ -1232,14 +1284,13 @@
                         </article>
 
                         <article class="backup-type-card backup-type-card-muted">
-                          <div class="backup-type-head">
-                            <div>
-                              <b>Remote Plembfin Backups</b>
-                              <span>Download your encrypted Plembfin backup from remote storage, then restore it as a Local Plembfin Backup.</span>
-                            </div>
-                            <span class="status-pill status-muted">Manual</span>
-                          </div>
-                        </article>
+                           <div class="backup-type-head">
+                             <div>
+                               <b>Remote Plembfin Backups</b>
+                               <span>Download your encrypted Plembfin backup from remote storage, then restore it as a Local Plembfin Backup.</span>
+                             </div>
+                           </div>
+                         </article>
                       </div>
                     </section>
                   </div>

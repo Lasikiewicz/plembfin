@@ -4,6 +4,7 @@ import path from "node:path";
 import { db, parseJson, toJson } from "../db.js";
 import { FULL_BACKUPS_DIR } from "../paths.js";
 import { getFullBackup } from "./backup.js";
+import { pushBackupToRemotes } from "./watchHistoryBackups.js";
 
 const CONFIG_ID = "plembfinBackups";
 const RUNTIME_ID = "plembfinBackups";
@@ -27,6 +28,8 @@ function safeConfig(value = {}) {
     time,
     retention: Math.max(1, Math.min(Number(value.retention) || 7, 365)),
     passphrase: String(value.passphrase || "").trim(),
+    remoteEnabled: Boolean(value.remoteEnabled),
+    remotePassphrase: String(value.remotePassphrase || "").trim(),
   };
 }
 
@@ -122,7 +125,8 @@ function encryptPlembfinBackup(backup, passphrase) {
 
 export async function createPlembfinBackup({ reason = "manual", passphrase } = {}) {
   fs.mkdirSync(FULL_BACKUPS_DIR, { recursive: true });
-  const actualPassphrase = passphrase || loadPlembfinBackupConfig().passphrase;
+  const config = loadPlembfinBackupConfig();
+  const actualPassphrase = passphrase || config.passphrase || config.remotePassphrase;
   if (!actualPassphrase || actualPassphrase.length < 12) {
     throw new Error("Enter an encryption passphrase of at least 12 characters.");
   }
@@ -143,7 +147,6 @@ export async function createPlembfinBackup({ reason = "manual", passphrase } = {
   fs.writeFileSync(temporary, jsonContent, "utf8");
   fs.renameSync(temporary, destination);
 
-  const config = loadPlembfinBackupConfig();
   applyRetention(config.retention);
 
   const result = {
@@ -152,7 +155,37 @@ export async function createPlembfinBackup({ reason = "manual", passphrase } = {
     createdAt: encryptedObj.encryptedAt,
     reason,
   };
-  saveRuntime({ lastSuccessAt: Date.now(), lastError: "", lastBackup: result, lastRunDate: localDateKey() });
+
+  let remoteStatus = {};
+  if (config.remoteEnabled) {
+    const remotePass = passphrase || config.remotePassphrase || config.passphrase;
+    if (remotePass && remotePass.length >= 12) {
+      try {
+        const statuses = await pushBackupToRemotes(destination, filename, config.retention);
+        const b2Status = statuses.find(s => s.id === "backblaze");
+        if (b2Status) {
+          remoteStatus = {
+            lastRemoteAttemptAt: b2Status.lastAttemptAt,
+            lastRemoteSuccessAt: b2Status.lastSuccessAt || 0,
+            lastRemoteError: b2Status.lastError || "",
+          };
+        }
+      } catch (e) {
+        remoteStatus = {
+          lastRemoteAttemptAt: Date.now(),
+          lastRemoteError: e.message || String(e),
+        };
+      }
+    }
+  }
+
+  saveRuntime({
+    lastSuccessAt: Date.now(),
+    lastError: "",
+    lastBackup: result,
+    lastRunDate: localDateKey(),
+    ...remoteStatus
+  });
   return result;
 }
 
@@ -185,7 +218,7 @@ function localDateKey(date = new Date()) {
 
 export async function runScheduledPlembfinBackup() {
   const config = loadPlembfinBackupConfig();
-  if (!config.enabled || !config.passphrase || config.passphrase.length < 12) return null;
+  if (!config.enabled && !config.remoteEnabled) return null;
   
   const now = new Date();
   const today = localDateKey(now);
@@ -195,7 +228,8 @@ export async function runScheduledPlembfinBackup() {
   if (runtime.lastRunDate === today || currentTime < config.time) return null;
   
   try {
-    return await createPlembfinBackup({ reason: "scheduled", passphrase: config.passphrase });
+    const passphrase = config.passphrase || config.remotePassphrase;
+    return await createPlembfinBackup({ reason: "scheduled", passphrase });
   } catch (error) {
     saveRuntime({ lastError: error.message || String(error), lastFailureAt: Date.now(), lastRunDate: today });
     throw error;

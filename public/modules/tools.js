@@ -381,7 +381,7 @@ export function renderWatchBackups() {
         </div>
       </article>
     `).join("") : `<div class="empty-log"><b>No local backups yet</b><span>Use Back Up Now or enable the daily schedule.</span></div>`;
-    renderWatchBackupDestinations(data);
+    populateWatchBackupRemoteFields(data);
     return;
   }
   const localEntries = files.map((f) => ({ ...f, source: "local", destId: null, destLabel: "Local" }));
@@ -513,48 +513,113 @@ function renderDestinationSecret(destination, field) {
     <input class="field" type="password" autocomplete="new-password" data-dest-secret="${field.key}" placeholder="${isSet ? "•••••••• (saved — leave blank to keep)" : ""}" />
   </label>`;
 }
-function renderWatchBackupDestinations(data) {
-  const host = elements.watchBackupDestinations;
-  if (!host) return;
-  if (!data) {
-    host.innerHTML = `<div class="empty-log"><b>Destinations not loaded</b></div>`;
-    return;
+export function populateWatchBackupRemoteFields(data) {
+  const destinations = Array.isArray(data?.destinations) ? data.destinations : [];
+  const b2 = destinations.find(d => d.type === "backblaze") || {
+    id: "backblaze",
+    type: "backblaze",
+    label: "Backblaze B2",
+    enabled: false,
+    settings: {},
+    secretFlags: {},
+  };
+  
+  if (elements.watchBackupRemoteEnabled) {
+    elements.watchBackupRemoteEnabled.checked = Boolean(b2.enabled);
   }
-  const destinations = Array.isArray(data.destinations) ? data.destinations : [];
-  const statusMap = data.runtime?.destinations || {};
-  if (!destinations.length) {
-    host.innerHTML = `<div class="empty-log"><b>No remote destinations</b><span>Pick a type above and choose Add destination to mirror backups off-box.</span></div>`;
-    return;
+  if (elements.watchBackupRemoteRegion) {
+    elements.watchBackupRemoteRegion.value = b2.settings?.endpoint || "";
   }
-  host.innerHTML = destinations.map((destination) => {
-    const form = DESTINATION_FORMS[destination.type] || { label: destination.type, settings: [], secrets: [], oauth: null };
-    const fields = form.settings.map((field) => renderDestinationField(destination, field)).join("");
-    const secrets = form.secrets.map((field) => renderDestinationSecret(destination, field)).join("");
-    const connected = destination.secretFlags?.refreshToken;
-    const status = statusMap[destination.id];
-    return `
-      <article class="watch-backup-destination" data-dest-id="${escapeAttribute(destination.id)}" data-dest-type="${escapeAttribute(destination.type)}">
-        <div class="destination-head">
-          <span class="destination-badge">${escapeHtml(form.label)}</span>
-          <input class="field destination-label" data-dest-meta="label" value="${escapeAttribute(destination.label || form.label)}" />
-          <label class="checkbox-label"><input type="checkbox" data-dest-meta="enabled" ${destination.enabled ? "checked" : ""} /><span>Enabled</span></label>
-          ${destinationStatusPill(destination, status)}
-        </div>
-        <div class="destination-fields">
-          ${fields}
-          ${secrets}
-        </div>
-        ${form.help || ""}
-        <div class="destination-feedback" data-dest-feedback>${status?.status === "error" && status.lastError ? escapeHtml(status.lastError) : ""}</div>
-        <div class="destination-actions">
-          <button class="button-primary" type="button" data-dest-action="save">Save</button>
-          <button class="button-ghost" type="button" data-dest-action="test">Test</button>
-          ${form.oauth ? `<button class="button-ghost" type="button" data-dest-action="connect">${connected ? "Reconnect" : "Connect"}</button>` : ""}
-          <button class="button-danger" type="button" data-dest-action="remove">Remove</button>
-        </div>
-      </article>
-    `;
-  }).join("");
+  if (elements.watchBackupRemoteBucket) {
+    elements.watchBackupRemoteBucket.value = b2.settings?.bucket || "";
+  }
+  if (elements.watchBackupRemoteKeyId) {
+    elements.watchBackupRemoteKeyId.value = b2.settings?.keyId || "";
+  }
+  if (elements.watchBackupRemotePrefix) {
+    elements.watchBackupRemotePrefix.value = b2.settings?.prefix || "";
+  }
+  if (elements.watchBackupRemoteAppKey) {
+    const isSet = b2.secretFlags?.applicationKey;
+    elements.watchBackupRemoteAppKey.placeholder = isSet ? "•••••••• (saved — leave blank to keep)" : "";
+    elements.watchBackupRemoteAppKey.value = "";
+  }
+
+  if (elements.watchBackupRemoteRuntime) {
+    const statusMap = data?.runtime?.destinations || {};
+    const status = statusMap[b2.id];
+    let statusHtml = "";
+    if (status) {
+      if (status.status === "success") {
+        statusHtml = `
+          <div><span>Last successful sync</span><b>${escapeHtml(watchBackupDate(status.lastSuccessAt))}</b></div>
+          <div><span>Last attempt</span><b>${escapeHtml(watchBackupDate(status.lastAttemptAt))} (Success)</b></div>
+          <div><span>Status</span><b>Connected</b></div>
+        `;
+      } else if (status.status === "error") {
+        statusHtml = `
+          <div><span>Last successful sync</span><b>${escapeHtml(watchBackupDate(status.lastSuccessAt))}</b></div>
+          <div><span>Last attempt</span><b>${escapeHtml(watchBackupDate(status.lastAttemptAt))} (Error)</b></div>
+          <div><span>Status</span><b style="color: var(--red);">Not connected</b></div>
+          ${status.lastError ? `<p class="backup-runtime-error">${escapeHtml(status.lastError)}</p>` : ""}
+        `;
+      }
+    } else {
+      statusHtml = `
+        <div><span>Last successful sync</span><b>Never</b></div>
+        <div><span>Last attempt</span><b>Never</b></div>
+        <div><span>Status</span><b>Not connected</b></div>
+      `;
+    }
+    elements.watchBackupRemoteRuntime.innerHTML = statusHtml;
+  }
+}
+
+export async function saveWatchBackupRemoteSettings() {
+  const destination = {
+    id: "backblaze",
+    type: "backblaze",
+    label: "Backblaze B2",
+    enabled: Boolean(elements.watchBackupRemoteEnabled?.checked),
+    settings: {
+      endpoint: elements.watchBackupRemoteRegion?.value.trim(),
+      bucket: elements.watchBackupRemoteBucket?.value.trim(),
+      keyId: elements.watchBackupRemoteKeyId?.value.trim(),
+      prefix: elements.watchBackupRemotePrefix?.value.trim(),
+    },
+    secrets: {},
+  };
+  if (elements.watchBackupRemoteAppKey?.value) {
+    destination.secrets.applicationKey = elements.watchBackupRemoteAppKey.value.trim();
+  }
+  await postWatchBackupAction({ action: "save-destination", destination });
+  state.watchBackups = null;
+  await loadWatchBackups({ force: true });
+  _setMessage("Remote backup settings saved.", "success");
+}
+
+export async function testWatchBackupRemoteSettings() {
+  const destination = {
+    id: "backblaze",
+    type: "backblaze",
+    label: "Backblaze B2",
+    enabled: Boolean(elements.watchBackupRemoteEnabled?.checked),
+    settings: {
+      endpoint: elements.watchBackupRemoteRegion?.value.trim(),
+      bucket: elements.watchBackupRemoteBucket?.value.trim(),
+      keyId: elements.watchBackupRemoteKeyId?.value.trim(),
+      prefix: elements.watchBackupRemotePrefix?.value.trim(),
+    },
+    secrets: {},
+  };
+  if (elements.watchBackupRemoteAppKey?.value) {
+    destination.secrets.applicationKey = elements.watchBackupRemoteAppKey.value.trim();
+  }
+  await postWatchBackupAction({ action: "save-destination", destination });
+  const result = await postWatchBackupAction({ action: "test-destination", destinationId: destination.id });
+  _setMessage(`Connection OK — ${result.result?.detail || "reachable"}.`, "success");
+  state.watchBackups = null;
+  await loadWatchBackups({ force: true });
 }
 function collectDestination(card) {
   const settings = {};
@@ -809,6 +874,10 @@ export function updatePlembfinButtonsState() {
   const disabled = passphrase.length < 12;
   if (elements.savePlembfinBackupConfigButton) elements.savePlembfinBackupConfigButton.disabled = disabled;
   if (elements.createPlembfinBackupButton) elements.createPlembfinBackupButton.disabled = disabled;
+
+  const remotePassphrase = elements.plembfinBackupRemotePassphrase?.value.trim() || "";
+  const remoteDisabled = remotePassphrase.length < 12;
+  if (elements.savePlembfinBackupRemoteButton) elements.savePlembfinBackupRemoteButton.disabled = remoteDisabled;
 }
 export function renderPlembfinBackups() {
   if (!elements.plembfinBackupList) return;
@@ -830,6 +899,11 @@ export function renderPlembfinBackups() {
   if (elements.backupExportPassphrase && !elements.backupExportPassphrase.value) {
     elements.backupExportPassphrase.value = config.passphrase || "";
   }
+
+  elements.plembfinBackupRemoteEnabled && (elements.plembfinBackupRemoteEnabled.checked = Boolean(config.remoteEnabled));
+  if (elements.plembfinBackupRemotePassphrase && !elements.plembfinBackupRemotePassphrase.value) {
+    elements.plembfinBackupRemotePassphrase.value = config.remotePassphrase || "";
+  }
   
   elements.plembfinBackupSummary && (elements.plembfinBackupSummary.textContent = config.enabled ? "Scheduled" : "Disabled");
   elements.plembfinBackupSummary && (elements.plembfinBackupSummary.className = `status-pill status-${config.enabled ? "ready" : "muted"}`);
@@ -844,6 +918,33 @@ export function renderPlembfinBackups() {
       <div><span>Storage</span><b>${formatNumber(files.length)} file${files.length === 1 ? "" : "s"}</b></div>
       ${runtime.lastError ? `<p class="backup-runtime-error">${escapeHtml(runtime.lastError)}</p>` : ""}
     `;
+  }
+
+  if (elements.plembfinBackupRemoteRuntime) {
+    let remoteHtml = "";
+    if (runtime.lastRemoteAttemptAt) {
+      if (!runtime.lastRemoteError) {
+        remoteHtml = `
+          <div><span>Last successful sync</span><b>${escapeHtml(watchBackupDate(runtime.lastRemoteSuccessAt))}</b></div>
+          <div><span>Last attempt</span><b>${escapeHtml(watchBackupDate(runtime.lastRemoteAttemptAt))} (Success)</b></div>
+          <div><span>Status</span><b>Connected</b></div>
+        `;
+      } else {
+        remoteHtml = `
+          <div><span>Last successful sync</span><b>${escapeHtml(watchBackupDate(runtime.lastRemoteSuccessAt))}</b></div>
+          <div><span>Last attempt</span><b>${escapeHtml(watchBackupDate(runtime.lastRemoteAttemptAt))} (Error)</b></div>
+          <div><span>Status</span><b style="color: var(--red);">Not connected</b></div>
+          <p class="backup-runtime-error">${escapeHtml(runtime.lastRemoteError)}</p>
+        `;
+      }
+    } else {
+      remoteHtml = `
+        <div><span>Last successful sync</span><b>Never</b></div>
+        <div><span>Last attempt</span><b>Never</b></div>
+        <div><span>Status</span><b>Not connected</b></div>
+      `;
+    }
+    elements.plembfinBackupRemoteRuntime.innerHTML = remoteHtml;
   }
   
   elements.plembfinBackupList.innerHTML = files.length ? files.map((file) => `
@@ -873,6 +974,17 @@ export async function savePlembfinBackupSettings() {
   state.plembfinBackups = null;
   await loadPlembfinBackups({ force: true });
   _setMessage("Plembfin backup schedule saved.", "success");
+}
+export async function savePlembfinBackupRemoteSettings() {
+  const config = {
+    ...state.plembfinBackups?.config,
+    remoteEnabled: elements.plembfinBackupRemoteEnabled.checked,
+    remotePassphrase: elements.plembfinBackupRemotePassphrase.value.trim(),
+  };
+  await postPlembfinBackupAction({ action: "configure", config });
+  state.plembfinBackups = null;
+  await loadPlembfinBackups({ force: true });
+  _setMessage("Remote Plembfin backup settings saved.", "success");
 }
 export async function createPlembfinBackupNow() {
   const button = elements.createPlembfinBackupButton;

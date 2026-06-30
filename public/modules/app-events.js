@@ -5,7 +5,7 @@ import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SOR
 import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSlug, movieHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js";
 import { adminTokenGuide, plexCredentialGuide, embyCredentialGuide, jellyfinCredentialGuide, buildWebhookUrl, plexWebhookSetup, embyWebhookSetup, jellyfinWebhookSetup, webhookWarning, cronSyncGuide, renderSettingsInlineHelp } from "./help-content.js";
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile } from "./images.js";
-import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, addBackupDestination, saveBackupDestinationCard, testBackupDestinationCard, removeBackupDestinationCard, listRemoteBackupsForCard, restoreRemoteBackupFromCard, connectBackupDestinationCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runDedupHistory, runTraktBackfill, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog, loadPlembfinBackups, savePlembfinBackupSettings, createPlembfinBackupNow, downloadPlembfinBackup, deletePlembfinBackupFile, restorePlembfinBackupFromServer, renderPlembfinBackups, updatePlembfinButtonsState } from "./tools.js";
+import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, addBackupDestination, saveBackupDestinationCard, testBackupDestinationCard, removeBackupDestinationCard, listRemoteBackupsForCard, restoreRemoteBackupFromCard, connectBackupDestinationCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runDedupHistory, runTraktBackfill, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog, loadPlembfinBackups, savePlembfinBackupSettings, createPlembfinBackupNow, downloadPlembfinBackup, deletePlembfinBackupFile, restorePlembfinBackupFromServer, renderPlembfinBackups, updatePlembfinButtonsState, saveWatchBackupRemoteSettings, testWatchBackupRemoteSettings, savePlembfinBackupRemoteSettings } from "./tools.js";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync } from "./sync.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./dashboard.js";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, renderRankingTable } from "./stats.js";
@@ -199,6 +199,12 @@ function attachEvents() {
 
   elements.saveWatchBackupConfigButton?.addEventListener("click", () => {
     saveWatchBackupSettings().catch((error) => setMessage(error.message, "error"));
+  });
+  elements.saveWatchBackupRemoteButton?.addEventListener("click", () => {
+    saveWatchBackupRemoteSettings().catch((error) => setMessage(error.message, "error"));
+  });
+  elements.testWatchBackupRemoteButton?.addEventListener("click", () => {
+    testWatchBackupRemoteSettings().catch((error) => setMessage(error.message, "error"));
   });
   elements.createWatchBackupButton?.addEventListener("click", () => {
     createWatchBackupNow().catch((error) => setMessage(error.message, "error"));
@@ -1174,6 +1180,14 @@ function attachEvents() {
 
   elements.backupExportPassphrase?.addEventListener("input", () => {
     updatePlembfinButtonsState();
+  });
+
+  elements.plembfinBackupRemotePassphrase?.addEventListener("input", () => {
+    updatePlembfinButtonsState();
+  });
+
+  elements.savePlembfinBackupRemoteButton?.addEventListener("click", () => {
+    savePlembfinBackupRemoteSettings().catch((error) => setMessage(error.message, "error"));
   });
 
   elements.savePlembfinBackupConfigButton?.addEventListener("click", () => {
