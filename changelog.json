@@ -1,7 +1,17 @@
 {
-  "version": "0.2.65",
-  "updatedAt": "2026-06-30T09:07:25+01:00",
+  "version": "0.2.66",
+  "updatedAt": "2026-06-30T09:13:26+01:00",
   "entries": [
+    {
+      "version": "0.2.66",
+      "date": "2026-06-30T09:13:26+01:00",
+      "commit": "a6621a496df8524d7bd2780f1f9cfdc5d60848dd",
+      "message": "fix: refresh part-watched history",
+      "author": "Lasikiewicz",
+      "details": [
+        "Refresh the home page watch history immediately after a part-watched item is marked watched."
+      ]
+    },
     {
       "version": "0.2.65",
       "date": "2026-06-30T09:07:25+01:00",
