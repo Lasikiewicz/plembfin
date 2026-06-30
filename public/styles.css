@@ -11272,7 +11272,6 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 }
 
 .settings-row-help .settings-card {
-  border-left: 3px solid var(--blue);
   background: rgba(30, 41, 59, 0.25);
 }
 
@@ -11658,7 +11657,6 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 
 /* Light Mode Overrides */
 html.light-mode .settings-row-help .settings-card {
-  border-left-color: var(--blue);
   background: rgba(15, 23, 42, 0.03);
 }
 

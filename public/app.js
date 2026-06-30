@@ -1450,10 +1450,6 @@ function applyActiveView() {
       loadSyncHistory().catch((error) => setMessage(error.message, "error"));
     }
     if (state.activeSettingsTab === "backups") {
-      // Show/hide backup sub-tabs menu
-      const backupsSubMenu = document.querySelector("#sidebarBackupsMenu");
-      if (backupsSubMenu) backupsSubMenu.classList.remove("hidden");
-
       // Update backup sub-tab buttons and panels
       for (const button of elements.backupsSubTabButtons || []) {
         button.classList.toggle("active", button.dataset.backupsTab === state.activeBackupsTab);
@@ -1470,10 +1466,6 @@ function applyActiveView() {
       if (state.activeBackupsTab === "restore" && !state.remoteBackupFilesLoading && !state.remoteBackupFiles.length) {
         loadRemoteBackupsForRestoreTab().catch((error) => setMessage(error.message, "error"));
       }
-    } else {
-      // Hide backup sub-tabs menu when not on backups
-      const backupsSubMenu = document.querySelector("#sidebarBackupsMenu");
-      if (backupsSubMenu) backupsSubMenu.classList.add("hidden");
     }
     if (state.activeSettingsTab === "logs") renderLogs().catch(() => { });
     if (state.activeSettingsTab === "changelog") renderChangelog().catch(() => { });

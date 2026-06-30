@@ -64,10 +64,6 @@
               <button class="settings-tab" type="button" data-settings-tab="api-keys">API Keys</button>
               <button class="settings-tab" type="button" data-settings-tab="apps">Apps</button>
               <button class="settings-tab" type="button" data-settings-tab="backups">Backups</button>
-              <div id="sidebarBackupsMenu" class="sidebar-sub-menu hidden">
-                <button class="backups-sub-tab active" type="button" data-backups-tab="settings">Backups</button>
-                <button class="backups-sub-tab" type="button" data-backups-tab="restore">Restore</button>
-              </div>
               <button class="settings-tab" type="button" data-settings-tab="logs">Logs</button>
               <button class="settings-tab" type="button" data-settings-tab="sync">Sync</button>
               <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
@@ -1206,13 +1202,14 @@
                   <button class="settings-sub-tab" type="button" data-backups-tab="settings">Backups</button>
                   <button class="settings-sub-tab active" type="button" data-backups-tab="restore">Restore</button>
                 </div>
+
+                <!-- Local Restore row -->
                 <div class="settings-row">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section backup-settings-panel backup-restore-section">
-                      <div class="section-heading">
+                      <div class="section-heading sync-heading backup-section-heading">
                         <div>
                           <p>Local Backups</p>
-                          <span>Restore from files on this server or from your computer</span>
                         </div>
                       </div>
 
@@ -1240,7 +1237,7 @@
                             </div>
                             <span id="backupRestoreStatus" class="status-pill status-muted">Idle</span>
                           </div>
-                          
+
                           <div class="backup-settings-grid backup-settings-inline">
                             <div class="backup-settings-left" style="flex: 2;">
                               <label class="field-label" style="width: 100%;">
@@ -1264,42 +1261,13 @@
 
                       <pre id="restoreProgressTerminal" class="import-terminal compact-terminal hidden" aria-live="polite" style="margin-top: var(--space-3);"></pre>
                     </section>
-
-                    <section class="glass-panel p-section backup-settings-panel">
-                      <div class="section-heading">
-                        <div>
-                          <p>Remote Backups</p>
-                          <span>Restore backups from configured remote destinations</span>
-                        </div>
-                      </div>
-                      <div class="backup-type-stack">
-                        <article class="backup-type-card">
-                          <div class="backup-type-head">
-                            <div>
-                              <b>Remote Watch History Backups</b>
-                              <span>Restore a watch-history backup mirrored to Backblaze B2.</span>
-                            </div>
-                          </div>
-                          <div id="remoteWatchBackupList" class="watch-backup-list" data-watch-backup-list="remote" aria-live="polite"></div>
-                        </article>
-
-                        <article class="backup-type-card backup-type-card-muted">
-                           <div class="backup-type-head">
-                             <div>
-                               <b>Remote Plembfin Backups</b>
-                               <span>Download your encrypted Plembfin backup from remote storage, then restore it as a Local Plembfin Backup.</span>
-                             </div>
-                           </div>
-                         </article>
-                      </div>
-                    </section>
                   </div>
 
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Restore Guide</p>
-                        <span>Choose the right backup</span>
+                        <p>Local Restore Guide</p>
+                        <span>Disaster Recovery</span>
                       </div>
 
                       <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Two backup types</h4>
@@ -1332,8 +1300,48 @@
                       <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
                         First marks every currently-watched item on each app as unwatched, then re-applies only the backup's watched set, so the apps end up matching the backup exactly. Slower (it touches every watched item on every app). Choose this when the apps contain watched state you want removed.
                       </p>
+                    </article>
+                  </div>
+                </div>
 
-                      <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Restore onto New Instance</h4>
+                <!-- Remote Restore row -->
+                <div class="settings-row" style="margin-top: var(--space-4);">
+                  <div class="settings-row-main">
+                    <section class="glass-panel p-section backup-settings-panel">
+                      <div class="section-heading sync-heading backup-section-heading">
+                        <div>
+                          <p>Remote Backups</p>
+                        </div>
+                      </div>
+                      <div class="backup-type-stack">
+                        <article class="backup-type-card">
+                          <div class="backup-type-head">
+                            <div>
+                              <b>Remote Watch History Backups</b>
+                              <span>Restore a watch-history backup mirrored to Backblaze B2.</span>
+                            </div>
+                          </div>
+                          <div id="remoteWatchBackupList" class="watch-backup-list" data-watch-backup-list="remote" aria-live="polite"></div>
+                        </article>
+
+                        <article class="backup-type-card backup-type-card-muted">
+                          <div class="backup-type-head">
+                            <div>
+                              <b>Remote Plembfin Backups</b>
+                              <span>Download your encrypted Plembfin backup from remote storage, then restore it as a Local Plembfin Backup.</span>
+                            </div>
+                          </div>
+                        </article>
+                      </div>
+                    </section>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Restore onto New Instance</p>
+                        <span>Fresh install recovery</span>
+                      </div>
                       <ol class="tool-accordion-desc" style="margin: 0; padding-left: 1.2rem; font-size: 0.8rem; list-style: decimal;">
                         <li>Install a fresh Plembfin.</li>
                         <li>Go to Backups and configure remote watch-history destinations.</li>
