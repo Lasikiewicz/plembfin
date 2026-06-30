@@ -21,7 +21,7 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 
 ---
 
-## 📸 Screenshots
+## Screenshots
 
 <p align="center">
   <img src="docs/screenshots/now-playing.png" alt="Now Playing dashboard" width="100%" />
@@ -70,25 +70,25 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 
 ---
 
-## 🌟 Key Features
+## Key Features
 
-*   🔄 **Bi-directional Synchronization**: Syncs watched and unwatched states between Plex, Emby, and Jellyfin.
-*   ⏱️ **Resume Progress Sync**: Automatically propagates playback progress (resume offsets) so you can pause a movie on Plex and pick up exactly where you left off on Jellyfin.
-*   📊 **Real-Time Dashboard**: A clean, single-page dashboard displaying real-time "Now Playing" activity, weekly viewing charts, and detailed history.
-*   📈 **Stats Reviews**: Year, month, and all-time reports highlight most-played movies and TV shows with poster rankings, first/last plays, platform breakdowns, and watch activity.
-*   🔒 **Self-Hosted & Private**: Built on a local SQLite database running in WAL mode. All poster assets, metadata, and watch histories reside on your own hardware.
-*   🛡️ **Security Hardening**: Ships with strict HTTP security headers (CSP, `X-Frame-Options`, `Permissions-Policy`), scrypt password hashing, rate-limited login, HMAC-signed sessions, and a forced first-login password change when the default credentials are in use. See [`docs/hardening.md`](docs/hardening.md) for the full production checklist.
-*   🖼️ **Art Pipeline & Caching**: Fetches posters, backdrops, and logo art from your media servers and TMDB, then falls back to Fanart.tv when extra artwork is needed. Artwork is resized with `sharp` and cached locally under `data/media` for near-instant rendering.
-*   📺 **TV Next-Airing Cache**: Builds and maintains `data/next-airing-cache.json` from TMDB so the TV Shows library can list upcoming episodes without checking every show during page loads.
-*   🧹 **Echo Loop Prevention**: Utilizes a memory-mapped loop detector to suppress echo webhooks triggered by Plembfin's own updates.
-*   ☁️ **Automated Backups**: Backs up your database daily to a local folder and optionally mirrors to Backblaze B2 cloud storage.
-*   🔍 **Seerr Integration**: Integrates with Overseerr/Jellyseerr/Seerr to manage requests from movie and show detail views, while verifying availability against your configured Plex, Emby, and Jellyfin libraries.
-*   📅 **In-Process Scheduler**: An in-memory scheduler checks for active play sessions, processes manual sync overrides, and triggers catch-up syncs every minute.
-*   🆕 **Update Notifications**: Settings → Changelog shows your running version and checks GitHub for newer releases, highlighting what's changed since your build.
+*   **Bi-directional Synchronization**: Syncs watched and unwatched states between Plex, Emby, and Jellyfin.
+*   **Resume Progress Sync**: Automatically propagates playback progress (resume offsets) so you can pause a movie on Plex and pick up exactly where you left off on Jellyfin.
+*   **Real-Time Dashboard**: A clean, single-page dashboard displaying real-time "Now Playing" activity, weekly viewing charts, and detailed history.
+*   **Stats Reviews**: Year, month, and all-time reports highlight most-played movies and TV shows with poster rankings, first/last plays, platform breakdowns, and watch activity.
+*   **Self-Hosted & Private**: Built on a local SQLite database running in WAL mode. All poster assets, metadata, and watch histories reside on your own hardware.
+*   **Security Hardening**: Ships with strict HTTP security headers (CSP, `X-Frame-Options`, `Permissions-Policy`), scrypt password hashing, rate-limited login, HMAC-signed sessions, and a forced first-login password change when the default credentials are in use. See [`docs/hardening.md`](docs/hardening.md) for the full production checklist.
+*   **Art Pipeline & Caching**: Fetches posters, backdrops, and logo art from your media servers and TMDB, then falls back to Fanart.tv when extra artwork is needed. Artwork is resized with `sharp` and cached locally under `data/media` for near-instant rendering.
+*   **TV Next-Airing Cache**: Builds and maintains `data/next-airing-cache.json` from TMDB so the TV Shows library can list upcoming episodes without checking every show during page loads.
+*   **Echo Loop Prevention**: Utilizes a memory-mapped loop detector to suppress echo webhooks triggered by Plembfin's own updates.
+*   **Automated Backups**: Backs up your database daily to a local folder and optionally mirrors to Backblaze B2 cloud storage.
+*   **Seerr Integration**: Integrates with Overseerr/Jellyseerr/Seerr to manage requests from movie and show detail views, while verifying availability against your configured Plex, Emby, and Jellyfin libraries.
+*   **In-Process Scheduler**: An in-memory scheduler checks for active play sessions, processes manual sync overrides, and triggers catch-up syncs every minute.
+*   **Update Notifications**: Settings → Changelog shows your running version and checks GitHub for newer releases, highlighting what's changed since your build.
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Method A: Docker Compose (Recommended)
 
@@ -155,7 +155,7 @@ With an in-process scheduler, Trakt history imports, Seerr requests, and automat
 
 ---
 
-## 🔧 Full Setup & Integration Guide
+## Full Setup & Integration Guide
 
 ### 1. Sign In & Set Admin Credentials
 On your first login with the default credentials (`admin` / `admin`), Plembfin will automatically redirect you to **Settings → General** and display a security banner until the password is changed.
@@ -163,43 +163,43 @@ On your first login with the default credentials (`admin` / `admin`), Plembfin w
 ### 2. Connect Your Media Apps
 Go to **Settings → Apps** and configure connection settings for the platforms you use:
 
-#### 🎟️ Plex Integration
+#### Plex Integration
 *   Enable Plex.
 *   **Plex Server URL**: Your Plex server network address (e.g., `http://192.168.1.100:32400`).
 *   **Plex Token**: Your Plex authentication token ([How to find your Plex Token](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)).
 *   **Plex Username**: Your Plex account username.
 
-#### 🍉 Emby Integration
+#### Emby Integration
 *   Enable Emby.
 *   **Emby Server URL**: Your Emby server address (e.g., `http://192.168.1.100:8096`).
 *   **Emby API Key**: Generate an API key in Emby Settings → API Keys.
 *   **Emby User ID**: The unique ID of the user whose playback you want to track (can be grabbed from the URL when viewing the user profile in Emby dashboard).
 
-#### 🍀 Jellyfin Integration
+#### Jellyfin Integration
 *   Enable Jellyfin.
 *   **Jellyfin Server URL**: Your Jellyfin server address (e.g., `http://192.168.1.100:8096`).
 *   **Jellyfin API Key**: Generate an API key in Jellyfin Dashboard → API Keys.
 *   **Jellyfin User ID**: The unique ID of your user (copied from the URL when viewing user options in Jellyfin settings).
 
-#### 🎬 TMDB (Metadata & Posters)
+#### TMDB (Metadata & Posters)
 *   **TMDB API Key**: Obtain a free API key from [TheMovieDB](https://www.themoviedb.org/documentation/api) and paste it here. This enables search capability on the dashboard, rich cast lists, and poster fallbacks.
 
-#### 🎨 Fanart.tv (Artwork Fallback)
+#### Fanart.tv (Artwork Fallback)
 *   Plembfin includes a built-in project key for [Fanart.tv](https://fanart.tv) — no setup is required. Fanart.tv is queried after TMDB as a fallback/additional source for posters, backdrops, and transparent logo art.
 *   **Personal API Key (optional)**: Register at fanart.tv and enter your personal key under **Settings → API Keys → Fanart.tv** to get higher rate limits and access to your own uploaded artwork.
 
-#### ⭐ OMDb (IMDb Ratings)
+#### OMDb (IMDb Ratings)
 *   **Optional**: Register for a free API key at [omdbapi.com](https://www.omdbapi.com/apikey.aspx) (1,000 req/day free tier) and paste it under **Settings → Integrations → OMDb Setup**.
 *   When configured, IMDb ratings appear as a rating badge (e.g. **IMDb 85%**) next to the TMDB score on media detail pages. If no OMDb key is configured, IMDb rating badges are hidden. Ratings are cached locally for 7 days. Can also be set via the `OMDB_API_KEY` environment variable.
 
-#### 🔍 Seerr (Request Manager)
+#### Seerr (Request Manager)
 *   **Seerr Server URL**: Your Overseerr or Jellyseerr server URL (e.g., `http://192.168.1.100:5055`).
 *   **Seerr API Key**: Copy the API key from your Seerr Settings → General.
 *   Availability badges are based on Plembfin's configured Plex, Emby, and Jellyfin apps, not Seerr's cached availability state.
 
 ---
 
-## ⚡ Webhook Setup (Critical for Live Sync)
+## Webhook Setup (Critical for Live Sync)
 
 Playback events are sent to Plembfin via webhooks. Plembfin accepts the webhook secret in the `X-Plembfin-Webhook-Secret` header, as `Authorization: Bearer <secret>`, or in the compatibility query-token URL used by Plex/Emby/Jellyfin. Copy the full URL from **Settings → General → API Endpoints** after signing in. It will look like:
 
@@ -238,19 +238,19 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 
 ---
 
-## 💾 Backup & Restore System
+## Backup & Restore System
 
 Plembfin runs automated daily backups at a customizable time. 
 
 ### Supported Backup Types
 
-*   📁 **Local Watch History Backups**: Capture watch history snapshots, playstates, and resume markers. Saved to `data/backups/watch-history`.
-*   🔒 **Local Plembfin Backups**: Create full, AES-256-GCM encrypted database backups (including settings, API keys, credentials, and play history, excluding cache). Requires a secure passphrase. Saved to `data/backups/plembfin`.
-*   ☁️ **Remote Backups**: Mirror local watch-history and full encrypted Plembfin backups to a private Backblaze B2 bucket under **Settings → Backups → Remote Backups**.
+*   **Local Watch History Backups**: Capture watch history snapshots, playstates, and resume markers. Saved to `data/backups/watch-history`.
+*   **Local Plembfin Backups**: Create full, AES-256-GCM encrypted database backups (including settings, API keys, credentials, and play history, excluding cache). Requires a secure passphrase. Saved to `data/backups/plembfin`.
+*   **Remote Backups**: Mirror local watch-history and full encrypted Plembfin backups to a private Backblaze B2 bucket under **Settings → Backups → Remote Backups**.
 
 ---
 
-## 📦 Backfills & Imports
+## Backfills & Imports
 
 ### Trakt Watch History Import
 1. Download a JSON watch history export of your Trakt profile.
@@ -259,7 +259,7 @@ Plembfin runs automated daily backups at a customizable time.
 
 ---
 
-## ⚙️ Configuration Reference
+## Configuration Reference
 
 The following environment variables can be set in your system or defined in `docker-compose.yml`:
 
@@ -279,7 +279,7 @@ The following environment variables can be set in your system or defined in `doc
 
 ---
 
-## 🛠️ Architecture & Under the Hood
+## Architecture & Under the Hood
 
 Plembfin runs as a single-process Node application:
 *   **Web Server**: Powered by Express (`server/server.js`), static-serving the SPA interface (`public/`) and poster binaries (`data/media`).
@@ -290,7 +290,7 @@ Plembfin runs as a single-process Node application:
 
 ---
 
-## 🧑‍💻 Development Workflow
+## Development Workflow
 
 ### Running locally
 ```bash
@@ -300,13 +300,13 @@ npm run dev      # start with auto-reload on http://localhost:5055
 
 ---
 
-## 📜 License
+## License
 
 Plembfin is private software. See the [changelog.json](changelog.json) for the version history and commit logs, or open **Settings → Changelog** in the app to see your current version and any newer releases pulled from GitHub.
 
 ---
 
-## 🙏 Thank You
+## Thank You
 
 Plembfin uses the following third-party services for artwork and metadata — thank you to the people and communities that make them possible:
 
