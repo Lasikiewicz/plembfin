@@ -1,7 +1,19 @@
 {
-  "version": "0.2.64",
-  "updatedAt": "2026-06-29T10:55:34+01:00",
+  "version": "0.2.65",
+  "updatedAt": "2026-06-30T09:07:25+01:00",
   "entries": [
+    {
+      "version": "0.2.65",
+      "date": "2026-06-30T09:07:25+01:00",
+      "commit": "4bf14881b686426b3ccbeeb2df2d6e888d104c2b",
+      "message": "security: harden logout and view controls",
+      "author": "Lasikiewicz",
+      "details": [
+        "Require logout requests to use POST before clearing the dashboard session cookie",
+        "Add accessible names and selected states to History and Library view controls",
+        "Add a Palette journal placeholder for future critical UX notes"
+      ]
+    },
     {
       "version": "0.2.64",
       "date": "2026-06-29T10:55:34+01:00",
