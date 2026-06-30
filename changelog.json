@@ -1,7 +1,19 @@
 {
-  "version": "0.2.71",
-  "updatedAt": "2026-06-30T11:50:41+01:00",
+  "version": "0.2.72",
+  "updatedAt": "2026-06-30T11:59:05+01:00",
   "entries": [
+    {
+      "version": "0.2.72",
+      "date": "2026-06-30T11:59:05+01:00",
+      "commit": "e9aec6764c82624ac8eff7842058be9642d39bdf",
+      "message": "chore: align Restore page layout with Backups page and tidy nav",
+      "author": "Lasikiewicz",
+      "details": [
+        "Restructured Restore panel into two separate rows (Local / Remote) matching the Backups page two-row layout with help sidebars",
+        "Removed Backups / Restore sub-menu items from the left sidebar nav",
+        "Removed left-side blue border from all settings help sidebar cards"
+      ]
+    },
     {
       "version": "0.2.71",
       "date": "2026-06-30T11:50:41+01:00",
