@@ -34,6 +34,8 @@ CREATE INDEX IF NOT EXISTS idx_watch_history_watched_at ON watch_history(watched
 CREATE INDEX IF NOT EXISTS idx_watch_history_type_watched ON watch_history(media_type, watched_at DESC);
 CREATE INDEX IF NOT EXISTS idx_watch_history_media_key ON watch_history(media_key);
 CREATE INDEX IF NOT EXISTS idx_watch_history_show_lower ON watch_history(show_title_lower);
+CREATE INDEX IF NOT EXISTS idx_watch_history_tmdb_id ON watch_history(tmdb_id);
+CREATE INDEX IF NOT EXISTS idx_watch_history_title_lower ON watch_history(title_lower);
 
 CREATE TABLE IF NOT EXISTS playstate (
   media_key TEXT PRIMARY KEY,
