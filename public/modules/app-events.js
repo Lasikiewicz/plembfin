@@ -1344,9 +1344,11 @@ function attachEvents() {
       if (isHidden) {
         elements.syncIssuesContent.classList.remove("hidden");
         elements.syncIssuesToggleIcon.textContent = "▼";
+        elements.syncIssuesToggle.setAttribute("aria-expanded", "true");
       } else {
         elements.syncIssuesContent.classList.add("hidden");
         elements.syncIssuesToggleIcon.textContent = "▶";
+        elements.syncIssuesToggle.setAttribute("aria-expanded", "false");
       }
     });
   }
@@ -1358,9 +1360,11 @@ function attachEvents() {
       if (isHidden) {
         elements.syncHistoryContent.classList.remove("hidden");
         elements.syncHistoryToggleIcon.textContent = "▼";
+        elements.syncHistoryToggle.setAttribute("aria-expanded", "true");
       } else {
         elements.syncHistoryContent.classList.add("hidden");
         elements.syncHistoryToggleIcon.textContent = "▶";
+        elements.syncHistoryToggle.setAttribute("aria-expanded", "false");
       }
     });
   }
@@ -1372,9 +1376,11 @@ function attachEvents() {
       if (isHidden) {
         elements.syncToolsContent.classList.remove("hidden");
         elements.syncToolsToggleIcon.textContent = "▼";
+        elements.syncToolsToggle.setAttribute("aria-expanded", "true");
       } else {
         elements.syncToolsContent.classList.add("hidden");
         elements.syncToolsToggleIcon.textContent = "▶";
+        elements.syncToolsToggle.setAttribute("aria-expanded", "false");
       }
     });
   }
