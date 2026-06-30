@@ -1,7 +1,21 @@
 {
-  "version": "0.2.67",
-  "updatedAt": "2026-06-30T11:24:13+01:00",
+  "version": "0.2.68",
+  "updatedAt": "2026-06-30T11:34:35+01:00",
   "entries": [
+    {
+      "version": "0.2.68",
+      "date": "2026-06-30T11:34:35+01:00",
+      "commit": "82bf57abaf5a0504c43d7b71d679a5e551659b9f",
+      "message": "feat: support scheduled Remote Plembfin Backups and simplify Remote Watch History layout",
+      "author": "Lasikiewicz",
+      "details": [
+        "Simplify Remote Watch History Backups card layout to match local backups panel",
+        "Support scheduled and manual remote mirroring of encrypted Plembfin backups to B2",
+        "Require a secure encryption passphrase for Remote Plembfin Backups configuration",
+        "Add Remote Plembfin Backups settings inputs and status elements to the UI",
+        "Display remote upload attempt/success runtime status inside Remote Plembfin Backups card"
+      ]
+    },
     {
       "version": "0.2.67",
       "date": "2026-06-30T11:24:13+01:00",
