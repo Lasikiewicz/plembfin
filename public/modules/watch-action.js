@@ -681,6 +681,7 @@ async function applyPartWatchedWatchDateChoice(choice) {
     if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
     _setMessage(`"${action.title}" marked as watched`, "success");
     resetPartWatchedView("default");
+    await _loadHistory({ force: true }).catch(() => null);
     renderPartWatched();
   } catch (error) {
     _showErrorExplainModal(`Failed to mark "${action.title}" as watched`, error.message);
