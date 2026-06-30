@@ -1,7 +1,20 @@
 {
-  "version": "0.2.69",
-  "updatedAt": "2026-06-30T11:43:20+01:00",
+  "version": "0.2.70",
+  "updatedAt": "2026-06-30T11:46:14+01:00",
   "entries": [
+    {
+      "version": "0.2.70",
+      "date": "2026-06-30T11:46:14+01:00",
+      "commit": "d9610c445a7882b40f70414a9ea7124c5f26073d",
+      "message": "docs: move features above screenshots and tighten feature list",
+      "author": "Lasikiewicz",
+      "details": [
+        "Features section now appears before Screenshots",
+        "Rewrote feature list as a concise two-column table (one line per feature)",
+        "Cut verbose implementation-detail entries, kept user-facing selling points",
+        "Trimmed intro paragraph to a single sentence"
+      ]
+    },
     {
       "version": "0.2.69",
       "date": "2026-06-30T11:43:20+01:00",
