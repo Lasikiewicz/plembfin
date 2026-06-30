@@ -1,15 +1,14 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Agent instructions for working with this codebase.
 
 ## Agent Guidelines
-
-> These rules are absolute constraints. Adhere to them strictly under all circumstances.
 
 - **No Git Pushes** — Never execute `git push` or push commits to any remote repository unless the user explicitly instructs you to push in their request.
 - **No Deployments** — Never deploy the application or run deployment commands unless explicitly instructed by the user.
 - **No Unsolicited Actions** — Do only exactly what the user asks. Do not perform unsolicited refactorings, add extra features, or modify files outside the direct scope of the request.
 - **No Tests or Browser Actions** — Never run test commands (e.g., `npm test`, `pytest`) or open web browsers/browser tools unless the user has explicitly requested it.
+- **Act immediately on simple requests** — If the user describes a clear, specific change, make it directly without preamble, planning steps, or explanation. Save analysis for genuinely complex or ambiguous tasks.
 
 ## "Push to git" command
 
@@ -168,7 +167,7 @@ folder** under `data/`.
 prefix and routes to `handleWebhook`, `handleHistory`, `handleMovies`, etc. `dispatch` is
 imported and mounted by `server.js`.
 
-**Frontend** (`public/`) — a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `timeline.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`). No framework, bundler, or TypeScript.
+**Frontend** (`public/`) — a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `timeline.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`, `tools-maintenance.js`, `media-detail.js`, `media-person.js`, `media-lightbox.js`, `edit-dialogs.js`, `watch-action.js`, `tmdb.js`, `app-events.js`). No framework, bundler, or TypeScript.
 
 ### Data layer (`server/src/db.js` + `schema.sql`)
 
@@ -208,10 +207,10 @@ and stores progress in `runtime_state` for polling.
 
 ### Poster pipeline
 
-1. **Frontend** (`posterMarkup` / `hydratePosterFallbacks` in `app.js`): renders a `poster-fallback` span if no URL is known, then calls `/api/poster?id=<watchRecordId>`. The TMDB prefetch observer (`observeExplorerTmdbPrefetch`) short-circuits this for explorer cards.
+1. **Frontend** (`posterMarkup` / `hydratePosterFallbacks` in `modules/images.js`): renders a `poster-fallback` span if no URL is known, then calls `/api/poster?id=<watchRecordId>`. The TMDB prefetch observer (`observeExplorerTmdbPrefetch`) short-circuits this for explorer cards.
 2. **Backend** (`/api/poster`, `posterCache.js`): tries candidates in order — stored URL, configured server URL (Plex/Emby/Jellyfin), TMDB fallback — resizes with `sharp`, writes the winner to `data/media/posters` (or `backdrops`), and serves it at `/media/...`. The cache key is `mediaKey` (canonical title + type + IDs); metadata lives in the `poster_cache` table.
 
-**Important**: `isCachedStorageImageUrl()` in `app.js` returns `true` only for `/media/posters/` and `/media/backdrops/` URLs. TMDB `image.tmdb.org` URLs are **not** treated as cached.
+**Important**: `isCachedStorageImageUrl()` in `modules/images.js` returns `true` only for `/media/posters/` and `/media/backdrops/` URLs. TMDB `image.tmdb.org` URLs are **not** treated as cached.
 
 ### SQLite tables
 
