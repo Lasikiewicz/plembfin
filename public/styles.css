@@ -8620,6 +8620,18 @@ h1 {
   min-width: 0;
 }
 
+.person-profile-name {
+  margin: 0 0 1rem;
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.person-profile-age {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 @media (max-width: 768px) {
   .person-profile-container {
     grid-template-columns: 1fr;

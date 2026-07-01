@@ -160,6 +160,10 @@ export async function loadCastMemberDetails(personId, personName = null) {
           </div>
         </div>
         <div class="person-profile-content">
+          <h2 class="person-profile-name">${escapeHtml(data.name)}${(() => {
+            const age = personAge(data.birthday, data.deathday);
+            return age !== null ? ` <span class="person-profile-age">(${age})</span>` : '';
+          })()}</h2>
           ${data.biography ? `
           <div class="person-biography-section">
             <h3>Biography</h3>
