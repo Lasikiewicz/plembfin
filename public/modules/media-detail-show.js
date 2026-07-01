@@ -564,14 +564,21 @@ export function renderShowModalContent(show, {
     const { watchedInSeason, seasonTotal, nextAiringText } = showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle, tmdbData);
     const isActive = seasonNumber === selectedSeasonNumber;
     const panelId = `seasonAccordionPanel${seasonNumber}`;
-    const seasonMetaText = `${seasonTotal || "?"} episode${seasonTotal === 1 ? "" : "s"}${watchedInSeason ? ` - ${watchedInSeason} watched` : ""}${nextAiringText ? ` - ${nextAiringText}` : ""}`;
+    const seasonMetaParts = [
+      `${seasonTotal || "?"} episode${seasonTotal === 1 ? "" : "s"}`,
+      watchedInSeason ? `${watchedInSeason} watched` : null,
+      nextAiringText || null,
+    ].filter(Boolean);
+    const seasonMetaText = seasonMetaParts
+      .map((part) => `<span class="season-meta-part">${escapeHtml(part)}</span>`)
+      .join(`<span class="season-meta-dot" aria-hidden="true">&bull;</span>`);
     const seasonAvailabilityHtml = tvSeasonAvailabilityHtml(tvSeerrStatus, seasonNumber);
     return `
       <article class="season-accordion ${isActive ? "is-open" : ""}">
         <button class="season-accordion-trigger" type="button" data-season-accordion="${seasonNumber}" aria-expanded="${isActive}" aria-controls="${panelId}">
           <span class="season-accordion-title">
             <strong>${escapeHtml(season.name || seasonLabel(seasonNumber))}</strong>
-            <span class="season-episode-count">${escapeHtml(seasonMetaText)}</span>
+            <span class="season-episode-count">${seasonMetaText}</span>
           </span>
           <span class="season-accordion-meta">
             ${seasonAvailabilityHtml}

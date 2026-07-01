@@ -9291,7 +9291,14 @@ html.light-mode .history-mini-card-title {
   border-bottom: 1px solid var(--line-strong);
 }
 
-.season-accordion-title,
+.season-accordion-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
 .season-accordion-meta {
   display: flex;
   align-items: center;
@@ -9305,14 +9312,26 @@ html.light-mode .history-mini-card-title {
 }
 
 .season-episode-count {
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--panel-3), transparent 5%);
-  color: var(--soft);
-  padding: 0.2rem 0.5rem;
-  font-size: 0.68rem;
-  font-weight: 800;
-  line-height: 1.25;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 0.15rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.35;
   white-space: normal;
+  text-align: left;
+}
+
+.season-meta-part {
+  white-space: nowrap;
+}
+
+.season-meta-dot {
+  color: var(--soft);
+  opacity: 0.55;
+  margin: 0 0.4rem;
 }
 
 .season-accordion-meta {
