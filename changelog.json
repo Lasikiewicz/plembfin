@@ -1,7 +1,19 @@
 {
-  "version": "0.2.72",
-  "updatedAt": "2026-06-30T11:59:05+01:00",
+  "version": "0.2.73",
+  "updatedAt": "2026-07-01T10:54:24+01:00",
   "entries": [
+    {
+      "version": "0.2.73",
+      "date": "2026-07-01T10:54:24+01:00",
+      "commit": "6481b996b21029437206ea83f19c2c3043966033",
+      "message": "chore: split media-detail.js into focused modules",
+      "author": "Lasikiewicz",
+      "details": [
+        "Broke the 1,900-line media-detail.js into four modules: modal shell/context, shared TMDB/Seerr rendering, TV show detail, and movie detail",
+        "No behavior change - the public API is unchanged, so no other files needed import changes",
+        "Documented the render-token handshake between the show and movie renderers so future edits to either module don't silently desync"
+      ]
+    },
     {
       "version": "0.2.72",
       "date": "2026-06-30T11:59:05+01:00",
