@@ -1,7 +1,18 @@
 {
-  "version": "0.2.82",
-  "updatedAt": "2026-07-01T14:46:20+01:00",
+  "version": "0.2.83",
+  "updatedAt": "2026-07-01T14:54:47+01:00",
   "entries": [
+    {
+      "version": "0.2.83",
+      "date": "2026-07-01T14:54:47+01:00",
+      "commit": "c0bbb99ac506bd6ec1e824b9f7fc8b191c85175d",
+      "message": "fix: stop Seerr season picker from re-opening itself on submit",
+      "author": "Lasikiewicz",
+      "details": [
+        "The \"Request selected\" button carried the same data attributes the global click handler uses to detect request buttons, so submitting bubbled into that handler and reopened a fresh picker instead of showing the result",
+        "Requests now complete with the expected success/error toast and the dialog closes correctly"
+      ]
+    },
     {
       "version": "0.2.82",
       "date": "2026-07-01T14:46:20+01:00",
