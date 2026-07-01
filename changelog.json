@@ -1,7 +1,18 @@
 {
-  "version": "0.2.81",
-  "updatedAt": "2026-07-01T14:40:29+01:00",
+  "version": "0.2.82",
+  "updatedAt": "2026-07-01T14:46:20+01:00",
   "entries": [
+    {
+      "version": "0.2.82",
+      "date": "2026-07-01T14:46:20+01:00",
+      "commit": "1143e9d9f86c0f35445896c4ae7b9944a142108f",
+      "message": "fix: widen Seerr season picker and default to latest season only",
+      "author": "Lasikiewicz",
+      "details": [
+        "Season request dialog is now bigger and a consistent size for both standard and 4K requests",
+        "Only the latest missing season is pre-selected by default instead of every missing season"
+      ]
+    },
     {
       "version": "0.2.81",
       "date": "2026-07-01T14:40:29+01:00",
