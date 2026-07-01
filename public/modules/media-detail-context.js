@@ -177,7 +177,7 @@ export function syncTopbarControlsMenuState() {
   }
 }
 export function clearMediaDetailState() {
-  console.log("[render] clearMediaDetailState bumped token to", bumpMediaRenderToken());
+  bumpMediaRenderToken();
   state.activeShowModalKey = null;
   state.activeShowTmdbId = null;
   state.activeShowModalSeason = null;

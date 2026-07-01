@@ -1880,7 +1880,13 @@ async function loadHistory({ force = false } = {}) {
     url.searchParams.set("stats", "0");
     url.searchParams.set("preview", "dashboard");
 
-    const response = await fetch(url, { headers: authHeaders() });
+    // The dashboard preview response is served with Cache-Control: max-age=30
+    // so routine loads/polls can reuse the browser's HTTP cache. A forced
+    // refresh (e.g. right after marking something watched) needs to bypass
+    // that cache, or it can silently hand back a pre-mutation response for
+    // up to 30s — the "watched" item would then be missing from the
+    // dashboard's watch-history row until the cache naturally expired.
+    const response = await fetch(url, { headers: authHeaders(), cache: force ? "no-store" : "default" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `History load failed with ${response.status}`);
 

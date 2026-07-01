@@ -310,9 +310,9 @@ export function observeDashboardPosters() {
         fallback.replaceWith(image);
       };
 
-      for (const fallback of fallbacks) {
-        await hydrateOne(fallback);
-      }
+      // Each IntersectionObserver batch is just the handful of cards that
+      // scrolled into view, not the whole row — no need to serialize them.
+      await Promise.allSettled(fallbacks.map(hydrateOne));
     },
     { rootMargin: "200px" },
   );

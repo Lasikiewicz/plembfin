@@ -33,7 +33,6 @@ export async function renderMovieImmersiveModalContent(movie) {
   // Half of a two-token handshake with media-detail-show.js — see the
   // bumpMediaRenderToken doc comment in media-detail-context.js before changing this.
   const renderToken = bumpMediaRenderToken();
-  console.log("[render] renderMovieImmersiveModalContent called, token=", renderToken, "movie=", movie?.title);
   state.showModalRequestToken += 1; // invalidate any in-flight show hydrate
   state.activeMovieModalId = movie.id;
   state.activeMovieTmdbId = movie.tmdb_id ? String(movie.tmdb_id) : null;
@@ -54,8 +53,7 @@ export async function renderMovieImmersiveModalContent(movie) {
 
   // Fetch TMDB details (primary enrichment).
   const tmdbData = await fetchTmdbDetails("movie", movie.tmdb_id, movie.title);
-  console.log("[render] fetchTmdbDetails resolved, token=", renderToken, "current=", currentMediaRenderToken(), "tmdbData=", tmdbData?.id);
-  if (currentMediaRenderToken() !== renderToken) { console.log("[render] ABORTED - token mismatch!"); return; } // navigated away while loading
+  if (currentMediaRenderToken() !== renderToken) return; // navigated away while loading
 
   if (tmdbData && tmdbData.id) {
     state.activeMovieTmdbId = String(tmdbData.id);
