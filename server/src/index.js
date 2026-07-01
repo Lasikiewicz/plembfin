@@ -445,11 +445,16 @@ async function handleSeerrRequest(req, res) {
   try {
     const payload = { mediaType, mediaId };
     if (body.is4k) payload.is4k = true;
-    if (mediaType === "tv" && Array.isArray(body.seasons)) {
-      const seasons = body.seasons
-        .map((season) => Number(typeof season === "object" ? season?.seasonNumber : season))
-        .filter((season) => Number.isInteger(season) && season > 0);
-      if (seasons.length) payload.seasons = [...new Set(seasons)];
+    if (mediaType === "tv") {
+      const seasons = Array.isArray(body.seasons)
+        ? body.seasons
+            .map((season) => Number(typeof season === "object" ? season?.seasonNumber : season))
+            .filter((season) => Number.isInteger(season) && season > 0)
+        : [];
+      // Seerr's request handler expects `seasons` to be either an array of season
+      // numbers or the string "all" — anything else (including a missing field)
+      // throws server-side, so always send one of those two shapes.
+      payload.seasons = seasons.length ? [...new Set(seasons)] : "all";
     }
 
     const seerrRes = await fetch(`${baseUrl}/api/v1/request`, {

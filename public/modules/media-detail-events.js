@@ -17,6 +17,7 @@ import {
   closeWatchDatePrompt,
   watchActionFromButton,
   submitSeerrRequest,
+  openSeerrSeasonRequestDialog,
   markMovieWatched,
   refreshShowAfterManualWatch,
   applyWatchDateChoice,
@@ -370,7 +371,11 @@ export function attachMediaDetailEvents() {
     if (seerrBtn) {
       const mediaType = seerrBtn.dataset.seerrMediaType;
       const mediaId = Number(seerrBtn.dataset.seerrMediaId);
-      submitSeerrRequest(mediaType, mediaId, seerrBtn);
+      if (mediaType === "tv" && !seerrBtn.hasAttribute("data-seerr-season")) {
+        openSeerrSeasonRequestDialog(mediaType, mediaId, { is4k: seerrBtn.getAttribute("data-seerr-request-4k") === "true" });
+      } else {
+        submitSeerrRequest(mediaType, mediaId, seerrBtn);
+      }
       return;
     }
 

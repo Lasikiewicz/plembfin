@@ -343,13 +343,6 @@ export function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false
   const iconAndFallback = `${seerrIconHtml}<span class="seerr-request-fallback" aria-hidden="true">S</span>`;
   const tvAvailableLabel = isTv ? tvAvailabilityLabel(status) : "";
   const tv4kLabel = isTv ? tvAvailability4kLabel(status) : "";
-  // For whole-show TV 4K requests, embed the season numbers that are missing 4K so
-  // Jellyseerr receives the required `seasons` field in the request payload.
-  const tv4kSeasons = isTv && Array.isArray(status.seasons)
-    ? status.seasons
-        .filter((s) => Number(s.released || s.total || 0) > 0 && !s.available4k)
-        .map((s) => s.seasonNumber)
-    : [];
   return `
     <span id="seerrRequestContainer" style="display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;" data-media-type="${escapeAttribute(mediaType)}" data-tmdb-id="${escapeAttribute(String(tmdbId))}" data-local-available="${localAvailable}">
       ${isAvailable ? `<span class="rating-pill seerr-owned-pill">${escapeHtml(isTv ? tvAvailableLabel || "Available" : "Available in 1080p")}</span>` : tvAvailableLabel ? `<span class="rating-pill seerr-owned-pill seerr-owned-pill-partial">${escapeHtml(tvAvailableLabel)}</span>` : `
@@ -366,7 +359,7 @@ export function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false
         <button class="rating-pill seerr-request-btn seerr-request-btn-4k" type="button"
           data-seerr-media-type="${escapeAttribute(mediaType)}"
           data-seerr-media-id="${escapeAttribute(String(tmdbId))}"
-          data-seerr-request-4k="true"${tv4kSeasons.length ? ` data-seerr-seasons="${escapeAttribute(JSON.stringify(tv4kSeasons))}"` : ""}>
+          data-seerr-request-4k="true">
           ${iconAndFallback}
           <span>${status.pending4k ? "4K Requested" : "Request 4K"}</span>
         </button>

@@ -4,6 +4,7 @@ import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { mergeShowDetail } from "./explorer.js";
 import { resetPartWatchedView, renderPartWatched } from "./dashboard.js";
+import { tvSeasonAvailability } from "./media-detail-shared.js";
 
 // Callbacks injected by app.js at startup to break circular-import chains.
 let _setMessage = () => {};
@@ -418,7 +419,7 @@ function watchRecordFromMovie(movie, watchedAt) {
 export async function submitSeerrRequest(mediaType, mediaId, button) {
   if (!mediaId || !mediaType) {
     _setMessage("Cannot send Seerr request — missing media info.", "error");
-    return;
+    return false;
   }
   const is4k = button?.getAttribute("data-seerr-request-4k") === "true";
   const seasonNumber = Number(button?.getAttribute("data-seerr-season") || 0);
@@ -459,6 +460,7 @@ export async function submitSeerrRequest(mediaType, mediaId, button) {
           }
           _refreshActiveMediaDetailAfterSeerrStatus(mediaType, mediaId);
         });
+      return true;
     } else {
       const errMsg = data.error || `Seerr returned ${res.status}`;
       _setMessage(`Seerr error: ${errMsg}`, "error");
@@ -466,6 +468,7 @@ export async function submitSeerrRequest(mediaType, mediaId, button) {
         button.disabled = false;
         button.textContent = originalText;
       }
+      return false;
     }
   } catch (err) {
     _setMessage(`Seerr request failed: ${err.message}`, "error");
@@ -473,7 +476,85 @@ export async function submitSeerrRequest(mediaType, mediaId, button) {
       button.disabled = false;
       button.textContent = originalText;
     }
+    return false;
   }
+}
+
+// ── Seerr TV season picker ─────────────────────────────────────────────────
+
+export function openSeerrSeasonRequestDialog(mediaType, mediaId, { is4k = false } = {}) {
+  if (mediaType !== "tv" || !mediaId) return;
+  const ctx = state.activeShowRenderContext;
+  const tmdbData = ctx?.tmdbData;
+  const showTitle = ctx?.show?.title || tmdbData?.name || tmdbData?.title || "this show";
+  const seasons = (tmdbData?.seasons || [])
+    .filter((season) => Number(season.season_number) > 0)
+    .sort((a, b) => Number(a.season_number) - Number(b.season_number));
+  if (!seasons.length) {
+    _setMessage("Season information hasn't loaded yet — try again in a moment.", "error");
+    return;
+  }
+  const status = state.seerrMediaStatusCache.get(`tv:${mediaId}`) || {};
+
+  document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
+  const overlay = document.createElement("div");
+  overlay.className = "edit-dialog-overlay";
+  overlay.addEventListener("click", (event) => { if (event.target === overlay) overlay.remove(); });
+
+  const rowsHtml = seasons.map((season) => {
+    const seasonNumber = Number(season.season_number);
+    const availability = tvSeasonAvailability(status, seasonNumber);
+    const released = Number(availability?.released || availability?.total || season.episode_count || 0);
+    const availableForKind = Number((is4k ? availability?.available4k : availability?.available) || 0);
+    const isFullyAvailable = released > 0 && availableForKind >= released;
+    const availabilityLabel = released
+      ? (isFullyAvailable ? `All ${released} available${is4k ? " in 4K" : ""}` : `${availableForKind}/${released} available${is4k ? " in 4K" : ""}`)
+      : "Episode count unknown";
+    const seasonName = season.name && season.name !== `Season ${seasonNumber}` ? ` — ${escapeHtml(season.name)}` : "";
+    return `
+      <label class="seerr-season-row">
+        <input type="checkbox" class="seerr-season-checkbox" value="${seasonNumber}" ${isFullyAvailable ? "" : "checked"} ${isFullyAvailable ? "disabled" : ""} />
+        <span class="seerr-season-row-label">Season ${seasonNumber}${seasonName}</span>
+        <span class="seerr-season-row-status">${escapeHtml(availabilityLabel)}</span>
+      </label>
+    `;
+  }).join("");
+
+  overlay.innerHTML = `
+    <div class="edit-dialog glass-panel">
+      <h3>Request ${is4k ? "4K " : ""}Seasons</h3>
+      <p class="muted-copy">Choose which seasons of ${escapeHtml(showTitle)} to request${is4k ? " in 4K" : ""} on Seerr.</p>
+      <div class="seerr-season-list">${rowsHtml}</div>
+      <div class="edit-dialog-actions">
+        <button class="button-ghost seerr-season-select-all" type="button">Select all</button>
+        <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
+        <button class="button-primary seerr-season-submit" type="button"
+          data-seerr-media-type="tv" data-seerr-media-id="${escapeAttribute(String(mediaId))}"
+          ${is4k ? 'data-seerr-request-4k="true"' : ""}>Request selected</button>
+      </div>
+      <p class="edit-dialog-status"></p>
+    </div>
+  `;
+
+  overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
+  overlay.querySelector(".seerr-season-select-all").addEventListener("click", () => {
+    overlay.querySelectorAll(".seerr-season-checkbox:not(:disabled)").forEach((checkbox) => { checkbox.checked = true; });
+  });
+
+  const submitButton = overlay.querySelector(".seerr-season-submit");
+  submitButton.addEventListener("click", async () => {
+    const statusEl = overlay.querySelector(".edit-dialog-status");
+    const selected = [...overlay.querySelectorAll(".seerr-season-checkbox:checked")].map((checkbox) => Number(checkbox.value));
+    if (!selected.length) {
+      statusEl.textContent = "Select at least one season.";
+      return;
+    }
+    submitButton.setAttribute("data-seerr-seasons", JSON.stringify(selected));
+    const ok = await submitSeerrRequest(mediaType, mediaId, submitButton);
+    if (ok) overlay.remove();
+  });
+
+  document.body.appendChild(overlay);
 }
 
 // ── Mark watched ───────────────────────────────────────────────────────────

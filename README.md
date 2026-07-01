@@ -193,6 +193,7 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 *   **Seerr Server URL**: Your Overseerr or Jellyseerr server URL (e.g., `http://192.168.1.100:5055`).
 *   **Seerr API Key**: Copy the API key from your Seerr Settings → General.
 *   Availability badges are based on Plembfin's configured Plex, Emby, and Jellyfin apps, not Seerr's cached availability state.
+*   Requesting a TV show opens a season picker listing every season (with current availability), so you can choose exactly which seasons to send to Seerr instead of requesting the whole series.
 
 ---
 
