@@ -282,17 +282,21 @@ export function tvAvailability4kLabel(status = {}) {
 export function tvSeasonAvailability(status = {}, seasonNumber) {
   return (status.seasons || []).find((season) => Number(season.seasonNumber) === Number(seasonNumber)) || null;
 }
-export function tvSeasonAvailabilityHtml(status = {}, seasonNumber) {
+export function tvSeasonAvailabilityHtml(status = {}, seasonNumber, watchedInSeason = 0) {
   if (!Array.isArray(status.seasons)) return "";
   const season = tvSeasonAvailability(status, seasonNumber);
   if (!season || !Number(season.released || season.total || 0)) return "";
   const total = Number(season.released || season.total || 0);
   const available = Number(season.available || 0);
   const available4k = Number(season.available4k || 0);
+  // Episodes already watched clearly weren't "missing" to the user, even if the
+  // library/Seerr status hasn't caught up — don't flag them red on that basis alone.
+  const effectiveAvailable = Math.min(total, Math.max(available, Number(watchedInSeason) || 0));
   const availabilityText = available >= total ? `All ${total} available` : `${available}/${total} available`;
   const fourKText = available4k >= total ? `All ${total} in 4K` : available4k > 0 ? `${available4k}/${total} in 4K` : "";
+  const availabilityClass = effectiveAvailable >= total ? "is-complete" : effectiveAvailable > 0 ? "is-partial" : "is-missing";
   return `
-    <span class="season-availability-pill ${available >= total ? "is-complete" : available > 0 ? "is-partial" : "is-missing"}">${escapeHtml(availabilityText)}</span>
+    <span class="season-availability-pill ${availabilityClass}">${escapeHtml(availabilityText)}</span>
     ${fourKText ? `<span class="season-availability-pill is-4k ${available4k >= total ? "is-complete" : "is-partial"}">${escapeHtml(fourKText)}</span>` : ""}
   `;
 }

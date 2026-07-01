@@ -572,16 +572,16 @@ export function renderShowModalContent(show, {
     const seasonMetaText = seasonMetaParts
       .map((part) => `<span class="season-meta-part">${escapeHtml(part)}</span>`)
       .join(`<span class="season-meta-dot" aria-hidden="true">&bull;</span>`);
-    const seasonAvailabilityHtml = tvSeasonAvailabilityHtml(tvSeerrStatus, seasonNumber);
+    const seasonAvailabilityHtml = tvSeasonAvailabilityHtml(tvSeerrStatus, seasonNumber, watchedInSeason);
     return `
       <article class="season-accordion ${isActive ? "is-open" : ""}">
         <button class="season-accordion-trigger" type="button" data-season-accordion="${seasonNumber}" aria-expanded="${isActive}" aria-controls="${panelId}">
           <span class="season-accordion-title">
             <strong>${escapeHtml(season.name || seasonLabel(seasonNumber))}</strong>
             <span class="season-episode-count">${seasonMetaText}</span>
+            ${seasonAvailabilityHtml ? `<span class="season-availability-row">${seasonAvailabilityHtml}</span>` : ""}
           </span>
           <span class="season-accordion-meta">
-            ${seasonAvailabilityHtml}
             <svg class="season-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </span>
         </button>

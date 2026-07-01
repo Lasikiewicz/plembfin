@@ -9334,6 +9334,14 @@ html.light-mode .history-mini-card-title {
   margin: 0 0.4rem;
 }
 
+.season-availability-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+}
+
 .season-accordion-meta {
   flex-shrink: 0;
   color: var(--muted);
@@ -9530,10 +9538,6 @@ html:not(.light-mode) .episode-progress-fill {
 @media (max-width: 760px) {
   .season-accordion-trigger {
     padding-inline: var(--space-3);
-  }
-
-  .season-accordion-meta > span {
-    display: none;
   }
 
   .season-accordion-panel {
