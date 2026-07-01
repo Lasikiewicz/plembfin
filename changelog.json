@@ -1,7 +1,18 @@
 {
-  "version": "0.2.77",
-  "updatedAt": "2026-07-01T13:21:12+01:00",
+  "version": "0.2.78",
+  "updatedAt": "2026-07-01T14:08:00+01:00",
   "entries": [
+    {
+      "version": "0.2.78",
+      "date": "2026-07-01T14:08:00+01:00",
+      "commit": "c7396087e263e32fa9ead8fd2f470f69298036be",
+      "message": "fix: move season availability pills next to season info and stop flagging watched episodes as missing",
+      "author": "Lasikiewicz",
+      "details": [
+        "Availability/4K pills now sit under the season title/episode count instead of being pushed to the far edge of the row",
+        "Watched episodes no longer show as red/missing availability status just because the library hasn't caught up"
+      ]
+    },
     {
       "version": "0.2.77",
       "date": "2026-07-01T13:21:12+01:00",
