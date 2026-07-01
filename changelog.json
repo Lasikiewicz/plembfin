@@ -1,7 +1,17 @@
 {
-  "version": "0.2.79",
-  "updatedAt": "2026-07-01T14:19:56+01:00",
+  "version": "0.2.80",
+  "updatedAt": "2026-07-01T14:25:59+01:00",
   "entries": [
+    {
+      "version": "0.2.80",
+      "date": "2026-07-01T14:25:59+01:00",
+      "commit": "f2499ffe166afcd4b5d6d5d7802e6fdbcdd0b852",
+      "message": "fix: retry npm ci in security workflow to survive transient network errors",
+      "author": "Lasikiewicz",
+      "details": [
+        "The npm audit job was failing on ECONNRESET during npm ci; it now retries up to 3 times with backoff before failing the job"
+      ]
+    },
     {
       "version": "0.2.79",
       "date": "2026-07-01T14:19:56+01:00",
