@@ -1,7 +1,20 @@
 {
-  "version": "0.2.74",
-  "updatedAt": "2026-07-01T10:58:54+01:00",
+  "version": "0.2.75",
+  "updatedAt": "2026-07-01T11:54:55+01:00",
   "entries": [
+    {
+      "version": "0.2.75",
+      "date": "2026-07-01T11:54:55+01:00",
+      "commit": "c7c63dc86e0fbdc6add0a17c68618b9c60a866a2",
+      "message": "fix: stop dashboard history clicks reloading the page, fix stale watch-history cache, speed up poster loading",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed movie/show detail pages flickering on open: dashboard watch-history cards were falling through to a code path that never called preventDefault(), so clicks triggered a full page reload instead of an in-app transition",
+        "Fixed newly-watched items not appearing instantly in the dashboard's watch-history row after marking something watched from the homepage (the refresh was silently served a stale cached response)",
+        "Sped up poster loading in the movie/TV grids and dashboard history rows by raising client-side concurrency limits that were more conservative than necessary",
+        "Removed leftover debug logging from a previous investigation into the flicker issue"
+      ]
+    },
     {
       "version": "0.2.74",
       "date": "2026-07-01T10:58:54+01:00",
