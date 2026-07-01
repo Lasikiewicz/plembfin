@@ -1,7 +1,23 @@
 {
-  "version": "0.2.83",
-  "updatedAt": "2026-07-01T14:54:47+01:00",
+  "version": "0.3.0",
+  "updatedAt": "2026-07-01T16:28:28+01:00",
   "entries": [
+    {
+      "version": "0.3.0",
+      "date": "2026-07-01T16:28:28+01:00",
+      "commit": "e5d51dfb993d719e9a311f7e599ff6d87f541e70",
+      "message": "fix: repair dark theme color corruption and search poster loading",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removed a leftover CSS override that broke dark mode's blue/yellow accents and background shade across the whole app",
+        "Fixed search results never loading posters for local movies and TV shows",
+        "Added a loading indicator to the Stats page so it no longer flashes \"0\" before data arrives",
+        "Fixed mismatched border/text coloring on the \"Mark unwatched\" button",
+        "Consolidated repeated hardcoded colors into shared theme tokens",
+        "Cleaned up duplicated inline styles on filter checkboxes and the cast member modal",
+        "Bumped version to 0.3.0"
+      ]
+    },
     {
       "version": "0.2.83",
       "date": "2026-07-01T14:54:47+01:00",
