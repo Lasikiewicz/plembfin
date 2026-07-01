@@ -1,7 +1,19 @@
 {
-  "version": "0.2.80",
-  "updatedAt": "2026-07-01T14:25:59+01:00",
+  "version": "0.2.81",
+  "updatedAt": "2026-07-01T14:40:29+01:00",
   "entries": [
+    {
+      "version": "0.2.81",
+      "date": "2026-07-01T14:40:29+01:00",
+      "commit": "765823b090afec8262ddef520194582c908cb522",
+      "message": "fix: repair Seerr TV requests and add a season picker",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed whole-show Seerr requests for TV crashing on Seerr's server because no seasons field was sent",
+        "Requesting a TV show (standard or 4K) now opens a season picker showing each season's availability, instead of blindly requesting the whole series",
+        "Per-season \"Request season\" buttons on individual seasons are unchanged"
+      ]
+    },
     {
       "version": "0.2.80",
       "date": "2026-07-01T14:25:59+01:00",
