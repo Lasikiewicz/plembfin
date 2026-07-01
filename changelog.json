@@ -1,7 +1,24 @@
 {
-  "version": "0.2.75",
-  "updatedAt": "2026-07-01T11:54:55+01:00",
+  "version": "0.2.76",
+  "updatedAt": "2026-07-01T12:55:09+01:00",
   "entries": [
+    {
+      "version": "0.2.76",
+      "date": "2026-07-01T12:55:09+01:00",
+      "commit": "3e6c988782845b5180658770b2ca6a7289d62b2c",
+      "message": "security: harden poster cache, Seerr requests, secrets, and admin defaults",
+      "author": "Lasikiewicz",
+      "details": [
+        "Blocked a path-traversal edge case in the local poster cache's /media/ URL handling",
+        "Seerr requests are now checked against the same outbound-URL safety guard used for TMDB/Plex/Emby/Jellyfin",
+        "Added rate limits to destructive/expensive admin actions (delete media, backup import/restore, force-sync, credential changes)",
+        "Closed a race condition in echo-loop detection so overlapping syncs can't both slip past the check",
+        "Startup now fails fast on a weak pinned API key, webhook secret, or session secret instead of just warning",
+        "Fresh installs get a randomly generated admin password (printed once to the server console) instead of a default admin/admin login",
+        "Split two oversized frontend modules (tools.js, app-events.js) back under the project's module size limits",
+        "Removed duplicated Plex GUID-parsing and episode-title logic in favor of shared helpers"
+      ]
+    },
     {
       "version": "0.2.75",
       "date": "2026-07-01T11:54:55+01:00",
