@@ -1,7 +1,18 @@
 {
-  "version": "0.2.73",
-  "updatedAt": "2026-07-01T10:54:24+01:00",
+  "version": "0.2.74",
+  "updatedAt": "2026-07-01T10:58:54+01:00",
   "entries": [
+    {
+      "version": "0.2.74",
+      "date": "2026-07-01T10:58:54+01:00",
+      "commit": "af0d7bf77f0ae174392bb236147f17d923c05fe9",
+      "message": "feat: show person name and age on biography page",
+      "author": "Lasikiewicz",
+      "details": [
+        "Display the cast/crew member's name above the biography text",
+        "Show their current age (or age at death) in brackets next to the name"
+      ]
+    },
     {
       "version": "0.2.73",
       "date": "2026-07-01T10:54:24+01:00",
