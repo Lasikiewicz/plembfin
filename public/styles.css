@@ -9311,6 +9311,14 @@ html.light-mode .history-mini-card-title {
   line-height: 1.2;
 }
 
+.season-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 0.25rem;
+  column-gap: 0.6rem;
+}
+
 .season-episode-count {
   display: flex;
   flex-wrap: wrap;
@@ -9339,7 +9347,6 @@ html.light-mode .history-mini-card-title {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
-  margin-top: 0.1rem;
 }
 
 .season-accordion-meta {
