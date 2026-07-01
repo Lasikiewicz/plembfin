@@ -531,7 +531,6 @@ export function openSeerrSeasonRequestDialog(mediaType, mediaId, { is4k = false 
         <button class="button-ghost seerr-season-select-all" type="button">Select all</button>
         <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
         <button class="button-primary seerr-season-submit" type="button"
-          data-seerr-media-type="tv" data-seerr-media-id="${escapeAttribute(String(mediaId))}"
           ${is4k ? 'data-seerr-request-4k="true"' : ""}>Request selected</button>
       </div>
       <p class="edit-dialog-status"></p>
