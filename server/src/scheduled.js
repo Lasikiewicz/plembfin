@@ -1,4 +1,5 @@
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
+import { parsePlexGuids } from "./utils/parsers.js";
 import { findPlexItem } from "./utils/plexClient.js";
 import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/liveSessions.js";
 import { appendSyncHistory, loadMediaConfig, loadRuntimeState, setRuntimeState } from "./utils/configStore.js";
@@ -180,19 +181,6 @@ function resumePositionUnchanged(existingProgress = {}, media = {}) {
   );
 }
 
-function plexGuidIds(item = {}) {
-  const ids = {};
-  const guids = [item.guid, ...(item.Guid || []).map((g) => g.id || g)].filter(Boolean);
-  for (const guid of guids) {
-    const guidStr = String(guid);
-    const value = guidStr.split(/:\/\/|\//).pop();
-    if (guidStr.includes("imdb")) ids.imdb = value;
-    if (guidStr.includes("tmdb") || guidStr.includes("themoviedb")) ids.tmdb = value;
-    if (guidStr.includes("tvdb") || guidStr.includes("thetvdb")) ids.tvdb = value;
-  }
-  return ids;
-}
-
 function mediaFromPlexResumableItem(item = {}) {
   const type = item.type === "episode" ? "episode" : "movie";
   const positionMs = millisecondsFrom(item.viewOffset);
@@ -207,7 +195,7 @@ function mediaFromPlexResumableItem(item = {}) {
     source: "plex",
     season,
     episode,
-    ids: plexGuidIds(item),
+    ids: parsePlexGuids(item),
     episodeTitle: type === "episode" ? item.title : null,
     positionMs,
     offsetMs: positionMs,

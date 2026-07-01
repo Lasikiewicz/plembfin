@@ -103,6 +103,30 @@ app.use("/api/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHea
 app.use("/api/webhook", rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/tmdb-poster", rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/tmdb-profile", rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
+// Destructive/expensive admin actions — several of these paths also serve a
+// cheap GET status/poll (e.g. force-sync progress), so only the mutating
+// request is throttled; GET/HEAD/OPTIONS pass through untouched.
+app.use([
+  "/api/delete-media",
+  "/api/backup/import",
+  "/api/watch-backups",
+  "/api/plembfin-backups",
+  "/api/force-sync",
+  "/api/cron-sync",
+  "/api/auth/credentials",
+  "/api/dedup-history",
+  "/api/full-sync-watchstates",
+  "/api/merge-shows",
+  "/api/admin-backfill-trakt",
+  "/api/admin-fix-history",
+  "/api/clear-cache",
+], rateLimit({
+  windowMs: 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS",
+}));
 // General API limiter — generous ceiling so the poster-heavy dashboard/explorer is never
 // throttled in normal use, while still capping abusive bursts. Applied after the tighter
 // per-route limiters above so those still take precedence for their paths.

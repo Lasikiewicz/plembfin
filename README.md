@@ -143,7 +143,7 @@
    npm start
    ```
    *For live reloading during development, run `npm run dev` instead.*
-3. Access the dashboard at `http://localhost:5055`. Default credentials on fresh boots are `admin` / `admin`.
+3. Access the dashboard at `http://localhost:5055`. On a fresh boot the username defaults to `admin`; if you didn't set `ADMIN_PASSWORD`, check the server console/logs for the randomly generated initial password.
 
 > [!TIP]
 > If port `5055` is occupied, change it using the `PORT` environment variable:
@@ -155,7 +155,7 @@
 ## Full Setup & Integration Guide
 
 ### 1. Sign In & Set Admin Credentials
-On your first login with the default credentials (`admin` / `admin`), Plembfin will automatically redirect you to **Settings → General** and display a security banner until the password is changed.
+Sign in with `admin` and the password you set via `ADMIN_PASSWORD`, or the random password Plembfin generated and printed to the console on first boot. (Instances upgraded from an older version that still have the old default `admin`/`admin` password are automatically redirected to **Settings → General** with a security banner until it's changed.)
 
 ### 2. Connect Your Media Apps
 Go to **Settings → Apps** and configure connection settings for the platforms you use:
@@ -265,7 +265,7 @@ The following environment variables can be set in your system or defined in `doc
 | `PORT` | `5055` | The network port the web interface and API will listen on. |
 | `DATA_DIR` | `./data` | Directory for the SQLite database (`plembfin.db`), configs, and cached posters. |
 | `ADMIN_USERNAME` | `admin` | Default administrator username for fresh setups. |
-| `ADMIN_PASSWORD` | `admin` | Default administrator password for fresh setups. |
+| `ADMIN_PASSWORD` | _generated_ | Admin password. If unset on a brand-new install, a random password is generated and printed once to the server console/logs — check there after first start, then set your own via Settings or this variable. |
 | `API_KEY` | _generated_ | Security token used to authorize incoming webhooks and API calls. |
 | `WEBHOOK_SECRET` | _generated_ | Secret used by webhook header/Bearer auth and the compatibility `?token=` URL. Rotatable independently of the API key. |
 | `SESSION_SECRET` | _generated_ | Signing secret for the dashboard session cookie. |

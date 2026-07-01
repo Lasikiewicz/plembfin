@@ -493,8 +493,8 @@ export function libraryTvWatchProgress(libItem, tmdbData = null) {
 export function personWatchBadgeMarkup(progress, tmdbId) {
   if (!progress?.watched) return "";
   const label = progress.complete ? "Watched" : "Part watched";
-  const count = progress.total > 0 ? `${progress.watched}/${progress.total}` : `${progress.watched} ep`;
-  return `<span class="watch-state-badge ${progress.complete ? "is-complete" : "is-partial"}" data-person-watch-status="${escapeAttribute(tmdbId)}">${label} <small>${count}</small></span>`;
+  const count = progress.total > 0 ? `${Number(progress.watched)}/${Number(progress.total)}` : `${Number(progress.watched)} ep`;
+  return `<span class="watch-state-badge ${progress.complete ? "is-complete" : "is-partial"}" data-person-watch-status="${escapeAttribute(tmdbId)}">${escapeHtml(label)} <small>${escapeHtml(count)}</small></span>`;
 }
 
 export async function hydratePersonFilmographyWatchStatuses(personId, credits = []) {
@@ -504,7 +504,9 @@ export async function hydratePersonFilmographyWatchStatuses(personId, credits = 
     const progress = libraryTvWatchProgress(libItem, tmdbData);
     document.querySelectorAll(`[data-person-watch-status="${CSS.escape(String(credit.id))}"]`).forEach((badge) => {
       badge.className = `watch-state-badge ${progress.complete ? "is-complete" : "is-partial"}`;
-      badge.innerHTML = `${progress.complete ? "Watched" : "Part watched"} <small>${progress.total > 0 ? `${progress.watched}/${progress.total}` : `${progress.watched} ep`}</small>`;
+      const label = progress.complete ? "Watched" : "Part watched";
+      const count = progress.total > 0 ? `${Number(progress.watched)}/${Number(progress.total)}` : `${Number(progress.watched)} ep`;
+      badge.innerHTML = `${escapeHtml(label)} <small>${escapeHtml(count)}</small>`;
     });
   }));
 }

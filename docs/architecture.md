@@ -147,7 +147,7 @@ Startup runs `logSecuritySummary()` (in `appConfig.js`) which warns if the admin
 
 - `PORT` — HTTP port (default `5055`)
 - `DATA_DIR` — data directory (default `<repo>/data`; Docker sets `/data`)
-- `ADMIN_USERNAME` / `ADMIN_PASSWORD` — admin login (default `admin` / `admin`)
+- `ADMIN_USERNAME` (default `admin`) / `ADMIN_PASSWORD` — admin login. If `ADMIN_PASSWORD` is unset on a brand-new install, a random password is generated and printed once to the server console.
 - `API_KEY` — pin the webhook/integration key
 - `WEBHOOK_SECRET` — pin the webhook secret used by header/Bearer auth and the compatibility `?token=` URL
 - `SESSION_SECRET` — pin the session signing secret

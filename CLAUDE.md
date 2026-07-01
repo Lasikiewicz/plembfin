@@ -94,8 +94,9 @@ docker compose up --build
 
 There are no tests or linters configured in this project.
 
-The app listens on `PORT` (default `5055`). Default admin login on a fresh install is
-`admin` / `admin` — override with the `ADMIN_USERNAME` / `ADMIN_PASSWORD` environment
+The app listens on `PORT` (default `5055`). On a fresh install the admin username defaults
+to `admin`; if `ADMIN_PASSWORD` isn't set, a random password is generated and printed once
+to the server console/logs. Override with the `ADMIN_USERNAME` / `ADMIN_PASSWORD` environment
 variables. On first boot the server writes `data/config.json` with the admin credentials,
 a generated API key, and a session secret.
 
@@ -129,14 +130,15 @@ When adding frontend code, place it in the most specific existing module that ow
 | Manual watched/unwatched actions | `modules/watch-action.js` |
 | TMDB detail/season/person enrichment helpers | `modules/tmdb.js` |
 | Trailer playback and photo lightbox | `modules/media-lightbox.js` |
-| Backup, import, cache, appearance tools | `modules/tools.js` |
-| Maintenance diagnostics and sync repair tools | `modules/tools-maintenance.js` |
+| Backup, import, appearance tools | `modules/tools.js` |
+| Maintenance diagnostics, cache tools, and sync repair tools | `modules/tools-maintenance.js` |
 | Auth, session, tokens | `modules/auth.js` |
 | Debug/diagnostic logs | `modules/logs.js` |
 | Connection config payloads | `modules/settings.js` |
 | Live session fetching/normalisation | `modules/timeline.js` |
 | Shared `state` and `elements` objects | `modules/state.js` |
 | App event wiring | `modules/app-events.js` |
+| Media-detail modal click delegation (cast/trailers/poster edit/watch actions/card navigation) | `modules/media-detail-events.js` |
 | App startup, routing, `bindElements` | `app.js` |
 
 ### Creating a new module
@@ -246,6 +248,6 @@ page size 240. A second observer (`observeExplorerTmdbPrefetch`) pre-fetches TMD
 
 - `PORT` — HTTP port (default `5055`)
 - `DATA_DIR` — data directory (default `<repo>/data`; Docker sets `/data`)
-- `ADMIN_USERNAME` / `ADMIN_PASSWORD` — admin login (default `admin` / `admin`)
+- `ADMIN_USERNAME` (default `admin`) / `ADMIN_PASSWORD` — admin login. If `ADMIN_PASSWORD` is unset on a brand-new install, a random password is generated and printed once to the server console.
 - `API_KEY` — pin the webhook/integration key (otherwise generated into `data/config.json`)
 - `SESSION_SECRET` — pin the session signing secret (otherwise generated)

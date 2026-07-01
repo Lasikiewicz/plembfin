@@ -36,6 +36,26 @@ function isDefaultPasswordHash(hash = "") {
   }
 }
 
+const MIN_SECRET_LENGTH = 32;
+
+// Auto-generated secrets are always long enough (hex-encoded randomBytes), so
+// this only ever fires for a value pinned via env or hand-edited into
+// data/config.json — fail fast at startup rather than merely warn.
+function assertMinSecretLength(name, value) {
+  const length = String(value || "").length;
+  if (length < MIN_SECRET_LENGTH) {
+    throw new Error(
+      `${name} must be at least ${MIN_SECRET_LENGTH} characters (got ${length}). ` +
+      `Set a longer ${name} via environment variable, or remove it from data/config.json to auto-generate one.`,
+    );
+  }
+}
+
+// Set when resolveAuthConfig generates a random password for a brand-new
+// install, so logSecuritySummary can print it once. Never persisted in
+// plaintext — only the scrypt hash goes into data/config.json.
+let generatedInitialPassword = null;
+
 // Resolve the auth config from data/config.json, applying env overrides and
 // generating an API key / session secret on first boot. Persists any changes.
 function resolveAuthConfig() {
@@ -47,22 +67,26 @@ function resolveAuthConfig() {
   if (stored.username !== username) { stored.username = username; changed = true; }
 
   // Password: an env override (re)hashes; otherwise keep the stored hash, or
-  // fall back to a default "admin" password on a brand-new install.
+  // generate a random one on a brand-new install (printed once at startup).
   if (!authManagedInApp && process.env.ADMIN_PASSWORD) {
     stored.passwordHash = hashPassword(process.env.ADMIN_PASSWORD);
     changed = true;
   } else if (!stored.passwordHash) {
-    stored.passwordHash = hashPassword("admin");
+    generatedInitialPassword = crypto.randomBytes(12).toString("base64url");
+    stored.passwordHash = hashPassword(generatedInitialPassword);
     changed = true;
   }
 
   const apiKey = String(process.env.API_KEY || stored.apiKey || crypto.randomBytes(24).toString("hex"));
+  assertMinSecretLength("API_KEY", apiKey);
   if (stored.apiKey !== apiKey) { stored.apiKey = apiKey; changed = true; }
 
   const webhookSecret = String(process.env.WEBHOOK_SECRET || stored.webhookSecret || crypto.randomBytes(24).toString("hex"));
+  assertMinSecretLength("WEBHOOK_SECRET", webhookSecret);
   if (stored.webhookSecret !== webhookSecret) { stored.webhookSecret = webhookSecret; changed = true; }
 
   const sessionSecret = String(process.env.SESSION_SECRET || stored.sessionSecret || crypto.randomBytes(32).toString("hex"));
+  assertMinSecretLength("SESSION_SECRET", sessionSecret);
   if (stored.sessionSecret !== sessionSecret) { stored.sessionSecret = sessionSecret; changed = true; }
 
   if (changed) writeConfigFile(stored);
@@ -81,16 +105,6 @@ function logSecuritySummary() {
     warnings.push("ADMIN_PASSWORD is shorter than 8 characters — use a stronger password");
   }
 
-  if (config.sessionSecret && config.sessionSecret.length < 32) {
-    warnings.push("SESSION_SECRET is shorter than 32 characters — regenerate it");
-  }
-  if (config.apiKey && config.apiKey.length < 32) {
-    warnings.push("API_KEY is shorter than 32 characters — use a longer key");
-  }
-  if (config.webhookSecret && config.webhookSecret.length < 32) {
-    warnings.push("WEBHOOK_SECRET is shorter than 32 characters — use a longer secret");
-  }
-
   const pinned = [];
   const generated = [];
   if (process.env.API_KEY) pinned.push("API_KEY"); else generated.push("API_KEY");
@@ -106,6 +120,12 @@ function logSecuritySummary() {
   }
   if (pinned.length > 0) {
     console.log(`[security] Pinned secrets from env: ${pinned.join(", ")}`);
+  }
+  if (generatedInitialPassword) {
+    console.warn("⚠️  Generated initial admin credentials (shown once — this password is not stored anywhere in plaintext):");
+    console.warn(`   • Username: ${config.username}`);
+    console.warn(`   • Password: ${generatedInitialPassword}`);
+    console.warn("   Change this immediately in Settings → General.");
   }
 }
 

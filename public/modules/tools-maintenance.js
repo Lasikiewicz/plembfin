@@ -1,18 +1,22 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute } from "./utils.js";
+import { escapeHtml, escapeAttribute, platformName } from "./utils.js";
 import { categorizeIssues } from "./sync.js";
 
 let _setMessage = () => {};
 let _showConfirmModal = () => {};
 let _loadSyncJobs = async () => {};
 let _loadSyncHistory = async () => {};
+let _loadHistory = async () => {};
+let _clearDerivedUiCaches = () => {};
 
 export function initMaintenanceTools(callbacks = {}) {
   if (callbacks.setMessage) _setMessage = callbacks.setMessage;
   if (callbacks.showConfirmModal) _showConfirmModal = callbacks.showConfirmModal;
   if (callbacks.loadSyncJobs) _loadSyncJobs = callbacks.loadSyncJobs;
   if (callbacks.loadSyncHistory) _loadSyncHistory = callbacks.loadSyncHistory;
+  if (callbacks.loadHistory) _loadHistory = callbacks.loadHistory;
+  if (callbacks.clearDerivedUiCaches) _clearDerivedUiCaches = callbacks.clearDerivedUiCaches;
 }
 
 function authHeaders() { return buildAuthHeaders(state.token); }
@@ -20,6 +24,8 @@ function setMessage(...args) { return _setMessage(...args); }
 function showConfirmModal(...args) { return _showConfirmModal(...args); }
 function loadSyncJobs(...args) { return _loadSyncJobs(...args); }
 function loadSyncHistory(...args) { return _loadSyncHistory(...args); }
+function loadHistory(...args) { return _loadHistory(...args); }
+function clearDerivedUiCaches(...args) { return _clearDerivedUiCaches(...args); }
 
 export async function runSystemIntegrityCheck() {
   const button = elements.runCompleteCheckButton;
@@ -329,4 +335,357 @@ export async function triggerRetryAllCategory(categoryName, button) {
       }
     }
   );
+}
+
+// ── History repair / dedup / backfill / full-sync tools ────────────────────
+
+export async function runRepairWorkflow() {
+  const button = elements.runRepairButton;
+  const status = elements.repairStatus;
+  if (!button || !status) return;
+  button.disabled = true;
+  button.textContent = "Repairing History...";
+  status.textContent = "Starting history repair...";
+  const maxIterations = 20;
+  let totalConverted = 0;
+  let totalBackfilled = 0;
+  const appendLog = (text) => {
+    const now = new Date().toISOString();
+    if (elements.repairLog) {
+      elements.repairLog.textContent = `${now} - ${text}\n` + elements.repairLog.textContent;
+      elements.repairLog.scrollTop = 0;
+    } else {
+      status.textContent = text;
+    }
+  };
+  for (let i = 1; i <= maxIterations; i++) {
+    const passLabel = `Repair pass ${i}`;
+    appendLog(`${passLabel} started`);
+    try {
+      const res = await fetch("/api/admin-fix-history", { method: "POST", headers: authHeaders() });
+      let body;
+      try { body = await res.json(); } catch (e) { body = { text: await res.text() }; }
+      const converted = Number(body.converted || 0);
+      const backfilled = Number(body.backfilled || 0);
+      totalConverted += converted;
+      totalBackfilled += backfilled;
+      appendLog(`${passLabel} result: retyped=${Number(body.retyped || 0)}, converted=${converted}, backfilled=${backfilled}${body.note ? `, note=${body.note}` : ''}`);
+      if (!converted && !backfilled) {
+        appendLog(`${passLabel} made no changes; stopping.`);
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 700));
+    } catch (err) {
+      appendLog(`ERROR: ${err?.message || String(err)}`);
+      status.textContent = `Repair failed: ${err?.message || String(err)}`;
+      button.disabled = false;
+      throw err;
+    }
+  }
+  status.textContent = `Done: retyped history, converted ${totalConverted}, backfilled ${totalBackfilled}.`;
+  button.disabled = false;
+  button.textContent = "Repair History Now";
+  clearDerivedUiCaches();
+  await loadHistory().catch(() => { });
+  return { converted: totalConverted, backfilled: totalBackfilled };
+}
+
+export async function runDedupHistory() {
+  const button = elements.dedupHistoryButton;
+  const status = elements.dedupHistoryStatus;
+  const logEl = elements.dedupHistoryLog;
+  if (!button) return;
+  button.disabled = true;
+  button.textContent = "Running...";
+  if (status) status.textContent = "Running deduplication...";
+  if (logEl) logEl.textContent = "";
+  try {
+    const response = await fetch("/api/dedup-history", {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    let finalResult = null;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.startsWith("RESULT: ")) {
+          try { finalResult = JSON.parse(trimmed.substring(8)); } catch (_) { }
+        } else {
+          if (logEl) logEl.textContent += trimmed + "\n";
+        }
+      }
+      if (logEl) logEl.scrollTop = logEl.scrollHeight;
+    }
+    if (finalResult) {
+      const msg = `Complete — deleted ${finalResult.deleted} duplicate(s) from ${finalResult.scanned} records.`;
+      if (status) status.textContent = msg;
+      if (logEl) logEl.textContent += msg + "\n";
+    } else {
+      if (status) status.textContent = "Complete.";
+    }
+  } catch (error) {
+    const msg = `Error: ${error.message}`;
+    if (status) status.textContent = msg;
+    if (logEl) logEl.textContent += msg + "\n";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Clean Duplicates";
+  }
+}
+
+export async function runTraktBackfill() {
+  const button = elements.traktBackfillButton;
+  const status = elements.traktBackfillStatus;
+  const logEl = elements.traktBackfillLog;
+  if (!button || !status) return;
+  const limit = Math.max(1, Number(elements.traktBackfillLimit?.value || 500));
+  const rate = Math.max(50, Number(elements.traktBackfillRate?.value || 300));
+  button.disabled = true;
+  button.textContent = "Backfilling Trakt Imports...";
+  status.textContent = `Starting Trakt import backfill (limit=${limit}, rate=${rate}ms)`;
+  if (logEl) logEl.textContent = `Starting Trakt import backfill at ${new Date().toISOString()}\n`;
+  try {
+    const maxBatches = 2000;
+    let batch = 0;
+    let totalBackfilled = 0;
+    let lastBackfilled = -1;
+    for (; batch < maxBatches; batch++) {
+      status.textContent = `Running batch #${batch + 1}...`;
+      const resp = await fetch(`/api/admin-backfill-trakt`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ limit, rateMs: rate }),
+      });
+      const body = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        const msg = body.error || `Backfill failed (${resp.status})`;
+        if (logEl) logEl.textContent = `${new Date().toISOString()} - ERROR: ${msg}\n` + logEl.textContent;
+        status.textContent = `Error: ${msg}`;
+        break;
+      }
+      const tried = Number(body.tried || 0);
+      const backfilled = Number(body.backfilled || 0);
+      totalBackfilled += backfilled;
+      const now = new Date().toISOString();
+      if (logEl) {
+        logEl.textContent = `${now} - Batch ${batch + 1}: tried=${tried} backfilled=${backfilled}\n` + logEl.textContent;
+      }
+      let remaining = null;
+      try {
+        const st = await fetch(`/api/admin-backfill-status`, { headers: authHeaders() });
+        const stBody = await st.json().catch(() => ({}));
+        remaining = Number(stBody.remaining ?? stBody.missing ?? null);
+      } catch (err) {
+        // ignore
+      }
+      status.textContent = remaining != null ? `Batch ${batch + 1}: backfilled ${backfilled}. Remaining: ${remaining}` : `Batch ${batch + 1}: backfilled ${backfilled}`;
+      if ((backfilled === 0 && lastBackfilled === 0) || (remaining === 0)) {
+        if (logEl) logEl.textContent = `${new Date().toISOString()} - No further progress; stopping.\n` + logEl.textContent;
+        break;
+      }
+      lastBackfilled = backfilled;
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    status.textContent = `Completed: total backfilled ${totalBackfilled} after ${batch + 1} batches`;
+  } catch (err) {
+    const msg = err?.message || String(err);
+    if (logEl) logEl.textContent = `${new Date().toISOString()} - ERROR: ${msg}\n` + logEl.textContent;
+    status.textContent = `Error: ${msg}`;
+    throw err;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Backfill Trakt Imports";
+  }
+}
+
+function appendFullSyncLog(message) {
+  if (!elements.fullSyncLog) return;
+  const timestamp = new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date());
+  elements.fullSyncLog.textContent = `[${timestamp}] ${message}\n${elements.fullSyncLog.textContent || ""}`.trim();
+  elements.fullSyncLog.scrollTop = 0;
+}
+
+function summarizeFullSyncPhase(summary = {}) {
+  return Object.entries(summary)
+    .map(([target, counts]) => {
+      const success = Number(counts.success || 0);
+      const notFound = Number(counts.notFound || 0);
+      const skipped = Number(counts.skipped || 0);
+      const error = Number(counts.error || 0);
+      return `${platformName(target)} ${success} ok, ${notFound} not found, ${skipped} skipped, ${error} errors`;
+    })
+    .join(" | ");
+}
+
+export async function runFullSyncWatchstates() {
+  if (state.fullSyncActive) return;
+  const button = elements.fullSyncButton;
+  const status = elements.fullSyncStatus;
+  if (!button || !status) return;
+  state.fullSyncActive = true;
+  button.disabled = true;
+  button.textContent = "Syncing...";
+  status.textContent = "Running";
+  status.className = "status-pill status-ready";
+  if (elements.fullSyncLog) elements.fullSyncLog.textContent = "";
+  const limit = 25;
+  const phases = ["watched", "progress"];
+  const totals = {
+    watched: { processed: 0 },
+    progress: { processed: 0 },
+  };
+  try {
+    for (const phase of phases) {
+      let offset = 0;
+      let batch = 1;
+      let hasMore = true;
+      appendFullSyncLog(`Starting ${phase} restore.`);
+      while (hasMore) {
+        const response = await fetch("/api/full-sync-watchstates", {
+          method: "POST",
+          headers: { ...authHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ phase, offset, limit }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || `Full sync failed with ${response.status}`);
+        totals[phase].processed += Number(body.processed || 0);
+        appendFullSyncLog(`${phase} batch ${batch}: processed ${Number(body.processed || 0)} of ${Number(body.total || 0)}. ${summarizeFullSyncPhase(body.summary || {})}`);
+        if (Array.isArray(body.errors) && body.errors.length) {
+          appendFullSyncLog(`${phase} batch ${batch}: ${body.errors.length} platform errors captured.`);
+        }
+        offset = Number(body.nextOffset || offset + Number(body.processed || 0));
+        hasMore = Boolean(body.hasMore) && Number(body.processed || 0) > 0;
+        batch += 1;
+      }
+    }
+    clearDerivedUiCaches();
+    status.textContent = "Complete";
+    status.className = "status-pill status-ready";
+    setMessage(`Full sync complete. Watched rows: ${totals.watched.processed}. Progress rows: ${totals.progress.processed}.`, "success");
+  } catch (error) {
+    status.textContent = "Error";
+    status.className = "status-pill status-error";
+    appendFullSyncLog(`ERROR: ${error.message}`);
+    setMessage(`Full sync failed: ${error.message}`, "error");
+    throw error;
+  } finally {
+    state.fullSyncActive = false;
+    button.disabled = false;
+    button.textContent = "Full Sync Watchstates";
+  }
+}
+
+// ── Cache stats ──────────────────────────────────────────────────────────
+
+function fmtCacheBytes(bytes) {
+  if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(1)} GB`;
+  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
+}
+
+export async function loadCacheStats({ force = false } = {}) {
+  if (!state.token || state.cacheStatsLoading || (state.cacheStats && !force)) return state.cacheStats;
+  state.cacheStatsLoading = true;
+  renderCachePanel();
+  try {
+    const response = await fetch("/api/cache-stats", { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Cache stats failed with ${response.status}`);
+    state.cacheStats = body;
+    return body;
+  } finally {
+    state.cacheStatsLoading = false;
+    renderCachePanel();
+  }
+}
+
+async function clearCacheType(type) {
+  try {
+    const response = await fetch("/api/clear-cache", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ type }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Cache clear failed with ${response.status}`);
+    const label = type === "all" ? "all images" : type;
+    setMessage(`Cleared ${body.deleted} file${body.deleted !== 1 ? "s" : ""} (${fmtCacheBytes(body.freed)} freed) from ${label}.`, "success");
+    state.cacheStats = null;
+    loadCacheStats().catch((error) => setMessage(error.message, "error"));
+  } catch (error) {
+    setMessage(error.message, "error");
+  }
+}
+
+export function renderCachePanel() {
+  const panel = document.getElementById("cacheStatsPanel");
+  if (!panel) return;
+  if (state.cacheStatsLoading && !state.cacheStats) {
+    panel.innerHTML = `<p class="muted-text" style="padding:var(--space-3) 0;">Loading...</p>`;
+    return;
+  }
+  if (!state.cacheStats) {
+    panel.innerHTML = `<p class="muted-text" style="padding:var(--space-3) 0;">No data loaded.</p>`;
+    return;
+  }
+  const { disk } = state.cacheStats;
+  const rows = [
+    { key: "posters", label: "Posters" },
+    { key: "backdrops", label: "Backdrops" },
+    { key: "profiles", label: "Profiles" },
+  ];
+  const totalCount = rows.reduce((sum, r) => sum + (disk[r.key]?.count || 0), 0);
+  const totalSize = rows.reduce((sum, r) => sum + (disk[r.key]?.size || 0), 0);
+
+  const maxBytes = Math.max(...rows.map(({ key }) => disk[key]?.size || 0), 1);
+
+  panel.innerHTML = `
+    <div class="cache-gauge-grid">
+      ${rows.map(({ key, label }) => {
+        const count = disk[key]?.count || 0;
+        const size = disk[key]?.size || 0;
+        const percent = Math.max(5, Math.round((size / maxBytes) * 100));
+        return `
+          <div class="cache-gauge-card">
+            <div class="cache-gauge-meta">
+              <span class="cache-gauge-title">${label}</span>
+              <span class="cache-gauge-count">${count.toLocaleString()} files</span>
+            </div>
+            <div class="cache-gauge-size">${fmtCacheBytes(size)}</div>
+            <div class="cache-gauge-bar">
+              <div class="cache-gauge-fill" style="width: ${percent}%;"></div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:0.25rem;">
+              <button class="button-ghost" type="button" style="font-size:0.76rem; padding:0.25rem 0.65rem; min-height:1.85rem; height:1.85rem;" data-clear-cache="${key}">Clear</button>
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--line); flex-wrap:wrap; gap:1rem;">
+      <div style="display:flex; gap:1.5rem; font-size:0.85rem;">
+        <div><span style="color:var(--muted)">Total Files:</span> <strong style="color:var(--text); margin-left:0.3rem;">${totalCount.toLocaleString()}</strong></div>
+        <div><span style="color:var(--muted)">Total Size:</span> <strong style="color:var(--text); margin-left:0.3rem;">${fmtCacheBytes(totalSize)}</strong></div>
+      </div>
+      <button class="button-primary" type="button" style="font-size:0.8rem; padding:0.25rem 0.85rem; height:2.2rem; min-height:2.2rem;" data-clear-cache="all">Clear All</button>
+    </div>
+  `;
+  for (const btn of panel.querySelectorAll("[data-clear-cache]")) {
+    btn.addEventListener("click", () => clearCacheType(btn.dataset.clearCache));
+  }
 }

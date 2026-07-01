@@ -378,6 +378,12 @@ async function handleSeerrStatus(req, res) {
   }
 
   try {
+    assertSafeOutboundUrl(baseUrl, { label: "Seerr baseUrl" });
+  } catch (error) {
+    return sendJson(res, { ok: false, configured: true, error: error.message || "Invalid Seerr baseUrl" }, 400);
+  }
+
+  try {
     const seerrHeaders = { "X-Api-Key": apiKey, Accept: "application/json" };
     const seerrRes = await fetch(`${baseUrl}/api/v1/auth/me`, {
       headers: seerrHeaders,
@@ -428,6 +434,12 @@ async function handleSeerrRequest(req, res) {
 
   if (!mediaType || !mediaId) {
     return sendJson(res, { ok: false, error: "mediaType and mediaId are required." }, 400);
+  }
+
+  try {
+    assertSafeOutboundUrl(baseUrl, { label: "Seerr baseUrl" });
+  } catch (error) {
+    return sendJson(res, { ok: false, error: error.message || "Invalid Seerr baseUrl" }, 400);
   }
 
   try {
@@ -663,6 +675,12 @@ async function handleSeerrMediaStatus(req, res) {
   const mediaId = Number(req.query.mediaId);
   if (!mediaType || !mediaId) {
     return sendJson(res, { ok: false, error: "mediaType and mediaId are required." }, 400);
+  }
+
+  try {
+    assertSafeOutboundUrl(baseUrl, { label: "Seerr baseUrl" });
+  } catch (error) {
+    return sendJson(res, { ok: false, error: error.message || "Invalid Seerr baseUrl" }, 400);
   }
 
   const localMedia = await mediaFromTmdbStatusRequest(mediaType, mediaId);

@@ -180,7 +180,9 @@ export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source 
   if (String(remoteUrl).startsWith("/media/")) {
     const storagePath = remoteUrl.replace(/^\/media\//, "");
     const absolutePath = path.join(MEDIA_DIR, storagePath);
-    if (existsSync(absolutePath)) {
+    const relativeToMediaDir = path.relative(MEDIA_DIR, absolutePath);
+    const escapesMediaDir = relativeToMediaDir.startsWith("..") || path.isAbsolute(relativeToMediaDir);
+    if (!escapesMediaDir && existsSync(absolutePath)) {
       try {
         const stat = await fs.stat(absolutePath).catch(() => null);
         const cacheId = cacheIdFor(mediaKey, variant);

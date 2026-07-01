@@ -86,36 +86,28 @@ function targetCacheKeys(media, target, prefix = "loop") {
   return mediaCacheParts(media).map((part) => `${prefix}:${part}:target:${normalizeCachePart(target)}`);
 }
 
-async function wasRecentlyTargeted(media, target, kv, prefix = "loop") {
-  const keys = targetCacheKeys(media, target, prefix);
-  if (!kv || !keys.length) return false;
+// Atomically checks whether `media` was recently synced to the incoming
+// source (i.e. this webhook is an echo of our own outbound sync) and, if not,
+// claims cache keys for the outbound `targets` so a later echo from one of
+// them is recognized. Both steps run in a single DB transaction (see
+// loopStore.checkAndClaim) so two overlapping calls for the same media can't
+// both pass the check before either claim becomes visible.
+function checkAndClaimLoop(media, target, targets, kv, prefix = "loop") {
+  const checkKeys = targetCacheKeys(media, target, prefix);
+  if (!kv || !checkKeys.length) return false;
 
   try {
-    const now = Date.now();
-    for (const key of keys) {
-      const timestamp = Number(await kv.get(key));
-      if (timestamp && now - timestamp <= LOOP_WINDOW_MS) {
-        console.log("(log) Echo loop caught, stopping propagation.", { key, source: media.source });
-        return true;
-      }
+    const claimKeys = targets.flatMap((t) => targetCacheKeys(media, t, prefix));
+    const { loopDetected } = kv.checkAndClaim(checkKeys, claimKeys, LOOP_CACHE_TTL_SECONDS, LOOP_WINDOW_MS);
+    if (loopDetected) {
+      console.log("(log) Echo loop caught, stopping propagation.", { source: media.source, prefix });
+    } else if (claimKeys.length) {
+      console.log("Loop cache primed for outbound targets", { keys: claimKeys.length, source: media.source, targets, prefix });
     }
+    return loopDetected;
   } catch (error) {
-    console.error("Loop cache check failed; continuing sync", error);
-  }
-
-  return false;
-}
-
-async function primeTargetCache(media, targets, kv, prefix = "loop") {
-  if (!kv || !targets.length) return;
-
-  try {
-    const now = String(Date.now());
-    const keys = targets.flatMap((target) => targetCacheKeys(media, target, prefix));
-    await Promise.all(keys.map((key) => kv.put(key, now, { expirationTtl: LOOP_CACHE_TTL_SECONDS })));
-    console.log("Loop cache primed for outbound targets", { keys: keys.length, source: media.source, targets, prefix });
-  } catch (error) {
-    console.error("Loop cache prime failed; continuing sync", error);
+    console.error("Loop cache check/claim failed; continuing sync", error);
+    return false;
   }
 }
 
@@ -246,7 +238,8 @@ export async function syncMediaPlaystate(media, config, kv) {
     return { skipped: true, status: "skipped", details: "Invalid normalized media payload", results: [] };
   }
 
-  if (await wasRecentlyTargeted(media, media.source, kv)) {
+  const targets = getTargetsForSource(media.source, config);
+  if (checkAndClaimLoop(media, media.source, targets, kv)) {
     console.log("Sync playstate skipped: echo loop detected", { source: media.source, title: media.title });
     return {
       skipped: true,
@@ -256,9 +249,6 @@ export async function syncMediaPlaystate(media, config, kv) {
       results: [],
     };
   }
-
-  const targets = getTargetsForSource(media.source, config);
-  await primeTargetCache(media, targets, kv);
 
   console.log("Sync playstate dispatch started", {
     source: media.source,
@@ -299,7 +289,8 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
     return { skipped: true, status: "skipped", details: "Invalid normalized media payload", results: [] };
   }
 
-  if (await wasRecentlyTargeted(media, media.source, kv, "unplayed_loop")) {
+  const targets = getTargetsForSource(media.source, config);
+  if (checkAndClaimLoop(media, media.source, targets, kv, "unplayed_loop")) {
     return {
       skipped: true,
       status: "skipped",
@@ -308,9 +299,6 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
       results: [],
     };
   }
-
-  const targets = getTargetsForSource(media.source, config);
-  await primeTargetCache(media, targets, kv, "unplayed_loop");
 
   console.log("Sync unplayed dispatch started", {
     source: media.source,
@@ -351,7 +339,8 @@ export async function syncMediaProgress(media, config, kv) {
     return { skipped: true, status: "skipped", details: "Resume progress is not actionable", results: [] };
   }
 
-  if (await wasRecentlyTargeted(media, media.source, kv, "progress_loop")) {
+  const targets = getTargetsForSource(media.source, config);
+  if (checkAndClaimLoop(media, media.source, targets, kv, "progress_loop")) {
     console.log("Sync progress skipped: echo loop detected", { source: media.source, title: media.title });
     return {
       skipped: true,
@@ -361,9 +350,6 @@ export async function syncMediaProgress(media, config, kv) {
       results: [],
     };
   }
-
-  const targets = getTargetsForSource(media.source, config);
-  await primeTargetCache(media, targets, kv, "progress_loop");
 
   console.log("Sync progress dispatch started", {
     source: media.source,

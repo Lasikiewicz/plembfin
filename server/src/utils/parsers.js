@@ -45,7 +45,7 @@ export function normalizeProviderIds(providerIds = {}) {
   return ids;
 }
 
-function parsePlexGuids(metadata = {}) {
+export function parsePlexGuids(metadata = {}) {
   const ids = { ...EMPTY_IDS };
   const guidEntries = Array.isArray(metadata.Guid) ? metadata.Guid : [];
   const rawGuids = [
@@ -55,10 +55,11 @@ function parsePlexGuids(metadata = {}) {
 
   for (const rawGuid of rawGuids) {
     const guid = String(rawGuid);
-    // Flexible parsing supporting both slug styles: proto://id and proto/id
+    // Flexible parsing supporting both slug styles (proto://id and proto/id)
+    // and both the modern (tmdb/tvdb) and legacy Plex agent (themoviedb/thetvdb) prefixes.
     if (guid.includes("imdb")) ids.imdb = guid.split(/:\/\/|\//).pop();
-    if (guid.includes("tmdb")) ids.tmdb = guid.split(/:\/\/|\//).pop();
-    if (guid.includes("tvdb")) ids.tvdb = guid.split(/:\/\/|\//).pop();
+    if (guid.includes("tmdb") || guid.includes("themoviedb")) ids.tmdb = guid.split(/:\/\/|\//).pop();
+    if (guid.includes("tvdb") || guid.includes("thetvdb")) ids.tvdb = guid.split(/:\/\/|\//).pop();
   }
   return ids;
 }

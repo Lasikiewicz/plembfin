@@ -78,6 +78,28 @@ export function episodeTitle(title, episodeNumber) {
   return episodeNumber ? `Episode ${String(episodeNumber).padStart(2, "0")}` : text;
 }
 
+// Resolves a watch-history entry's episode title from its stored fields,
+// falling back to parsing it out of the combined "Show - S01E02 - Title"
+// history title. `needsResolve` signals the caller should kick off an async
+// TMDB lookup (title wasn't stored and couldn't be parsed from the row).
+export function resolveEpisodeTitle(entry) {
+  let epTitle = entry.episode_title;
+  let needsResolve = false;
+  if (!epTitle || /^Episode \d+$/i.test(String(epTitle).trim())) {
+    const text = String(entry.title || "").trim();
+    const suffixMatch = text.match(/S\d{1,2}E\d{1,2}\s+-\s+(.+)$/i);
+    if (suffixMatch?.[1]) {
+      epTitle = suffixMatch[1].trim();
+    } else {
+      if (!epTitle) {
+        epTitle = `Episode ${entry.episode}`;
+      }
+      needsResolve = true;
+    }
+  }
+  return { epTitle, needsResolve };
+}
+
 export function startOfWeek(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return startOfWeek(new Date());

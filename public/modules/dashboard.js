@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, platformBadge, sourceClass, formatDate } from "./utils.js";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, platformBadge, sourceClass, formatDate, resolveEpisodeTitle } from "./utils.js";
 import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, tmdbPoster } from "./images.js";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
@@ -157,20 +157,7 @@ export function renderHistoryCard(entry) {
 
   if (isEpisode) {
     const showTitle = entry.show_title || showTitleFrom(entry.title);
-    let epTitle = entry.episode_title;
-    let needsResolve = false;
-    if (!epTitle || /^Episode \d+$/i.test(String(epTitle).trim())) {
-      const text = String(entry.title || "").trim();
-      const suffixMatch = text.match(/S\d{1,2}E\d{1,2}\s+-\s+(.+)$/i);
-      if (suffixMatch?.[1]) {
-        epTitle = suffixMatch[1].trim();
-      } else {
-        if (!epTitle) {
-          epTitle = `Episode ${entry.episode}`;
-        }
-        needsResolve = true;
-      }
-    }
+    const { epTitle, needsResolve } = resolveEpisodeTitle(entry);
 
     if (needsResolve) {
       setTimeout(() => {
@@ -219,22 +206,10 @@ function renderDashboardHistoryPageCard(entry) {
 
   if (isEpisode) {
     displayTitle = entry.show_title || showTitleFrom(entry.title);
-    epTitle = entry.episode_title;
-    let needsResolve = false;
-    if (!epTitle || /^Episode \d+$/i.test(String(epTitle).trim())) {
-      const text = String(entry.title || "").trim();
-      const suffixMatch = text.match(/S\d{1,2}E\d{1,2}\s+-\s+(.+)$/i);
-      if (suffixMatch?.[1]) {
-        epTitle = suffixMatch[1].trim();
-      } else {
-        if (!epTitle) {
-          epTitle = `Episode ${entry.episode}`;
-        }
-        needsResolve = true;
-      }
-    }
+    const resolved = resolveEpisodeTitle(entry);
+    epTitle = resolved.epTitle;
 
-    if (needsResolve) {
+    if (resolved.needsResolve) {
       setTimeout(() => {
         const el = document.querySelector(`[data-history-id="${entry.id}"] .history-card-episode`);
         _cb.resolveEpisodeTitleFromTmdb?.(entry, el);
@@ -440,22 +415,10 @@ export function renderPartWatchedCard(entry) {
 
   if (isEpisode) {
     displayTitle = entry.show_title || showTitleFrom(entry.title);
-    epTitle = entry.episode_title;
-    let needsResolve = false;
-    if (!epTitle || /^Episode \d+$/i.test(String(epTitle).trim())) {
-      const text = String(entry.title || "").trim();
-      const suffixMatch = text.match(/S\d{1,2}E\d{1,2}\s+-\s+(.+)$/i);
-      if (suffixMatch?.[1]) {
-        epTitle = suffixMatch[1].trim();
-      } else {
-        if (!epTitle) {
-          epTitle = `Episode ${entry.episode}`;
-        }
-        needsResolve = true;
-      }
-    }
+    const resolved = resolveEpisodeTitle(entry);
+    epTitle = resolved.epTitle;
 
-    if (needsResolve) {
+    if (resolved.needsResolve) {
       setTimeout(() => {
         const el = document.querySelector(`[data-part-watched-card-id="${entry.id}"] .part-watched-card-episode`);
         _cb.resolveEpisodeTitleFromTmdb?.(entry, el);
