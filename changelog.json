@@ -1,7 +1,17 @@
 {
-  "version": "0.2.78",
-  "updatedAt": "2026-07-01T14:08:00+01:00",
+  "version": "0.2.79",
+  "updatedAt": "2026-07-01T14:19:56+01:00",
   "entries": [
+    {
+      "version": "0.2.79",
+      "date": "2026-07-01T14:19:56+01:00",
+      "commit": "651eb81696a48c95c7aeaf5b5c9b322cce3b630e",
+      "message": "fix: place season availability pills inline with episode meta text",
+      "author": "Lasikiewicz",
+      "details": [
+        "Availability/4K pills now sit on the same line as episode count, watched count, and next-airing text instead of wrapping to their own row"
+      ]
+    },
     {
       "version": "0.2.78",
       "date": "2026-07-01T14:08:00+01:00",
