@@ -187,6 +187,20 @@ export function renderStatsKpis(report = selectedStatsReport()) {
   const container = elements.statsKpiStrip;
   if (!container) return;
 
+  if (!state.statsLoaded && state.statsLoading) {
+    const labels = state.statsMediaFilter === "all"
+      ? ["Plays", "Movies", "TV Shows", "Top platform", "Busiest month"]
+      : ["Plays", state.statsMediaFilter === "movie" ? "Movies" : "TV Shows", "Top platform", "Busiest month"];
+    container.innerHTML = labels.map((label) => `
+      <div class="stats-kpi-card">
+        <span>${escapeHtml(label)}</span>
+        <b class="stats-kpi-loading">&hellip;</b>
+        <small>Loading</small>
+      </div>
+    `).join("");
+    return;
+  }
+
   const activity = state.stats.monthlyActivity || [];
   let peakMonth = null;
   if (activity.length) {

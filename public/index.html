@@ -294,13 +294,13 @@
                     <option value="next_air_asc">Next Airing</option>
                   </select>
                 </label>
-                <label id="explorerHideWatchedLabel" class="compact-field" style="display: none; cursor: pointer; user-select: none; grid-template-columns: auto auto; justify-content: start;">
-                  <span style="font-size: 0.75rem; font-weight: 800; color: var(--muted); white-space: nowrap;">Hide Fully Watched</span>
-                  <input id="explorerHideWatched" type="checkbox" style="width: 15px; height: 15px; accent-color: var(--blue); cursor: pointer; margin: 0; margin-left: 0.2rem;" />
+                <label id="explorerHideWatchedLabel" class="compact-field explorer-hide-toggle" style="display: none;">
+                  <span>Hide Fully Watched</span>
+                  <input id="explorerHideWatched" type="checkbox" class="explorer-hide-checkbox" />
                 </label>
-                <label id="explorerHideEndedLabel" class="compact-field" style="display: none; cursor: pointer; user-select: none; grid-template-columns: auto auto; justify-content: start;">
-                  <span style="font-size: 0.75rem; font-weight: 800; color: var(--muted); white-space: nowrap;">Hide Ended</span>
-                  <input id="explorerHideEnded" type="checkbox" style="width: 15px; height: 15px; accent-color: var(--blue); cursor: pointer; margin: 0; margin-left: 0.2rem;" />
+                <label id="explorerHideEndedLabel" class="compact-field explorer-hide-toggle" style="display: none;">
+                  <span>Hide Ended</span>
+                  <input id="explorerHideEnded" type="checkbox" class="explorer-hide-checkbox" />
                 </label>
                 <div class="explorer-view-toggle" role="group" aria-label="View type">
                   <button class="explorer-view-btn active" type="button" data-explorer-view="posters" title="Poster grid" aria-label="Show library as a poster grid" aria-pressed="true">
@@ -1849,14 +1849,14 @@
 
     <div id="personModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="personModalTitle">
       <article class="modal-panel glass-panel">
-        <div class="modal-head" style="border-bottom: 1px solid var(--line); padding-bottom: 0.75rem; flex: 0 0 auto;">
+        <div class="modal-head">
           <div>
             <p class="eyebrow">Cast Member Profile</p>
             <h2 id="personModalTitle">Actor Name</h2>
           </div>
           <button id="closePersonModalButton" class="button-ghost" type="button">Close</button>
         </div>
-        <div id="personModalBody" class="modal-body" style="padding-top: var(--space-4); flex: 1 1 auto; overflow-y: auto; min-height: 0;">
+        <div id="personModalBody" class="modal-body">
         </div>
       </article>
     </div>

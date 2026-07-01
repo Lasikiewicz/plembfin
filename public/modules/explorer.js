@@ -127,6 +127,7 @@ export function triggerSearchPage(query) {
         seenTitles.add(slugTitle);
         results.push({
           _type: "show",
+          id: s.id,
           title,
           poster: s.poster_url || "",
           href: `/tvshow/${slugTitle}`,
@@ -144,6 +145,7 @@ export function triggerSearchPage(query) {
         seenTitles.add(slugTitle);
         results.push({
           _type: "movie",
+          id: m.id,
           title,
           poster: m.poster_url || "",
           href: movieHref(m),
@@ -224,9 +226,11 @@ export function renderSearchPage() {
   }
   emptyEl?.classList.add("hidden");
   const renderCard = (r) => {
-    const posterHtml = r.poster
-      ? `<img src="${escapeAttribute(r.poster)}" alt="" class="overview-thumb-poster" loading="lazy">`
-      : `<div class="overview-thumb-poster poster-fallback" style="display: flex; align-items: center; justify-content: center; color: var(--muted); height: 100%; min-height: 160px;"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg></div>`;
+    const posterHtml = r.isLocal
+      ? posterMarkup({ id: r.id, poster_url: r.poster, title: r.title }, "overview-thumb-poster")
+      : (r.poster
+        ? `<img src="${escapeAttribute(r.poster)}" alt="" class="overview-thumb-poster" loading="lazy">`
+        : `<div class="overview-thumb-poster poster-fallback" style="display: flex; align-items: center; justify-content: center; color: var(--muted); height: 100%; min-height: 160px;"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg></div>`);
     const badgesHtml = r.isLocal
       ? `<span class="status-pill status-success" style="font-size: 0.65rem; padding: 0.1rem 0.3rem;">Local</span>`
       : `<span class="status-pill status-muted" style="font-size: 0.65rem; padding: 0.1rem 0.3rem;">TMDB</span>`;
@@ -296,6 +300,7 @@ export function renderSearchPage() {
       resultsEl.innerHTML = filtered.map(renderCard).join("");
     }
   }
+  if (resultsEl) hydratePosters(resultsEl);
 }
 // ---------------------------------------------------------------------------
 // Explorer top-level render

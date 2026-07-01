@@ -33,6 +33,13 @@
   --yellow: #eab308;
   --red: #f43f5e;
   --field: #0d1115;
+  --accent: #3b82f6;
+  --surface: #141b22;
+  --surface-hover: #1e2936;
+  --text-primary: #f1f5f9;
+  --nav-active-border: #315b86;
+  --nav-active-bg: #172232;
+  --nav-active-text: #d9ecff;
   --radius: 8px;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -634,15 +641,15 @@ h2 {
 .nav-tab.active,
 .settings-tab.active,
 .segment-button.active {
-  border-color: #315b86;
-  background: #172232;
-  color: #d9ecff;
+  border-color: var(--nav-active-border);
+  background: var(--nav-active-bg);
+  color: var(--nav-active-text);
 }
 
 .button-primary {
   background: rgba(37, 99, 235, 0.12);
   border-color: rgba(37, 99, 235, 0.4);
-  color: #2563eb;
+  color: var(--blue);
 }
 
 .button-primary:disabled {
@@ -676,20 +683,20 @@ h2 {
 .settings-tab:hover,
 .segment-button:hover,
 .icon-button:hover {
-  border-color: #3a7fc2;
+  border-color: var(--accent);
   color: #f4f8fb;
 }
 
 .button-primary:hover {
   background: rgba(37, 99, 235, 0.2);
   border-color: rgba(37, 99, 235, 0.6);
-  color: #2563eb;
+  color: var(--blue);
 }
 
 .test-connection-button[data-tone="loading"] {
-  border-color: #315b86;
-  background: #172232;
-  color: #d9ecff;
+  border-color: var(--nav-active-border);
+  background: var(--nav-active-bg);
+  color: var(--nav-active-text);
 }
 
 .test-connection-button[data-tone="success"] {
@@ -956,6 +963,25 @@ h2 {
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 800;
+}
+
+.explorer-hide-toggle {
+  cursor: pointer;
+  user-select: none;
+  grid-template-columns: auto auto;
+  justify-content: start;
+}
+
+.explorer-hide-toggle span {
+  white-space: nowrap;
+}
+
+.explorer-hide-checkbox {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--blue);
+  cursor: pointer;
+  margin: 0 0 0 0.2rem;
 }
 
 .week-picker {
@@ -1385,7 +1411,7 @@ h2 {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 4px;
-  background: #090d11;
+  background: var(--panel-3);
   object-fit: cover;
   aspect-ratio: 2 / 3;
 }
@@ -1453,7 +1479,7 @@ h2 {
   object-fit: cover;
   border-radius: 10px;
   border: 1px solid var(--line);
-  background: #090d11;
+  background: var(--panel-3);
 }
 
 .movie-card-body {
@@ -1771,7 +1797,7 @@ h2 {
   overflow: hidden;
   height: 0.35rem;
   border-radius: 999px;
-  background: #090d11;
+  background: var(--panel-3);
 }
 
 .progress-track span,
@@ -1852,7 +1878,7 @@ h2 {
   overflow: hidden;
   height: 0.35rem;
   border-radius: 999px;
-  background: #0b1014;
+  background: var(--panel-3);
 }
 
 .source-meter span {
@@ -1895,7 +1921,7 @@ h2 {
 .season-trigger:hover,
 .episode-row:hover,
 .help-menu-item:hover {
-  border-color: #3a7fc2;
+  border-color: var(--accent);
   background: #17202a;
 }
 
@@ -2002,6 +2028,23 @@ h2 {
   display: block;
   color: var(--muted);
   font-size: 0.74rem;
+}
+
+.stats-kpi-loading {
+  color: var(--muted) !important;
+  animation: stats-kpi-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes stats-kpi-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.85; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stats-kpi-loading {
+    animation: none;
+    opacity: 0.6;
+  }
 }
 
 /* Stats: two-column body */
@@ -3411,7 +3454,7 @@ details[open] .tool-accordion-chevron::before {
 .help-doc-body code {
   border: 1px solid var(--line);
   border-radius: 3px;
-  background: #0b1014;
+  background: var(--panel-3);
   padding: 0.1rem 0.3rem;
 }
 
@@ -3446,7 +3489,7 @@ details[open] .tool-accordion-chevron::before {
   height: 0.7rem;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: #090d11;
+  background: var(--panel-3);
 }
 
 .import-progress-track span {
@@ -3543,7 +3586,7 @@ details[open] .tool-accordion-chevron::before {
   max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: #0b1014;
+  background: var(--panel-3);
   padding: 0.12rem 0.35rem;
   font-family: "Cascadia Mono", "Consolas", "SFMono-Regular", monospace;
   font-size: 0.625rem;
@@ -3796,9 +3839,9 @@ details[open] .tool-accordion-chevron::before {
 }
 
 .help-menu-item.active {
-  border-color: #315b86;
-  background: #172232;
-  color: #d9ecff;
+  border-color: var(--nav-active-border);
+  background: var(--nav-active-bg);
+  color: var(--nav-active-text);
 }
 
 .help-menu-item-title {
@@ -4041,7 +4084,7 @@ details[open] .tool-accordion-chevron::before {
   margin: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: #090d11;
+  background: var(--panel-3);
   color: #dbe3ea;
 }
 
@@ -4934,7 +4977,7 @@ details[open] .tool-accordion-chevron::before {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  background: #141b22;
+  background: var(--surface);
   border: 1px solid var(--line-strong);
   padding: 0.25rem 0.6rem;
   border-radius: 6px;
@@ -4950,7 +4993,7 @@ details[open] .tool-accordion-chevron::before {
 }
 
 .rating-pill-link:hover {
-  background: #1e2936;
+  background: var(--surface-hover);
   border-color: color-mix(in srgb, var(--accent), transparent 35%);
   color: #ffffff;
 }
@@ -4977,7 +5020,7 @@ details[open] .tool-accordion-chevron::before {
 .action-pill {
   background: rgba(37, 99, 235, 0.12);
   border: 1px solid rgba(37, 99, 235, 0.4);
-  color: #2563eb;
+  color: var(--blue);
   padding: 0.35rem 0.75rem;
   border-radius: 6px;
   font-size: 0.75rem;
@@ -4993,7 +5036,7 @@ details[open] .tool-accordion-chevron::before {
 .action-pill:hover {
   background: rgba(37, 99, 235, 0.2);
   border-color: rgba(37, 99, 235, 0.6);
-  color: #2563eb;
+  color: var(--blue);
 }
 
 .action-pill:disabled {
@@ -5049,7 +5092,7 @@ details[open] .tool-accordion-chevron::before {
 .progress-bar-track {
   width: 100%;
   height: 6px;
-  background: #141b22;
+  background: var(--surface);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -5106,7 +5149,7 @@ details[open] .tool-accordion-chevron::before {
 }
 
 .episodes-accordion-btn {
-  background: #141b22;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   color: var(--text);
@@ -5298,7 +5341,7 @@ details[open] .tool-accordion-chevron::before {
 
 .season-poster-card:hover .season-poster-img {
   transform: translateY(-4px);
-  border-color: #3a7fc2;
+  border-color: var(--accent);
 }
 
 .season-poster-name {
@@ -5484,15 +5527,15 @@ details[open] .tool-accordion-chevron::before {
   text-align: left;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
-  background: #141b22;
+  background: var(--surface);
   padding: 0.9rem 1rem;
   cursor: pointer;
   transition: background 150ms ease, border-color 150ms ease, transform 120ms ease;
 }
 
 .watch-date-pick:hover:not(:disabled) {
-  background: #1e2936;
-  border-color: #3a7fc2;
+  background: var(--surface-hover);
+  border-color: var(--accent);
   transform: translateY(-1px);
 }
 
@@ -5517,7 +5560,7 @@ details[open] .tool-accordion-chevron::before {
   gap: 0.7rem;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
-  background: #141b22;
+  background: var(--surface);
   padding: 0.9rem 1rem;
 }
 
@@ -5730,6 +5773,7 @@ details[open] .tool-accordion-chevron::before {
    like "Mark unwatched". */
 .action-pill-ghost {
   background: transparent;
+  border-color: var(--line-strong);
   color: var(--muted);
 }
 
@@ -5945,23 +5989,6 @@ details[open] .tool-accordion-chevron::before {
   .show-season-head {
     flex-direction: column;
   }
-}
-
-/* Plex-inspired application shell */
-:root {
-  --bg: #1f1f1f;
-  --panel: #232323;
-  --panel-2: #292929;
-  --panel-3: #171717;
-  --line: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.12);
-  --text: #f4f4f4;
-  --soft: #d0d0d0;
-  --muted: #8d8d8d;
-  --blue: #e5a00d;
-  --yellow: #e5a00d;
-  --field: #2b2b2b;
-  --radius: 4px;
 }
 
 html,
@@ -7950,9 +7977,9 @@ h1 {
 .sidebar-sub-menu .settings-tab.active,
 .sidebar-sub-menu .backups-sub-tab.active,
 .sidebar-sub-menu .help-menu-item.active {
-  border-color: #315b86;
-  background: #172232;
-  color: #d9ecff;
+  border-color: var(--nav-active-border);
+  background: var(--nav-active-bg);
+  color: var(--nav-active-text);
 }
 
 .sidebar-sub-menu .help-menu-group {
@@ -8191,7 +8218,7 @@ h1 {
   object-fit: cover;
   border-radius: 4px;
   border: 1px solid var(--line);
-  background: #090d11;
+  background: var(--panel-3);
   flex-shrink: 0;
   display: block;
 }
@@ -8324,7 +8351,7 @@ h1 {
 .overview-thumb-poster.poster-fallback {
   width: 100%;
   min-height: 160px;
-  background: #090d11;
+  background: var(--panel-3);
 }
 
 .overview-show-poster-btn,
@@ -8435,7 +8462,7 @@ h1 {
 
 .cast-member-card:hover .cast-avatar-img {
   transform: scale(1.03);
-  border-color: #3a7fc2;
+  border-color: var(--accent);
 }
 
 .cast-actor-name {
@@ -8573,7 +8600,7 @@ h1 {
 
 .media-image-card:hover {
   transform: translateY(-3px);
-  border-color: #3a7fc2;
+  border-color: var(--accent);
 }
 
 .media-image-thumb {
@@ -8740,7 +8767,7 @@ h1 {
   display: inline-block;
   padding: 0.18rem 0.55rem;
   border-radius: 999px;
-  background: #1e2936;
+  background: var(--surface-hover);
   border: 1px solid var(--line);
   color: var(--soft);
   font-size: 0.78rem;
@@ -8780,7 +8807,7 @@ h1 {
   margin-left: 0.4rem;
   padding: 0.05rem 0.45rem;
   border-radius: 999px;
-  background: #1e2936;
+  background: var(--surface-hover);
   color: var(--soft);
   font-size: 0.72rem;
   font-weight: 800;
@@ -9926,7 +9953,7 @@ details[open] > .tool-section-summary::before {
   display: block;
   border-radius: 6px;
   border: 1px solid var(--line);
-  background: #090d11;
+  background: var(--panel-3);
   transition: transform 140ms ease, border-color 140ms ease;
 }
 
@@ -10016,7 +10043,7 @@ details[open] > .tool-section-summary::before {
   object-fit: cover;
   border-radius: 4px;
   border: 1px solid var(--line);
-  background: #090d11;
+  background: var(--panel-3);
   display: block;
 }
 
@@ -10310,6 +10337,9 @@ html.light-mode {
   --red: #dc2626;
   --field: #ffffff;
   --accent: #2563eb;
+  --surface: #f1f5f9;
+  --surface-hover: #e2e8f0;
+  --text-primary: #0f172a;
 }
 
 html.light-mode,
@@ -10664,7 +10694,7 @@ html.light-mode .season-trigger:hover .explorer-folder-poster {
   width: calc(50% - 2px);
   height: calc(100% - 4px);
   border-radius: 999px;
-  background: #1e2936;
+  background: var(--surface-hover);
   transform: translateX(100%);
   transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1), background 220ms ease, box-shadow 220ms ease;
   z-index: 0;
@@ -10745,6 +10775,7 @@ html.light-mode .action-pill:hover {
 
 html.light-mode .action-pill-ghost {
   background: transparent;
+  border-color: var(--line-strong);
   color: var(--muted);
   box-shadow: none;
 }
@@ -11465,7 +11496,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 
 .settings-pane[data-settings-panel="backups"] .button-ghost:hover:not(:disabled),
 .settings-pane[data-settings-panel="backups"] .backup-file-button:hover {
-  border-color: #3a7fc2 !important;
+  border-color: var(--accent) !important;
   color: #f4f8fb !important;
   transform: none !important;
 }
@@ -11477,7 +11508,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 }
 
 .settings-pane[data-settings-panel="backups"] .button-danger:hover:not(:disabled) {
-  border-color: #3a7fc2 !important;
+  border-color: var(--accent) !important;
   color: #f4f8fb !important;
   transform: none !important;
 }
