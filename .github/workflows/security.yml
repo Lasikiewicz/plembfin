@@ -22,7 +22,14 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci --ignore-scripts
+      - name: npm ci --ignore-scripts (with retry)
+        run: |
+          for attempt in 1 2 3; do
+            npm ci --ignore-scripts && exit 0
+            echo "npm ci failed (attempt $attempt/3), retrying..."
+            sleep $((attempt * 5))
+          done
+          exit 1
       - run: npm audit --audit-level=high
 
   codeql:
