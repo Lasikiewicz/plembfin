@@ -495,6 +495,7 @@ export function openSeerrSeasonRequestDialog(mediaType, mediaId, { is4k = false 
     return;
   }
   const status = state.seerrMediaStatusCache.get(`tv:${mediaId}`) || {};
+  const latestSeasonNumber = Math.max(...seasons.map((season) => Number(season.season_number)));
 
   document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
   const overlay = document.createElement("div");
@@ -507,13 +508,14 @@ export function openSeerrSeasonRequestDialog(mediaType, mediaId, { is4k = false 
     const released = Number(availability?.released || availability?.total || season.episode_count || 0);
     const availableForKind = Number((is4k ? availability?.available4k : availability?.available) || 0);
     const isFullyAvailable = released > 0 && availableForKind >= released;
+    const isDefaultChecked = !isFullyAvailable && seasonNumber === latestSeasonNumber;
     const availabilityLabel = released
       ? (isFullyAvailable ? `All ${released} available${is4k ? " in 4K" : ""}` : `${availableForKind}/${released} available${is4k ? " in 4K" : ""}`)
       : "Episode count unknown";
     const seasonName = season.name && season.name !== `Season ${seasonNumber}` ? ` — ${escapeHtml(season.name)}` : "";
     return `
       <label class="seerr-season-row">
-        <input type="checkbox" class="seerr-season-checkbox" value="${seasonNumber}" ${isFullyAvailable ? "" : "checked"} ${isFullyAvailable ? "disabled" : ""} />
+        <input type="checkbox" class="seerr-season-checkbox" value="${seasonNumber}" ${isDefaultChecked ? "checked" : ""} ${isFullyAvailable ? "disabled" : ""} />
         <span class="seerr-season-row-label">Season ${seasonNumber}${seasonName}</span>
         <span class="seerr-season-row-status">${escapeHtml(availabilityLabel)}</span>
       </label>
@@ -521,7 +523,7 @@ export function openSeerrSeasonRequestDialog(mediaType, mediaId, { is4k = false 
   }).join("");
 
   overlay.innerHTML = `
-    <div class="edit-dialog glass-panel">
+    <div class="edit-dialog seerr-season-dialog glass-panel">
       <h3>Request ${is4k ? "4K " : ""}Seasons</h3>
       <p class="muted-copy">Choose which seasons of ${escapeHtml(showTitle)} to request${is4k ? " in 4K" : ""} on Seerr.</p>
       <div class="seerr-season-list">${rowsHtml}</div>

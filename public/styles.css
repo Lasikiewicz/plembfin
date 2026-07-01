@@ -5832,11 +5832,15 @@ details[open] .tool-accordion-chevron::before {
   flex-wrap: wrap;
 }
 
+.seerr-season-dialog {
+  width: min(640px, 94vw);
+}
+
 .seerr-season-list {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  max-height: 45vh;
+  max-height: 60vh;
   overflow-y: auto;
   padding-right: 0.25rem;
 }
