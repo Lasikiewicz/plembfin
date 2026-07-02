@@ -358,8 +358,8 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
             </div>
           </section>
         </div>
+        ${renderMediaFacts(tmdbData, "movie", "sidebar")}
       </header>
-      ${renderMediaFacts(tmdbData, "movie")}
       ${renderCollectionSection(tmdbData)}
       ${renderCastSection(tmdbData)}
       ${renderRichTmdbDetails(tmdbData)}

@@ -121,12 +121,6 @@ function compactDetails(details = {}) {
       logos: (details.images.logos || []).slice(0, 20),
     };
   }
-  if (details.belongs_to_collection && details.belongs_to_collection.parts) {
-    compact.belongs_to_collection = {
-      ...details.belongs_to_collection,
-      parts: details.belongs_to_collection.parts.slice(0, 20),
-    };
-  }
   return compact;
 }
 
@@ -186,8 +180,24 @@ async function upstream(path, params = {}, attempt = 0) {
 
 async function fetchTmdbRaw(type, id) {
   return compactDetails(await upstream(`${type}/${id}`, {
-    append_to_response: "credits,videos,reviews,similar,recommendations,watch/providers,keywords,external_ids,release_dates,content_ratings,images,belongs_to_collection",
+    append_to_response: "credits,videos,reviews,similar,recommendations,watch/providers,keywords,external_ids,release_dates,content_ratings,images",
   }));
+}
+
+// The movie details response only stubs belongs_to_collection ({id, name, poster_path,
+// backdrop_path}) — the member films (`parts`) require this separate collection call.
+async function fetchCollectionParts(collectionId) {
+  const cacheId = `collection_${collectionId}`;
+  const cached = metaGet(cacheId);
+  if (cached?.details && fresh(cached, 7 * DAY_MS)) return cached.details;
+  try {
+    const collection = await upstream(`collection/${collectionId}`, {});
+    const parts = (collection.parts || []).slice(0, 20);
+    metaSet(cacheId, { tmdbId: collectionId, mediaType: "collection", details: parts, schemaVersion: DETAILS_SCHEMA_VERSION, updatedAtMs: Date.now() });
+    return parts;
+  } catch {
+    return cached?.details || [];
+  }
 }
 
 async function cacheCanonicalArtwork(mediaType, tmdbId, details) {
@@ -345,6 +355,12 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
     try {
       const fetched = await fetchTmdbRaw(type, resolvedId);
       const details = { ...(cached?.details || {}), ...fetched };
+      if (details.belongs_to_collection?.id) {
+        details.belongs_to_collection = {
+          ...details.belongs_to_collection,
+          parts: await fetchCollectionParts(details.belongs_to_collection.id),
+        };
+      }
       Object.assign(details, await cacheCanonicalArtwork(type, resolvedId, details));
       metaSet(cacheId, { tmdbId: resolvedId, mediaType: type, details, schemaVersion: DETAILS_SCHEMA_VERSION, updatedAtMs: Date.now() });
       return details;
