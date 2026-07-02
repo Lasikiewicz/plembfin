@@ -232,15 +232,23 @@ export function renderCollectionSection(tmdbData) {
   if (!tmdbData) return "";
   const collection = tmdbData.belongs_to_collection;
   if (!collection || !collection.id) return "";
+  const movies = collection.parts || [];
+  if (!movies.length) return "";
   return `
     <section class="seasons-section collection-section">
-      <div class="show-section-title"><h3>Collection</h3></div>
+      <div class="show-section-title"><h3>${escapeHtml(collection.name)}</h3></div>
       <div class="horizontal-scroll-row" style="margin-top: 0.5rem;">
-        <div class="season-poster-card collection-card" data-collection-id="${collection.id}" style="text-align: center; padding: 0.5rem; opacity: 0.7;">
-          <div style="font-size: 2rem; margin-bottom: 0.5rem;">📚</div>
-          <span class="season-poster-name">${escapeHtml(collection.name || "Collection")}</span>
-          <span style="display: block; margin-top: 0.25rem; font-size: 0.8rem; color: var(--muted);">View collection</span>
-        </div>
+        ${movies.map((movie) => {
+    const poster = movie.poster_path ? tmdbPoster(movie.poster_path, movie.id, "movie") : "/favicon.svg";
+    const year = (movie.release_date || "").slice(0, 4);
+    const title = movie.title || movie.original_title || "";
+    return `
+            <a class="season-poster-card collection-movie" data-immersive-movie-id="${escapeAttribute(String(movie.id))}" href="/movie/tmdb/${escapeAttribute(String(movie.id))}">
+              <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(title)}" data-err="fav" />
+              <span class="season-poster-name">${escapeHtml(title)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
+            </a>
+          `;
+  }).join("")}
       </div>
     </section>
   `;

@@ -121,6 +121,12 @@ function compactDetails(details = {}) {
       logos: (details.images.logos || []).slice(0, 20),
     };
   }
+  if (details.belongs_to_collection && details.belongs_to_collection.parts) {
+    compact.belongs_to_collection = {
+      ...details.belongs_to_collection,
+      parts: details.belongs_to_collection.parts.slice(0, 20),
+    };
+  }
   return compact;
 }
 
