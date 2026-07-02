@@ -1,7 +1,20 @@
 {
-  "version": "0.3.0",
-  "updatedAt": "2026-07-01T16:28:28+01:00",
+  "version": "0.3.1",
+  "updatedAt": "2026-07-02T08:40:07+01:00",
   "entries": [
+    {
+      "version": "0.3.1",
+      "date": "2026-07-02T08:40:07+01:00",
+      "commit": "01205e54156c5806c1477a68e4beb90b7873f482",
+      "message": "fix: correct mobile dashboard and stats layout issues",
+      "author": "Lasikiewicz",
+      "details": [
+        "Shrink dashboard watch-history poster cards on mobile so they fit the screen instead of overflowing and overlapping the section below",
+        "Fix stats \"Plays\" number wrapping mid-digit on narrow screens",
+        "Fix Watch Activity chart month labels overlapping into unreadable text on mobile",
+        "Make the mobile nav menu a proper full-screen overlay instead of pushing page content down"
+      ]
+    },
     {
       "version": "0.3.0",
       "date": "2026-07-01T16:28:28+01:00",
