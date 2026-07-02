@@ -1,7 +1,19 @@
 {
-  "version": "0.3.11",
-  "updatedAt": "2026-07-02T13:06:59+01:00",
+  "version": "0.3.12",
+  "updatedAt": "2026-07-02T14:14:17+01:00",
   "entries": [
+    {
+      "version": "0.3.12",
+      "date": "2026-07-02T14:14:17+01:00",
+      "commit": "339e89c4f15e5e09f7ec9065538c49f2de05d4cf",
+      "message": "fix: restore season availability pills on TV show pages",
+      "author": "Lasikiewicz",
+      "details": [
+        "Season availability pills (1080p/4K available counts) stopped appearing on season accordions after the TheTVDB migration, because episode counts per season were never populated",
+        "TheTVDB series lookup now fetches full episode data so each season's episode count can be computed",
+        "Existing cached show metadata refreshes automatically on next view to pick up the corrected counts"
+      ]
+    },
     {
       "version": "0.3.11",
       "date": "2026-07-02T13:06:59+01:00",
