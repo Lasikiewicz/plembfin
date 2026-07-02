@@ -3,7 +3,7 @@ import { escapeHtml, escapeAttribute, formatDate, toDateInputValue, toDateTimeIn
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { mergeShowDetail } from "./explorer.js";
-import { resetPartWatchedView, renderPartWatched } from "./dashboard.js";
+import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js";
 import { tvSeasonAvailability } from "./media-detail-shared.js";
 
 // Callbacks injected by app.js at startup to break circular-import chains.
@@ -19,6 +19,7 @@ let _refreshActiveMediaDetailAfterSeerrStatus = () => {};
 let _renderImmersiveShowModal = async () => {};
 let _openShowImmersiveModalByTmdbId = async () => {};
 let _openMovieImmersiveModalByTmdbId = async () => {};
+let _patchMovieWatchedState = () => false;
 
 export function initWatchAction(callbacks) {
   if (callbacks.setMessage) _setMessage = callbacks.setMessage;
@@ -33,6 +34,7 @@ export function initWatchAction(callbacks) {
   if (callbacks.renderImmersiveShowModal) _renderImmersiveShowModal = callbacks.renderImmersiveShowModal;
   if (callbacks.openShowImmersiveModalByTmdbId) _openShowImmersiveModalByTmdbId = callbacks.openShowImmersiveModalByTmdbId;
   if (callbacks.openMovieImmersiveModalByTmdbId) _openMovieImmersiveModalByTmdbId = callbacks.openMovieImmersiveModalByTmdbId;
+  if (callbacks.patchMovieWatchedState) _patchMovieWatchedState = callbacks.patchMovieWatchedState;
 }
 
 function authHeaders() {
@@ -416,6 +418,38 @@ function watchRecordFromMovie(movie, watchedAt) {
 
 // ── Seerr request ──────────────────────────────────────────────────────────
 
+function localWatchRowFromMovie(movie, watchedAt, id = "") {
+  return {
+    id: id || `local-movie-${movie.tmdbId || movie.title}-${Date.now()}`,
+    media_type: "movie",
+    title: movie.title,
+    watched_at: watchedAt,
+    source: "manual",
+    sync_action: "watched",
+    tmdb_id: movie.tmdbId || null,
+    imdb_id: movie.imdbId || null,
+    tvdb_id: movie.tvdbId || null,
+    poster_url: movie.posterUrl || null,
+    logo_url: movie.logoUrl || null,
+    backdrop_url: movie.backdropUrl || null,
+    youtube_url: movie.youtubeUrl || null,
+  };
+}
+
+function rememberLocalWatchedMovie(movieRow) {
+  if (!movieRow?.id) return;
+  state.history = [
+    movieRow,
+    ...state.history.filter((entry) => {
+      if (entry.media_type !== "movie") return true;
+      if (String(entry.id || "") === String(movieRow.id)) return false;
+      if (movieRow.tmdb_id && String(entry.tmdb_id || "") === String(movieRow.tmdb_id)) return false;
+      return String(entry.title || "").toLowerCase() !== String(movieRow.title || "").toLowerCase();
+    }),
+  ];
+  state.moviesRaw = dedupeMediaRecords([movieRow, ...state.moviesRaw], "movies");
+}
+
 export async function submitSeerrRequest(mediaType, mediaId, button) {
   if (!mediaId || !mediaType) {
     _setMessage("Cannot send Seerr request — missing media info.", "error");
@@ -580,6 +614,7 @@ export async function postManualWatchRecords(records, onProgress) {
   let rejected = 0;
   let propagated = 0;
   let syncQueued = 0;
+  const results = [];
 
   for (let index = 0; index < records.length; index += IMPORT_BATCH_SIZE) {
     const batch = records.slice(index, index + IMPORT_BATCH_SIZE);
@@ -595,10 +630,11 @@ export async function postManualWatchRecords(records, onProgress) {
     rejected += Array.isArray(body.rejected) ? body.rejected.length : Number(body.rejected || 0);
     propagated += Number(body.propagated || 0);
     syncQueued += Number(body.syncQueued || 0);
+    if (Array.isArray(body.results)) results.push(...body.results);
     onProgress?.(Math.min(index + batch.length, records.length), records.length);
   }
 
-  return { inserted, skipped, rejected, propagated, syncQueued };
+  return { inserted, skipped, rejected, propagated, syncQueued, results };
 }
 
 export async function refreshShowAfterManualWatch(showTitle) {
@@ -638,6 +674,9 @@ async function applyMovieWatchDateChoice(choice) {
   try {
     const result = await postManualWatchRecords([record]);
     state.savingWatchAction = null;
+    const savedId = result.results?.[0]?.id || "";
+    const watchedMovie = localWatchRowFromMovie(movie, watchedAt, savedId);
+    rememberLocalWatchedMovie(watchedMovie);
     _clearDerivedUiCaches({ resetExplorer: false });
     const syncText = result.syncQueued
       ? `sync queued for ${result.syncQueued} item${result.syncQueued === 1 ? "" : "s"}`
@@ -646,11 +685,18 @@ async function applyMovieWatchDateChoice(choice) {
       `Marked "${movie.title}" watched${result.skipped ? " (already logged)" : ""}; ${syncText}.`,
       result.rejected ? "error" : "success",
     );
+    const patchedCurrentDetail = _patchMovieWatchedState(watchedMovie);
     await _loadHistory({ force: true }).catch(() => null);
-    if (movie.tmdbId) await _openMovieImmersiveModalByTmdbId(movie.tmdbId);
+    rememberLocalWatchedMovie(watchedMovie);
+    if (!patchedCurrentDetail && movie.tmdbId) {
+      await _openMovieImmersiveModalByTmdbId(movie.tmdbId);
+    }
   } catch (error) {
     state.savingWatchAction = null;
-    if (movie.tmdbId) await _openMovieImmersiveModalByTmdbId(movie.tmdbId).catch(() => null);
+    if (markWatchedBtn) {
+      markWatchedBtn.disabled = false;
+      markWatchedBtn.textContent = "Mark watched";
+    }
     _setMessage(`Manual watch update failed: ${error.message}`, "error");
     throw error;
   }

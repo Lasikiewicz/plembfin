@@ -215,6 +215,64 @@ function _renderWatchedMovieContent(root, movie, {
   hydratePosters(root);
 }
 
+export function patchMovieWatchedState(movie) {
+  if (!movie?.id) return false;
+  const root = mediaDetailRoot();
+  const page = root?.querySelector?.(".media-detail-page");
+  if (!page) return false;
+
+  state.activeMovieModalId = movie.id;
+  state.activeMovieTmdbId = movie.tmdb_id ? String(movie.tmdb_id) : state.activeMovieTmdbId;
+
+  const syncStatusDotHtml = renderSyncStatusDot(movie);
+  const visibleSyncStatuses = getMediaTargetSyncStatus(movie).filter((s) => !s.hidden);
+  const allSynced = !visibleSyncStatuses.length || visibleSyncStatuses.every((s) => s.status === "success" || s.status === "skipped");
+  const syncStatusBlockHtml = syncStatusDotHtml ? `
+            <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
+              <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase;">Sync Status:</span>
+              ${syncStatusDotHtml}
+              ${!allSynced ? `<button class="retry-sync-btn action-pill" type="button" data-retry-sync-id="${escapeAttribute(movie.id)}" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Retry Sync</button>` : ""}
+            </div>
+  ` : "";
+  const ratingsRow = page.querySelector(".ratings-row");
+  if (ratingsRow && syncStatusBlockHtml && !ratingsRow.querySelector("[data-sync-status-dot]")) {
+    ratingsRow.insertAdjacentHTML("beforeend", syncStatusBlockHtml);
+  }
+
+  const ytWatchBtn = movie.youtube_url
+    ? `<a class="action-pill" href="${escapeAttribute(movie.youtube_url)}" target="_blank" rel="noopener noreferrer">Watch on YouTube</a>`
+    : "";
+
+  setMediaDetailActions(`
+    <details class="media-actions-menu">
+      <summary class="action-pill media-actions-menu-trigger">Movie actions</summary>
+      <div class="media-actions-menu-panel">
+        <button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">Mark unwatched</button>
+        <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">Edit Images</button>
+        <button class="action-pill media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">Fix Match</button>
+        <button class="action-pill action-pill-danger" type="button" data-delete-media-id="${escapeAttribute(movie.id)}" data-delete-media-title="${escapeAttribute(movie.title || "this movie")}">Delete</button>
+      </div>
+    </details>
+    ${ytWatchBtn}
+  `);
+
+  const progressSection = page.querySelector(".progress-section");
+  if (progressSection) {
+    progressSection.innerHTML = `
+            <h3>Watch Status</h3>
+            <div class="progress-label-row">
+              <span>Watched on ${formatDate(movie.watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(movie.id)}" data-watched-at="${escapeAttribute(movie.watched_at || "")}">âœŽ</button></span>
+              <span>100% complete</span>
+            </div>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" style="width: 100%;"></div>
+            </div>
+    `;
+  }
+
+  return true;
+}
+
 export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   state.activeMovieTmdbId = String(tmdbId);
   // Fast path: if it's in the loaded preview, show its watched detail immediately.

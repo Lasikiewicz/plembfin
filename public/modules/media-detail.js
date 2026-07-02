@@ -12,7 +12,7 @@ import {
   renderImmersiveShowModal, renderShowModalContent,
 } from "./media-detail-show.js";
 import {
-  renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId,
+  renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
 } from "./media-detail-movie.js";
 import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js";
 
@@ -30,6 +30,7 @@ export {
   openShowImmersiveModalByTmdbId,
   renderMovieImmersiveModalContent,
   openMovieImmersiveModalByTmdbId,
+  patchMovieWatchedState,
   fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus,
 };
