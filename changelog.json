@@ -7,7 +7,12 @@
       "date": "2026-07-02T11:18:08+01:00",
       "commit": "c8ba73fce5e9bbd692b42c6e9792bfdbb187b757",
       "message": "fix: harden tvdb gateway requests",
-      "author": "Lasikiewicz"
+      "author": "Lasikiewicz",
+      "details": [
+        "Restrict TVDB gateway requests to known API endpoints instead of accepting arbitrary path strings.",
+        "Validate TVDB series and season IDs before building upstream request URLs.",
+        "Replace the TVDB API-key cache fingerprint with a stronger PBKDF2-SHA256 fingerprint to satisfy GitHub CodeQL."
+      ]
     },
     {
       "version": "0.3.6",
@@ -26,14 +31,24 @@
       "date": "2026-07-02T10:55:31+01:00",
       "commit": "dfc096f332b654f71e15d8a6421ff995f9182211",
       "message": "fix: reduce tvdb refresh traffic",
-      "author": "Lasikiewicz"
+      "author": "Lasikiewicz",
+      "details": [
+        "Cache TVDB search, series, and season responses with longer lifetimes for archived shows and shorter lifetimes for active/upcoming shows.",
+        "Deduplicate simultaneous TVDB lookups so repeated page loads share one upstream request instead of launching parallel refreshes.",
+        "Reuse cached TVDB details when a refresh fails, keeping show pages usable during temporary TVDB errors or rate limits."
+      ]
     },
     {
       "version": "0.3.4",
       "date": "2026-07-02T10:33:01+01:00",
       "commit": "6b11598597cb0982e6fd3cfbdcfcce75e9cb0477",
       "message": "fix: add tv rematch tools",
-      "author": "Lasikiewicz"
+      "author": "Lasikiewicz",
+      "details": [
+        "Add TV show rematch controls that can search TheTVDB and update every episode in a show together.",
+        "Add a maintenance tool to batch rematch existing TV shows after switching episode metadata to TheTVDB.",
+        "Refresh cached show artwork and IDs after rematches so detail pages, season lists, and library rows use the corrected match."
+      ]
     },
     {
       "version": "0.3.3",
