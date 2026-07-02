@@ -204,10 +204,10 @@ function _renderWatchedMovieContent(root, movie, {
         </div>
         ${renderMediaFacts(tmdbData, "movie", "sidebar")}
       </header>
-      ${tmdbData ? renderCollectionSection(tmdbData) : ""}
       ${tmdbData ? renderCastSection(tmdbData) : ""}
       ${tmdbData ? renderRichTmdbDetails(tmdbData) : ""}
       ${tmdbData ? renderMediaImagesSection(tmdbData) : ""}
+      ${tmdbData ? renderCollectionSection(tmdbData) : ""}
       ${renderRecommendationSection({ title: "Recommended movies", items: recommendations, mediaType: "movie" })}
       ${renderRecommendationSection({ title: "Recommended TV Shows", items: tvRecommendations, mediaType: "tv" })}
     </div>
@@ -360,9 +360,9 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
         </div>
         ${renderMediaFacts(tmdbData, "movie", "sidebar")}
       </header>
-      ${renderCollectionSection(tmdbData)}
       ${renderCastSection(tmdbData)}
       ${renderRichTmdbDetails(tmdbData)}
+      ${renderCollectionSection(tmdbData)}
       ${renderRecommendationSection({ title: "Recommended movies", items: recommendations, mediaType: "movie" })}
       ${renderRecommendationSection({ title: "Recommended TV Shows", items: tvRecommendations, mediaType: "tv" })}
     </div>

@@ -9,7 +9,7 @@ import { resolveTvdbSeriesId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, shap
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DETAILS_SCHEMA_VERSION = 9; // bumped: number_of_episodes/number_of_seasons now exclude specials (season 0), which were inflating watched-progress totals
+const DETAILS_SCHEMA_VERSION = 10; // bumped: belongs_to_collection now includes parts (fetched from /collection/{id}), previously only a stub with no member films
 const PERSON_SCHEMA_VERSION = 5;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const MISSING_TTL_MS = DAY_MS;
