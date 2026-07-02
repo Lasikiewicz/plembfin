@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { db } from "../db.js";
+import { db, bumpDataVersion } from "../db.js";
 import { getTmdbDetails } from "./tmdbGateway.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -58,20 +58,39 @@ function isPlembfinTrackedWatchRow(row = {}) {
 }
 
 /**
- * Loads show progress cache from the JSON file. Rebuilds if file is missing.
+ * Titles of shows present in watch history that have no progress cache entry
+ * at all yet — e.g. shows watched before this cache existed, or added outside
+ * the incremental queueShowProgressUpdate() call sites.
  */
+function findUncachedShowTitles() {
+  const rows = db.prepare(`
+    SELECT show_title, title, sync_action, sync_dispatch_telemetry
+    FROM watch_history
+    WHERE media_type = 'episode'
+  `).all();
+  const titles = new Set();
+  for (const row of rows.filter(isPlembfinTrackedWatchRow)) {
+    const showTitle = showTitleFrom(row.show_title || row.title);
+    const showKey = canonicalTitleKey(showTitle) || normalizeKeyPart(showTitle);
+    if (!progressCache[showKey]) titles.add(showTitle);
+  }
+  return titles;
+}
+
 export async function initShowProgressCache() {
   if (fs.existsSync(CACHE_FILE_PATH)) {
     try {
       const data = fs.readFileSync(CACHE_FILE_PATH, "utf8");
       progressCache = JSON.parse(data);
       const total = Object.keys(progressCache).length;
-      const missingTotals = Object.values(progressCache).filter((s) => !s.total_episodes);
+      const missingTotals = Object.values(progressCache).filter((s) => !s.total_episodes).map((s) => s.title);
+      const uncached = findUncachedShowTitles();
+      const toQueue = new Set([...missingTotals, ...uncached]);
       console.log(`[ShowProgressCache] Loaded ${total} shows from cache file.`);
-      if (missingTotals.length) {
-        console.log(`[ShowProgressCache] Scheduling background refresh for ${missingTotals.length} shows missing total episode count.`);
+      if (toQueue.size) {
+        console.log(`[ShowProgressCache] Scheduling background refresh for ${toQueue.size} shows (missing total episode count or never cached).`);
         setImmediate(() => {
-          for (const show of missingTotals) queueShowProgressUpdate(show.title);
+          for (const title of toQueue) queueShowProgressUpdate(title);
           flushShowProgressUpdates().catch((e) => console.error("[ShowProgressCache] Background refresh error:", e));
         });
       }
@@ -175,6 +194,10 @@ export async function flushShowProgressUpdates() {
   } catch (e) {
     console.error("[ShowProgressCache] Failed to save updated progress cache:", e);
   }
+  // The show list is memoized by data version — bump it so refreshed totals
+  // (e.g. from the startup background refresh) are visible without waiting
+  // for an unrelated watch event to invalidate the cache.
+  bumpDataVersion();
 }
 
 /**

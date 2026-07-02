@@ -319,6 +319,7 @@ export function shapeTvdbSeriesAsTmdb(extended) {
 
   const tmdbId = bestRemoteId(extended.remoteIds, ["TheMovieDB"]);
   const imdbId = bestRemoteId(extended.remoteIds, ["IMDB"]);
+  const numberOfEpisodes = seasons.reduce((sum, season) => sum + (Number(season.episode_count) || 0), 0);
 
   return {
     name: extended.name || "",
@@ -328,6 +329,8 @@ export function shapeTvdbSeriesAsTmdb(extended) {
     genres: (extended.genres || []).map((genre) => ({ id: genre.id, name: genre.name })),
     networks: extended.originalNetwork ? [{ id: extended.originalNetwork.id, name: extended.originalNetwork.name }] : [],
     seasons,
+    number_of_episodes: numberOfEpisodes,
+    number_of_seasons: seasons.length,
     tvdb_poster_url: extended.image || null,
     external_ids: {
       tvdb_id: String(extended.id || ""),
