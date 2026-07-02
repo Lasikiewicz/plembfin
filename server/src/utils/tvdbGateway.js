@@ -12,6 +12,7 @@ const UPCOMING_SEASON_TTL_MS = 2 * DAY_MS;
 const ACTIVE_SEASON_TTL_MS = 7 * DAY_MS;
 const ARCHIVED_SEASON_TTL_MS = 180 * DAY_MS;
 const TOKEN_LIFETIME_MS = 25 * DAY_MS;
+const TVDB_ID_PATTERN = /^\d+$/;
 const inflight = new Map();
 let nextRequestAt = 0;
 let throttleTail = Promise.resolve();
@@ -33,7 +34,11 @@ const seasonSetStmt = db.prepare(
 );
 
 function hash(value) {
-  return crypto.createHash("sha1").update(String(value)).digest("hex");
+  return crypto.createHash("sha256").update(String(value)).digest("hex");
+}
+
+function secretFingerprint(value) {
+  return crypto.pbkdf2Sync(String(value), "plembfin-tvdb-token-cache-v1", 100000, 32, "sha256").toString("hex");
 }
 
 function canonicalTitle(value = "") {
@@ -103,7 +108,7 @@ async function effectiveApiKey() {
 
 async function getToken({ forceRefresh = false } = {}) {
   const apiKey = await effectiveApiKey();
-  const keyHash = hash(apiKey);
+  const keyHash = secretFingerprint(apiKey);
   const runtime = await loadRuntimeState().catch(() => ({}));
   if (!forceRefresh && runtime.tvdbToken && runtime.tvdbTokenKeyHash === keyHash && fresh(runtime.tvdbTokenIssuedAtMs, TOKEN_LIFETIME_MS)) {
     return runtime.tvdbToken;
@@ -130,21 +135,44 @@ async function getToken({ forceRefresh = false } = {}) {
   return token;
 }
 
-async function upstream(path, params = {}, attempt = 0) {
-  await throttle();
-  const token = await getToken();
-  const url = new URL(`${API_ROOT}/${String(path).replace(/^\/+/, "")}`);
+function normalizeTvdbId(value) {
+  const id = String(value || "").trim().replace(/^series-/, "");
+  return TVDB_ID_PATTERN.test(id) ? id : "";
+}
+
+function tvdbEndpointUrl(endpoint, params = {}) {
+  const url = new URL(`${API_ROOT}/`);
+  if (endpoint === "search") {
+    url.pathname = "/v4/search";
+  } else if (endpoint?.type === "series-extended") {
+    const id = normalizeTvdbId(endpoint.id);
+    if (!id) throw Object.assign(new Error("Valid TVDB series id is required"), { status: 400 });
+    url.pathname = `/v4/series/${id}/extended`;
+  } else if (endpoint?.type === "season-extended") {
+    const id = normalizeTvdbId(endpoint.id);
+    if (!id) throw Object.assign(new Error("Valid TVDB season id is required"), { status: 400 });
+    url.pathname = `/v4/seasons/${id}/extended`;
+  } else {
+    throw Object.assign(new Error("Unsupported TVDB endpoint"), { status: 500 });
+  }
   for (const [name, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== "") url.searchParams.set(name, String(value));
   }
+  return url;
+}
+
+async function upstream(endpoint, params = {}, attempt = 0) {
+  await throttle();
+  const token = await getToken();
+  const url = tvdbEndpointUrl(endpoint, params);
   const response = await fetch(url, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` } });
   if (response.status === 401 && attempt < 1) {
     await getToken({ forceRefresh: true });
-    return upstream(path, params, attempt + 1);
+    return upstream(endpoint, params, attempt + 1);
   }
   if (response.status === 429 && attempt < 2) {
     await wait(1000 + Math.floor(Math.random() * 250));
-    return upstream(path, params, attempt + 1);
+    return upstream(endpoint, params, attempt + 1);
   }
   if (!response.ok) {
     const error = new Error(`TVDB request failed with ${response.status}`);
@@ -156,7 +184,7 @@ async function upstream(path, params = {}, attempt = 0) {
 }
 
 export async function resolveTvdbSeriesId({ tvdbId = "", title = "" } = {}) {
-  const cleanedId = String(tvdbId || "").trim();
+  const cleanedId = normalizeTvdbId(tvdbId);
   if (cleanedId) return cleanedId;
 
   const cleanedTitle = String(title || "").trim();
@@ -172,7 +200,7 @@ export async function resolveTvdbSeriesId({ tvdbId = "", title = "" } = {}) {
   try {
     const results = await upstream("search", { query: cleanedTitle, type: "series" });
     const best = Array.isArray(results) ? results[0] : null;
-    const resolvedId = best ? String(best.tvdb_id || best.id || "").replace(/^series-/, "") : "";
+    const resolvedId = best ? normalizeTvdbId(best.tvdb_id || best.id) : "";
     seriesSetStmt.run({ id: cacheKey, tvdb_id: resolvedId, title: cleanedTitle, details: toJson({ tvdb_id: resolvedId }), updated_at_ms: Date.now() });
     return resolvedId;
   } catch {
@@ -185,7 +213,7 @@ export async function searchTvdbSeriesList(query) {
   if (!cleaned) return [];
   const results = await upstream("search", { query: cleaned, type: "series" });
   return (Array.isArray(results) ? results : []).slice(0, 10).map((item) => ({
-    tvdb_id: String(item.tvdb_id || item.id || "").replace(/^series-/, ""),
+    tvdb_id: normalizeTvdbId(item.tvdb_id || item.id),
     name: item.name || item.translations?.eng || "Unknown",
     year: item.year || (item.first_air_time || "").slice(0, 4) || "",
     image_url: item.image_url || item.thumbnail || "",
@@ -193,7 +221,7 @@ export async function searchTvdbSeriesList(query) {
 }
 
 export async function getTvdbSeriesExtended(tvdbId, { force = false } = {}) {
-  const id = String(tvdbId || "").trim();
+  const id = normalizeTvdbId(tvdbId);
   if (!id) return null;
   return collapse(`series:${id}`, async () => {
     const cacheId = `series_${id}`;
@@ -201,7 +229,7 @@ export async function getTvdbSeriesExtended(tvdbId, { force = false } = {}) {
     const cached = row ? { details: parseJson(row.details), updatedAtMs: row.updated_at_ms } : null;
     if (!force && cached?.details && fresh(cached.updatedAtMs, seriesCacheTtl(cached.details))) return cached.details;
     try {
-      const details = await upstream(`series/${id}/extended`, { meta: "translations" });
+      const details = await upstream({ type: "series-extended", id }, { meta: "translations" });
       seriesSetStmt.run({ id: cacheId, tvdb_id: id, title: details?.name || "", details: toJson(details), updated_at_ms: Date.now() });
       return details;
     } catch (error) {
@@ -219,7 +247,7 @@ function pickSeasonId(extended, seasonNumber) {
 }
 
 export async function getTvdbSeasonEpisodes({ tvdbId, seasonNumber }) {
-  const id = String(tvdbId || "").trim();
+  const id = normalizeTvdbId(tvdbId);
   const number = Number(seasonNumber);
   if (!id || !Number.isInteger(number) || number < 0) {
     const error = new Error("tvdbId and a valid seasonNumber are required");
@@ -238,7 +266,7 @@ export async function getTvdbSeasonEpisodes({ tvdbId, seasonNumber }) {
         if (cached?.details) return shapeEpisodes(cached.details);
         return { episodes: [] };
       }
-      const seasonDetails = await upstream(`seasons/${season.id}/extended`);
+      const seasonDetails = await upstream({ type: "season-extended", id: season.id });
       seasonSetStmt.run({ id: cacheId, tvdb_id: id, season_number: number, details: toJson(seasonDetails), updated_at_ms: Date.now() });
       return shapeEpisodes(seasonDetails);
     } catch (error) {
