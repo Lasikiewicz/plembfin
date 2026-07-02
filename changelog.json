@@ -1,7 +1,21 @@
 {
-  "version": "0.4.2",
-  "updatedAt": "2026-07-02T20:21:32+01:00",
+  "version": "0.4.3",
+  "updatedAt": "2026-07-02T20:32:31+01:00",
   "entries": [
+    {
+      "version": "0.4.3",
+      "date": "2026-07-02T20:32:31+01:00",
+      "commit": "436c1b5ee157d32e88e461e1f7caf5a4acffcbc2",
+      "message": "feat: add movie collections and always-visible app quick-links",
+      "author": "Lasikiewicz",
+      "details": [
+        "Movie pages now show a Collection row with poster cards for other films in the same franchise (e.g. A Quiet Place, A Quiet Place Part II, A Quiet Place: Day One)",
+        "Plex/Emby/Jellyfin \"Open in\" icons appear immediately on movie and TV pages (greyed out while checking) and become clickable once the app confirms the title exists on that server",
+        "Fixed season availability pills showing a color that contradicted their own count (a fully-watched season could show a green pill reading \"0/20 available\") and consolidated the separate 4K pill into a small tag inside the main pill",
+        "Fixed season rows floating toward the middle of the page instead of sitting close to the season title",
+        "Fixed the unwatched-movie page layout splitting the poster/title from the details sidebar into two separate rows"
+      ]
+    },
     {
       "version": "0.4.2",
       "date": "2026-07-02T20:21:32+01:00",
