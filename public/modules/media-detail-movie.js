@@ -261,7 +261,7 @@ export function patchMovieWatchedState(movie) {
     progressSection.innerHTML = `
             <h3>Watch Status</h3>
             <div class="progress-label-row">
-              <span>Watched on ${formatDate(movie.watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(movie.id)}" data-watched-at="${escapeAttribute(movie.watched_at || "")}">âœŽ</button></span>
+              <span>Watched on ${formatDate(movie.watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(movie.id)}" data-watched-at="${escapeAttribute(movie.watched_at || "")}">✎</button></span>
               <span>100% complete</span>
             </div>
             <div class="progress-bar-track">
