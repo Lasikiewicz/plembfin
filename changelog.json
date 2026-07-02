@@ -1,7 +1,22 @@
 {
-  "version": "0.3.1",
-  "updatedAt": "2026-07-02T08:40:07+01:00",
+  "version": "0.3.2",
+  "updatedAt": "2026-07-02T09:48:15+01:00",
   "entries": [
+    {
+      "version": "0.3.2",
+      "date": "2026-07-02T09:48:15+01:00",
+      "commit": "caf05a0f9b470485ffcde8df3ffeae5a11148706",
+      "message": "feat: source TV show episode data from TheTVDB instead of TMDB",
+      "author": "Lasikiewicz",
+      "details": [
+        "TV shows now pull season/episode numbering, titles, air dates, and artwork from TheTVDB, which is more accurate than TMDB for many shows; cast, trailers, reviews, and recommendations still come from TMDB",
+        "Movies are unaffected and remain 100% TMDB-sourced",
+        "Added a \"TheTVDB\" tab under Settings -> API Keys with an optional personal API key (a built-in key works out of the box, like the existing Fanart.tv setup)",
+        "\"Fix Match\" on a TV show now searches TheTVDB and rematches every episode of the show at once, instead of only patching a single record",
+        "Fixed a CSP gap that silently blocked TheTVDB artwork from loading",
+        "Existing cached show data is automatically refreshed to the new source on next view, no manual steps needed"
+      ]
+    },
     {
       "version": "0.3.1",
       "date": "2026-07-02T08:40:07+01:00",
