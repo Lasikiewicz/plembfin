@@ -1,7 +1,14 @@
 {
-  "version": "0.3.4",
-  "updatedAt": "2026-07-02T10:33:01+01:00",
+  "version": "0.3.5",
+  "updatedAt": "2026-07-02T10:55:31+01:00",
   "entries": [
+    {
+      "version": "0.3.5",
+      "date": "2026-07-02T10:55:31+01:00",
+      "commit": "dfc096f332b654f71e15d8a6421ff995f9182211",
+      "message": "fix: reduce tvdb refresh traffic",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.3.4",
       "date": "2026-07-02T10:33:01+01:00",
