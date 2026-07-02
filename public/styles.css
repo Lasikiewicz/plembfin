@@ -527,14 +527,6 @@ h2 {
   .media-facts-rail--sidebar {
     grid-template-columns: 1fr;
   }
-
-  .season-accordion-trigger {
-    align-items: flex-start;
-  }
-
-  .season-accordion-title {
-    flex-wrap: wrap;
-  }
 }
 
 @media (min-width: 761px) and (max-width: 1180px) {
@@ -9452,12 +9444,12 @@ html.light-mode .history-mini-card-title {
 }
 
 .season-accordion-trigger {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(90px, auto) minmax(84px, auto) minmax(140px, auto) minmax(140px, 1fr) auto;
   width: 100%;
   min-height: 48px;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  column-gap: var(--space-3);
   border: 0;
   background: transparent;
   color: var(--text);
@@ -9474,12 +9466,30 @@ html.light-mode .history-mini-card-title {
   border-bottom: 1px solid var(--line-strong);
 }
 
-.season-accordion-title {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.2rem;
+.season-row-title {
   min-width: 0;
+}
+
+.season-row-title strong {
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.season-row-col {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.season-row-next {
+  color: var(--soft);
 }
 
 .season-accordion-meta {
@@ -9487,52 +9497,6 @@ html.light-mode .history-mini-card-title {
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-}
-
-.season-accordion-title strong {
-  font-size: 0.9rem;
-  line-height: 1.2;
-}
-
-.season-meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  row-gap: 0.25rem;
-  column-gap: 0.6rem;
-}
-
-.season-episode-count {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  row-gap: 0.15rem;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 500;
-  line-height: 1.35;
-  white-space: normal;
-  text-align: left;
-}
-
-.season-meta-part {
-  white-space: nowrap;
-}
-
-.season-meta-dot {
-  color: var(--soft);
-  opacity: 0.55;
-  margin: 0 0.4rem;
-}
-
-.season-availability-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.season-accordion-meta {
   flex-shrink: 0;
   color: var(--muted);
   font-size: 0.72rem;
@@ -9727,7 +9691,23 @@ html:not(.light-mode) .episode-progress-fill {
 
 @media (max-width: 760px) {
   .season-accordion-trigger {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    row-gap: 0.35rem;
     padding-inline: var(--space-3);
+  }
+
+  .season-row-title {
+    flex: 1 1 100%;
+  }
+
+  .season-row-col {
+    flex: 0 1 auto;
+  }
+
+  .season-accordion-meta {
+    margin-left: auto;
   }
 
   .season-accordion-panel {

@@ -629,25 +629,17 @@ export function renderShowModalContent(show, {
     const { watchedInSeason, seasonTotal, nextAiringText } = showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle, tmdbData, seasonDetailsByNumber);
     const isActive = seasonNumber === selectedSeasonNumber;
     const panelId = `seasonAccordionPanel${seasonNumber}`;
-    const seasonMetaParts = [
-      `${seasonTotal || "?"} episode${seasonTotal === 1 ? "" : "s"}`,
-      watchedInSeason ? `${watchedInSeason} watched` : null,
-      nextAiringText || null,
-    ].filter(Boolean);
-    const seasonMetaText = seasonMetaParts
-      .map((part) => `<span class="season-meta-part">${escapeHtml(part)}</span>`)
-      .join(`<span class="season-meta-dot" aria-hidden="true">&bull;</span>`);
+    const episodeCountText = `${seasonTotal || "?"} episode${seasonTotal === 1 ? "" : "s"}`;
+    const watchedText = watchedInSeason ? `${watchedInSeason} watched` : "";
     const seasonAvailabilityHtml = tvSeasonAvailabilityHtml(tvSeerrStatus, seasonNumber, watchedInSeason);
     return `
       <article class="season-accordion ${isActive ? "is-open" : ""}">
         <button class="season-accordion-trigger" type="button" data-season-accordion="${seasonNumber}" aria-expanded="${isActive}" aria-controls="${panelId}">
-          <span class="season-accordion-title">
-            <strong>${escapeHtml(season.name || seasonLabel(seasonNumber))}</strong>
-            <span class="season-meta-row">
-              <span class="season-episode-count">${seasonMetaText}</span>
-              ${seasonAvailabilityHtml ? `<span class="season-availability-row">${seasonAvailabilityHtml}</span>` : ""}
-            </span>
-          </span>
+          <span class="season-row-title"><strong>${escapeHtml(season.name || seasonLabel(seasonNumber))}</strong></span>
+          <span class="season-row-col season-row-episodes">${escapeHtml(episodeCountText)}</span>
+          <span class="season-row-col season-row-watched">${escapeHtml(watchedText)}</span>
+          <span class="season-row-col season-row-availability">${seasonAvailabilityHtml}</span>
+          <span class="season-row-col season-row-next">${escapeHtml(nextAiringText)}</span>
           <span class="season-accordion-meta">
             <svg class="season-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </span>

@@ -807,12 +807,12 @@ function jellyfinWebUrl(config = {}, item = {}) {
   return `${trimTrailingSlash(config.baseUrl)}/web/#/details?id=${encodeURIComponent(item.Id)}`;
 }
 
+// Bundled locally rather than hotlinked from the media server: favicon.ico isn't
+// reliably served at that path across Plex/Emby/Jellyfin versions and self-hosted
+// TLS setups, which left the "Open in" pills showing text only, with no icon.
 function appIconUrl(config = {}, target = "") {
   if (!config.baseUrl) return "";
-  const baseUrl = trimTrailingSlash(config.baseUrl);
-  if (target === "plex") return `${baseUrl}/web/favicon.ico`;
-  if (target === "emby") return `${baseUrl}/web/favicon.ico`;
-  if (target === "jellyfin") return `${baseUrl}/web/favicon.ico`;
+  if (target === "plex" || target === "emby" || target === "jellyfin") return `/icons/${target}.svg`;
   return "";
 }
 
