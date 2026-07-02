@@ -15,13 +15,38 @@ const sourceMessage = rawMessage.split(/\r?\n/, 1)[0];
 const sourceDate = String(process.env.SOURCE_DATE || new Date().toISOString()).trim();
 const sourceAuthor = String(process.env.SOURCE_AUTHOR || "unknown").trim();
 
-// Extract bullet-point lines from the commit body as structured details
-const sourceDetails = rawMessage
-  .split(/\r?\n/)
-  .slice(1)
-  .map((l) => l.trim())
-  .filter((l) => /^[-*]\s+/.test(l))
-  .map((l) => l.replace(/^[-*]\s+/, ""));
+// Extract bullet-point lines from a commit message body as structured details
+function bulletPointsFrom(message) {
+  return String(message || "")
+    .split(/\r?\n/)
+    .slice(1)
+    .map((l) => l.trim())
+    .filter((l) => /^[-*]\s+/.test(l))
+    .map((l) => l.replace(/^[-*]\s+/, ""));
+}
+
+const sourceDetails = bulletPointsFrom(rawMessage);
+
+// A `git push` can carry several commits, but GitHub's push event only exposes
+// head_commit — everything else would silently vanish from the changelog if a
+// multi-commit push isn't summarized by hand in the final commit message.
+// COMMITS_JSON (every commit in this push) backfills the rest: each earlier
+// commit contributes its own bullet points, or its subject line if it has none,
+// so no commit's work is ever dropped just because it wasn't the last one pushed.
+let backfilledDetails = [];
+try {
+  const commits = JSON.parse(process.env.COMMITS_JSON || "[]");
+  const others = commits.filter((c) => c.id !== sourceCommit && !/^chore: update changelog for /.test(String(c.message || "")));
+  for (const commit of others) {
+    const bullets = bulletPointsFrom(commit.message);
+    if (bullets.length) backfilledDetails.push(...bullets);
+    else backfilledDetails.push(String(commit.message || "").split(/\r?\n/, 1)[0].trim());
+  }
+} catch {
+  // COMMITS_JSON absent or malformed (e.g. a manual workflow run) — just skip backfill.
+}
+
+const allDetails = [...backfilledDetails, ...sourceDetails].filter((v, i, arr) => v && arr.indexOf(v) === i);
 
 if (!sourceCommit) {
   console.error("SOURCE_COMMIT is required");
@@ -62,7 +87,7 @@ const entry = {
   message: sourceMessage,
   author: sourceAuthor,
 };
-if (sourceDetails.length > 0) entry.details = sourceDetails;
+if (allDetails.length > 0) entry.details = allDetails;
 changelog.entries.unshift(entry);
 
 packageJson.version = nextVersion;

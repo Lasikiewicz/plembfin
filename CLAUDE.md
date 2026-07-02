@@ -80,6 +80,8 @@ git push origin main
 ```
 CI will then auto-bump the patch version, add a `changelog.json` entry, and build/push the Docker image.
 
+The generated entry's headline and version always come from the last commit in the push, but the `details` list is backfilled from bullet points in *every* commit included in that push (falling back to a commit's subject line if it has no bullets) — see `scripts/update-changelog.js`. Nothing gets silently dropped even if the final commit's message doesn't summarize the whole push. Still, write the last commit's message as a proper user-facing summary of the session's work — features and fixes, no internal implementation details (file names, CSS properties, line counts) — since it becomes the entry's headline.
+
 ## Commands
 
 ```bash
