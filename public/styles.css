@@ -9465,7 +9465,7 @@ html.light-mode .history-mini-card-title {
 
 .season-accordion-trigger {
   display: grid;
-  grid-template-columns: minmax(110px, 1fr) minmax(90px, auto) minmax(84px, auto) minmax(140px, auto) minmax(140px, 1fr) auto;
+  grid-template-columns: minmax(110px, 260px) minmax(90px, auto) minmax(84px, auto) minmax(150px, auto) minmax(140px, 1fr) auto;
   width: 100%;
   min-height: 48px;
   align-items: center;
