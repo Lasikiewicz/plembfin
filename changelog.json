@@ -6,7 +6,7 @@
       "version": "0.4.4",
       "date": "2026-07-02T20:37:42+01:00",
       "commit": "8926c487b9b03cb8462f09d2f49a95918c198db2",
-      "message": "fix: stop changelog from dropping earlier commits in a multi-commit push",
+      "message": "Fix - Stop changelog from dropping earlier commits in a multi-commit push",
       "author": "Lasikiewicz",
       "details": [
         "The changelog workflow only read GitHub's head_commit, so pushing",
@@ -18,7 +18,7 @@
       "version": "0.4.3",
       "date": "2026-07-02T20:32:31+01:00",
       "commit": "436c1b5ee157d32e88e461e1f7caf5a4acffcbc2",
-      "message": "feat: add movie collections and always-visible app quick-links",
+      "message": "Feature - Add movie collections and always-visible app quick-links",
       "author": "Lasikiewicz",
       "details": [
         "Movie pages now show a Collection row with poster cards for other films in the same franchise (e.g. A Quiet Place, A Quiet Place Part II, A Quiet Place: Day One)",
@@ -32,7 +32,7 @@
       "version": "0.4.2",
       "date": "2026-07-02T20:21:32+01:00",
       "commit": "56f5ae0257705575729319085471ec0de3ec1a7f",
-      "message": "fix: pull season availability pills left instead of centre-floating",
+      "message": "Fix - Pull season availability pills left instead of centre-floating",
       "author": "Lasikiewicz",
       "details": [
         "Cap the season title column at 260px instead of an unbounded 1fr",
@@ -43,7 +43,7 @@
       "version": "0.4.1",
       "date": "2026-07-02T19:41:56+01:00",
       "commit": "bfef67079557da795916fe160cfb4c60d19573f5",
-      "message": "fix: reliable open-in-app icons and aligned season accordion columns",
+      "message": "Fix - Reliable open-in-app icons and aligned season accordion columns",
       "author": "Lasikiewicz",
       "details": [
         "Open in Plex/Emby/Jellyfin buttons use bundled icons instead of hotlinking the media server's favicon, which wasn't reliably served and left the buttons showing text only with no icon",
@@ -55,7 +55,7 @@
       "version": "0.4.0",
       "date": "2026-07-02T19:05:07+01:00",
       "commit": "92f5f5dc45f57418d64d92f5387f20ba082ed85e",
-      "message": "feat: add open-in-app links and harden API security and reliability",
+      "message": "Feature - Add open-in-app links and harden API security and reliability",
       "author": "Lasikiewicz",
       "details": [
         "Movie and TV detail pages show Open in buttons that link directly to the item in Plex, Emby, or Jellyfin when it exists in that server's library",
@@ -72,7 +72,7 @@
       "version": "0.3.17",
       "date": "2026-07-02T16:21:54+01:00",
       "commit": "d016a30660edca9da03a9bd390d9b68d8dc0b56a",
-      "message": "feat: add episode resolution badges and speed up availability lookups",
+      "message": "Feature - Add episode resolution badges and speed up availability lookups",
       "author": "Lasikiewicz",
       "details": [
         "Season availability pills now match the rest of the site's pill style instead of a separate rounded-capsule look",
@@ -85,7 +85,7 @@
       "version": "0.3.16",
       "date": "2026-07-02T15:14:17+01:00",
       "commit": "9e0b07596a8a90e10ba25bbd0e59b3596bd3f9bc",
-      "message": "fix: exclude specials from TV show episode/season totals",
+      "message": "Fix - Exclude specials from TV show episode/season totals",
       "author": "Lasikiewicz",
       "details": [
         "Specials (season 0) were being counted in a show's total episode/season count, causing the TV library grid to show an inflated total (e.g. 110/123) that disagreed with the show's own progress bar (110/110), which already excluded them",
@@ -98,7 +98,7 @@
       "version": "0.3.15",
       "date": "2026-07-02T15:08:12+01:00",
       "commit": "3a9b2bab9bfc4a496563da16d6b8882682e5983a",
-      "message": "fix: clear stale poster/backdrop after Fix Match rematch",
+      "message": "Fix - Clear stale poster/backdrop after Fix Match rematch",
       "author": "Lasikiewicz",
       "details": [
         "Fix Match invalidated the cached poster entry for a rematched movie or TV show but left the old poster/backdrop URL stamped on the watch record itself, and the poster endpoint serves a stored storage URL directly without checking the cache, so the previous (wrong) artwork kept being served indefinitely after a rematch",
@@ -109,7 +109,7 @@
       "version": "0.3.14",
       "date": "2026-07-02T14:59:25+01:00",
       "commit": "d0f300b8ca83e9c9c3abbdc766284240ee8d3634",
-      "message": "fix: force refresh of TV show details cached before episode-total fix",
+      "message": "Fix - Force refresh of TV show details cached before episode-total fix",
       "author": "Lasikiewicz",
       "details": [
         "The previous fix that added TV show total-episode counts didn't bump the metadata cache schema version, so shows already cached kept returning stale details with no episode total (still showing \"?\" watched counts) until their cache entry naturally expired",
@@ -120,7 +120,7 @@
       "version": "0.3.13",
       "date": "2026-07-02T14:30:54+01:00",
       "commit": "fa31de76a30a7cc8a3d6cdcd48f0471283a39dec",
-      "message": "fix: backfill missing TV show episode totals and refresh stale counts",
+      "message": "Fix - Backfill missing TV show episode totals and refresh stale counts",
       "author": "Lasikiewicz",
       "details": [
         "TV shows watched before the per-show progress cache existed (or added outside its incremental update path) never got an episode total computed, permanently showing \"?\" watched counts on the TV Shows page",
@@ -133,7 +133,7 @@
       "version": "0.3.12",
       "date": "2026-07-02T14:14:17+01:00",
       "commit": "339e89c4f15e5e09f7ec9065538c49f2de05d4cf",
-      "message": "fix: restore season availability pills on TV show pages",
+      "message": "Fix - Restore season availability pills on TV show pages",
       "author": "Lasikiewicz",
       "details": [
         "Season availability pills (1080p/4K available counts) stopped appearing on season accordions after the TheTVDB migration, because episode counts per season were never populated",
@@ -145,7 +145,7 @@
       "version": "0.3.11",
       "date": "2026-07-02T13:06:59+01:00",
       "commit": "e3222ae1afcfb0c41adddf32c90d855f82d811d3",
-      "message": "fix: prevent metadata reload when marking items unwatched",
+      "message": "Fix - Prevent metadata reload when marking items unwatched",
       "author": "Lasikiewicz",
       "details": [
         "Prevent eagerly pulling TMDB/TVDB metadata when deleting or marking episodes/movies unwatched",
@@ -156,7 +156,7 @@
       "version": "0.3.10",
       "date": "2026-07-02T12:28:37+01:00",
       "commit": "0a9160daf4f8061540448a1e1021c8c4870bc14e",
-      "message": "fix: improve edit image dialog layout, sizing, and asset presentation",
+      "message": "Fix - Improve edit image dialog layout, sizing, and asset presentation",
       "author": "Lasikiewicz",
       "details": [
         "Expand the edit image dialog width and lock it to a constant height to prevent layout shifts",
@@ -170,21 +170,21 @@
       "version": "0.3.9",
       "date": "2026-07-02T11:51:15+01:00",
       "commit": "367ae7af6d48411e2b67585d82d8c5dbcce93869",
-      "message": "fix: correct watched edit icon glyph",
+      "message": "Fix - Correct watched edit icon glyph",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.3.8",
       "date": "2026-07-02T11:46:51+01:00",
       "commit": "d45219ee573f0c0df6436a93915aa85c96b93945",
-      "message": "fix: patch movie watched state in place",
+      "message": "Fix - Patch movie watched state in place",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.3.7",
       "date": "2026-07-02T11:18:08+01:00",
       "commit": "c8ba73fce5e9bbd692b42c6e9792bfdbb187b757",
-      "message": "fix: harden tvdb gateway requests",
+      "message": "Fix - Harden tvdb gateway requests",
       "author": "Lasikiewicz",
       "details": [
         "Restrict TVDB gateway requests to known API endpoints instead of accepting arbitrary path strings.",
@@ -196,7 +196,7 @@
       "version": "0.3.6",
       "date": "2026-07-02T11:05:48+01:00",
       "commit": "cfadfa44c3287aa21c583ce0e096a61e156161b2",
-      "message": "docs: clarify readme source wording",
+      "message": "Docs - Clarify readme source wording",
       "author": "Lasikiewicz",
       "details": [
         "Reword README metadata descriptions so first-time readers see the current TheTVDB/TMDB source split without historical context.",
@@ -208,7 +208,7 @@
       "version": "0.3.5",
       "date": "2026-07-02T10:55:31+01:00",
       "commit": "dfc096f332b654f71e15d8a6421ff995f9182211",
-      "message": "fix: reduce tvdb refresh traffic",
+      "message": "Fix - Reduce tvdb refresh traffic",
       "author": "Lasikiewicz",
       "details": [
         "Cache TVDB search, series, and season responses with longer lifetimes for archived shows and shorter lifetimes for active/upcoming shows.",
@@ -220,7 +220,7 @@
       "version": "0.3.4",
       "date": "2026-07-02T10:33:01+01:00",
       "commit": "6b11598597cb0982e6fd3cfbdcfcce75e9cb0477",
-      "message": "fix: add tv rematch tools",
+      "message": "Fix - Add tv rematch tools",
       "author": "Lasikiewicz",
       "details": [
         "Add TV show rematch controls that can search TheTVDB and update every episode in a show together.",
@@ -232,7 +232,7 @@
       "version": "0.3.3",
       "date": "2026-07-02T09:59:14+01:00",
       "commit": "b3c2e04bdff1a578d5b1e8c943832e59576fea97",
-      "message": "fix: correct TV show cache key and TVDB remote-ID matching after rematch",
+      "message": "Fix - Correct TV show cache key and TVDB remote-ID matching after rematch",
       "author": "Lasikiewicz",
       "details": [
         "getTvShowDetails() cached TV show details under a key derived from the caller's tmdb_id, but after Fix Match clears tmdb_id to force re-resolution, that key no longer matches what getTmdbSeason() looks up, so season data silently failed to load",
@@ -243,7 +243,7 @@
       "version": "0.3.2",
       "date": "2026-07-02T09:48:15+01:00",
       "commit": "caf05a0f9b470485ffcde8df3ffeae5a11148706",
-      "message": "feat: source TV show episode data from TheTVDB instead of TMDB",
+      "message": "Feature - Source TV show episode data from TheTVDB instead of TMDB",
       "author": "Lasikiewicz",
       "details": [
         "TV shows now pull season/episode numbering, titles, air dates, and artwork from TheTVDB, which is more accurate than TMDB for many shows; cast, trailers, reviews, and recommendations still come from TMDB",
@@ -258,7 +258,7 @@
       "version": "0.3.1",
       "date": "2026-07-02T08:40:07+01:00",
       "commit": "01205e54156c5806c1477a68e4beb90b7873f482",
-      "message": "fix: correct mobile dashboard and stats layout issues",
+      "message": "Fix - Correct mobile dashboard and stats layout issues",
       "author": "Lasikiewicz",
       "details": [
         "Shrink dashboard watch-history poster cards on mobile so they fit the screen instead of overflowing and overlapping the section below",
@@ -271,7 +271,7 @@
       "version": "0.3.0",
       "date": "2026-07-01T16:28:28+01:00",
       "commit": "e5d51dfb993d719e9a311f7e599ff6d87f541e70",
-      "message": "fix: repair dark theme color corruption and search poster loading",
+      "message": "Fix - Repair dark theme color corruption and search poster loading",
       "author": "Lasikiewicz",
       "details": [
         "Removed a leftover CSS override that broke dark mode's blue/yellow accents and background shade across the whole app",
@@ -287,7 +287,7 @@
       "version": "0.2.83",
       "date": "2026-07-01T14:54:47+01:00",
       "commit": "c0bbb99ac506bd6ec1e824b9f7fc8b191c85175d",
-      "message": "fix: stop Seerr season picker from re-opening itself on submit",
+      "message": "Fix - Stop Seerr season picker from re-opening itself on submit",
       "author": "Lasikiewicz",
       "details": [
         "The \"Request selected\" button carried the same data attributes the global click handler uses to detect request buttons, so submitting bubbled into that handler and reopened a fresh picker instead of showing the result",
@@ -298,7 +298,7 @@
       "version": "0.2.82",
       "date": "2026-07-01T14:46:20+01:00",
       "commit": "1143e9d9f86c0f35445896c4ae7b9944a142108f",
-      "message": "fix: widen Seerr season picker and default to latest season only",
+      "message": "Fix - Widen Seerr season picker and default to latest season only",
       "author": "Lasikiewicz",
       "details": [
         "Season request dialog is now bigger and a consistent size for both standard and 4K requests",
@@ -309,7 +309,7 @@
       "version": "0.2.81",
       "date": "2026-07-01T14:40:29+01:00",
       "commit": "765823b090afec8262ddef520194582c908cb522",
-      "message": "fix: repair Seerr TV requests and add a season picker",
+      "message": "Fix - Repair Seerr TV requests and add a season picker",
       "author": "Lasikiewicz",
       "details": [
         "Fixed whole-show Seerr requests for TV crashing on Seerr's server because no seasons field was sent",
@@ -321,7 +321,7 @@
       "version": "0.2.80",
       "date": "2026-07-01T14:25:59+01:00",
       "commit": "f2499ffe166afcd4b5d6d5d7802e6fdbcdd0b852",
-      "message": "fix: retry npm ci in security workflow to survive transient network errors",
+      "message": "Fix - Retry npm ci in security workflow to survive transient network errors",
       "author": "Lasikiewicz",
       "details": [
         "The npm audit job was failing on ECONNRESET during npm ci; it now retries up to 3 times with backoff before failing the job"
@@ -331,7 +331,7 @@
       "version": "0.2.79",
       "date": "2026-07-01T14:19:56+01:00",
       "commit": "651eb81696a48c95c7aeaf5b5c9b322cce3b630e",
-      "message": "fix: place season availability pills inline with episode meta text",
+      "message": "Fix - Place season availability pills inline with episode meta text",
       "author": "Lasikiewicz",
       "details": [
         "Availability/4K pills now sit on the same line as episode count, watched count, and next-airing text instead of wrapping to their own row"
@@ -341,7 +341,7 @@
       "version": "0.2.78",
       "date": "2026-07-01T14:08:00+01:00",
       "commit": "c7396087e263e32fa9ead8fd2f470f69298036be",
-      "message": "fix: move season availability pills next to season info and stop flagging watched episodes as missing",
+      "message": "Fix - Move season availability pills next to season info and stop flagging watched episodes as missing",
       "author": "Lasikiewicz",
       "details": [
         "Availability/4K pills now sit under the season title/episode count instead of being pushed to the far edge of the row",
@@ -352,7 +352,7 @@
       "version": "0.2.77",
       "date": "2026-07-01T13:21:12+01:00",
       "commit": "4a86e80436f4f1a213479d1ae741cdc93744c9ab",
-      "message": "fix: improve readability of season metadata on TV show pages",
+      "message": "Fix - Improve readability of season metadata on TV show pages",
       "author": "Lasikiewicz",
       "details": [
         "Split season episode count, watched count, and next airing text into separate segments instead of one run-on string",
@@ -364,7 +364,7 @@
       "version": "0.2.76",
       "date": "2026-07-01T12:55:09+01:00",
       "commit": "3e6c988782845b5180658770b2ca6a7289d62b2c",
-      "message": "security: harden poster cache, Seerr requests, secrets, and admin defaults",
+      "message": "Security - Harden poster cache, Seerr requests, secrets, and admin defaults",
       "author": "Lasikiewicz",
       "details": [
         "Blocked a path-traversal edge case in the local poster cache's /media/ URL handling",
@@ -381,7 +381,7 @@
       "version": "0.2.75",
       "date": "2026-07-01T11:54:55+01:00",
       "commit": "c7c63dc86e0fbdc6add0a17c68618b9c60a866a2",
-      "message": "fix: stop dashboard history clicks reloading the page, fix stale watch-history cache, speed up poster loading",
+      "message": "Fix - Stop dashboard history clicks reloading the page, fix stale watch-history cache, speed up poster loading",
       "author": "Lasikiewicz",
       "details": [
         "Fixed movie/show detail pages flickering on open: dashboard watch-history cards were falling through to a code path that never called preventDefault(), so clicks triggered a full page reload instead of an in-app transition",
@@ -394,7 +394,7 @@
       "version": "0.2.74",
       "date": "2026-07-01T10:58:54+01:00",
       "commit": "af0d7bf77f0ae174392bb236147f17d923c05fe9",
-      "message": "feat: show person name and age on biography page",
+      "message": "Feature - Show person name and age on biography page",
       "author": "Lasikiewicz",
       "details": [
         "Display the cast/crew member's name above the biography text",
@@ -405,7 +405,7 @@
       "version": "0.2.73",
       "date": "2026-07-01T10:54:24+01:00",
       "commit": "6481b996b21029437206ea83f19c2c3043966033",
-      "message": "chore: split media-detail.js into focused modules",
+      "message": "Chore - Split media-detail.js into focused modules",
       "author": "Lasikiewicz",
       "details": [
         "Broke the 1,900-line media-detail.js into four modules: modal shell/context, shared TMDB/Seerr rendering, TV show detail, and movie detail",
@@ -417,7 +417,7 @@
       "version": "0.2.72",
       "date": "2026-06-30T11:59:05+01:00",
       "commit": "e9aec6764c82624ac8eff7842058be9642d39bdf",
-      "message": "chore: align Restore page layout with Backups page and tidy nav",
+      "message": "Chore - Align Restore page layout with Backups page and tidy nav",
       "author": "Lasikiewicz",
       "details": [
         "Restructured Restore panel into two separate rows (Local / Remote) matching the Backups page two-row layout with help sidebars",
@@ -429,7 +429,7 @@
       "version": "0.2.71",
       "date": "2026-06-30T11:50:41+01:00",
       "commit": "21a6c111e6bfcffcf5045db5101f89ae4df7a088",
-      "message": "chore: tighten CLAUDE.md agent instructions",
+      "message": "Chore - Tighten CLAUDE.md agent instructions",
       "author": "Lasikiewicz",
       "details": [
         "Made header agent-neutral (removed Claude Code branding)",
@@ -443,7 +443,7 @@
       "version": "0.2.70",
       "date": "2026-06-30T11:46:14+01:00",
       "commit": "d9610c445a7882b40f70414a9ea7124c5f26073d",
-      "message": "docs: move features above screenshots and tighten feature list",
+      "message": "Docs - Move features above screenshots and tighten feature list",
       "author": "Lasikiewicz",
       "details": [
         "Features section now appears before Screenshots",
@@ -456,7 +456,7 @@
       "version": "0.2.69",
       "date": "2026-06-30T11:43:20+01:00",
       "commit": "0d939303158ff3680801932eb877831964340025",
-      "message": "chore: remove AI agent clutter and clean up README",
+      "message": "Chore - Remove AI agent clutter and clean up README",
       "author": "Lasikiewicz",
       "details": [
         "Deleted AGENTS.md (redundant pointer to CLAUDE.md)",
@@ -469,7 +469,7 @@
       "version": "0.2.68",
       "date": "2026-06-30T11:34:35+01:00",
       "commit": "82bf57abaf5a0504c43d7b71d679a5e551659b9f",
-      "message": "feat: support scheduled Remote Plembfin Backups and simplify Remote Watch History layout",
+      "message": "Feature - Support scheduled Remote Plembfin Backups and simplify Remote Watch History layout",
       "author": "Lasikiewicz",
       "details": [
         "Simplify Remote Watch History Backups card layout to match local backups panel",
@@ -483,7 +483,7 @@
       "version": "0.2.67",
       "date": "2026-06-30T11:24:13+01:00",
       "commit": "3584d7a97f4f333a5689ce63052aa98d0e1773b9",
-      "message": "feat: add scheduled local Plembfin backups with passphrase encryption",
+      "message": "Feature - Add scheduled local Plembfin backups with passphrase encryption",
       "author": "Lasikiewicz",
       "details": [
         "Add daily scheduled full Plembfin database backups with AES-256-GCM encryption",
@@ -498,7 +498,7 @@
       "version": "0.2.66",
       "date": "2026-06-30T09:13:26+01:00",
       "commit": "a6621a496df8524d7bd2780f1f9cfdc5d60848dd",
-      "message": "fix: refresh part-watched history",
+      "message": "Fix - Refresh part-watched history",
       "author": "Lasikiewicz",
       "details": [
         "Refresh the home page watch history immediately after a part-watched item is marked watched."
@@ -508,7 +508,7 @@
       "version": "0.2.65",
       "date": "2026-06-30T09:07:25+01:00",
       "commit": "4bf14881b686426b3ccbeeb2df2d6e888d104c2b",
-      "message": "security: harden logout and view controls",
+      "message": "Security - Harden logout and view controls",
       "author": "Lasikiewicz",
       "details": [
         "Require logout requests to use POST before clearing the dashboard session cookie",
@@ -520,7 +520,7 @@
       "version": "0.2.64",
       "date": "2026-06-29T10:55:34+01:00",
       "commit": "28aafdf11c19a4637fcc1eb89ab32554d5b9ec23",
-      "message": "fix: Re-render active view after marking item as unwatched",
+      "message": "Fix - Re-render active view after marking item as unwatched",
       "author": "Lasikiewicz",
       "details": [
         "Add renderActiveView callback to re-render dashboard/explorer/history after state changes",
@@ -532,7 +532,7 @@
       "version": "0.2.63",
       "date": "2026-06-29T09:39:23+01:00",
       "commit": "ac1d9ec1f18340851b92a859f1002c8a98fe5391",
-      "message": "fix: Make date picker day and month buttons clickable",
+      "message": "Fix - Make date picker day and month buttons clickable",
       "author": "Lasikiewicz",
       "details": [
         "Add click event listeners to calendar day buttons and month navigation arrows",
@@ -544,7 +544,7 @@
       "version": "0.2.62",
       "date": "2026-06-29T09:07:20+01:00",
       "commit": "03315729d409c0c5bcc4742567dbc396bb4e27ab",
-      "message": "feat: Redesign settings pages to use top sub-tabs and clean visual layout",
+      "message": "Feature - Redesign settings pages to use top sub-tabs and clean visual layout",
       "author": "Lasikiewicz",
       "details": [
         "Balanced column proportions to 65% forms and 35% side help guidelines",
@@ -559,7 +559,7 @@
       "version": "0.2.61",
       "date": "2026-06-29T08:32:04+01:00",
       "commit": "03e8e6726c3d2a7dec3f5019d648b44de9fec1e6",
-      "message": "feat: simplify left menu and update settings layout",
+      "message": "Feature - Simplify left menu and update settings layout",
       "author": "Lasikiewicz",
       "details": [
         "Remove the standalone Help page and sidebar tab",
@@ -572,7 +572,7 @@
       "version": "0.2.60",
       "date": "2026-06-28T20:36:43+01:00",
       "commit": "67eb9d0a5525603ff4d0e0852b569e3658058b70",
-      "message": "fix: movie detail pages now show local content immediately; hide alphabet picker on detail pages",
+      "message": "Fix - Movie detail pages now show local content immediately; hide alphabet picker on detail pages",
       "author": "Lasikiewicz",
       "details": [
         "Movie pages render title, poster, watch date and status instantly without waiting for TMDB",
@@ -585,7 +585,7 @@
       "version": "0.2.59",
       "date": "2026-06-28T20:14:24+01:00",
       "commit": "f1de1aace191375209e98cfee462b765015ad040",
-      "message": "fix: dynamically extend CSP img-src with configured media server origins",
+      "message": "Fix - Dynamically extend CSP img-src with configured media server origins",
       "author": "Lasikiewicz",
       "details": [
         "Fixed Content Security Policy violations that blocked poster and backdrop images served directly by configured Plex, Emby, Jellyfin, or Seerr servers",
@@ -597,7 +597,7 @@
       "version": "0.2.58",
       "date": "2026-06-28T20:05:56+01:00",
       "commit": "67a619b33927de82bc56bd8e5c230dcf560fe4e0",
-      "message": "fix: resolve movie loading stuck and optimize history defaults",
+      "message": "Fix - Resolve movie loading stuck and optimize history defaults",
       "author": "Lasikiewicz",
       "details": [
         "Fixed a bug causing movie detail pages to stay stuck on \"Loading metadata\" if no matching TV show recommendations are found",
@@ -612,7 +612,7 @@
       "version": "0.2.57",
       "date": "2026-06-28T19:36:28+01:00",
       "commit": "942728e3648b7828d08bc234fa6cf5a9857d1c78",
-      "message": "security: fix CodeQL code-scanning findings",
+      "message": "Security - Fix CodeQL code-scanning findings",
       "author": "Lasikiewicz",
       "details": [
         "Match YouTube/TMDB hosts exactly instead of substring checks, blocking spoofed hostnames like youtube.com.evil.com",
@@ -627,7 +627,7 @@
       "version": "0.2.56",
       "date": "2026-06-28T19:21:36+01:00",
       "commit": "d6e157805953199afff2e2547cd54d1dfc785f98",
-      "message": "fix: watch history layout update and episode title resolution on dashboard",
+      "message": "Fix - Watch history layout update and episode title resolution on dashboard",
       "author": "Lasikiewicz",
       "details": [
         "Add episode names to watch history cards if known instead of generic \"Episode X\"",
@@ -642,7 +642,7 @@
       "version": "0.2.55",
       "date": "2026-06-28T16:49:56+01:00",
       "commit": "3bbd39b924ec8c1cc581f457c7602948191a933b",
-      "message": "fix: load now-playing posters for unwatched live sessions",
+      "message": "Fix - Load now-playing posters for unwatched live sessions",
       "author": "Lasikiewicz",
       "details": [
         "Now-playing posters now resolve through the cached artwork pipeline so they load on remote https sites",
@@ -654,7 +654,7 @@
       "version": "0.2.54",
       "date": "2026-06-28T16:29:46+01:00",
       "commit": "a2697de2c3a15a2b0b493615ba16ba771a8777bc",
-      "message": "fix: fix now-playing poster images and dashboard card width",
+      "message": "Fix - Fix now-playing poster images and dashboard card width",
       "author": "Lasikiewicz",
       "details": [
         "Now-playing sessions now always carry a media_key so posters load correctly",
@@ -667,7 +667,7 @@
       "version": "0.2.53",
       "date": "2026-06-28T16:10:01+01:00",
       "commit": "e50a5be88eaa78f1061798b3f2c42702410dc790",
-      "message": "fix: polish dashboard settings and artwork flows",
+      "message": "Fix - Polish dashboard settings and artwork flows",
       "author": "Lasikiewicz",
       "details": [
         "Allow legitimate external artwork hosts through the image CSP",
@@ -681,7 +681,7 @@
       "version": "0.2.52",
       "date": "2026-06-28T15:43:55+01:00",
       "commit": "7764040cdec1677bb22449ed5435e1f4f643dfd9",
-      "message": "fix: widen dashboard card view cards when nothing is playing or part-watched",
+      "message": "Fix - Widen dashboard card view cards when nothing is playing or part-watched",
       "author": "Lasikiewicz",
       "details": [
         "Increase card width from 385px to 460px in dashboard state 3 (no active session, no part-watched items)"
@@ -691,7 +691,7 @@
       "version": "0.2.51",
       "date": "2026-06-28T14:24:43+01:00",
       "commit": "b902e657ee9e036b7a1d6fb8e88892d6e0b38f70",
-      "message": "feat: add dashboard watch history view toggle",
+      "message": "Feature - Add dashboard watch history view toggle",
       "author": "Lasikiewicz",
       "details": [
         "Add Card View and Poster View controls to the left menu above More",
@@ -704,7 +704,7 @@
       "version": "0.2.50",
       "date": "2026-06-28T13:48:49+01:00",
       "commit": "32cc1c44fa95087a4558cc8e108e461731a6180b",
-      "message": "feat: improve media artwork editing",
+      "message": "Feature - Improve media artwork editing",
       "author": "Lasikiewicz",
       "details": [
         "Redesign the edit images dialog with poster, logo, background, and YouTube sections",
@@ -719,7 +719,7 @@
       "version": "0.2.49",
       "date": "2026-06-28T12:48:11+01:00",
       "commit": "28a4c009639674f8920994923fa962aa10f731f1",
-      "message": "fix: improve TV episode season cards",
+      "message": "Fix - Improve TV episode season cards",
       "author": "Lasikiewicz",
       "details": [
         "Show part-watched progress on TV episode cards with clearer inline styling",
@@ -732,7 +732,7 @@
       "version": "0.2.48",
       "date": "2026-06-28T12:12:34+01:00",
       "commit": "d2c1d0505740f792ab5b911fa9ab80eb39b13a5c",
-      "message": "security: harden webhook auth and sync operations",
+      "message": "Security - Harden webhook auth and sync operations",
       "author": "Lasikiewicz",
       "details": [
         "Add header and Bearer webhook auth while keeping query-token compatibility",
@@ -748,7 +748,7 @@
       "version": "0.2.47",
       "date": "2026-06-26T16:58:21+01:00",
       "commit": "7422bd4a46e9b177cc427c18af7fd020050ceda9",
-      "message": "chore: clean up repository metadata",
+      "message": "Chore - Clean up repository metadata",
       "author": "Lasikiewicz",
       "details": [
         "Add the media detail screenshot to the README gallery",
@@ -760,7 +760,7 @@
       "version": "0.2.46",
       "date": "2026-06-26T16:46:49+01:00",
       "commit": "9cf125ec1082cc1e3e8becd85b5d4d5a4bfcd93d",
-      "message": "feat: improve media recommendations",
+      "message": "Feature - Improve media recommendations",
       "author": "Lasikiewicz",
       "details": [
         "Sort recommended movies by closest TMDB relevance first",
@@ -772,7 +772,7 @@
       "version": "0.2.45",
       "date": "2026-06-26T16:34:16+01:00",
       "commit": "e1b803e70c8c7d9c4d392c0c61cbe26773a43942",
-      "message": "fix: improve photo lightbox controls",
+      "message": "Fix - Improve photo lightbox controls",
       "author": "Lasikiewicz",
       "details": [
         "Close the photo viewer when clicking outside the rendered image",
@@ -784,7 +784,7 @@
       "version": "0.2.44",
       "date": "2026-06-26T16:20:34+01:00",
       "commit": "f883d433bff76f2baa571a5085ade2450de063fd",
-      "message": "fix: restore local media detail routing",
+      "message": "Fix - Restore local media detail routing",
       "author": "Lasikiewicz",
       "details": [
         "Split media detail, person, lightbox, maintenance, TMDB, and app event code into dedicated frontend modules",
@@ -797,7 +797,7 @@
       "version": "0.2.43",
       "date": "2026-06-26T10:47:20+01:00",
       "commit": "9d0855ad3b9b219cc0c133a4ab6349789a4b5ace",
-      "message": "feat: throttle background sync checks and refactor frontend modules",
+      "message": "Feature - Throttle background sync checks and refactor frontend modules",
       "author": "Lasikiewicz",
       "details": [
         "Add configuration to run catch-up library syncs every 15 minutes by default instead of every minute",
@@ -810,7 +810,7 @@
       "version": "0.2.42",
       "date": "2026-06-26T09:24:10+01:00",
       "commit": "f5e28dcfb04fbb597e92908c31eade9c4621908b",
-      "message": "fix: delete exact row on manual unwatch",
+      "message": "Fix - Delete exact row on manual unwatch",
       "author": "Lasikiewicz",
       "details": [
         "Remove the clicked watch-history row by id before applying unplayed state",
@@ -821,7 +821,7 @@
       "version": "0.2.41",
       "date": "2026-06-26T09:16:05+01:00",
       "commit": "bc36d50b7b8670de7fd6f20881e87754a3a279fa",
-      "message": "fix: complete manual episode watch saves",
+      "message": "Fix - Complete manual episode watch saves",
       "author": "Lasikiewicz",
       "details": [
         "Restore manual episode watch batching so the save request is sent",
@@ -832,7 +832,7 @@
       "version": "0.2.40",
       "date": "2026-06-26T09:02:06+01:00",
       "commit": "fa6ce79db8f1a44127fe474a9f49186e983e3748",
-      "message": "fix: save manual episode watches",
+      "message": "Fix - Save manual episode watches",
       "author": "Lasikiewicz",
       "details": [
         "Save manually watched TV episodes with the correct episode number field",
@@ -843,7 +843,7 @@
       "version": "0.2.39",
       "date": "2026-06-26T08:54:54+01:00",
       "commit": "51da4248b12d1ee51076d66040e9dff0a2287e26",
-      "message": "fix: restore tv show detail pages",
+      "message": "Fix - Restore tv show detail pages",
       "author": "Lasikiewicz",
       "details": [
         "Restore direct TV show pages so local episode history and TMDB metadata render reliably",
@@ -856,7 +856,7 @@
       "version": "0.2.38",
       "date": "2026-06-26T08:12:36+01:00",
       "commit": "13ea19797b59a9b3e3fe8cb003fecb47be2ccc8d",
-      "message": "fix: show missing future episodes and restore episode thumbnail images on TV show detail pages",
+      "message": "Fix - Show missing future episodes and restore episode thumbnail images on TV show detail pages",
       "author": "Lasikiewicz",
       "details": [
         "TV show season now synthesizes placeholder rows for episodes announced in season count but not yet published in TMDB season detail endpoint (e.g. upcoming episodes not yet fully listed)",
@@ -871,7 +871,7 @@
       "version": "0.2.37",
       "date": "2026-06-25T18:31:33+01:00",
       "commit": "b17b0a619b15e45af5285ec138a44359bded9fdf",
-      "message": "fix: prevent watched items from being silently dropped from history",
+      "message": "Fix - Prevent watched items from being silently dropped from history",
       "author": "Lasikiewicz",
       "details": [
         "Fix scheduled sync skipping items that had a playstate record but no history row — these were permanently blocked from being logged",
@@ -887,7 +887,7 @@
       "version": "0.2.36",
       "date": "2026-06-25T09:22:13+01:00",
       "commit": "49a34ef45a19631a1c0d8d73130877c4b6f8137f",
-      "message": "fix: prevent stats leaderboard panel from overflowing viewport on mobile",
+      "message": "Fix - Prevent stats leaderboard panel from overflowing viewport on mobile",
       "author": "Lasikiewicz",
       "details": [
         "Change stats-body-grid column from 1fr to minmax(0, 1fr) so the grid"
@@ -897,7 +897,7 @@
       "version": "0.2.35",
       "date": "2026-06-25T09:15:55+01:00",
       "commit": "84d155e6189dce167cc66f8cba2eab5f5032e574",
-      "message": "fix: contain stats leader card overflow at base level",
+      "message": "Fix - Contain stats leader card overflow at base level",
       "author": "Lasikiewicz",
       "details": [
         "Add overflow: hidden to .stats-lb-leader at base (not just in media query)",
@@ -908,7 +908,7 @@
       "version": "0.2.34",
       "date": "2026-06-25T09:13:16+01:00",
       "commit": "f504e9df829be7ff99e991e4033d4bc720b2c92e",
-      "message": "fix: prevent stats leaderboard leader card description from overflowing",
+      "message": "Fix - Prevent stats leaderboard leader card description from overflowing",
       "author": "Lasikiewicz",
       "details": [
         "Add min-width: 0 and overflow: hidden to stats-lb-main-copy and stats-lb-leader-copy",
@@ -920,7 +920,7 @@
       "version": "0.2.33",
       "date": "2026-06-25T09:06:01+01:00",
       "commit": "1a14ed31b596568b8b702aed5b24d8885367fbf8",
-      "message": "fix: restore mobile layout for dashboard and stats pages",
+      "message": "Fix - Restore mobile layout for dashboard and stats pages",
       "author": "Lasikiewicz",
       "details": [
         "Dashboard now scrolls vertically on mobile instead of cramming into fixed-height column splits",
@@ -936,7 +936,7 @@
       "version": "0.2.32",
       "date": "2026-06-25T08:51:58+01:00",
       "commit": "e13ba2071d313034798db502396ad9fb3e40ac1d",
-      "message": "feat: style Part Watched Mark Watched button to match active nav colour",
+      "message": "Feature - Style Part Watched Mark Watched button to match active nav colour",
       "author": "Lasikiewicz",
       "details": [
         "Mark Watched button now uses the same light blue wash as the active nav tab background",
@@ -948,7 +948,7 @@
       "version": "0.2.31",
       "date": "2026-06-25T08:44:18+01:00",
       "commit": "5dde278b72f8e39fbd8f16c60702eaeb8348e08d",
-      "message": "feat: redesign Now Playing card to match Part Watched layout",
+      "message": "Feature - Redesign Now Playing card to match Part Watched layout",
       "author": "Lasikiewicz",
       "details": [
         "Show title on its own line in bold, episode label below in orange",
@@ -962,7 +962,7 @@
       "version": "0.2.30",
       "date": "2026-06-24T22:02:17+01:00",
       "commit": "a96155960af603d9cd71b54f27a3093b8bd764f4",
-      "message": "fix: widen dashboard history cards when no active content",
+      "message": "Fix - Widen dashboard history cards when no active content",
       "author": "Lasikiewicz",
       "details": [
         "Increase max-width on history row cards from 14rem to 16rem so posters fill the taller row in the idle/no-part-watched dashboard state"
@@ -972,7 +972,7 @@
       "version": "0.2.29",
       "date": "2026-06-24T21:55:04+01:00",
       "commit": "104a5555b46528ad3b5c2a7c6adc3cd8b1f9f920",
-      "message": "fix: correct Now Playing poster aspect ratio on dashboard",
+      "message": "Fix - Correct Now Playing poster aspect ratio on dashboard",
       "author": "Lasikiewicz",
       "details": [
         "Remove max-width constraint from now-poster-large-wrapper that was overriding the 2:3 aspect-ratio calculation and making posters appear too narrow"
@@ -982,7 +982,7 @@
       "version": "0.2.28",
       "date": "2026-06-24T21:32:29+01:00",
       "commit": "ad7cd7c042265ecfa8b2571dbbee24a7e6ff02cf",
-      "message": "feat: redesign dashboard with Part Watched section and card-based history",
+      "message": "Feature - Redesign dashboard with Part Watched section and card-based history",
       "author": "Lasikiewicz",
       "details": [
         "Moved Part Watched onto the dashboard as a horizontal row between Now Playing and Watch History, and removed the standalone Part Watched page and nav tab",
@@ -996,7 +996,7 @@
       "version": "0.2.27",
       "date": "2026-06-24T13:32:43+01:00",
       "commit": "1b5a8e75fa808d0b803ed7dcd677123af8a80371",
-      "message": "fix: redesign stats report layout",
+      "message": "Fix - Redesign stats report layout",
       "author": "Lasikiewicz",
       "details": [
         "Reworked the Stats page into KPI, leaderboard, split, platform, bookend, and activity sections",
@@ -1008,14 +1008,14 @@
       "version": "0.2.26",
       "date": "2026-06-24T10:35:21+01:00",
       "commit": "389e9f9f1fd75be62044b720af5203ba1da88f72",
-      "message": "chore: add AGPL-3.0 license",
+      "message": "Chore - Add AGPL-3.0 license",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.2.25",
       "date": "2026-06-24T10:33:10+01:00",
       "commit": "0e229d2726b36394f2dcbb2017ebb16ac95be84f",
-      "message": "chore: remove scratch files and add project hygiene files",
+      "message": "Chore - Remove scratch files and add project hygiene files",
       "author": "Lasikiewicz",
       "details": [
         "Remove entire scratch/ directory (40 debug scripts, logs, diffs — never belonged in git)",
@@ -1029,7 +1029,7 @@
       "version": "0.2.24",
       "date": "2026-06-24T10:21:09+01:00",
       "commit": "b3040439b4fb0948446590ae2d61cb9175b34a0a",
-      "message": "fix: apply custom Edit Images poster across the site",
+      "message": "Fix - Apply custom Edit Images poster across the site",
       "author": "Lasikiewicz",
       "details": [
         "Choosing a poster via Edit Images now updates the dashboard, explorer and detail pages, not just the page you set it on",
@@ -1043,7 +1043,7 @@
       "version": "0.2.23",
       "date": "2026-06-23T17:03:30+01:00",
       "commit": "b2f97d6d88753157492b084186216c631028a7be",
-      "message": "fix: cache TV next airing dates",
+      "message": "Fix - Cache TV next airing dates",
       "author": "Lasikiewicz",
       "details": [
         "Build and maintain a local next-airing cache for TV shows from TMDB.",
@@ -1057,7 +1057,7 @@
       "version": "0.2.22",
       "date": "2026-06-23T14:11:41+01:00",
       "commit": "728483ec4a2e7fbb0efdc1770d0b566ca8c78bb0",
-      "message": "fix: stop local watches implying availability",
+      "message": "Fix - Stop local watches implying availability",
       "author": "Lasikiewicz",
       "details": [
         "Prevent watched movie records from forcing the Available in 1080p badge",
@@ -1068,7 +1068,7 @@
       "version": "0.2.21",
       "date": "2026-06-23T14:01:48+01:00",
       "commit": "75f154e27506ec2beceb3d03a4f0d7c66a3012d2",
-      "message": "fix: verify Seerr availability against apps",
+      "message": "Fix - Verify Seerr availability against apps",
       "author": "Lasikiewicz",
       "details": [
         "Use configured Plex, Emby, and Jellyfin lookups for availability badges instead of Seerr cached status",
@@ -1080,7 +1080,7 @@
       "version": "0.2.20",
       "date": "2026-06-23T13:50:37+01:00",
       "commit": "1b5922b90c99239296e0244cbebbae7f47560c7b",
-      "message": "fix: refresh sidebar update check",
+      "message": "Fix - Refresh sidebar update check",
       "author": "Lasikiewicz",
       "details": [
         "Refresh GitHub changelog metadata during sidebar version checks so newly published releases are flagged immediately",
@@ -1091,7 +1091,7 @@
       "version": "0.2.19",
       "date": "2026-06-23T13:38:28+01:00",
       "commit": "af1242e93a96ed4419a3e62e4d4491dd40a546aa",
-      "message": "fix: collapse mobile page controls",
+      "message": "Fix - Collapse mobile page controls",
       "author": "Lasikiewicz",
       "details": [
         "Keep page controls expanded on desktop while collapsing them into a Controls dropdown on mobile",
@@ -1103,7 +1103,7 @@
       "version": "0.2.18",
       "date": "2026-06-23T13:17:34+01:00",
       "commit": "0aa29afa181c6689e401331f71feb8abfe7c3c71",
-      "message": "fix: send TV 4K Seerr seasons",
+      "message": "Fix - Send TV 4K Seerr seasons",
       "author": "Lasikiewicz",
       "details": [
         "Send missing season numbers with whole-show TV 4K Seerr requests",
@@ -1115,7 +1115,7 @@
       "version": "0.2.17",
       "date": "2026-06-23T12:36:58+01:00",
       "commit": "2f936c1cbed175fafab8e7aa48e7a64dd6b91f86",
-      "message": "feat: inline calendar date+time picker for mark-watched prompt",
+      "message": "Feature - Inline calendar date+time picker for mark-watched prompt",
       "author": "Lasikiewicz",
       "details": [
         "Replace plain date input with a full inline calendar picker in the mark-watched dialog",
@@ -1129,7 +1129,7 @@
       "version": "0.2.16",
       "date": "2026-06-23T12:10:18+01:00",
       "commit": "4e4df07004009d719ed16de54d36c2f0d935693f",
-      "message": "feat: flag available updates on the sidebar version badge",
+      "message": "Feature - Flag available updates on the sidebar version badge",
       "author": "Lasikiewicz",
       "details": [
         "Dashboard load now runs a quick update check against GitHub",
@@ -1141,7 +1141,7 @@
       "version": "0.2.15",
       "date": "2026-06-23T11:55:41+01:00",
       "commit": "dc8ec10d0e24e6ab2cc3daeb73dd372daf3dc265",
-      "message": "feat: show current version and check GitHub for newer releases on the Changelog screen",
+      "message": "Feature - Show current version and check GitHub for newer releases on the Changelog screen",
       "author": "Lasikiewicz",
       "details": [
         "Settings → Changelog now shows your running build version with an update banner",
@@ -1154,7 +1154,7 @@
       "version": "0.2.14",
       "date": "2026-06-23T11:45:04+01:00",
       "commit": "12c6de432d85b877444801d8389c7c6f0b41f19c",
-      "message": "feat: instant media detail loads and clickable Part Watched posters",
+      "message": "Feature - Instant media detail loads and clickable Part Watched posters",
       "author": "Lasikiewicz",
       "details": [
         "Remove the blank flash when opening or refreshing a TV show, movie, or person page by rendering the local library data immediately instead of waiting for settings to finish loading",
@@ -1165,7 +1165,7 @@
       "version": "0.2.13",
       "date": "2026-06-23T11:18:01+01:00",
       "commit": "fce8ec4f3161b9f8cc33700cc5c41a1c8c053507",
-      "message": "fix: restore correct show names for Plex episode watch history records",
+      "message": "Fix - Restore correct show names for Plex episode watch history records",
       "author": "Lasikiewicz",
       "details": [
         "TV episodes from Plex no longer save as \"Unknown Show\" when the show name was already available",
@@ -1177,7 +1177,7 @@
       "version": "0.2.12",
       "date": "2026-06-23T10:46:38+01:00",
       "commit": "9e1dee4cc948bbbc67f73b0851b332421be0b534",
-      "message": "fix: resolve TV show episodes displaying as \"Unknown Show\" in watch history",
+      "message": "Fix - Resolve TV show episodes displaying as \"Unknown Show\" in watch history",
       "author": "Lasikiewicz",
       "details": [
         "Plex episode webhooks no longer use the episode title as a fallback for the show name when grandparentTitle is missing",
@@ -1189,7 +1189,7 @@
       "version": "0.2.11",
       "date": "2026-06-23T10:28:39+01:00",
       "commit": "d722969466e9dd3a753d3a0fafd31e921864e592",
-      "message": "feat: add IMDb rating badge to TV show pages",
+      "message": "Feature - Add IMDb rating badge to TV show pages",
       "author": "Lasikiewicz",
       "details": [
         "Fetch OMDb rating for TV shows in hydrateImmersiveShowModal when OMDb is configured, same as movies",
@@ -1203,7 +1203,7 @@
       "version": "0.2.10",
       "date": "2026-06-23T10:25:52+01:00",
       "commit": "04c415d1e032d089c873726d2fc5fb2b0e78ad59",
-      "message": "feat: IMDb ratings via OMDb, collapsible mobile action menus, and movie refresh fix",
+      "message": "Feature - IMDb ratings via OMDb, collapsible mobile action menus, and movie refresh fix",
       "author": "Lasikiewicz",
       "details": [
         "Add OMDb integration: configure an API key in Settings → Integrations to display IMDb ratings as a % badge next to TMDB on movie pages, cached 7 days (also via OMDB_API_KEY env var)",
@@ -1218,14 +1218,14 @@
       "version": "0.2.9",
       "date": "2026-06-21T19:14:32+01:00",
       "commit": "0fb0980cda836d1580b7a85b40e317bf3c1e61a8",
-      "message": "chore: trigger CI to test updated workflow configuration",
+      "message": "Chore - Trigger CI to test updated workflow configuration",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.2.8",
       "date": "2026-06-21T19:05:46+01:00",
       "commit": "7346fe33c88b06b7021b5d5918a2eeb3fd8ce388",
-      "message": "docs: add Now Playing screenshot and reorder README screenshots",
+      "message": "Docs - Add Now Playing screenshot and reorder README screenshots",
       "author": "Lasikiewicz",
       "details": [
         "Added Now Playing dashboard screenshot as the first image",
@@ -1237,7 +1237,7 @@
       "version": "0.2.7",
       "date": "2026-06-21T19:00:45+01:00",
       "commit": "5582ea853d0c6f6e9281230d75a92be71257c758",
-      "message": "docs: update README intro and add screenshots; fix search dropdown in light mode",
+      "message": "Docs - Update README intro and add screenshots; fix search dropdown in light mode",
       "author": "Lasikiewicz",
       "details": [
         "Reworded README intro to lead with personal watch history tracker and playstate sync",
@@ -1251,7 +1251,7 @@
       "version": "0.2.6",
       "date": "2026-06-21T18:38:40+01:00",
       "commit": "e99d26293d9efc36caddaa13fde5308c495404e3",
-      "message": "chore: upgrade dependencies and fix Express 5 wildcard route syntax",
+      "message": "Chore - Upgrade dependencies and fix Express 5 wildcard route syntax",
       "author": "Lasikiewicz",
       "details": [
         "Upgrade express 4 → 5.2.1 (requires named wildcards in route patterns)",
@@ -1267,14 +1267,14 @@
       "version": "0.2.5",
       "date": "2026-06-21T18:27:33+01:00",
       "commit": "314525ba11a829ac5c3702326a22d5f0a2570214",
-      "message": "chore: trigger CI to test updated workflow configuration",
+      "message": "Chore - Trigger CI to test updated workflow configuration",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.2.4",
       "date": "2026-06-21T17:50:12+01:00",
       "commit": "6d6fa2ca0d58fcaaa84ac502e524ff1ff7ce4a5c",
-      "message": "chore: bump CI to Node 24 and CodeQL action v4",
+      "message": "Chore - Bump CI to Node 24 and CodeQL action v4",
       "author": "Lasikiewicz",
       "details": [
         "Update node-version from 20 to 24 in npm-audit job (Node 20 deprecated on GitHub Actions)",
@@ -1285,7 +1285,7 @@
       "version": "0.2.3",
       "date": "2026-06-21T17:47:20+01:00",
       "commit": "9cda40989b99c2a22a51c5caf0a90cc51f4fb073",
-      "message": "chore: remove all Firebase references and dead migration scripts",
+      "message": "Chore - Remove all Firebase references and dead migration scripts",
       "author": "Lasikiewicz",
       "details": [
         "Deleted all scripts that depended on firebase-admin (migrate, rebuildPlaystate, repairReleaseDates, localForceSync, check_plex_history, testSessions)",
@@ -1302,7 +1302,7 @@
       "version": "0.2.2",
       "date": "2026-06-21T17:29:30+01:00",
       "commit": "19349815f4239220d990b1f53d1a5b338e6e8331",
-      "message": "security: harden server, enforce default-password change, add docs",
+      "message": "Security - Harden server, enforce default-password change, add docs",
       "author": "Lasikiewicz",
       "details": [
         "Add HTTP security headers: Permissions-Policy, HSTS (when COOKIE_SECURE=true), frame-src YouTube in CSP",
@@ -1322,7 +1322,7 @@
       "version": "0.2.1",
       "date": "2026-06-21T16:47:26+01:00",
       "commit": "d412f4629e2bd20b65585695aa912f600f778178",
-      "message": "fix: honour manual version bumps and auto-rebase before push",
+      "message": "Fix - Honour manual version bumps and auto-rebase before push",
       "author": "Lasikiewicz",
       "details": [
         "update-changelog.js now respects package.json version when it is higher than the next patch increment (fixes major/minor bumps being overwritten by CI)",
@@ -1334,7 +1334,7 @@
       "version": "0.2.0",
       "date": "2026-06-21T16:42:18+01:00",
       "commit": "3470f9d1a84b18c176ded93ad92e91173a65e86c",
-      "message": "chore: bump version to 0.2.0 (rollback checkpoint)",
+      "message": "Chore - Bump version to 0.2.0 (rollback checkpoint)",
       "author": "Lasikiewicz",
       "details": [
         "Version stamp before security hardening work begins"
@@ -1344,7 +1344,7 @@
       "version": "0.1.56",
       "date": "2026-06-21T16:13:57+01:00",
       "commit": "adecdf14a59add822615b9d80264da5cfd140486",
-      "message": "fix: collapse duplicate daily history rows",
+      "message": "Fix - Collapse duplicate daily history rows",
       "author": "Lasikiewicz",
       "details": [
         "Show one History entry per movie or TV episode per calendar day",
@@ -1356,7 +1356,7 @@
       "version": "0.1.55",
       "date": "2026-06-21T16:08:25+01:00",
       "commit": "c996755149e08d37372c027b0e229143e983fbda",
-      "message": "feat: refine history browsing and TV matching",
+      "message": "Feature - Refine history browsing and TV matching",
       "author": "Lasikiewicz",
       "details": [
         "Add movie and TV filters to the History page",
@@ -1370,7 +1370,7 @@
       "version": "0.1.54",
       "date": "2026-06-21T15:38:57+01:00",
       "commit": "f9729e8ce46bed24d0bb6a11bcf91adf73f2cedf",
-      "message": "fix: recover show metadata from episode ids",
+      "message": "Fix - Recover show metadata from episode ids",
       "author": "Lasikiewicz",
       "details": [
         "Retry TMDB detail lookups by title or external IDs when a stored ID returns 404",
@@ -1382,7 +1382,7 @@
       "version": "0.1.53",
       "date": "2026-06-20T16:49:22+01:00",
       "commit": "b932b3566896bc29aff371d4e4c5f35c296b6d6c",
-      "message": "feat: add Cache settings page for image storage management",
+      "message": "Feature - Add Cache settings page for image storage management",
       "author": "Lasikiewicz",
       "details": [
         "New Cache page in Settings showing disk usage for posters, backdrops, and profiles",
@@ -1396,7 +1396,7 @@
       "version": "0.1.52",
       "date": "2026-06-20T15:50:37+01:00",
       "commit": "d96dedbfd804906b360772140453de5c64e1b486",
-      "message": "fix: read Plex child Guid elements for TMDB IDs in live session tracking",
+      "message": "Fix - Read Plex child Guid elements for TMDB IDs in live session tracking",
       "author": "Lasikiewicz",
       "details": [
         "plexGuidIds now parses child <Guid id=\"tmdb://...\"/> elements from the",
@@ -1407,7 +1407,7 @@
       "version": "0.1.51",
       "date": "2026-06-20T15:41:54+01:00",
       "commit": "5b4c6cc2366c747ad5b3c52a0e8a4c763140271c",
-      "message": "fix: suppress Seerr request buttons when show is actively playing",
+      "message": "Fix - Suppress Seerr request buttons when show is actively playing",
       "author": "Lasikiewicz",
       "details": [
         "renderSeerrRequestPill now respects localAvailable for TV shows (was",
@@ -1418,7 +1418,7 @@
       "version": "0.1.50",
       "date": "2026-06-20T15:35:45+01:00",
       "commit": "7bf25e0d8e99554f264bb8045c0f8c0225e6619c",
-      "message": "fix: load TV show details for first-watch now-playing sessions",
+      "message": "Fix - Load TV show details for first-watch now-playing sessions",
       "author": "Lasikiewicz",
       "details": [
         "When a now-playing show has never been watched, its TMDB ID may not",
@@ -1429,7 +1429,7 @@
       "version": "0.1.49",
       "date": "2026-06-20T15:10:46+01:00",
       "commit": "af7af19ff8baaca2319b8cfd110d0ea95bf1a87f",
-      "message": "feat: Edit Images fanart support, bigger dialog, TV show breadcrumb and UI polish",
+      "message": "Feature - Edit Images fanart support, bigger dialog, TV show breadcrumb and UI polish",
       "author": "Lasikiewicz",
       "details": [
         "Edit Images dialog now pulls posters and logos from Fanart.tv alongside TMDB, with source badges (TMDB / Fanart) on each image tile",
@@ -1444,7 +1444,7 @@
       "version": "0.1.48",
       "date": "2026-06-20T14:50:37+01:00",
       "commit": "a6f7e88ec1342afb7afe51fffb4b9974a6b5c0c3",
-      "message": "feat: add Fanart.tv integration and filmography grid overhaul",
+      "message": "Feature - Add Fanart.tv integration and filmography grid overhaul",
       "author": "Lasikiewicz",
       "details": [
         "Add Fanart.tv as a parallel fallback source for posters, backdrops, and logo art alongside TMDB",
@@ -1461,7 +1461,7 @@
       "version": "0.1.47",
       "date": "2026-06-20T14:00:54+01:00",
       "commit": "13c416f74575b924f95097d30da1c35ccf8116dc",
-      "message": "fix: throttle TMDB poster downloads to prevent rate-limit 429 errors",
+      "message": "Fix - Throttle TMDB poster downloads to prevent rate-limit 429 errors",
       "author": "Lasikiewicz",
       "details": [
         "Add concurrency semaphore capping simultaneous TMDB image downloads to 8 (was unlimited)",
@@ -1474,7 +1474,7 @@
       "version": "0.1.46",
       "date": "2026-06-20T13:47:08+01:00",
       "commit": "d7dd662c04e015c3364fa010fc89bb523e6b0c27",
-      "message": "fix: replace inline event handlers to comply with Content Security Policy",
+      "message": "Fix - Replace inline event handlers to comply with Content Security Policy",
       "author": "Lasikiewicz",
       "details": [
         "Remove all onclick/onerror attributes from dynamically-rendered HTML templates",
@@ -1487,7 +1487,7 @@
       "version": "0.1.45",
       "date": "2026-06-20T13:39:53+01:00",
       "commit": "71d3639d298fc77b0a0ce7f2ac2688003e90cbda",
-      "message": "feat: overhaul Edit Images dialog with tabbed layout and better logo display",
+      "message": "Feature - Overhaul Edit Images dialog with tabbed layout and better logo display",
       "author": "Lasikiewicz",
       "details": [
         "Rename \"Edit Image\" button to \"Edit Images\" on movie and TV show pages",
@@ -1505,7 +1505,7 @@
       "version": "0.1.44",
       "date": "2026-06-20T13:25:10+01:00",
       "commit": "4b9999988d2b8f079216b9bca458be5ab9a119d7",
-      "message": "fix: remove browser-side direct media server session polling",
+      "message": "Fix - Remove browser-side direct media server session polling",
       "author": "Lasikiewicz",
       "details": [
         "Removed direct browser fetch calls to Plex, Emby, and Jellyfin that violated CSP connect-src policy",
@@ -1517,7 +1517,7 @@
       "version": "0.1.43",
       "date": "2026-06-20T12:54:36+01:00",
       "commit": "273563f8bb0abd1971a20568f640358d28ed7434",
-      "message": "fix: correct stats plays count and promote Stats to primary nav",
+      "message": "Fix - Correct stats plays count and promote Stats to primary nav",
       "author": "Lasikiewicz",
       "details": [
         "Stats \"Plays\" card now shows movie-only or episode-only count when filtered, instead of the combined total",
@@ -1528,7 +1528,7 @@
       "version": "0.1.42",
       "date": "2026-06-20T12:32:33+01:00",
       "commit": "d23a68562804eb463f8642b0ed9bf58c79cd069f",
-      "message": "feat: add stats review reports",
+      "message": "Feature - Add stats review reports",
       "author": "Lasikiewicz",
       "details": [
         "Add year, month, and all-time stats review reports with poster-ranked media",
@@ -1542,7 +1542,7 @@
       "version": "0.1.41",
       "date": "2026-06-20T11:07:06+01:00",
       "commit": "330aab0c6086e9543b958b9bd0bfca38369b363d",
-      "message": "feat: add settings changelog view",
+      "message": "Feature - Add settings changelog view",
       "author": "Lasikiewicz",
       "details": [
         "Make the sidebar version a centered link to Settings Changelog",
@@ -1555,7 +1555,7 @@
       "version": "0.1.40",
       "date": "2026-06-20T09:46:37+01:00",
       "commit": "d3a7d509fea8e04846d33f5b82d72250b7d56481",
-      "message": "fix: show x/x watched on TV show grid cards and self-heal missing episode totals",
+      "message": "Fix - Show x/x watched on TV show grid cards and self-heal missing episode totals",
       "author": "Lasikiewicz",
       "details": [
         "Move watched count from overlay badge above poster to plain text below title, matching movie card date style",
@@ -1568,7 +1568,7 @@
       "version": "0.1.39",
       "date": "2026-06-20T09:26:53+01:00",
       "commit": "c0106792843784a550a1b354aa38fd9280dca850",
-      "message": "docs: remove push-to-git workflow section from README",
+      "message": "Docs - Remove push-to-git workflow section from README",
       "author": "Lasikiewicz",
       "details": [
         "Section belongs in CLAUDE.md only; no end-user value in README"
@@ -1578,7 +1578,7 @@
       "version": "0.1.38",
       "date": "2026-06-20T09:23:55+01:00",
       "commit": "b0dc5b67ec6c5cb67e3b6412a68c6543d6f3abdb",
-      "message": "docs: update README backup section and tighten push-to-git README check rule",
+      "message": "Docs - Update README backup section and tighten push-to-git README check rule",
       "author": "Lasikiewicz",
       "details": [
         "Remove stale backup destinations (Local/Synced Folder, S3, WebDAV, OneDrive, Dropbox) from README — only Backblaze B2 remote is supported now",
@@ -1591,7 +1591,7 @@
       "version": "0.1.37",
       "date": "2026-06-20T09:20:56+01:00",
       "commit": "5dd516d70cabafb23e259a81b634cf5e10556ddc",
-      "message": "fix: simplify backup settings UI and fix light-theme input styling",
+      "message": "Fix - Simplify backup settings UI and fix light-theme input styling",
       "author": "Lasikiewicz",
       "details": [
         "Fix light-theme: input fields in backup destination card were rendering with dark backgrounds due to a hardcoded .field override; added html.light-mode .field and input[type=\"number\"] rules to counter it",
@@ -1604,7 +1604,7 @@
       "version": "0.1.36",
       "date": "2026-06-20T09:02:53+01:00",
       "commit": "632e0fa3b330390d7e259061d8b9f6b17e9b8156",
-      "message": "fix: rename existing node user to plembfin instead of creating new uid 1000",
+      "message": "Fix - Rename existing node user to plembfin instead of creating new uid 1000",
       "author": "Lasikiewicz",
       "details": [
         "node:22-slim ships a 'node' user at uid 1000; useradd -u 1000 fails with exit 4",
@@ -1615,7 +1615,7 @@
       "version": "0.1.35",
       "date": "2026-06-20T08:59:37+01:00",
       "commit": "eab6ab150be331ebee7616a15578fdb6b883e299",
-      "message": "fix: add buildx setup for Docker attestation support and sync CLAUDE.md",
+      "message": "Fix - Add buildx setup for Docker attestation support and sync CLAUDE.md",
       "author": "Lasikiewicz",
       "details": [
         "Added docker/setup-buildx-action@v3 before build-push in all three workflow jobs",
@@ -1628,7 +1628,7 @@
       "version": "0.1.34",
       "date": "2026-06-20T08:56:20+01:00",
       "commit": "241d1a748f7c37a497c80ea6b2d9b4a9e1141f27",
-      "message": "fix: rebuild native modules after npm ci --ignore-scripts in CI",
+      "message": "Fix - Rebuild native modules after npm ci --ignore-scripts in CI",
       "author": "Lasikiewicz",
       "details": [
         "npm ci --ignore-scripts skips better-sqlite3 and sharp postinstall steps",
@@ -1639,56 +1639,56 @@
       "version": "0.1.33",
       "date": "2026-06-19T22:05:07+01:00",
       "commit": "a9ca122d73fd0baaff4cd44cf887b2181550c8e6",
-      "message": "fix: align show detail hero layout",
+      "message": "Fix - Align show detail hero layout",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.32",
       "date": "2026-06-19T21:56:32+01:00",
       "commit": "ca6843275e7279c1440cd9d69967806e575dad80",
-      "message": "feat: add edit watch date quick choices",
+      "message": "Feature - Add edit watch date quick choices",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.31",
       "date": "2026-06-19T21:48:39+01:00",
       "commit": "6bb1238908d758c7588b5a410c587077de2f0f20",
-      "message": "fix: persist duplicate episode watch date edits",
+      "message": "Fix - Persist duplicate episode watch date edits",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.30",
       "date": "2026-06-19T21:36:13+01:00",
       "commit": "8f0ed2011707320db37b1ac713b302f11597a868",
-      "message": "fix: clear resolved part watched rows",
+      "message": "Fix - Clear resolved part watched rows",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.29",
       "date": "2026-06-19T21:05:29+01:00",
       "commit": "5f167f43bf551a4a1769b077b9cead9a425d6d93",
-      "message": "fix(progress): prompt for watch date when marking partly watched items as watched",
+      "message": "Fix - Prompt for watch date when marking partly watched items as watched",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.28",
       "date": "2026-06-19T20:52:42+01:00",
       "commit": "71226d0b330c319b5fc8129313de15ff055ffc49",
-      "message": "fix(sync): resolve clearMissingTelemetryButton, deduplicate progress records, and improve error feedback on progress actions",
+      "message": "Fix - Resolve clearMissingTelemetryButton, deduplicate progress records, and improve error feedback on progress actions",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.27",
       "date": "2026-06-19T20:44:32+01:00",
       "commit": "aad55d709a9218df2156a6e520c51f533f7fefc7",
-      "message": "feat: add Part Watched section with playstate update actions",
+      "message": "Feature - Add Part Watched section with playstate update actions",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.26",
       "date": "2026-06-19T20:25:25+01:00",
       "commit": "ca72fca77633f407bddd5e71ec537bb63ace25ae",
-      "message": "fix: decode HTML entities in active sessions and make Now Playing duplicate detection more robust",
+      "message": "Fix - Decode HTML entities in active sessions and make Now Playing duplicate detection more robust",
       "author": "Lasikiewicz"
     },
     {
@@ -1744,77 +1744,77 @@
       "version": "0.1.18",
       "date": "2026-06-19T13:43:51+01:00",
       "commit": "825fbbf957bdec2d177e6265489ec6c517b07784",
-      "message": "fix: align media page top bars",
+      "message": "Fix - Align media page top bars",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.17",
       "date": "2026-06-19T11:32:47+01:00",
       "commit": "7ae98e984d624c053cb8af6ceb4685ddfc151839",
-      "message": "fix: resolve tv metadata by external ids",
+      "message": "Fix - Resolve tv metadata by external ids",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.16",
       "date": "2026-06-19T11:20:25+01:00",
       "commit": "5dd3a36f913e0c1b9aa75d33f6fb31f8aeec1a61",
-      "message": "fix: preserve tv metadata after status refresh",
+      "message": "Fix - Preserve tv metadata after status refresh",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.15",
       "date": "2026-06-19T11:04:14+01:00",
       "commit": "73cbc6c56c50cfff2bcb6acf9c92caad79bf55e8",
-      "message": "fix: use app availability for tv requests",
+      "message": "Fix - Use app availability for tv requests",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.14",
       "date": "2026-06-19T10:26:47+01:00",
       "commit": "3d66a323789e792c1765ee349b1d77b9a3397df5",
-      "message": "feat: add dedicated history page",
+      "message": "Feature - Add dedicated history page",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.13",
       "date": "2026-06-19T10:03:31+01:00",
       "commit": "4dc1819fbdca8496a5633a43b951be46a8697f97",
-      "message": "fix: resolve Seerr status pending display bug and add TV show support",
+      "message": "Fix - Resolve Seerr status pending display bug and add TV show support",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.12",
       "date": "2026-06-19T09:26:03+01:00",
       "commit": "919eba45ec2bd92a6c272e45a5295c6171c5ae62",
-      "message": "fix: update active movie and show TMDB IDs when resolved to ensure Seerr status refreshes correctly",
+      "message": "Fix - Update active movie and show TMDB IDs when resolved to ensure Seerr status refreshes correctly",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.11",
       "date": "2026-06-19T09:21:51+01:00",
       "commit": "50ec593452d99fcfd0ecc78ab519ffb8a74990d5",
-      "message": "fix: differentiate standard and 4K pending requests from Seerr",
+      "message": "Fix - Differentiate standard and 4K pending requests from Seerr",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.10",
       "date": "2026-06-19T09:13:38+01:00",
       "commit": "fd64750056871d2985e0e5dc1279813ac9acead4",
-      "message": "fix: make Seerr media-status path fallback robust to non-404 errors",
+      "message": "Fix - Make Seerr media-status path fallback robust to non-404 errors",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.9",
       "date": "2026-06-19T09:07:09+01:00",
       "commit": "ffcb6f051cd0a53d010e34d9d1196a186ac25b86",
-      "message": "docs: refine webhook auth details, remove legacy Firebase migration, and clean up Seerr description in README",
+      "message": "Docs - Refine webhook auth details, remove legacy Firebase migration, and clean up Seerr description in README",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.8",
       "date": "2026-06-19T09:02:49+01:00",
       "commit": "1aca9de1d46c94db586efb32645a5f9ac632f398",
-      "message": "docs: update README with fresh setup guide and seerr-style layout",
+      "message": "Docs - Update README with fresh setup guide and seerr-style layout",
       "author": "Lasikiewicz"
     },
     {
@@ -1835,56 +1835,56 @@
       "version": "0.1.5",
       "date": "2026-06-18T21:01:19+01:00",
       "commit": "25e1504cbd3d05598d1bb0d90a6e4dcbbb782781",
-      "message": "fix: enhance seerr request controls",
+      "message": "Fix - Enhance seerr request controls",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.4",
       "date": "2026-06-18T20:13:51+01:00",
       "commit": "a113d492b4f41cbb18e5390f393b086208fd3062",
-      "message": "fix: load config before media routes",
+      "message": "Fix - Load config before media routes",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.3",
       "date": "2026-06-18T20:06:45+01:00",
       "commit": "4d517d84fe4f2a0a1eadb62da96374f9b563a3ca",
-      "message": "fix: refine seerr settings integration",
+      "message": "Fix - Refine seerr settings integration",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.2",
       "date": "2026-06-18T16:28:19+01:00",
       "commit": "ad6f9f255eb886232a8b453f271e336f32d7962b",
-      "message": "chore: clean up temporary scratch files",
+      "message": "Chore - Clean up temporary scratch files",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.1",
       "date": "2026-06-18T16:25:44+01:00",
       "commit": "679d2ecc09b38be6b4b4293edddbf18b71d285b7",
-      "message": "chore: bump version to 0.1.0",
+      "message": "Chore - Bump version to 0.1.0",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.1.0",
       "date": "2026-06-18T15:24:49.925Z",
       "commit": "471276b5d87ff891ebd44dcca8b93edce66dc4a2",
-      "message": "feat: move search filter tabs to middle top inline, center them, and fix show poster fallbacks",
+      "message": "Feature - Move search filter tabs to middle top inline, center them, and fix show poster fallbacks",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.72",
       "date": "2026-06-18T13:36:46+01:00",
       "commit": "4ab4df95be0b54cd67dfc28ac0d1d9872c7e1181",
-      "message": "feat: reorder TV show list columns to poster/title/next-airing/episodes/seasons/last-watched/year",
+      "message": "Feature - Reorder TV show list columns to poster/title/next-airing/episodes/seasons/last-watched/year",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.71",
       "date": "2026-06-18T12:59:51+01:00",
       "commit": "10b41af027ad262dd2442ac5d681adb6f9032d21",
-      "message": "feat: add Hide Fully Watched and Hide Ended filters to TV Show library",
+      "message": "Feature - Add Hide Fully Watched and Hide Ended filters to TV Show library",
       "author": "Lasikiewicz"
     },
     {
@@ -1926,28 +1926,28 @@
       "version": "0.0.65",
       "date": "2026-06-17T16:39:50+01:00",
       "commit": "9c717ef5ccecfd05107dfba3ffe48efc659dbae0",
-      "message": "fix: align explorer header and clear search",
+      "message": "Fix - Align explorer header and clear search",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.64",
       "date": "2026-06-17T16:11:28+01:00",
       "commit": "60f4b0e77f90a7a519b99d1135c1a49027210ac5",
-      "message": "fix: refine sidebar layout copy",
+      "message": "Fix - Refine sidebar layout copy",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.63",
       "date": "2026-06-17T16:02:41+01:00",
       "commit": "03d810ec9b7c6a9abdfc56fff7ebe825a2af48c2",
-      "message": "fix: update dashboard sidebar and playback copy",
+      "message": "Fix - Update dashboard sidebar and playback copy",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.62",
       "date": "2026-06-17T15:27:37+01:00",
       "commit": "85f8d48fbfbb1eca6898dfba5da1b1cdc4713e5f",
-      "message": "fix: update header logo",
+      "message": "Fix - Update header logo",
       "author": "Lasikiewicz"
     },
     {
@@ -1961,7 +1961,7 @@
       "version": "0.0.60",
       "date": "2026-06-17T11:56:40+01:00",
       "commit": "296d1abcaab6e89a6e8f00d5e7f81f1a767e03b7",
-      "message": "fix: list all credits on biography page and fix refresh redirect bug",
+      "message": "Fix - List all credits on biography page and fix refresh redirect bug",
       "author": "Lasikiewicz"
     },
     {
@@ -1975,7 +1975,7 @@
       "version": "0.0.58",
       "date": "2026-06-17T10:04:18+01:00",
       "commit": "cc51d38a29e51a4a342b1f0e7c6c5d957ad8713b",
-      "message": "feat: add alphabetical quick-nav strip to Movies and TV Shows pages",
+      "message": "Feature - Add alphabetical quick-nav strip to Movies and TV Shows pages",
       "author": "Lasikiewicz"
     },
     {
@@ -1996,28 +1996,28 @@
       "version": "0.0.55",
       "date": "2026-06-17T08:20:41+01:00",
       "commit": "30432908e6b6fb05f4c0f2620fc32399869720aa",
-      "message": "enhance: handle local cached storage URLs in cacheArtworkFromUrl",
+      "message": "Enhancement - Handle local cached storage URLs in cacheArtworkFromUrl",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.54",
       "date": "2026-06-16T23:06:41+01:00",
       "commit": "651243c8ab99ae8b75eda89cdd1c28374adf08f9",
-      "message": "fix: handle cached storage image URLs in poster processing",
+      "message": "Fix - Handle cached storage image URLs in poster processing",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.53",
       "date": "2026-06-16T22:53:51+01:00",
       "commit": "89639feca466b0d362698b06872f7ccf12eece4b",
-      "message": "fix: add request deduplication to prevent concurrent poster processing race conditions",
+      "message": "Fix - Add request deduplication to prevent concurrent poster processing race conditions",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.52",
       "date": "2026-06-16T22:22:44+01:00",
       "commit": "eed5864a7a6bfb01b3835f060ab26fd7b419c218",
-      "message": "feat: event-driven Plex unwatch detection via notification WebSocket",
+      "message": "Feature - Event-driven Plex unwatch detection via notification WebSocket",
       "author": "Lasikiewicz"
     },
     {
@@ -2031,14 +2031,14 @@
       "version": "0.0.50",
       "date": "2026-06-16T20:45:50+01:00",
       "commit": "034fa2711e6f72b2fcf608d079e2fc7c3820d7a1",
-      "message": "fix: increase restore push concurrency",
+      "message": "Fix - Increase restore push concurrency",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.49",
       "date": "2026-06-16T20:37:19+01:00",
       "commit": "0e770eab507b8d0b39da76b00aa736af287c00a3",
-      "message": "fix: stabilize backup restore sync",
+      "message": "Fix - Stabilize backup restore sync",
       "author": "Lasikiewicz"
     },
     {
@@ -2073,42 +2073,42 @@
       "version": "0.0.44",
       "date": "2026-06-16T15:56:42+01:00",
       "commit": "d2da1116dec92d9d6aa1eeeaa35b74102d65fe14",
-      "message": "fix: remove post-restore cron pause; rely on lastRestoreAt filter instead",
+      "message": "Fix - Remove post-restore cron pause; rely on lastRestoreAt filter instead",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.43",
       "date": "2026-06-16T15:52:19+01:00",
       "commit": "08e8bcba9dfabce6a8aea8f74816f6b93f9c8d68",
-      "message": "fix: skip cron-imported items played before the last restore date",
+      "message": "Fix - Skip cron-imported items played before the last restore date",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.42",
       "date": "2026-06-16T15:42:05+01:00",
       "commit": "83dff4ffdeed68069839d784bddb24b123ef7ced",
-      "message": "fix: pause cron sync after remote backup restore + add manual pause/resume API",
+      "message": "Fix - Pause cron sync after remote backup restore + add manual pause/resume API",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.41",
       "date": "2026-06-16T15:16:31+01:00",
       "commit": "a653cdad92787f44ca824b8e7e0329bb8073ed1d",
-      "message": "feat: add View on IMDb links to movie and TV show detail pages",
+      "message": "Feature - Add View on IMDb links to movie and TV show detail pages",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.40",
       "date": "2026-06-16T15:12:31+01:00",
       "commit": "f7fe1f894955f8484793c13dca43ee51d607da55",
-      "message": "fix: prevent cron sync from creating duplicate records after restore",
+      "message": "Fix - Prevent cron sync from creating duplicate records after restore",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.39",
       "date": "2026-06-16T15:00:53+01:00",
       "commit": "1c53cfa42ff46e581740a01f9acbbbf455fe2c0a",
-      "message": "feat: complete remote backups on restore tab",
+      "message": "Feature - Complete remote backups on restore tab",
       "author": "Lasikiewicz"
     },
     {
@@ -2192,91 +2192,91 @@
       "version": "0.0.27",
       "date": "2026-06-16T11:44:39+01:00",
       "commit": "d66ac4b9de34005ce284c7a8c6b9675c5fb6e12a",
-      "message": "fix: prevent resume progress sync when item is marked watched",
+      "message": "Fix - Prevent resume progress sync when item is marked watched",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.26",
       "date": "2026-06-16T11:37:31+01:00",
       "commit": "d797737b561e4898cde8a691059087e5142272ec",
-      "message": "chore: add comprehensive logging for sync debugging",
+      "message": "Chore - Add comprehensive logging for sync debugging",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.25",
       "date": "2026-06-16T11:27:23+01:00",
       "commit": "6b446553c1b5993ce48863cabf1fd8874bf5f513",
-      "message": "fix: allow resume progress sync even when timestamp is missing",
+      "message": "Fix - Allow resume progress sync even when timestamp is missing",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.24",
       "date": "2026-06-16T11:11:26+01:00",
       "commit": "859ff32123b7e9e977b1e062d71dba08fe55a9ab",
-      "message": "chore: commit pending changes",
+      "message": "Chore - Commit pending changes",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.23",
       "date": "2026-06-16T10:12:53+01:00",
       "commit": "4aab4e274829dda12b383e8c24060d51170f602f",
-      "message": "fix: ignore stale resume progress polls",
+      "message": "Fix - Ignore stale resume progress polls",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.22",
       "date": "2026-06-16T09:58:46+01:00",
       "commit": "0916e465d5b35e66c134e4983e13aa171cf9fa46",
-      "message": "fix: prefer newer playstate over resume progress",
+      "message": "Fix - Prefer newer playstate over resume progress",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.21",
       "date": "2026-06-16T09:43:25+01:00",
       "commit": "5b3d724de18eb07b5bfbe5215e8043d97f454671",
-      "message": "fix: dedupe media cards and sync plex resume state",
+      "message": "Fix - Dedupe media cards and sync plex resume state",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.20",
       "date": "2026-06-16T09:24:38+01:00",
       "commit": "d3a1fba5ec873ade6c592bad8c1a3ce0a51969b2",
-      "message": "fix: sync resume progress and dedupe library cards",
+      "message": "Fix - Sync resume progress and dedupe library cards",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.19",
       "date": "2026-06-16T09:00:48+01:00",
       "commit": "0df29ba07d9f7a6aed8c3f28ac5fd79868d74a52",
-      "message": "fix: backfill played emby items without dates",
+      "message": "Fix - Backfill played emby items without dates",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.18",
       "date": "2026-06-16T08:48:10+01:00",
       "commit": "cfc3f4c2f040c4626fed591c638b37908834748a",
-      "message": "fix: harden emby watch sync",
+      "message": "Fix - Harden emby watch sync",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.17",
       "date": "2026-06-16T08:18:02+01:00",
       "commit": "33533ec9bc7bf06bf480baf2900adbcb179eac98",
-      "message": "fix: sync show watch state edits",
+      "message": "Fix - Sync show watch state edits",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.16",
       "date": "2026-06-15T17:35:30+01:00",
       "commit": "46222e1086f46a6138402569254dfde0a06ac6fe",
-      "message": "fix: filmography watched status now checks all server watched movies/shows instead of only partially-loaded explorer state and limited dashboard preview",
+      "message": "Fix - Filmography watched status now checks all server watched movies/shows instead of only partially-loaded explorer state and limited dashboard preview",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.15",
       "date": "2026-06-15T17:29:22+01:00",
       "commit": "e49f2e2c4c7829e83f13e5c9f690a29e4c42400f",
-      "message": "fix: replace intermediate modal re-render with lightweight button state update when marking unwatched movie as watched - eliminates double TMDB fetch and loading flicker during save",
+      "message": "Fix - Replace intermediate modal re-render with lightweight button state update when marking unwatched movie as watched - eliminates double TMDB fetch and loading flicker during save",
       "author": "Lasikiewicz"
     },
     {
@@ -2311,28 +2311,28 @@
       "version": "0.0.10",
       "date": "2026-06-15T14:48:01+01:00",
       "commit": "9a2da3619855bbbf49acdd22962ef943da2b1627",
-      "message": "feat: Backblaze B2 backup option + restore from any destination",
+      "message": "Feature - Backblaze B2 backup option + restore from any destination",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.9",
       "date": "2026-06-15T14:25:46+01:00",
       "commit": "700ea92e3a124924366c1ab5f1765813754c1841",
-      "message": "docs: clarify OneDrive setup for personal accounts with no Azure directory",
+      "message": "Docs - Clarify OneDrive setup for personal accounts with no Azure directory",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.8",
       "date": "2026-06-15T14:14:24+01:00",
       "commit": "0514c4e4156d21fb8f3b651f411d1137b7fe433f",
-      "message": "feat: add local/synced-folder backup destination + simpler OneDrive setup",
+      "message": "Feature - Add local/synced-folder backup destination + simpler OneDrive setup",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.7",
       "date": "2026-06-15T14:03:10+01:00",
       "commit": "b2236be21b2aa9cbc7e2df82e1c5dc7a555512d8",
-      "message": "feat: remote backup destinations + mark non-library movies watched",
+      "message": "Feature - Remote backup destinations + mark non-library movies watched",
       "author": "Lasikiewicz"
     },
     {
@@ -2346,35 +2346,35 @@
       "version": "0.0.5",
       "date": "2026-06-15T13:00:51+01:00",
       "commit": "1c50909d0bc821019543daeb949560e2d59efb73",
-      "message": "feat: improve TV watch controls and search results",
+      "message": "Feature - Improve TV watch controls and search results",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.4",
       "date": "2026-06-15T12:44:49+01:00",
       "commit": "6387ab0fc7f7a9cf1d804420ed18f20f823b66fb",
-      "message": "feat: improve media navigation and watch status",
+      "message": "Feature - Improve media navigation and watch status",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.3",
       "date": "2026-06-15T12:27:27+01:00",
       "commit": "e7ce20e52ac0d549a05d932b74cbab2061094431",
-      "message": "fix: restore local artwork and add demo content",
+      "message": "Fix - Restore local artwork and add demo content",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.2",
       "date": "2026-06-15T12:09:54+01:00",
       "commit": "545542a14f95b9e05b24457ed58a55b06d0473b5",
-      "message": "ci: validate builds before publishing",
+      "message": "CI - Validate builds before publishing",
       "author": "Lasikiewicz"
     },
     {
       "version": "0.0.1",
       "date": "2026-06-15T10:51:18Z",
       "commit": "be842a7ee86a912e5efdd969b53828f284da4ddb",
-      "message": "feat: add versioning and local artwork cache",
+      "message": "Feature - Add versioning and local artwork cache",
       "author": "Lasikiewicz"
     }
   ]

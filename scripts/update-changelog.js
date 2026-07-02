@@ -9,9 +9,24 @@ const changelogPath = path.join(root, "changelog.json");
 const packagePath = path.join(root, "package.json");
 const packageLockPath = path.join(root, "package-lock.json");
 
+// Map a conventional-commit type prefix to the human-readable label shown in the
+// changelog UI, e.g. "feat: add thing" -> "Feature - Add thing". Messages that
+// don't start with a known type (older free-form commit summaries) pass through
+// unchanged.
+const TYPE_LABELS = { feat: "Feature", fix: "Fix", security: "Security", chore: "Chore", docs: "Docs", ci: "CI", enhance: "Enhancement" };
+function formatChangelogMessage(message) {
+  const m = String(message || "").match(/^([a-zA-Z]+)(?:\([^)]*\))?:\s*(.*)$/);
+  if (!m) return message;
+  const label = TYPE_LABELS[m[1].toLowerCase()];
+  if (!label) return message;
+  const rest = m[2].trim();
+  if (!rest) return label;
+  return `${label} - ${rest.charAt(0).toUpperCase()}${rest.slice(1)}`;
+}
+
 const sourceCommit = String(process.env.SOURCE_COMMIT || "").trim();
 const rawMessage = String(process.env.SOURCE_MESSAGE || "Update application").trim();
-const sourceMessage = rawMessage.split(/\r?\n/, 1)[0];
+const sourceMessage = formatChangelogMessage(rawMessage.split(/\r?\n/, 1)[0]);
 const sourceDate = String(process.env.SOURCE_DATE || new Date().toISOString()).trim();
 const sourceAuthor = String(process.env.SOURCE_AUTHOR || "unknown").trim();
 
