@@ -269,6 +269,58 @@ function hydrateMissingSeasonDetails(show, activeSeasonNum, tmdbData, seasonDeta
     .finally(() => _seasonDetailsInflight.delete(cacheKey));
 }
 
+function hydrateUnknownSeasonSummaryDetails(show, tmdbData, seasonDetailsByNumber, loading, seasonsList = []) {
+  if (loading || !tmdbData?.id || !seasonsList.length) return;
+  const requests = [];
+  const cacheKeys = [];
+
+  for (const season of seasonsList) {
+    const seasonNumber = Number(season.season_number);
+    if (!Number.isFinite(seasonNumber) || seasonNumber <= 0) continue;
+    if (Number(season.episode_count || 0) > 0 || seasonDetailsByNumber.has(seasonNumber)) continue;
+
+    const cacheKey = `${tmdbData.id}|${seasonNumber}`;
+    if (_seasonDetailsInflight.has(cacheKey)) continue;
+
+    _seasonDetailsInflight.add(cacheKey);
+    cacheKeys.push(cacheKey);
+    requests.push(
+      fetchTmdbSeasonDetails(tmdbData.id, seasonNumber)
+        .then((details) => ({ seasonNumber, details }))
+        .catch((error) => {
+          console.error(`Failed to hydrate season ${seasonNumber} summary`, error);
+          return { seasonNumber, details: null };
+        })
+    );
+  }
+
+  if (!requests.length) return;
+
+  Promise.all(requests)
+    .then((results) => {
+      let changed = false;
+      for (const { seasonNumber, details } of results) {
+        if (!details) continue;
+        seasonDetailsByNumber.set(Number(seasonNumber), details);
+        changed = true;
+      }
+      const current = state.activeShowRenderContext;
+      const currentTmdbId = current?.tmdbData?.id || tmdbData.id;
+      if (!changed || String(currentTmdbId) !== String(tmdbData.id)) return;
+      renderShowModalContent(current?.show || show, {
+        ...current,
+        activeSeasonNum: state.activeShowModalSeason,
+        tmdbData,
+        seasonDetailsByNumber,
+        loading: false,
+      });
+    })
+    .catch((error) => console.error("Failed to refresh season summaries", error))
+    .finally(() => {
+      for (const cacheKey of cacheKeys) _seasonDetailsInflight.delete(cacheKey);
+    });
+}
+
 function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolvedTmdbId = "", tmdbData = null) {
   const watchedMap = watchedEpisodesByKey(show);
   const progressMap = playbackProgressByEpisode(show, resolvedTmdbId);
@@ -407,9 +459,15 @@ function showModalStatus(loading, hasTmdbKey, hasTmdbData) {
   return "";
 }
 
-function showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle = "", tmdbData = null) {
+function seasonEpisodeTotal(seasonNumber, seasonEpisodes, season, seasonDetailsByNumber) {
+  const tmdbSeason = seasonDetailsByNumber?.get(Number(seasonNumber));
+  const tmdbEpisodeCount = Array.isArray(tmdbSeason?.episodes) ? tmdbSeason.episodes.length : 0;
+  return Math.max(seasonEpisodes.length, tmdbEpisodeCount, Number(season.episode_count || 0));
+}
+
+function showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle = "", tmdbData = null, seasonDetailsByNumber = null) {
   const watchedInSeason = seasonEpisodes.filter((episode) => episode.watched).length;
-  const seasonTotal = Math.max(seasonEpisodes.length, Number(season.episode_count || 0));
+  const seasonTotal = seasonEpisodeTotal(seasonNumber, seasonEpisodes, season, seasonDetailsByNumber);
   const today = toDateInputValue(new Date());
   let nextAiring = seasonEpisodes
     .filter((episode) => !episode.watched && episode.airDate && episode.airDate >= today)
@@ -500,7 +558,7 @@ export function renderShowModalContent(show, {
   const selectedSeasonUnwatched = selectedSeasonEpisodes.filter((episode) => !episode.watched && !isUnreleased(episode));
   const unwatchedRows = episodeRows.filter((episode) => !episode.watched && !isUnreleased(episode));
   const selectedSeasonSummary = selectedSeasonRecord
-    ? showSeasonSummary(selectedSeasonNumber, selectedSeasonEpisodes, selectedSeasonRecord, showTitle, tmdbData)
+    ? showSeasonSummary(selectedSeasonNumber, selectedSeasonEpisodes, selectedSeasonRecord, showTitle, tmdbData, seasonDetailsByNumber)
     : { watchedInSeason: 0, seasonTotal: 0 };
   const selectedSeasonSeerrControls = selectedSeasonRecord ? renderSeasonSeerrControls(tvSeerrTmdbId, selectedSeasonNumber, tvSeerrStatus) : "";
   const selectedSeasonEpisodesHtml = selectedSeasonRecord ? `
@@ -557,11 +615,12 @@ export function renderShowModalContent(show, {
   ` : "";
 
   hydrateMissingSeasonDetails(show, selectedSeasonNumber, tmdbData, seasonDetailsByNumber, loading);
+  hydrateUnknownSeasonSummaryDetails(show, tmdbData, seasonDetailsByNumber, loading, seasonsList);
 
   const seasonsAccordionHtml = seasonsList.map((season) => {
     const seasonNumber = Number(season.season_number);
     const seasonEpisodes = episodeRows.filter((episode) => episode.seasonNumber === seasonNumber);
-    const { watchedInSeason, seasonTotal, nextAiringText } = showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle, tmdbData);
+    const { watchedInSeason, seasonTotal, nextAiringText } = showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle, tmdbData, seasonDetailsByNumber);
     const isActive = seasonNumber === selectedSeasonNumber;
     const panelId = `seasonAccordionPanel${seasonNumber}`;
     const seasonMetaParts = [
@@ -750,14 +809,15 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
     }
     if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
   }
-  renderShowModalContent(show, { activeSeasonNum, tmdbData, seasonDetailsByNumber: new Map(), loading: true, imdbPillHtml });
+  const currentSeasonNum = state.activeShowModalSeason;
+  renderShowModalContent(show, { activeSeasonNum: currentSeasonNum, tmdbData, seasonDetailsByNumber: new Map(), loading: true, imdbPillHtml });
   const seasonDetailsByNumber = new Map();
-  if (tmdbData?.id && activeSeasonNum != null) {
-    const seasonDetails = await fetchTmdbSeasonDetails(tmdbData.id, activeSeasonNum);
-    if (seasonDetails) seasonDetailsByNumber.set(Number(activeSeasonNum), seasonDetails);
+  if (tmdbData?.id && currentSeasonNum != null) {
+    const seasonDetails = await fetchTmdbSeasonDetails(tmdbData.id, currentSeasonNum);
+    if (seasonDetails) seasonDetailsByNumber.set(Number(currentSeasonNum), seasonDetails);
   }
   if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
-  renderShowModalContent(show, { activeSeasonNum, tmdbData, seasonDetailsByNumber, loading: false, imdbPillHtml });
+  renderShowModalContent(show, { activeSeasonNum: state.activeShowModalSeason, tmdbData, seasonDetailsByNumber, loading: false, imdbPillHtml });
 }
 
 export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, activeEpisodeNum = null) {

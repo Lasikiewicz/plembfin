@@ -935,7 +935,7 @@
                           </div>
                           <span id="dedupHistoryStatus" class="status-pill status-muted">Idle</span>
                         </div>
-                        <button id="dedupHistoryButton" class="button-primary" style="align-self: flex-start;" type="button">Clean Duplicates</button>
+                        <button id="dedupHistoryButton" class="button-ghost" style="align-self: flex-start;" type="button">Clean Duplicates</button>
                         <div id="dedupHistoryLog" class="import-terminal compact-terminal">Dedup log will appear here.</div>
                       </div>
                     </article>
@@ -970,7 +970,7 @@
                           </div>
                           <span id="fullSyncStatus" class="status-pill status-muted">Idle</span>
                         </div>
-                        <button id="fullSyncButton" class="button-primary" style="align-self: flex-start;" type="button">Full Sync Watchstates</button>
+                        <button id="fullSyncButton" class="button-ghost" style="align-self: flex-start;" type="button">Full Sync Watchstates</button>
                         <pre id="fullSyncLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for restore request.</pre>
                       </div>
 
@@ -985,6 +985,19 @@
                         </div>
                         <button id="refreshMetadataButton" class="button-primary" style="align-self: flex-start;" type="button">Refresh Metadata Now</button>
                         <div id="refreshMetadataLog" class="import-terminal compact-terminal">Refresh log will appear here.</div>
+                      </div>
+
+                      <!-- Rematch TV Shows -->
+                      <div class="tool-item-row" style="margin-top: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-4);">
+                        <div class="tool-item-meta">
+                          <div class="tool-item-title-desc">
+                            <b>Rematch All TV Shows</b>
+                            <span>Resolve each show title against TMDB and update episode IDs</span>
+                          </div>
+                          <span id="rematchTvStatus" class="status-pill status-muted">Idle</span>
+                        </div>
+                        <button id="rematchTvButton" class="button-ghost" style="align-self: flex-start;" type="button">Rematch TV Shows</button>
+                        <div id="rematchTvLog" class="import-terminal compact-terminal">Rematch log will appear here.</div>
                       </div>
 
                       <!-- Backfill Trakt -->
@@ -1023,6 +1036,9 @@
                       </p>
                       <p class="tool-accordion-desc">
                         <b>Refresh TMDB Metadata:</b> Forces an API fetch from TMDB to rebuild local descriptions, recommendations, and local image caches.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        <b>Rematch TV Shows:</b> Re-resolves show-level TMDB and TVDB IDs from each series title, then stamps the corrected IDs onto local episode rows.
                       </p>
                     </article>
                   </div>

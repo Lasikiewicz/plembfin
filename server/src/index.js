@@ -3421,6 +3421,94 @@ async function handleRefreshTmdbMetadata(req, res) {
   });
 }
 
+async function handleRematchTvShows(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req).catch(() => ({}));
+  const offset = Math.max(Number(body.offset || 0), 0);
+  const limit = Math.min(Math.max(Number(body.limit || 8), 1), 20);
+  const items = (await listLibraryItemsForRefresh()).filter((item) => item.mediaType === "tv");
+  const total = items.length;
+  const startedAt = Date.now();
+  const PAGE_BUDGET_MS = 25000;
+  const getRowStmt = db.prepare("SELECT id, tmdb_id, tvdb_id, poster_url, media_key FROM watch_history WHERE id = ?");
+  const updateIdsStmt = db.prepare("UPDATE watch_history SET tmdb_id = ?, tvdb_id = ?, updated_at = ? WHERE id = ?");
+  const updateIdsPosterStmt = db.prepare("UPDATE watch_history SET tmdb_id = ?, tvdb_id = ?, poster_url = ?, updated_at = ? WHERE id = ?");
+  const updateRows = db.transaction((updates) => {
+    for (const update of updates) {
+      if (update.posterUrl) updateIdsPosterStmt.run(update.tmdbId, update.tvdbId, update.posterUrl, update.updatedAt, update.id);
+      else updateIdsStmt.run(update.tmdbId, update.tvdbId, update.updatedAt, update.id);
+    }
+  });
+
+  let processed = 0;
+  let matched = 0;
+  let updatedShows = 0;
+  let updatedRows = 0;
+  let failed = 0;
+  const log = [];
+  const changedMediaKeys = new Set();
+
+  for (let i = offset; i < items.length && processed < limit; i++) {
+    if (processed > 0 && Date.now() - startedAt > PAGE_BUDGET_MS) break;
+    const item = items[i];
+    processed += 1;
+
+    try {
+      const details = await getTmdbDetails({ mediaType: "tv", title: item.title, force: true });
+      const tmdbId = details?.id ? String(details.id) : "";
+      if (!tmdbId) throw new Error("No TMDB match returned");
+
+      const tvdbId = details?.external_ids?.tvdb_id ? String(details.external_ids.tvdb_id) : "";
+      const posterUrl = details?.cached_poster_url || "";
+      const updates = [];
+
+      for (const record of item.records || []) {
+        const row = getRowStmt.get(String(record.id));
+        if (!row) continue;
+        const idChanged = String(row.tmdb_id || "") !== tmdbId || String(row.tvdb_id || "") !== tvdbId;
+        const posterChanged = Boolean(posterUrl && String(row.poster_url || "") !== posterUrl);
+        if (!idChanged && !posterChanged) continue;
+        updates.push({ id: row.id, tmdbId, tvdbId, posterUrl: posterChanged ? posterUrl : "", updatedAt: Date.now() });
+        if (row.media_key) changedMediaKeys.add(row.media_key);
+      }
+
+      if (updates.length) {
+        updateRows(updates);
+        updatedShows += 1;
+        updatedRows += updates.length;
+      }
+
+      matched += 1;
+      log.push(`${updates.length ? "UPDATED" : "OK"} - ${item.title} -> TMDB ${tmdbId}${tvdbId ? ` / TVDB ${tvdbId}` : ""} (${updates.length} row${updates.length === 1 ? "" : "s"})`);
+    } catch (error) {
+      failed += 1;
+      log.push(`FAILED - ${item.title} (${error.message || "no match"})`);
+    }
+  }
+
+  for (const mediaKey of changedMediaKeys) {
+    await deletePosterCacheByMediaKey(mediaKey).catch(() => null);
+  }
+  if (updatedRows) await invalidateHistoryDerivedCaches().catch(() => null);
+
+  const nextOffset = offset + processed;
+  return sendJson(res, {
+    ok: true,
+    total,
+    processed,
+    nextOffset,
+    hasMore: nextOffset < total,
+    matched,
+    updatedShows,
+    updatedRows,
+    failed,
+    log,
+  }, 200, { "Cache-Control": "no-store" });
+}
+
 async function handleTmdbDetailsBatch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -4146,6 +4234,7 @@ async function dispatch(req, res) {
     if (path === "tmdb-details") return handleTmdbDetails(req, res);
     if (path === "tmdb-details-batch") return handleTmdbDetailsBatch(req, res);
     if (path === "refresh-tmdb-metadata") return handleRefreshTmdbMetadata(req, res);
+    if (path === "rematch-tv-shows") return handleRematchTvShows(req, res);
     if (path === "media-details") return handleTmdbDetails(req, res);
     if (path === "tmdb-search") return handleTmdbSearch(req, res);
     if (path === "tvdb-search") return handleTvdbSearch(req, res);

@@ -275,6 +275,9 @@ function bindElements() {
     refreshMetadataButton: document.querySelector("#refreshMetadataButton"),
     refreshMetadataStatus: document.querySelector("#refreshMetadataStatus"),
     refreshMetadataLog: document.querySelector("#refreshMetadataLog"),
+    rematchTvButton: document.querySelector("#rematchTvButton"),
+    rematchTvStatus: document.querySelector("#rematchTvStatus"),
+    rematchTvLog: document.querySelector("#rematchTvLog"),
     settingsUsername: document.querySelector("#settingsUsername"),
     settingsForm: document.querySelector("#settingsForm"),
     settingsStatus: document.querySelector("#settingsStatus"),
@@ -2584,6 +2587,7 @@ async function runRefreshMetadataWorkflow() {
   button.disabled = true;
   button.textContent = "Refreshing Metadata...";
   if (status) status.textContent = "Starting...";
+  if (status) status.className = "status-pill status-warning";
   if (logEl) logEl.textContent = "Refreshing TMDB metadata, cast, artwork and posters for your whole library...\n";
 
   try {
@@ -2634,6 +2638,7 @@ async function runRefreshMetadataWorkflow() {
 
       const percent = total ? Math.round((Math.min(offset, total) / total) * 100) : 100;
       if (status) status.textContent = `Progress: ${Math.min(offset, total)} of ${total} (${percent}%)`;
+      if (status) status.className = "status-pill status-warning";
       if (logEl && Array.isArray(data.log)) {
         for (const line of data.log) logEl.textContent += line + "\n";
         logEl.scrollTop = logEl.scrollHeight;
@@ -2645,6 +2650,7 @@ async function runRefreshMetadataWorkflow() {
     state.historyVersion = "";
     await loadHistory({ force: true });
     if (status) status.textContent = summaryMsg;
+    if (status) status.className = "status-pill status-ready";
     if (logEl) {
       logEl.textContent += summaryMsg + "\n";
       logEl.scrollTop = logEl.scrollHeight;
@@ -2652,6 +2658,7 @@ async function runRefreshMetadataWorkflow() {
   } catch (err) {
     const msg = `Error: ${err.message}`;
     if (status) status.textContent = msg;
+    if (status) status.className = "status-pill status-error";
     if (logEl) {
       logEl.textContent += msg + "\n";
       logEl.scrollTop = logEl.scrollHeight;

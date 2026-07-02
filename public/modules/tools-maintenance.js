@@ -26,6 +26,11 @@ function loadSyncJobs(...args) { return _loadSyncJobs(...args); }
 function loadSyncHistory(...args) { return _loadSyncHistory(...args); }
 function loadHistory(...args) { return _loadHistory(...args); }
 function clearDerivedUiCaches(...args) { return _clearDerivedUiCaches(...args); }
+function setStatusPill(element, text, tone = "muted") {
+  if (!element) return;
+  element.textContent = text;
+  element.className = `status-pill status-${tone}`;
+}
 
 export async function runSystemIntegrityCheck() {
   const button = elements.runCompleteCheckButton;
@@ -345,7 +350,7 @@ export async function runRepairWorkflow() {
   if (!button || !status) return;
   button.disabled = true;
   button.textContent = "Repairing History...";
-  status.textContent = "Starting history repair...";
+  setStatusPill(status, "Starting history repair...", "warning");
   const maxIterations = 20;
   let totalConverted = 0;
   let totalBackfilled = 0;
@@ -377,12 +382,12 @@ export async function runRepairWorkflow() {
       await new Promise((r) => setTimeout(r, 700));
     } catch (err) {
       appendLog(`ERROR: ${err?.message || String(err)}`);
-      status.textContent = `Repair failed: ${err?.message || String(err)}`;
+      setStatusPill(status, `Repair failed: ${err?.message || String(err)}`, "error");
       button.disabled = false;
       throw err;
     }
   }
-  status.textContent = `Done: retyped history, converted ${totalConverted}, backfilled ${totalBackfilled}.`;
+  setStatusPill(status, `Done: retyped history, converted ${totalConverted}, backfilled ${totalBackfilled}.`, "ready");
   button.disabled = false;
   button.textContent = "Repair History Now";
   clearDerivedUiCaches();
@@ -397,7 +402,7 @@ export async function runDedupHistory() {
   if (!button) return;
   button.disabled = true;
   button.textContent = "Running...";
-  if (status) status.textContent = "Running deduplication...";
+  setStatusPill(status, "Running deduplication...", "warning");
   if (logEl) logEl.textContent = "";
   try {
     const response = await fetch("/api/dedup-history", {
@@ -428,14 +433,14 @@ export async function runDedupHistory() {
     }
     if (finalResult) {
       const msg = `Complete — deleted ${finalResult.deleted} duplicate(s) from ${finalResult.scanned} records.`;
-      if (status) status.textContent = msg;
+      setStatusPill(status, msg, "ready");
       if (logEl) logEl.textContent += msg + "\n";
     } else {
-      if (status) status.textContent = "Complete.";
+      setStatusPill(status, "Complete.", "ready");
     }
   } catch (error) {
     const msg = `Error: ${error.message}`;
-    if (status) status.textContent = msg;
+    setStatusPill(status, msg, "error");
     if (logEl) logEl.textContent += msg + "\n";
   } finally {
     button.disabled = false;
@@ -452,7 +457,7 @@ export async function runTraktBackfill() {
   const rate = Math.max(50, Number(elements.traktBackfillRate?.value || 300));
   button.disabled = true;
   button.textContent = "Backfilling Trakt Imports...";
-  status.textContent = `Starting Trakt import backfill (limit=${limit}, rate=${rate}ms)`;
+  setStatusPill(status, `Starting Trakt import backfill (limit=${limit}, rate=${rate}ms)`, "warning");
   if (logEl) logEl.textContent = `Starting Trakt import backfill at ${new Date().toISOString()}\n`;
   try {
     const maxBatches = 2000;
@@ -460,7 +465,7 @@ export async function runTraktBackfill() {
     let totalBackfilled = 0;
     let lastBackfilled = -1;
     for (; batch < maxBatches; batch++) {
-      status.textContent = `Running batch #${batch + 1}...`;
+      setStatusPill(status, `Running batch #${batch + 1}...`, "warning");
       const resp = await fetch(`/api/admin-backfill-trakt`, {
         method: "POST",
         headers: { ...authHeaders(), "Content-Type": "application/json" },
@@ -470,7 +475,7 @@ export async function runTraktBackfill() {
       if (!resp.ok) {
         const msg = body.error || `Backfill failed (${resp.status})`;
         if (logEl) logEl.textContent = `${new Date().toISOString()} - ERROR: ${msg}\n` + logEl.textContent;
-        status.textContent = `Error: ${msg}`;
+        setStatusPill(status, `Error: ${msg}`, "error");
         break;
       }
       const tried = Number(body.tried || 0);
@@ -488,7 +493,7 @@ export async function runTraktBackfill() {
       } catch (err) {
         // ignore
       }
-      status.textContent = remaining != null ? `Batch ${batch + 1}: backfilled ${backfilled}. Remaining: ${remaining}` : `Batch ${batch + 1}: backfilled ${backfilled}`;
+      setStatusPill(status, remaining != null ? `Batch ${batch + 1}: backfilled ${backfilled}. Remaining: ${remaining}` : `Batch ${batch + 1}: backfilled ${backfilled}`, "warning");
       if ((backfilled === 0 && lastBackfilled === 0) || (remaining === 0)) {
         if (logEl) logEl.textContent = `${new Date().toISOString()} - No further progress; stopping.\n` + logEl.textContent;
         break;
@@ -496,15 +501,77 @@ export async function runTraktBackfill() {
       lastBackfilled = backfilled;
       await new Promise((r) => setTimeout(r, 300));
     }
-    status.textContent = `Completed: total backfilled ${totalBackfilled} after ${batch + 1} batches`;
+    setStatusPill(status, `Completed: total backfilled ${totalBackfilled} after ${batch + 1} batches`, "ready");
   } catch (err) {
     const msg = err?.message || String(err);
     if (logEl) logEl.textContent = `${new Date().toISOString()} - ERROR: ${msg}\n` + logEl.textContent;
-    status.textContent = `Error: ${msg}`;
+    setStatusPill(status, `Error: ${msg}`, "error");
     throw err;
   } finally {
     button.disabled = false;
     button.textContent = "Backfill Trakt Imports";
+  }
+}
+
+export async function runRematchTvShows() {
+  const button = elements.rematchTvButton;
+  const status = elements.rematchTvStatus;
+  const logEl = elements.rematchTvLog;
+  if (!button || !status) return;
+
+  button.disabled = true;
+  button.textContent = "Rematching...";
+  status.textContent = "Running";
+  status.className = "status-pill status-warning";
+  if (logEl) logEl.textContent = `Starting TV show rematch at ${new Date().toISOString()}\n`;
+
+  const limit = 8;
+  let offset = 0;
+  let page = 1;
+  let hasMore = true;
+  const totals = { matched: 0, updatedShows: 0, updatedRows: 0, failed: 0 };
+
+  try {
+    while (hasMore) {
+      status.textContent = `Batch ${page}`;
+      const response = await fetch("/api/rematch-tv-shows", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ offset, limit }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Rematch failed with ${response.status}`);
+
+      totals.matched += Number(body.matched || 0);
+      totals.updatedShows += Number(body.updatedShows || 0);
+      totals.updatedRows += Number(body.updatedRows || 0);
+      totals.failed += Number(body.failed || 0);
+
+      if (logEl) {
+        for (const line of body.log || []) logEl.textContent += line + "\n";
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      offset = Number(body.nextOffset || offset + Number(body.processed || 0));
+      hasMore = Boolean(body.hasMore) && Number(body.processed || 0) > 0;
+      status.textContent = `Batch ${page}: ${Math.min(offset, Number(body.total || offset))}/${Number(body.total || offset)}`;
+      page += 1;
+    }
+
+    clearDerivedUiCaches();
+    await loadHistory({ force: true }).catch(() => null);
+    status.textContent = `Complete: ${totals.updatedShows} shows, ${totals.updatedRows} rows`;
+    status.className = "status-pill status-ready";
+    setMessage(`TV rematch complete. Updated ${totals.updatedShows} shows and ${totals.updatedRows} episode rows.`, totals.failed ? "warning" : "success");
+  } catch (error) {
+    status.textContent = "Error";
+    status.className = "status-pill status-error";
+    if (logEl) logEl.textContent += `ERROR: ${error.message}\n`;
+    setMessage(`TV rematch failed: ${error.message}`, "error");
+    throw error;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Rematch TV Shows";
   }
 }
 

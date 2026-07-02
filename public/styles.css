@@ -1107,6 +1107,8 @@ h2 {
 }
 
 .status-muted {
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.1);
   color: var(--muted);
 }
 
@@ -11478,45 +11480,10 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2), inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
 }
 
-.settings-pane button {
-  height: 2.5rem !important;
-  min-height: 2.5rem !important;
-  border-radius: 8px !important;
-  padding: 0.5rem 1.25rem !important;
-  font-size: 0.84rem !important;
-  font-weight: 600;
-  transition: all 0.2s ease !important;
-}
-
-.settings-pane .button-primary {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
-  border: none !important;
-  color: #ffffff !important;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
-}
-
-.settings-pane .button-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
-  transform: translateY(-1px);
-}
-
-.settings-pane .button-ghost {
-  background: rgba(255, 255, 255, 0.03) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  color: var(--text) !important;
-}
-
-.settings-pane .button-ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.07) !important;
-  border-color: rgba(255, 255, 255, 0.2) !important;
-  transform: translateY(-1px);
-}
-
-.settings-pane[data-settings-panel="backups"] .button-primary,
-.settings-pane[data-settings-panel="backups"] .button-ghost,
-.settings-pane[data-settings-panel="backups"] .button-danger,
-.settings-pane[data-settings-panel="backups"] .backup-file-button {
+.settings-pane .button-primary,
+.settings-pane .button-ghost,
+.settings-pane .button-danger,
+.settings-pane .backup-file-button {
   min-height: 2.05rem !important;
   height: auto !important;
   border-radius: 4px !important;
@@ -11527,7 +11494,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   box-shadow: none !important;
 }
 
-.settings-pane[data-settings-panel="backups"] .button-primary {
+.settings-pane .button-primary {
   border: 1px solid rgba(37, 99, 235, 0.4) !important;
   background: rgba(37, 99, 235, 0.12) !important;
   color: #2563eb !important;
@@ -11538,28 +11505,28 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   min-height: 2.05rem !important;
 }
 
-.settings-pane[data-settings-panel="backups"] .button-primary:hover:not(:disabled) {
+.settings-pane .button-primary:hover:not(:disabled) {
   border-color: rgba(37, 99, 235, 0.6) !important;
   background: rgba(37, 99, 235, 0.2) !important;
   color: #2563eb !important;
   transform: none !important;
 }
 
-.settings-pane[data-settings-panel="backups"] .button-ghost,
-.settings-pane[data-settings-panel="backups"] .backup-file-button {
+.settings-pane .button-ghost,
+.settings-pane .backup-file-button {
   border: 1px solid var(--line-strong) !important;
   background: #111820 !important;
   color: var(--soft) !important;
 }
 
-.settings-pane[data-settings-panel="backups"] .button-ghost:hover:not(:disabled),
-.settings-pane[data-settings-panel="backups"] .backup-file-button:hover {
+.settings-pane .button-ghost:hover:not(:disabled),
+.settings-pane .backup-file-button:hover {
   border-color: var(--accent) !important;
   color: #f4f8fb !important;
   transform: none !important;
 }
 
-.settings-pane[data-settings-panel="backups"] .button-danger {
+.settings-pane .button-danger {
   border: 1px solid rgba(244, 63, 94, 0.55) !important;
   background: rgba(244, 63, 94, 0.14) !important;
   color: #fecdd3 !important;
@@ -11848,6 +11815,12 @@ html.light-mode .backup-section-heading .status-muted {
   color: #475569;
 }
 
+html.light-mode .status-muted {
+  border-color: rgba(100, 116, 139, 0.24);
+  background: rgba(100, 116, 139, 0.1);
+  color: #475569;
+}
+
 html.light-mode .settings-pane .button-ghost {
   background: #ffffff !important;
   border: 1px solid rgba(0, 0, 0, 0.12) !important;
@@ -11859,14 +11832,14 @@ html.light-mode .settings-pane .button-ghost:hover:not(:disabled) {
   border-color: rgba(0, 0, 0, 0.2) !important;
 }
 
-html.light-mode .settings-pane[data-settings-panel="backups"] .button-primary {
+html.light-mode .settings-pane .button-primary {
   border: 1px solid rgba(37, 99, 235, 0.35) !important;
   background: rgba(37, 99, 235, 0.08) !important;
   color: #2563eb !important;
   box-shadow: none !important;
 }
 
-html.light-mode .settings-pane[data-settings-panel="backups"] .button-primary:hover:not(:disabled) {
+html.light-mode .settings-pane .button-primary:hover:not(:disabled) {
   border-color: rgba(37, 99, 235, 0.55) !important;
   background: rgba(37, 99, 235, 0.15) !important;
   color: #2563eb !important;
@@ -11874,16 +11847,16 @@ html.light-mode .settings-pane[data-settings-panel="backups"] .button-primary:ho
   transform: none !important;
 }
 
-html.light-mode .settings-pane[data-settings-panel="backups"] .button-ghost,
-html.light-mode .settings-pane[data-settings-panel="backups"] .backup-file-button {
+html.light-mode .settings-pane .button-ghost,
+html.light-mode .settings-pane .backup-file-button {
   border: 1px solid var(--line) !important;
   background: #ffffff !important;
   color: var(--text) !important;
   box-shadow: none !important;
 }
 
-html.light-mode .settings-pane[data-settings-panel="backups"] .button-ghost:hover:not(:disabled),
-html.light-mode .settings-pane[data-settings-panel="backups"] .backup-file-button:hover {
+html.light-mode .settings-pane .button-ghost:hover:not(:disabled),
+html.light-mode .settings-pane .backup-file-button:hover {
   border-color: var(--line-strong) !important;
   background: var(--panel-2) !important;
   color: var(--text) !important;
