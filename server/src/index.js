@@ -3381,7 +3381,7 @@ async function handleRefreshTmdbMetadata(req, res) {
     const item = items[i];
     const label = `${item.mediaType === "movie" ? "Movie" : "Show"}: ${item.title}`;
     try {
-      const details = await getTmdbDetails({ mediaType: item.mediaType, tmdbId: item.tmdbId, title: item.title, force: true });
+      const details = await getTmdbDetails({ mediaType: item.mediaType, tmdbId: item.tmdbId, title: item.title, force: true, forceTvdb: false });
       const posterUrl = details?.cached_poster_url || "";
       if (posterUrl) {
         for (const rec of item.records) {
@@ -3457,7 +3457,7 @@ async function handleRematchTvShows(req, res) {
     processed += 1;
 
     try {
-      const details = await getTmdbDetails({ mediaType: "tv", title: item.title, force: true });
+      const details = await getTmdbDetails({ mediaType: "tv", title: item.title, force: true, forceTvdb: false });
       const tmdbId = details?.id ? String(details.id) : "";
       if (!tmdbId) throw new Error("No TMDB match returned");
 
@@ -4293,7 +4293,7 @@ async function refreshNextAiringCache({ limit = NEXT_AIRING_REFRESH_LIMIT, force
   const updates = [];
   for (const show of candidates) {
     try {
-      const details = await getTmdbDetails({ mediaType: "tv", tmdbId: show.tmdb_id, title: show.title, force: true });
+      const details = await getTmdbDetails({ mediaType: "tv", tmdbId: show.tmdb_id, title: show.title, force: true, forceTvdb: false });
       updates.push({
         key: show.key,
         title: show.title,

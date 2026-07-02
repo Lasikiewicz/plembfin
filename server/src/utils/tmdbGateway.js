@@ -316,9 +316,9 @@ async function deriveNextAiring(details, tvdbId) {
   return earliest;
 }
 
-export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false }) {
+export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force }) {
   const type = mediaTypeFor(mediaType);
-  if (type === "tv") return getTvShowDetails({ tmdbId, title, ids, force });
+  if (type === "tv") return getTvShowDetails({ tmdbId, title, ids, force, forceTvdb });
   return getMovieDetails({ tmdbId, title, ids, force });
 }
 
@@ -360,7 +360,7 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
 // trailers, reviews, similar/recommendations, watch providers) and to keep
 // `id` = TMDB id, since Seerr requests and `/tvshow/tmdb/:id` routing are
 // TMDB-keyed throughout the rest of the app.
-async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = false }) {
+async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force }) {
   let tvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
   if (!tvdbId) tvdbId = await resolveTvdbSeriesId({ title });
   if (!tvdbId && tmdbId) {
@@ -383,7 +383,7 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
     const cached = metaGet(initialCacheId);
     if (!force && cached?.details && cached.schemaVersion >= DETAILS_SCHEMA_VERSION && fresh(cached, detailsTtl(cached.details))) return cached.details;
     try {
-      const extended = await getTvdbSeriesExtended(tvdbId, { force });
+      const extended = await getTvdbSeriesExtended(tvdbId, { force: forceTvdb });
       const shaped = shapeTvdbSeriesAsTmdb(extended);
       const resolvedTmdbId = String(tmdbId || shaped.external_ids.tmdb_id || "");
       const cacheId = resolvedTmdbId ? `tv_${resolvedTmdbId}` : `tv_tvdb_${tvdbId}`;

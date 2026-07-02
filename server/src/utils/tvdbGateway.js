@@ -5,8 +5,12 @@ import { loadMediaConfig, loadRuntimeState, setRuntimeState } from "./configStor
 const PROJECT_KEY = "94a93e8a-7ab8-4708-b6b7-a9fae1bc6ac2";
 const API_ROOT = "https://api4.thetvdb.com/v4";
 const DAY_MS = 24 * 60 * 60 * 1000;
-const SERIES_TTL_MS = 3 * DAY_MS;
-const SEASON_TTL_MS = DAY_MS;
+const SEARCH_TTL_MS = 180 * DAY_MS;
+const ACTIVE_SERIES_TTL_MS = 14 * DAY_MS;
+const ARCHIVED_SERIES_TTL_MS = 180 * DAY_MS;
+const UPCOMING_SEASON_TTL_MS = 2 * DAY_MS;
+const ACTIVE_SEASON_TTL_MS = 7 * DAY_MS;
+const ARCHIVED_SEASON_TTL_MS = 180 * DAY_MS;
 const TOKEN_LIFETIME_MS = 25 * DAY_MS;
 const inflight = new Map();
 let nextRequestAt = 0;
@@ -38,6 +42,36 @@ function canonicalTitle(value = "") {
 
 function fresh(updatedAtMs, ttl) {
   return Boolean(updatedAtMs && Date.now() - updatedAtMs < ttl);
+}
+
+function isoDate(value) {
+  const match = String(value || "").match(/^\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : "";
+}
+
+function daysAgoIso(days) {
+  const date = new Date(Date.now() - days * DAY_MS);
+  return date.toISOString().slice(0, 10);
+}
+
+function seriesCacheTtl(details) {
+  const status = String(details?.status?.name || details?.status || "").toLowerCase();
+  const nextAired = isoDate(details?.nextAired);
+  const today = new Date().toISOString().slice(0, 10);
+  if (nextAired && nextAired >= today) return ACTIVE_SERIES_TTL_MS;
+  if (/(ended|cancelled|canceled|finale|completed)/.test(status)) return ARCHIVED_SERIES_TTL_MS;
+  return ACTIVE_SERIES_TTL_MS;
+}
+
+function seasonCacheTtl(details) {
+  const episodes = Array.isArray(details?.episodes) ? details.episodes : [];
+  if (!episodes.length) return UPCOMING_SEASON_TTL_MS;
+  const today = new Date().toISOString().slice(0, 10);
+  const airedDates = episodes.map((episode) => isoDate(episode.aired)).filter(Boolean).sort();
+  if (airedDates.some((date) => date >= today)) return UPCOMING_SEASON_TTL_MS;
+  const lastAired = airedDates[airedDates.length - 1] || "";
+  if (lastAired && lastAired < daysAgoIso(30)) return ARCHIVED_SEASON_TTL_MS;
+  return ACTIVE_SEASON_TTL_MS;
 }
 
 function collapse(key, task) {
@@ -130,7 +164,7 @@ export async function resolveTvdbSeriesId({ tvdbId = "", title = "" } = {}) {
 
   const cacheKey = `search_${hash(canonicalTitle(cleanedTitle))}`;
   const cached = seriesGetStmt.get(cacheKey);
-  if (cached && fresh(cached.updated_at_ms, SERIES_TTL_MS)) {
+  if (cached && fresh(cached.updated_at_ms, SEARCH_TTL_MS)) {
     const details = parseJson(cached.details);
     return details?.tvdb_id ? String(details.tvdb_id) : "";
   }
@@ -165,7 +199,7 @@ export async function getTvdbSeriesExtended(tvdbId, { force = false } = {}) {
     const cacheId = `series_${id}`;
     const row = seriesGetStmt.get(cacheId);
     const cached = row ? { details: parseJson(row.details), updatedAtMs: row.updated_at_ms } : null;
-    if (!force && cached?.details && fresh(cached.updatedAtMs, SERIES_TTL_MS)) return cached.details;
+    if (!force && cached?.details && fresh(cached.updatedAtMs, seriesCacheTtl(cached.details))) return cached.details;
     try {
       const details = await upstream(`series/${id}/extended`, { meta: "translations" });
       seriesSetStmt.run({ id: cacheId, tvdb_id: id, title: details?.name || "", details: toJson(details), updated_at_ms: Date.now() });
@@ -196,7 +230,7 @@ export async function getTvdbSeasonEpisodes({ tvdbId, seasonNumber }) {
     const cacheId = `${id}_${number}`;
     const row = seasonGetStmt.get(cacheId);
     const cached = row ? { details: parseJson(row.details), updatedAtMs: row.updated_at_ms } : null;
-    if (cached?.details && fresh(cached.updatedAtMs, SEASON_TTL_MS)) return shapeEpisodes(cached.details);
+    if (cached?.details && fresh(cached.updatedAtMs, seasonCacheTtl(cached.details))) return shapeEpisodes(cached.details);
     try {
       const extended = await getTvdbSeriesExtended(id);
       const season = pickSeasonId(extended, number);
