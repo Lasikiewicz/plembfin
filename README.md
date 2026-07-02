@@ -29,6 +29,7 @@
 | **Stats** | All-time and per-period reports with top shows, platform breakdowns, and watch trends |
 | **Trakt import** | Import your full Trakt history and push it out to all connected servers |
 | **Seerr integration** | Request movies and shows from detail pages via Overseerr or Jellyseerr |
+| **Movie collections** | Movie pages show a poster row of other films in the same franchise (sequels, prequels, spin-offs) |
 | **Open-in-app links** | Detail pages link straight to the item in Plex, Emby, or Jellyfin when it exists in that server's library |
 | **Automated backups** | Daily local backups with optional mirror to Backblaze B2 |
 | **Self-hosted & private** | SQLite on your own hardware — no cloud accounts required |
