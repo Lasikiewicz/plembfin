@@ -506,14 +506,18 @@ export function renderShowModalContent(show, {
   const seasonsMap = seasonsFromShowRecord(show);
   const showTitle = sanitizeTitle(show.title) || "Unknown Show";
   const hasTmdbKey = Boolean(state.savedConfig.tmdb?.configured);
+  // Specials (season 0) are kept in the list so they're still browsable, but
+  // are excluded from the progress totals below — a "100 of 100" show isn't
+  // meant to imply specials don't exist, just that they don't count toward it.
   const seasonsList = [...(tmdbData?.seasons?.length ? tmdbData.seasons : fallbackSeasonList(seasonsMap))]
-    .filter((season) => Number(season.season_number) > 0)
     .sort((a, b) => Number(b.season_number) - Number(a.season_number));
+  const regularSeasonsList = seasonsList.filter((season) => Number(season.season_number) > 0);
   const selectedSeason = activeSeasonNum == null ? null : Number(activeSeasonNum);
   const episodeRows = buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, tmdbData?.id || show.tmdb_id || "", tmdbData);
-  const watchedRows = episodeRows.filter((episode) => episode.watched);
-  const metadataEpisodeCount = seasonsList.reduce((total, season) => total + Number(season.episode_count || 0), 0);
-  const totalCount = Math.max(episodeRows.length, metadataEpisodeCount, watchedRows.length, 1);
+  const regularEpisodeRows = episodeRows.filter((episode) => Number(episode.seasonNumber) > 0);
+  const watchedRows = regularEpisodeRows.filter((episode) => episode.watched);
+  const metadataEpisodeCount = regularSeasonsList.reduce((total, season) => total + Number(season.episode_count || 0), 0);
+  const totalCount = Math.max(regularEpisodeRows.length, metadataEpisodeCount, watchedRows.length, 1);
   const watchedCount = watchedRows.length || [...watchedEpisodesByKey(show).keys()].length;
   const progressPercent = Math.max(0, Math.min(100, Math.round((watchedCount / totalCount) * 100)));
   const representative = representativeEpisode(seasonsMap);
@@ -655,7 +659,7 @@ export function renderShowModalContent(show, {
     <section class="seasons-section season-accordions">
       <div class="show-section-title">
         <h3>Seasons</h3>
-        <span>${seasonsList.length} season${seasonsList.length === 1 ? "" : "s"}</span>
+        <span>${regularSeasonsList.length} season${regularSeasonsList.length === 1 ? "" : "s"}</span>
       </div>
       <div class="season-accordion-list">${seasonsAccordionHtml}</div>
     </section>

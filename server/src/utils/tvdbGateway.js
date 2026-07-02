@@ -319,7 +319,10 @@ export function shapeTvdbSeriesAsTmdb(extended) {
 
   const tmdbId = bestRemoteId(extended.remoteIds, ["TheMovieDB"]);
   const imdbId = bestRemoteId(extended.remoteIds, ["IMDB"]);
-  const numberOfEpisodes = seasons.reduce((sum, season) => sum + (Number(season.episode_count) || 0), 0);
+  // Specials (season 0) stay in `seasons` so they're still browsable, but don't
+  // count toward the show's episode/season totals used for watched-progress.
+  const regularSeasons = seasons.filter((season) => Number(season.season_number) > 0);
+  const numberOfEpisodes = regularSeasons.reduce((sum, season) => sum + (Number(season.episode_count) || 0), 0);
 
   return {
     name: extended.name || "",
@@ -330,7 +333,7 @@ export function shapeTvdbSeriesAsTmdb(extended) {
     networks: extended.originalNetwork ? [{ id: extended.originalNetwork.id, name: extended.originalNetwork.name }] : [],
     seasons,
     number_of_episodes: numberOfEpisodes,
-    number_of_seasons: seasons.length,
+    number_of_seasons: regularSeasons.length,
     tvdb_poster_url: extended.image || null,
     external_ids: {
       tvdb_id: String(extended.id || ""),

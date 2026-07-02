@@ -9,6 +9,9 @@ const CACHE_FILE_PATH = path.resolve(here, "..", "..", "..", "data", "tv_progres
 
 let progressCache = {};
 const pendingShowUpdates = new Set();
+// Bump whenever the total_episodes calculation changes shape, so previously
+// cached shows are refetched instead of keeping a stale total indefinitely.
+const PROGRESS_CACHE_SCHEMA_VERSION = 2; // bumped: total_episodes now excludes specials (season 0)
 
 // Pure helper functions decoupled from firestoreRepo.js to avoid circular dependency issues
 function decodeBasicHtmlEntities(value) {
@@ -84,11 +87,12 @@ export async function initShowProgressCache() {
       progressCache = JSON.parse(data);
       const total = Object.keys(progressCache).length;
       const missingTotals = Object.values(progressCache).filter((s) => !s.total_episodes).map((s) => s.title);
+      const staleSchema = Object.values(progressCache).filter((s) => (s.schema_version || 1) < PROGRESS_CACHE_SCHEMA_VERSION).map((s) => s.title);
       const uncached = findUncachedShowTitles();
-      const toQueue = new Set([...missingTotals, ...uncached]);
+      const toQueue = new Set([...missingTotals, ...staleSchema, ...uncached]);
       console.log(`[ShowProgressCache] Loaded ${total} shows from cache file.`);
       if (toQueue.size) {
-        console.log(`[ShowProgressCache] Scheduling background refresh for ${toQueue.size} shows (missing total episode count or never cached).`);
+        console.log(`[ShowProgressCache] Scheduling background refresh for ${toQueue.size} shows (missing total episode count, stale calculation, or never cached).`);
         setImmediate(() => {
           for (const title of toQueue) queueShowProgressUpdate(title);
           flushShowProgressUpdates().catch((e) => console.error("[ShowProgressCache] Background refresh error:", e));
@@ -170,7 +174,8 @@ async function calculateAndSetShowProgress(showTitle) {
     title: showTitle,
     tmdb_id: tmdbId || "",
     episode_count: watchedCount,
-    total_episodes: totalEpisodes
+    total_episodes: totalEpisodes,
+    schema_version: PROGRESS_CACHE_SCHEMA_VERSION
   };
 }
 
@@ -255,7 +260,8 @@ export async function rebuildShowProgressCache() {
       title: group.title,
       tmdb_id: group.tmdbId || "",
       episode_count: group.episodes.size,
-      total_episodes: totalEpisodes
+      total_episodes: totalEpisodes,
+      schema_version: PROGRESS_CACHE_SCHEMA_VERSION
     };
   }
   
