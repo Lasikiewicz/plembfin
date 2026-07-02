@@ -1,7 +1,14 @@
 {
-  "version": "0.3.6",
-  "updatedAt": "2026-07-02T11:05:48+01:00",
+  "version": "0.3.7",
+  "updatedAt": "2026-07-02T11:18:08+01:00",
   "entries": [
+    {
+      "version": "0.3.7",
+      "date": "2026-07-02T11:18:08+01:00",
+      "commit": "c8ba73fce5e9bbd692b42c6e9792bfdbb187b757",
+      "message": "fix: harden tvdb gateway requests",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.3.6",
       "date": "2026-07-02T11:05:48+01:00",
