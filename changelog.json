@@ -1,7 +1,24 @@
 {
-  "version": "0.3.17",
-  "updatedAt": "2026-07-02T16:21:54+01:00",
+  "version": "0.4.0",
+  "updatedAt": "2026-07-02T19:05:07+01:00",
   "entries": [
+    {
+      "version": "0.4.0",
+      "date": "2026-07-02T19:05:07+01:00",
+      "commit": "92f5f5dc45f57418d64d92f5387f20ba082ed85e",
+      "message": "feat: add open-in-app links and harden API security and reliability",
+      "author": "Lasikiewicz",
+      "details": [
+        "Movie and TV detail pages show Open in buttons that link directly to the item in Plex, Emby, or Jellyfin when it exists in that server's library",
+        "Media server tokens and API keys are no longer sent to the browser; settings show a Configured placeholder and keep the saved credential when the field is left blank",
+        "All outbound requests to media servers, metadata providers, and backup destinations now time out instead of hanging when a server is unresponsive",
+        "Plex requests send the token as a header so it stays out of server access logs",
+        "Malformed API requests return a clear Invalid JSON body error instead of a server error",
+        "Server URLs pointing at cloud metadata endpoints are rejected when saving settings",
+        "Faster full syncs: the Plex account lookup is cached instead of repeated for every item",
+        "TheTVDB and Fanart.tv built-in project keys can be replaced via environment variables"
+      ]
+    },
     {
       "version": "0.3.17",
       "date": "2026-07-02T16:21:54+01:00",
