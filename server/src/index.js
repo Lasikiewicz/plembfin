@@ -73,6 +73,7 @@ import {
   deleteMovieByWatchId,
   deletePosterCacheByMediaKey,
   backfillUnknownShowTitles,
+  clearWatchArtworkUrls,
 } from "./utils/firestoreRepo.js";
 import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
@@ -3893,6 +3894,13 @@ async function handleUpdateWatch(req, res) {
       const mediaKey = row.media_key;
       if (mediaKey) {
         await deletePosterCacheByMediaKey(mediaKey).catch(() => null);
+      }
+      // The record's own poster_url/backdrop_url survive a rematch untouched, and
+      // /api/poster serves a stored storage URL directly without consulting the
+      // (now-cleared) poster cache — so the old show/movie's artwork would keep
+      // being served forever unless this request is itself uploading new artwork.
+      if (body.poster_url === undefined && body.backdrop_url === undefined) {
+        await clearWatchArtworkUrls(id).catch(() => null);
       }
     }
   }

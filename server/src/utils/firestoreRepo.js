@@ -1433,6 +1433,19 @@ export async function getWatchRecordByIdLight(id) {
 
 const updatePosterStmt = db.prepare("UPDATE watch_history SET poster_url = ?, updated_at = ? WHERE id = ?");
 const updateBackdropStmt = db.prepare("UPDATE watch_history SET backdrop_url = ?, updated_at = ? WHERE id = ?");
+const clearArtworkStmt = db.prepare("UPDATE watch_history SET poster_url = NULL, logo_url = NULL, backdrop_url = NULL, updated_at = ? WHERE id = ?");
+
+// Fix Match rematches a record to a new TMDB/TVDB id but leaves any previously
+// stored poster/backdrop URL in place. /api/poster serves a row's stored URL
+// directly when it already points at cached storage, so without clearing it
+// here the old show/movie's artwork would keep being served forever instead
+// of being re-resolved against the new match.
+export async function clearWatchArtworkUrls(id) {
+  if (!id) return false;
+  clearArtworkStmt.run(Date.now(), String(id));
+  await invalidateHistoryDerivedCaches();
+  return true;
+}
 
 export async function updateWatchPosterUrl(id, posterUrl) {
   const cleanUrl = cleanString(posterUrl);
