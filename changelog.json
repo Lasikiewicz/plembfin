@@ -1,7 +1,18 @@
 {
-  "version": "0.3.14",
-  "updatedAt": "2026-07-02T14:59:25+01:00",
+  "version": "0.3.15",
+  "updatedAt": "2026-07-02T15:08:12+01:00",
   "entries": [
+    {
+      "version": "0.3.15",
+      "date": "2026-07-02T15:08:12+01:00",
+      "commit": "3a9b2bab9bfc4a496563da16d6b8882682e5983a",
+      "message": "fix: clear stale poster/backdrop after Fix Match rematch",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix Match invalidated the cached poster entry for a rematched movie or TV show but left the old poster/backdrop URL stamped on the watch record itself, and the poster endpoint serves a stored storage URL directly without checking the cache, so the previous (wrong) artwork kept being served indefinitely after a rematch",
+        "Rematching a movie or TV show (including every episode during a TV rematch) now also clears its stored poster/backdrop/logo URLs so the correct artwork is fetched and cached on the next request"
+      ]
+    },
     {
       "version": "0.3.14",
       "date": "2026-07-02T14:59:25+01:00",
