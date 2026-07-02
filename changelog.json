@@ -1,7 +1,18 @@
 {
-  "version": "0.4.1",
-  "updatedAt": "2026-07-02T19:41:56+01:00",
+  "version": "0.4.2",
+  "updatedAt": "2026-07-02T20:21:32+01:00",
   "entries": [
+    {
+      "version": "0.4.2",
+      "date": "2026-07-02T20:21:32+01:00",
+      "commit": "56f5ae0257705575729319085471ec0de3ec1a7f",
+      "message": "fix: pull season availability pills left instead of centre-floating",
+      "author": "Lasikiewicz",
+      "details": [
+        "Cap the season title column at 260px instead of an unbounded 1fr",
+        "Only the next-airing column remains flexible, absorbing the leftover"
+      ]
+    },
     {
       "version": "0.4.1",
       "date": "2026-07-02T19:41:56+01:00",
