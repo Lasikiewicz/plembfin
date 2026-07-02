@@ -228,6 +228,24 @@ export function renderMediaImagesSection(tmdbData) {
     </section>
   `;
 }
+export function renderCollectionSection(tmdbData) {
+  if (!tmdbData) return "";
+  const collection = tmdbData.belongs_to_collection;
+  if (!collection || !collection.id) return "";
+  return `
+    <section class="seasons-section collection-section">
+      <div class="show-section-title"><h3>Collection</h3></div>
+      <div class="horizontal-scroll-row" style="margin-top: 0.5rem;">
+        <div class="season-poster-card collection-card" data-collection-id="${collection.id}" style="text-align: center; padding: 0.5rem; opacity: 0.7;">
+          <div style="font-size: 2rem; margin-bottom: 0.5rem;">📚</div>
+          <span class="season-poster-name">${escapeHtml(collection.name || "Collection")}</span>
+          <span style="display: block; margin-top: 0.25rem; font-size: 0.8rem; color: var(--muted);">View collection</span>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inline") {
   if (!tmdbData) return "";
   const providers = tmdbData["watch/providers"]?.results?.GB?.flatrate || tmdbData["watch/providers"]?.results?.US?.flatrate || [];
@@ -257,8 +275,7 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
       data-tmdb-id="${escapeAttribute(String(tmdbId))}"
       data-imdb-id="${escapeAttribute(String(imdbId))}"
       data-tvdb-id="${escapeAttribute(String(tvdbId))}"
-      data-title="${escapeAttribute(title)}"
-      hidden></div>
+      data-title="${escapeAttribute(title)}"></div>
   </aside>`;
 }
 
@@ -277,24 +294,50 @@ export async function hydrateMediaAppLinks(root = document) {
       if (value) params.set(param, value);
     }
 
+    const greyedOutHtml = `
+      <span>Open in</span>
+      <b class="media-app-link-row">
+        <a class="media-app-link media-app-link--plex media-app-link--disabled" title="Checking Plex..." aria-label="Checking Plex..." style="opacity: 0.4; cursor: not-allowed;">
+          <img class="media-app-link-logo" src="/icons/plex.svg" alt="" loading="lazy" data-err="hide-show-next" />
+          <span>Plex</span>
+        </a>
+        <a class="media-app-link media-app-link--emby media-app-link--disabled" title="Checking Emby..." aria-label="Checking Emby..." style="opacity: 0.4; cursor: not-allowed;">
+          <img class="media-app-link-logo" src="/icons/emby.svg" alt="" loading="lazy" data-err="hide-show-next" />
+          <span>Emby</span>
+        </a>
+        <a class="media-app-link media-app-link--jellyfin media-app-link--disabled" title="Checking Jellyfin..." aria-label="Checking Jellyfin..." style="opacity: 0.4; cursor: not-allowed;">
+          <img class="media-app-link-logo" src="/icons/jellyfin.svg" alt="" loading="lazy" data-err="hide-show-next" />
+          <span>Jellyfin</span>
+        </a>
+      </b>
+    `;
+
+    container.innerHTML = greyedOutHtml;
+
     try {
       const response = await fetch(`/api/media-app-links?${params.toString()}`, { headers: authHeaders(), cache: "no-store" });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok || !Array.isArray(body.links) || !body.links.length) return;
-      container.innerHTML = `
-        <span>Open in</span>
-        <b class="media-app-link-row">
-          ${body.links.map((link) => `
-            <a class="media-app-link media-app-link--${escapeAttribute(link.target || "")}" href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(`Open in ${link.label}`)}" aria-label="${escapeAttribute(`Open in ${link.label}`)}">
-              ${link.iconUrl ? `<img class="media-app-link-logo" src="${escapeAttribute(link.iconUrl)}" alt="" loading="lazy" data-err="hide-show-next" />` : ""}
-              <span>${escapeHtml(link.label)}</span>
-            </a>
-          `).join("")}
-        </b>
-      `;
-      container.hidden = false;
+      if (!response.ok || !Array.isArray(body.links)) return;
+      const links = body.links;
+      const linkMap = new Map(links.map((link) => [link.target, link]));
+
+      const activeLinkHtml = [...linkMap.values()].map((link) => `
+        <a class="media-app-link media-app-link--${escapeAttribute(link.target || "")}" href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(`Open in ${link.label}`)}" aria-label="${escapeAttribute(`Open in ${link.label}`)}">
+          ${link.iconUrl ? `<img class="media-app-link-logo" src="${escapeAttribute(link.iconUrl)}" alt="" loading="lazy" data-err="hide-show-next" />` : ""}
+          <span>${escapeHtml(link.label)}</span>
+        </a>
+      `).join("");
+
+      if (activeLinkHtml) {
+        container.innerHTML = `
+          <span>Open in</span>
+          <b class="media-app-link-row">
+            ${activeLinkHtml}
+          </b>
+        `;
+      }
     } catch {
-      // App links are optional; leave the facts rail unchanged if lookup fails.
+      // App links are optional; leave the greyed-out versions if lookup fails.
     }
   }));
 }

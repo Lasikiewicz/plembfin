@@ -180,7 +180,7 @@ async function upstream(path, params = {}, attempt = 0) {
 
 async function fetchTmdbRaw(type, id) {
   return compactDetails(await upstream(`${type}/${id}`, {
-    append_to_response: "credits,videos,reviews,similar,recommendations,watch/providers,keywords,external_ids,release_dates,content_ratings,images",
+    append_to_response: "credits,videos,reviews,similar,recommendations,watch/providers,keywords,external_ids,release_dates,content_ratings,images,belongs_to_collection",
   }));
 }
 

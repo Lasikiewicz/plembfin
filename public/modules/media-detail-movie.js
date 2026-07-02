@@ -9,7 +9,7 @@ import {
   renderCastSection, renderRichTmdbDetails, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
-  renderRecommendationSection, hydrateMediaAppLinks,
+  renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection,
 } from "./media-detail-shared.js";
 
 // Authoritatively check whether a movie is already in watch history. state.history
@@ -204,6 +204,7 @@ function _renderWatchedMovieContent(root, movie, {
         </div>
         ${renderMediaFacts(tmdbData, "movie", "sidebar")}
       </header>
+      ${tmdbData ? renderCollectionSection(tmdbData) : ""}
       ${tmdbData ? renderCastSection(tmdbData) : ""}
       ${tmdbData ? renderRichTmdbDetails(tmdbData) : ""}
       ${tmdbData ? renderMediaImagesSection(tmdbData) : ""}
@@ -359,6 +360,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
         </div>
       </header>
       ${renderMediaFacts(tmdbData, "movie")}
+      ${renderCollectionSection(tmdbData)}
       ${renderCastSection(tmdbData)}
       ${renderRichTmdbDetails(tmdbData)}
       ${renderRecommendationSection({ title: "Recommended movies", items: recommendations, mediaType: "movie" })}
