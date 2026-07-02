@@ -1,7 +1,20 @@
 {
-  "version": "0.3.15",
-  "updatedAt": "2026-07-02T15:08:12+01:00",
+  "version": "0.3.16",
+  "updatedAt": "2026-07-02T15:14:17+01:00",
   "entries": [
+    {
+      "version": "0.3.16",
+      "date": "2026-07-02T15:14:17+01:00",
+      "commit": "9e0b07596a8a90e10ba25bbd0e59b3596bd3f9bc",
+      "message": "fix: exclude specials from TV show episode/season totals",
+      "author": "Lasikiewicz",
+      "details": [
+        "Specials (season 0) were being counted in a show's total episode/season count, causing the TV library grid to show an inflated total (e.g. 110/123) that disagreed with the show's own progress bar (110/110), which already excluded them",
+        "Show progress totals (episode count, season count, watched percentage) now exclude specials consistently everywhere they're calculated",
+        "Specials still appear as a \"Specials\" entry in the seasons list on a show's page so they remain browsable, they just no longer count toward the totals",
+        "Previously cached show details and progress totals are automatically refreshed in the background so existing shows pick up the corrected counts without manual intervention"
+      ]
+    },
     {
       "version": "0.3.15",
       "date": "2026-07-02T15:08:12+01:00",
