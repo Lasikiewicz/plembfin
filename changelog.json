@@ -1,7 +1,18 @@
 {
-  "version": "0.3.2",
-  "updatedAt": "2026-07-02T09:48:15+01:00",
+  "version": "0.3.3",
+  "updatedAt": "2026-07-02T09:59:14+01:00",
   "entries": [
+    {
+      "version": "0.3.3",
+      "date": "2026-07-02T09:59:14+01:00",
+      "commit": "b3c2e04bdff1a578d5b1e8c943832e59576fea97",
+      "message": "fix: correct TV show cache key and TVDB remote-ID matching after rematch",
+      "author": "Lasikiewicz",
+      "details": [
+        "getTvShowDetails() cached TV show details under a key derived from the caller's tmdb_id, but after Fix Match clears tmdb_id to force re-resolution, that key no longer matches what getTmdbSeason() looks up, so season data silently failed to load",
+        "TheTVDB's remoteIds sourceName is \"TheMovieDB.com\", not \"TheMovieDB\" as assumed, so the automatic TMDB-ID lookup used whenever tmdb_id isn't already known (e.g. right after a TV show rematch) never actually resolved a match"
+      ]
+    },
     {
       "version": "0.3.2",
       "date": "2026-07-02T09:48:15+01:00",
