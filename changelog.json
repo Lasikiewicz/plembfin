@@ -1,7 +1,19 @@
 {
-  "version": "0.3.5",
-  "updatedAt": "2026-07-02T10:55:31+01:00",
+  "version": "0.3.6",
+  "updatedAt": "2026-07-02T11:05:48+01:00",
   "entries": [
+    {
+      "version": "0.3.6",
+      "date": "2026-07-02T11:05:48+01:00",
+      "commit": "cfadfa44c3287aa21c583ce0e096a61e156161b2",
+      "message": "docs: clarify readme source wording",
+      "author": "Lasikiewicz",
+      "details": [
+        "Reword README metadata descriptions so first-time readers see the current TheTVDB/TMDB source split without historical context.",
+        "Rephrase the default admin-password note as current behavior instead of upgrade-history wording.",
+        "Add CLAUDE.md guidance requiring standalone docs copy and detailed commit bodies for user-visible changes."
+      ]
+    },
     {
       "version": "0.3.5",
       "date": "2026-07-02T10:55:31+01:00",
