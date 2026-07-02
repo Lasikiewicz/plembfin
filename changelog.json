@@ -1,7 +1,14 @@
 {
-  "version": "0.3.7",
-  "updatedAt": "2026-07-02T11:18:08+01:00",
+  "version": "0.3.8",
+  "updatedAt": "2026-07-02T11:46:51+01:00",
   "entries": [
+    {
+      "version": "0.3.8",
+      "date": "2026-07-02T11:46:51+01:00",
+      "commit": "d45219ee573f0c0df6436a93915aa85c96b93945",
+      "message": "fix: patch movie watched state in place",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.3.7",
       "date": "2026-07-02T11:18:08+01:00",
