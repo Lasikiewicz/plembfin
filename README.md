@@ -33,7 +33,7 @@
 | **Self-hosted & private** | SQLite on your own hardware — no cloud accounts required |
 | **Security hardening** | Strict CSP headers, scrypt hashing, rate-limited login, HMAC-signed sessions |
 | **Artwork pipeline** | Posters and logos fetched from TMDB, TheTVDB, and Fanart.tv, resized and cached locally |
-| **Accurate TV episode data** | TV show names, seasons, and episode numbering/titles/air dates are sourced from TheTVDB; cast, trailers, and recommendations still come from TMDB |
+| **Accurate TV episode data** | TV show names, seasons, episode numbering, titles, and air dates are sourced from TheTVDB; cast, trailers, reviews, and recommendations are sourced from TMDB |
 
 ---
 
@@ -156,7 +156,7 @@
 ## Full Setup & Integration Guide
 
 ### 1. Sign In & Set Admin Credentials
-Sign in with `admin` and the password you set via `ADMIN_PASSWORD`, or the random password Plembfin generated and printed to the console on first boot. (Instances upgraded from an older version that still have the old default `admin`/`admin` password are automatically redirected to **Settings → General** with a security banner until it's changed.)
+Sign in with `admin` and the password you set via `ADMIN_PASSWORD`, or the random password Plembfin generated and printed to the console on first boot. If the configured admin password is the insecure default `admin`, Plembfin redirects to **Settings → General** with a security banner until the password is changed.
 
 ### 2. Connect Your Media Apps
 Go to **Settings → Apps** and configure connection settings for the platforms you use:
@@ -183,7 +183,7 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 *   **TMDB API Key**: Obtain a free API key from [TheMovieDB](https://www.themoviedb.org/documentation/api) and paste it here. This enables search capability on the dashboard, rich cast lists, trailers, recommendations, and poster fallbacks. Movies are sourced entirely from TMDB.
 
 #### TheTVDB (TV Show Episode Data)
-*   Plembfin includes a built-in project key for [TheTVDB](https://thetvdb.com) — no setup is required. TV show names, seasons, and episode numbering/titles/air dates are sourced from TheTVDB, since it's often more accurate than TMDB's own numbering. Cast, trailers, reviews, and recommendations still come from TMDB.
+*   Plembfin includes a built-in project key for [TheTVDB](https://thetvdb.com) — no setup is required. TV show names, seasons, episode numbering, titles, and air dates are sourced from TheTVDB, since it is often more accurate for TV episode ordering. Cast, trailers, reviews, and recommendations are sourced from TMDB.
 *   **Personal API Key (optional)**: Register at thetvdb.com (Dashboard → API Keys) and enter your personal key under **Settings → API Keys → TheTVDB** for your own request quota.
 
 #### Fanart.tv (Artwork Fallback)

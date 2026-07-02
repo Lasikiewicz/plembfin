@@ -43,6 +43,8 @@ For every changed file, check whether the corresponding doc **and** the relevant
 
 Update any doc **and** the matching README section that is out of date before proceeding.
 
+Documentation and README copy must stand on its own for a first-time reader. State the current behavior as a fact; avoid historical or relative wording such as "still", "previously", "formerly", "same as before", "no longer", or "new" unless the sentence is explicitly about an upgrade, migration, or changelog entry. For metadata source descriptions, say which source provides which data instead of referencing what another source used to provide.
+
 ### 3 — Sync in-app help
 For every changed feature or setting, check the relevant frontend module in `public/modules/` or `public/app.js`:
 - **`HELP_TOPICS`** array — update or add topic bodies if flows changed
@@ -66,6 +68,8 @@ Use this format — the first line becomes the changelog `message`; bullet-point
 Types: `feat` (new feature), `fix` (bug fix), `security` (security change), `chore` (maintenance), `docs` (docs only).
 
 Keep bullet points to the 3–8 most significant user-visible changes. Skip internal refactors that don't affect behaviour.
+
+Do not create single-line commits for user-visible changes. If the change affects behavior, UI, docs, setup, data sources, sync, caching, or settings, the commit body must include bullet-point details. The changelog generator only reads body lines that start with `- ` or `* `; without them, the Settings → Changelog entry will be sparse. If you are about to commit without bullet details, stop and rewrite the commit message before committing.
 
 ### 5 — Stage and commit
 Stage all modified files **except** `data/`, `node_modules/`, and any secrets. Commit using the message written in step 4.
