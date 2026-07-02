@@ -1,7 +1,20 @@
 {
-  "version": "0.3.12",
-  "updatedAt": "2026-07-02T14:14:17+01:00",
+  "version": "0.3.13",
+  "updatedAt": "2026-07-02T14:30:54+01:00",
   "entries": [
+    {
+      "version": "0.3.13",
+      "date": "2026-07-02T14:30:54+01:00",
+      "commit": "fa31de76a30a7cc8a3d6cdcd48f0471283a39dec",
+      "message": "fix: backfill missing TV show episode totals and refresh stale counts",
+      "author": "Lasikiewicz",
+      "details": [
+        "TV shows watched before the per-show progress cache existed (or added outside its incremental update path) never got an episode total computed, permanently showing \"?\" watched counts on the TV Shows page",
+        "On startup, any show missing from the cache is now automatically queued for a background total-episode lookup alongside shows with a stale zero count",
+        "The TV show list's in-memory cache now refreshes as soon as the background total-episode backfill finishes, instead of waiting for an unrelated watch event",
+        "TheTVDB-sourced show details now report a total episode count, fixing counts that were stuck at zero after the switch to TheTVDB for TV metadata"
+      ]
+    },
     {
       "version": "0.3.12",
       "date": "2026-07-02T14:14:17+01:00",
