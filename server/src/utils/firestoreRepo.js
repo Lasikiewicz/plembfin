@@ -752,7 +752,7 @@ export async function insertWatchRecord(_unusedDb, record, { skipInvalidate = fa
   // Eagerly pull + store TMDB metadata/artwork at ingest (fire-and-forget;
   // returned so the webhook can await it before responding if it wants to).
   let assetPrefetch = Promise.resolve(null);
-  if (normalized.tmdb_id || normalized.title) {
+  if (isWatchedAction(normalized) && (normalized.tmdb_id || normalized.title)) {
     assetPrefetch = prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title, id).catch(() => null);
   }
   return { id, record: normalized, assetPrefetch };
@@ -825,7 +825,7 @@ export async function batchInsertWatchRecords(_unusedDb, records) {
       }
     });
     for (const normalized of toInsert) {
-      if (normalized.tmdb_id || normalized.title) {
+      if (isWatchedAction(normalized) && (normalized.tmdb_id || normalized.title)) {
         prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
       }
     }
