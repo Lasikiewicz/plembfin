@@ -2016,12 +2016,15 @@ h2 {
 
 .stats-kpi-card > b {
   display: block;
-  font-size: 1.7rem;
+  font-size: clamp(1.15rem, 6vw, 1.7rem);
   font-weight: 800;
   line-height: 1;
   color: var(--text);
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  overflow-wrap: normal;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .stats-kpi-card > small {
@@ -3277,6 +3280,23 @@ details[open] .tool-accordion-chevron::before {
   color: var(--muted);
   font-size: 0.62rem;
   white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .month-chart {
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+    padding-bottom: 0.3rem;
+  }
+
+  .month-column {
+    flex: 0 0 2.75rem;
+  }
+
+  .month-column small {
+    font-size: 0.58rem;
+  }
 }
 
 .table-row {
@@ -6957,6 +6977,39 @@ h1 {
   flex: 0 0 500px;
 }
 
+@media (max-width: 640px) {
+  .page-shell[data-active-view="dashboard"] .dashboard-history-card-row .dashboard-history-page-card,
+  #timeline-view[data-dash-state="2"] .dashboard-history-card-row .dashboard-history-page-card,
+  #timeline-view[data-dash-state="3"] .dashboard-history-card-row .dashboard-history-page-card {
+    flex: 0 0 clamp(128px, 40vw, 176px);
+    flex-direction: column;
+    padding: 0.5rem;
+    gap: 0.5rem;
+  }
+
+  .page-shell[data-active-view="dashboard"] .dashboard-history-card-row .history-card-poster-wrapper {
+    width: 100%;
+    height: auto;
+    max-height: none;
+  }
+
+  .page-shell[data-active-view="dashboard"] .dashboard-history-card-row .history-card-title {
+    font-size: 0.86rem;
+  }
+
+  .page-shell[data-active-view="dashboard"] .dashboard-history-card-row .history-card-episode {
+    font-size: 0.74rem;
+  }
+
+  .page-shell[data-active-view="dashboard"] .dashboard-history-card-row .history-card-meta {
+    font-size: 0.66rem;
+  }
+
+  .page-shell[data-active-view="dashboard"] .dashboard-history-card-row .meta-label {
+    font-size: 0.58rem;
+  }
+}
+
 .glass-panel {
   border-color: rgba(255, 255, 255, 0.07);
   background: transparent;
@@ -7345,8 +7398,13 @@ h1 {
   }
 
   .topnav.nav-open {
+    position: fixed;
+    inset: 0;
+    width: 100%;
     max-height: 100vh;
+    height: 100vh;
     overflow-y: auto;
+    z-index: 500;
   }
 
   .brand-search {
