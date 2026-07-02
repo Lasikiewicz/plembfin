@@ -6031,6 +6031,26 @@ details[open] .tool-accordion-chevron::before {
   color: #99f6e4;
 }
 
+.season-pill-4k-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.32rem;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(94, 234, 212, 0.35);
+  background: rgba(20, 184, 166, 0.12);
+  color: #5eead4;
+}
+
+.season-pill-4k-tag.is-full {
+  border-color: rgba(94, 234, 212, 0.55);
+  background: rgba(20, 184, 166, 0.22);
+  color: #99f6e4;
+}
+
 .confirm-dialog-body {
   color: var(--muted);
   font-size: 0.88rem;
@@ -10986,6 +11006,18 @@ html.light-mode .season-availability-pill.is-4k {
   color: #0d9488;
   background: rgba(13, 148, 136, 0.08);
   border-color: rgba(13, 148, 136, 0.25);
+}
+
+html.light-mode .season-pill-4k-tag {
+  border-color: rgba(13, 148, 136, 0.3);
+  background: rgba(13, 148, 136, 0.1);
+  color: #0d9488;
+}
+
+html.light-mode .season-pill-4k-tag.is-full {
+  border-color: rgba(13, 148, 136, 0.45);
+  background: rgba(13, 148, 136, 0.18);
+  color: #0f766e;
 }
 
 html.light-mode .media-detail-page .immersive-poster-img {

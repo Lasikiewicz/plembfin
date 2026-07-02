@@ -395,14 +395,18 @@ export function tvSeasonAvailabilityHtml(status = {}, seasonNumber, watchedInSea
   const available = Number(season.available || 0);
   const available4k = Number(season.available4k || 0);
   // Episodes already watched clearly weren't "missing" to the user, even if the
-  // library/Seerr status hasn't caught up — don't flag them red on that basis alone.
+  // library/Seerr status hasn't caught up — count them as available for both the
+  // badge color and the printed count, so the two can never contradict each other
+  // (e.g. a green pill that reads "0/20 available").
   const effectiveAvailable = Math.min(total, Math.max(available, Number(watchedInSeason) || 0));
-  const availabilityText = available >= total ? `All ${total} available` : `${available}/${total} available`;
-  const fourKText = available4k >= total ? `All ${total} in 4K` : available4k > 0 ? `${available4k}/${total} in 4K` : "";
+  const availabilityText = effectiveAvailable >= total ? `All ${total} available` : `${effectiveAvailable}/${total} available`;
   const availabilityClass = effectiveAvailable >= total ? "is-complete" : effectiveAvailable > 0 ? "is-partial" : "is-missing";
+  const fourKTitle = available4k >= total ? `All ${total} episodes available in 4K` : `${available4k}/${total} episodes available in 4K`;
   return `
-    <span class="season-availability-pill ${availabilityClass}">${escapeHtml(availabilityText)}</span>
-    ${fourKText ? `<span class="season-availability-pill is-4k ${available4k >= total ? "is-complete" : "is-partial"}">${escapeHtml(fourKText)}</span>` : ""}
+    <span class="season-availability-pill ${availabilityClass}">
+      ${escapeHtml(availabilityText)}
+      ${available4k > 0 ? `<b class="season-pill-4k-tag ${available4k >= total ? "is-full" : ""}" title="${escapeAttribute(fourKTitle)}">4K</b>` : ""}
+    </span>
   `;
 }
 export function renderSeasonSeerrControls(tmdbId, seasonNumber, status = {}) {
