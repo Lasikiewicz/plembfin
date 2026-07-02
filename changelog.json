@@ -1,7 +1,19 @@
 {
-  "version": "0.4.3",
-  "updatedAt": "2026-07-02T20:32:31+01:00",
+  "version": "0.4.4",
+  "updatedAt": "2026-07-02T20:37:42+01:00",
   "entries": [
+    {
+      "version": "0.4.4",
+      "date": "2026-07-02T20:37:42+01:00",
+      "commit": "8926c487b9b03cb8462f09d2f49a95918c198db2",
+      "message": "fix: stop changelog from dropping earlier commits in a multi-commit push",
+      "author": "Lasikiewicz",
+      "details": [
+        "The changelog workflow only read GitHub's head_commit, so pushing",
+        "Every commit in the push now contributes its bullet points (or its",
+        "Documented the behavior in CLAUDE.md's push workflow so future"
+      ]
+    },
     {
       "version": "0.4.3",
       "date": "2026-07-02T20:32:31+01:00",
