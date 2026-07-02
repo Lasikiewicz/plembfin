@@ -1,7 +1,19 @@
 {
-  "version": "0.4.4",
-  "updatedAt": "2026-07-02T20:37:42+01:00",
+  "version": "0.4.5",
+  "updatedAt": "2026-07-02T20:41:54+01:00",
   "entries": [
+    {
+      "version": "0.4.5",
+      "date": "2026-07-02T20:41:54+01:00",
+      "commit": "b037d002c93c06151fa9a417e2e52608bd45bbf2",
+      "message": "Fix - Show changelog entries as \"Fix -\" / \"Feature -\" instead of raw commit prefixes",
+      "author": "Lasikiewicz",
+      "details": [
+        "Changelog headlines used the raw conventional-commit prefix (e.g.",
+        "Future entries are generated as \"Fix - Pull season pills left\" /",
+        "Reformatted all 236 existing changelog entries the same way so"
+      ]
+    },
     {
       "version": "0.4.4",
       "date": "2026-07-02T20:37:42+01:00",
