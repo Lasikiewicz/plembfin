@@ -1,7 +1,14 @@
 {
-  "version": "0.3.3",
-  "updatedAt": "2026-07-02T09:59:14+01:00",
+  "version": "0.3.4",
+  "updatedAt": "2026-07-02T10:33:01+01:00",
   "entries": [
+    {
+      "version": "0.3.4",
+      "date": "2026-07-02T10:33:01+01:00",
+      "commit": "6b11598597cb0982e6fd3cfbdcfcce75e9cb0477",
+      "message": "fix: add tv rematch tools",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.3.3",
       "date": "2026-07-02T09:59:14+01:00",
