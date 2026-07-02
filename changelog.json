@@ -1,7 +1,19 @@
 {
-  "version": "0.4.0",
-  "updatedAt": "2026-07-02T19:05:07+01:00",
+  "version": "0.4.1",
+  "updatedAt": "2026-07-02T19:41:56+01:00",
   "entries": [
+    {
+      "version": "0.4.1",
+      "date": "2026-07-02T19:41:56+01:00",
+      "commit": "bfef67079557da795916fe160cfb4c60d19573f5",
+      "message": "fix: reliable open-in-app icons and aligned season accordion columns",
+      "author": "Lasikiewicz",
+      "details": [
+        "Open in Plex/Emby/Jellyfin buttons use bundled icons instead of hotlinking the media server's favicon, which wasn't reliably served and left the buttons showing text only with no icon",
+        "Season accordion rows (episode count, watched count, availability, next airing) now line up in fixed columns instead of shifting position depending on which fields are present for that season",
+        "Verified column alignment on desktop and confirmed the row wraps cleanly without clipping on mobile"
+      ]
+    },
     {
       "version": "0.4.0",
       "date": "2026-07-02T19:05:07+01:00",
