@@ -245,6 +245,7 @@ function bindElements() {
     tmdbApiKey: document.querySelector("#tmdbApiKey"),
     youtubeApiKey: document.querySelector("#youtubeApiKey"),
     fanartApiKey: document.querySelector("#fanartApiKey"),
+    tvdbApiKey: document.querySelector("#tvdbApiKey"),
     omdbApiKey: document.querySelector("#omdbApiKey"),
     embyEnabled: document.querySelector("#embyEnabled"),
     embyServerUrl: document.querySelector("#embyServerUrl"),
@@ -314,6 +315,8 @@ function bindElements() {
     youtubeConfigStatus: document.querySelector("#youtubeConfigStatus"),
     saveFanartConfigButton: document.querySelector("#saveFanartConfigButton"),
     fanartConfigStatus: document.querySelector("#fanartConfigStatus"),
+    saveTvdbConfigButton: document.querySelector("#saveTvdbConfigButton"),
+    tvdbConfigStatus: document.querySelector("#tvdbConfigStatus"),
     saveOmdbConfigButton: document.querySelector("#saveOmdbConfigButton"),
     omdbConfigStatus: document.querySelector("#omdbConfigStatus"),
     saveSeerrConfigButton: document.querySelector("#saveSeerrConfigButton") || elements.saveSeerrConfigButton,
@@ -1556,6 +1559,8 @@ function populateConfigForm(config = {}) {
   if (elements.youtubeApiKey) elements.youtubeApiKey.value = config.youtube?.apiKey || "";
   if (elements.fanartApiKey) elements.fanartApiKey.value = "";
   if (elements.fanartApiKey) elements.fanartApiKey.placeholder = config.fanart?.configured ? "Configured - enter a new key to replace it" : "Personal API key (optional)";
+  if (elements.tvdbApiKey) elements.tvdbApiKey.value = "";
+  if (elements.tvdbApiKey) elements.tvdbApiKey.placeholder = config.tvdb?.configured ? "Configured - enter a new key to replace it" : "Personal API key (optional)";
   if (elements.omdbApiKey) elements.omdbApiKey.value = "";
   if (elements.omdbApiKey) elements.omdbApiKey.placeholder = config.omdb?.configured ? "Configured - enter a new key to replace it" : "OMDb API key";
 
@@ -1765,6 +1770,10 @@ async function saveSectionConfig(section) {
       payload.fanart = {
         apiKey: elements.fanartApiKey.value.trim(),
       };
+    } else if (section === "tvdb") {
+      payload.tvdb = {
+        apiKey: elements.tvdbApiKey.value.trim(),
+      };
     } else if (section === "omdb") {
       payload.omdb = {
         apiKey: elements.omdbApiKey.value.trim(),
@@ -1807,6 +1816,13 @@ async function saveSectionConfig(section) {
       };
       if (elements.fanartApiKey) elements.fanartApiKey.value = "";
       if (elements.fanartApiKey) elements.fanartApiKey.placeholder = state.savedConfig.fanart.configured ? "Configured - enter a new key to replace it" : "Personal API key (optional)";
+    }
+    if (section === "tvdb") {
+      state.savedConfig.tvdb = {
+        configured: Boolean(payload.tvdb.apiKey || state.savedConfig.tvdb?.configured)
+      };
+      if (elements.tvdbApiKey) elements.tvdbApiKey.value = "";
+      if (elements.tvdbApiKey) elements.tvdbApiKey.placeholder = state.savedConfig.tvdb.configured ? "Configured - enter a new key to replace it" : "Personal API key (optional)";
     }
     if (section === "omdb") {
       state.savedConfig.omdb = {

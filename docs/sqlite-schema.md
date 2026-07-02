@@ -14,13 +14,15 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `playstate` | Per-item watched/unwatched state for sync targets | sync orchestrator | sync orchestrator |
 | `sync_history` | Log of all sync dispatch results | every sync attempt | sync-history endpoint |
 | `runtime_state` | Single-row JSON blob — last cron time, force-sync state/log, `nowPlayingRefresh` signal | scheduler, force-sync, webhooks | dashboard polling |
-| `settings` | Single-row JSON blob — Plex/Emby/Jellyfin/TMDB connection settings | config endpoint | everything that talks to servers |
+| `settings` | Single-row JSON blob — Plex/Emby/Jellyfin/TMDB/TVDB connection settings | config endpoint | everything that talks to servers |
 | `loop_keys` | Loop-detection KV with TTL | sync orchestrator | sync orchestrator |
 | `poster_cache` | Cached artwork metadata (binaries in `data/media/`) | poster handler | poster resolution |
-| `tmdb_metadata_cache` | TMDB details, 7-day TTL, key `${mediaType}_${tmdbId}` | tmdb-details handler | detail pages, prefetch |
+| `tmdb_metadata_cache` | Movie details (pure TMDB) or TV show details (TVDB structure + TMDB extras merged), key `${mediaType}_${tmdbId}` (or `tv_tvdb_${tvdbId}` if no TMDB match) | tmdb-details handler | detail pages, prefetch |
 | `tmdb_search_cache` | TMDB search results | tmdb-search handler | TMDB search |
-| `tmdb_season_cache` | TMDB season details | tmdb-season handler | TV detail pages |
+| `tmdb_season_cache` | Legacy TMDB season cache — no longer written; season data now comes from `tvdb_season_cache` | — (unused) | — |
 | `tmdb_person_cache` | TMDB person details, key `person_${personId}` | tmdb-person handler | cast pages |
+| `tvdb_metadata_cache` | Raw TheTVDB series/extended response, key `series_${tvdbId}` (also holds title-search results, key `search_${hash}`) | tvdbGateway | tv show detail resolution |
+| `tvdb_season_cache` | Raw TheTVDB season/extended episode list, key `${tvdbId}_${seasonNumber}` | tvdbGateway | tmdb-season handler |
 | `omdb_cache` | OMDb/IMDb ratings, 7-day TTL, key is the IMDb ID (`tt…`) | omdb-rating handler | media detail pages |
 | `audit_log` | Security-relevant event log (login, credential change, rotation) | `writeAuditLog()` in `db.js` | ops/debugging only |
 

@@ -32,7 +32,8 @@
 | **Automated backups** | Daily local backups with optional mirror to Backblaze B2 |
 | **Self-hosted & private** | SQLite on your own hardware — no cloud accounts required |
 | **Security hardening** | Strict CSP headers, scrypt hashing, rate-limited login, HMAC-signed sessions |
-| **Artwork pipeline** | Posters and logos fetched from TMDB and Fanart.tv, resized and cached locally |
+| **Artwork pipeline** | Posters and logos fetched from TMDB, TheTVDB, and Fanart.tv, resized and cached locally |
+| **Accurate TV episode data** | TV show names, seasons, and episode numbering/titles/air dates are sourced from TheTVDB; cast, trailers, and recommendations still come from TMDB |
 
 ---
 
@@ -179,7 +180,11 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 *   **Jellyfin User ID**: The unique ID of your user (copied from the URL when viewing user options in Jellyfin settings).
 
 #### TMDB (Metadata & Posters)
-*   **TMDB API Key**: Obtain a free API key from [TheMovieDB](https://www.themoviedb.org/documentation/api) and paste it here. This enables search capability on the dashboard, rich cast lists, and poster fallbacks.
+*   **TMDB API Key**: Obtain a free API key from [TheMovieDB](https://www.themoviedb.org/documentation/api) and paste it here. This enables search capability on the dashboard, rich cast lists, trailers, recommendations, and poster fallbacks. Movies are sourced entirely from TMDB.
+
+#### TheTVDB (TV Show Episode Data)
+*   Plembfin includes a built-in project key for [TheTVDB](https://thetvdb.com) — no setup is required. TV show names, seasons, and episode numbering/titles/air dates are sourced from TheTVDB, since it's often more accurate than TMDB's own numbering. Cast, trailers, reviews, and recommendations still come from TMDB.
+*   **Personal API Key (optional)**: Register at thetvdb.com (Dashboard → API Keys) and enter your personal key under **Settings → API Keys → TheTVDB** for your own request quota.
 
 #### Fanart.tv (Artwork Fallback)
 *   Plembfin includes a built-in project key for [Fanart.tv](https://fanart.tv) — no setup is required. Fanart.tv is queried after TMDB as a fallback/additional source for posters, backdrops, and transparent logo art.
@@ -272,6 +277,7 @@ The following environment variables can be set in your system or defined in `doc
 | `SESSION_SECRET` | _generated_ | Signing secret for the dashboard session cookie. |
 | `COOKIE_SECURE` | `false` | Set to `true` when the app is served behind an HTTPS reverse proxy — enables `Secure` cookie flag and `Strict-Transport-Security` header. |
 | `FANART_API_KEY` | _none_ | Optional personal Fanart.tv API key for higher rate limits. A built-in project key is used when this is unset. |
+| `TVDB_API_KEY` | _none_ | Optional personal TheTVDB API key for a higher personal rate limit. A built-in project key is used when this is unset. |
 | `OMDB_API_KEY` | _none_ | Optional OMDb API key. When set, IMDb ratings are fetched and displayed as a rating badge on media detail pages. Free tier: 1,000 req/day. |
 | `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | The frequency (in milliseconds) of database-heavy catch-up library scans on Plex/Emby/Jellyfin. |
 
@@ -308,5 +314,6 @@ Plembfin is private software. See the [changelog.json](changelog.json) for the v
 
 Plembfin uses the following third-party services for artwork and metadata — thank you to the people and communities that make them possible:
 
-*   **[The Movie Database (TMDB)](https://www.themoviedb.org)** — The primary source for movie and TV show metadata, posters, backdrops, cast information, and logo art. This product uses the TMDB API but is not endorsed or certified by TMDB.
+*   **[The Movie Database (TMDB)](https://www.themoviedb.org)** — The primary source for movie metadata, posters, backdrops, cast information, and logo art, and the source of cast/trailers/recommendations for TV shows. This product uses the TMDB API but is not endorsed or certified by TMDB.
+*   **[TheTVDB](https://thetvdb.com)** — The source of TV show names, seasons, episode numbering/titles/air dates, and artwork. Metadata provided by TheTVDB. Please consider adding missing information or subscribing.
 *   **[Fanart.tv](https://fanart.tv)** — Community-driven source of high-quality poster art, backdrop images, and transparent logo art used as a fallback when TMDB images are unavailable. Thank you to all the fanart.tv contributors who upload and curate artwork.

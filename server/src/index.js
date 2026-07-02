@@ -79,6 +79,7 @@ import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, prewarmTmdbLibrary, searchTmdb, getCachedTvdbId } from "./utils/tmdbGateway.js";
+import { searchTvdbSeriesList } from "./utils/tvdbGateway.js";
 import {
   cachedNextAiringFor,
   mergeNextAiringCacheEntries,
@@ -3463,6 +3464,20 @@ async function handleTmdbSearch(req, res) {
   }
 }
 
+async function handleTvdbSearch(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const query = String(req.query.query || req.query.q || "").trim();
+  if (query.length < 2) return sendJson(res, { error: "A search query of at least two characters is required" }, 400);
+  try {
+    const results = await searchTvdbSeriesList(query);
+    return sendJson(res, { results }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=900", Vary: "Authorization" });
+  } catch (error) {
+    return sendJson(res, { error: error.message }, error.status || 500);
+  }
+}
+
 async function handleMediaSearch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -3715,8 +3730,13 @@ async function handleUpdateWatch(req, res) {
   if (body.logo_url !== undefined) fields.logo_url = body.logo_url;
   if (body.backdrop_url !== undefined) fields.backdrop_url = body.backdrop_url;
   if (body.tmdb_id !== undefined) fields.tmdb_id = body.tmdb_id;
+  if (body.tvdb_id !== undefined) fields.tvdb_id = body.tvdb_id;
   if (body.title !== undefined) fields.title = body.title;
   if (body.youtube_url !== undefined) fields.youtube_url = body.youtube_url;
+
+  // Captured before the update runs — needed below to invalidate the cache row
+  // keyed by the *previous* tmdb_id when tvdb_id changes (Fix Match rematch).
+  const preUpdateRow = body.tvdb_id !== undefined ? await getWatchRecordByIdLight(id).catch(() => null) : null;
 
   const result = await updateWatchRecord(id, fields);
   if (!result.ok) return sendJson(res, { error: result.error }, 400);
@@ -3786,6 +3806,19 @@ async function handleUpdateWatch(req, res) {
       if (mediaKey) {
         await deletePosterCacheByMediaKey(mediaKey).catch(() => null);
       }
+    }
+  }
+
+  // If TVDB ID changed (Fix Match rematch), the old cached tv_{tmdbId} details row
+  // for this record's *previous* tmdb_id still points at the wrong show — force it
+  // stale so the next detail fetch re-resolves via the new tvdb_id instead of
+  // serving mismatched cached data until the TTL happens to expire.
+  if (body.tvdb_id !== undefined && preUpdateRow) {
+    if (preUpdateRow.tmdb_id) {
+      db.prepare("DELETE FROM tmdb_metadata_cache WHERE id = ?").run(`tv_${preUpdateRow.tmdb_id}`);
+    }
+    if (preUpdateRow.media_key) {
+      await deletePosterCacheByMediaKey(preUpdateRow.media_key).catch(() => null);
     }
   }
 
@@ -4115,6 +4148,7 @@ async function dispatch(req, res) {
     if (path === "refresh-tmdb-metadata") return handleRefreshTmdbMetadata(req, res);
     if (path === "media-details") return handleTmdbDetails(req, res);
     if (path === "tmdb-search") return handleTmdbSearch(req, res);
+    if (path === "tvdb-search") return handleTvdbSearch(req, res);
     if (path === "media-search") return handleMediaSearch(req, res);
     if (path === "tmdb-season") return handleTmdbSeason(req, res);
     if (path === "tmdb-images") return handleTmdbImages(req, res);

@@ -566,6 +566,7 @@ export async function getCachedShows() {
     const rawShowKey = canonicalTitleKey(group.raw_title) || normalizeKeyPart(group.raw_title);
     const cachedProgress = getCachedShowProgress(showKey) || (rawShowKey !== showKey ? getCachedShowProgress(rawShowKey) : null);
     const tmdbId = cachedShowTmdbId(cachedProgress?.tmdb_id, group.tmdb_id, group.representative_episode?.tmdb_id);
+    const tvdbId = group.tvdb_id || group.representative_episode?.tvdb_id || "";
     let posterUrl = group.poster_url || group.representative_episode?.poster_url || "";
     let status = "";
     if (tmdbId) {
@@ -583,6 +584,7 @@ export async function getCachedShows() {
       id: showKey,
       title: group.title,
       tmdb_id: tmdbId,
+      tvdb_id: tvdbId,
       status,
       poster_url: posterUrl || null,
       episode_count: group.episode_count,
@@ -1566,6 +1568,7 @@ export async function updateWatchRecord(id, fields = {}) {
   if (fields.logo_url != null) { sets.push("logo_url = ?"); params.push(String(fields.logo_url).trim()); }
   if (fields.backdrop_url != null) { sets.push("backdrop_url = ?"); params.push(String(fields.backdrop_url).trim()); }
   if (fields.tmdb_id != null) { sets.push("tmdb_id = ?"); params.push(String(fields.tmdb_id).trim()); }
+  if (fields.tvdb_id != null) { sets.push("tvdb_id = ?"); params.push(String(fields.tvdb_id).trim()); }
   if (fields.title != null) {
     const title = String(fields.title).trim();
     if (title) { sets.push("title = ?", "title_lower = ?"); params.push(title, title.toLowerCase()); }
@@ -1973,6 +1976,7 @@ function groupShowRows(rows = []) {
       logo_url: null,
       backdrop_url: null,
       tmdb_id: null,
+      tvdb_id: null,
     };
     group.title = preferredShowTitle(group.title, title);
     group.episode_count += 1;
@@ -1994,6 +1998,9 @@ function groupShowRows(rows = []) {
     }
     if (row.tmdb_id && !group.tmdb_id) {
       group.tmdb_id = row.tmdb_id;
+    }
+    if (row.tvdb_id && !group.tvdb_id) {
+      group.tvdb_id = row.tvdb_id;
     }
     groups.set(key, group);
   });

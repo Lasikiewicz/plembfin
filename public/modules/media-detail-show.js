@@ -286,7 +286,7 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
     const seasonNumber = Number(season.season_number);
     const tmdbSeason = seasonDetailsByNumber.get(seasonNumber);
     const tmdbEpisodes = Array.isArray(tmdbSeason?.episodes) ? tmdbSeason.episodes : [];
-    const fallbackPosterUrl = tmdbPoster(season.poster_path) || posterUrlFor(representativeEpisode(localSeasons));
+    const fallbackPosterUrl = (/^https?:\/\//i.test(season.poster_path || "") ? season.poster_path : tmdbPoster(season.poster_path)) || posterUrlFor(representativeEpisode(localSeasons));
 
     if (tmdbEpisodes.length) {
       const knownEpNums = new Set();

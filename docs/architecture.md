@@ -53,9 +53,37 @@ The same logic runs on demand via:
   dashboard to poll; `stop-force-sync` cancels.
 
 The scheduler also maintains `data/next-airing-cache.json`. On startup it builds a
-full TMDB-backed TV next-airing cache for every show with a TMDB ID, then refreshes
-stale entries periodically so the TV Shows library can sort by upcoming episodes
-without making per-row TMDB calls during page loads.
+full TVDB-backed TV next-airing cache for every show, then refreshes stale entries
+periodically so the TV Shows library can sort by upcoming episodes without making
+per-row TVDB calls during page loads.
+
+## TV metadata (TMDB + TheTVDB hybrid)
+
+`server/src/utils/tmdbGateway.js` and `server/src/utils/tvdbGateway.js` split TV show
+metadata by source, both behind the same `getTmdbDetails()`/`getTmdbSeason()` API so
+every caller (routes, frontend, `deriveNextAiring`) is unaware of the split:
+
+- **TheTVDB** supplies structural data for TV shows — name, overview, status, network,
+  genres, artwork, and season/episode numbering, titles, overviews, and air dates.
+  This is deliberately more accurate than TMDB's own numbering for many shows.
+- **TMDB** still supplies everything TheTVDB doesn't have: cast/credits, trailers,
+  reviews, similar/recommendations, watch providers, and content ratings. `id` on a
+  TV show's details is always the resolved TMDB ID (via TheTVDB's `remoteIds`, or the
+  caller-supplied ID), since Seerr requests and `/tvshow/tmdb/:id` routing are
+  TMDB-keyed.
+- **Movies** are unaffected — 100% TMDB, same as before.
+
+Like `fanartGateway.js`, `tvdbGateway.js` ships a hardcoded project API key so TVDB
+lookups work out of the box; an optional personal key can be set in Settings →
+API Keys → TheTVDB or via `TVDB_API_KEY` for a higher personal rate limit.
+
+Raw TVDB API responses are cached in `tvdb_metadata_cache` / `tvdb_season_cache`;
+the merged TMDB+TVDB result is cached in the existing `tmdb_metadata_cache` table
+under the same `tv_{tmdbId}` keys TMDB used before, so movie caching and downstream
+consumers (poster pipeline, Seerr, next-airing) are unchanged. `DETAILS_SCHEMA_VERSION`
+is bumped whenever the cached shape changes, which forces every existing cache row to
+be treated as stale and refetched on next access — no manual cache clearing needed
+after an upgrade that changes this shape.
 
 ## Changelog & update check
 
@@ -131,7 +159,7 @@ Morgan `combined`-format request logs are written to `data/logs/access.log`. The
 
 ## Security headers
 
-The CSP keeps scripts and connections same-origin, allows local/TMDB/YouTube/Fanart.tv images, sets `frame-ancestors 'none'`, and permits YouTube embeds only in frames.
+The CSP keeps scripts and connections same-origin, allows local/TMDB/YouTube/Fanart.tv/TheTVDB images, sets `frame-ancestors 'none'`, and permits YouTube embeds only in frames.
 
 The `img-src` directive is extended dynamically at request time: `server.js` reads the stored media config and appends the origins of any configured Plex, Emby, Jellyfin, and Seerr server URLs to the whitelist. This ensures artwork served directly by those servers (e.g. backdrop images) is not blocked by the CSP, without permanently whitelisting arbitrary external origins.
 
@@ -153,3 +181,4 @@ Startup runs `logSecuritySummary()` (in `appConfig.js`) which warns if the admin
 - `SESSION_SECRET` — pin the session signing secret
 - `COOKIE_SECURE` — set to `true` when behind an HTTPS reverse proxy
 - `OMDB_API_KEY` — optional OMDb API key; when set, enables IMDb rating badges on media detail pages (free tier: 1,000 req/day from omdbapi.com). Can also be configured in Settings → Integrations.
+- `TVDB_API_KEY` — optional personal TheTVDB API key for a higher personal rate limit. A built-in project key is used when this is unset. Can also be configured in Settings → API Keys → TheTVDB.

@@ -3,11 +3,12 @@ import { db, parseJson, toJson } from "../db.js";
 import { loadMediaConfig, loadRuntimeState, setRuntimeState } from "./configStore.js";
 import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./posterCache.js";
 import { getFanartMovieArt, getFanartTvArt } from "./fanartGateway.js";
+import { resolveTvdbSeriesId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, shapeTvdbSeriesAsTmdb } from "./tvdbGateway.js";
 
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DETAILS_SCHEMA_VERSION = 5;
+const DETAILS_SCHEMA_VERSION = 6; // bumped: TV show details now source structure from TVDB, not TMDB
 const PERSON_SCHEMA_VERSION = 5;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const MISSING_TTL_MS = DAY_MS;
@@ -50,14 +51,6 @@ const searchSetStmt = db.prepare(
      response=excluded.response, missing=excluded.missing, updated_at_ms=excluded.updated_at_ms`,
 );
 
-const seasonGetStmt = db.prepare("SELECT * FROM tmdb_season_cache WHERE id = ?");
-const seasonSetStmt = db.prepare(
-  `INSERT INTO tmdb_season_cache (id, tmdb_id, season_number, show_status, details, updated_at_ms)
-   VALUES (@id, @tmdb_id, @season_number, @show_status, @details, @updated_at_ms)
-   ON CONFLICT(id) DO UPDATE SET tmdb_id=excluded.tmdb_id, season_number=excluded.season_number,
-     show_status=excluded.show_status, details=excluded.details, updated_at_ms=excluded.updated_at_ms`,
-);
-
 const personGetStmt = db.prepare("SELECT * FROM tmdb_person_cache WHERE id = ?");
 const personSetStmt = db.prepare(
   `INSERT INTO tmdb_person_cache (id, person_id, details, schema_version, updated_at_ms)
@@ -96,10 +89,6 @@ function detailsTtl(details) {
   if (["Returning Series", "In Production", "Post Production", "Planned", "Pilot"].includes(details?.status)) return DAY_MS;
   if (["Ended", "Canceled", "Released"].includes(details?.status)) return 30 * DAY_MS;
   return 7 * DAY_MS;
-}
-
-function seasonTtl(details) {
-  return ["Ended", "Canceled"].includes(details?.status) ? 30 * DAY_MS : DAY_MS;
 }
 
 function fresh(data, ttl) {
@@ -188,6 +177,12 @@ async function upstream(path, params = {}, attempt = 0) {
   return response.json();
 }
 
+async function fetchTmdbRaw(type, id) {
+  return compactDetails(await upstream(`${type}/${id}`, {
+    append_to_response: "credits,videos,reviews,similar,recommendations,watch/providers,keywords,external_ids,release_dates,content_ratings,images",
+  }));
+}
+
 async function cacheCanonicalArtwork(mediaType, tmdbId, details) {
   const mediaKey = `tmdb:${mediaType}:${tmdbId}`;
   const [posterCache, backdropCache, logoCache] = await Promise.all([
@@ -205,7 +200,9 @@ async function cacheCanonicalArtwork(mediaType, tmdbId, details) {
   const hasTmdbLogos = (details.images?.logos || []).length > 0;
 
   const tmdbJobs = [];
-  if (!posterState && details.poster_path) {
+  if (!posterState && details.tvdb_poster_url) {
+    tmdbJobs.push(cachePosterFromUrl(mediaKey, details.tvdb_poster_url, "tvdb").then((v) => { poster = v?.url || poster; }));
+  } else if (!posterState && details.poster_path) {
     tmdbJobs.push(cachePosterFromUrl(mediaKey, `${IMAGE_ROOT}/w500${details.poster_path}`, "tmdb").then((v) => { poster = v?.url || poster; }));
   }
   if (!backdropState && details.backdrop_path) {
@@ -306,18 +303,13 @@ async function resolveTmdbId(mediaType, tmdbId, title, ids = {}, { ignoreTmdbId 
   return resolved;
 }
 
-async function deriveNextAiring(details, tmdbId) {
+async function deriveNextAiring(details, tvdbId) {
   const today = new Date().toISOString().slice(0, 10);
-  const direct = details.next_episode_to_air?.air_date;
-  if (direct && direct >= today) return direct;
-  const candidates = new Set();
-  const lastSeason = details.last_episode_to_air?.season_number;
-  if (Number.isInteger(lastSeason)) { candidates.add(lastSeason); candidates.add(lastSeason + 1); }
   const maxSeason = Math.max(0, ...(details.seasons || []).map((season) => Number(season.season_number) || 0));
-  if (maxSeason) candidates.add(maxSeason);
+  const candidates = new Set([maxSeason, maxSeason + 1].filter((value) => value > 0));
   let earliest = null;
-  for (const seasonNumber of [...candidates].filter((value) => value > 0).sort((a, b) => a - b)) {
-    const season = await getTmdbSeason({ tmdbId, seasonNumber, showStatus: details.status }).catch(() => null);
+  for (const seasonNumber of [...candidates].sort((a, b) => a - b)) {
+    const season = await getTvdbSeasonEpisodes({ tvdbId, seasonNumber }).catch(() => null);
     const dates = (season?.episodes || []).map((episode) => episode.air_date).filter((date) => date && date >= today).sort();
     if (dates[0] && (!earliest || dates[0] < earliest)) earliest = dates[0];
   }
@@ -326,6 +318,12 @@ async function deriveNextAiring(details, tmdbId) {
 
 export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false }) {
   const type = mediaTypeFor(mediaType);
+  if (type === "tv") return getTvShowDetails({ tmdbId, title, ids, force });
+  return getMovieDetails({ tmdbId, title, ids, force });
+}
+
+async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = false }) {
+  const type = "movie";
   const resolvedId = await resolveTmdbId(type, tmdbId, title, ids);
   if (!resolvedId) {
     const error = new Error("Could not resolve TMDB ID");
@@ -338,26 +336,92 @@ export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids =
     const cached = metaGet(cacheId);
     if (!force && cached?.details && cached.schemaVersion >= DETAILS_SCHEMA_VERSION && fresh(cached, detailsTtl(cached.details))) return cached.details;
     try {
-      const fetched = compactDetails(await upstream(`${type}/${resolvedId}`, {
-        append_to_response: "credits,videos,reviews,similar,recommendations,watch/providers,keywords,external_ids,release_dates,content_ratings,images",
-      }));
+      const fetched = await fetchTmdbRaw(type, resolvedId);
       const details = { ...(cached?.details || {}), ...fetched };
-      if (type === "tv") {
-        const nextAiring = await deriveNextAiring(details, resolvedId);
-        if (nextAiring) details.next_airing_date = nextAiring;
-        else delete details.next_airing_date;
-      }
       Object.assign(details, await cacheCanonicalArtwork(type, resolvedId, details));
       metaSet(cacheId, { tmdbId: resolvedId, mediaType: type, details, schemaVersion: DETAILS_SCHEMA_VERSION, updatedAtMs: Date.now() });
       return details;
     } catch (error) {
       if (cached?.details) return { ...cached.details, cache_stale: true };
-      if (error.status === 404 && (title || ids.imdbId || ids.imdb_id || ids.imdb || ids.tvdbId || ids.tvdb_id || ids.tvdb)) {
+      if (error.status === 404 && (title || ids.imdbId || ids.imdb_id || ids.imdb)) {
         const fallbackId = await resolveTmdbId(type, "", title, ids, { ignoreTmdbId: true }).catch(() => "");
         if (fallbackId && String(fallbackId) !== String(resolvedId)) {
-          return getTmdbDetails({ mediaType: type, tmdbId: fallbackId, title, ids, force });
+          return getMovieDetails({ tmdbId: fallbackId, title, ids, force });
         }
       }
+      throw error;
+    }
+  });
+}
+
+// TV shows: TVDB supplies the structural data (name, overview, air dates,
+// artwork, seasons/episodes — the accurate episode ordering this feature
+// exists for). TMDB is merged in only for what TVDB doesn't have (cast,
+// trailers, reviews, similar/recommendations, watch providers) and to keep
+// `id` = TMDB id, since Seerr requests and `/tvshow/tmdb/:id` routing are
+// TMDB-keyed throughout the rest of the app.
+async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = false }) {
+  let tvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
+  if (!tvdbId) tvdbId = await resolveTvdbSeriesId({ title });
+  if (!tvdbId && tmdbId) {
+    const fallback = await fetchTmdbRaw("tv", tmdbId).catch(() => null);
+    tvdbId = String(fallback?.external_ids?.tvdb_id || "");
+  }
+  if (!tvdbId) {
+    const error = new Error("Could not resolve TVDB ID");
+    error.status = 404;
+    throw error;
+  }
+
+  const key = `tv-details:${tvdbId}:${force ? "force" : "cached"}`;
+  return collapse(key, async () => {
+    const cacheId = tmdbId ? `tv_${tmdbId}` : `tv_tvdb_${tvdbId}`;
+    const cached = metaGet(cacheId);
+    if (!force && cached?.details && cached.schemaVersion >= DETAILS_SCHEMA_VERSION && fresh(cached, detailsTtl(cached.details))) return cached.details;
+    try {
+      const extended = await getTvdbSeriesExtended(tvdbId, { force });
+      const shaped = shapeTvdbSeriesAsTmdb(extended);
+      const resolvedTmdbId = String(tmdbId || shaped.external_ids.tmdb_id || "");
+
+      let extras = {};
+      if (resolvedTmdbId) {
+        const raw = await fetchTmdbRaw("tv", resolvedTmdbId).catch(() => null);
+        if (raw) {
+          extras = {
+            credits: raw.credits,
+            videos: raw.videos,
+            reviews: raw.reviews,
+            similar: raw.similar,
+            recommendations: raw.recommendations,
+            "watch/providers": raw["watch/providers"],
+            content_ratings: raw.content_ratings,
+            keywords: raw.keywords,
+            vote_average: raw.vote_average,
+            episode_run_time: raw.episode_run_time,
+            original_language: raw.original_language,
+            images: raw.images,
+            poster_path: raw.poster_path,
+            backdrop_path: raw.backdrop_path,
+          };
+        }
+      }
+
+      const details = {
+        ...shaped,
+        ...extras,
+        id: resolvedTmdbId || undefined,
+        external_ids: { ...shaped.external_ids, tmdb_id: resolvedTmdbId },
+      };
+
+      const nextAiring = await deriveNextAiring(details, tvdbId);
+      if (nextAiring) details.next_airing_date = nextAiring;
+      else delete details.next_airing_date;
+
+      Object.assign(details, await cacheCanonicalArtwork("tv", resolvedTmdbId || `tvdb-${tvdbId}`, details));
+      metaSet(cacheId, { tmdbId: resolvedTmdbId, mediaType: "tv", details, schemaVersion: DETAILS_SCHEMA_VERSION, updatedAtMs: Date.now() });
+      return details;
+    } catch (error) {
+      if (cached?.details) return { ...cached.details, cache_stale: true };
       throw error;
     }
   });
@@ -384,7 +448,10 @@ export async function searchTmdb({ query, page = 1, mediaType = "multi" }) {
   });
 }
 
-export async function getTmdbSeason({ tmdbId, seasonNumber, showStatus = "" }) {
+// Seasons only exist for TV, so this is entirely TVDB-backed now — it resolves
+// the TVDB ID off the show details already cached under tv_{tmdbId} (getTmdbDetails
+// always runs first in every caller's flow) and fetches episodes from TVDB.
+export async function getTmdbSeason({ tmdbId, seasonNumber }) {
   const id = String(tmdbId || "");
   const number = Number(seasonNumber);
   if (!id || !Number.isInteger(number) || number < 0) {
@@ -392,19 +459,14 @@ export async function getTmdbSeason({ tmdbId, seasonNumber, showStatus = "" }) {
     error.status = 400;
     throw error;
   }
-  return collapse(`season:${id}:${number}`, async () => {
-    const row = seasonGetStmt.get(`${id}_${number}`);
-    const cached = row ? { details: parseJson(row.details), showStatus: row.show_status, updatedAtMs: row.updated_at_ms } : null;
-    if (cached?.details && fresh(cached, seasonTtl({ status: showStatus || cached.showStatus }))) return cached.details;
-    try {
-      const details = await upstream(`tv/${id}/season/${number}`, { append_to_response: "credits,videos,images" });
-      seasonSetStmt.run({ id: `${id}_${number}`, tmdb_id: id, season_number: number, show_status: showStatus, details: toJson(details), updated_at_ms: Date.now() });
-      return details;
-    } catch (error) {
-      if (cached?.details) return { ...cached.details, cache_stale: true };
-      throw error;
-    }
-  });
+  const cached = metaGet(`tv_${id}`);
+  const tvdbId = String(cached?.details?.external_ids?.tvdb_id || "");
+  if (!tvdbId) {
+    const error = new Error("TVDB ID not resolved for this show yet");
+    error.status = 404;
+    throw error;
+  }
+  return getTvdbSeasonEpisodes({ tvdbId, seasonNumber: number });
 }
 
 export async function getTmdbPerson(personId) {

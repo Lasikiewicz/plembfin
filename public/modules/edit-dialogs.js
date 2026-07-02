@@ -716,6 +716,8 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
 
 export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSaved) {
   document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
+  const isTv = mediaType !== "movie";
+  const sourceLabel = isTv ? "TheTVDB" : "TMDB";
 
   const overlay = document.createElement("div");
   overlay.className = "edit-dialog-overlay";
@@ -723,10 +725,10 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   overlay.innerHTML = `
     <div class="edit-dialog edit-dialog--wide glass-panel">
       <h3>Fix Match</h3>
-      <p class="muted-copy" style="margin-bottom: 0.75rem;">Search TMDB to link the correct ${mediaType === "movie" ? "movie" : "TV show"}, or match to a YouTube video.</p>
+      <p class="muted-copy" style="margin-bottom: 0.75rem;">Search ${sourceLabel} to link the correct ${isTv ? "TV show" : "movie"}${isTv ? " — this rematches every episode of the show" : ""}, or match to a YouTube video.</p>
       <div style="display: flex; gap: 0.5rem;">
         <input type="search" class="field fix-match-input" placeholder="${escapeAttribute(currentTitle || "Search title…")}" value="${escapeAttribute(currentTitle || "")}" style="flex: 1;" />
-        <button class="button-primary fix-match-search-btn" type="button">Search TMDB</button>
+        <button class="button-primary fix-match-search-btn" type="button">Search ${sourceLabel}</button>
       </div>
       <div class="fix-match-results"></div>
       <hr style="border:0;border-top:1px solid var(--border);margin:1rem 0 0.75rem;" />
@@ -751,12 +753,57 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   const ytPreview = overlay.querySelector(".fix-match-yt-preview");
   const tmdbType = mediaType === "movie" ? "movie" : "tv";
 
+  const doTvRematch = async (tvdbId, title) => {
+    const rows = fullShowWatchedRows(currentTitle);
+    if (rows.length) {
+      status.textContent = `Rematching 0/${rows.length} episodes...`;
+      let saved = 0;
+      for (const row of rows) {
+        await apiUpdateWatch(row.id, { tvdb_id: tvdbId, tmdb_id: "" });
+        saved += 1;
+        status.textContent = `Rematching ${saved}/${rows.length} episodes...`;
+      }
+    }
+    const showKey = slug(currentTitle);
+    const show = state.showsRaw.find((item) => slug(item.title) === showKey);
+    if (show) { show.tvdb_id = tvdbId; show.tmdb_id = ""; }
+    state.tmdbDetailsCache.clear();
+    state.tmdbSeasonCache.clear();
+    overlay.remove();
+    onSaved?.({ tmdb_id: "", tvdb_id: tvdbId, title });
+  };
+
   const doSearch = async () => {
     const query = input.value.trim();
     if (!query) return;
     status.textContent = "Searching…";
     resultsEl.innerHTML = "";
     try {
+      if (isTv) {
+        const res = await fetch(`/api/tvdb-search?query=${encodeURIComponent(query)}`, { headers: authHeaders() });
+        const data = await res.json();
+        const results = data.results || [];
+        status.textContent = results.length ? "" : "No results found.";
+        resultsEl.innerHTML = results.map((item) => `
+          <button class="fix-match-result" type="button" data-tvdb-id="${escapeAttribute(item.tvdb_id)}" data-title="${escapeAttribute(item.name)}">
+            <img src="${escapeAttribute(item.image_url || "/favicon.svg")}" alt="" data-err="fav" />
+            <span>${escapeHtml(item.name)}${item.year ? ` <small>(${escapeHtml(item.year)})</small>` : ""}</span>
+          </button>
+        `).join("");
+
+        resultsEl.querySelectorAll(".fix-match-result").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            status.textContent = "Rematching…";
+            try {
+              await doTvRematch(btn.dataset.tvdbId, btn.dataset.title);
+            } catch (err) {
+              status.textContent = `Error: ${err.message}`;
+            }
+          });
+        });
+        return;
+      }
+
       if (!state.savedConfig?.tmdb?.configured) { status.textContent = "TMDB API key not configured."; return; }
       const res = await fetch(`/api/tmdb-search?mediaType=${encodeURIComponent(tmdbType)}&query=${encodeURIComponent(query)}`, { headers: authHeaders() });
       const data = await res.json();

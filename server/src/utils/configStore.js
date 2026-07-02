@@ -52,6 +52,9 @@ function envMediaConfig() {
     fanart: {
       apiKey: envValue("FANART_API_KEY"),
     },
+    tvdb: {
+      apiKey: envValue("TVDB_API_KEY"),
+    },
     youtube: {
       apiKey: envValue("YOUTUBE_API_KEY", "YOUTUBE_DATA_API_KEY"),
     },
@@ -70,7 +73,7 @@ function mergeEnvDefaults(stored = {}) {
   const defaults = envMediaConfig();
   const merged = {};
 
-  for (const section of ["plex", "emby", "jellyfin", "tmdb", "fanart", "youtube", "omdb"]) {
+  for (const section of ["plex", "emby", "jellyfin", "tmdb", "fanart", "tvdb", "youtube", "omdb"]) {
     merged[section] = { ...defaults[section], ...normalized[section] };
     for (const [key, value] of Object.entries(defaults[section])) {
       if (key === "disabled") continue;
@@ -125,6 +128,9 @@ export function normalizeStoredConfig(stored = {}) {
     fanart: {
       apiKey: String(stored.fanart?.apiKey || "").trim(),
     },
+    tvdb: {
+      apiKey: String(stored.tvdb?.apiKey || "").trim(),
+    },
     youtube: {
       apiKey: String(stored.youtube?.apiKey || "").trim(),
     },
@@ -151,6 +157,7 @@ export function publicMediaConfig(config = {}) {
     ...normalized,
     tmdb: { configured: Boolean(normalized.tmdb.apiKey) },
     fanart: { configured: Boolean(normalized.fanart.apiKey) },
+    tvdb: { configured: Boolean(normalized.tvdb.apiKey) },
     omdb: { configured: Boolean(normalized.omdb.apiKey) },
     // Expose baseUrl and disabled so the frontend can repopulate the URL field,
     // but never expose the raw apiKey to the browser.
@@ -183,6 +190,7 @@ export async function saveMediaConfig(config) {
     seerr: incomingSeerr,
     tmdb: config.tmdb ? { ...existing.tmdb, ...config.tmdb } : existing.tmdb,
     fanart: config.fanart ? { ...existing.fanart, ...config.fanart } : existing.fanart,
+    tvdb: config.tvdb ? { ...existing.tvdb, ...config.tvdb } : existing.tvdb,
     youtube: config.youtube ? { ...existing.youtube, ...config.youtube } : existing.youtube,
     omdb: config.omdb ? { ...existing.omdb, ...config.omdb } : existing.omdb,
   };

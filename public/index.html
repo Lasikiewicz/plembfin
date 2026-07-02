@@ -620,6 +620,7 @@
                   <button class="settings-sub-tab active" type="button" data-sub-tab="api-tmdb">TMDB</button>
                   <button class="settings-sub-tab" type="button" data-sub-tab="api-youtube">YouTube</button>
                   <button class="settings-sub-tab" type="button" data-sub-tab="api-fanart">Fanart.tv</button>
+                  <button class="settings-sub-tab" type="button" data-sub-tab="api-tvdb">TheTVDB</button>
                   <button class="settings-sub-tab" type="button" data-sub-tab="api-omdb">OMDb</button>
                 </div>
 
@@ -737,6 +738,48 @@
                       <ol class="tool-accordion-desc" style="margin: 0 0 var(--space-3) 1.25rem; padding: 0; list-style: decimal; font-size: 0.8rem;">
                         <li>Create an account at <b>fanart.tv</b></li>
                         <li>Go to your <b>Profile → API Key</b></li>
+                        <li>Copy your personal key and paste it above</li>
+                      </ol>
+                    </article>
+                  </div>
+                </div>
+
+                <!-- TheTVDB Row -->
+                <div class="settings-row hidden" data-sub-panel="api-tvdb">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>TheTVDB Setup</p>
+                          <span>Source for TV show episode/season data</span>
+                        </div>
+                      </div>
+                      <label class="field-label" for="tvdbApiKey">
+                        TheTVDB Personal API Key <span class="muted-copy" style="font-weight:normal;">(optional)</span>
+                        <input id="tvdbApiKey" class="field" type="text" autocomplete="off" />
+                      </label>
+                      <div class="settings-actions">
+                        <button id="saveTvdbConfigButton" class="button-primary" type="button">Save TVDB Key</button>
+                        <span id="tvdbConfigStatus" class="message" role="status" aria-live="polite"></span>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>TheTVDB Help</p>
+                        <span>TV Show Episode Data</span>
+                      </div>
+                      <p class="tool-accordion-desc">
+                        TV show names, seasons, episode numbering, air dates, and artwork are sourced from <a href="https://thetvdb.com" target="_blank" rel="noopener noreferrer">TheTVDB</a> for more accurate episode ordering than TMDB alone. Cast, trailers, reviews, and similar shows still come from <a href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer">TMDB</a>. A built-in project key is already configured — no key is required to use this feature.
+                      </p>
+                      <p class="tool-accordion-desc">
+                        Entering your own personal API key gives you your own request quota. To get a personal key:
+                      </p>
+                      <ol class="tool-accordion-desc" style="margin: 0 0 var(--space-3) 1.25rem; padding: 0; list-style: decimal; font-size: 0.8rem;">
+                        <li>Create an account at <b>thetvdb.com</b></li>
+                        <li>Go to <b>Dashboard → API Keys</b> and request a key</li>
                         <li>Copy your personal key and paste it above</li>
                       </ol>
                     </article>

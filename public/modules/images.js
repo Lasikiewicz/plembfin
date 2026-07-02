@@ -326,7 +326,9 @@ export function hydratePosters(container = document.body) {
 }
 
 export function tmdbImage(path, size = "w300") {
-  return path ? `https://image.tmdb.org/t/p/${size}${path}` : "";
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  return `https://image.tmdb.org/t/p/${size}${path}`;
 }
 
 export function tmdbPoster(path, tmdbId = "", mediaType = "") {

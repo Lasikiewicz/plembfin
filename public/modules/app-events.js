@@ -531,6 +531,9 @@ function attachEvents() {
   elements.saveFanartConfigButton?.addEventListener("click", () => {
     saveSectionConfig("fanart");
   });
+  elements.saveTvdbConfigButton?.addEventListener("click", () => {
+    saveSectionConfig("tvdb");
+  });
   elements.saveOmdbConfigButton?.addEventListener("click", () => {
     saveSectionConfig("omdb");
   });

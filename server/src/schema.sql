@@ -191,6 +191,22 @@ CREATE TABLE IF NOT EXISTS tmdb_person_cache (
   updated_at_ms INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS tvdb_metadata_cache (
+  id TEXT PRIMARY KEY,
+  tvdb_id TEXT,
+  title TEXT,
+  details TEXT,           -- JSON (raw TVDB series/extended response)
+  updated_at_ms INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS tvdb_season_cache (
+  id TEXT PRIMARY KEY,
+  tvdb_id TEXT,
+  season_number INTEGER,
+  details TEXT,           -- JSON (raw TVDB season/extended episodes)
+  updated_at_ms INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS omdb_cache (
   id TEXT PRIMARY KEY,     -- IMDb ID (tt...)
   data TEXT,               -- JSON
