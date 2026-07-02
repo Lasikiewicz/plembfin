@@ -1,7 +1,18 @@
 {
-  "version": "0.3.10",
-  "updatedAt": "2026-07-02T12:28:37+01:00",
+  "version": "0.3.11",
+  "updatedAt": "2026-07-02T13:06:59+01:00",
   "entries": [
+    {
+      "version": "0.3.11",
+      "date": "2026-07-02T13:06:59+01:00",
+      "commit": "e3222ae1afcfb0c41adddf32c90d855f82d811d3",
+      "message": "fix: prevent metadata reload when marking items unwatched",
+      "author": "Lasikiewicz",
+      "details": [
+        "Prevent eagerly pulling TMDB/TVDB metadata when deleting or marking episodes/movies unwatched",
+        "Guard TMDB prefetch backgrounds to skip unwatched and unplayed sync actions"
+      ]
+    },
     {
       "version": "0.3.10",
       "date": "2026-07-02T12:28:37+01:00",
