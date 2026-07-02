@@ -227,9 +227,11 @@ export async function getTvdbSeriesExtended(tvdbId, { force = false } = {}) {
     const cacheId = `series_${id}`;
     const row = seriesGetStmt.get(cacheId);
     const cached = row ? { details: parseJson(row.details), updatedAtMs: row.updated_at_ms } : null;
-    if (!force && cached?.details && fresh(cached.updatedAtMs, seriesCacheTtl(cached.details))) return cached.details;
+    // Require `episodes` in the cached payload so rows cached before the
+    // meta switch below (which lacked per-season episode counts) are refetched.
+    if (!force && cached?.details && Array.isArray(cached.details.episodes) && fresh(cached.updatedAtMs, seriesCacheTtl(cached.details))) return cached.details;
     try {
-      const details = await upstream({ type: "series-extended", id }, { meta: "translations" });
+      const details = await upstream({ type: "series-extended", id }, { meta: "episodes" });
       seriesSetStmt.run({ id: cacheId, tvdb_id: id, title: details?.name || "", details: toJson(details), updated_at_ms: Date.now() });
       return details;
     } catch (error) {
@@ -300,11 +302,17 @@ function bestRemoteId(remoteIds, sourceNames) {
 
 export function shapeTvdbSeriesAsTmdb(extended) {
   if (!extended) return null;
+  const episodeCounts = new Map();
+  for (const episode of Array.isArray(extended.episodes) ? extended.episodes : []) {
+    const seasonNumber = Number(episode.seasonNumber);
+    if (!Number.isFinite(seasonNumber)) continue;
+    episodeCounts.set(seasonNumber, (episodeCounts.get(seasonNumber) || 0) + 1);
+  }
   const seasons = (Array.isArray(extended.seasons) ? extended.seasons : [])
     .filter((season) => (season.type?.type === "official" || season.type?.name === "Aired Order") && Number(season.number) >= 0)
     .map((season) => ({
       season_number: season.number,
-      episode_count: null,
+      episode_count: episodeCounts.get(Number(season.number)) ?? null,
       name: season.name || (season.number === 0 ? "Specials" : `Season ${season.number}`),
       poster_path: season.image || null,
     }));

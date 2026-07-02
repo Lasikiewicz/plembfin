@@ -8,7 +8,7 @@ import { resolveTvdbSeriesId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, shap
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DETAILS_SCHEMA_VERSION = 6; // bumped: TV show details now source structure from TVDB, not TMDB
+const DETAILS_SCHEMA_VERSION = 7; // bumped: fixed season episode_count always null from TVDB shaping, which hid season availability pills
 const PERSON_SCHEMA_VERSION = 5;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const MISSING_TTL_MS = DAY_MS;
