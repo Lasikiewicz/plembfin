@@ -1,7 +1,18 @@
 {
-  "version": "0.3.13",
-  "updatedAt": "2026-07-02T14:30:54+01:00",
+  "version": "0.3.14",
+  "updatedAt": "2026-07-02T14:59:25+01:00",
   "entries": [
+    {
+      "version": "0.3.14",
+      "date": "2026-07-02T14:59:25+01:00",
+      "commit": "d0f300b8ca83e9c9c3abbdc766284240ee8d3634",
+      "message": "fix: force refresh of TV show details cached before episode-total fix",
+      "author": "Lasikiewicz",
+      "details": [
+        "The previous fix that added TV show total-episode counts didn't bump the metadata cache schema version, so shows already cached kept returning stale details with no episode total (still showing \"?\" watched counts) until their cache entry naturally expired",
+        "Bumped the cache schema version so all previously cached TV/movie details are refetched and pick up the corrected episode/season totals immediately"
+      ]
+    },
     {
       "version": "0.3.13",
       "date": "2026-07-02T14:30:54+01:00",
