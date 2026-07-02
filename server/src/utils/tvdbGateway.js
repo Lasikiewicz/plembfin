@@ -230,7 +230,9 @@ function shapeEpisodes(seasonDetails) {
 
 function bestRemoteId(remoteIds, sourceNames) {
   const list = Array.isArray(remoteIds) ? remoteIds : [];
-  const match = list.find((entry) => sourceNames.includes(entry.sourceName));
+  // TVDB's actual sourceName values are inconsistent ("TheMovieDB.com", "IMDB", etc.)
+  // and undocumented — match by prefix rather than exact string.
+  const match = list.find((entry) => sourceNames.some((name) => String(entry.sourceName || "").toLowerCase().startsWith(name.toLowerCase())));
   return match ? String(match.id || "") : "";
 }
 

@@ -375,13 +375,22 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
 
   const key = `tv-details:${tvdbId}:${force ? "force" : "cached"}`;
   return collapse(key, async () => {
-    const cacheId = tmdbId ? `tv_${tmdbId}` : `tv_tvdb_${tvdbId}`;
-    const cached = metaGet(cacheId);
+    // The caller's tmdbId may be empty (e.g. Fix Match clears it to force re-resolution
+    // via the new tvdbId), so the cache row actually written might live under a
+    // different key than this initial guess — re-derived below once resolvedTmdbId
+    // is known, so lookups by the resolved tmdbId (getTmdbSeason, etc.) can find it.
+    const initialCacheId = tmdbId ? `tv_${tmdbId}` : `tv_tvdb_${tvdbId}`;
+    const cached = metaGet(initialCacheId);
     if (!force && cached?.details && cached.schemaVersion >= DETAILS_SCHEMA_VERSION && fresh(cached, detailsTtl(cached.details))) return cached.details;
     try {
       const extended = await getTvdbSeriesExtended(tvdbId, { force });
       const shaped = shapeTvdbSeriesAsTmdb(extended);
       const resolvedTmdbId = String(tmdbId || shaped.external_ids.tmdb_id || "");
+      const cacheId = resolvedTmdbId ? `tv_${resolvedTmdbId}` : `tv_tvdb_${tvdbId}`;
+      if (!force && cacheId !== initialCacheId) {
+        const resolvedCached = metaGet(cacheId);
+        if (resolvedCached?.details && resolvedCached.schemaVersion >= DETAILS_SCHEMA_VERSION && fresh(resolvedCached, detailsTtl(resolvedCached.details))) return resolvedCached.details;
+      }
 
       let extras = {};
       if (resolvedTmdbId) {
