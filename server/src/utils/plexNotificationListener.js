@@ -24,6 +24,9 @@ function buildNotificationsUrl(baseUrl, token) {
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.pathname = "/:/websockets/notifications";
   url.search = "";
+  // Unlike the HTTP clients (which send X-Plex-Token as a header), the token must
+  // stay in the URL here: the WebSocket handshake API offers no way to set custom
+  // headers, and Plex's notification socket only reads the query parameter.
   url.searchParams.set("X-Plex-Token", token);
   return url.toString();
 }

@@ -29,6 +29,7 @@
 | **Stats** | All-time and per-period reports with top shows, platform breakdowns, and watch trends |
 | **Trakt import** | Import your full Trakt history and push it out to all connected servers |
 | **Seerr integration** | Request movies and shows from detail pages via Overseerr or Jellyseerr |
+| **Open-in-app links** | Detail pages link straight to the item in Plex, Emby, or Jellyfin when it exists in that server's library |
 | **Automated backups** | Daily local backups with optional mirror to Backblaze B2 |
 | **Self-hosted & private** | SQLite on your own hardware — no cloud accounts required |
 | **Security hardening** | Strict CSP headers, scrypt hashing, rate-limited login, HMAC-signed sessions |
@@ -280,6 +281,8 @@ The following environment variables can be set in your system or defined in `doc
 | `COOKIE_SECURE` | `false` | Set to `true` when the app is served behind an HTTPS reverse proxy — enables `Secure` cookie flag and `Strict-Transport-Security` header. |
 | `FANART_API_KEY` | _none_ | Optional personal Fanart.tv API key for higher rate limits. A built-in project key is used when this is unset. |
 | `TVDB_API_KEY` | _none_ | Optional personal TheTVDB API key for a higher personal rate limit. A built-in project key is used when this is unset. |
+| `TVDB_PROJECT_KEY` | _built-in_ | Advanced: replaces the built-in shared TheTVDB project key. Only needed if the built-in key is revoked or exhausted. |
+| `FANART_PROJECT_KEY` | _built-in_ | Advanced: replaces the built-in shared Fanart.tv project key. Only needed if the built-in key is revoked or exhausted. |
 | `OMDB_API_KEY` | _none_ | Optional OMDb API key. When set, IMDb ratings are fetched and displayed as a rating badge on media detail pages. Free tier: 1,000 req/day. |
 | `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | The frequency (in milliseconds) of database-heavy catch-up library scans on Plex/Emby/Jellyfin. |
 

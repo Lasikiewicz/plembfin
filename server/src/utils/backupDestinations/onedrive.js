@@ -3,6 +3,7 @@
 // the app folder (approot) so it never touches the rest of the user's drive.
 // Settings: { clientId, tenant?, folder? }  Secrets: { refreshToken }
 import fs from "node:fs";
+import { fetchWithTimeout } from "../outbound.js";
 
 const FILE_PATTERN = /^plembfin-watch-history-\d{8}T\d{6}Z\.json\.gz$/;
 export const ONEDRIVE_SCOPE = "offline_access Files.ReadWrite.AppFolder";
@@ -21,6 +22,7 @@ export function deviceCodeEndpoint(tenant) {
 async function ensureAccessToken(destination, persistSecrets) {
   const cached = tokenCache.get(destination.id);
   if (cached && cached.expiresAt > Date.now() + 60000) return cached.accessToken;
+  if (cached) tokenCache.delete(destination.id); // expired — drop so stale destinations don't accumulate
 
   const clientId = destination.settings?.clientId;
   const refreshToken = destination.secrets?.refreshToken;
@@ -33,7 +35,7 @@ async function ensureAccessToken(destination, persistSecrets) {
     refresh_token: refreshToken,
     scope: ONEDRIVE_SCOPE,
   });
-  const response = await fetch(tokenEndpoint(destination.settings?.tenant), {
+  const response = await fetchWithTimeout(tokenEndpoint(destination.settings?.tenant), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: params.toString(),
@@ -66,7 +68,7 @@ export function createOneDriveAdapter(destination, { persistSecrets }) {
   return {
     async testConnection() {
       const headers = await authHeader();
-      const response = await fetch("https://graph.microsoft.com/v1.0/me/drive/special/approot", { headers });
+      const response = await fetchWithTimeout("https://graph.microsoft.com/v1.0/me/drive/special/approot", { headers });
       if (!response.ok) {
         const text = await response.text().catch(() => "");
         throw new Error(`OneDrive connection failed (${response.status}): ${text.slice(0, 160)}`);
@@ -78,11 +80,11 @@ export function createOneDriveAdapter(destination, { persistSecrets }) {
       const started = Date.now();
       const body = fs.readFileSync(localPath);
       const headers = await authHeader();
-      const response = await fetch(`${approotPath(remoteName)}/content`, {
+      const response = await fetchWithTimeout(`${approotPath(remoteName)}/content`, {
         method: "PUT",
         headers: { ...headers, "Content-Type": "application/gzip" },
         body,
-      });
+      }, 60_000);
       if (!response.ok) {
         const text = await response.text().catch(() => "");
         throw new Error(`OneDrive upload failed (${response.status}): ${text.slice(0, 200)}`);
@@ -92,7 +94,7 @@ export function createOneDriveAdapter(destination, { persistSecrets }) {
 
     async list() {
       const headers = await authHeader();
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         "https://graph.microsoft.com/v1.0/me/drive/special/approot/children?$select=name,size,createdDateTime&$top=200",
         { headers },
       );
@@ -110,14 +112,14 @@ export function createOneDriveAdapter(destination, { persistSecrets }) {
 
     async download(remoteName) {
       const headers = await authHeader();
-      const response = await fetch(`${approotPath(remoteName)}/content`, { headers });
+      const response = await fetchWithTimeout(`${approotPath(remoteName)}/content`, { headers }, 60_000);
       if (!response.ok) throw new Error(`OneDrive download failed (${response.status})`);
       return Buffer.from(await response.arrayBuffer());
     },
 
     async delete(remoteName) {
       const headers = await authHeader();
-      const response = await fetch(approotPath(remoteName), { method: "DELETE", headers });
+      const response = await fetchWithTimeout(approotPath(remoteName), { method: "DELETE", headers });
       if (!(response.ok || response.status === 204 || response.status === 404)) {
         throw new Error(`OneDrive delete failed (${response.status})`);
       }

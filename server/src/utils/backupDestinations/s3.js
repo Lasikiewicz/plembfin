@@ -4,6 +4,7 @@
 // accessKeyId, forcePathStyle? }  Secrets: { secretAccessKey }
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { fetchWithTimeout } from "../outbound.js";
 
 const FILE_PATTERN = /^plembfin-watch-history-\d{8}T\d{6}Z\.json\.gz$/;
 const EMPTY_SHA256 = crypto.createHash("sha256").update("").digest("hex");
@@ -132,7 +133,7 @@ async function signedFetch(cfg, { method, key, query, body }) {
     headers: signHeaders,
   });
 
-  return fetch(url.href, {
+  return fetchWithTimeout(url.href, {
     method,
     headers: {
       Authorization: authorization,
@@ -141,7 +142,7 @@ async function signedFetch(cfg, { method, key, query, body }) {
       ...(body ? { "Content-Type": "application/gzip" } : {}),
     },
     body: body || undefined,
-  });
+  }, 60_000);
 }
 
 export function createS3Adapter(destination) {

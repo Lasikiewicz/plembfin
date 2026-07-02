@@ -375,18 +375,29 @@ function forcePushHistoryGuide() {
         `;
 }
 
+// Saved tokens/API keys are never sent back to the browser, so credential inputs
+// render blank with a "Configured" placeholder once a value is stored.
+function savedCredentialNote() {
+  return `
+    <div class="guide-callout credential-guide">
+      <b>About saved credentials</b>
+      <p>Saved tokens and API keys are never redisplayed in the browser. A blank field showing a "Configured" placeholder means a credential is stored and in use — leave the field blank to keep it, or enter a new value to replace it.</p>
+    </div>
+  `;
+}
+
 export function renderSettingsInlineHelp() {
   const adminLoginHelp = document.getElementById("adminLoginHelp");
   if (adminLoginHelp) adminLoginHelp.innerHTML = adminTokenGuide();
 
   const plexHelp = document.getElementById("plexHelp");
-  if (plexHelp) plexHelp.innerHTML = plexCredentialGuide() + plexWebhookSetup();
+  if (plexHelp) plexHelp.innerHTML = plexCredentialGuide() + savedCredentialNote() + plexWebhookSetup();
 
   const embyHelp = document.getElementById("embyHelp");
-  if (embyHelp) embyHelp.innerHTML = embyCredentialGuide() + embyWebhookSetup();
+  if (embyHelp) embyHelp.innerHTML = embyCredentialGuide() + savedCredentialNote() + embyWebhookSetup();
 
   const jellyfinHelp = document.getElementById("jellyfinHelp");
-  if (jellyfinHelp) jellyfinHelp.innerHTML = jellyfinCredentialGuide() + jellyfinWebhookSetup();
+  if (jellyfinHelp) jellyfinHelp.innerHTML = jellyfinCredentialGuide() + savedCredentialNote() + jellyfinWebhookSetup();
 
   const migrationHelp = document.getElementById("migrationHelp");
   if (migrationHelp) {

@@ -72,9 +72,10 @@ export function historySyncPill(entry = {}) {
 
 export function getActiveTargets() {
   const targets = [];
-  if (state.savedConfig.plex?.baseUrl && state.savedConfig.plex?.token && !state.savedConfig.plex?.disabled) targets.push("plex");
-  if (state.savedConfig.emby?.baseUrl && state.savedConfig.emby?.apiKey && state.savedConfig.emby?.userId && !state.savedConfig.emby?.disabled) targets.push("emby");
-  if (state.savedConfig.jellyfin?.baseUrl && state.savedConfig.jellyfin?.apiKey && state.savedConfig.jellyfin?.userId && !state.savedConfig.jellyfin?.disabled) targets.push("jellyfin");
+  // /api/config exposes a `configured` flag per section instead of raw credentials.
+  if (state.savedConfig.plex?.baseUrl && state.savedConfig.plex?.configured && !state.savedConfig.plex?.disabled) targets.push("plex");
+  if (state.savedConfig.emby?.baseUrl && state.savedConfig.emby?.configured && state.savedConfig.emby?.userId && !state.savedConfig.emby?.disabled) targets.push("emby");
+  if (state.savedConfig.jellyfin?.baseUrl && state.savedConfig.jellyfin?.configured && state.savedConfig.jellyfin?.userId && !state.savedConfig.jellyfin?.disabled) targets.push("jellyfin");
   return targets;
 }
 

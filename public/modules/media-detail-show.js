@@ -11,6 +11,7 @@ import {
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
   renderSeasonSeerrControls, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml, episodeResolutionPillHtml,
+  hydrateMediaAppLinks,
 } from "./media-detail-shared.js";
 
 let _playbackProgressRows = [];
@@ -745,6 +746,7 @@ export function renderShowModalContent(show, {
       });
   }
   hydratePosters(root);
+  hydrateMediaAppLinks(root);
 }
 
 function mergeShowWithLoadedHistory(show = {}) {

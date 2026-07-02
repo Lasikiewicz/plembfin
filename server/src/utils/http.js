@@ -1,14 +1,13 @@
-export const corsHeaders = {
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Admin-Token, X-Api-Key, X-Plembfin-Webhook-Secret",
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-};
-
+// The API is same-origin only: no Access-Control-Allow-Origin is ever sent, so
+// cross-origin reads are blocked by the browser. Same-origin requests (the SPA)
+// and server-to-server callers (webhooks, cron) never preflight, so no other
+// CORS headers are needed either.
 export function sendJson(res, body, status = 200, extraHeaders = {}) {
-  res.status(status).set({ "Content-Type": "application/json", ...corsHeaders, ...extraHeaders }).send(JSON.stringify(body));
+  res.status(status).set({ "Content-Type": "application/json", ...extraHeaders }).send(JSON.stringify(body));
 }
 
 export function sendOptions(res) {
-  res.status(204).set(corsHeaders).send("");
+  res.status(204).send("");
 }
 
 export function methodNotAllowed(res) {

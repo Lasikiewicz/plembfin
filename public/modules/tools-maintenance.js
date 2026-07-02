@@ -136,7 +136,9 @@ export async function runSystemIntegrityCheck() {
   const jellyfinApiKey = elements.jellyfinApiKey?.value?.trim() || "";
 
   const testConnection = async (type, url, token, name) => {
-    if (!url || !token) { results.push({ name, status: "skipped", detail: "Skipped - URL or token not provided." }); return; }
+    // Secrets are never sent to the browser, so the token input is blank for an
+    // already-configured server — the backend falls back to the stored credential.
+    if (!url || (!token && !state.savedConfig?.[type]?.configured)) { results.push({ name, status: "skipped", detail: "Skipped - URL or token not provided." }); return; }
     try {
       const startTime = Date.now();
       const response = await fetch("/api/test-connection", { method: "POST", headers: authHeaders(), body: JSON.stringify({ type, url, token }) });
@@ -154,9 +156,10 @@ export async function runSystemIntegrityCheck() {
 
   await testConnection("plex", plexUrl, plexToken, "Plex Media Server");
 
-  if (plexUrl && plexToken) {
+  if (plexUrl && (plexToken || state.savedConfig?.plex?.configured)) {
     try {
       const startTime = Date.now();
+      // A blank token is fine — the backend falls back to the saved Plex config.
       const response = await fetch("/api/test-plex-notifications", { method: "POST", headers: authHeaders(), body: JSON.stringify({ url: plexUrl, token: plexToken }) });
       const body = await response.json().catch(() => ({}));
       const elapsed = Date.now() - startTime;

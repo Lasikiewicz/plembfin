@@ -1,3 +1,11 @@
+import { fetchWithTimeout } from "./outbound.js";
+
+// Plex accepts the token as a header everywhere the query parameter works; the
+// header keeps it out of Plex/reverse-proxy access logs and our own error logs.
+export function plexAuthHeaders(token, accept = "application/json") {
+  return { Accept: accept, "X-Plex-Token": token };
+}
+
 function trimTrailingSlash(value = "") {
   return String(value).replace(/\/+$/, "");
 }
@@ -27,30 +35,46 @@ function accountMatchesUsername(account = {}, username = "") {
     .some((value) => value === username);
 }
 
-async function resolvePlexAccountId(config = {}) {
+// Memoized username → accountID resolution. Without this every playstate
+// operation re-fetches /accounts (an N+1 during full syncs). Failed/unmatched
+// lookups are cached briefly so a misconfigured username doesn't hammer Plex.
+const accountIdCache = new Map();
+const ACCOUNT_ID_TTL_MS = 10 * 60 * 1000;
+const ACCOUNT_ID_NEGATIVE_TTL_MS = 60 * 1000;
+
+export async function resolvePlexAccountId(config = {}) {
   const username = normalizePlexIdentity(config.username);
   if (!username) return null;
   if (isOwnerPlexUsername(username)) return 1;
 
   const baseUrl = trimTrailingSlash(config.baseUrl);
+  const cacheKey = `${baseUrl}|${username}`;
+  const cached = accountIdCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
   const accountsUrl = new URL(`${baseUrl}/accounts`);
-  accountsUrl.searchParams.set("X-Plex-Token", config.token);
 
-  const response = await fetch(accountsUrl, { headers: { Accept: "application/json" } });
-  if (!response.ok) {
-    console.warn(`Plex account mapping failed with HTTP ${response.status}`);
-    return null;
+  let accountId = null;
+  try {
+    const response = await fetchWithTimeout(accountsUrl, { headers: plexAuthHeaders(config.token) });
+    if (!response.ok) {
+      console.warn(`Plex account mapping failed with HTTP ${response.status}`);
+    } else {
+      const body = await response.json();
+      const accounts = body?.MediaContainer?.Account || [];
+      const matchedAccount = accounts.find((account) => accountMatchesUsername(account, username));
+      const parsed = Number(matchedAccount?.id);
+      if (Number.isFinite(parsed)) accountId = parsed;
+      else console.warn(`Plex account mapping did not find configured username "${config.username}"`);
+    }
+  } catch (error) {
+    console.warn(`Plex account mapping failed: ${error.message}`);
   }
 
-  const body = await response.json();
-  const accounts = body?.MediaContainer?.Account || [];
-  const matchedAccount = accounts.find((account) => accountMatchesUsername(account, username));
-  const accountId = Number(matchedAccount?.id);
-  if (!Number.isFinite(accountId)) {
-    console.warn(`Plex account mapping did not find configured username "${config.username}"`);
-    return null;
-  }
-
+  accountIdCache.set(cacheKey, {
+    value: accountId,
+    expiresAt: Date.now() + (accountId != null ? ACCOUNT_ID_TTL_MS : ACCOUNT_ID_NEGATIVE_TTL_MS),
+  });
   return accountId;
 }
 
@@ -137,11 +161,10 @@ async function searchPlexFallback(config, media, targetType) {
   for (const queryTitle of queryTitles) {
     const url = new URL(`${baseUrl}/search`);
     url.searchParams.set("query", queryTitle);
-    url.searchParams.set("X-Plex-Token", config.token);
 
     console.log("Plex search fallback started", { query: queryTitle, targetType });
-    const response = await fetch(url, {
-      headers: { Accept: "application/json" },
+    const response = await fetchWithTimeout(url, {
+      headers: plexAuthHeaders(config.token),
     });
 
     if (!response.ok) {
@@ -216,9 +239,8 @@ async function findPlexSeries(config, media) {
       const url = new URL(`${baseUrl}/library/all`);
       url.searchParams.set("guid", guid);
       url.searchParams.set("type", "2"); // 2 is Show/Series in Plex
-      url.searchParams.set("X-Plex-Token", config.token);
       console.log("Plex series lookup started", { guid });
-      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
       if (!response.ok) {
         console.error("Plex series lookup failed", { status: response.status, guid });
         return null;
@@ -258,9 +280,8 @@ export async function fetchPlexSeriesEpisodes(config, media) {
   const url = new URL(`${baseUrl}/library/metadata/${series.ratingKey}/allLeaves`);
   url.searchParams.set("includeGuids", "1");
   url.searchParams.set("includeMedia", "1");
-  url.searchParams.set("X-Plex-Token", config.token);
 
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
   if (!response.ok) {
     throw new Error(`Plex allLeaves lookup failed with status ${response.status} for series ${series.ratingKey}`);
   }
@@ -278,9 +299,8 @@ async function findPlexMovie(config, media) {
       const url = new URL(`${baseUrl}/library/all`);
       url.searchParams.set("guid", guid);
       url.searchParams.set("type", "1"); // 1 is Movie in Plex
-      url.searchParams.set("X-Plex-Token", config.token);
       console.log("Plex movie lookup started", { guid });
-      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
       if (!response.ok) {
         console.error("Plex movie lookup failed", { status: response.status, guid });
         return null;
@@ -376,10 +396,9 @@ export async function markPlexPlayed(config, media) {
     const url = new URL(`${trimTrailingSlash(config.baseUrl)}/:/scrobble`);
     url.searchParams.set("key", item.ratingKey);
     url.searchParams.set("identifier", "com.plexapp.plugins.library");
-    url.searchParams.set("X-Plex-Token", config.token);
     await addConfiguredPlexAccountId(url, config);
 
-    const response = await fetch(url, { headers: { Accept: "application/json" } });
+    const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
     if (!response.ok) {
       throw new Error(`Plex scrobble failed with status ${response.status}`);
     }
@@ -405,10 +424,9 @@ export async function markPlexUnplayed(config, media) {
     const url = new URL(`${trimTrailingSlash(config.baseUrl)}/:/unscrobble`);
     url.searchParams.set("key", item.ratingKey);
     url.searchParams.set("identifier", "com.plexapp.plugins.library");
-    url.searchParams.set("X-Plex-Token", config.token);
     await addConfiguredPlexAccountId(url, config);
 
-    const response = await fetch(url, { headers: { Accept: "application/json" } });
+    const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
     if (!response.ok) {
       throw new Error(`Plex unscrobble failed with status ${response.status}`);
     }
@@ -440,10 +458,9 @@ export async function setPlexProgress(config, media) {
     const unscrobbleUrl = new URL(`${trimTrailingSlash(config.baseUrl)}/:/unscrobble`);
     unscrobbleUrl.searchParams.set("key", item.ratingKey);
     unscrobbleUrl.searchParams.set("identifier", "com.plexapp.plugins.library");
-    unscrobbleUrl.searchParams.set("X-Plex-Token", config.token);
     await addConfiguredPlexAccountId(unscrobbleUrl, config);
 
-    const unscrobbleResponse = await fetch(unscrobbleUrl, { headers: { Accept: "application/json" } });
+    const unscrobbleResponse = await fetchWithTimeout(unscrobbleUrl, { headers: plexAuthHeaders(config.token) });
     if (!unscrobbleResponse.ok) {
       throw new Error(`Plex progress unscrobble failed with status ${unscrobbleResponse.status}`);
     }
@@ -453,10 +470,9 @@ export async function setPlexProgress(config, media) {
     url.searchParams.set("identifier", "com.plexapp.plugins.library");
     url.searchParams.set("time", String(positionMs));
     url.searchParams.set("state", "stopped");
-    url.searchParams.set("X-Plex-Token", config.token);
     await addConfiguredPlexAccountId(url, config);
 
-    const response = await fetch(url, { headers: { Accept: "application/json" } });
+    const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
     if (!response.ok) {
       throw new Error(`Plex progress update failed with status ${response.status}`);
     }
@@ -479,10 +495,9 @@ export async function markPlexUnplayedByRatingKey(config, ratingKey) {
   const url = new URL(`${trimTrailingSlash(config.baseUrl)}/:/unscrobble`);
   url.searchParams.set("key", String(ratingKey));
   url.searchParams.set("identifier", "com.plexapp.plugins.library");
-  url.searchParams.set("X-Plex-Token", config.token);
   await addConfiguredPlexAccountId(url, config);
 
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
   if (!response.ok) {
     throw new Error(`Plex unscrobble failed with status ${response.status} for ratingKey ${ratingKey}`);
   }
@@ -499,9 +514,8 @@ export async function fetchPlexMetadataItem(config, ratingKey) {
 
   const url = new URL(`${trimTrailingSlash(config.baseUrl)}/library/metadata/${encodeURIComponent(ratingKey)}`);
   url.searchParams.set("includeGuids", "1");
-  url.searchParams.set("X-Plex-Token", config.token);
 
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
   if (response.status === 404) return null;
   if (!response.ok) {
     throw new Error(`Plex metadata lookup failed with status ${response.status} for ratingKey ${ratingKey}`);
@@ -516,8 +530,7 @@ export async function fetchPlexWatchedItems(config) {
   const accountId = await resolvePlexAccountId(config);
 
   const sectionsUrl = new URL(`${baseUrl}/library/sections`);
-  sectionsUrl.searchParams.set("X-Plex-Token", config.token);
-  const sectionsRes = await fetch(sectionsUrl, { headers: { Accept: "application/json" } });
+  const sectionsRes = await fetchWithTimeout(sectionsUrl, { headers: plexAuthHeaders(config.token) });
   if (!sectionsRes.ok) {
     throw new Error(`Plex failed to fetch library sections: ${sectionsRes.status}`);
   }
@@ -532,7 +545,6 @@ export async function fetchPlexWatchedItems(config) {
     if (type !== "movie" && type !== "show") continue;
 
     const allUrl = new URL(`${baseUrl}/library/sections/${sectionId}/all`);
-    allUrl.searchParams.set("X-Plex-Token", config.token);
     allUrl.searchParams.set("unwatched", "0");
     if (accountId != null) {
       allUrl.searchParams.set("accountID", String(accountId));
@@ -545,7 +557,7 @@ export async function fetchPlexWatchedItems(config) {
     }
 
     try {
-      const allRes = await fetch(allUrl, { headers: { Accept: "application/json" } });
+      const allRes = await fetchWithTimeout(allUrl, { headers: plexAuthHeaders(config.token) });
       if (allRes.ok) {
         const allData = await allRes.json();
         const metadata = allData?.MediaContainer?.Metadata || [];
@@ -565,8 +577,7 @@ export async function fetchPlexResumableItems(config, { limit = 0 } = {}) {
   const accountId = await resolvePlexAccountId(config);
 
   const sectionsUrl = new URL(`${baseUrl}/library/sections`);
-  sectionsUrl.searchParams.set("X-Plex-Token", config.token);
-  const sectionsRes = await fetch(sectionsUrl, { headers: { Accept: "application/json" } });
+  const sectionsRes = await fetchWithTimeout(sectionsUrl, { headers: plexAuthHeaders(config.token) });
   if (!sectionsRes.ok) {
     throw new Error(`Plex failed to fetch library sections: ${sectionsRes.status}`);
   }
@@ -582,14 +593,13 @@ export async function fetchPlexResumableItems(config, { limit = 0 } = {}) {
     if (type !== "movie" && type !== "show") continue;
 
     const allUrl = new URL(`${baseUrl}/library/sections/${sectionId}/all`);
-    allUrl.searchParams.set("X-Plex-Token", config.token);
     if (accountId != null) allUrl.searchParams.set("accountID", String(accountId));
     allUrl.searchParams.set("sort", "lastViewedAt:desc");
     allUrl.searchParams.set("type", type === "movie" ? "1" : "4");
     allUrl.searchParams.set("includeGuids", "1");
 
     try {
-      const allRes = await fetch(allUrl, { headers: { Accept: "application/json" } });
+      const allRes = await fetchWithTimeout(allUrl, { headers: plexAuthHeaders(config.token) });
       if (!allRes.ok) continue;
       const allData = await allRes.json();
       const metadata = allData?.MediaContainer?.Metadata || [];

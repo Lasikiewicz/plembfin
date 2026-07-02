@@ -1,6 +1,7 @@
 // WebDAV adapter — covers Nextcloud, ownCloud, Apache mod_dav, and most NAS units.
 // Settings: { url, username, directory? }  Secrets: { password }
 import fs from "node:fs";
+import { fetchWithTimeout } from "../outbound.js";
 import path from "node:path";
 
 const FILE_PATTERN = /^plembfin-watch-history-\d{8}T\d{6}Z\.json\.gz$/;
@@ -27,7 +28,7 @@ function remoteUrl(destination, name) {
 
 async function ensureCollection(destination) {
   // MKCOL is a no-op (405/301) when the collection already exists; tolerate that.
-  const response = await fetch(baseUrl(destination), { method: "MKCOL", headers: authHeaders(destination) });
+  const response = await fetchWithTimeout(baseUrl(destination), { method: "MKCOL", headers: authHeaders(destination) });
   if (![200, 201, 204, 301, 405].includes(response.status)) {
     const body = await response.text().catch(() => "");
     throw new Error(`WebDAV MKCOL failed (${response.status}): ${body.slice(0, 200)}`);
@@ -37,7 +38,7 @@ async function ensureCollection(destination) {
 export function createWebdavAdapter(destination) {
   return {
     async testConnection() {
-      const response = await fetch(baseUrl(destination), {
+      const response = await fetchWithTimeout(baseUrl(destination), {
         method: "PROPFIND",
         headers: { ...authHeaders(destination), Depth: "0", "Content-Type": "application/xml" },
         body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/></d:prop></d:propfind>',
@@ -54,11 +55,11 @@ export function createWebdavAdapter(destination) {
       const started = Date.now();
       await ensureCollection(destination);
       const body = fs.readFileSync(localPath);
-      const response = await fetch(remoteUrl(destination, remoteName), {
+      const response = await fetchWithTimeout(remoteUrl(destination, remoteName), {
         method: "PUT",
         headers: { ...authHeaders(destination), "Content-Type": "application/gzip" },
         body,
-      });
+      }, 60_000);
       if (!(response.ok || response.status === 201 || response.status === 204)) {
         const text = await response.text().catch(() => "");
         throw new Error(`WebDAV upload failed (${response.status}): ${text.slice(0, 200)}`);
@@ -67,7 +68,7 @@ export function createWebdavAdapter(destination) {
     },
 
     async list() {
-      const response = await fetch(baseUrl(destination), {
+      const response = await fetchWithTimeout(baseUrl(destination), {
         method: "PROPFIND",
         headers: { ...authHeaders(destination), Depth: "1", "Content-Type": "application/xml" },
         body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:getcontentlength/><d:getlastmodified/></d:prop></d:propfind>',
@@ -80,13 +81,13 @@ export function createWebdavAdapter(destination) {
     },
 
     async download(remoteName) {
-      const response = await fetch(remoteUrl(destination, remoteName), { headers: authHeaders(destination) });
+      const response = await fetchWithTimeout(remoteUrl(destination, remoteName), { headers: authHeaders(destination) }, 60_000);
       if (!response.ok) throw new Error(`WebDAV download failed (${response.status})`);
       return Buffer.from(await response.arrayBuffer());
     },
 
     async delete(remoteName) {
-      const response = await fetch(remoteUrl(destination, remoteName), {
+      const response = await fetchWithTimeout(remoteUrl(destination, remoteName), {
         method: "DELETE",
         headers: authHeaders(destination),
       });

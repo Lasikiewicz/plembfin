@@ -9,7 +9,7 @@ import {
   renderCastSection, renderRichTmdbDetails, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
-  renderRecommendationSection,
+  renderRecommendationSection, hydrateMediaAppLinks,
 } from "./media-detail-shared.js";
 
 // Authoritatively check whether a movie is already in watch history. state.history
@@ -213,6 +213,7 @@ function _renderWatchedMovieContent(root, movie, {
     ${renderWatchDatePrompt(state.pendingWatchAction)}
   `;
   hydratePosters(root);
+  hydrateMediaAppLinks(root);
 }
 
 export function patchMovieWatchedState(movie) {
@@ -368,6 +369,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   // Render immediately with TMDB data — no waiting for TV recs.
   root.innerHTML = buildUnwatchedHtml([]);
   hydratePosters(root);
+  hydrateMediaAppLinks(root);
   fetchSeerrMediaStatus("movie", tmdbId)
     .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus("movie", tmdbId); });
 
@@ -378,5 +380,6 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
     if (String(state.activeMovieTmdbId) !== String(tmdbId)) return;
     root.innerHTML = buildUnwatchedHtml(tvRecommendations);
     hydratePosters(root);
+    hydrateMediaAppLinks(root);
   }).catch(() => {/* non-fatal */});
 }

@@ -1,6 +1,7 @@
+import { fetchWithTimeout } from "./utils/outbound.js";
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { parsePlexGuids } from "./utils/parsers.js";
-import { findPlexItem } from "./utils/plexClient.js";
+import { findPlexItem, plexAuthHeaders, resolvePlexAccountId } from "./utils/plexClient.js";
 import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/liveSessions.js";
 import { appendSyncHistory, loadMediaConfig, loadRuntimeState, setRuntimeState } from "./utils/configStore.js";
 import { createLoopStore } from "./utils/loopStore.js";
@@ -257,10 +258,6 @@ function configuredPlexUsername(config = {}) {
   return normalizePlexIdentity(config.plex?.username);
 }
 
-function isOwnerPlexUsername(username = "") {
-  return username === "admin" || username === "owner";
-}
-
 function plexAccountIdFromItem(item = {}) {
   const value = item.accountID ?? item.accountId ?? item.account_id ?? item.userID ?? item.userId;
   const number = Number(value);
@@ -286,35 +283,11 @@ function plexUsernamesFromItem(item = {}) {
     .filter(Boolean);
 }
 
-function accountMatchesUsername(account = {}, username = "") {
-  return [
-    account.name,
-    account.title,
-    account.username,
-    account.accountName,
-  ]
-    .map(normalizePlexIdentity)
-    .some((value) => value === username);
-}
-
+// Delegates to the memoized resolver in plexClient.js so the per-minute
+// scheduled sync and playstate operations share one cached /accounts lookup.
 async function resolvePlexTargetAccountId(baseUrl, token, username, logger = console.log) {
-  if (!username) return null;
-  if (isOwnerPlexUsername(username)) return 1;
-
   try {
-    const accountsUrl = new URL(`${baseUrl}/accounts`);
-    accountsUrl.searchParams.set("X-Plex-Token", token);
-    const accountsRes = await fetch(accountsUrl, { headers: { Accept: "application/json" } });
-    if (!accountsRes.ok) {
-      logger(`Plex account mapping failed: HTTP ${accountsRes.status}`);
-      return null;
-    }
-
-    const accountsData = await accountsRes.json();
-    const accounts = accountsData?.MediaContainer?.Account || [];
-    const matchedAccount = accounts.find((account) => accountMatchesUsername(account, username));
-    const accountId = Number(matchedAccount?.id);
-    return Number.isFinite(accountId) ? accountId : null;
+    return await resolvePlexAccountId({ baseUrl, token, username });
   } catch (error) {
     logger(`Plex account mapping failed: ${error.message}`);
     return null;
@@ -688,14 +661,13 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
 
   try {
     const historyUrl = new URL(`${baseUrl}/status/sessions/history/all`);
-    historyUrl.searchParams.set("X-Plex-Token", token);
     historyUrl.searchParams.set("X-Plex-Container-Start", "0");
     historyUrl.searchParams.set("X-Plex-Container-Size", "20");
     if (targetAccountId != null) {
       historyUrl.searchParams.set("accountID", String(targetAccountId));
     }
 
-    const historyRes = await fetch(historyUrl, { headers: { Accept: "application/json" } });
+    const historyRes = await fetchWithTimeout(historyUrl, { headers: plexAuthHeaders(token) });
     let items = [];
     if (historyRes.ok) {
       const historyData = await historyRes.json();
@@ -707,18 +679,26 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
     let recentlyViewedItems = [];
     try {
       const sectionsUrl = new URL(`${baseUrl}/library/sections`);
-      sectionsUrl.searchParams.set("X-Plex-Token", token);
-      const sectionsRes = await fetch(sectionsUrl, { headers: { Accept: "application/json" } });
+      const sectionsRes = await fetchWithTimeout(sectionsUrl, { headers: plexAuthHeaders(token) });
       if (sectionsRes.ok) {
         const sectionsData = await sectionsRes.json();
         const directories = sectionsData?.MediaContainer?.Directory || [];
+        // Bound the per-tick sweep: this runs every minute inside a 50s budget,
+        // and each section costs a serial round trip to Plex. Very large installs
+        // still converge — the history endpoint above covers recent activity.
+        const MAX_SECTIONS_PER_TICK = 6;
+        let sectionsChecked = 0;
         for (const dir of directories) {
           const sectionId = dir.key;
           const type = dir.type;
           if (type !== "movie" && type !== "show") continue;
+          if (sectionsChecked >= MAX_SECTIONS_PER_TICK) {
+            logger(`Plex sections check capped at ${MAX_SECTIONS_PER_TICK} sections this tick.`);
+            break;
+          }
+          sectionsChecked += 1;
 
           const sectionAllUrl = new URL(`${baseUrl}/library/sections/${sectionId}/all`);
-          sectionAllUrl.searchParams.set("X-Plex-Token", token);
           sectionAllUrl.searchParams.set("sort", "viewedAt:desc");
           sectionAllUrl.searchParams.set("X-Plex-Container-Start", "0");
           sectionAllUrl.searchParams.set("X-Plex-Container-Size", "20");
@@ -728,7 +708,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
             sectionAllUrl.searchParams.set("type", "4"); // Episode
           }
 
-          const sectionRes = await fetch(sectionAllUrl, { headers: { Accept: "application/json" } });
+          const sectionRes = await fetchWithTimeout(sectionAllUrl, { headers: plexAuthHeaders(token) });
           if (sectionRes.ok) {
             const sectionData = await sectionRes.json();
             const metadata = sectionData?.MediaContainer?.Metadata || [];

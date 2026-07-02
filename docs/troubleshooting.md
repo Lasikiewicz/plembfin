@@ -35,6 +35,10 @@ See [now-playing.md](now-playing.md) for full diagnosis steps.
   sqlite3 data/plembfin.db "SELECT * FROM sync_history ORDER BY created_at DESC LIMIT 10;"
   ```
 - Check the target platform's client credentials (URL / API key / user ID).
+- Errors reading `Request timed out after 10000ms` mean the target server accepted
+  the connection but did not answer within the outbound timeout — check that the
+  media server is responsive and reachable from the Plembfin host (backup
+  destinations use a 60-second budget for uploads/downloads).
 - Echo suppression: `loopStore` drops events that look like echoes of a recent
   dispatch — usually correct. If sync is double-firing, check loop keys:
   ```sh

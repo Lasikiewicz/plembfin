@@ -39,6 +39,19 @@ browser ──/media/──────────▶ Express ──▶ static 
    `?token=` URL param. All other protected routes call `requireAdmin(req, res)`, which accepts
    either a signed HttpOnly session cookie (`plembfin_session`) or an API key
    (`X-Api-Key` header / `Authorization: Bearer`).
+4. Secrets stay server-side: `GET /api/config` returns each integration section
+   with a `configured` boolean instead of the stored token/API key. A settings
+   save that leaves a credential field blank keeps the stored value
+   (`mergeIncomingConfig` in `configStore.js`); entering a new value replaces it.
+   Test-connection endpoints fall back to the stored credential when the request
+   body omits the token.
+5. Outbound HTTP: every server-side call to an external service goes through
+   `fetchWithTimeout` (`server/src/utils/outbound.js`, 10s default; backup
+   transfers use 60s) or carries an explicit `AbortSignal.timeout`. The build
+   check (`scripts/build-check.js`) fails on any bare `fetch(` in `server/`.
+   Plex HTTP requests send `X-Plex-Token` as a header rather than a query
+   parameter so tokens stay out of access logs; the Plex notification WebSocket
+   is the one exception because the handshake cannot carry custom headers.
 
 ## Scheduler
 
@@ -182,3 +195,5 @@ Startup runs `logSecuritySummary()` (in `appConfig.js`) which warns if the admin
 - `COOKIE_SECURE` — set to `true` when behind an HTTPS reverse proxy
 - `OMDB_API_KEY` — optional OMDb API key; when set, enables IMDb rating badges on media detail pages (free tier: 1,000 req/day from omdbapi.com). Can also be configured in Settings → Integrations.
 - `TVDB_API_KEY` — optional personal TheTVDB API key for a higher personal rate limit. A built-in project key is used when this is unset. Can also be configured in Settings → API Keys → TheTVDB.
+- `TVDB_PROJECT_KEY` — advanced: replace the built-in shared TheTVDB project key (used when no personal key is set). Only needed if the built-in key is revoked or exhausted.
+- `FANART_PROJECT_KEY` — advanced: replace the built-in shared Fanart.tv project key. Only needed if the built-in key is revoked or exhausted.

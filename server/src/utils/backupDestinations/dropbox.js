@@ -2,6 +2,7 @@
 // layer; this adapter refreshes the access token and reads/writes an app-scoped
 // folder. Settings: { appKey, folder? }  Secrets: { appSecret, refreshToken }
 import fs from "node:fs";
+import { fetchWithTimeout } from "../outbound.js";
 
 const FILE_PATTERN = /^plembfin-watch-history-\d{8}T\d{6}Z\.json\.gz$/;
 
@@ -17,6 +18,7 @@ function folderPath(destination) {
 async function ensureAccessToken(destination) {
   const cached = tokenCache.get(destination.id);
   if (cached && cached.expiresAt > Date.now() + 60000) return cached.accessToken;
+  if (cached) tokenCache.delete(destination.id); // expired — drop so stale destinations don't accumulate
 
   const appKey = destination.settings?.appKey;
   const appSecret = destination.secrets?.appSecret;
@@ -26,7 +28,7 @@ async function ensureAccessToken(destination) {
 
   const basic = Buffer.from(`${appKey}:${appSecret}`).toString("base64");
   const params = new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken });
-  const response = await fetch("https://api.dropbox.com/oauth2/token", {
+  const response = await fetchWithTimeout("https://api.dropbox.com/oauth2/token", {
     method: "POST",
     headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
     body: params.toString(),
@@ -49,7 +51,7 @@ export function createDropboxAdapter(destination) {
 
   return {
     async testConnection() {
-      const response = await fetch("https://api.dropboxapi.com/2/users/get_current_account", {
+      const response = await fetchWithTimeout("https://api.dropboxapi.com/2/users/get_current_account", {
         method: "POST",
         headers: { Authorization: await bearer() },
       });
@@ -64,7 +66,7 @@ export function createDropboxAdapter(destination) {
       const started = Date.now();
       const body = fs.readFileSync(localPath);
       const arg = JSON.stringify({ path: `${folderPath(destination)}/${remoteName}`, mode: "overwrite", mute: true });
-      const response = await fetch("https://content.dropboxapi.com/2/files/upload", {
+      const response = await fetchWithTimeout("https://content.dropboxapi.com/2/files/upload", {
         method: "POST",
         headers: {
           Authorization: await bearer(),
@@ -72,7 +74,7 @@ export function createDropboxAdapter(destination) {
           "Content-Type": "application/octet-stream",
         },
         body,
-      });
+      }, 60_000);
       if (!response.ok) {
         const text = await response.text().catch(() => "");
         throw new Error(`Dropbox upload failed (${response.status}): ${text.slice(0, 200)}`);
@@ -81,7 +83,7 @@ export function createDropboxAdapter(destination) {
     },
 
     async list() {
-      const response = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
+      const response = await fetchWithTimeout("https://api.dropboxapi.com/2/files/list_folder", {
         method: "POST",
         headers: { Authorization: await bearer(), "Content-Type": "application/json" },
         body: JSON.stringify({ path: folderPath(destination) }),
@@ -101,16 +103,16 @@ export function createDropboxAdapter(destination) {
 
     async download(remoteName) {
       const arg = JSON.stringify({ path: `${folderPath(destination)}/${remoteName}` });
-      const response = await fetch("https://content.dropboxapi.com/2/files/download", {
+      const response = await fetchWithTimeout("https://content.dropboxapi.com/2/files/download", {
         method: "POST",
         headers: { Authorization: await bearer(), "Dropbox-API-Arg": arg },
-      });
+      }, 60_000);
       if (!response.ok) throw new Error(`Dropbox download failed (${response.status})`);
       return Buffer.from(await response.arrayBuffer());
     },
 
     async delete(remoteName) {
-      const response = await fetch("https://api.dropboxapi.com/2/files/delete_v2", {
+      const response = await fetchWithTimeout("https://api.dropboxapi.com/2/files/delete_v2", {
         method: "POST",
         headers: { Authorization: await bearer(), "Content-Type": "application/json" },
         body: JSON.stringify({ path: `${folderPath(destination)}/${remoteName}` }),

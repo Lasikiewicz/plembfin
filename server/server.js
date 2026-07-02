@@ -140,7 +140,18 @@ app.use(rateLimit({ windowMs: 60 * 1000, max: 2000, standardHeaders: true, legac
 app.all("/api/*path", express.raw({ type: "*/*", limit: "15mb" }), (req, res) => {
   Promise.resolve(dispatch(req, res)).catch((error) => {
     console.error("Unhandled API error", error);
-    if (!res.headersSent) res.status(500).json({ error: "Internal error" });
+    if (res.headersSent) return;
+    // Deliberate client errors (e.g. readJson's 400 for a malformed body) keep
+    // their status and message; anything unexpected returns a generic 500 so
+    // internal details never reach the client. Handlers return promises that
+    // dispatch() does not await, so their rejections surface here, not in
+    // dispatch()'s own catch.
+    const status = Number(error?.status);
+    if (Number.isInteger(status) && status >= 400 && status < 500) {
+      res.status(status).json({ error: error.message || "Request failed" });
+      return;
+    }
+    res.status(500).json({ error: "Internal error" });
   });
 });
 

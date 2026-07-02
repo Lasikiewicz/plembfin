@@ -1,6 +1,11 @@
 import { loadMediaConfig } from "./configStore.js";
+import { fetchWithTimeout } from "./outbound.js";
 
-const PROJECT_KEY = "bab936b0927ec594f22c16cef458f742";
+// Shared fanart.tv project key — intentionally public: fanart.tv issues these
+// for apps to embed, and rate-limits them upstream. Operators can swap in their
+// own via FANART_PROJECT_KEY (a personal key in Settings additionally raises the
+// rate limit as client_key) if this one is revoked or exhausted.
+const PROJECT_KEY = String(process.env.FANART_PROJECT_KEY || "").trim() || "bab936b0927ec594f22c16cef458f742";
 const API_ROOT = "https://webservice.fanart.tv/v3";
 
 async function userKey() {
@@ -16,7 +21,7 @@ async function fetchFanart(path) {
     for (const [key, value] of Object.entries(extra)) {
       if (value) url.searchParams.set(key, value);
     }
-    const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+    const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json" } });
     if (!response.ok) return null;
     return response.json().catch(() => null);
   };

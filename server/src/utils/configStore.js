@@ -1,5 +1,5 @@
 import { db, parseJson, toJson } from "../db.js";
-import { normalizeHttpUrl } from "./outbound.js";
+import { assertSafeOutboundUrl, normalizeHttpUrl } from "./outbound.js";
 
 const SETTINGS_ID = "mediaConfig";
 const RUNTIME_ID = "main";
@@ -151,51 +151,76 @@ export async function loadMediaConfig() {
   return mergeEnvDefaults(parseJson(row?.data, {}) || {});
 }
 
+// The browser-facing config shape. Secrets (tokens/API keys) are never included —
+// each section carries a `configured` boolean instead, plus the non-secret fields
+// the settings form needs for repopulation (baseUrl, username, userId, disabled).
 export function publicMediaConfig(config = {}) {
   const normalized = normalizeStoredConfig(config);
   return {
-    ...normalized,
-    tmdb: { configured: Boolean(normalized.tmdb.apiKey) },
-    fanart: { configured: Boolean(normalized.fanart.apiKey) },
-    tvdb: { configured: Boolean(normalized.tvdb.apiKey) },
-    omdb: { configured: Boolean(normalized.omdb.apiKey) },
-    // Expose baseUrl and disabled so the frontend can repopulate the URL field,
-    // but never expose the raw apiKey to the browser.
+    plex: {
+      configured: Boolean(normalized.plex.token),
+      baseUrl: normalized.plex.baseUrl,
+      username: normalized.plex.username,
+      disabled: normalized.plex.disabled,
+    },
+    emby: {
+      configured: Boolean(normalized.emby.apiKey),
+      baseUrl: normalized.emby.baseUrl,
+      userId: normalized.emby.userId,
+      disabled: normalized.emby.disabled,
+    },
+    jellyfin: {
+      configured: Boolean(normalized.jellyfin.apiKey),
+      baseUrl: normalized.jellyfin.baseUrl,
+      userId: normalized.jellyfin.userId,
+      disabled: normalized.jellyfin.disabled,
+    },
     seerr: {
       configured: Boolean(normalized.seerr.apiKey && normalized.seerr.baseUrl && !normalized.seerr.disabled),
       baseUrl: normalized.seerr.baseUrl,
       disabled: normalized.seerr.disabled,
     },
+    tmdb: { configured: Boolean(normalized.tmdb.apiKey) },
+    fanart: { configured: Boolean(normalized.fanart.apiKey) },
+    tvdb: { configured: Boolean(normalized.tvdb.apiKey) },
+    youtube: { configured: Boolean(normalized.youtube.apiKey) },
+    omdb: { configured: Boolean(normalized.omdb.apiKey) },
   };
 }
 
-export async function saveMediaConfig(config) {
-  const existing = await loadMediaConfig().catch(() => normalizeStoredConfig({}));
+// Merge an incoming section over the stored one. Secret fields (tokens/API keys)
+// are kept from the stored config when the incoming value is blank or missing —
+// the browser never receives secrets (publicMediaConfig), so a settings save with
+// an empty key field means "keep the saved credential", not "clear it".
+function mergeSection(existing = {}, incoming, secretFields = []) {
+  if (!incoming) return existing;
+  const merged = { ...existing, ...incoming };
+  for (const field of secretFields) {
+    if (!String(incoming[field] ?? "").trim()) merged[field] = existing[field];
+  }
+  return merged;
+}
 
-  const incomingSeerr = config.seerr
-    ? {
-        ...existing.seerr,
-        ...config.seerr,
-        apiKey: Object.prototype.hasOwnProperty.call(config.seerr, "apiKey") && String(config.seerr.apiKey || "").trim()
-          ? config.seerr.apiKey
-          : existing.seerr.apiKey,
-      }
-    : existing.seerr;
-  
-  // Merge incoming sections with existing sections
-  const merged = {
-    plex: config.plex ? { ...existing.plex, ...config.plex } : existing.plex,
-    emby: config.emby ? { ...existing.emby, ...config.emby } : existing.emby,
-    jellyfin: config.jellyfin ? { ...existing.jellyfin, ...config.jellyfin } : existing.jellyfin,
-    seerr: incomingSeerr,
-    tmdb: config.tmdb ? { ...existing.tmdb, ...config.tmdb } : existing.tmdb,
-    fanart: config.fanart ? { ...existing.fanart, ...config.fanart } : existing.fanart,
-    tvdb: config.tvdb ? { ...existing.tvdb, ...config.tvdb } : existing.tvdb,
-    youtube: config.youtube ? { ...existing.youtube, ...config.youtube } : existing.youtube,
-    omdb: config.omdb ? { ...existing.omdb, ...config.omdb } : existing.omdb,
-  };
-  
-  const normalized = normalizeStoredConfig(merged);
+// Returns the normalized result of merging `config` over the stored settings,
+// without persisting. handleConfig validates this merged shape so a save that
+// omits an already-stored credential still passes required-field checks.
+export async function mergeIncomingConfig(config = {}) {
+  const existing = await loadMediaConfig().catch(() => normalizeStoredConfig({}));
+  return normalizeStoredConfig({
+    plex: mergeSection(existing.plex, config.plex, ["token"]),
+    emby: mergeSection(existing.emby, config.emby, ["apiKey"]),
+    jellyfin: mergeSection(existing.jellyfin, config.jellyfin, ["apiKey"]),
+    seerr: mergeSection(existing.seerr, config.seerr, ["apiKey"]),
+    tmdb: mergeSection(existing.tmdb, config.tmdb, ["apiKey"]),
+    fanart: mergeSection(existing.fanart, config.fanart, ["apiKey"]),
+    tvdb: mergeSection(existing.tvdb, config.tvdb, ["apiKey"]),
+    youtube: mergeSection(existing.youtube, config.youtube, ["apiKey"]),
+    omdb: mergeSection(existing.omdb, config.omdb, ["apiKey"]),
+  });
+}
+
+export async function saveMediaConfig(config) {
+  const normalized = await mergeIncomingConfig(config);
   upsertSettingsStmt.run(SETTINGS_ID, toJson(normalized), Date.now());
 }
 
@@ -204,7 +229,10 @@ export function validateConfig(config = {}) {
   const validateBaseUrl = (value, label) => {
     if (!value) return;
     try {
-      normalizeHttpUrl(value, { label });
+      // normalizeHttpUrl enforces http/https and rejects embedded credentials;
+      // assertSafeOutboundUrl blocks cloud-metadata endpoints — every configured
+      // server URL is later fetched with credentials attached, so both apply.
+      assertSafeOutboundUrl(normalizeHttpUrl(value, { label }), { label });
     } catch (error) {
       errors.push(error.message);
     }

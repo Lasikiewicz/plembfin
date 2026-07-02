@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { db, parseJson, toJson } from "../db.js";
+import { fetchWithTimeout } from "./outbound.js";
 import { loadMediaConfig, loadRuntimeState, setRuntimeState } from "./configStore.js";
 import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./posterCache.js";
 import { getFanartMovieArt, getFanartTvArt } from "./fanartGateway.js";
@@ -163,7 +164,7 @@ async function upstream(path, params = {}, attempt = 0) {
   for (const [name, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== "") url.searchParams.set(name, String(value));
   }
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  const response = await fetchWithTimeout(url, { headers: { Accept: "application/json" } });
   if (response.status === 429 && attempt < 2) {
     const retryAfter = Math.max(1, Number(response.headers.get("retry-after") || 1));
     await wait(retryAfter * 1000 + Math.floor(Math.random() * 250));

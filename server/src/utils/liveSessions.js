@@ -1,4 +1,5 @@
 import { loadLiveTrackingCache as loadLiveTrackingCacheFromDb } from "./firestoreRepo.js";
+import { fetchWithTimeout } from "./outbound.js";
 import { decodeHtmlEntities } from "./parsers.js";
 
 function trimTrailingSlash(value = "") {
@@ -271,7 +272,7 @@ function normalizeSessionItem(session = {}, source = "unknown", config = {}) {
 
 async function fetchJson(url, headers) {
   try {
-    const response = await fetch(url, { headers });
+    const response = await fetchWithTimeout(url, { headers });
     if (!response.ok) {
       throw new Error(`Request failed with ${response.status}`);
     }
@@ -285,10 +286,9 @@ async function fetchJson(url, headers) {
 async function fetchPlexSessions(config) {
   if (!config.plex.baseUrl || !config.plex.token) return [];
   const url = new URL(`${config.plex.baseUrl}/status/sessions`);
-  url.searchParams.set("X-Plex-Token", config.plex.token);
 
   try {
-    const response = await fetch(url, { headers: { Accept: "application/xml, text/xml, application/json" } });
+    const response = await fetchWithTimeout(url, { headers: { Accept: "application/xml, text/xml, application/json", "X-Plex-Token": config.plex.token } });
     if (!response.ok) throw new Error(`Request failed with ${response.status}`);
     const text = await response.text();
     const sessions = parsePlexSessions(text, config.plex);

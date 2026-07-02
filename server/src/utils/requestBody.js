@@ -21,7 +21,15 @@ function formDataLike(entries) {
 export async function readJson(req) {
   if (req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) return req.body;
   const raw = rawBuffer(req).toString("utf8");
-  return raw ? JSON.parse(raw) : {};
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Surface malformed bodies as a client error; dispatch() maps error.status → HTTP status.
+    const error = new Error("Invalid JSON body");
+    error.status = 400;
+    throw error;
+  }
 }
 
 export async function readFormData(req) {

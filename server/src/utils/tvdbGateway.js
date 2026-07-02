@@ -1,8 +1,13 @@
 import crypto from "node:crypto";
 import { db, parseJson, toJson } from "../db.js";
+import { fetchWithTimeout } from "./outbound.js";
 import { loadMediaConfig, loadRuntimeState, setRuntimeState } from "./configStore.js";
 
-const PROJECT_KEY = "94a93e8a-7ab8-4708-b6b7-a9fae1bc6ac2";
+// Shared TVDB v4 project key — intentionally public: TVDB issues these for
+// open-source apps to embed, and rate-limits them upstream. Operators can swap
+// in their own via TVDB_PROJECT_KEY (or a personal key in Settings, which takes
+// precedence over both) if this one is revoked or exhausted.
+const PROJECT_KEY = String(process.env.TVDB_PROJECT_KEY || "").trim() || "94a93e8a-7ab8-4708-b6b7-a9fae1bc6ac2";
 const API_ROOT = "https://api4.thetvdb.com/v4";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SEARCH_TTL_MS = 180 * DAY_MS;
@@ -114,7 +119,7 @@ async function getToken({ forceRefresh = false } = {}) {
     return runtime.tvdbToken;
   }
   await throttle();
-  const response = await fetch(`${API_ROOT}/login`, {
+  const response = await fetchWithTimeout(`${API_ROOT}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ apikey: apiKey }),
@@ -165,7 +170,7 @@ async function upstream(endpoint, params = {}, attempt = 0) {
   await throttle();
   const token = await getToken();
   const url = tvdbEndpointUrl(endpoint, params);
-  const response = await fetch(url, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` } });
+  const response = await fetchWithTimeout(url, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` } });
   if (response.status === 401 && attempt < 1) {
     await getToken({ forceRefresh: true });
     return upstream(endpoint, params, attempt + 1);

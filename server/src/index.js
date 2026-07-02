@@ -12,7 +12,7 @@ import { getLogs as getDiagnosticLogs, clearLogs as clearDiagnosticLogs } from "
 import { readFormData, readJson } from "./utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed, notFound } from "./utils/http.js";
 import { fetchWithTimeout, assertSafeOutboundUrl } from "./utils/outbound.js";
-import { appendSyncHistory, loadMediaConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "./utils/configStore.js";
+import { appendSyncHistory, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "./utils/configStore.js";
 import { db, parseJson, toJson, writeAuditLog } from "./db.js";
 import { createLoopStore } from "./utils/loopStore.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "./utils/activeSessions.js";
@@ -148,6 +148,10 @@ function imagePath(path, params = {}) {
   } catch (error) {
     return "";
   }
+}
+
+function trimTrailingSlash(value = "") {
+  return String(value || "").replace(/\/+$/, "");
 }
 
 function posterPathFromMedia(media = {}) {
@@ -353,7 +357,16 @@ async function handleConfig(req, res) {
 
   if (req.method === "POST") {
     const config = await readJson(req);
-    const errors = validateConfig(config);
+    // Validate the merged result (stored + incoming) so a save that leaves a key
+    // field blank — because the browser never receives stored secrets — still
+    // satisfies required-credential checks. Only sections present in the request
+    // are validated, matching the previous per-section semantics.
+    const merged = await mergeIncomingConfig(config);
+    const toValidate = {};
+    for (const section of ["plex", "emby", "jellyfin", "seerr"]) {
+      if (config[section]) toValidate[section] = merged[section];
+    }
+    const errors = validateConfig(toValidate);
     if (errors.length) return sendJson(res, { error: "Invalid configuration", details: errors }, 400);
     await saveMediaConfig(config);
     writeAuditLog("settings.saved", { ip: req.ip || req.socket?.remoteAddress });
@@ -374,6 +387,15 @@ function seerrMediaStatusCacheKey(mediaType, mediaId) {
 }
 function invalidateSeerrMediaStatus(mediaType, mediaId) {
   seerrMediaStatusCache.delete(seerrMediaStatusCacheKey(mediaType, mediaId));
+}
+// Sweep expired entries on every write so the map can't grow without bound on a
+// long-lived instance (entries were previously only overwritten, never removed).
+function setSeerrMediaStatusCache(key, entry) {
+  const cutoff = Date.now() - SEERR_MEDIA_STATUS_TTL_MS;
+  for (const [existingKey, existing] of seerrMediaStatusCache) {
+    if (Number(existing?.cachedAtMs || 0) < cutoff) seerrMediaStatusCache.delete(existingKey);
+  }
+  seerrMediaStatusCache.set(key, entry);
 }
 
 async function handleSeerrStatus(req, res) {
@@ -688,6 +710,154 @@ async function mediaFromTmdbStatusRequest(mediaType, mediaId) {
   };
 }
 
+async function mediaFromAppLinksRequest(req) {
+  const mediaType = String(req.query.mediaType || "").trim().toLowerCase() === "tv" ? "tv" : "movie";
+  const tmdbId = String(req.query.tmdbId || req.query.mediaId || "").trim();
+  const requestedIds = {
+    imdb: String(req.query.imdbId || "").trim() || undefined,
+    tmdb: tmdbId || undefined,
+    tvdb: String(req.query.tvdbId || "").trim() || undefined,
+  };
+  const requestedTitle = String(req.query.title || "").trim();
+
+  let media = {
+    type: mediaType === "tv" ? "series" : "movie",
+    title: requestedTitle,
+    ids: requestedIds,
+  };
+
+  if (tmdbId) {
+    const tmdbMedia = await mediaFromTmdbStatusRequest(mediaType, tmdbId);
+    media = {
+      ...tmdbMedia,
+      title: requestedTitle || tmdbMedia.title,
+      ids: {
+        ...tmdbMedia.ids,
+        ...Object.fromEntries(Object.entries(requestedIds).filter(([, value]) => value)),
+      },
+    };
+  }
+
+  return media;
+}
+
+async function plexMachineIdentifier(config = {}) {
+  if (!config.baseUrl || !config.token) return "";
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/identity`);
+  try {
+    const response = await fetchWithTimeout(url, { headers: { Accept: "application/json", "X-Plex-Token": config.token } });
+    if (!response.ok) return "";
+    const body = await response.json().catch(() => ({}));
+    return String(body?.MediaContainer?.machineIdentifier || body?.machineIdentifier || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+async function plexWebUrl(config = {}, item = {}) {
+  const ratingKey = item?.ratingKey || item?.key;
+  if (!config.baseUrl || !ratingKey) return "";
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const key = `/library/metadata/${ratingKey}`;
+  const machineId = await plexMachineIdentifier(config);
+  const route = machineId
+    ? `#!/server/${encodeURIComponent(machineId)}/details?key=${encodeURIComponent(key)}`
+    : `#!/details?key=${encodeURIComponent(key)}`;
+  return `${baseUrl}/web/index.html${route}`;
+}
+
+async function embyServerId(config = {}) {
+  if (!config.baseUrl) return "";
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/System/Info/Public`);
+  try {
+    const response = await fetchWithTimeout(url, {
+      headers: {
+        Accept: "application/json",
+        ...(config.apiKey ? { "X-Emby-Token": config.apiKey } : {}),
+      },
+    }, 8000);
+    if (!response.ok) return "";
+    const body = await response.json().catch(() => ({}));
+    return String(body?.Id || body?.ServerId || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function embyItemContext(item = {}, media = {}) {
+  const type = String(item.Type || item.type || media.type || "").toLowerCase();
+  if (type === "series" || type === "episode" || type === "show") return "tvshows";
+  if (type === "movie") return "movies";
+  return "";
+}
+
+async function embyWebUrl(config = {}, item = {}, media = {}) {
+  if (!config.baseUrl || !item?.Id) return "";
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/web/index.html`);
+  const routeParams = new URLSearchParams({ id: String(item.Id) });
+  const serverId = await embyServerId(config);
+  const context = embyItemContext(item, media);
+  if (serverId) routeParams.set("serverId", serverId);
+  if (context) routeParams.set("context", context);
+  return `${url.toString()}#!/item?${routeParams.toString()}`;
+}
+
+function jellyfinWebUrl(config = {}, item = {}) {
+  if (!config.baseUrl || !item?.Id) return "";
+  return `${trimTrailingSlash(config.baseUrl)}/web/#/details?id=${encodeURIComponent(item.Id)}`;
+}
+
+function appIconUrl(config = {}, target = "") {
+  if (!config.baseUrl) return "";
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  if (target === "plex") return `${baseUrl}/web/favicon.ico`;
+  if (target === "emby") return `${baseUrl}/web/favicon.ico`;
+  if (target === "jellyfin") return `${baseUrl}/web/favicon.ico`;
+  return "";
+}
+
+async function fetchConfiguredAppLinks(config = {}, media = {}) {
+  const targets = activeMediaTargets(config);
+  const jobs = targets.map(async (target) => {
+    try {
+      if (target === "plex") {
+        const item = await findPlexItem(config.plex, media);
+        const url = await plexWebUrl(config.plex, item);
+        return url ? { target, label: "Plex", url, iconUrl: appIconUrl(config.plex, target) } : null;
+      }
+      if (target === "emby") {
+        const items = await findEmbyItems(config.emby, media);
+        const url = await embyWebUrl(config.emby, items?.[0], media);
+        return url ? { target, label: "Emby", url, iconUrl: appIconUrl(config.emby, target) } : null;
+      }
+      if (target === "jellyfin") {
+        const items = await findJellyfinItems(config.jellyfin, media);
+        const url = jellyfinWebUrl(config.jellyfin, items?.[0]);
+        return url ? { target, label: "Jellyfin", url, iconUrl: appIconUrl(config.jellyfin, target) } : null;
+      }
+    } catch (error) {
+      console.warn(`App link lookup failed for ${target}: ${error.message || error}`);
+    }
+    return null;
+  });
+  return (await Promise.all(jobs)).filter(Boolean);
+}
+
+async function handleMediaAppLinks(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const media = await mediaFromAppLinksRequest(req);
+  if (!media.title && !media.ids?.imdb && !media.ids?.tmdb && !media.ids?.tvdb) {
+    return sendJson(res, { ok: false, error: "A title or external ID is required." }, 400);
+  }
+
+  const config = await loadMediaConfig();
+  const links = await fetchConfiguredAppLinks(config, media);
+  return sendJson(res, { ok: true, links }, 200, { "Cache-Control": "no-store" });
+}
+
 async function fetchConfiguredAppAvailability(config = {}, media = {}) {
   const targets = activeMediaTargets(config);
   if (!targets.length) {
@@ -814,7 +984,7 @@ async function handleSeerrMediaStatus(req, res) {
           configuredAppStatus,
           seerrError: lastErrorMsg || "Media not found on Seerr",
         };
-        seerrMediaStatusCache.set(cacheKey, { cachedAtMs: Date.now(), body });
+        setSeerrMediaStatusCache(cacheKey, { cachedAtMs: Date.now(), body });
         return sendJson(res, body);
       }
       return sendJson(res, { ok: false, error: lastErrorMsg || "Media not found on Seerr" }, 502);
@@ -846,7 +1016,7 @@ async function handleSeerrMediaStatus(req, res) {
       seerrAvailable,
       seerrAvailable4k,
     };
-    seerrMediaStatusCache.set(cacheKey, { cachedAtMs: Date.now(), body });
+    setSeerrMediaStatusCache(cacheKey, { cachedAtMs: Date.now(), body });
     return sendJson(res, body);
   } catch (err) {
     return sendJson(res, { ok: false, error: err.message || "Connection to Seerr failed" }, 502);
@@ -1165,14 +1335,18 @@ async function startOneDriveDeviceAuth(destination) {
   if (!clientId) throw new Error("Enter and save the OneDrive client ID first");
   const tenant = destination.settings?.tenant;
   const params = new URLSearchParams({ client_id: clientId, scope: ONEDRIVE_SCOPE });
-  const response = await fetch(deviceCodeEndpoint(tenant), {
+  const response = await fetchWithTimeout(deviceCodeEndpoint(tenant), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: params.toString(),
-  });
+  }, 15_000);
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error_description || data.error || `Device code request failed (${response.status})`);
 
+  // Drop expired sessions (otherwise they only leave the map when polled).
+  for (const [id, session] of deviceCodeSessions) {
+    if (session.expiresAt < Date.now()) deviceCodeSessions.delete(id);
+  }
   const pendingId = crypto.randomUUID();
   deviceCodeSessions.set(pendingId, {
     destinationId: destination.id,
@@ -1203,11 +1377,11 @@ async function pollOneDriveDeviceAuth(pendingId) {
     grant_type: "urn:ietf:params:oauth:grant-type:device_code",
     device_code: session.deviceCode,
   });
-  const response = await fetch(tokenEndpoint(session.tenant), {
+  const response = await fetchWithTimeout(tokenEndpoint(session.tenant), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: params.toString(),
-  });
+  }, 15_000);
   const data = await response.json().catch(() => ({}));
   if (response.ok && data.refresh_token) {
     updateDestinationSecrets(session.destinationId, { refreshToken: data.refresh_token });
@@ -1239,11 +1413,11 @@ async function exchangeDropboxCode(destination, code) {
   if (!code) throw new Error("Authorization code is required");
   const basic = Buffer.from(`${appKey}:${appSecret}`).toString("base64");
   const params = new URLSearchParams({ grant_type: "authorization_code", code: String(code).trim() });
-  const response = await fetch("https://api.dropbox.com/oauth2/token", {
+  const response = await fetchWithTimeout("https://api.dropbox.com/oauth2/token", {
     method: "POST",
     headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
     body: params.toString(),
-  });
+  }, 15_000);
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data.refresh_token) {
     throw new Error(data.error_description || data.error || "Dropbox authorization failed");
@@ -2753,7 +2927,13 @@ async function handleTestConnection(req, res) {
   const started = Date.now();
   const type = String(body.type || "").toLowerCase();
   const baseUrl = String(body.url || body.baseUrl || "").replace(/\/+$/, "");
-  const token = String(body.token || body.apiKey || "");
+  let token = String(body.token || body.apiKey || "");
+  // The browser never receives stored secrets, so the settings form may submit a
+  // blank token for an already-configured server — fall back to the saved credential.
+  if (!token && ["plex", "emby", "jellyfin"].includes(type)) {
+    const config = await loadMediaConfig().catch(() => null);
+    token = type === "plex" ? String(config?.plex?.token || "") : String(config?.[type]?.apiKey || "");
+  }
   if (!type || !baseUrl || !token) return sendJson(res, { ok: false, error: "type, url, and token are required" }, 400);
 
   try {
@@ -2770,10 +2950,10 @@ async function handleTestConnection(req, res) {
     let response;
     if (type === "plex") {
       const url = assertSafeOutboundUrl(`${baseUrl}/identity`);
-      response = await fetch(url, { headers: { Accept: "application/json, application/xml, text/xml", "X-Plex-Token": token } });
+      response = await fetchWithTimeout(url, { headers: { Accept: "application/json, application/xml, text/xml", "X-Plex-Token": token } }, 8000);
     } else if (type === "emby" || type === "jellyfin") {
       const url = assertSafeOutboundUrl(`${baseUrl}/System/Info/Public`);
-      response = await fetch(url, { headers: { Accept: "application/json", "X-Emby-Token": token, "X-MediaBrowser-Token": token } });
+      response = await fetchWithTimeout(url, { headers: { Accept: "application/json", "X-Emby-Token": token, "X-MediaBrowser-Token": token } }, 8000);
     } else {
       return sendJson(res, { ok: false, error: "Unsupported connection type" }, 400);
     }
@@ -4027,7 +4207,7 @@ async function handleYoutubeMeta(req, res) {
   let title = "";
   let channelName = "";
   try {
-    const oembedRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+    const oembedRes = await fetchWithTimeout(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, {}, 8000);
     if (oembedRes.ok) {
       const oembed = await oembedRes.json();
       title = oembed.title || "";
@@ -4043,7 +4223,7 @@ async function handleYoutubeMeta(req, res) {
   const ytApiKey = config.youtube?.apiKey;
   if (ytApiKey) {
     try {
-      const apiRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${encodeURIComponent(videoId)}`, { headers: { "X-goog-api-key": ytApiKey } });
+      const apiRes = await fetchWithTimeout(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${encodeURIComponent(videoId)}`, { headers: { "X-goog-api-key": ytApiKey } }, 8000);
       if (apiRes.ok) {
         const apiData = await apiRes.json();
         const item = apiData.items?.[0];
@@ -4340,6 +4520,7 @@ async function dispatch(req, res) {
     if (path === "seerr/status") return handleSeerrStatus(req, res);
     if (path === "seerr/media-status") return handleSeerrMediaStatus(req, res);
     if (path === "seerr/request") return handleSeerrRequest(req, res);
+    if (path === "media-app-links") return handleMediaAppLinks(req, res);
     if (path === "tmdb-poster") return handleTmdbPoster(req, res);
     if (path === "tmdb-profile") return handleTmdbProfile(req, res);
     if (path === "poster") return handlePoster(req, res);
@@ -4354,7 +4535,13 @@ async function dispatch(req, res) {
     return notFound(res);
   } catch (error) {
     console.error("API route failed", error);
-    return sendJson(res, { error: "API route failed", details: error.message }, 500);
+    // Deliberate client errors (error.status set by a handler) keep their message;
+    // unexpected errors return a generic 500 so internal details never reach the client.
+    const status = Number(error?.status);
+    if (Number.isInteger(status) && status >= 400 && status < 500) {
+      return sendJson(res, { error: error.message || "Request failed" }, status);
+    }
+    return sendJson(res, { error: "API route failed" }, 500);
   }
 }
 

@@ -1542,24 +1542,31 @@ function syncSettingsInputsDisabledState() {
 }
 
 function populateConfigForm(config = {}) {
+  // Secrets never reach the browser — /api/config returns a `configured` flag per
+  // section instead. Token/key inputs stay blank; a blank field on save means
+  // "keep the stored credential" server-side.
   elements.plexEnabled.checked = !config.plex?.disabled;
   elements.plexServerUrl.value = config.plex?.baseUrl || config.plex?.url || "";
-  elements.plexToken.value = config.plex?.token || config.plex?.apiKey || "";
+  elements.plexToken.value = "";
+  elements.plexToken.placeholder = config.plex?.configured ? "Configured - enter a new token to replace it" : "Plex token";
   elements.plexUsername.value = config.plex?.username || "";
 
   elements.embyEnabled.checked = !config.emby?.disabled;
   elements.embyServerUrl.value = config.emby?.baseUrl || config.emby?.url || "";
-  elements.embyApiKey.value = config.emby?.apiKey || config.emby?.api_key || "";
+  elements.embyApiKey.value = "";
+  elements.embyApiKey.placeholder = config.emby?.configured ? "Configured - enter a new key to replace it" : "Emby API key";
   elements.embyUserId.value = config.emby?.userId || "";
 
   elements.jellyfinEnabled.checked = !config.jellyfin?.disabled;
   elements.jellyfinServerUrl.value = config.jellyfin?.baseUrl || config.jellyfin?.url || "";
-  elements.jellyfinApiKey.value = config.jellyfin?.apiKey || config.jellyfin?.api_key || "";
+  elements.jellyfinApiKey.value = "";
+  elements.jellyfinApiKey.placeholder = config.jellyfin?.configured ? "Configured - enter a new key to replace it" : "Jellyfin API key";
   elements.jellyfinUserId.value = config.jellyfin?.userId || "";
 
   if (elements.tmdbApiKey) elements.tmdbApiKey.value = "";
   if (elements.tmdbApiKey) elements.tmdbApiKey.placeholder = config.tmdb?.configured ? "Configured - enter a new key to replace it" : "TMDB API key";
-  if (elements.youtubeApiKey) elements.youtubeApiKey.value = config.youtube?.apiKey || "";
+  if (elements.youtubeApiKey) elements.youtubeApiKey.value = "";
+  if (elements.youtubeApiKey) elements.youtubeApiKey.placeholder = config.youtube?.configured ? "Configured - enter a new key to replace it" : "YouTube Data API key (optional)";
   if (elements.fanartApiKey) elements.fanartApiKey.value = "";
   if (elements.fanartApiKey) elements.fanartApiKey.placeholder = config.fanart?.configured ? "Configured - enter a new key to replace it" : "Personal API key (optional)";
   if (elements.tvdbApiKey) elements.tvdbApiKey.value = "";
@@ -1704,7 +1711,10 @@ async function saveSavedConfig() {
       ...config,
       tmdb: { configured: Boolean(config.tmdb?.apiKey || state.savedConfig.tmdb?.configured) },
     };
-    if (elements.tmdbApiKey) elements.tmdbApiKey.value = "";
+    // Re-populate from the server's redacted config: secret inputs are blanked
+    // and their placeholders switch to "Configured".
+    if (body.config) populateConfigForm(body.config);
+    else if (elements.tmdbApiKey) elements.tmdbApiKey.value = "";
     state.configLoaded = true;
     clearDerivedUiCaches();
     renderSettingsStatus("Configuration saved. Run Full Sync Watchstates if a media server was rebuilt or newly added.", "success");
@@ -1801,11 +1811,29 @@ async function saveSectionConfig(section) {
     const savedSectionConfig = body.config?.[section];
     const previousSectionConfig = state.savedConfig?.[section] || {};
 
-    // Update state.savedConfig with new section values
+    // Update state.savedConfig with new section values — prefer the server's
+    // redacted echo (it carries the authoritative `configured` flag).
     state.savedConfig = {
       ...state.savedConfig,
-      [section]: payload[section],
+      [section]: savedSectionConfig || payload[section],
     };
+    if (section === "plex" || section === "emby" || section === "jellyfin") {
+      const secretInput = section === "plex" ? elements.plexToken : section === "emby" ? elements.embyApiKey : elements.jellyfinApiKey;
+      const emptyLabel = section === "plex" ? "Plex token" : section === "emby" ? "Emby API key" : "Jellyfin API key";
+      if (secretInput) {
+        secretInput.value = "";
+        secretInput.placeholder = savedSectionConfig?.configured
+          ? `Configured - enter a new ${section === "plex" ? "token" : "key"} to replace it`
+          : emptyLabel;
+      }
+    }
+    if (section === "youtube") {
+      state.savedConfig.youtube = {
+        configured: Boolean(payload.youtube.apiKey || state.savedConfig.youtube?.configured),
+      };
+      if (elements.youtubeApiKey) elements.youtubeApiKey.value = "";
+      if (elements.youtubeApiKey) elements.youtubeApiKey.placeholder = state.savedConfig.youtube.configured ? "Configured - enter a new key to replace it" : "YouTube Data API key (optional)";
+    }
     if (section === "tmdb") {
       state.savedConfig.tmdb = {
         configured: Boolean(payload.tmdb.apiKey || state.savedConfig.tmdb?.configured)
@@ -2077,7 +2105,9 @@ async function testConnection(type, button) {
   const payload = connectionPayloadFromElements(type, elements);
   const label = connectionLabel(type);
 
-  if (!payload.url || !payload.token) {
+  // A blank token is allowed when the server is already configured — the backend
+  // falls back to the stored credential (secrets are never sent to the browser).
+  if (!payload.url || (!payload.token && !state.savedConfig?.[type]?.configured)) {
     const message = `${label} test blocked: server URL and token are required.`;
     setConnectionStatus(type, message, "error");
     logDebug(message);

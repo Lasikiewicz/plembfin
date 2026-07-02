@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "./outbound.js";
+
 function trimTrailingSlash(value = "") {
   return String(value).replace(/\/+$/, "");
 }
@@ -24,7 +26,7 @@ function providerTerms(ids = {}) {
 }
 
 async function fetchJson(url, config) {
-  const response = await fetch(url, { headers: authHeaders(config) });
+  const response = await fetchWithTimeout(url, { headers: authHeaders(config) });
   if (!response.ok) {
     throw new Error(`Emby request failed with status ${response.status}`);
   }
@@ -225,7 +227,7 @@ export async function markEmbyPlayed(config, media) {
       const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${item.Id}`);
       url.searchParams.set("api_key", config.apiKey);
 
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         method: "POST",
         headers: authHeaders(config),
       });
@@ -260,7 +262,7 @@ export async function markEmbyUnplayed(config, media) {
       const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${item.Id}`);
       url.searchParams.set("api_key", config.apiKey);
 
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         method: "DELETE",
         headers: authHeaders(config),
       });
@@ -301,7 +303,7 @@ export async function setEmbyProgress(config, media) {
       const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/Items/${item.Id}/UserData`);
       url.searchParams.set("api_key", config.apiKey);
 
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         method: "POST",
         headers: {
           ...authHeaders(config),
@@ -363,7 +365,7 @@ export async function markEmbyUnplayedById(config, itemId) {
   const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${itemId}`);
   url.searchParams.set("api_key", config.apiKey);
 
-  const response = await fetch(url, { method: "DELETE", headers: authHeaders(config) });
+  const response = await fetchWithTimeout(url, { method: "DELETE", headers: authHeaders(config) });
   if (!response.ok) {
     throw new Error(`Emby mark unplayed failed with status ${response.status} for item ${itemId}`);
   }

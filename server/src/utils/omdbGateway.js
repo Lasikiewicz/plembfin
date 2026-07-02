@@ -1,4 +1,5 @@
 import { db, parseJson, toJson } from "../db.js";
+import { fetchWithTimeout } from "./outbound.js";
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -17,7 +18,7 @@ export async function getOmdbRating(imdbId, apiKey) {
   }
 
   const url = `https://www.omdbapi.com/?i=${encodeURIComponent(imdbId)}&apikey=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`OMDb API error: ${res.status}`);
   const data = await res.json();
 

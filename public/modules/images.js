@@ -150,12 +150,12 @@ export function configuredImageUrl(path, item = {}) {
 
   try {
     const url = new URL(raw, `${baseUrl}/`);
-    if (server.source === "plex" && (server.token || server.apiKey)) {
-      url.searchParams.set("X-Plex-Token", server.token || server.apiKey);
-    }
-    if ((server.source === "emby" || server.source === "jellyfin") && (server.apiKey || server.api_key)) {
-      url.searchParams.set("api_key", server.apiKey || server.api_key);
-    }
+    // Credentials never reach the browser (/api/config is redacted), so direct
+    // server-image URLs can't carry a token. Plex rejects unauthenticated image
+    // requests — bail out so callers use the /api/poster pipeline (which fetches
+    // and caches server artwork with the stored token) instead of a 401 <img>.
+    // Emby/Jellyfin image endpoints serve without an api_key.
+    if (server.source === "plex" && !url.searchParams.has("X-Plex-Token")) return "";
     if (window.location.protocol === "https:" && url.protocol === "http:") return "";
     return url.toString();
   } catch (error) {

@@ -245,9 +245,58 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
   ].filter(([, value]) => value);
   if (!facts.length) return "";
   const wideLabels = new Set(["Streaming", "Network"]);
+  const tmdbId = tmdbData.id || tmdbData.tmdb_id || "";
+  const imdbId = tmdbData.imdb_id || tmdbData.external_ids?.imdb_id || "";
+  const tvdbId = tmdbData.external_ids?.tvdb_id || "";
+  const title = mediaType === "tv" ? (tmdbData.name || tmdbData.original_name || "") : (tmdbData.title || tmdbData.original_title || "");
   return `<aside class="media-facts-rail ${placement === "sidebar" ? "media-facts-rail--sidebar" : ""}" aria-label="Media facts">${facts.map(([label, value]) => `
     <div class="media-fact${wideLabels.has(label) ? " media-fact--wide" : ""}"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>
-  `).join("")}</aside>`;
+  `).join("")}
+    <div class="media-fact media-fact--wide media-app-links" data-media-app-links
+      data-media-type="${escapeAttribute(mediaType)}"
+      data-tmdb-id="${escapeAttribute(String(tmdbId))}"
+      data-imdb-id="${escapeAttribute(String(imdbId))}"
+      data-tvdb-id="${escapeAttribute(String(tvdbId))}"
+      data-title="${escapeAttribute(title)}"
+      hidden></div>
+  </aside>`;
+}
+
+export async function hydrateMediaAppLinks(root = document) {
+  const containers = [...root.querySelectorAll("[data-media-app-links]")];
+  if (!containers.length) return;
+
+  await Promise.all(containers.map(async (container) => {
+    if (container.dataset.loaded === "true") return;
+    container.dataset.loaded = "true";
+
+    const params = new URLSearchParams();
+    params.set("mediaType", container.dataset.mediaType || "movie");
+    for (const [param, attr] of [["tmdbId", "tmdbId"], ["imdbId", "imdbId"], ["tvdbId", "tvdbId"], ["title", "title"]]) {
+      const value = container.dataset[attr] || "";
+      if (value) params.set(param, value);
+    }
+
+    try {
+      const response = await fetch(`/api/media-app-links?${params.toString()}`, { headers: authHeaders(), cache: "no-store" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(body.links) || !body.links.length) return;
+      container.innerHTML = `
+        <span>Open in</span>
+        <b class="media-app-link-row">
+          ${body.links.map((link) => `
+            <a class="media-app-link media-app-link--${escapeAttribute(link.target || "")}" href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(`Open in ${link.label}`)}" aria-label="${escapeAttribute(`Open in ${link.label}`)}">
+              ${link.iconUrl ? `<img class="media-app-link-logo" src="${escapeAttribute(link.iconUrl)}" alt="" loading="lazy" data-err="hide-show-next" />` : ""}
+              <span>${escapeHtml(link.label)}</span>
+            </a>
+          `).join("")}
+        </b>
+      `;
+      container.hidden = false;
+    } catch {
+      // App links are optional; leave the facts rail unchanged if lookup fails.
+    }
+  }));
 }
 export function tmdbTitleUrl(mediaType, tmdbId) {
   const id = String(tmdbId || "");
