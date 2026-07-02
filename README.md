@@ -198,7 +198,9 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 *   **Seerr Server URL**: Your Overseerr or Jellyseerr server URL (e.g., `http://192.168.1.100:5055`).
 *   **Seerr API Key**: Copy the API key from your Seerr Settings → General.
 *   Availability badges are based on Plembfin's configured Plex, Emby, and Jellyfin apps, not Seerr's cached availability state.
+*   Each episode row on a TV show's detail page shows its resolution (e.g. 720p, 1080p, 4K) when the episode is available in one of the configured apps.
 *   Requesting a TV show opens a season picker listing every season (with current availability), so you can choose exactly which seasons to send to Seerr instead of requesting the whole series.
+*   Availability and resolution lookups are cached in memory for 3 minutes per title, so reopening a detail page doesn't re-query Plex/Emby/Jellyfin/Seerr every time; submitting a request clears that title's cache immediately.
 
 ---
 

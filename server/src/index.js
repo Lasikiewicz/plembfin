@@ -367,6 +367,15 @@ async function handleConfig(req, res) {
   return methodNotAllowed(res);
 }
 
+const SEERR_MEDIA_STATUS_TTL_MS = 3 * 60 * 1000;
+const seerrMediaStatusCache = new Map();
+function seerrMediaStatusCacheKey(mediaType, mediaId) {
+  return `${mediaType}:${mediaId}`;
+}
+function invalidateSeerrMediaStatus(mediaType, mediaId) {
+  seerrMediaStatusCache.delete(seerrMediaStatusCacheKey(mediaType, mediaId));
+}
+
 async function handleSeerrStatus(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -473,6 +482,7 @@ async function handleSeerrRequest(req, res) {
       return sendJson(res, { ok: false, error: errMsg }, 502);
     }
 
+    invalidateSeerrMediaStatus(mediaType, mediaId);
     return sendJson(res, { ok: true, requestId: responseBody?.id || null });
   } catch (err) {
     return sendJson(res, { ok: false, error: err.message || "Connection to Seerr failed" }, 502);
@@ -515,6 +525,58 @@ function mediaItemLooks4k(item = {}) {
   return false;
 }
 
+const RESOLUTION_RANK = { SD: 0, "480p": 1, "576p": 1, "720p": 2, "1080p": 3, "4K": 4 };
+
+function resolutionLabelFromDimensions(width, height) {
+  const long = Math.max(Number(width) || 0, Number(height) || 0);
+  if (long >= 3800) return "4K";
+  if (long >= 1900) return "1080p";
+  if (long >= 1200) return "720p";
+  if (long >= 960) return "576p";
+  if (long >= 700) return "480p";
+  return long > 0 ? "SD" : null;
+}
+
+function resolutionLabelFromText(value) {
+  const text = String(value || "").toLowerCase();
+  if (!text) return null;
+  if (text.includes("4k") || text.includes("2160") || text.includes("uhd")) return "4K";
+  if (text.includes("1080")) return "1080p";
+  if (text.includes("720")) return "720p";
+  if (text.includes("576")) return "576p";
+  if (text.includes("480")) return "480p";
+  if (/\bsd\b/.test(text)) return "SD";
+  return null;
+}
+
+// Walks the same server-specific shapes as mediaItemLooks4k, but keeps the highest-ranked
+// resolution label found instead of just a 4K boolean, so episode rows can show 720p/1080p/4K.
+function mediaItemResolutionLabel(item = {}) {
+  const stack = [item];
+  const seen = new Set();
+  let best = null;
+  const consider = (label) => {
+    if (label && (!best || RESOLUTION_RANK[label] > RESOLUTION_RANK[best])) best = label;
+  };
+  while (stack.length) {
+    const current = stack.pop();
+    if (!current || typeof current !== "object" || seen.has(current)) continue;
+    seen.add(current);
+    const width = current.width || current.Width || current.videoWidth || current.VideoWidth;
+    const height = current.height || current.Height || current.videoHeight || current.VideoHeight;
+    if (width || height) consider(resolutionLabelFromDimensions(width, height));
+    for (const key of ["videoResolution", "VideoResolution", "resolution", "Resolution", "displayTitle", "DisplayTitle"]) {
+      consider(resolutionLabelFromText(current[key]));
+    }
+    for (const key of ["Media", "media", "MediaSources", "mediaSources", "MediaStreams", "mediaStreams", "Streams", "streams"]) {
+      const next = current[key];
+      if (Array.isArray(next)) stack.push(...next);
+      else if (next && typeof next === "object") stack.push(next);
+    }
+  }
+  return best;
+}
+
 function episodeCoordinate(item = {}) {
   const season = Number(item.parentIndex ?? item.ParentIndexNumber ?? item.SeasonNumber ?? item.seasonNumber ?? item.ParentIndex ?? 0);
   const episode = Number(item.index ?? item.IndexNumber ?? item.EpisodeNumber ?? item.episodeNumber ?? item.Index ?? 0);
@@ -549,6 +611,7 @@ function summarizeTvAvailability(details = {}, sources = []) {
   const { seasons, releasedKeys } = tmdbSeasonEpisodeIndex(details);
   const availableKeys = new Set();
   const available4kKeys = new Set();
+  const resolutionByKey = new Map();
 
   for (const source of sources) {
     for (const episode of source.episodes || []) {
@@ -556,6 +619,13 @@ function summarizeTvAvailability(details = {}, sources = []) {
       if (!coordinate) continue;
       availableKeys.add(coordinate.key);
       if (mediaItemLooks4k(episode)) available4kKeys.add(coordinate.key);
+      const resolutionLabel = mediaItemResolutionLabel(episode);
+      if (resolutionLabel) {
+        const existing = resolutionByKey.get(coordinate.key);
+        if (!existing || RESOLUTION_RANK[resolutionLabel] > RESOLUTION_RANK[existing]) {
+          resolutionByKey.set(coordinate.key, resolutionLabel);
+        }
+      }
     }
   }
 
@@ -588,6 +658,7 @@ function summarizeTvAvailability(details = {}, sources = []) {
     availableEpisodes,
     available4kEpisodes,
     seasons: seasonSummaries,
+    episodeResolutions: Object.fromEntries(resolutionByKey),
     sources: sources.map((source) => ({
       target: source.target,
       availableEpisodes: source.episodes?.length || 0,
@@ -684,6 +755,12 @@ async function handleSeerrMediaStatus(req, res) {
     return sendJson(res, { ok: false, error: "mediaType and mediaId are required." }, 400);
   }
 
+  const cacheKey = seerrMediaStatusCacheKey(mediaType, mediaId);
+  const cached = seerrMediaStatusCache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAtMs < SEERR_MEDIA_STATUS_TTL_MS && !req.query.forceRefresh) {
+    return sendJson(res, cached.body);
+  }
+
   try {
     assertSafeOutboundUrl(baseUrl, { label: "Seerr baseUrl" });
   } catch (error) {
@@ -723,7 +800,7 @@ async function handleSeerrMediaStatus(req, res) {
 
     if (!media) {
       if (configuredAppStatus.checked) {
-        return sendJson(res, {
+        const body = {
           ok: true,
           found: false,
           ...configuredAppStatus,
@@ -736,7 +813,9 @@ async function handleSeerrMediaStatus(req, res) {
           availabilitySource: "configured_apps",
           configuredAppStatus,
           seerrError: lastErrorMsg || "Media not found on Seerr",
-        });
+        };
+        seerrMediaStatusCache.set(cacheKey, { cachedAtMs: Date.now(), body });
+        return sendJson(res, body);
       }
       return sendJson(res, { ok: false, error: lastErrorMsg || "Media not found on Seerr" }, 502);
     }
@@ -752,7 +831,7 @@ async function handleSeerrMediaStatus(req, res) {
     const pending = !available && Boolean(requested || [2, 3, 4].includes(status));
     const pending4k = !available4k && Boolean(requested4k || [2, 3, 4].includes(status4k));
 
-    return sendJson(res, {
+    const body = {
       ok: true,
       found: Boolean(media),
       ...configuredAppStatus,
@@ -766,7 +845,9 @@ async function handleSeerrMediaStatus(req, res) {
       configuredAppStatus,
       seerrAvailable,
       seerrAvailable4k,
-    });
+    };
+    seerrMediaStatusCache.set(cacheKey, { cachedAtMs: Date.now(), body });
+    return sendJson(res, body);
   } catch (err) {
     return sendJson(res, { ok: false, error: err.message || "Connection to Seerr failed" }, 502);
   }

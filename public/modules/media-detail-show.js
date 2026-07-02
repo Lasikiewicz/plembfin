@@ -10,7 +10,7 @@ import {
   renderCastSection, renderTrailersReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
   renderSeasonSeerrControls, renderSeerrRequestPill, fetchSeerrMediaStatus,
-  refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml,
+  refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml, episodeResolutionPillHtml,
 } from "./media-detail-shared.js";
 
 let _playbackProgressRows = [];
@@ -591,6 +591,7 @@ export function renderShowModalContent(show, {
                     ${escapeHtml(episodeCode(episode.seasonNumber, episode.episodeNumber))} ${escapeHtml(episode.title)}
                     ${syncStatusDotHtml}
                     ${episodeProgressHtml(episode)}
+                    ${episodeResolutionPillHtml(tvSeerrStatus, episode.seasonNumber, episode.episodeNumber)}
                   </b>
                 </div>
                 <div class="immersive-episode-copy-wrap"><p>${escapeHtml(episode.overview)}</p></div>

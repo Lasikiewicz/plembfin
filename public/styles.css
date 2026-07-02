@@ -5885,6 +5885,7 @@ details[open] .tool-accordion-chevron::before {
 }
 
 .seerr-owned-pill {
+  min-height: 2rem;
   border-color: rgba(16, 185, 129, 0.45);
   background: rgba(16, 185, 129, 0.14);
   color: #86efac;
@@ -5958,14 +5959,14 @@ details[open] .tool-accordion-chevron::before {
 .season-availability-pill {
   display: inline-flex;
   align-items: center;
-  min-height: 1.45rem;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.35);
+  min-height: 1.7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
   color: var(--soft);
-  padding: 0.15rem 0.45rem;
-  font-size: 0.64rem;
-  font-weight: 850;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 800;
   line-height: 1.1;
   white-space: nowrap;
 }
@@ -5986,6 +5987,12 @@ details[open] .tool-accordion-chevron::before {
   border-color: rgba(248, 113, 113, 0.36);
   background: rgba(127, 29, 29, 0.18);
   color: #fecaca;
+}
+
+.episode-resolution-pill {
+  min-height: 1.35rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.62rem;
 }
 
 .season-availability-pill.is-4k {

@@ -282,6 +282,11 @@ export function tvAvailability4kLabel(status = {}) {
 export function tvSeasonAvailability(status = {}, seasonNumber) {
   return (status.seasons || []).find((season) => Number(season.seasonNumber) === Number(seasonNumber)) || null;
 }
+export function episodeResolutionPillHtml(status = {}, seasonNumber, episodeNumber) {
+  const label = status.episodeResolutions?.[`${seasonNumber}|${episodeNumber}`];
+  if (!label) return "";
+  return `<span class="season-availability-pill episode-resolution-pill ${label === "4K" ? "is-4k" : ""}">${escapeHtml(label)}</span>`;
+}
 export function tvSeasonAvailabilityHtml(status = {}, seasonNumber, watchedInSeason = 0) {
   if (!Array.isArray(status.seasons)) return "";
   const season = tvSeasonAvailability(status, seasonNumber);
