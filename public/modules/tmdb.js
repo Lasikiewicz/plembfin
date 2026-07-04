@@ -82,7 +82,9 @@ export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}) {
 }
 
 export async function fetchTmdbSeasonDetails(tmdbId, seasonNumber) {
-  if (!state.savedConfig.tmdb?.configured || !tmdbId || seasonNumber == null) return null;
+  // Per-season episode data is TVDB-backed server-side (built-in project key), so
+  // this doesn't depend on the user having a personal TMDB key configured.
+  if (!tmdbId || seasonNumber == null) return null;
   const cacheKey = `${tmdbId}|${seasonNumber}`;
   if (state.tmdbSeasonCache.has(cacheKey)) return state.tmdbSeasonCache.get(cacheKey);
   const promise = fetch(`/api/tmdb-season?tmdbId=${encodeURIComponent(tmdbId)}&seasonNumber=${encodeURIComponent(seasonNumber)}`, { headers: authHeaders() })

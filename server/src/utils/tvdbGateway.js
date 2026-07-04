@@ -370,6 +370,10 @@ export function shapeTvdbSeriesAsTmdb(extended) {
   }
   const seasons = (Array.isArray(extended.seasons) ? extended.seasons : [])
     .filter((season) => (season.type?.type === "official" || season.type?.name === "Aired Order") && Number(season.number) >= 0)
+    // TVDB sometimes carries an empty "Specials" placeholder (season 0) with no
+    // episodes attached — unlike a not-yet-aired regular season, an empty Specials
+    // entry has nothing to browse, so drop it rather than show a dead accordion row.
+    .filter((season) => Number(season.number) > 0 || episodeCounts.has(0))
     .map((season) => ({
       season_number: season.number,
       episode_count: episodeCounts.get(Number(season.number)) ?? null,

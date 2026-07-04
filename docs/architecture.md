@@ -87,6 +87,9 @@ every caller (routes, frontend, `deriveNextAiring`) is unaware of the split:
   points at a stale/incorrect TMDB id; `getTvShowDetails` verifies it by fetching that
   id and, if it 404s, falls back to a TMDB title search and uses the corrected id —
   otherwise cast/trailers/images would silently stay empty for that show.
+- A "Specials" (season 0) entry is only included in a show's `seasons` list when
+  TheTVDB actually has episodes attached to it — an empty placeholder season is
+  dropped rather than shown as a dead, always-empty accordion row.
 - **Movies** are unaffected — 100% TMDB, same as before.
 
 Like `fanartGateway.js`, `tvdbGateway.js` ships a hardcoded project API key so TVDB

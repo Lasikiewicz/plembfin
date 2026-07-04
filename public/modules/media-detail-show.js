@@ -453,10 +453,9 @@ function episodeProgressBarHtml(episode) {
   `;
 }
 
-function showModalStatus(loading, hasTmdbKey, hasTmdbData) {
+function showModalStatus(loading, hasTmdbData) {
   if (loading) return `<span class="show-load-pill">Loading episode metadata...</span>`;
-  if (!hasTmdbKey) return `<span class="show-load-pill muted">Add a TMDB API key to load all seasons and episode synopses.</span>`;
-  if (!hasTmdbData) return `<span class="show-load-pill muted">TMDB episode metadata was unavailable.</span>`;
+  if (!hasTmdbData) return `<span class="show-load-pill muted">Season and episode metadata was unavailable.</span>`;
   return "";
 }
 
@@ -506,7 +505,6 @@ export function renderShowModalContent(show, {
   show = mergeShowWithLoadedHistory(show);
   const seasonsMap = seasonsFromShowRecord(show);
   const showTitle = sanitizeTitle(show.title) || "Unknown Show";
-  const hasTmdbKey = Boolean(state.savedConfig.tmdb?.configured);
   // Specials (season 0) are kept in the list so they're still browsable, but
   // are excluded from the progress totals below — a "100 of 100" show isn't
   // meant to imply specials don't exist, just that they don't count toward it.
@@ -615,7 +613,7 @@ export function renderShowModalContent(show, {
               </div>
             </article>
           `;
-  }).join("") : `<div class="empty-log"><b>No episode rows yet</b><span>${loading ? "Episode metadata is loading." : "No local or TMDB episodes were found for this season."}</span></div>`}
+  }).join("") : `<div class="empty-log"><b>No episode rows yet</b><span>${loading ? "Episode metadata is loading." : "No local or TVDB episodes were found for this season."}</span></div>`}
       </div>
     </section>
   ` : "";
@@ -688,7 +686,7 @@ export function renderShowModalContent(show, {
             <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
               ${ratingPillsHtml}
               ${imdbPillHtml}
-              ${showModalStatus(loading, hasTmdbKey, Boolean(tmdbData))}
+              ${showModalStatus(loading, Boolean(tmdbData))}
               ${renderSeerrRequestPill("tv", tvSeerrTmdbId, showIsNowPlaying)}
             </div>
 
