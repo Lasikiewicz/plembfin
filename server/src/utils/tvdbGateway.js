@@ -237,20 +237,21 @@ let artworkTypesPromise = null;
 let artworkTypesCachedAt = 0;
 
 // Series artwork type ids aren't stable/documented constants — they're resolved
-// dynamically from /artwork/types (cached in-memory) and matched by slug so this
-// keeps working even if TVDB renumbers or adds types.
+// dynamically from /artwork/types (cached in-memory) and matched by `name` (not
+// `slug` — TVDB's slugs are inconsistently pluralized, e.g. "posters"/"backgrounds"
+// vs singular "clearlogo"/"clearart", while `name` is a consistent singular label).
 async function getSeriesArtworkTypeIds() {
   if (artworkTypesPromise && fresh(artworkTypesCachedAt, ARTWORK_TYPES_TTL_MS)) return artworkTypesPromise;
   artworkTypesCachedAt = Date.now();
   artworkTypesPromise = upstream("artwork-types", {})
     .then((types) => {
-      const bySlug = {};
+      const byName = {};
       for (const t of Array.isArray(types) ? types : []) {
         if (String(t.recordType || "").toLowerCase() !== "series") continue;
-        const slug = String(t.slug || t.name || "").toLowerCase();
-        if (slug) bySlug[slug] = Number(t.id);
+        const name = String(t.name || "").toLowerCase();
+        if (name) byName[name] = Number(t.id);
       }
-      return bySlug;
+      return byName;
     })
     .catch(() => ({}));
   return artworkTypesPromise;
@@ -259,8 +260,8 @@ async function getSeriesArtworkTypeIds() {
 export async function getTvdbSeriesArtwork(tvdbId) {
   const id = normalizeTvdbId(tvdbId);
   if (!id) return { posters: [], logos: [], backdrops: [] };
-  const bySlug = await getSeriesArtworkTypeIds();
-  const typeIds = [bySlug.poster, bySlug.background, bySlug.clearlogo].filter((v) => Number.isFinite(v));
+  const byName = await getSeriesArtworkTypeIds();
+  const typeIds = [byName.poster, byName.background, byName.clearlogo].filter((v) => Number.isFinite(v));
   try {
     const data = await upstream({ type: "series-artworks", id }, typeIds.length ? { type: typeIds.join(",") } : {});
     const posters = [], logos = [], backdrops = [];
@@ -269,9 +270,9 @@ export async function getTvdbSeriesArtwork(tvdbId) {
       if (!url) continue;
       const entry = { url, lang: art.language || "", source: "TVDB" };
       const type = Number(art.type);
-      if (type === bySlug.poster) posters.push(entry);
-      else if (type === bySlug.background) backdrops.push(entry);
-      else if (type === bySlug.clearlogo) logos.push(entry);
+      if (type === byName.poster) posters.push(entry);
+      else if (type === byName.background) backdrops.push(entry);
+      else if (type === byName.clearlogo) logos.push(entry);
     }
     return { posters, logos, backdrops };
   } catch {
