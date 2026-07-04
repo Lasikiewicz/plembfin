@@ -1,7 +1,22 @@
 {
-  "version": "0.4.11",
-  "updatedAt": "2026-07-04T14:00:58+01:00",
+  "version": "0.4.12",
+  "updatedAt": "2026-07-04T14:36:38+01:00",
   "entries": [
+    {
+      "version": "0.4.12",
+      "date": "2026-07-04T14:36:38+01:00",
+      "commit": "fc12d65a1b7ec7ce3802f8ae5bf231f448d5c964",
+      "message": "Feature - Reorganize sidebar layout, enhance Clear Progress confirmation, and add app icon badges",
+      "author": "Lasikiewicz",
+      "details": [
+        "Moved Settings directly below Stats in the left sidebar instead of pinning it to the bottom",
+        "Anchored the theme toggle and version number to the bottom of the sidebar, with the version shown above the toggle, and removed the divider line above it",
+        "The Clear Progress confirmation now shows the media poster, title, episode, and watch progress, and clearly explains that it clears progress, marks the item unwatched, and syncs that status back to the originating and other connected media servers",
+        "Removed the redundant \"Action Confirmation\" label from confirmation popups",
+        "App Used badges on the dashboard, history, and now playing cards now show the Plex/Emby/Jellyfin icon alongside the platform name, matching the style used on media detail pages",
+        "Moved the Stats page summary cards (Plays, Movies, TV Shows, Top Platform, Busiest Month) into the top of the right-hand column and arranged them across two full-width rows"
+      ]
+    },
     {
       "version": "0.4.11",
       "date": "2026-07-04T14:00:58+01:00",
