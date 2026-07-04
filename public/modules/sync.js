@@ -1,6 +1,6 @@
 import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, platformBadge, sourceClass, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js";
+import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js";
 import { hydratePosters, posterMarkup } from "./images.js";
 
 const NOW_PLAYING_POLL_MS = 10000;
@@ -761,7 +761,7 @@ export function renderActiveSessions() {
               ${isEpisode && session.season != null ? `<span><span class="meta-label">Season/Ep:</span> S${session.season} · E${session.episode}</span>` : ""}
               ${userName ? `<span><span class="meta-label">User:</span> ${escapeHtml(userName)}</span>` : ""}
               ${deviceName ? `<span><span class="meta-label">Device:</span> ${escapeHtml(deviceName)}</span>` : ""}
-              <span><span class="meta-label">App Used:</span> <span class="source-badge ${sourceClass(session.source)}">${escapeHtml(platformBadge(session.source))}</span></span>
+              <span><span class="meta-label">App Used:</span> ${sourceBadgeHtml(session.source)}</span>
             </div>
             <div class="now-card-progress-container">
               <div class="now-card-progress-bar">

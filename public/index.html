@@ -78,6 +78,7 @@
             </div>
           </div>
           <div class="sidebar-footer">
+            <button id="appVersion" class="app-version" type="button" title="Open changelog">v0.0.0</button>
             <button id="themeToggleButton" class="theme-toggle-button" type="button" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">
               <span class="theme-toggle-track">
                 <span class="theme-toggle-thumb"></span>
@@ -85,7 +86,6 @@
                 <span class="theme-toggle-label theme-toggle-label--dark">Dark</span>
               </span>
             </button>
-            <button id="appVersion" class="app-version" type="button" title="Open changelog">v0.0.0</button>
           </div>
         </div>
       </nav>
@@ -231,8 +231,6 @@
             </div>
           </section>
 
-          <section id="statsKpiStrip" class="stats-kpi-strip"></section>
-
           <section class="stats-body-grid">
             <article class="glass-panel p-section stats-leaderboard-panel" id="topMediaReport">
               <div class="section-heading">
@@ -245,6 +243,8 @@
             </article>
 
             <div class="stats-insight-col">
+              <section id="statsKpiStrip" class="stats-kpi-strip"></section>
+
               <article class="glass-panel p-section" id="statsMoviesTvSplit"></article>
 
               <article class="glass-panel p-section">
@@ -1876,12 +1876,12 @@
       <article class="modal-panel glass-panel" style="max-width: 450px;">
         <div class="modal-head">
           <div>
-            <p class="eyebrow">Action confirmation</p>
             <h2 id="confirmModalTitle">Confirm Sync</h2>
           </div>
           <button id="closeConfirmModalButton" class="button-ghost" type="button">Close</button>
         </div>
         <div class="modal-body">
+          <div id="confirmModalMedia" class="confirm-modal-media hidden"></div>
           <p id="confirmModalMessage" class="muted-copy" style="margin-bottom: 1.5rem;"></p>
           <div class="modal-actions" style="display: flex; gap: 1rem; justify-content: flex-end;">
             <button id="cancelConfirmButton" class="button-ghost" type="button">Cancel</button>

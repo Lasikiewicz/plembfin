@@ -1280,6 +1280,18 @@ h2 {
   white-space: nowrap;
 }
 
+.source-badge--icon {
+  gap: 0.3rem;
+  padding: 0.22rem 0.5rem 0.22rem 0.4rem;
+}
+
+.source-badge-icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
 .history-sync-row {
   display: inline-flex;
   align-items: center;
@@ -2549,6 +2561,15 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+.stats-insight-col .stats-kpi-strip {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.stats-insight-col .stats-kpi-strip .stats-kpi-card {
+  flex: 1 1 30%;
 }
 
 /* Movies vs TV split */
@@ -3994,6 +4015,51 @@ details[open] .tool-accordion-chevron::before {
   align-items: start;
   justify-content: space-between;
   gap: var(--space-3);
+}
+
+.confirm-modal-media {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.confirm-modal-media.hidden {
+  display: none;
+}
+
+.confirm-modal-media-poster {
+  width: 56px;
+  height: 84px;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--panel-3);
+}
+
+.confirm-modal-media-info {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.confirm-modal-media-title {
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.confirm-modal-media-meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
 .diagnostic-grid {
@@ -6758,16 +6824,12 @@ h1 {
   padding: var(--space-1) 0;
 }
 
-.sidebar-secondary {
-  margin-top: auto;
-}
 
 .sidebar-footer {
-  margin-top: 0;
+  margin-top: auto;
   display: grid;
   gap: 0;
   padding: var(--space-3) 0;
-  border-top: 1px solid var(--line);
 }
 
 .app-version {
@@ -7773,7 +7835,6 @@ h1 {
 
   .sidebar-footer {
     margin-top: auto;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
   }
 
   .nav-label {
@@ -10933,7 +10994,6 @@ html.light-mode .modal-panel {
 }
 
 html.light-mode .sidebar-footer {
-  border-top: 1px solid var(--line);
   background: var(--panel-3);
 }
 

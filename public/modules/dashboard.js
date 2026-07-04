@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, platformBadge, sourceClass, formatDate, resolveEpisodeTitle } from "./utils.js";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle } from "./utils.js";
 import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, tmdbPoster } from "./images.js";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
@@ -222,7 +222,7 @@ function renderDashboardHistoryPageCard(entry) {
     href = entry.tmdb_id ? `/movie/tmdb/${entry.tmdb_id}` : movieHref(entry);
   }
 
-  const sourceBadge = entry.source ? `<span class="source-badge ${sourceClass(entry.source)}">${escapeHtml(platformBadge(entry.source))}</span>` : "None";
+  const sourceBadge = entry.source ? sourceBadgeHtml(entry.source) : "None";
   return `
     <a class="history-page-card dashboard-history-page-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
       <div class="history-card-poster-wrapper">
@@ -427,8 +427,8 @@ export function renderPartWatchedCard(entry) {
   }
 
   const sources = Array.isArray(entry.sources) && entry.sources.length ? entry.sources : (entry.source ? [entry.source] : []);
-  const sourceBadges = sources.map(src => `<span class="source-badge ${sourceClass(src)}">${escapeHtml(platformBadge(src))}</span>`).join(" ");
-  const sourceBadgeHtml = sourceBadges || "None";
+  const sourceBadges = sources.map(src => sourceBadgeHtml(src)).join(" ");
+  const sourceBadgeMarkup = sourceBadges || "None";
   const progressPercent = Math.round(entry.progress || 0);
   const formattedTime = entry.updated_at ? formatDate(entry.updated_at) : "";
   const prefetchType = isEpisode ? "tv" : "movie";
@@ -450,7 +450,7 @@ export function renderPartWatchedCard(entry) {
         <div class="part-watched-card-meta">
           ${isEpisode ? `<span><span class="meta-label">Season/Ep:</span> S${entry.season} · E${entry.episode}</span>` : ""}
           <span><span class="meta-label">Last Played:</span> ${formattedTime}</span>
-          <span><span class="meta-label">App Used:</span> ${sourceBadgeHtml}</span>
+          <span><span class="meta-label">App Used:</span> ${sourceBadgeMarkup}</span>
         </div>
 
         <div class="part-watched-progress-container">

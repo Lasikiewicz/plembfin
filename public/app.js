@@ -109,6 +109,7 @@ function bindElements() {
     clearImportButton: document.querySelector("#clearImportButton"),
     closeModalButton: document.querySelector("#closeModalButton"),
     confirmModal: document.querySelector("#confirmModal"),
+    confirmModalMedia: document.querySelector("#confirmModalMedia"),
     confirmModalMessage: document.querySelector("#confirmModalMessage"),
     approveConfirmButton: document.querySelector("#approveConfirmButton"),
     cancelConfirmButton: document.querySelector("#cancelConfirmButton"),
@@ -2235,18 +2236,29 @@ async function lockDashboard() {
 }
 
 
-function showConfirmModal(message, onApprove) {
+function showConfirmModal(message, onApprove, options = {}) {
   if (!elements.confirmModal || !elements.confirmModalMessage) return;
 
   const titleEl = document.getElementById("confirmModalTitle") || elements.confirmModal.querySelector("h2");
   if (titleEl) {
-    titleEl.textContent = "Confirm Sync";
+    titleEl.textContent = options.title || "Confirm Sync";
   }
   const cancelBtn = elements.cancelConfirmButton;
   if (cancelBtn) cancelBtn.style.display = "";
 
   elements.approveConfirmButton.textContent = "Approve";
 
+  if (elements.confirmModalMedia) {
+    if (options.mediaHtml) {
+      elements.confirmModalMedia.innerHTML = options.mediaHtml;
+      elements.confirmModalMedia.classList.remove("hidden");
+    } else {
+      elements.confirmModalMedia.innerHTML = "";
+      elements.confirmModalMedia.classList.add("hidden");
+    }
+  }
+
+  elements.confirmModalMessage.style.whiteSpace = "pre-wrap";
   elements.confirmModalMessage.textContent = message;
   elements.confirmModal.classList.remove("hidden");
 
@@ -2267,6 +2279,11 @@ function showErrorExplainModal(title, errorMsg) {
   const titleEl = document.getElementById("confirmModalTitle") || elements.confirmModal.querySelector("h2");
   if (titleEl) {
     titleEl.textContent = title;
+  }
+
+  if (elements.confirmModalMedia) {
+    elements.confirmModalMedia.innerHTML = "";
+    elements.confirmModalMedia.classList.add("hidden");
   }
 
   let resolutionInstructions = "";

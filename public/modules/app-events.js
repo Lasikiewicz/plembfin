@@ -1033,7 +1033,30 @@ function attachEvents() {
         openWatchDatePrompt(state.pendingWatchAction);
       }
     } else if (unwatchBtn) {
-      showConfirmModal(`Clear playback progress for "${title}"? This will mark it unwatched and reset progress.`, async () => {
+      const entry = state.partWatchedRaw.find(e => e.media_key === mediaKey);
+      const isEpisode = entry?.media_type === "episode";
+      const displayTitle = isEpisode ? (entry.show_title || showTitleFrom(entry.title)) : (entry?.title || title);
+      const progressPercent = Math.round(entry?.progress || 0);
+      const sources = entry ? (Array.isArray(entry.sources) && entry.sources.length ? entry.sources : (entry.source ? [entry.source] : [])) : [];
+      const sourceLabel = sources.length ? sources.map(platformName).join(", ") : "the originating server";
+
+      let mediaHtml = "";
+      if (entry) {
+        mediaHtml = `
+          ${posterMarkup(entry, "confirm-modal-media-poster")}
+          <div class="confirm-modal-media-info">
+            <span class="confirm-modal-media-title">${escapeHtml(displayTitle)}</span>
+            <span class="confirm-modal-media-meta">
+              ${isEpisode ? `<span>S${entry.season} · E${entry.episode}</span>` : ""}
+              <span>${progressPercent}% watched</span>
+            </span>
+          </div>
+        `;
+      }
+
+      const message = `This will clear the saved playback progress for "${title}", mark it as unwatched, and remove it from your Part Watched list.\n\nThe unwatched status will also be sent back to ${sourceLabel} and propagated to any other connected media servers, so it stays in sync everywhere.`;
+
+      showConfirmModal(message, async () => {
         const originalText = btn.textContent;
         btn.disabled = true;
         btn.textContent = "Clearing...";
@@ -1054,7 +1077,7 @@ function attachEvents() {
           btn.disabled = false;
           btn.textContent = originalText;
         }
-      });
+      }, { title: "Clear Progress", mediaHtml });
     }
   });
 

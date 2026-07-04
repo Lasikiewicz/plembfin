@@ -9,7 +9,7 @@ import {
 } from "./state.js";
 import {
   escapeHtml, escapeAttribute, slug, showTitleFrom, showName,
-  movieHref, platformBadge, sourceClass, formatDate,
+  movieHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
   computeProgress, sanitizeTitle, episodeTitle,
 } from "./utils.js";
 import { posterMarkup, hydratePosters, tmdbPoster, tmdbProfile } from "./images.js";
@@ -895,7 +895,7 @@ function historyEntryDisplay(entry) {
   } else {
     href = entry.tmdb_id ? `/movie/tmdb/${entry.tmdb_id}` : movieHref(entry);
   }
-  const sourceBadge = entry.source ? `<span class="source-badge ${sourceClass(entry.source)}">${escapeHtml(platformBadge(entry.source))}</span>` : "None";
+  const sourceBadge = entry.source ? sourceBadgeHtml(entry.source) : "None";
   const mediaLabel = isEpisode ? "TV Show" : "Movie";
   const seasonEpisode = isEpisode ? `S${entry.season} - E${entry.episode}` : "";
   return { isEpisode, displayTitle, epTitle, href, sourceBadge, mediaLabel, seasonEpisode };

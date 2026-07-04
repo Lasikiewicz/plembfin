@@ -203,6 +203,15 @@ export function sourceClass(value) {
   return `source-${normalizePlatformSource(value)}`;
 }
 
+export function platformIconUrl(value) {
+  return `/icons/${normalizePlatformSource(value)}.svg`;
+}
+
+export function sourceBadgeHtml(value) {
+  if (!value) return "";
+  return `<span class="source-badge source-badge--icon ${sourceClass(value)}"><img class="source-badge-icon" src="${platformIconUrl(value)}" alt="" loading="lazy" /><span>${escapeHtml(platformBadge(value))}</span></span>`;
+}
+
 export function computeProgress(offsetMs = 0, durationMs = 0) {
   if (!durationMs) return 0;
   return Math.max(0, Math.min(100, Math.round((Number(offsetMs || 0) / Number(durationMs || 1)) * 100)));
