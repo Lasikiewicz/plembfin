@@ -275,16 +275,63 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
   const imdbId = tmdbData.imdb_id || tmdbData.external_ids?.imdb_id || "";
   const tvdbId = tmdbData.external_ids?.tvdb_id || "";
   const title = mediaType === "tv" ? (tmdbData.name || tmdbData.original_name || "") : (tmdbData.title || tmdbData.original_title || "");
-  return `<aside class="media-facts-rail ${placement === "sidebar" ? "media-facts-rail--sidebar" : ""}" aria-label="Media facts">${facts.map(([label, value]) => `
+
+
+
+  // First 2 facts are always visible
+  const visibleFacts = facts.slice(0, 2);
+  const hiddenFacts = facts.slice(2);
+
+  const visibleHtml = visibleFacts.map(([label, value]) => `
+    <div class="media-fact"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>
+  `).join("");
+
+  const hiddenHtml = hiddenFacts.map(([label, value]) => `
     <div class="media-fact${wideLabels.has(label) ? " media-fact--wide" : ""}"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>
-  `).join("")}
+  `).join("");
+
+  const appsHtml = `
     <div class="media-fact media-fact--wide media-app-links" data-media-app-links
       data-media-type="${escapeAttribute(mediaType)}"
       data-tmdb-id="${escapeAttribute(String(tmdbId))}"
       data-imdb-id="${escapeAttribute(String(imdbId))}"
       data-tvdb-id="${escapeAttribute(String(tvdbId))}"
       data-title="${escapeAttribute(title)}"></div>
-  </aside>`;
+  `;
+
+  if (placement === "sidebar") {
+    return `
+      <div class="immersive-sidebar">
+        <details class="media-facts-details">
+          <summary class="media-facts-summary">
+            <div class="media-facts-visible-row">
+              ${visibleHtml}
+            </div>
+            <span class="media-facts-expand-btn"></span>
+          </summary>
+          <aside class="media-facts-rail media-facts-rail--sidebar" aria-label="Media facts">
+            ${hiddenHtml}
+          </aside>
+        </details>
+        ${appsHtml}
+      </div>
+    `;
+  }
+
+  return `
+    <details class="media-facts-details">
+      <summary class="media-facts-summary">
+        <div class="media-facts-visible-row">
+          ${visibleHtml}
+        </div>
+        <span class="media-facts-expand-btn"></span>
+      </summary>
+      <aside class="media-facts-rail" aria-label="Media facts">
+        ${hiddenHtml}
+        ${appsHtml}
+      </aside>
+    </details>
+  `;
 }
 
 export async function hydrateMediaAppLinks(root = document) {
@@ -303,7 +350,6 @@ export async function hydrateMediaAppLinks(root = document) {
     }
 
     const greyedOutHtml = `
-      <span>Open in</span>
       <b class="media-app-link-row">
         <a class="media-app-link media-app-link--plex media-app-link--disabled" title="Checking Plex..." aria-label="Checking Plex..." style="opacity: 0.4; cursor: not-allowed;">
           <img class="media-app-link-logo" src="/icons/plex.svg" alt="" loading="lazy" data-err="hide-show-next" />
@@ -338,7 +384,6 @@ export async function hydrateMediaAppLinks(root = document) {
 
       if (activeLinkHtml) {
         container.innerHTML = `
-          <span>Open in</span>
           <b class="media-app-link-row">
             ${activeLinkHtml}
           </b>

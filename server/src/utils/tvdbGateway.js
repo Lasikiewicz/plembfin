@@ -11,6 +11,7 @@ const PROJECT_KEY = String(process.env.TVDB_PROJECT_KEY || "").trim() || "94a93e
 const API_ROOT = "https://api4.thetvdb.com/v4";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SEARCH_TTL_MS = 180 * DAY_MS;
+const SEARCH_MISS_TTL_MS = 60 * 60 * 1000;
 const ACTIVE_SERIES_TTL_MS = 14 * DAY_MS;
 const ARCHIVED_SERIES_TTL_MS = 180 * DAY_MS;
 const UPCOMING_SEASON_TTL_MS = 2 * DAY_MS;
@@ -197,7 +198,7 @@ export async function resolveTvdbSeriesId({ tvdbId = "", title = "" } = {}) {
 
   const cacheKey = `search_${hash(canonicalTitle(cleanedTitle))}`;
   const cached = seriesGetStmt.get(cacheKey);
-  if (cached && fresh(cached.updated_at_ms, SEARCH_TTL_MS)) {
+  if (cached && fresh(cached.updated_at_ms, cached.tvdb_id ? SEARCH_TTL_MS : SEARCH_MISS_TTL_MS)) {
     const details = parseJson(cached.details);
     return details?.tvdb_id ? String(details.tvdb_id) : "";
   }

@@ -695,7 +695,6 @@ export function renderShowModalContent(show, {
             <p class="immersive-overview">${escapeHtml(overview)}</p>
 
             <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
-              <h3>Progress</h3>
               <div class="progress-label-row">
                 <span>${watchedCount} of ${totalCount} episodes watched</span>
                 <span>${progressPercent}% complete</span>

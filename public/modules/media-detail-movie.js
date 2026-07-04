@@ -184,23 +184,25 @@ function _renderWatchedMovieContent(root, movie, {
         <div class="immersive-meta">
           ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
           <p class="immersive-subtitle">${escapeHtml(released)}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
-          <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-            ${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}
-            ${imdbPillHtml}
-            ${renderSeerrRequestPill("movie", tmdbData?.id || movie.tmdb_id, true)}
-            ${syncStatusBlockHtml}
+          <div class="media-detail-bottom-stack">
+            <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              ${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}
+              ${imdbPillHtml}
+              ${renderSeerrRequestPill("movie", tmdbData?.id || movie.tmdb_id, true)}
+              ${syncStatusBlockHtml}
+            </div>
+            <p class="immersive-overview">${escapeHtml(overview)}</p>
+            <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
+              <h3>Watch Status</h3>
+              <div class="progress-label-row">
+                <span>Watched on ${formatDate(movie.watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-watched-at="${escapeAttribute(movie.watched_at || "")}">✎</button></span>
+                <span>100% complete</span>
+              </div>
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill" style="width: 100%;"></div>
+              </div>
+            </section>
           </div>
-          <p class="immersive-overview">${escapeHtml(overview)}</p>
-          <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
-            <h3>Watch Status</h3>
-            <div class="progress-label-row">
-              <span>Watched on ${formatDate(movie.watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-watched-at="${escapeAttribute(movie.watched_at || "")}">✎</button></span>
-              <span>100% complete</span>
-            </div>
-            <div class="progress-bar-track">
-              <div class="progress-bar-fill" style="width: 100%;"></div>
-            </div>
-          </section>
         </div>
         ${renderMediaFacts(tmdbData, "movie", "sidebar")}
       </header>
@@ -335,28 +337,30 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
         <div class="immersive-meta">
           ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
           <p class="immersive-subtitle">${escapeHtml(released)}</p>
-          <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-            ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
-            ${renderSeerrRequestPill("movie", tmdbId, false)}
+          <div class="media-detail-bottom-stack">
+            <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
+              ${renderSeerrRequestPill("movie", tmdbId, false)}
+            </div>
+            <p class="immersive-overview">${escapeHtml(overview)}</p>
+            <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
+              <h3>Watch Status</h3>
+              <div class="progress-label-row">
+                <span>Unwatched (local archive)</span>
+                <span>0% complete</span>
+              </div>
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill" style="width: 0%;"></div>
+              </div>
+              <div class="immersive-actions" style="margin-top: 0.75rem;">
+                <button class="action-pill" type="button" ${isSaving ? "disabled" : ""}
+                  data-movie-mark-watched="${escapeAttribute(String(tmdbId))}"
+                  data-movie-title="${escapeAttribute(movieTitle)}"
+                  data-movie-poster="${escapeAttribute(posterUrl)}"
+                  data-movie-release="${escapeAttribute(tmdbData.release_date || "")}">${isSavingThisMovie ? "Saving watched state…" : "Mark watched"}</button>
+              </div>
+            </section>
           </div>
-          <p class="immersive-overview">${escapeHtml(overview)}</p>
-          <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
-            <h3>Watch Status</h3>
-            <div class="progress-label-row">
-              <span>Unwatched (local archive)</span>
-              <span>0% complete</span>
-            </div>
-            <div class="progress-bar-track">
-              <div class="progress-bar-fill" style="width: 0%;"></div>
-            </div>
-            <div class="immersive-actions" style="margin-top: 0.75rem;">
-              <button class="action-pill" type="button" ${isSaving ? "disabled" : ""}
-                data-movie-mark-watched="${escapeAttribute(String(tmdbId))}"
-                data-movie-title="${escapeAttribute(movieTitle)}"
-                data-movie-poster="${escapeAttribute(posterUrl)}"
-                data-movie-release="${escapeAttribute(tmdbData.release_date || "")}">${isSavingThisMovie ? "Saving watched state…" : "Mark watched"}</button>
-            </div>
-          </section>
         </div>
         ${renderMediaFacts(tmdbData, "movie", "sidebar")}
       </header>
