@@ -408,35 +408,45 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
     try {
       const extended = await getTvdbSeriesExtended(tvdbId, { force: forceTvdb });
       const shaped = shapeTvdbSeriesAsTmdb(extended);
-      const resolvedTmdbId = String(tmdbId || shaped.external_ids.tmdb_id || "");
+      let resolvedTmdbId = String(tmdbId || shaped.external_ids.tmdb_id || "");
+
+      let raw = resolvedTmdbId ? await fetchTmdbRaw("tv", resolvedTmdbId).catch(() => null) : null;
+      if (!raw && resolvedTmdbId && shaped.name) {
+        // TVDB's remoteIds mapping is community-submitted and occasionally points at a
+        // stale/incorrect TMDB id (the fetch above 404s) — fall back to a title search
+        // rather than silently leaving cast/trailers/images empty for this show forever.
+        const fallbackId = await resolveTmdbId("tv", "", shaped.name, {}, { ignoreTmdbId: true }).catch(() => "");
+        if (fallbackId && fallbackId !== resolvedTmdbId) {
+          const fallbackRaw = await fetchTmdbRaw("tv", fallbackId).catch(() => null);
+          if (fallbackRaw) {
+            raw = fallbackRaw;
+            resolvedTmdbId = fallbackId;
+          }
+        }
+      }
+
       const cacheId = resolvedTmdbId ? `tv_${resolvedTmdbId}` : `tv_tvdb_${tvdbId}`;
       if (!force && cacheId !== initialCacheId) {
         const resolvedCached = metaGet(cacheId);
         if (resolvedCached?.details && resolvedCached.schemaVersion >= DETAILS_SCHEMA_VERSION && fresh(resolvedCached, detailsTtl(resolvedCached.details))) return resolvedCached.details;
       }
 
-      let extras = {};
-      if (resolvedTmdbId) {
-        const raw = await fetchTmdbRaw("tv", resolvedTmdbId).catch(() => null);
-        if (raw) {
-          extras = {
-            credits: raw.credits,
-            videos: raw.videos,
-            reviews: raw.reviews,
-            similar: raw.similar,
-            recommendations: raw.recommendations,
-            "watch/providers": raw["watch/providers"],
-            content_ratings: raw.content_ratings,
-            keywords: raw.keywords,
-            vote_average: raw.vote_average,
-            episode_run_time: raw.episode_run_time,
-            original_language: raw.original_language,
-            images: raw.images,
-            poster_path: raw.poster_path,
-            backdrop_path: raw.backdrop_path,
-          };
-        }
-      }
+      const extras = raw ? {
+        credits: raw.credits,
+        videos: raw.videos,
+        reviews: raw.reviews,
+        similar: raw.similar,
+        recommendations: raw.recommendations,
+        "watch/providers": raw["watch/providers"],
+        content_ratings: raw.content_ratings,
+        keywords: raw.keywords,
+        vote_average: raw.vote_average,
+        episode_run_time: raw.episode_run_time,
+        original_language: raw.original_language,
+        images: raw.images,
+        poster_path: raw.poster_path,
+        backdrop_path: raw.backdrop_path,
+      } : {};
 
       const details = {
         ...shaped,

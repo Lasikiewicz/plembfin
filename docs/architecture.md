@@ -83,7 +83,10 @@ every caller (routes, frontend, `deriveNextAiring`) is unaware of the split:
   reviews, similar/recommendations, watch providers, and content ratings. `id` on a
   TV show's details is always the resolved TMDB ID (via TheTVDB's `remoteIds`, or the
   caller-supplied ID), since Seerr requests and `/tvshow/tmdb/:id` routing are
-  TMDB-keyed.
+  TMDB-keyed. TheTVDB's `remoteIds` mapping is community-submitted and occasionally
+  points at a stale/incorrect TMDB id; `getTvShowDetails` verifies it by fetching that
+  id and, if it 404s, falls back to a TMDB title search and uses the corrected id —
+  otherwise cast/trailers/images would silently stay empty for that show.
 - **Movies** are unaffected — 100% TMDB, same as before.
 
 Like `fanartGateway.js`, `tvdbGateway.js` ships a hardcoded project API key so TVDB
