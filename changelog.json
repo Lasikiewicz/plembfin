@@ -1,7 +1,18 @@
 {
-  "version": "0.4.18",
-  "updatedAt": "2026-07-04T16:59:54+01:00",
+  "version": "0.4.19",
+  "updatedAt": "2026-07-04T17:05:45+01:00",
   "entries": [
+    {
+      "version": "0.4.19",
+      "date": "2026-07-04T17:05:45+01:00",
+      "commit": "b4f49bbb0e24614364fa6f9f533549903115333f",
+      "message": "Fix - Match TVDB artwork types by name instead of slug",
+      "author": "Lasikiewicz",
+      "details": [
+        "TheTVDB's series artwork type slugs are inconsistently pluralized (posters/backgrounds vs singular clearlogo), so matching by slug silently dropped all TVDB posters and backgrounds in the edit image dialog",
+        "Matching by the type's name (always singular) instead resolves this"
+      ]
+    },
     {
       "version": "0.4.18",
       "date": "2026-07-04T16:59:54+01:00",
