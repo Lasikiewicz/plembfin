@@ -1,7 +1,34 @@
 {
-  "version": "0.4.5",
-  "updatedAt": "2026-07-02T20:41:54+01:00",
+  "version": "0.4.6",
+  "updatedAt": "2026-07-04T12:00:40+01:00",
   "entries": [
+    {
+      "version": "0.4.6",
+      "date": "2026-07-04T12:00:40+01:00",
+      "commit": "02fbeeb55b8f02e4ff631b842c55ffc9eccb061a",
+      "message": "Fix - Optimize mobile layout on media details and improve TVDB cache TTL on misses",
+      "author": "Lasikiewicz",
+      "details": [
+        "Issue 1: Replace hamburger close icon with clean ✕ character instead of transformed spans",
+        "Issue 2: Hide Search, Size controls on mobile, show only Sort option",
+        "Issue 3: Restructure media detail page for mobile with centered poster, hidden logo, and stacked vertical layout for meta information",
+        "Added collapsed overview with gradient fade effect for accordion-style appearance",
+        "All changes mobile-only (≤760px) to preserve desktop layout",
+        "Poster positioned in top left (35% width)",
+        "Meta information (TMDB %, Seerr requests, status, dates, etc.) positioned in top right",
+        "Description text below spanning full width",
+        "Logo hidden on mobile",
+        "No overlapping content",
+        "Clean, organized mobile layout",
+        "Center and group show logo/title, subtitle, and ratings next to poster in mobile view",
+        "Move streaming app links directly next to poster under ratings",
+        "Remove Open in label from streaming app links",
+        "Remove Progress heading from TV show progress trackers",
+        "Display full synopsis overview text without accordion truncation on mobile",
+        "Make metadata details collapsible, collapsed by default, with custom centered toggle button",
+        "Cache TVDB series resolution misses for 1 hour instead of 180 days to allow faster retries"
+      ]
+    },
     {
       "version": "0.4.5",
       "date": "2026-07-02T20:41:54+01:00",
