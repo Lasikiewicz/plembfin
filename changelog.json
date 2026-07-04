@@ -1,7 +1,19 @@
 {
-  "version": "0.4.16",
-  "updatedAt": "2026-07-04T16:29:59+01:00",
+  "version": "0.4.17",
+  "updatedAt": "2026-07-04T16:43:23+01:00",
   "entries": [
+    {
+      "version": "0.4.17",
+      "date": "2026-07-04T16:43:23+01:00",
+      "commit": "d737a02d6d4cc680015ee7fbd989d8e4cbf4aae5",
+      "message": "Fix - Repair broken TMDB artwork lookup and add TVDB artwork to the edit image dialog",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed TMDB posters, logos, and backgrounds failing to load in the edit image dialog for TV shows when the show's TMDB ID couldn't be independently verified against TMDB",
+        "The edit image dialog now also browses TheTVDB artwork (posters, backgrounds, and clear logos) for TV shows, alongside TMDB and the existing fanart.tv fallback",
+        "Added a TVDB source badge to match the existing Fanart.tv badge styling"
+      ]
+    },
     {
       "version": "0.4.16",
       "date": "2026-07-04T16:29:59+01:00",
