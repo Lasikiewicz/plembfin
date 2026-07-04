@@ -488,16 +488,18 @@ h2 {
 
   .media-detail-page .immersive-header,
   .media-detail-page .immersive-header:has(.media-facts-rail--sidebar) {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto 1fr;
     gap: var(--space-3);
     margin-top: var(--space-2);
+    align-items: flex-start;
   }
 
   .media-detail-page .immersive-poster-img {
-    width: 40%;
-    max-width: 160px;
-    justify-self: center;
-    margin-bottom: var(--space-2);
+    width: 35%;
+    max-width: 130px;
+    justify-self: start;
+    grid-row: 1 / 2;
+    grid-column: 1;
   }
 
   .media-detail-page .immersive-logo {
@@ -505,24 +507,29 @@ h2 {
   }
 
   .media-detail-page .immersive-title {
-    font-size: 1.5rem;
-    text-align: center;
+    font-size: 1.3rem;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
   }
 
   .media-detail-page .immersive-title,
   .media-detail-page .immersive-logo {
-    justify-self: center;
-    text-align: center;
+    justify-self: start;
+    text-align: left;
   }
 
   .media-detail-page .immersive-meta {
-    grid-column: 1;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
   }
 
   .media-detail-page .immersive-header .media-facts-rail--sidebar {
-    grid-column: 1;
+    grid-column: 2;
+    grid-row: 1;
     width: 100%;
-    justify-self: center;
+    justify-self: auto;
   }
 
   .media-detail-page .media-app-link-row {
@@ -544,7 +551,7 @@ h2 {
   }
 
   .media-detail-page .horizontal-scroll-row {
-    grid-auto-columns: minmax(100px, 120px);
+    grid-auto-columns: minmax(80px, 100px);
   }
 
   .media-detail-page .immersive-overview {
@@ -552,6 +559,7 @@ h2 {
     overflow: hidden;
     position: relative;
     padding-bottom: 1rem;
+    grid-column: 1 / -1;
   }
 
   .media-detail-page .immersive-overview::after {
