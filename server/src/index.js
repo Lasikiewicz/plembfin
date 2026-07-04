@@ -1973,7 +1973,7 @@ function mediaFromWatchRecord(record) {
 // Core of "mark unwatched": delete the watched record, write a superseding
 // unwatched record, flip the playstate cache, and propagate unplayed to the other
 // platforms. Shared by the webhook `unplayed` phase and the manual-unwatch handler.
-async function applyManualUnwatch(media, config, loopStore, recordId = "") {
+async function applyManualUnwatch(media, config, loopStore, recordId = "", { includeSourcePlatform = false } = {}) {
   let wasDeleted = false;
   if (recordId) {
     wasDeleted = await deleteWatchRecordById(recordId, { skipInvalidate: true }).catch((error) => {
@@ -1997,7 +1997,8 @@ async function applyManualUnwatch(media, config, loopStore, recordId = "") {
 
   // Clear resume progress on all target platforms to prevent re-import on next sync
   // Use direct platform calls since shouldSyncResumeProgress blocks position 0
-  const targets = getTargetsForSource(media.source, config);
+  const syncMedia = includeSourcePlatform ? { ...media, source: "manual" } : media;
+  const targets = getTargetsForSource(syncMedia.source, config);
   for (const target of targets) {
     try {
       if (target === "plex") await setPlexProgress(config.plex, { ...media, positionMs: 0 });
@@ -2008,7 +2009,7 @@ async function applyManualUnwatch(media, config, loopStore, recordId = "") {
     }
   }
 
-  const summary = await syncMediaUnplayedPlaystate(media, config, loopStore).catch((error) => ({
+  const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore).catch((error) => ({
     skipped: false,
     status: "error",
     details: `Unwatched propagation failed: ${error.message || String(error)}`,
@@ -2036,7 +2037,7 @@ async function handleManualUnwatch(req, res) {
   const loopStore = createLoopStore();
 
   try {
-    const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, id);
+    const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, id, { includeSourcePlatform: true });
     return sendJson(res, { ok: true, id: unwatchedId, status: summary.status, targetStates: summary.targetStates || [] });
   } catch (error) {
     console.error("Manual unwatch failed", error);
@@ -2261,7 +2262,7 @@ async function handlePlaybackProgressUnwatch(req, res) {
     const config = await loadMediaConfig();
     const loopStore = createLoopStore();
 
-    const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore);
+    const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, "", { includeSourcePlatform: true });
     return sendJson(res, { ok: true, id: unwatchedId, status: summary.status, targetStates: summary.targetStates || [] });
   } catch (error) {
     console.error("Playback progress unwatch failed", error);
