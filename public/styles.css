@@ -304,20 +304,17 @@ h2 {
 }
 
 .media-facts-details {
-  border-top: 1px solid var(--line);
-  padding-top: var(--space-3);
-  margin-top: var(--space-4);
   width: 100%;
 }
 
 .media-facts-summary {
-  cursor: pointer;
   outline: none;
   user-select: none;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   list-style: none;
+  pointer-events: none; /* Disable collapse on desktop */
 }
 
 .media-facts-summary::-webkit-details-marker {
@@ -327,11 +324,12 @@ h2 {
 .media-facts-visible-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2) var(--space-4);
+  gap: var(--space-4) var(--space-4);
   width: 100%;
 }
 
 .media-facts-expand-btn {
+  display: none; /* Hide on desktop */
   font-size: 0.68rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -339,7 +337,6 @@ h2 {
   letter-spacing: 0.05em;
   cursor: pointer;
   margin-top: var(--space-1);
-  display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   user-select: none;
@@ -361,10 +358,6 @@ h2 {
 
 .media-facts-details[open] .media-facts-expand-btn::after {
   content: " ▲";
-}
-
-.media-facts-details[open] .media-facts-rail--sidebar {
-  margin-top: var(--space-3);
 }
 
 .media-app-link-row {
@@ -685,6 +678,29 @@ h2 {
 
   .media-detail-page .immersive-overview::after {
     display: none;
+  }
+
+  /* Mobile collapsible metadata section overrides */
+  .media-facts-details {
+    border-top: 1px solid var(--line);
+    padding-top: var(--space-3);
+    margin-top: var(--space-4);
+  }
+
+  .media-facts-summary {
+    pointer-events: auto; /* Enable collapse on mobile */
+  }
+
+  .media-facts-visible-row {
+    gap: var(--space-2) var(--space-4);
+  }
+
+  .media-facts-expand-btn {
+    display: inline-flex; /* Show toggle button on mobile */
+  }
+
+  .media-facts-details[open] .media-facts-rail--sidebar {
+    margin-top: var(--space-3);
   }
 }
 
@@ -9033,7 +9049,7 @@ h1 {
 
 .person-photos-section,
 .person-credits-section {
-  grid-column: 1 / -1;
+  grid-column: 2;
   width: 100%;
 }
 
@@ -9483,6 +9499,11 @@ html.light-mode .pill-toggle.active {
     width: 100% !important;
     height: auto !important;
     aspect-ratio: 2 / 3 !important;
+  }
+
+  .person-photos-section,
+  .person-credits-section {
+    grid-column: 1 / -1 !important;
   }
 }
 

@@ -299,10 +299,12 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
       data-title="${escapeAttribute(title)}"></div>
   `;
 
+  const openAttr = window.innerWidth <= 640 ? "" : " open";
+
   if (placement === "sidebar") {
     return `
       <div class="immersive-sidebar">
-        <details class="media-facts-details">
+        <details class="media-facts-details"${openAttr}>
           <summary class="media-facts-summary">
             <div class="media-facts-visible-row">
               ${visibleHtml}
@@ -319,7 +321,7 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
   }
 
   return `
-    <details class="media-facts-details">
+    <details class="media-facts-details"${openAttr}>
       <summary class="media-facts-summary">
         <div class="media-facts-visible-row">
           ${visibleHtml}
