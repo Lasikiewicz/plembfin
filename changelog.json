@@ -1,7 +1,20 @@
 {
-  "version": "0.4.20",
-  "updatedAt": "2026-07-04T17:13:41+01:00",
+  "version": "0.4.21",
+  "updatedAt": "2026-07-04T17:28:38+01:00",
   "entries": [
+    {
+      "version": "0.4.21",
+      "date": "2026-07-04T17:28:38+01:00",
+      "commit": "8ad3170118ffadeceeb5a58c534e60c92776ff3f",
+      "message": "Fix - Hide empty Specials seasons and stop gating episode data on a TMDB key",
+      "author": "Lasikiewicz",
+      "details": [
+        "Show pages no longer display a \"Specials\" season row when TheTVDB has no episodes cataloged for it, instead of an always-empty dead accordion",
+        "Season and episode data is fully TVDB-backed (built-in key) and no longer requires the user to have a personal TMDB API key configured to load",
+        "Corrected status messages that incorrectly blamed a missing TMDB key or TMDB metadata for season/episode data that actually comes from TheTVDB",
+        "Bumped the TV details cache schema version so existing cached shows pick up the Specials filtering without waiting for the cache to expire"
+      ]
+    },
     {
       "version": "0.4.20",
       "date": "2026-07-04T17:13:41+01:00",
