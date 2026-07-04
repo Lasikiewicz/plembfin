@@ -43,7 +43,7 @@
 
 <p align="center">
   <img src="docs/screenshots/now-playing.png" alt="Now Playing dashboard" width="100%" />
-  <em>Now Playing dashboard with active sessions and recent watch history</em>
+  <em>Dashboard showing live playback status and recent watch history</em>
 </p>
 
 <p align="center">

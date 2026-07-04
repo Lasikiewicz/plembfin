@@ -82,6 +82,18 @@ CI will then auto-bump the patch version, add a `changelog.json` entry, and buil
 
 The generated entry's headline and version always come from the last commit in the push, but the `details` list is backfilled from bullet points in *every* commit included in that push (falling back to a commit's subject line if it has no bullets) — see `scripts/update-changelog.js`. Nothing gets silently dropped even if the final commit's message doesn't summarize the whole push. Still, write the last commit's message as a proper user-facing summary of the session's work — features and fixes, no internal implementation details (file names, CSS properties, line counts) — since it becomes the entry's headline.
 
+#### Expect `main` to be ahead — this is normal, not a conflict to escalate
+
+The GitHub Actions workflow above commits its version bump **directly back to `main`** within seconds of every push, and a local pre-push hook also fetches/rebases against the remote before pushing. Together these mean `origin/main` will very often show 1 (sometimes more) commits that your local branch doesn't have yet — usually just `chore: update changelog for <sha>` bump commits that only ever touch `changelog.json`, `package.json`, and `package-lock.json`.
+
+When `git status` or a failed push reports `main` and `origin/main` have diverged, treat it as the expected steady-state, not a real conflict, and reconcile automatically as part of the same "Push to git" run:
+```bash
+git fetch origin
+git merge origin/main --no-edit   # or: git merge --ff-only origin/main if it's a straight fast-forward
+git push origin main
+```
+This is safe to do without stopping to ask, because the only files those CI commits ever touch (`changelog.json`, `package.json`, `package-lock.json`) don't overlap with feature work in `public/` or `server/`, so the merge is conflict-free by construction. Only pause and ask the user if the merge actually produces a conflict (e.g. someone hand-edited `changelog.json`), or if `origin/main` contains commits that touch source files you don't recognize — that would mean unrelated work landed on `main` and needs a real decision, not an automatic merge.
+
 ## Commands
 
 ```bash
