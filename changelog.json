@@ -1,7 +1,21 @@
 {
-  "version": "0.4.12",
-  "updatedAt": "2026-07-04T14:36:38+01:00",
+  "version": "0.4.13",
+  "updatedAt": "2026-07-04T15:13:54+01:00",
   "entries": [
+    {
+      "version": "0.4.13",
+      "date": "2026-07-04T15:13:54+01:00",
+      "commit": "7cc3e8c127100936efdc7857fbe72f5a825afd5b",
+      "message": "Feature - Move Appearance settings into contextual sidebar menus",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removed the standalone Appearance tab from Settings",
+        "Added an Appearance link in the sidebar, styled like the other menu items, that only appears on the Dashboard or on a movie/show detail page",
+        "Dashboard shows Card View / Poster View options; movie and show pages show toggles for Logo Art, Cast Members, Trailers & Clips, Reviews, Images, and Related Shows",
+        "Options display as a list with icons, matching the highlight color used by the currently active menu item, and apply instantly without opening Settings",
+        "Fixed a sidebar spacing bug where the gap above Settings was larger than the gaps between the other menu items above it"
+      ]
+    },
     {
       "version": "0.4.12",
       "date": "2026-07-04T14:36:38+01:00",
