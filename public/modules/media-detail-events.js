@@ -412,7 +412,8 @@ export function attachMediaDetailEvents() {
     if (seasonAccordion) {
       event.preventDefault();
       const seasonNum = Number(seasonAccordion.dataset.seasonAccordion);
-      const shouldClose = Number(state.activeShowModalSeason) === seasonNum;
+      const currentSeason = state.activeShowModalSeason == null ? null : Number(state.activeShowModalSeason);
+      const shouldClose = currentSeason === seasonNum;
       const nextSeason = shouldClose ? null : seasonNum;
       const scrollY = window.scrollY;
       state.activeShowModalSeason = nextSeason;
@@ -426,9 +427,9 @@ export function attachMediaDetailEvents() {
         requestAnimationFrame(() => window.scrollTo({ top: scrollY, left: 0, behavior: "auto" }));
       }
       const nextUrl = state.activeShowModalKey
-        ? (nextSeason ? `/tvshow/${state.activeShowModalKey}#season${nextSeason}` : `/tvshow/${state.activeShowModalKey}`)
+        ? (nextSeason != null ? `/tvshow/${state.activeShowModalKey}#season${nextSeason}` : `/tvshow/${state.activeShowModalKey}`)
         : state.activeShowTmdbId
-          ? (nextSeason ? `/tvshow/tmdb/${state.activeShowTmdbId}#season${nextSeason}` : `/tvshow/tmdb/${state.activeShowTmdbId}`)
+          ? (nextSeason != null ? `/tvshow/tmdb/${state.activeShowTmdbId}#season${nextSeason}` : `/tvshow/tmdb/${state.activeShowTmdbId}`)
           : "";
       if (nextUrl) {
         window.history.replaceState({}, "", nextUrl);
