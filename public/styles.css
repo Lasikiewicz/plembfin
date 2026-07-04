@@ -9068,12 +9068,6 @@ h1 {
   min-width: 0;
 }
 
-.person-photos-section,
-.person-credits-section {
-  grid-column: 2;
-  width: 100%;
-}
-
 .person-profile-name {
   margin: 0 0 1rem;
   font-size: 1.6rem;
@@ -9520,11 +9514,6 @@ html.light-mode .pill-toggle.active {
     width: 100% !important;
     height: auto !important;
     aspect-ratio: 2 / 3 !important;
-  }
-
-  .person-photos-section,
-  .person-credits-section {
-    grid-column: 1 / -1 !important;
   }
 }
 

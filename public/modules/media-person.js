@@ -170,7 +170,6 @@ export async function loadCastMemberDetails(personId, personName = null) {
             <p class="person-biography-text" style="white-space: pre-wrap;">${escapeHtml(data.biography)}</p>
           </div>
           ` : '<p class="muted-copy">No biography available for this cast member.</p>'}
-        </div>
         
         ${(() => {
       const seen = new Set();
@@ -221,6 +220,7 @@ export async function loadCastMemberDetails(personId, personName = null) {
           </div>
         </div>
       </div>
+    </div>
     `;
 
     const filterBtns = root.querySelector("#personCreditsFilterBtns");
