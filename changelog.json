@@ -1,7 +1,18 @@
 {
-  "version": "0.4.21",
-  "updatedAt": "2026-07-04T17:28:38+01:00",
+  "version": "0.4.22",
+  "updatedAt": "2026-07-04T17:36:29+01:00",
   "entries": [
+    {
+      "version": "0.4.22",
+      "date": "2026-07-04T17:36:29+01:00",
+      "commit": "0961b11b82054b4fecd786e99d46ca81a9e8ee12",
+      "message": "Fix - Specials episodes never rendered even when TVDB had episode data",
+      "author": "Lasikiewicz",
+      "details": [
+        "Episode rows for a show were only ever built for season_number > 0, so the Specials accordion always showed \"No episode rows yet\" even when TheTVDB had real episodes for season 0",
+        "The progress-total exclusion for Specials is already handled separately downstream, so this restriction only needed to stay off the row-building loop"
+      ]
+    },
     {
       "version": "0.4.21",
       "date": "2026-07-04T17:28:38+01:00",
