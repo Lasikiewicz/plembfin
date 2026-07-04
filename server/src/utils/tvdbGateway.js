@@ -150,10 +150,16 @@ function tvdbEndpointUrl(endpoint, params = {}) {
   const url = new URL(`${API_ROOT}/`);
   if (endpoint === "search") {
     url.pathname = "/v4/search";
+  } else if (endpoint === "artwork-types") {
+    url.pathname = "/v4/artwork/types";
   } else if (endpoint?.type === "series-extended") {
     const id = normalizeTvdbId(endpoint.id);
     if (!id) throw Object.assign(new Error("Valid TVDB series id is required"), { status: 400 });
     url.pathname = `/v4/series/${id}/extended`;
+  } else if (endpoint?.type === "series-artworks") {
+    const id = normalizeTvdbId(endpoint.id);
+    if (!id) throw Object.assign(new Error("Valid TVDB series id is required"), { status: 400 });
+    url.pathname = `/v4/series/${id}/artworks`;
   } else if (endpoint?.type === "season-extended") {
     const id = normalizeTvdbId(endpoint.id);
     if (!id) throw Object.assign(new Error("Valid TVDB season id is required"), { status: 400 });
@@ -224,6 +230,53 @@ export async function searchTvdbSeriesList(query) {
     year: item.year || (item.first_air_time || "").slice(0, 4) || "",
     image_url: item.image_url || item.thumbnail || "",
   })).filter((item) => item.tvdb_id);
+}
+
+const ARTWORK_TYPES_TTL_MS = 30 * DAY_MS;
+let artworkTypesPromise = null;
+let artworkTypesCachedAt = 0;
+
+// Series artwork type ids aren't stable/documented constants — they're resolved
+// dynamically from /artwork/types (cached in-memory) and matched by slug so this
+// keeps working even if TVDB renumbers or adds types.
+async function getSeriesArtworkTypeIds() {
+  if (artworkTypesPromise && fresh(artworkTypesCachedAt, ARTWORK_TYPES_TTL_MS)) return artworkTypesPromise;
+  artworkTypesCachedAt = Date.now();
+  artworkTypesPromise = upstream("artwork-types", {})
+    .then((types) => {
+      const bySlug = {};
+      for (const t of Array.isArray(types) ? types : []) {
+        if (String(t.recordType || "").toLowerCase() !== "series") continue;
+        const slug = String(t.slug || t.name || "").toLowerCase();
+        if (slug) bySlug[slug] = Number(t.id);
+      }
+      return bySlug;
+    })
+    .catch(() => ({}));
+  return artworkTypesPromise;
+}
+
+export async function getTvdbSeriesArtwork(tvdbId) {
+  const id = normalizeTvdbId(tvdbId);
+  if (!id) return { posters: [], logos: [], backdrops: [] };
+  const bySlug = await getSeriesArtworkTypeIds();
+  const typeIds = [bySlug.poster, bySlug.background, bySlug.clearlogo].filter((v) => Number.isFinite(v));
+  try {
+    const data = await upstream({ type: "series-artworks", id }, typeIds.length ? { type: typeIds.join(",") } : {});
+    const posters = [], logos = [], backdrops = [];
+    for (const art of Array.isArray(data?.artworks) ? data.artworks : []) {
+      const url = String(art.image || "");
+      if (!url) continue;
+      const entry = { url, lang: art.language || "", source: "TVDB" };
+      const type = Number(art.type);
+      if (type === bySlug.poster) posters.push(entry);
+      else if (type === bySlug.background) backdrops.push(entry);
+      else if (type === bySlug.clearlogo) logos.push(entry);
+    }
+    return { posters, logos, backdrops };
+  } catch {
+    return { posters: [], logos: [], backdrops: [] };
+  }
 }
 
 export async function getTvdbSeriesExtended(tvdbId, { force = false } = {}) {

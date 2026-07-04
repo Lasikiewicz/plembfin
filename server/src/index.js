@@ -80,7 +80,7 @@ import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, prewarmTmdbLibrary, searchTmdb, getCachedTvdbId } from "./utils/tmdbGateway.js";
-import { searchTvdbSeriesList } from "./utils/tvdbGateway.js";
+import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from "./utils/tvdbGateway.js";
 import {
   cachedNextAiringFor,
   mergeNextAiringCacheEntries,
@@ -3865,8 +3865,33 @@ async function handleTmdbImages(req, res) {
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
   try {
-    const details = await getTmdbImages({ mediaType: req.query.mediaType || req.query.type, tmdbId: req.query.tmdbId || req.query.id });
+    const details = await getTmdbImages({
+      mediaType: req.query.mediaType || req.query.type,
+      tmdbId: req.query.tmdbId || req.query.id,
+      title: req.query.title,
+      ids: { tvdbId: req.query.tvdbId || req.query.tvdb_id },
+    });
     return sendJson(res, details);
+  } catch (error) {
+    return sendJson(res, { error: error.message }, error.status || 500);
+  }
+}
+
+async function handleTvdbImages(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const title = String(req.query.title || "").trim();
+    let tvdbId = String(req.query.tvdbId || req.query.tvdb_id || "").trim();
+    if (!tvdbId) tvdbId = await resolveTvdbSeriesId({ title }).catch(() => "");
+    if (!tvdbId) {
+      const tmdbId = String(req.query.tmdbId || req.query.id || "").trim();
+      if (tmdbId) tvdbId = getCachedTvdbId(tmdbId);
+    }
+    if (!tvdbId) return sendJson(res, { posters: [], logos: [], backdrops: [] });
+    const result = await getTvdbSeriesArtwork(tvdbId);
+    return sendJson(res, result);
   } catch (error) {
     return sendJson(res, { error: error.message }, error.status || 500);
   }
@@ -4511,6 +4536,7 @@ async function dispatch(req, res) {
     if (path === "media-search") return handleMediaSearch(req, res);
     if (path === "tmdb-season") return handleTmdbSeason(req, res);
     if (path === "tmdb-images") return handleTmdbImages(req, res);
+    if (path === "tvdb-images") return handleTvdbImages(req, res);
     if (path === "fanart-images") return handleFanartImages(req, res);
     if (path === "tmdb-person") return handleTmdbPerson(req, res);
     if (path === "youtube-meta") return handleYoutubeMeta(req, res);

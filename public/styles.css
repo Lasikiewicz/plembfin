@@ -4757,6 +4757,11 @@ details[open] .tool-accordion-chevron::before {
   color: var(--orange, #f59e0b);
 }
 
+.edit-image-source-badge--tvdb {
+  background: color-mix(in srgb, var(--green, #22c55e), transparent 75%);
+  color: var(--green, #22c55e);
+}
+
 .availability-row {
   display: flex;
   align-items: center;

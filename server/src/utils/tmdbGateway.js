@@ -528,8 +528,8 @@ export async function getTmdbPerson(personId) {
   });
 }
 
-export async function getTmdbImages({ mediaType, tmdbId }) {
-  const details = await getTmdbDetails({ mediaType, tmdbId });
+export async function getTmdbImages({ mediaType, tmdbId, title = "", ids = {} }) {
+  const details = await getTmdbDetails({ mediaType, tmdbId, title, ids });
   return details.images || { backdrops: [], posters: [], logos: [] };
 }
 

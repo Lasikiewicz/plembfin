@@ -414,7 +414,7 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
         <div class="edit-image-header">
           <div>
             <h3 class="edit-image-title">Poster</h3>
-            <p class="muted-copy edit-image-subtitle">Choose TMDB artwork, use fanart.tv fallback, or upload your own image.</p>
+            <p class="muted-copy edit-image-subtitle">Choose TMDB or TVDB artwork, use fanart.tv fallback, or upload your own image.</p>
           </div>
           <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
         </div>
@@ -536,20 +536,43 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   ytFetchBtn.addEventListener("click", fetchYouTubeThumbnails);
   ytInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); fetchYouTubeThumbnails(); } });
 
+  const tvdbId = () => String(tmdbData?.tvdb_id || tmdbData?.external_ids?.tvdb_id || "").trim();
+
   let tmdbImages = null;
   const getTmdbImages = async () => {
     if (tmdbImages) return tmdbImages;
     const tmdbId = tmdbData?.id;
     const mediaType = resolvedMediaType();
-    if (state.savedConfig?.tmdb?.configured && tmdbId) {
+    const canResolve = tmdbId || (mediaType === "tv" && (tvdbId() || mediaTitle));
+    if (state.savedConfig?.tmdb?.configured && canResolve) {
       try {
-        const res = await fetch(`/api/tmdb-images?mediaType=${encodeURIComponent(mediaType)}&tmdbId=${encodeURIComponent(tmdbId)}`, { headers: authHeaders() });
+        const params = new URLSearchParams({ mediaType });
+        if (tmdbId) params.set("tmdbId", String(tmdbId));
+        if (mediaTitle) params.set("title", mediaTitle);
+        if (mediaType === "tv" && tvdbId()) params.set("tvdbId", tvdbId());
+        const res = await fetch(`/api/tmdb-images?${params.toString()}`, { headers: authHeaders() });
         tmdbImages = await res.json();
       } catch { tmdbImages = {}; }
     } else {
       tmdbImages = {};
     }
     return tmdbImages;
+  };
+
+  let tvdbImages = null;
+  const getTvdbImages = async () => {
+    if (tvdbImages) return tvdbImages;
+    const mediaType = resolvedMediaType();
+    if (mediaType !== "tv") { tvdbImages = {}; return tvdbImages; }
+    try {
+      const params = new URLSearchParams();
+      if (tvdbId()) params.set("tvdbId", tvdbId());
+      if (mediaTitle) params.set("title", mediaTitle);
+      if (tmdbData?.id) params.set("tmdbId", String(tmdbData.id));
+      const res = await fetch(`/api/tvdb-images?${params.toString()}`, { headers: authHeaders() });
+      tvdbImages = await res.json();
+    } catch { tvdbImages = {}; }
+    return tvdbImages;
   };
 
   let fanartImages = null;
@@ -569,16 +592,18 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
     return fanartImages;
   };
 
-  const fanartItems = (fanartData, kind, seen) => {
+  const sourceItems = (sourceData, kind, seen, sourceLabel) => {
     const key = kind === "background" ? "backdrops" : `${kind}s`;
-    return (fanartData?.[key] || []).reduce((items, item) => {
+    return (sourceData?.[key] || []).reduce((items, item) => {
       if (item.url && !seen.has(item.url)) {
         seen.add(item.url);
-        items.push({ url: item.url, lang: item.lang || "", source: "Fanart" });
+        items.push({ url: item.url, lang: item.lang || "", source: sourceLabel });
       }
       return items;
     }, []);
   };
+  const fanartItems = (fanartData, kind, seen) => sourceItems(fanartData, kind, seen, "Fanart");
+  const tvdbItems = (data, kind, seen) => sourceItems(data, kind, seen, "TVDB");
 
   const loadPosters = async () => {
     status.textContent = "Loading posters…";
@@ -590,7 +615,9 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
       const url = tmdbPoster(p.file_path);
       if (!seen.has(url)) { seen.add(url); items.push({ url, source: "TMDB" }); }
     }
-    status.textContent = items.length ? "Checking fanart.tv..." : "No TMDB posters found. Checking fanart.tv...";
+    status.textContent = "Checking TVDB and fanart.tv...";
+    const tvdbPosterItems = tvdbItems(await getTvdbImages(), "poster", seen);
+    items.push(...tvdbPosterItems);
     const fanartPosterItems = fanartItems(await getFanartImages(), "poster", seen);
     items.push(...fanartPosterItems);
     if (items.length) { status.textContent = ""; renderGrid(items, false); return; }
@@ -618,13 +645,15 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
         items.push({ url, lang: l.iso_639_1 ? l.iso_639_1.toUpperCase() : "—", source: "TMDB" });
       }
     }
-    status.textContent = items.length ? "Checking fanart.tv..." : "No TMDB logos found. Checking fanart.tv...";
+    status.textContent = "Checking TVDB and fanart.tv...";
+    const tvdbLogoItems = tvdbItems(await getTvdbImages(), "logo", seen);
+    items.push(...tvdbLogoItems);
     const fanartLogoItems = fanartItems(await getFanartImages(), "logo", seen);
     items.push(...fanartLogoItems);
     if (items.length) {
       const hasEnTmdb = enLogos.length > 0;
-      const hasEnFanart = items.some(l => l.source === "Fanart" && String(l.lang || "").toLowerCase() === "en");
-      status.textContent = (!hasEnTmdb && !hasEnFanart && items.length > 0) ? "No English logo found — showing other languages." : "";
+      const hasEnFallback = items.some(l => l.source !== "TMDB" && String(l.lang || "").toLowerCase() === "en");
+      status.textContent = (!hasEnTmdb && !hasEnFallback && items.length > 0) ? "No English logo found — showing other languages." : "";
       renderGrid(items, true, true);
       return;
     }
@@ -642,7 +671,9 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
       const url = tmdbImage(b.file_path, "original");
       if (url && !seen.has(url)) { seen.add(url); items.push({ url, source: "TMDB" }); }
     }
-    status.textContent = items.length ? "Checking fanart.tv..." : "No TMDB backgrounds found. Checking fanart.tv...";
+    status.textContent = "Checking TVDB and fanart.tv...";
+    const tvdbBackgroundItems = tvdbItems(await getTvdbImages(), "background", seen);
+    items.push(...tvdbBackgroundItems);
     const fanartBackgroundItems = fanartItems(await getFanartImages(), "background", seen);
     items.push(...fanartBackgroundItems);
     if (items.length) { status.textContent = ""; renderGrid(items, false, true, true); return; }
@@ -663,7 +694,7 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
     ytRow.style.display = "none";
     toolsEl.style.display = tab === "youtube" ? "none" : "";
     titleEl.textContent = imageSections[tab]?.label || "Poster";
-    subtitleEl.textContent = tab === "youtube" ? "Paste a YouTube URL and choose the thumbnail to use." : "Choose TMDB artwork, use fanart.tv fallback, or upload your own image.";
+    subtitleEl.textContent = tab === "youtube" ? "Paste a YouTube URL and choose the thumbnail to use." : "Choose TMDB or TVDB artwork, use fanart.tv fallback, or upload your own image.";
     saveBtn.textContent = imageSections[tab]?.saveLabel || "Save";
     linksSlot.innerHTML = tab === "youtube" ? "" : searchLinks(tab);
     if (tab === "poster") {
