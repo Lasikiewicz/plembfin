@@ -1,7 +1,19 @@
 {
-  "version": "0.4.17",
-  "updatedAt": "2026-07-04T16:43:23+01:00",
+  "version": "0.4.18",
+  "updatedAt": "2026-07-04T16:59:54+01:00",
   "entries": [
+    {
+      "version": "0.4.18",
+      "date": "2026-07-04T16:59:54+01:00",
+      "commit": "f9cac518b4658d113ef2da531d1d611a59f3fb05",
+      "message": "Fix - Fall back to a TMDB title search when TheTVDB's TMDB id mapping is stale",
+      "author": "Lasikiewicz",
+      "details": [
+        "TV shows were silently missing TMDB-sourced cast, trailers, and images whenever TheTVDB's community-submitted TMDB id mapping pointed at a show that no longer resolves on TMDB",
+        "The show details lookup now verifies that id and retries with a TMDB title search if it fails, instead of leaving those fields empty forever",
+        "Documented the fallback behavior in the TV metadata architecture notes"
+      ]
+    },
     {
       "version": "0.4.17",
       "date": "2026-07-04T16:43:23+01:00",
