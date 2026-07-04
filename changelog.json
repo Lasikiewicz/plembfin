@@ -1,7 +1,20 @@
 {
-  "version": "0.4.6",
-  "updatedAt": "2026-07-04T12:00:40+01:00",
+  "version": "0.4.7",
+  "updatedAt": "2026-07-04T12:18:54+01:00",
   "entries": [
+    {
+      "version": "0.4.7",
+      "date": "2026-07-04T12:18:54+01:00",
+      "commit": "25c1ecf2c0aca7aeddd6f4c97df12838b929c4e0",
+      "message": "Fix - Optimize mobile view layout for cast member profiles and top-bar logo",
+      "author": "Lasikiewicz",
+      "details": [
+        "Rearrange filmography cards on mobile to stack vertically into 3 columns",
+        "Align cast photos section to use full grid width and match filmography layout",
+        "Increase mobile size of main profile photo and remove top padding gap",
+        "Align top-bar brand header logo correctly on mobile viewports"
+      ]
+    },
     {
       "version": "0.4.6",
       "date": "2026-07-04T12:00:40+01:00",
