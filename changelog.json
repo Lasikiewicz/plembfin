@@ -1,7 +1,18 @@
 {
-  "version": "0.4.14",
-  "updatedAt": "2026-07-04T15:50:31+01:00",
+  "version": "0.4.15",
+  "updatedAt": "2026-07-04T16:16:32+01:00",
   "entries": [
+    {
+      "version": "0.4.15",
+      "date": "2026-07-04T16:16:32+01:00",
+      "commit": "8b6ad04322124fa3670198d8f102b48548a53248",
+      "message": "Docs - Recapture Now Playing, Part Watched, and search README screenshots from production",
+      "author": "Lasikiewicz",
+      "details": [
+        "Captured the Now Playing and Part Watched dashboard screenshots from the live server with real active sessions and in-progress items, blurring usernames for privacy",
+        "Updated the search screenshot to use the phrase \"Tom\" instead of \"Jack Ryan\""
+      ]
+    },
     {
       "version": "0.4.14",
       "date": "2026-07-04T15:50:31+01:00",
