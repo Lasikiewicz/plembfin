@@ -1,7 +1,19 @@
 {
-  "version": "0.4.9",
-  "updatedAt": "2026-07-04T12:34:54+01:00",
+  "version": "0.4.10",
+  "updatedAt": "2026-07-04T12:37:23+01:00",
   "entries": [
+    {
+      "version": "0.4.10",
+      "date": "2026-07-04T12:37:23+01:00",
+      "commit": "1588f55c4fea72243f6b6f705309b744e0727403",
+      "message": "Fix - Resolve layout alignment gap below biography on cast member profile pages",
+      "author": "Lasikiewicz",
+      "details": [
+        "Nest photos and credits back inside main profile content block",
+        "Flow sections vertically with natural margins on desktop viewports",
+        "Remove obsolete grid layout alignment constraints from style rules"
+      ]
+    },
     {
       "version": "0.4.9",
       "date": "2026-07-04T12:34:54+01:00",
