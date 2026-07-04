@@ -335,7 +335,10 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
     }
   }
 
-  for (const season of seasonsList.filter((item) => Number(item.season_number) > 0)) {
+  // Specials (season 0) are excluded from progress totals further down (via the
+  // `> 0` filters on regularSeasonsList/regularEpisodeRows), but still need their
+  // own episode rows built here so the Specials accordion has something to show.
+  for (const season of seasonsList) {
     const seasonNumber = Number(season.season_number);
     const tmdbSeason = seasonDetailsByNumber.get(seasonNumber);
     const tmdbEpisodes = Array.isArray(tmdbSeason?.episodes) ? tmdbSeason.episodes : [];
