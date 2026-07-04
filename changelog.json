@@ -1,7 +1,19 @@
 {
-  "version": "0.4.19",
-  "updatedAt": "2026-07-04T17:05:45+01:00",
+  "version": "0.4.20",
+  "updatedAt": "2026-07-04T17:13:41+01:00",
   "entries": [
+    {
+      "version": "0.4.20",
+      "date": "2026-07-04T17:13:41+01:00",
+      "commit": "ff86791c8a9e3c4f3e8d0921fa07ccb2705c9fdf",
+      "message": "Fix - Clicking Specials (season 0) in the show accordion did nothing",
+      "author": "Lasikiewicz",
+      "details": [
+        "Season 0 (\"Specials\") was silently untoggleable: the open/close check coerced the \"no season selected\" state via Number(null), which equals 0 and collided with the real season 0 id, so the very first click always looked like \"already open\" and closed nothing",
+        "The season permalink URL also skipped the #season0 hash for the same falsy-zero reason",
+        "Both now use explicit null checks so season 0 behaves like any other season"
+      ]
+    },
     {
       "version": "0.4.19",
       "date": "2026-07-04T17:05:45+01:00",
