@@ -7651,6 +7651,8 @@ h1 {
     min-width: auto;
     flex-shrink: 0;
     order: 1;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   .brand-block h1 {
@@ -9029,6 +9031,12 @@ h1 {
   min-width: 0;
 }
 
+.person-photos-section,
+.person-credits-section {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
 .person-profile-name {
   margin: 0 0 1rem;
   font-size: 1.6rem;
@@ -9052,8 +9060,8 @@ h1 {
     align-items: center;
   }
   .person-profile-img {
-    width: 120px !important;
-    height: 180px !important;
+    width: 160px !important;
+    height: 240px !important;
   }
 }
 
@@ -9288,7 +9296,10 @@ h1 {
 }
 
 @media (max-width: 600px) {
-  .person-credits-grid { grid-template-columns: repeat(2, 1fr); }
+  .person-credits-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-2);
+  }
 }
 
 .pill-toggle-group {
@@ -9445,6 +9456,34 @@ html.light-mode .pill-toggle.active {
   color: inherit;
   font-size: 0.58rem;
   opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .person-credit-card {
+    flex-direction: column !important;
+  }
+
+  .person-credit-poster {
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 2 / 3 !important;
+  }
+
+  .person-credit-info {
+    padding: var(--space-2) !important;
+  }
+
+  .person-photos-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: var(--space-2) !important;
+  }
+
+  .person-photo-thumb {
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 2 / 3 !important;
+  }
 }
 
 /* Watch history dashboard poster sizing overrides */

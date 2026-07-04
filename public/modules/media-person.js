@@ -125,7 +125,7 @@ export async function loadCastMemberDetails(personId, personName = null) {
     state.personCreditsVisible = FILMOGRAPHY_PAGE_SIZE;
 
     root.innerHTML = `
-      <div class="person-profile-container" style="padding-top: var(--space-4);">
+      <div class="person-profile-container">
         <div class="person-profile-sidebar">
           <img class="person-profile-img" src="${escapeAttribute(profileUrl)}" alt="${escapeAttribute(data.name)}" data-err="fav" />
           <div class="person-profile-meta">
@@ -170,53 +170,53 @@ export async function loadCastMemberDetails(personId, personName = null) {
             <p class="person-biography-text" style="white-space: pre-wrap;">${escapeHtml(data.biography)}</p>
           </div>
           ` : '<p class="muted-copy">No biography available for this cast member.</p>'}
-          
-          ${(() => {
-        const seen = new Set();
-        const addUnique = (list) => list.filter((img) => {
-          if (!img.file_path || seen.has(img.file_path)) return false;
-          seen.add(img.file_path);
-          return true;
-        });
-        const profiles = addUnique(data.images?.profiles || []);
-        // tagged_images are photos TMDB has tagged as featuring this person
-        // (drop title posters so the gallery stays photos OF the person).
-        const tagged = addUnique(
-          (data.tagged_images?.results || []).filter((img) => img.image_type !== "poster")
-        );
-        const gallery = [...profiles, ...tagged].slice(0, 250);
-        if (!gallery.length) return '';
-        window._personPhotos = gallery.map((img) => tmdbProfile(img.file_path));
-        return `
-            <div class="person-photos-section" style="margin-top: 2rem;">
-              <h3>Photos <span class="person-photos-count">${gallery.length}</span></h3>
-              <div class="person-photos-grid">
-                ${gallery.map((img, i) => `
-                  <img class="person-photo-thumb" src="${escapeAttribute(tmdbProfile(img.file_path))}" loading="lazy" alt="${escapeAttribute(data.name)}" data-photo-index="${i}" data-err="hide" />
-                `).join('')}
-              </div>
-            </div>`;
-      })()}
+        </div>
+        
+        ${(() => {
+      const seen = new Set();
+      const addUnique = (list) => list.filter((img) => {
+        if (!img.file_path || seen.has(img.file_path)) return false;
+        seen.add(img.file_path);
+        return true;
+      });
+      const profiles = addUnique(data.images?.profiles || []);
+      // tagged_images are photos TMDB has tagged as featuring this person
+      // (drop title posters so the gallery stays photos OF the person).
+      const tagged = addUnique(
+        (data.tagged_images?.results || []).filter((img) => img.image_type !== "poster")
+      );
+      const gallery = [...profiles, ...tagged].slice(0, 250);
+      if (!gallery.length) return '';
+      window._personPhotos = gallery.map((img) => tmdbProfile(img.file_path));
+      return `
+          <div class="person-photos-section" style="margin-top: 2rem;">
+            <h3>Photos <span class="person-photos-count">${gallery.length}</span></h3>
+            <div class="person-photos-grid">
+              ${gallery.map((img, i) => `
+                <img class="person-photo-thumb" src="${escapeAttribute(tmdbProfile(img.file_path))}" loading="lazy" alt="${escapeAttribute(data.name)}" data-photo-index="${i}" data-err="hide" />
+              `).join('')}
+            </div>
+          </div>`;
+    })()}
 
-          <div class="person-credits-section" style="margin-top: 2rem;">
-            <div class="person-credits-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4); border-bottom: 1px solid var(--line-strong); padding-bottom: var(--space-3);">
-              <h3 style="margin: 0;">Filmography (<span id="personCreditsCount">${castCredits.length}</span>)</h3>
-              <div class="person-credits-controls" style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
-                <div class="pill-toggle-group" id="personCreditsFilterBtns">
-                  <button class="pill-toggle${state.personCreditsFilter === "movie" ? " active" : ""}" type="button" data-filter="movie">Movies</button>
-                  <button class="pill-toggle${state.personCreditsFilter === "tv" ? " active" : ""}" type="button" data-filter="tv">TV Shows</button>
-                </div>
-                <div class="pill-toggle-group" id="personCreditsSortBtns">
-                  <button class="pill-toggle${state.personCreditsSort === "popularity" ? " active" : ""}" type="button" data-sort="popularity">Popularity</button>
-                  <button class="pill-toggle${state.personCreditsSort === "date_desc" ? " active" : ""}" type="button" data-sort="date_desc">Newest</button>
-                  <button class="pill-toggle${state.personCreditsSort === "date_asc" ? " active" : ""}" type="button" data-sort="date_asc">Oldest</button>
-                </div>
+        <div class="person-credits-section" style="margin-top: 2rem;">
+          <div class="person-credits-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4); border-bottom: 1px solid var(--line-strong); padding-bottom: var(--space-3);">
+            <h3 style="margin: 0;">Filmography (<span id="personCreditsCount">${castCredits.length}</span>)</h3>
+            <div class="person-credits-controls" style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+              <div class="pill-toggle-group" id="personCreditsFilterBtns">
+                <button class="pill-toggle${state.personCreditsFilter === "movie" ? " active" : ""}" type="button" data-filter="movie">Movies</button>
+                <button class="pill-toggle${state.personCreditsFilter === "tv" ? " active" : ""}" type="button" data-filter="tv">TV Shows</button>
+              </div>
+              <div class="pill-toggle-group" id="personCreditsSortBtns">
+                <button class="pill-toggle${state.personCreditsSort === "popularity" ? " active" : ""}" type="button" data-sort="popularity">Popularity</button>
+                <button class="pill-toggle${state.personCreditsSort === "date_desc" ? " active" : ""}" type="button" data-sort="date_desc">Newest</button>
+                <button class="pill-toggle${state.personCreditsSort === "date_asc" ? " active" : ""}" type="button" data-sort="date_asc">Oldest</button>
               </div>
             </div>
-            <div class="person-credits-grid" id="personCreditsGrid">
-              <div style="display: flex; justify-content: center; align-items: center; min-height: 100px; grid-column: 1 / -1;">
-                <span style="color: var(--muted); font-size: 0.9rem;">Sorting filmography...</span>
-              </div>
+          </div>
+          <div class="person-credits-grid" id="personCreditsGrid">
+            <div style="display: flex; justify-content: center; align-items: center; min-height: 100px; grid-column: 1 / -1;">
+              <span style="color: var(--muted); font-size: 0.9rem;">Sorting filmography...</span>
             </div>
           </div>
         </div>
