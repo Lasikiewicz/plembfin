@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -65,7 +65,6 @@
             <button class="nav-tab" type="button" data-view="settings">Settings</button>
             <div id="sidebarSettingsMenu" class="sidebar-sub-menu hidden">
               <button class="settings-tab active" type="button" data-settings-tab="general">General</button>
-              <button class="settings-tab" type="button" data-settings-tab="appearance">Appearance</button>
               <button class="settings-tab" type="button" data-settings-tab="api-keys">API Keys</button>
               <button class="settings-tab" type="button" data-settings-tab="apps">Apps</button>
               <button class="settings-tab" type="button" data-settings-tab="backups">Backups</button>
@@ -79,6 +78,85 @@
           </div>
           <div class="sidebar-footer">
             <button id="appVersion" class="app-version" type="button" title="Open changelog">v0.0.0</button>
+            <div id="sidebarAppearanceWrap" class="sidebar-appearance-wrap hidden">
+              <button id="sidebarAppearanceButton" class="nav-tab sidebar-appearance-button" type="button" aria-expanded="false">
+                <span>Appearance</span>
+              </button>
+              <div id="sidebarAppearancePanel" class="sidebar-appearance-panel hidden">
+                <div id="sidebarAppearanceDashboardGroup" class="sidebar-appearance-list hidden">
+                  <button class="sidebar-appearance-list-item active" type="button" data-dashboard-history-view="cards" title="Card View">
+                    <svg viewBox="0 0 18 18" aria-hidden="true">
+                      <rect x="2" y="3" width="5" height="12" rx="1.2" fill="currentColor" opacity="0.72" />
+                      <rect x="9" y="4" width="7" height="2" rx="1" fill="currentColor" />
+                      <rect x="9" y="8" width="6" height="1.6" rx="0.8" fill="currentColor" opacity="0.72" />
+                      <rect x="9" y="11.6" width="4" height="1.6" rx="0.8" fill="currentColor" opacity="0.56" />
+                    </svg>
+                    <span>Card View</span>
+                  </button>
+                  <button class="sidebar-appearance-list-item" type="button" data-dashboard-history-view="posters" title="Poster View">
+                    <svg viewBox="0 0 18 18" aria-hidden="true">
+                      <rect x="2" y="2" width="5" height="6.5" rx="1" fill="currentColor" />
+                      <rect x="11" y="2" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.72" />
+                      <rect x="2" y="9.5" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.72" />
+                      <rect x="11" y="9.5" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.56" />
+                    </svg>
+                    <span>Poster View</span>
+                  </button>
+                </div>
+                <div id="sidebarAppearanceMediaGroup" class="sidebar-appearance-list hidden">
+                  <label class="sidebar-appearance-list-item" title="Show Logo Art">
+                    <input id="appearShowLogoArt" type="checkbox" checked />
+                    <svg viewBox="0 0 18 18" aria-hidden="true">
+                      <path d="M3 12.5 L6.5 5.5 L8.5 9.8 L10 7 L15 12.5 Z" fill="currentColor" opacity="0.85" />
+                      <rect x="3" y="14" width="12" height="1.4" rx="0.7" fill="currentColor" opacity="0.5" />
+                    </svg>
+                    <span>Logo Art</span>
+                  </label>
+                  <label class="sidebar-appearance-list-item" title="Show Cast Members">
+                    <input id="appearShowCast" type="checkbox" checked />
+                    <svg viewBox="0 0 18 18" aria-hidden="true">
+                      <circle cx="9" cy="6.2" r="2.7" fill="currentColor" />
+                      <path d="M3.4 15 C3.4 11 6 9.4 9 9.4 C12 9.4 14.6 11 14.6 15 Z" fill="currentColor" opacity="0.72" />
+                    </svg>
+                    <span>Cast Members</span>
+                  </label>
+                  <label class="sidebar-appearance-list-item" title="Show Trailers &amp; Clips">
+                    <input id="appearShowTrailers" type="checkbox" checked />
+                    <svg viewBox="0 0 18 18" aria-hidden="true">
+                      <rect x="2" y="4" width="14" height="10" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.3" />
+                      <path d="M7.4 6.8 L11.6 9 L7.4 11.2 Z" fill="currentColor" />
+                    </svg>
+                    <span>Trailers &amp; Clips</span>
+                  </label>
+                  <label class="sidebar-appearance-list-item" title="Show Reviews">
+                    <input id="appearShowReviews" type="checkbox" checked />
+                    <svg viewBox="0 0 18 18" aria-hidden="true">
+                      <path d="M9 2.6 L10.9 6.7 L15.3 7.2 L12 10.1 L13 14.5 L9 12.2 L5 14.5 L6 10.1 L2.7 7.2 L7.1 6.7 Z" fill="currentColor" />
+                    </svg>
+                    <span>Reviews</span>
+                  </label>
+                  <label class="sidebar-appearance-list-item" title="Show Images Section">
+                    <input id="appearShowImages" type="checkbox" checked />
+                    <svg viewBox="0 0 18 18" aria-hidden="true">
+                      <rect x="2" y="3" width="14" height="12" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.3" />
+                      <circle cx="6.2" cy="7.2" r="1.5" fill="currentColor" />
+                      <path d="M3.2 13.6 L7.6 9.2 L10.2 11.8 L12.2 9.8 L14.8 13.6 Z" fill="currentColor" opacity="0.8" />
+                    </svg>
+                    <span>Images</span>
+                  </label>
+                  <label class="sidebar-appearance-list-item" title="Show Related Shows">
+                    <input id="appearShowRelated" type="checkbox" checked />
+                    <svg viewBox="0 0 18 18" aria-hidden="true">
+                      <rect x="2" y="2.5" width="6" height="6" rx="1" fill="currentColor" opacity="0.85" />
+                      <rect x="10" y="2.5" width="6" height="6" rx="1" fill="currentColor" opacity="0.55" />
+                      <rect x="2" y="9.5" width="6" height="6" rx="1" fill="currentColor" opacity="0.55" />
+                      <rect x="10" y="9.5" width="6" height="6" rx="1" fill="currentColor" opacity="0.85" />
+                    </svg>
+                    <span>Related Shows</span>
+                  </label>
+                </div>
+              </div>
+            </div>
             <button id="themeToggleButton" class="theme-toggle-button" type="button" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">
               <span class="theme-toggle-track">
                 <span class="theme-toggle-thumb"></span>
@@ -1658,136 +1736,6 @@
                   </div>
                 </div>
               </section>
-              <section class="settings-pane hidden" data-settings-panel="appearance">
-                <div class="settings-top-tabs">
-                  <button class="settings-sub-tab active" type="button" data-sub-tab="appearance-dashboard">Dashboard</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="appearance-media">Media Pages</button>
-                </div>
-
-                <!-- Dashboard (Watch History View) Tab -->
-                <div class="settings-row" data-sub-panel="appearance-dashboard">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <div>
-                          <p>Watch History View</p>
-                          <span>Choose the layout style for the watch history on the dashboard</span>
-                        </div>
-                      </div>
-                      <div class="appearance-toggles">
-                        <div class="settings-segmented-row">
-                          <div class="settings-segmented-control" role="group" aria-label="Dashboard watch history view">
-                            <button class="sidebar-segmented-btn active" type="button" data-dashboard-history-view="cards" aria-label="Card View" title="Card View">
-                              <svg viewBox="0 0 18 18" aria-hidden="true">
-                                <rect x="2" y="3" width="5" height="12" rx="1.2" fill="currentColor" opacity="0.72" />
-                                <rect x="9" y="4" width="7" height="2" rx="1" fill="currentColor" />
-                                <rect x="9" y="8" width="6" height="1.6" rx="0.8" fill="currentColor" opacity="0.72" />
-                                <rect x="9" y="11.6" width="4" height="1.6" rx="0.8" fill="currentColor" opacity="0.56" />
-                              </svg>
-                              <span>Card View</span>
-                            </button>
-                            <button class="sidebar-segmented-btn" type="button" data-dashboard-history-view="posters" aria-label="Poster View" title="Poster View">
-                              <svg viewBox="0 0 18 18" aria-hidden="true">
-                                <rect x="2" y="2" width="5" height="6.5" rx="1" fill="currentColor" />
-                                <rect x="11" y="2" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.72" />
-                                <rect x="2" y="9.5" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.72" />
-                                <rect x="11" y="9.5" width="5" height="6.5" rx="1" fill="currentColor" opacity="0.56" />
-                              </svg>
-                              <span>Poster View</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </article>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Dashboard Help</p>
-                        <span>Watch History Layout</span>
-                      </div>
-                      <p class="tool-accordion-desc">
-                        <b>Card View</b> — Displays watch history items as wide cards with title descriptions, play dates, and metadata alongside the backdrop thumbnail.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Poster View</b> — A compact grid of vertical movie/show posters. Ideal for displaying more items on the screen at once.
-                      </p>
-                    </article>
-                  </div>
-                </div>
-
-                <!-- Media Pages Tab -->
-                <div class="settings-row hidden" data-sub-panel="appearance-media">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <div>
-                          <p>Media Pages</p>
-                          <span>Choose which sections appear on show and movie detail pages</span>
-                        </div>
-                      </div>
-                      <div class="appearance-toggles">
-                        <label class="checkbox-label appearance-toggle-row" style="cursor: pointer; user-select: none;">
-                          <input id="appearShowLogoArt" type="checkbox" checked />
-                          <span>Show Logo Art</span>
-                        </label>
-                        <label class="checkbox-label appearance-toggle-row" style="cursor: pointer; user-select: none;">
-                          <input id="appearShowCast" type="checkbox" checked />
-                          <span>Show Cast Members</span>
-                        </label>
-                        <label class="checkbox-label appearance-toggle-row" style="cursor: pointer; user-select: none;">
-                          <input id="appearShowTrailers" type="checkbox" checked />
-                          <span>Show Trailers &amp; Clips</span>
-                        </label>
-                        <label class="checkbox-label appearance-toggle-row" style="cursor: pointer; user-select: none;">
-                          <input id="appearShowReviews" type="checkbox" checked />
-                          <span>Show Reviews</span>
-                        </label>
-                        <label class="checkbox-label appearance-toggle-row" style="cursor: pointer; user-select: none;">
-                          <input id="appearShowImages" type="checkbox" checked />
-                          <span>Show Images Section</span>
-                        </label>
-                        <label class="checkbox-label appearance-toggle-row" style="cursor: pointer; user-select: none;">
-                          <input id="appearShowRelated" type="checkbox" checked />
-                          <span>Show Related Shows</span>
-                        </label>
-                      </div>
-                    </article>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Media Pages</p>
-                        <span>What each toggle controls</span>
-                      </div>
-                      <p class="tool-accordion-desc">
-                        <b>Show Logo Art</b> — Displays the title's logo image (fetched from TMDB) in the hero area at the top of the page. When off, the plain text title is shown instead.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Show Cast Members</b> — Horizontal scrolling row of cast cards with headshots and character names. Clicking a card opens the person's profile.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Show Trailers &amp; Clips</b> — Embeddable YouTube trailer and teaser thumbnails sourced from TMDB. Requires a TMDB API key.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Show Reviews</b> — Up to three critic or user reviews pulled from TMDB. Requires a TMDB API key.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Show Images Section</b> — A scrollable gallery of backdrops and stills for the title from TMDB.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Show Related Shows</b> — A row of similar titles recommended by TMDB. Clicking one navigates directly to that show's page.
-                      </p>
-                      <p class="tool-accordion-desc" style="border-top:1px solid var(--line); padding-top:var(--space-2); margin-top:var(--space-2);">
-                        Trailers, Reviews, Images, Cast, and Related content all require a configured TMDB API key under <b>Settings → API Keys</b>.
-                      </p>
-                    </article>
-                  </div>
-                </div>
-              </section>
-
               <section class="settings-pane hidden" data-settings-panel="changelog">
                 <div class="settings-row">
                   <div class="settings-row-main">

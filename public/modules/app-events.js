@@ -170,6 +170,12 @@ function attachEvents() {
     button.addEventListener("click", () => selectSettingsTab(button.dataset.settingsTab));
   });
 
+  elements.sidebarAppearanceButton?.addEventListener("click", () => {
+    const isOpen = !elements.sidebarAppearancePanel?.classList.contains("hidden");
+    elements.sidebarAppearancePanel?.classList.toggle("hidden", isOpen);
+    elements.sidebarAppearanceButton.setAttribute("aria-expanded", String(!isOpen));
+  });
+
   // Generic settings top-tab switching handler
   document.addEventListener("click", (e) => {
     const subTabBtn = e.target.closest("[data-sub-tab]");

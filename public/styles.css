@@ -6821,7 +6821,14 @@ h1 {
 .sidebar-secondary {
   display: grid;
   gap: 0;
-  padding: var(--space-1) 0;
+}
+
+.sidebar-primary {
+  padding: var(--space-1) 0 0;
+}
+
+.sidebar-secondary {
+  padding: 0 0 var(--space-1);
 }
 
 
@@ -6857,6 +6864,79 @@ h1 {
   width: 100%;
   justify-content: flex-start;
   text-align: left;
+}
+
+.sidebar-appearance-button {
+  font-family: inherit;
+}
+
+.sidebar-appearance-panel {
+  margin: 0.15rem 0 0.35rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.sidebar-appearance-list {
+  display: grid;
+  gap: 0;
+}
+
+.sidebar-appearance-list-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 2rem;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: #c8c8c8;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.4rem 0.65rem 0.4rem 1.4rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.sidebar-appearance-list-item svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  opacity: 0.75;
+}
+
+.sidebar-appearance-list-item input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.sidebar-appearance-list-item:hover {
+  border-left-color: rgba(229, 160, 13, 0.55);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.sidebar-appearance-list-item.active,
+.sidebar-appearance-list-item:has(input:checked) {
+  border-left-color: #e5a00d;
+  background: rgba(229, 160, 13, 0.12);
+  color: #e5a00d;
+}
+
+.sidebar-appearance-list-item.active svg,
+.sidebar-appearance-list-item:has(input:checked) svg {
+  opacity: 1;
+}
+
+.sidebar-appearance-list-item input:focus-visible {
+  outline: 2px solid #e5a00d;
+  outline-offset: -2px;
 }
 
 .nav-label {
@@ -10858,6 +10938,27 @@ html.light-mode .nav-tab.active {
   border-left-color: var(--blue);
 }
 
+html.light-mode .sidebar-appearance-list-item {
+  color: var(--text);
+}
+
+html.light-mode .sidebar-appearance-list-item:hover {
+  background: rgba(37, 99, 235, 0.04);
+  color: var(--blue);
+  border-left-color: rgba(37, 99, 235, 0.3);
+}
+
+html.light-mode .sidebar-appearance-list-item.active,
+html.light-mode .sidebar-appearance-list-item:has(input:checked) {
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--blue);
+  border-left-color: var(--blue);
+}
+
+html.light-mode .sidebar-appearance-list-item input:focus-visible {
+  outline-color: var(--blue);
+}
+
 html.light-mode .page-topbar {
   background: var(--panel-3);
   border-bottom: 1px solid var(--line);
@@ -11297,18 +11398,6 @@ body.hide-reviews .reviews-section { display: none !important; }
 body.hide-images .media-images-section { display: none !important; }
 body.hide-related .related-section { display: none !important; }
 
-.appearance-toggles {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
-}
-
-.appearance-toggle-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
 
 html.light-mode .seerr-owned-pill-4k {
   color: #0d9488;
@@ -11731,13 +11820,6 @@ html.light-mode .watch-date-custom label {
    so it inherits the light palette automatically — no overrides needed. */
 
 /* Watch History View Segmented Control inside Settings */
-.settings-segmented-row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-}
-
 .settings-segmented-control {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -11998,18 +12080,6 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 .settings-pane .checkbox-label input[type="checkbox"]:checked::before {
   transform: translateX(1.25rem);
   background: #ffffff;
-}
-
-.settings-pane .appearance-toggle-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.75rem 0.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  margin: 0;
-}
-
-.settings-pane .appearance-toggle-row:last-child {
-  border-bottom: none;
 }
 
 /* Branded Integration Cards */

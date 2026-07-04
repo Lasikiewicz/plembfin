@@ -125,6 +125,11 @@ function bindElements() {
     topbarControlsMenu: document.querySelector("#topbarControlsMenu"),
     topbarControlsPanel: document.querySelector("#topbarControlsPanel"),
     settingsSubMenu: document.querySelector("#sidebarSettingsMenu"),
+    sidebarAppearanceWrap: document.querySelector("#sidebarAppearanceWrap"),
+    sidebarAppearanceButton: document.querySelector("#sidebarAppearanceButton"),
+    sidebarAppearancePanel: document.querySelector("#sidebarAppearancePanel"),
+    sidebarAppearanceDashboardGroup: document.querySelector("#sidebarAppearanceDashboardGroup"),
+    sidebarAppearanceMediaGroup: document.querySelector("#sidebarAppearanceMediaGroup"),
     historyPanel: document.querySelector("#historyPanel"),
     alphaFilterNav: document.querySelector("#alphaFilterNav"),
     explorerSearchInput: document.querySelector("#explorerSearchInput"),
@@ -1266,7 +1271,6 @@ function settingsTopbarTitle() {
     backups: state.activeBackupsTab === "restore" ? "Restore" : "Backups",
     sync: "Sync",
     logs: "Logs",
-    appearance: "Appearance",
     changelog: "Changelog",
     cache: "Cache",
   };
@@ -1436,6 +1440,22 @@ function applyActiveView() {
     state.dashboardPosterObserver = undefined;
   }
 
+  const showDashboardAppearance = state.activeView === "dashboard";
+  const showMediaAppearance = Boolean(state.mediaDetailInline) && !window.location.pathname.startsWith("/person/");
+  const showSidebarAppearance = showDashboardAppearance || showMediaAppearance;
+  if (elements.sidebarAppearanceWrap) {
+    elements.sidebarAppearanceWrap.classList.toggle("hidden", !showSidebarAppearance);
+    if (!showSidebarAppearance) {
+      elements.sidebarAppearancePanel?.classList.add("hidden");
+      elements.sidebarAppearanceButton?.setAttribute("aria-expanded", "false");
+    }
+  }
+  elements.sidebarAppearanceDashboardGroup?.classList.toggle("hidden", !showDashboardAppearance);
+  elements.sidebarAppearanceMediaGroup?.classList.toggle("hidden", !showMediaAppearance);
+  for (const button of elements.dashboardHistoryViewButtons || []) {
+    button.classList.toggle("active", button.dataset.dashboardHistoryView === state.dashboardHistoryViewMode);
+  }
+
   if (state.activeView === "settings") {
     renderSettingsInlineHelp();
     localStorage.setItem(ACTIVE_SETTINGS_TAB_KEY, state.activeSettingsTab);
@@ -1444,11 +1464,6 @@ function applyActiveView() {
     }
     for (const panel of elements.settingsPanels || []) {
       panel.classList.toggle("hidden", panel.dataset.settingsPanel !== state.activeSettingsTab);
-    }
-    if (state.activeSettingsTab === "appearance") {
-      for (const button of elements.dashboardHistoryViewButtons || []) {
-        button.classList.toggle("active", button.dataset.dashboardHistoryView === state.dashboardHistoryViewMode);
-      }
     }
     if (state.activeSettingsTab === "sync") {
       renderSyncJobs();

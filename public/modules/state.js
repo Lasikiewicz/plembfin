@@ -20,7 +20,7 @@ export const HISTORY_FILTERS = ["all", "movies", "shows"];
 export const DASHBOARD_HISTORY_VIEW_KEY = "plembfin:dashboardHistoryView";
 export const DASHBOARD_HISTORY_VIEW_MODES = ["cards", "posters"];
 export const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "settings", "help", "search", "history"];
-export const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs", "appearance", "changelog", "cache"];
+export const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs", "changelog", "cache"];
 
 function _startOfWeek(value) {
   const date = new Date(value);
