@@ -1,7 +1,19 @@
 {
-  "version": "0.4.13",
-  "updatedAt": "2026-07-04T15:13:54+01:00",
+  "version": "0.4.14",
+  "updatedAt": "2026-07-04T15:50:31+01:00",
   "entries": [
+    {
+      "version": "0.4.14",
+      "date": "2026-07-04T15:50:31+01:00",
+      "commit": "6322f049661fd992bf8be36d9c540dc5049f981b",
+      "message": "Docs - Refresh README screenshots and document push workflow expectations",
+      "author": "Lasikiewicz",
+      "details": [
+        "Recaptured every README screenshot from the live app with current library data, split evenly between light and dark theme",
+        "Updated the dashboard screenshot caption so it no longer claims active playback sessions when nothing is currently playing",
+        "Documented in CLAUDE.md that origin/main routinely gains a CI changelog-bump commit right after a push, and how to reconcile that automatically"
+      ]
+    },
     {
       "version": "0.4.13",
       "date": "2026-07-04T15:13:54+01:00",
