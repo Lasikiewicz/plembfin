@@ -273,6 +273,10 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  align-self: center;
+  justify-self: center;
+  width: 100%;
+  max-width: 620px;
 }
 
 .media-detail-page .media-facts-rail--sidebar {
@@ -360,10 +364,21 @@ h2 {
   content: " ▲";
 }
 
+.media-facts-details[open] .media-facts-rail--sidebar {
+  margin-top: var(--space-4);
+}
+
+.media-app-links {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
 .media-app-link-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
+  justify-content: center;
 }
 
 .media-app-link {
@@ -437,7 +452,7 @@ h2 {
 }
 
 .media-detail-page .immersive-overview {
-  max-width: 74ch;
+  max-width: none;
   color: color-mix(in srgb, var(--text), transparent 8%);
   line-height: 1.55;
 }
@@ -8972,9 +8987,15 @@ h1 {
 
 /* Review Styles */
 .review-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .review-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .review-card {

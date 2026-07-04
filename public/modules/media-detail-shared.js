@@ -29,52 +29,59 @@ export function renderCastSection(tmdbData) {
     </section>
   `;
 }
-export function renderTrailersReviewsSection(tmdbData) {
+export function renderTrailersSection(tmdbData) {
   if (!tmdbData) return "";
   const trailers = (tmdbData.videos?.results || []).filter((v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser"));
-  const reviews = tmdbData.reviews?.results || [];
-  let html = "";
-  if (trailers.length > 0) {
-    html += `
-      <section class="seasons-section trailers-section">
-        <div class="show-section-title"><h3>Trailers & Clips</h3><span>${trailers.length} available</span></div>
-        <div class="horizontal-scroll-row trailer-scroll-row" style="margin-top: 0.5rem;">
-          ${trailers.map((video) => `
-            <div class="trailer-card">
-              <div class="trailer-thumb-container" data-video-key="${video.key}" data-video-name="${escapeAttribute(video.name)}">
-                <img class="trailer-thumb" src="https://img.youtube.com/vi/${video.key}/mqdefault.jpg" alt="${escapeAttribute(video.name)}" data-err="fav" />
-                <div class="play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
-              </div>
-              <span class="trailer-title" title="${escapeAttribute(video.name)}">${escapeHtml(video.name)}</span>
+  if (trailers.length === 0) return "";
+  return `
+    <section class="seasons-section trailers-section">
+      <div class="show-section-title"><h3>Trailers & Clips</h3><span>${trailers.length} available</span></div>
+      <div class="horizontal-scroll-row trailer-scroll-row" style="margin-top: 0.5rem;">
+        ${trailers.map((video) => `
+          <div class="trailer-card">
+            <div class="trailer-thumb-container" data-video-key="${video.key}" data-video-name="${escapeAttribute(video.name)}">
+              <img class="trailer-thumb" src="https://img.youtube.com/vi/${video.key}/mqdefault.jpg" alt="${escapeAttribute(video.name)}" data-err="fav" />
+              <div class="play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
             </div>
-          `).join("")}
-        </div>
-      </section>
-    `;
-  }
-  if (reviews.length > 0) {
-    html += `
-      <section class="seasons-section reviews-section">
-        <div class="show-section-title"><h3>Reviews</h3><span>${reviews.length} reviews</span></div>
-        <div class="review-list" style="margin-top: 0.5rem;">
-          ${reviews.slice(0, 3).map((review) => {
-      const hasLong = review.content?.length > 300;
-      return `
-              <div class="review-card">
-                <div class="review-header">
-                  <span class="review-author">${escapeHtml(review.author)}</span>
-                  ${review.author_details?.rating ? `<span class="review-rating">★ ${review.author_details.rating}/10</span>` : ""}
-                </div>
-                <div class="review-content-wrapper"><p class="review-content">${escapeHtml(review.content)}</p></div>
-                ${hasLong ? `<button class="action-pill review-toggle-btn" type="button">Read More</button>` : ""}
+            <span class="trailer-title" title="${escapeAttribute(video.name)}">${escapeHtml(video.name)}</span>
+          </div>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+export function renderReviewsSection(tmdbData) {
+  if (!tmdbData) return "";
+  const reviews = tmdbData.reviews?.results || [];
+  if (reviews.length === 0) return "";
+  return `
+    <section class="seasons-section reviews-section">
+      <div class="show-section-title"><h3>Reviews</h3><span>${reviews.length} reviews</span></div>
+      <div class="review-list" style="margin-top: 0.5rem;">
+        ${reviews.slice(0, 3).map((review) => {
+    const hasLong = review.content?.length > 300;
+    return `
+            <div class="review-card">
+              <div class="review-header">
+                <span class="review-author">${escapeHtml(review.author)}</span>
+                ${review.author_details?.rating ? `<span class="review-rating">★ ${review.author_details.rating}/10</span>` : ""}
               </div>
-            `;
-    }).join("")}
-        </div>
-      </section>
-    `;
-  }
-  return html;
+              <div class="review-content-wrapper"><p class="review-content">${escapeHtml(review.content)}</p></div>
+              ${hasLong ? `<button class="action-pill review-toggle-btn" type="button">Read More</button>` : ""}
+            </div>
+          `;
+  }).join("")}
+      </div>
+    </section>
+  `;
+}
+
+export function renderTrailersReviewsSection(tmdbData) {
+  return `
+    ${renderTrailersSection(tmdbData)}
+    ${renderReviewsSection(tmdbData)}
+  `;
 }
 export function renderRelatedShowsSection(tmdbData) {
   const related = tmdbData?.similar?.results || [];
@@ -270,7 +277,7 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
     ["Streaming", providers.map((provider) => provider.provider_name).join(", ")],
   ].filter(([, value]) => value);
   if (!facts.length) return "";
-  const wideLabels = new Set(["Streaming", "Network"]);
+  const wideLabels = new Set(["Streaming", "Network", "Genres"]);
   const tmdbId = tmdbData.id || tmdbData.tmdb_id || "";
   const imdbId = tmdbData.imdb_id || tmdbData.external_ids?.imdb_id || "";
   const tvdbId = tmdbData.external_ids?.tvdb_id || "";

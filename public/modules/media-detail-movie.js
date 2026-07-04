@@ -6,7 +6,7 @@ import { fetchTmdbDetails } from "./tmdb.js?v=20260626";
 import { renderWatchDatePrompt } from "./watch-action.js";
 import { authHeaders, mediaDetailRoot, setMediaDetailActions, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js";
 import {
-  renderCastSection, renderRichTmdbDetails, renderMediaImagesSection, renderMediaFacts,
+  renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
   renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection,
@@ -207,8 +207,9 @@ function _renderWatchedMovieContent(root, movie, {
         ${renderMediaFacts(tmdbData, "movie", "sidebar")}
       </header>
       ${tmdbData ? renderCastSection(tmdbData) : ""}
-      ${tmdbData ? renderRichTmdbDetails(tmdbData) : ""}
       ${tmdbData ? renderMediaImagesSection(tmdbData) : ""}
+      ${tmdbData ? renderTrailersSection(tmdbData) : ""}
+      ${tmdbData ? renderReviewsSection(tmdbData) : ""}
       ${tmdbData ? renderCollectionSection(tmdbData) : ""}
       ${renderRecommendationSection({ title: "Recommended movies", items: recommendations, mediaType: "movie" })}
       ${renderRecommendationSection({ title: "Recommended TV Shows", items: tvRecommendations, mediaType: "tv" })}
@@ -365,7 +366,9 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
         ${renderMediaFacts(tmdbData, "movie", "sidebar")}
       </header>
       ${renderCastSection(tmdbData)}
-      ${renderRichTmdbDetails(tmdbData)}
+      ${renderMediaImagesSection(tmdbData)}
+      ${renderTrailersSection(tmdbData)}
+      ${renderReviewsSection(tmdbData)}
       ${renderCollectionSection(tmdbData)}
       ${renderRecommendationSection({ title: "Recommended movies", items: recommendations, mediaType: "movie" })}
       ${renderRecommendationSection({ title: "Recommended TV Shows", items: tvRecommendations, mediaType: "tv" })}

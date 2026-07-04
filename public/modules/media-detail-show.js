@@ -7,7 +7,7 @@ import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260626";
 import { renderWatchDatePrompt } from "./watch-action.js";
 import { authHeaders, setMessage, mediaDetailRoot, setMediaDetailActions, prepareInlineMediaDetail, bumpMediaRenderToken } from "./media-detail-context.js";
 import {
-  renderCastSection, renderTrailersReviewsSection, renderRelatedShowsSection,
+  renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
   renderSeasonSeerrControls, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml, episodeResolutionPillHtml,
@@ -712,9 +712,9 @@ export function renderShowModalContent(show, {
       ${seasonsSectionHtml}
 
       ${renderCastSection(tmdbData)}
-
-      ${renderTrailersReviewsSection(tmdbData)}
       ${renderMediaImagesSection(tmdbData)}
+      ${renderTrailersSection(tmdbData)}
+      ${renderReviewsSection(tmdbData)}
       ${renderRelatedShowsSection(tmdbData)}
     </div>
     ${renderWatchDatePrompt(state.pendingWatchAction)}
