@@ -1,7 +1,20 @@
 {
-  "version": "0.4.8",
-  "updatedAt": "2026-07-04T12:22:58+01:00",
+  "version": "0.4.9",
+  "updatedAt": "2026-07-04T12:34:54+01:00",
   "entries": [
+    {
+      "version": "0.4.9",
+      "date": "2026-07-04T12:34:54+01:00",
+      "commit": "4e08c79022a612d25b6d8c4388cca8a5b2e20d14",
+      "message": "Fix - Customize section ordering and resolve layout spacing issues in media detail pages",
+      "author": "Lasikiewicz",
+      "details": [
+        "Order detail page sections as: Cast, Images, Trailers, Reviews",
+        "Align and center facts rail and apps buttons horizontally on desktop",
+        "Prevent genres text wrapping and fix vertical crashing on facts layout",
+        "Solve JavaScript ReferenceError causing page load issues on movies details"
+      ]
+    },
     {
       "version": "0.4.8",
       "date": "2026-07-04T12:22:58+01:00",
