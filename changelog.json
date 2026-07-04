@@ -1,7 +1,20 @@
 {
-  "version": "0.4.15",
-  "updatedAt": "2026-07-04T16:16:32+01:00",
+  "version": "0.4.16",
+  "updatedAt": "2026-07-04T16:29:59+01:00",
   "entries": [
+    {
+      "version": "0.4.16",
+      "date": "2026-07-04T16:29:59+01:00",
+      "commit": "95129811f19cbf97883f20d8a7ddba37dfa8a20e",
+      "message": "Docs - Add community health files for GitHub community standards",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add a Code of Conduct based on the Contributor Covenant",
+        "Add a Contributing guide covering dev setup, project structure, and PR expectations",
+        "Add bug report and feature request issue templates, plus a config linking security reports to private advisories",
+        "Add a pull request template with a review checklist"
+      ]
+    },
     {
       "version": "0.4.15",
       "date": "2026-07-04T16:16:32+01:00",
