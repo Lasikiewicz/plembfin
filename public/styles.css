@@ -4721,18 +4721,28 @@ details[open] .tool-accordion-chevron::before {
 
 @media (max-width: 760px) {
   .edit-image-dialog {
-    grid-template-columns: 1fr;
-    height: auto;
-    max-height: 92vh;
+    display: flex !important;
+    flex-direction: column !important;
+    height: 90vh !important;
+    max-height: 90vh !important;
   }
 
   .edit-image-sidebar {
-    flex-direction: row;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-shrink: 0 !important;
     overflow-x: auto;
     padding-right: 0;
     padding-bottom: 0.5rem;
     border-right: 0;
     border-bottom: 1px solid var(--line);
+  }
+
+  .edit-image-main {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
   }
 
   .edit-image-sidebar .edit-image-tab {
