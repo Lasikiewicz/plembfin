@@ -1,7 +1,22 @@
 {
-  "version": "0.4.22",
-  "updatedAt": "2026-07-04T17:36:29+01:00",
+  "version": "0.4.23",
+  "updatedAt": "2026-07-06T11:50:06+01:00",
   "entries": [
+    {
+      "version": "0.4.23",
+      "date": "2026-07-06T11:50:06+01:00",
+      "commit": "e74e88afc7f95369694f0209b0704903b469542e",
+      "message": "Fix - Mobile UI enhancements for media details and library views",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added sticky topbars to movies, tvshows, and watch history pages on mobile",
+        "Built mobile-optimized collapsible control panels for search, sort, and filter",
+        "Arranged media detail action buttons on a single line in desktop mode",
+        "Spaced media detail action buttons evenly across the full width on mobile",
+        "Redesigned Edit Images dialog grid to show smaller, responsive images on mobile",
+        "Repositioned platform app badges to sit directly below the title and ratings on mobile"
+      ]
+    },
     {
       "version": "0.4.22",
       "date": "2026-07-04T17:36:29+01:00",
