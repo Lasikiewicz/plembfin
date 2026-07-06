@@ -1,7 +1,18 @@
 {
-  "version": "0.4.23",
-  "updatedAt": "2026-07-06T11:50:06+01:00",
+  "version": "0.4.24",
+  "updatedAt": "2026-07-06T11:59:50+01:00",
   "entries": [
+    {
+      "version": "0.4.24",
+      "date": "2026-07-06T11:59:50+01:00",
+      "commit": "c4a076763df3e9d14cd4dadfb85004903bdc9e8c",
+      "message": "Fix - Resolve TMDB metadata caching lookup for unwatched and directly-linked movies",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a bug where TMDB details were not resolved when editing images for movies not present in timeline history",
+        "Enabled fallback lookup using state.moviesRaw and state.activeMovieTmdbId when resolving tmdbData for the edit dialog"
+      ]
+    },
     {
       "version": "0.4.23",
       "date": "2026-07-06T11:50:06+01:00",
