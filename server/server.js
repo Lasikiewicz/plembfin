@@ -91,7 +91,7 @@ app.use(async (_req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
     `default-src 'self'; img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com https://assets.fanart.tv https://fanart.tv https://artworks.thetvdb.com https://thetvdb.com${extraImgSrc}; ` +
-    "script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; " +
+    "script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; " +
     "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; " +
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com;"
   );

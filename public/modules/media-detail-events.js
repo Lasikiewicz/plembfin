@@ -56,6 +56,17 @@ const toggleSet = (...args) => _cb.toggleSet?.(...args);
 // module size limit; behavior is unchanged.
 export function attachMediaDetailEvents() {
   document.addEventListener("click", (event) => {
+    // Only dropdowns inside a "collapsed" actions bar are real popup menus.
+    // When the bar isn't collapsed, its dropdown is forced open so its
+    // contents render flattened inline (see syncMediaActionsMenuState) and
+    // must not be closed by an outside click.
+    const openDropdowns = document.querySelectorAll("#mediaDetailActions.actions-collapsed .actions-more-dropdown[open]");
+    for (const dropdown of openDropdowns) {
+      if (!dropdown.contains(event.target)) {
+        dropdown.removeAttribute("open");
+      }
+    }
+
     const mediaImageCard = event.target.closest(".media-image-card[data-lightbox-src]");
     if (mediaImageCard) {
       const row = mediaImageCard.closest(".media-images-scroll-row");
@@ -412,10 +423,15 @@ export function attachMediaDetailEvents() {
     if (seasonAccordion) {
       event.preventDefault();
       const seasonNum = Number(seasonAccordion.dataset.seasonAccordion);
+      const wasAllExpanded = state.showModalAllSeasonsExpanded;
       const currentSeason = state.activeShowModalSeason == null ? null : Number(state.activeShowModalSeason);
-      const shouldClose = currentSeason === seasonNum;
+      // Clicking an individual season while "expand all" is active means the
+      // user wants to focus on just this one — drop out of "all" mode instead
+      // of leaving every season open underneath it.
+      const shouldClose = !wasAllExpanded && currentSeason === seasonNum;
       const nextSeason = shouldClose ? null : seasonNum;
       const scrollY = window.scrollY;
+      state.showModalAllSeasonsExpanded = false;
       state.activeShowModalSeason = nextSeason;
       const ctx = state.activeShowRenderContext;
       if (ctx?.show) {
@@ -433,6 +449,24 @@ export function attachMediaDetailEvents() {
           : "";
       if (nextUrl) {
         window.history.replaceState({}, "", nextUrl);
+      }
+      return;
+    }
+
+    const toggleAllSeasons = event.target.closest("[data-toggle-all-seasons]");
+    if (toggleAllSeasons) {
+      event.preventDefault();
+      state.showModalAllSeasonsExpanded = !state.showModalAllSeasonsExpanded;
+      if (!state.showModalAllSeasonsExpanded) {
+        state.activeShowModalSeason = null;
+      }
+      const ctx = state.activeShowRenderContext;
+      if (ctx?.show) {
+        renderShowModalContent(ctx.show, {
+          ...ctx,
+          activeSeasonNum: state.activeShowModalSeason,
+          activeEpisodeNum: null,
+        });
       }
       return;
     }

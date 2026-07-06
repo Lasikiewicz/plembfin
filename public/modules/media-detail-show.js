@@ -270,6 +270,57 @@ function hydrateMissingSeasonDetails(show, activeSeasonNum, tmdbData, seasonDeta
     .finally(() => _seasonDetailsInflight.delete(cacheKey));
 }
 
+function hydrateAllSeasonEpisodeDetails(show, tmdbData, seasonDetailsByNumber, loading, seasonsList = []) {
+  if (loading || !tmdbData?.id || !seasonsList.length) return;
+  const requests = [];
+  const cacheKeys = [];
+
+  for (const season of seasonsList) {
+    const seasonNumber = Number(season.season_number);
+    if (!Number.isFinite(seasonNumber) || seasonDetailsByNumber.has(seasonNumber)) continue;
+
+    const cacheKey = `${tmdbData.id}|${seasonNumber}`;
+    if (_seasonDetailsInflight.has(cacheKey)) continue;
+
+    _seasonDetailsInflight.add(cacheKey);
+    cacheKeys.push(cacheKey);
+    requests.push(
+      fetchTmdbSeasonDetails(tmdbData.id, seasonNumber)
+        .then((details) => ({ seasonNumber, details }))
+        .catch((error) => {
+          console.error(`Failed to hydrate season ${seasonNumber} episodes`, error);
+          return { seasonNumber, details: null };
+        })
+    );
+  }
+
+  if (!requests.length) return;
+
+  Promise.all(requests)
+    .then((results) => {
+      let changed = false;
+      for (const { seasonNumber, details } of results) {
+        if (!details) continue;
+        seasonDetailsByNumber.set(Number(seasonNumber), details);
+        changed = true;
+      }
+      const current = state.activeShowRenderContext;
+      const currentTmdbId = current?.tmdbData?.id || tmdbData.id;
+      if (!changed || !state.showModalAllSeasonsExpanded || String(currentTmdbId) !== String(tmdbData.id)) return;
+      renderShowModalContent(current?.show || show, {
+        ...current,
+        activeSeasonNum: state.activeShowModalSeason,
+        tmdbData,
+        seasonDetailsByNumber,
+        loading: false,
+      });
+    })
+    .catch((error) => console.error("Failed to hydrate all season episodes", error))
+    .finally(() => {
+      for (const cacheKey of cacheKeys) _seasonDetailsInflight.delete(cacheKey);
+    });
+}
+
 function hydrateUnknownSeasonSummaryDetails(show, tmdbData, seasonDetailsByNumber, loading, seasonsList = []) {
   if (loading || !tmdbData?.id || !seasonsList.length) return;
   const requests = [];
@@ -494,6 +545,69 @@ function showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle = "",
   return { watchedInSeason, seasonTotal, nextAiring, nextAiringText };
 }
 
+function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, isSaving, isUnreleased, loading) {
+  if (!seasonRecord) return "";
+  const seasonEpisodes = episodeRows
+    .filter((episode) => episode.seasonNumber === seasonNumber)
+    .sort((a, b) => Number(a.episodeNumber || 0) - Number(b.episodeNumber || 0));
+  const seasonUnwatched = seasonEpisodes.filter((episode) => !episode.watched && !isUnreleased(episode));
+  const seasonSummary = showSeasonSummary(seasonNumber, seasonEpisodes, seasonRecord, showTitle, tmdbData, seasonDetailsByNumber);
+  const seasonSeerrControls = renderSeasonSeerrControls(tvSeerrTmdbId, seasonNumber, tvSeerrStatus);
+  return `
+    <section class="show-season-block" id="showSeason${seasonNumber}">
+      <div class="show-season-head">
+        <span class="show-season-label">${seasonSummary.watchedInSeason} of ${seasonSummary.seasonTotal || "?"} episodes watched</span>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          ${seasonSeerrControls}
+          ${seasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${seasonNumber}" ${isSaving ? "disabled" : ""}>Edit season date</button>` : ""}
+          <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${seasonNumber}" ${(seasonUnwatched.length && !isSaving) ? "" : "disabled"}>
+            ${isSaving && isSaving.scope === "season" && Number(isSaving.episodes[0]?.seasonNumber) === Number(seasonNumber) ? "Saving…" : "Mark season watched"}
+          </button>
+        </div>
+      </div>
+      <div class="show-episode-list">
+        ${seasonEpisodes.length ? seasonEpisodes.map((episode) => {
+    const isHighlighted = (Number(episode.seasonNumber) === Number(seasonNumber)) && (Number(episode.episodeNumber) === Number(state.activeShowModalEpisode));
+    const syncStatusDotHtml = episode.watched ? renderSyncStatusDot(episode.watched) : "";
+    const episodeIsUnreleased = isUnreleased(episode);
+    return `
+            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
+              ${episodeThumbMarkup(episode)}
+              <div class="immersive-episode-copy">
+                <div class="immersive-episode-title-row">
+                  <b style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                    ${escapeHtml(episodeCode(episode.seasonNumber, episode.episodeNumber))} ${escapeHtml(episode.title)}
+                    ${syncStatusDotHtml}
+                    ${episodeProgressHtml(episode)}
+                    ${episodeResolutionPillHtml(tvSeerrStatus, episode.seasonNumber, episode.episodeNumber)}
+                  </b>
+                </div>
+                <div class="immersive-episode-copy-wrap"><p>${escapeHtml(episode.overview)}</p></div>
+                ${episodeProgressBarHtml(episode)}
+                <div class="immersive-episode-meta-row">
+                  <span class="immersive-episode-dates">
+                    <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
+                    ${episode.watched ? `<time>Watched ${formatDate(episode.watched.watched_at)} <button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(episode.watched.id)}" data-watched-at="${escapeAttribute(episode.watched.watched_at || "")}">✎</button></time>` : ""}
+                  </span>
+                  <span class="immersive-episode-actions">
+                    ${episodeIsUnreleased
+        ? `<span class="unreleased-pill">Not yet released</span>`
+        : !episode.watched
+          ? `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}" ${isSaving ? "disabled" : ""}>
+                            ${isSaving && isSaving.scope === "episode" && isSaving.episodes[0]?.key === episode.key ? "Saving…" : "Mark watched"}
+                           </button>`
+          : `<button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
+                  </span>
+                </div>
+              </div>
+            </article>
+          `;
+  }).join("") : `<div class="empty-log"><b>No episode rows yet</b><span>${loading ? "Episode metadata is loading." : "No local or TVDB episodes were found for this season."}</span></div>`}
+      </div>
+    </section>
+  `;
+}
+
 export function renderShowModalContent(show, {
   activeSeasonNum = null,
   tmdbData = null,
@@ -544,15 +658,11 @@ export function renderShowModalContent(show, {
   state.showModalEpisodeIndex = new Map(episodeRows.map((episode) => [episode.key, episode]));
   state.activeShowRenderContext = { show, activeSeasonNum, tmdbData, seasonDetailsByNumber, loading };
 
+  const allSeasonsExpanded = state.showModalAllSeasonsExpanded;
   const selectedSeasonRecord = selectedSeason == null
     ? null
     : seasonsList.find((season) => Number(season.season_number) === selectedSeason) || { season_number: selectedSeason };
   const selectedSeasonNumber = selectedSeasonRecord ? Number(selectedSeasonRecord.season_number) : null;
-  const selectedSeasonEpisodes = selectedSeasonNumber == null
-    ? []
-    : episodeRows
-      .filter((episode) => episode.seasonNumber === selectedSeasonNumber)
-      .sort((a, b) => Number(a.episodeNumber || 0) - Number(b.episodeNumber || 0));
   const isUnreleased = (episode) => {
     if (episode.watched) return false;
     if (!episode.airDate) return false;
@@ -561,74 +671,34 @@ export function renderShowModalContent(show, {
     const air = new Date(parts[0], parts[1] - 1, parts[2]);
     return !Number.isNaN(air.getTime()) && air > new Date();
   };
-  const selectedSeasonUnwatched = selectedSeasonEpisodes.filter((episode) => !episode.watched && !isUnreleased(episode));
   const unwatchedRows = episodeRows.filter((episode) => !episode.watched && !isUnreleased(episode));
-  const selectedSeasonSummary = selectedSeasonRecord
-    ? showSeasonSummary(selectedSeasonNumber, selectedSeasonEpisodes, selectedSeasonRecord, showTitle, tmdbData, seasonDetailsByNumber)
-    : { watchedInSeason: 0, seasonTotal: 0 };
-  const selectedSeasonSeerrControls = selectedSeasonRecord ? renderSeasonSeerrControls(tvSeerrTmdbId, selectedSeasonNumber, tvSeerrStatus) : "";
-  const selectedSeasonEpisodesHtml = selectedSeasonRecord ? `
-    <section class="show-season-block" id="showSeason${selectedSeasonNumber}">
-      <div class="show-season-head">
-        <span class="show-season-label">${selectedSeasonSummary.watchedInSeason} of ${selectedSeasonSummary.seasonTotal || "?"} episodes watched</span>
-        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-          ${selectedSeasonSeerrControls}
-          ${selectedSeasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${selectedSeasonNumber}" ${isSaving ? "disabled" : ""}>Edit season date</button>` : ""}
-          <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${selectedSeasonNumber}" ${(selectedSeasonUnwatched.length && !isSaving) ? "" : "disabled"}>
-            ${isSaving && isSaving.scope === "season" && Number(isSaving.episodes[0]?.seasonNumber) === Number(selectedSeasonNumber) ? "Saving…" : "Mark season watched"}
-          </button>
-        </div>
-      </div>
-      <div class="show-episode-list">
-        ${selectedSeasonEpisodes.length ? selectedSeasonEpisodes.map((episode) => {
-    const isHighlighted = (Number(episode.seasonNumber) === Number(selectedSeasonNumber)) && (Number(episode.episodeNumber) === Number(state.activeShowModalEpisode));
-    const syncStatusDotHtml = episode.watched ? renderSyncStatusDot(episode.watched) : "";
-    const episodeIsUnreleased = isUnreleased(episode);
-    return `
-            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
-              ${episodeThumbMarkup(episode)}
-              <div class="immersive-episode-copy">
-                <div class="immersive-episode-title-row">
-                  <b style="display: inline-flex; align-items: center; gap: 0.35rem;">
-                    ${escapeHtml(episodeCode(episode.seasonNumber, episode.episodeNumber))} ${escapeHtml(episode.title)}
-                    ${syncStatusDotHtml}
-                    ${episodeProgressHtml(episode)}
-                    ${episodeResolutionPillHtml(tvSeerrStatus, episode.seasonNumber, episode.episodeNumber)}
-                  </b>
-                </div>
-                <div class="immersive-episode-copy-wrap"><p>${escapeHtml(episode.overview)}</p></div>
-                ${episodeProgressBarHtml(episode)}
-                <div class="immersive-episode-meta-row">
-                  <span class="immersive-episode-dates">
-                    <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
-                    ${episode.watched ? `<time>Watched ${formatDate(episode.watched.watched_at)} <button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(episode.watched.id)}" data-watched-at="${escapeAttribute(episode.watched.watched_at || "")}">✎</button></time>` : ""}
-                  </span>
-                  <span class="immersive-episode-actions">
-                    ${episodeIsUnreleased
-        ? `<span class="unreleased-pill">Not yet released</span>`
-        : !episode.watched
-          ? `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}" ${isSaving ? "disabled" : ""}>
-                            ${isSaving && isSaving.scope === "episode" && isSaving.episodes[0]?.key === episode.key ? "Saving…" : "Mark watched"}
-                           </button>`
-          : `<button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
-                  </span>
-                </div>
-              </div>
-            </article>
-          `;
-  }).join("") : `<div class="empty-log"><b>No episode rows yet</b><span>${loading ? "Episode metadata is loading." : "No local or TVDB episodes were found for this season."}</span></div>`}
-      </div>
-    </section>
-  ` : "";
 
-  hydrateMissingSeasonDetails(show, selectedSeasonNumber, tmdbData, seasonDetailsByNumber, loading);
+  // Normally only the selected season's episode list is built/rendered — the
+  // rest stay collapsed and unbuilt. "Expand all" (state.showModalAllSeasonsExpanded)
+  // builds a panel for every season instead, so the accordion below can render
+  // them all open at once.
+  const seasonPanelsByNumber = new Map();
+  if (allSeasonsExpanded) {
+    for (const season of seasonsList) {
+      const seasonNumber = Number(season.season_number);
+      seasonPanelsByNumber.set(seasonNumber, renderSeasonPanelHtml(seasonNumber, season, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, isSaving, isUnreleased, loading));
+    }
+  } else if (selectedSeasonRecord) {
+    seasonPanelsByNumber.set(selectedSeasonNumber, renderSeasonPanelHtml(selectedSeasonNumber, selectedSeasonRecord, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, isSaving, isUnreleased, loading));
+  }
+
+  if (allSeasonsExpanded) {
+    hydrateAllSeasonEpisodeDetails(show, tmdbData, seasonDetailsByNumber, loading, seasonsList);
+  } else {
+    hydrateMissingSeasonDetails(show, selectedSeasonNumber, tmdbData, seasonDetailsByNumber, loading);
+  }
   hydrateUnknownSeasonSummaryDetails(show, tmdbData, seasonDetailsByNumber, loading, seasonsList);
 
   const seasonsAccordionHtml = seasonsList.map((season) => {
     const seasonNumber = Number(season.season_number);
     const seasonEpisodes = episodeRows.filter((episode) => episode.seasonNumber === seasonNumber);
     const { watchedInSeason, seasonTotal, nextAiringText } = showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle, tmdbData, seasonDetailsByNumber);
-    const isActive = seasonNumber === selectedSeasonNumber;
+    const isActive = allSeasonsExpanded || seasonNumber === selectedSeasonNumber;
     const panelId = `seasonAccordionPanel${seasonNumber}`;
     const episodeCountText = `${seasonTotal || "?"} episode${seasonTotal === 1 ? "" : "s"}`;
     const watchedText = watchedInSeason ? `${watchedInSeason} watched` : "";
@@ -645,7 +715,7 @@ export function renderShowModalContent(show, {
             <svg class="season-accordion-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </span>
         </button>
-        ${isActive ? `<div class="season-accordion-panel" id="${panelId}">${selectedSeasonEpisodesHtml}</div>` : ""}
+        ${isActive ? `<div class="season-accordion-panel" id="${panelId}">${seasonPanelsByNumber.get(seasonNumber) || ""}</div>` : ""}
       </article>
     `;
   }).join("");
@@ -660,21 +730,54 @@ export function renderShowModalContent(show, {
     </section>
   ` : "";
 
+  const checkIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425z"/></svg>`;
+  const calendarIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/></svg>`;
+  const imageIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/><path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12z"/></svg>`;
+  const searchIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>`;
+  const mergeIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M6.5 3a.5.5 0 0 1 .5.5V6h4a2.5 2.5 0 0 1 2.5 2.5v3.793a1.5 1.5 0 1 1-1 0V8.5A1.5 1.5 0 0 0 11 7H7v2.5a.5.5 0 0 1-1 0v-6a.5.5 0 0 1 .5-.5zM2 13.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0zm10 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0z"/></svg>`;
+  const expandAllIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3.646 9.646a.5.5 0 0 1 .708 0L8 13.293l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708zm0-3.292a.5.5 0 0 0 .708 0L8 2.707l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708z"/></svg>`;
+  const collapseAllIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8 3a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7.5 7.293V3.5A.5.5 0 0 1 8 3zm-.5 9.5V8.707L6.354 9.854a.5.5 0 1 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 8.707v3.793a.5.5 0 0 1-1 0z"/></svg>`;
+  const allSeasonsExpandedNow = state.showModalAllSeasonsExpanded;
+  const expandAllSeasonsBtn = regularSeasonsList.length ? `
+    <button class="action-pill media-toggle-all-seasons-btn" type="button" data-toggle-all-seasons aria-pressed="${allSeasonsExpandedNow}">
+      ${allSeasonsExpandedNow ? collapseAllIcon : expandAllIcon}
+      <span>${allSeasonsExpandedNow ? "Collapse <br>All" : "Expand <br>All"}</span>
+    </button>
+  ` : "";
+
   setMediaDetailActions(`
-    <details class="media-actions-menu">
-      <summary class="action-pill media-actions-menu-trigger">Show actions</summary>
-      <div class="media-actions-menu-panel">
-        <button class="action-pill" type="button" data-watch-scope="show" ${(unwatchedRows.length && !isSaving) ? "" : "disabled"}>
-          ${isSavingShow ? "Saving watched state…" : "Mark whole show watched"}
-        </button>
-        ${watchedRows.length ? `<button class="action-pill media-edit-show-date-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">Edit Show Watch Date</button>` : ""}
-        ${tmdbOnly ? "" : `
-          <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}" data-logo-url="${escapeAttribute(show.logo_url || "")}" data-backdrop-url="${escapeAttribute(show.backdrop_url || "")}">Edit Images</button>
-          <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">Fix Match</button>
-          <button class="action-pill media-merge-show-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">Merge</button>
-        `}
-      </div>
-    </details>
+    <button class="action-pill" type="button" data-watch-scope="show" ${(unwatchedRows.length && !isSaving) ? "" : "disabled"}>
+      ${checkIcon}
+      <span>${isSavingShow ? "Saving..." : "Mark <br>Watched"}</span>
+    </button>
+    ${watchedRows.length ? `
+      <button class="action-pill media-edit-show-date-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">
+        ${calendarIcon}
+        <span>Edit <br>Date</span>
+      </button>` : ""}
+    ${tmdbOnly ? "" : `
+      <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}" data-logo-url="${escapeAttribute(show.logo_url || "")}" data-backdrop-url="${escapeAttribute(show.backdrop_url || "")}">
+        ${imageIcon}
+        <span>Edit <br>Images</span>
+      </button>
+      <details class="actions-more-dropdown">
+        <summary class="action-pill actions-more-trigger">
+          <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M3 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg>
+          <span>More</span>
+        </summary>
+        <div class="actions-more-panel">
+          <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">
+            ${searchIcon}
+            <span>Fix Match</span>
+          </button>
+          <button class="action-pill media-merge-show-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">
+            ${mergeIcon}
+            <span>Merge</span>
+          </button>
+        </div>
+      </details>
+    `}
+    ${expandAllSeasonsBtn}
   `);
 
   root.innerHTML = `
@@ -690,8 +793,9 @@ export function renderShowModalContent(show, {
               ${ratingPillsHtml}
               ${imdbPillHtml}
               ${showModalStatus(loading, Boolean(tmdbData))}
-              ${renderSeerrRequestPill("tv", tvSeerrTmdbId, showIsNowPlaying)}
             </div>
+
+            ${renderSeerrRequestPill("tv", tvSeerrTmdbId, showIsNowPlaying)}
 
             <p class="immersive-overview">${escapeHtml(overview)}</p>
 

@@ -128,6 +128,7 @@ export const state = {
   activeShowTmdbId: null,
   activeShowModalSeason: null,
   activeShowModalEpisode: null,
+  showModalAllSeasonsExpanded: false,
   showModalRequestToken: 0,
   showModalEpisodes: [],
   showModalEpisodeIndex: new Map(),

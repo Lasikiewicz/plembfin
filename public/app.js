@@ -1286,7 +1286,7 @@ function syncPageTopbar() {
   const query = new URLSearchParams(window.location.search);
   const isPersonDetail = path.startsWith("/person/");
   const isInlineDetail = state.mediaDetailInline || isPersonDetail;
-  const mobileTopbarControls = window.matchMedia("(max-width: 640px)").matches;
+  const isMobile = window.matchMedia("(max-width: 640px)").matches;
   const controlGroups = [
     elements.explorerTopbarControls,
     elements.historyTopbarControls,
@@ -1325,7 +1325,7 @@ function syncPageTopbar() {
   } else if (state.activeView === "settings") {
     title = settingsTopbarTitle();
     subtitle = "";
-    activeControls = mobileTopbarControls ? elements.settingsSubMenu : null;
+    activeControls = isMobile ? elements.settingsSubMenu : null;
 
   } else if (state.activeView === "search") {
     const searchQuery = state.searchQuery || query.get("q") || "";
@@ -1353,21 +1353,18 @@ function syncPageTopbar() {
     group.classList.add("hidden");
   }
 
-  if (!mobileTopbarControls && state.activeView === "settings" && elements.settingsSubMenu) {
+  if (!isMobile && state.activeView === "settings" && elements.settingsSubMenu) {
     elements.settingsSubMenu.classList.remove("hidden");
   }
 
 
   if (elements.topbarControlsMenu) {
-    elements.topbarControlsMenu.classList.toggle("hidden", !mobileTopbarControls || !activeControls);
+    elements.topbarControlsMenu.classList.add("hidden");
   }
 
   const mediaDetailActions = document.getElementById("mediaDetailActions");
   if (elements.pageTopbarActions) {
-    if (activeControls && mobileTopbarControls && elements.topbarControlsPanel) {
-      elements.topbarControlsPanel.appendChild(activeControls);
-      activeControls.classList.remove("hidden");
-    } else if (activeControls && !mobileTopbarControls) {
+    if (activeControls) {
       elements.pageTopbarActions.insertBefore(activeControls, mediaDetailActions || null);
       activeControls.classList.remove("hidden");
     }

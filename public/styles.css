@@ -564,7 +564,7 @@ h2 {
   .media-detail-page .immersive-header,
   .media-detail-page .immersive-header:has(.immersive-sidebar) {
     grid-template-columns: auto 1fr;
-    grid-template-rows: auto auto auto auto auto auto auto;
+    grid-template-rows: auto auto auto auto auto auto auto auto;
     gap: var(--space-3);
     margin-top: var(--space-2);
     align-items: flex-start;
@@ -636,6 +636,12 @@ h2 {
     display: contents;
   }
 
+  .media-detail-page #seerrRequestContainer {
+    grid-column: 1 / -1;
+    grid-row: 5;
+    justify-content: center;
+  }
+
   .media-detail-page .media-app-links {
     grid-column: 2;
     grid-row: 4;
@@ -648,13 +654,13 @@ h2 {
 
   .media-detail-page .progress-section {
     grid-column: 1 / -1;
-    grid-row: 5;
+    grid-row: 6;
     width: 100%;
   }
 
   .media-detail-page .immersive-overview {
     grid-column: 1 / -1;
-    grid-row: 6;
+    grid-row: 7;
     width: 100%;
     max-height: none;
     overflow: visible;
@@ -663,7 +669,7 @@ h2 {
 
   .media-detail-page .immersive-header .media-facts-details {
     grid-column: 1 / -1;
-    grid-row: 7;
+    grid-row: 8;
     width: 100%;
     justify-self: auto;
   }
@@ -971,7 +977,7 @@ h2 {
   gap: var(--space-3);
   margin-inline: calc(var(--control-inline-padding) * -1);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: var(--bg);
+  background: var(--panel-3);
   padding: var(--right-topbar-content-offset) var(--control-inline-padding);
 }
 
@@ -1051,14 +1057,20 @@ h2 {
   min-height: 1.8rem;
   align-self: center;
   margin: 0;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  background: rgba(7, 10, 13, 0.72);
-  color: var(--text);
-  padding: 0.35rem 0.65rem;
-  font-size: 0.75rem;
-  font-weight: 800;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--text-muted, var(--text)) !important;
+  padding: 0.2rem 0.4rem !important;
+  font-size: 0.85rem;
+  font-weight: 700;
   white-space: nowrap;
+  box-shadow: none !important;
+}
+
+.page-topbar .immersive-back-button:hover {
+  background: transparent !important;
+  color: var(--primary) !important;
 }
 
 .view-control-source {
@@ -4739,6 +4751,19 @@ details[open] .tool-accordion-chevron::before {
   .edit-image-search-links {
     justify-content: flex-start;
   }
+
+  .edit-image-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+
+  .edit-image-grid.edit-image-grid--logo {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+  }
+
+  .edit-image-grid.edit-image-grid--backdrop {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
+  }
 }
 
 .edit-image-source-badge {
@@ -5054,7 +5079,103 @@ details[open] .tool-accordion-chevron::before {
     max-width: 100%;
     margin-left: 0;
     justify-content: flex-start;
-    overflow: visible;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0.5rem;
+    align-items: center;
+    padding-bottom: 2px;
+  }
+
+  body .page-topbar-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  body .page-topbar-actions .explorer-controls:not(.hidden),
+  body .page-topbar-actions .stats-controls:not(.hidden),
+  body .page-topbar-actions .sidebar-sub-menu:not(.hidden) {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    width: auto !important;
+    flex-shrink: 0 !important;
+  }
+
+  body .page-topbar-actions .compact-field {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 0.35rem !important;
+    flex-shrink: 0 !important;
+    width: auto !important;
+    margin: 0 !important;
+  }
+
+  body .page-topbar-actions .compact-field span {
+    font-size: 0.7rem !important;
+    white-space: nowrap !important;
+    display: inline-block !important;
+  }
+
+  body .page-topbar-actions .compact-field input,
+  body .page-topbar-actions .compact-field select {
+    width: auto !important;
+    min-width: 7.5rem !important;
+    height: 1.8rem !important;
+    min-height: 1.8rem !important;
+    font-size: 0.75rem !important;
+    padding: 0.2rem 0.4rem !important;
+  }
+
+  body .page-topbar-actions .explorer-search-box {
+    min-width: 10rem !important;
+  }
+
+  body .page-topbar-actions .explorer-search-box input {
+    min-width: 10rem !important;
+  }
+
+  body .page-topbar-actions .explorer-size-slider input {
+    width: 60px !important;
+    min-width: 60px !important;
+  }
+
+  body .page-topbar-actions .explorer-view-toggle {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 0.15rem !important;
+    flex-shrink: 0 !important;
+  }
+
+  body .page-topbar-actions .explorer-view-btn {
+    padding: 0.2rem 0.4rem !important;
+    min-height: 1.8rem !important;
+    font-size: 0.75rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  body .page-topbar-actions .explorer-hide-toggle {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 0.25rem !important;
+    white-space: nowrap !important;
+  }
+
+  body .page-topbar-actions .sidebar-sub-menu .settings-tab {
+    padding: 0.25rem 0.5rem !important;
+    min-height: 1.8rem !important;
+    font-size: 0.75rem !important;
+    white-space: nowrap !important;
+    width: auto !important;
   }
 
   body #mediaDetailActions {
@@ -8051,7 +8172,7 @@ h1 {
 
   .modal-backdrop-image {
     left: 0;
-    top: 7.5rem;
+    top: 0;
   }
 
   /* Explorer page specific - only affect explorer pages */
@@ -8131,6 +8252,174 @@ h1 {
 
   #topbarControlsPanel #explorerTopbarControls .compact-field:nth-of-type(3) select {
     width: 100%;
+  }
+
+  body .page-topbar-actions .explorer-controls:not(.hidden),
+  body .explorer-controls {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    flex-shrink: 1 !important;
+  }
+
+  /* Mobile control panels visibility */
+  body .page-topbar-actions .explorer-controls > .compact-field,
+  body .page-topbar-actions .explorer-controls > .explorer-view-toggle,
+  body .page-topbar-actions .explorer-controls > #explorerHideWatchedLabel,
+  body .page-topbar-actions .explorer-controls > #explorerHideEndedLabel,
+  body .explorer-controls > .compact-field,
+  body .explorer-controls > .explorer-view-toggle,
+  body .explorer-controls > #explorerHideWatchedLabel,
+  body .explorer-controls > #explorerHideEndedLabel {
+    display: none !important;
+  }
+
+  /* Show only the active one */
+  body .page-topbar-actions .explorer-controls > .compact-field.active-mobile-panel,
+  body .page-topbar-actions .explorer-controls > .explorer-view-toggle.active-mobile-panel,
+  body .page-topbar-actions .explorer-controls > #explorerHideWatchedLabel.active-mobile-panel,
+  body .page-topbar-actions .explorer-controls > #explorerHideEndedLabel.active-mobile-panel,
+  body .explorer-controls > .compact-field.active-mobile-panel,
+  body .explorer-controls > .explorer-view-toggle.active-mobile-panel,
+  body .explorer-controls > #explorerHideWatchedLabel.active-mobile-panel,
+  body .explorer-controls > #explorerHideEndedLabel.active-mobile-panel {
+    display: flex !important;
+    width: 100% !important;
+    margin-top: 0.5rem !important;
+    animation: fadeInControlPanel 0.2s ease;
+  }
+
+  body .mobile-controls-row {
+    display: flex !important;
+    align-items: flex-start !important;
+    flex-direction: row !important;
+    width: 100% !important;
+    margin: 0 0 0.5rem 0 !important;
+    padding: 0.25rem 0 0.4rem 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    gap: 0.15rem !important;
+    flex-shrink: 0 !important;
+    border-bottom: 1px solid var(--line) !important;
+  }
+
+  body .mobile-controls-row .mobile-control-tab {
+    display: inline-flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.15rem !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: var(--text) !important;
+    padding: 0.2rem 0.25rem !important;
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+    height: auto !important;
+    font-size: 0.55rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.01em !important;
+    text-align: center !important;
+    white-space: normal !important;
+    flex-shrink: 0 !important;
+    cursor: pointer;
+    opacity: 0.65;
+    transition: color 0.15s ease, opacity 0.15s ease, background-color 0.15s ease;
+    border-radius: 4px !important;
+    outline: none !important;
+  }
+
+  body .mobile-controls-row .mobile-control-tab.active {
+    opacity: 1 !important;
+    color: var(--primary, #0088cc) !important;
+  }
+
+  body .mobile-controls-row .mobile-control-tab:hover {
+    opacity: 1;
+    color: var(--primary, #0088cc) !important;
+    background: var(--bg-hover, rgba(128, 128, 128, 0.08)) !important;
+  }
+
+  body .mobile-controls-row .mobile-control-tab svg {
+    width: 1.2rem !important;
+    height: 1.2rem !important;
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+    color: inherit !important;
+    fill: currentColor !important;
+  }
+
+  body .mobile-controls-row .mobile-control-tab span {
+    display: block !important;
+    color: inherit !important;
+    line-height: 1.2 !important;
+    margin-top: 0.15rem !important;
+    text-align: center !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+    font-size: 0.55rem !important;
+    min-height: 2.4em !important;
+  }
+
+  @keyframes fadeInControlPanel {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  body .page-topbar-actions .explorer-controls > .active-mobile-panel,
+  body .explorer-controls > .active-mobile-panel {
+    display: flex !important;
+    width: 100% !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+  }
+
+  body .page-topbar-actions .explorer-controls > .active-mobile-panel.explorer-search-box input,
+  body .explorer-controls > .active-mobile-panel.explorer-search-box input,
+  body .page-topbar-actions .explorer-controls > .active-mobile-panel select,
+  body .explorer-controls > .active-mobile-panel select {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  body .page-topbar-actions .explorer-controls > .active-mobile-panel.explorer-size-slider,
+  body .explorer-controls > .active-mobile-panel.explorer-size-slider {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+
+  body .page-topbar-actions .explorer-controls > .active-mobile-panel.explorer-size-slider input,
+  body .explorer-controls > .active-mobile-panel.explorer-size-slider input {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin-left: 1rem !important;
+  }
+
+  body .page-topbar-actions .explorer-controls > .active-mobile-panel.explorer-view-toggle,
+  body .explorer-controls > .active-mobile-panel.explorer-view-toggle {
+    display: flex !important;
+    flex-direction: row !important;
+    width: 100% !important;
+    gap: 0.25rem !important;
+  }
+
+  body .page-topbar-actions .explorer-controls > .active-mobile-panel.explorer-view-toggle .explorer-view-btn,
+  body .explorer-controls > .active-mobile-panel.explorer-view-toggle .explorer-view-btn {
+    flex: 1 1 0% !important;
+    width: 100% !important;
+    text-align: center !important;
   }
 
   /* Cast members - optimize for mobile */
@@ -8352,59 +8641,361 @@ h1 {
   }
 }
 
+/* Default state: everything fits in one row, so the "More" trigger is hidden
+   and its contents render inline. JS (syncMediaActionsMenuState) measures the
+   actual rendered width and adds .actions-collapsed only when the buttons
+   would overflow, regardless of viewport size. */
+body #mediaDetailActions:not(.actions-collapsed) .actions-more-trigger {
+  display: none !important;
+}
+body #mediaDetailActions:not(.actions-collapsed) .actions-more-dropdown {
+  display: contents !important;
+}
+body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 0.5rem !important;
+  position: static !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  width: auto !important;
+}
+
 @media (max-width: 640px) {
-  body #mediaDetailActions:has(.media-actions-menu) {
-    align-items: stretch !important;
-    flex-direction: column !important;
+  body .topnav {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 100 !important;
+  }
+
+  /* Only the Back/title row stays pinned below the navbar; the controls row
+     (mediaDetailActions) stays in normal flow and scrolls away with the page.
+     #appShell is `display: grid`, and Chromium/Blink silently fails to keep
+     `position: sticky` working for an element nested two levels inside a grid
+     container (verified: a sticky child of a plain <div> that is itself a
+     grid item never clamps; the same sticky child promoted via
+     `display: contents` on the wrapper works correctly). So .page-topbar is
+     flattened here to promote .page-topbar-title/.page-topbar-actions to
+     direct grid items of #appShell, which is what makes the title's sticky
+     positioning actually take effect. */
+  body:has(.media-detail-page) .page-topbar,
+  body:has(.page-shell[data-active-view="explorer"]) .page-topbar,
+  body:has(.page-shell[data-active-view="history"]) .page-topbar {
+    display: contents !important;
+  }
+
+  /* #appShell (display: grid) puts a var(--space-3) gap between EVERY row —
+     title/actions, and also actions/content. Canceling just the title-actions
+     gap with a negative margin left the second gap in place: once the
+     (non-sticky) actions row scrolls past, that gap is exposed as a bare
+     white strip directly under the sticky title, because it belongs to the
+     content row, not to anything that scrolls away with the actions row.
+     Simplest correct fix: kill the grid gap entirely here and re-add
+     breathing room only where it can scroll away with its owning row
+     (padding-bottom on the actions row, not a gap belonging to the next row). */
+  body:has(.media-detail-page) #appShell,
+  body:has(.page-shell[data-active-view="explorer"]) #appShell,
+  body:has(.page-shell[data-active-view="history"]) #appShell {
+    gap: 0 !important;
+  }
+
+  body:has(.media-detail-page) .page-topbar-title,
+  body:has(.page-shell[data-active-view="explorer"]) .page-topbar-title,
+  body:has(.page-shell[data-active-view="history"]) .page-topbar-title {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 90 !important;
+    background: var(--panel-3) !important;
+    border-bottom: 1px solid var(--line) !important;
+    margin-inline: calc(var(--control-inline-padding) * -1) !important;
+    width: calc(100% + (var(--control-inline-padding) * 2)) !important;
+    padding: 0.5rem var(--control-inline-padding) !important;
+    box-sizing: border-box !important;
+  }
+
+  body:has(.media-detail-page) .page-topbar-actions,
+  body:has(.page-shell[data-active-view="explorer"]) .page-topbar-actions,
+  body:has(.page-shell[data-active-view="history"]) .page-topbar-actions,
+  body:has(.media-detail-page) #mediaDetailActions {
     overflow: visible !important;
   }
 
-  body #mediaDetailActions .media-actions-menu {
-    display: block !important;
-    width: 100%;
+  /* Controls row matches the navbar/title background and sits flush against
+     the title row (no more grid gap to cancel now that #appShell's gap is 0).
+     It also needs its own stacking position: .modal-backdrop-image is
+     `position: fixed` with z-index: 0, and a non-positioned (position:
+     static) element always paints *below* any positioned element in the
+     same context regardless of DOM order — so without this, the fixed
+     backdrop art was painting over the controls row instead of the other
+     way around. */
+  body:has(.media-detail-page) .page-topbar-actions,
+  body:has(.page-shell[data-active-view="explorer"]) .page-topbar-actions,
+  body:has(.page-shell[data-active-view="history"]) .page-topbar-actions {
+    position: relative !important;
+    z-index: 10 !important;
+    background: var(--panel-3) !important;
+    margin-inline: calc(var(--control-inline-padding) * -1) !important;
+    width: calc(100% + (var(--control-inline-padding) * 2)) !important;
+    max-width: calc(100% + (var(--control-inline-padding) * 2)) !important;
+    padding-inline: var(--control-inline-padding) !important;
+    padding-bottom: var(--space-3) !important;
+    box-sizing: border-box !important;
   }
 
-  body #mediaDetailActions .media-actions-menu-trigger {
+  body:has(.media-detail-page) #mediaDetailActions {
     display: flex !important;
-    width: 100%;
-    min-height: 2rem;
-    justify-content: space-between;
+    align-items: flex-start !important;
+    flex-direction: row !important;
+    width: 100% !important;
+    margin: 0.25rem 0 0 0 !important;
+    padding: 0.25rem 0 0.4rem 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    gap: 0.15rem !important;
+    flex-shrink: 0 !important;
+  }
+
+  body:not(:has(.media-detail-page)) #mediaDetailActions {
+    display: none !important;
+  }
+
+  body #mediaDetailActions::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  body #mediaDetailActions .action-pill,
+  body #mediaDetailActions .seerr-request-btn,
+  body #mediaDetailActions .rating-pill {
+    display: inline-flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.15rem !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: var(--text) !important;
+    padding: 0.2rem 0.25rem !important;
+    min-width: 3.2rem !important;
+    max-width: 4.8rem !important;
+    width: auto !important;
+    height: auto !important;
+    font-size: 0.55rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.01em !important;
+    text-align: center !important;
+    white-space: normal !important;
+    flex-shrink: 0 !important;
     cursor: pointer;
-    list-style: none;
+    opacity: 0.85;
+    transition: color 0.15s ease, opacity 0.15s ease, background-color 0.15s ease;
+    border-radius: 4px !important;
+    outline: none !important;
   }
 
-  body #mediaDetailActions .media-actions-menu-trigger::-webkit-details-marker {
+  body #mediaDetailActions .action-pill:hover,
+  body #mediaDetailActions .seerr-request-btn:hover,
+  body #mediaDetailActions .rating-pill:hover {
+    opacity: 1;
+    color: var(--primary, #0088cc) !important;
+    background: var(--bg-hover, rgba(128, 128, 128, 0.08)) !important;
+  }
+
+  body #mediaDetailActions .action-pill:disabled,
+  body #mediaDetailActions .seerr-request-btn:disabled,
+  body #mediaDetailActions .rating-pill:disabled {
+    opacity: 0.3 !important;
+    color: var(--text) !important;
+    cursor: not-allowed !important;
+    background: transparent !important;
+  }
+
+  body #mediaDetailActions .action-pill svg,
+  body #mediaDetailActions .seerr-request-btn svg,
+  body #mediaDetailActions .seerr-request-btn img,
+  body #mediaDetailActions .rating-pill svg {
+    width: 1.2rem !important;
+    height: 1.2rem !important;
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+    color: inherit !important;
+    fill: currentColor !important;
+  }
+
+  body #mediaDetailActions .action-pill span,
+  body #mediaDetailActions .seerr-request-btn span,
+  body #mediaDetailActions .rating-pill span {
+    display: block !important;
+    color: inherit !important;
+    line-height: 1.2 !important;
+    margin-top: 0.15rem !important;
+    text-align: center !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+    font-size: 0.55rem !important;
+    min-height: 2.4em !important;
+  }
+
+  /* Match the outer row's gap so flattened items (e.g. Fix Match/Merge,
+     rendered inside .actions-more-panel) are spaced identically to the
+     top-level buttons instead of using the wider desktop gap. */
+  /* On mobile viewports, when the actions fit in one row, style using percentage widths
+     to bypass details/summary browser flexbox bugs and achieve exactly 24% width per button. */
+  body #mediaDetailActions:not(.actions-collapsed) .actions-more-dropdown {
+    display: block !important;
+    width: 49% !important;
+    flex: 0 0 49% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
+    display: flex !important;
+    flex-direction: row !important;
+    width: 100% !important;
+    gap: 2% !important;
+    justify-content: space-between !important;
+  }
+
+  body #mediaDetailActions:not(.actions-collapsed) > .action-pill:not(.media-toggle-all-seasons-btn),
+  body #mediaDetailActions:not(.actions-collapsed) > .seerr-request-btn,
+  body #mediaDetailActions:not(.actions-collapsed) > .rating-pill {
+    width: 24% !important;
+    flex: 0 0 24% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel .action-pill,
+  body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel .seerr-request-btn,
+  body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel .rating-pill {
+    width: 49% !important;
+    flex: 0 0 49% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  /* "Expand All"/"Collapse All" seasons stays reachable without scrolling
+     the (potentially collapsed/overflowing) actions row — pin it to the
+     right edge of the row's own scroll area, like Sonarr's season toolbar. */
+  body #mediaDetailActions .media-toggle-all-seasons-btn {
+    position: sticky !important;
+    right: 0 !important;
+    z-index: 2 !important;
+    background: var(--panel-3) !important;
+    flex-shrink: 0 !important;
+    margin-left: auto !important;
+  }
+
+  body #mediaDetailActions.actions-collapsed .actions-more-dropdown {
+    position: relative !important;
+    display: inline-block !important;
+  }
+
+  body #mediaDetailActions > *:not(.media-toggle-all-seasons-btn) {
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  body #mediaDetailActions .action-pill,
+  body #mediaDetailActions .seerr-request-btn,
+  body #mediaDetailActions .rating-pill {
+    min-width: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+  }
+
+  body #mediaDetailActions.actions-collapsed .actions-more-dropdown[open] {
+    z-index: 99 !important;
+  }
+
+  body #mediaDetailActions summary::-webkit-details-marker {
+    display: none !important;
+  }
+
+  body #mediaDetailActions summary,
+  body #mediaDetailActions .actions-more-trigger {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    list-style: none !important;
+  }
+
+  body #mediaDetailActions summary:focus,
+  body #mediaDetailActions summary:active,
+  body #mediaDetailActions .actions-more-trigger:focus,
+  body #mediaDetailActions .actions-more-trigger:active {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Sonarr-style dropdown card, shown only when collapsed */
+  body #mediaDetailActions.actions-collapsed .actions-more-panel {
     display: none;
+    position: absolute !important;
+    right: 0 !important;
+    top: calc(100% + 4px) !important;
+    background: var(--panel-3) !important;
+    border: 1px solid var(--line) !important;
+    box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.25)) !important;
+    border-radius: 6px !important;
+    z-index: 999 !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    padding: 0.25rem 0 !important;
   }
 
-  body #mediaDetailActions .media-actions-menu-trigger::after {
-    content: "";
-    width: 0.45rem;
-    height: 0.45rem;
-    border-bottom: 2px solid var(--muted);
-    border-right: 2px solid var(--muted);
-    transform: rotate(45deg);
-    transition: transform 150ms ease;
+  body #mediaDetailActions.actions-collapsed .actions-more-dropdown[open] .actions-more-panel {
+    display: flex !important;
   }
 
-  body #mediaDetailActions .media-actions-menu[open] .media-actions-menu-trigger::after {
-    transform: rotate(225deg);
+  /* Stacked list for dropdown items — only when collapsed. When the panel is
+     flattened inline (fits without a "More" button), the plain .action-pill
+     rules above already give it the right look. */
+  body #mediaDetailActions.actions-collapsed .actions-more-panel .action-pill,
+  body #mediaDetailActions.actions-collapsed .actions-more-panel .seerr-request-btn,
+  body #mediaDetailActions.actions-collapsed .actions-more-panel .rating-pill {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 0.6rem !important;
+    width: 100% !important;
+    min-width: 9.5rem !important;
+    max-width: none !important;
+    padding: 0.5rem 0.8rem !important;
+    font-size: 0.75rem !important;
+    text-transform: none !important;
+    border-radius: 0 !important;
+    opacity: 0.95 !important;
+    text-align: left !important;
+    letter-spacing: normal !important;
   }
 
-  body #mediaDetailActions .media-actions-menu-panel {
-    display: none;
+  body #mediaDetailActions.actions-collapsed .actions-more-panel .action-pill:hover,
+  body #mediaDetailActions.actions-collapsed .actions-more-panel .seerr-request-btn:hover,
+  body #mediaDetailActions.actions-collapsed .actions-more-panel .rating-pill:hover {
+    color: var(--primary) !important;
+    background: var(--bg-hover) !important;
   }
 
-  body #mediaDetailActions .media-actions-menu[open] .media-actions-menu-panel {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.35rem;
-    margin-top: 0.35rem;
+  body #mediaDetailActions.actions-collapsed .actions-more-panel .action-pill svg,
+  body #mediaDetailActions.actions-collapsed .actions-more-panel .seerr-request-btn svg,
+  body #mediaDetailActions.actions-collapsed .actions-more-panel .rating-pill svg {
+    width: 1rem !important;
+    height: 1rem !important;
   }
 
-  body #mediaDetailActions .media-actions-menu-panel .action-pill {
-    width: 100%;
-    justify-content: flex-start;
+  body #mediaDetailActions.actions-collapsed .actions-more-panel .action-pill span,
+  body #mediaDetailActions.actions-collapsed .actions-more-panel .seerr-request-btn span,
+  body #mediaDetailActions.actions-collapsed .actions-more-panel .rating-pill span {
+    margin: 0 !important;
+    font-size: 0.75rem !important;
   }
 
   /* Stats: collapse toolbar to stacked column on narrow screens */
@@ -11117,14 +11708,15 @@ html.light-mode .field-label {
 }
 
 html.light-mode .page-topbar .immersive-back-button {
-  background: #ffffff;
-  border-color: var(--line);
-  color: var(--text);
-  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--text-muted, var(--text)) !important;
+  box-shadow: none !important;
 }
 
 html.light-mode .page-topbar .immersive-back-button:hover {
-  background: var(--panel-2);
+  background: transparent !important;
+  color: var(--primary) !important;
 }
 
 html.light-mode .rating-pill {
@@ -12463,4 +13055,16 @@ html.light-mode .settings-pane .drop-zone {
 html.light-mode .settings-pane .drop-zone:hover {
   border-color: var(--blue) !important;
   background: rgba(59, 130, 246, 0.01) !important;
+}
+
+.mobile-controls-row {
+  display: none;
+}
+
+@media (min-width: 761px) {
+  body .action-pill br,
+  body .seerr-request-btn br,
+  body .rating-pill br {
+    display: none !important;
+  }
 }

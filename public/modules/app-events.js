@@ -28,6 +28,42 @@ const authHeaders = (...args) => _cb.authHeaders?.(...args), setMessage = (...ar
 
 function attachEvents() {
   document.addEventListener("click", (e) => {
+    const controlTab = e.target.closest(".mobile-control-tab");
+    if (controlTab) {
+      const container = controlTab.closest(".explorer-controls");
+      if (container) {
+        const target = controlTab.dataset.target;
+        const isActive = controlTab.classList.contains("active");
+
+        container.querySelectorAll(".mobile-control-tab").forEach(tab => tab.classList.remove("active"));
+        container.querySelectorAll(".compact-field, .explorer-view-toggle, #explorerHideWatchedLabel, #explorerHideEndedLabel").forEach(panel => {
+          panel.classList.remove("active-mobile-panel");
+        });
+
+        if (!isActive) {
+          controlTab.classList.add("active");
+          if (target === "search") {
+            container.querySelector(".explorer-search-box")?.classList.add("active-mobile-panel");
+          } else if (target === "sort") {
+            container.querySelector("select")?.closest(".compact-field")?.classList.add("active-mobile-panel");
+          } else if (target === "filter") {
+            const hideWatched = container.querySelector("#explorerHideWatchedLabel");
+            const hideEnded = container.querySelector("#explorerHideEndedLabel");
+            const historyFilter = container.querySelector(".history-filter-toggle");
+            if (hideWatched) hideWatched.classList.add("active-mobile-panel");
+            if (hideEnded) hideEnded.classList.add("active-mobile-panel");
+            if (historyFilter) historyFilter.classList.add("active-mobile-panel");
+          } else if (target === "size") {
+            container.querySelector(".explorer-size-slider")?.classList.add("active-mobile-panel");
+          } else if (target === "view") {
+            const viewToggle = container.querySelector(".explorer-view-toggle:not(.history-filter-toggle)");
+            if (viewToggle) viewToggle.classList.add("active-mobile-panel");
+          }
+        }
+      }
+      return;
+    }
+
     const castCard = e.target.closest("[data-person-id]");
     if (castCard) {
       window.showCastMemberDetails(castCard.dataset.personId, castCard.dataset.personName);

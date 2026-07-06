@@ -85,6 +85,7 @@ export function closeDebugModal() {
   state.activeShowTmdbId = null;
   state.activeShowModalSeason = null;
   state.activeShowModalEpisode = null;
+  state.showModalAllSeasonsExpanded = false;
   state.showModalRequestToken += 1;
   state.showModalEpisodes = [];
   state.showModalEpisodeIndex = new Map();
@@ -130,38 +131,33 @@ export function setMediaDetailActions(html) {
   syncPageTopbar();
 }
 export function normalizeMediaDetailActions(el) {
-  if (!el || !el.childNodes.length) return;
-  let menu = el.querySelector(":scope > .media-actions-menu");
-  if (!menu) {
-    const actionHtml = el.innerHTML;
-    el.innerHTML = `
-      <details class="media-actions-menu">
-        <summary class="action-pill media-actions-menu-trigger">Actions</summary>
-        <div class="media-actions-menu-panel">${actionHtml}</div>
-      </details>
-    `;
-    return;
-  }
-  const panel = menu.querySelector(".media-actions-menu-panel");
-  if (!panel) return;
-  for (const node of [...el.childNodes]) {
-    if (node === menu) continue;
-    if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) {
-      node.remove();
-      continue;
-    }
-    panel.appendChild(node);
-  }
+  // No-op: Actions are rendered directly as flat buttons now.
 }
 export function syncMediaActionsMenuState() {
-  const isMobileActions = window.matchMedia("(max-width: 640px)").matches;
-  for (const menu of document.querySelectorAll("#mediaDetailActions .media-actions-menu")) {
-    if (isMobileActions) {
-      menu.removeAttribute("open");
-    } else {
-      menu.setAttribute("open", "");
-    }
+  const el = document.getElementById("mediaDetailActions");
+  if (!el) return;
+  const dropdown = el.querySelector(".actions-more-dropdown");
+  if (!dropdown) {
+    el.classList.remove("actions-collapsed");
+    return;
   }
+  // <details> hides its non-summary content natively whenever it lacks the
+  // `open` attribute, regardless of author CSS display overrides. Force it
+  // open while measuring/flattened so the flattened items actually render;
+  // only a real "More" button toggles it closed once collapsed.
+  dropdown.open = true;
+  el.classList.remove("actions-collapsed");
+  // #mediaDetailActions right-aligns its content (justify-content: flex-end),
+  // so overflow spills off the *start* edge. Browsers don't count start-edge
+  // overflow in scrollWidth the way they do trailing overflow, which made
+  // this check never fire. Force flex-start just for this synchronous
+  // measurement so scrollWidth reflects the real content width.
+  const previousJustify = el.style.justifyContent;
+  el.style.justifyContent = "flex-start";
+  const overflowing = el.scrollWidth > el.clientWidth + 1;
+  el.style.justifyContent = previousJustify;
+  el.classList.toggle("actions-collapsed", overflowing);
+  dropdown.open = !overflowing;
 }
 export function syncTopbarControlsMenuState() {
   const menu = elements.topbarControlsMenu;
@@ -182,6 +178,7 @@ export function clearMediaDetailState() {
   state.activeShowTmdbId = null;
   state.activeShowModalSeason = null;
   state.activeShowModalEpisode = null;
+  state.showModalAllSeasonsExpanded = false;
   state.showModalRequestToken += 1;
   state.showModalEpisodes = [];
   state.showModalEpisodeIndex = new Map();
