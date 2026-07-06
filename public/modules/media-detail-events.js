@@ -132,11 +132,30 @@ export function attachMediaDetailEvents() {
       const id = editImageBtn.dataset.editId;
       // Resolve tmdbData — check both movie and TV caches
       let tmdbData = null;
-      const entry = state.history.find((h) => h.id === id);
+      const entry = state.history.find((h) => h.id === id) || state.moviesRaw.find((m) => m.id === id);
       if (entry) {
         const movieKey = `movie|${entry.tmdb_id || ""}|${String(entry.title || "").toLowerCase()}`;
         const cached = state.tmdbDetailsCache.get(movieKey);
         if (cached && !(cached instanceof Promise)) tmdbData = cached;
+      }
+      if (!tmdbData && state.activeMovieModalId && String(state.activeMovieModalId) === String(id)) {
+        const tmdbId = state.activeMovieTmdbId;
+        if (tmdbId) {
+          const prefix = `movie|${tmdbId}|`;
+          for (const [key, cached] of state.tmdbDetailsCache.entries()) {
+            if (key.startsWith(prefix) && cached && !(cached instanceof Promise)) {
+              tmdbData = cached;
+              break;
+            }
+          }
+          if (!tmdbData) {
+            tmdbData = {
+              id: Number(tmdbId),
+              title: entry?.title || "",
+              media_type: "movie"
+            };
+          }
+        }
       }
       if (!tmdbData && state.activeShowModalKey) {
         const show = state.showsRaw.find((s) => slug(s.title) === state.activeShowModalKey);
