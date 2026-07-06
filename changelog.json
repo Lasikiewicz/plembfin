@@ -1,7 +1,19 @@
 {
-  "version": "0.4.24",
-  "updatedAt": "2026-07-06T11:59:50+01:00",
+  "version": "0.4.25",
+  "updatedAt": "2026-07-06T12:04:21+01:00",
   "entries": [
+    {
+      "version": "0.4.25",
+      "date": "2026-07-06T12:04:21+01:00",
+      "commit": "45a6a00cee9441c0ff4a1ce740f9cca1c82bf44c",
+      "message": "Fix - Resolve poster list scrolling in the edit images popup on mobile",
+      "author": "Lasikiewicz",
+      "details": [
+        "Converted .edit-image-dialog to a vertical flex container with 90vh fixed height on mobile",
+        "Configured .edit-image-main to occupy remaining flex space with min-height: 0",
+        "This ensures the poster/logo/background image search grid is constrained to the dialog height and becomes scrollable instead of overflowing and clipping"
+      ]
+    },
     {
       "version": "0.4.24",
       "date": "2026-07-06T11:59:50+01:00",
