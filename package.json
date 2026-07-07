@@ -25,6 +25,6 @@
     "morgan": "^1.11.0",
     "rotating-file-stream": "^3.2.9",
     "sharp": "^0.35.2",
-    "undici": "^8.4.1"
+    "undici": "^8.7.0"
   }
 }
