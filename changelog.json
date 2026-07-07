@@ -1,7 +1,20 @@
 {
-  "version": "0.4.27",
-  "updatedAt": "2026-07-07T10:22:21+01:00",
+  "version": "0.4.28",
+  "updatedAt": "2026-07-07T11:20:44+01:00",
   "entries": [
+    {
+      "version": "0.4.28",
+      "date": "2026-07-07T11:20:44+01:00",
+      "commit": "2435586903376024873b41fa2be7ee37b844f0b0",
+      "message": "Chore - Split route and backup modules",
+      "author": "Lasikiewicz",
+      "details": [
+        "Split API handlers into dedicated route modules and moved scheduler/listener lifecycle out of the route table.",
+        "Move backup and appearance settings logic into a dedicated frontend module.",
+        "Tighten mobile backup settings layout and restore poster request in-flight tracking.",
+        "Update architecture and module ownership docs."
+      ]
+    },
     {
       "version": "0.4.27",
       "date": "2026-07-07T10:22:21+01:00",
