@@ -101,6 +101,19 @@ function boundedResults(resource, limit) {
   return { ...resource, results: Array.isArray(resource.results) ? resource.results.slice(0, limit) : [] };
 }
 
+function imageGroups(details = {}) {
+  const images = details?.images || {};
+  return {
+    backdrops: Array.isArray(images.backdrops) ? images.backdrops : [],
+    posters: Array.isArray(images.posters) ? images.posters : [],
+    logos: Array.isArray(images.logos) ? images.logos : [],
+  };
+}
+
+function hasImageCandidates(images = {}) {
+  return Boolean(images.backdrops?.length || images.posters?.length || images.logos?.length);
+}
+
 function compactDetails(details = {}) {
   const compact = { ...details };
   if (details.credits) {
@@ -544,7 +557,11 @@ export async function getTmdbPerson(personId) {
 
 export async function getTmdbImages({ mediaType, tmdbId, title = "", ids = {} }) {
   const details = await getTmdbDetails({ mediaType, tmdbId, title, ids });
-  return details.images || { backdrops: [], posters: [], logos: [] };
+  const images = imageGroups(details);
+  if (hasImageCandidates(images)) return images;
+
+  const refreshed = await getTmdbDetails({ mediaType, tmdbId, title, ids, force: true }).catch(() => null);
+  return imageGroups(refreshed || details);
 }
 
 export async function prewarmTmdbLibrary({ limit = 4 } = {}) {
