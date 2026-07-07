@@ -1,7 +1,21 @@
 {
-  "version": "0.4.25",
-  "updatedAt": "2026-07-06T12:04:21+01:00",
+  "version": "0.4.26",
+  "updatedAt": "2026-07-07T09:27:04+01:00",
   "entries": [
+    {
+      "version": "0.4.26",
+      "date": "2026-07-07T09:27:04+01:00",
+      "commit": "020e4fb49bdae1668e5e3aa6bf7da63edcc9bbe0",
+      "message": "Chore - Overhaul documentation and remove all legacy backend references",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added a complete documentation set under docs/ with a dedicated guide for every major feature: Plex, Emby, Jellyfin, dashboard, movies, TV shows, media detail, history and search, stats, backups, metadata sources, posters and artwork, settings, auth, frontend, and development",
+        "Rebuilt the architecture guide as the first place to check before changing anything, with a full map of every file in the repository and a task router pointing to the right doc for each area",
+        "Removed every remaining legacy cloud-backend reference from the project, including code comments, schema notes, ignore files, and old changelog entries, and renamed the server data repository module accordingly",
+        "Replaced the outdated environment variable template with a commented list of every supported setting",
+        "Expanded the README configuration reference with the media-server connection and sync-behaviour environment variables"
+      ]
+    },
     {
       "version": "0.4.25",
       "date": "2026-07-06T12:04:21+01:00",
