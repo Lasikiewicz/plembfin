@@ -1,7 +1,19 @@
 {
-  "version": "0.4.33",
-  "updatedAt": "2026-07-07T12:14:20+01:00",
+  "version": "0.4.34",
+  "updatedAt": "2026-07-07T12:23:46+01:00",
   "entries": [
+    {
+      "version": "0.4.34",
+      "date": "2026-07-07T12:23:46+01:00",
+      "commit": "a9b3e82d422ceeb7d89f7f6b169b6a05a96ac202",
+      "message": "Fix - Preserve Plex specials episode numbers",
+      "author": "Lasikiewicz",
+      "details": [
+        "Plex history imports keep season zero as S00 instead of turning it into an unknown season.",
+        "Existing malformed specials entries such as S0?E01 are repaired when watch history is read.",
+        "Added coverage for Plex specials imports and legacy malformed specials rows."
+      ]
+    },
     {
       "version": "0.4.33",
       "date": "2026-07-07T12:14:20+01:00",
