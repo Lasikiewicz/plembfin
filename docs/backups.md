@@ -71,6 +71,10 @@ Nightly encrypted snapshots of the entire portable backup document.
 
 - **Encryption** — AES-256-GCM, key derived with PBKDF2 (SHA-256, 100k iterations);
   passphrase must be ≥ 12 characters and is required — there is no plaintext mode.
+- **Passphrase storage** - manual backups can use a one-time passphrase that is never
+  persisted. Scheduled local or remote encrypted backups require "remember passphrase"
+  to be enabled; existing stored passphrases are treated as remembered for backward
+  compatibility and can be removed by unchecking the remember option and saving.
 - **Scheduling** — `runScheduledPlembfinBackup()` runs from the same scheduler tick,
   daily at the configured time; retention default 7 (max 365). Config lives in the
   settings row `plembfinBackups`.

@@ -9,19 +9,16 @@ The home view (`/`): Now Playing, the recent-history rows, and the part-watched
 | --- | --- |
 | `public/modules/dashboard.js` | All dashboard rendering (`renderDashboard`, `renderHistoryCard`, `renderPartWatched`, dedupe helpers, poster observer) |
 | `public/modules/sync.js` | Now Playing polling + rendering (`loadActiveSessions`, `renderActiveSessions`, `startHistoryPolling`) |
-| `public/modules/timeline.js` | Browser-side direct probe of media-server session endpoints |
 | `server/src/index.js` | `handleNowPlaying`, `handleHistory` (`?limit=` preview), `handlePlaybackProgressList` |
-| `public/app.js` | Route `/` → dashboard view; history preview loading + localStorage cache |
+| `public/app.js` | Route `/` -> dashboard view; history preview loading + localStorage cache |
 
 ## Sections
 
 ### Now Playing
 
-Fully documented in [now-playing.md](now-playing.md) — the merge of
+Fully documented in [now-playing.md](now-playing.md): the merge of
 `live_tracking_cache` (scheduler polling) and `active_sessions` (webhook `active`
-events), polled by the browser every 10 seconds with visibility gating, plus the
-browser-side LAN probe (`fetchLocalActiveSessions`). When nothing is playing the poll
-interval backs off to 2 minutes (`NOW_PLAYING_EMPTY_POLL_MS`).
+events), polled by the browser every 10 seconds with visibility gating.
 
 ### Recent history
 
@@ -52,7 +49,7 @@ the "Changelog & update check" section of [architecture.md](architecture.md).
 
 ## Posters
 
-Dashboard posters use the standard fallback → `/api/poster` hydration pipeline with a
+Dashboard posters use the standard fallback -> `/api/poster` hydration pipeline with a
 dedicated IntersectionObserver (`observeDashboardPosters`) so only visible cards
 trigger lookups. See [posters-artwork.md](posters-artwork.md).
 
@@ -60,5 +57,5 @@ trigger lookups. See [posters-artwork.md](posters-artwork.md).
 
 - The dashboard is the **only** view where Now Playing polls; `pollNowPlayingOnce`
   bails when `document.hidden` or when the active view isn't the dashboard.
-- Mobile (≤ 760px) must be re-verified after any dashboard layout change — the split
+- Mobile (<= 760px) must be re-verified after any dashboard layout change: the split
   state and row-fit logic have broken on mobile after desktop-only redesigns before.

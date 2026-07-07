@@ -12,5 +12,3 @@ data/
 # Local editor/agent tooling
 .claude/
 .Jules/
-.playwright-mcp/
-

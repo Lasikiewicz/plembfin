@@ -126,7 +126,14 @@ The entire application state lives in two locations:
 | Cached artwork | `data/media/` |
 | Config + secrets | `data/config.json` |
 
-Schedule regular backups of the `data/` directory. The built-in **Settings → Backups** panel can push zip archives to a remote destination (S3-compatible storage).
+For filesystem-level backups, stop the container before copying `data/` so SQLite can
+checkpoint the WAL files cleanly. For online backups, use the built-in
+**Settings -> Backups** systems (see [backups.md](backups.md)) or snapshot the database
+with SQLite itself:
+
+```bash
+sqlite3 data/plembfin.db "VACUUM INTO 'backup.db'"
+```
 
 Restore: unzip a backup archive into `data/` and restart the container.
 

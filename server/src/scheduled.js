@@ -1,4 +1,4 @@
-import { fetchWithTimeout } from "./utils/outbound.js";
+﻿import { fetchWithTimeout } from "./utils/outbound.js";
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { parsePlexGuids } from "./utils/parsers.js";
 import { findPlexItem, plexAuthHeaders, resolvePlexAccountId } from "./utils/plexClient.js";
@@ -375,11 +375,11 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
             details: "Plex unwatched propagation queued",
             targetStates: [],
           });
-          const inserted = await insertWatchRecord(requireDb(), unplayedRecord, { skipInvalidate: true });
-          await upsertPlaystateForMedia(requireDb(), unplayedMedia, "unwatched", inserted.record.watched_at, { skipInvalidate: true });
-          await deletePlaybackProgress(requireDb(), unplayedMedia).catch(() => null);
+          const inserted = await insertWatchRecord(unplayedRecord, { skipInvalidate: true });
+          await upsertPlaystateForMedia(unplayedMedia, "unwatched", inserted.record.watched_at, { skipInvalidate: true });
+          await deletePlaybackProgress(unplayedMedia).catch(() => null);
           const summary = await syncMediaUnplayedPlaystate(unplayedMedia, config, loopStore);
-          await updateWatchTelemetry(requireDb(), inserted.id, buildTelemetry(unplayedMedia, summary), { skipInvalidate: true });
+          await updateWatchTelemetry(inserted.id, buildTelemetry(unplayedMedia, summary), { skipInvalidate: true });
           await recordSyncHistory(unplayedMedia, summary, "unwatched");
           await invalidateHistoryDerivedCaches().catch(() => null);
         }
@@ -395,7 +395,7 @@ async function processCompletedSession(row, config, loopStore) {
   if (!media.isValid || Number(media.progress || 0) < 90) return null;
 
   // After an authoritative restore, drop stale cached sessions whose last update predates the
-  // restore — they would otherwise post a watch record dated today. Sessions still genuinely
+  // restore â€” they would otherwise post a watch record dated today. Sessions still genuinely
   // active get re-cached with a fresh timestamp each tick, so real playback still completes.
   const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
   if (lastRestoreAt && Number(row.updated_at || 0) <= lastRestoreAt) {
@@ -404,12 +404,12 @@ async function processCompletedSession(row, config, loopStore) {
 
   // Invariant: never re-date an already-watched item to today. If plembfin already has this title
   // marked watched, don't post a fresh Date.now() record from the live tracker.
-  const knownPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
+  const knownPlaystate = await getPlaystateForMedia(media).catch(() => null);
   if (knownPlaystate?.state === "watched") {
     return null;
   }
 
-  await markLiveTrackingComplete(requireDb(), row.session_id, Date.now());
+  await markLiveTrackingComplete(row.session_id, Date.now());
 
   const watchRecord = mediaToWatchRecord(
     {
@@ -424,8 +424,8 @@ async function processCompletedSession(row, config, loopStore) {
     media.source,
   );
 
-  const inserted = await insertWatchRecord(requireDb(), watchRecord, { skipInvalidate: true });
-  await upsertPlaystateForMedia(requireDb(), media, "watched", inserted.record.watched_at, { skipInvalidate: true });
+  const inserted = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+  await upsertPlaystateForMedia(media, "watched", inserted.record.watched_at, { skipInvalidate: true });
   let syncSummary;
   try {
     syncSummary = await syncMediaPlaystate(media, config, loopStore);
@@ -439,9 +439,9 @@ async function processCompletedSession(row, config, loopStore) {
     };
   }
   const telemetry = buildTelemetry(media, syncSummary);
-  await updateWatchTelemetry(requireDb(), inserted.id, telemetry, { skipInvalidate: true });
+  await updateWatchTelemetry(inserted.id, telemetry, { skipInvalidate: true });
   await recordSyncHistory(media, syncSummary, "watched");
-  await deletePlaybackProgress(requireDb(), media).catch((error) => {
+  await deletePlaybackProgress(media).catch((error) => {
     console.error("Failed to clear completed resume progress", { sessionId: row.session_id, error });
   });
   await invalidateHistoryDerivedCaches().catch(() => null);
@@ -453,9 +453,9 @@ async function processStoppedSessionProgress(row, config, loopStore) {
   const media = cachedRowToMedia(row);
   if (!shouldSyncResumeProgress(media)) return null;
 
-  const existingPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
+  const existingPlaystate = await getPlaystateForMedia(media).catch(() => null);
   if (existingPlaystate?.state === "watched" || existingPlaystate?.state === "unwatched") {
-    await deletePlaybackProgress(requireDb(), media).catch(() => null);
+    await deletePlaybackProgress(media).catch(() => null);
     console.log("Live tracking resume skipped because playstate is authoritative", {
       title: media.title,
       source: media.source,
@@ -467,7 +467,7 @@ async function processStoppedSessionProgress(row, config, loopStore) {
   }
 
   const progressRecord = mediaToPlaybackProgressRecord(media, media.source);
-  await upsertPlaybackProgress(requireDb(), {
+  await upsertPlaybackProgress({
     ...progressRecord,
     sync_dispatch_telemetry: buildProgressTelemetry(media, {
       skipped: false,
@@ -493,7 +493,7 @@ async function processStoppedSessionProgress(row, config, loopStore) {
   }
 
   const telemetry = buildProgressTelemetry(media, syncSummary);
-  await updatePlaybackProgressTelemetry(requireDb(), progressRecord, telemetry).catch((error) => {
+  await updatePlaybackProgressTelemetry(progressRecord, telemetry).catch((error) => {
     console.error("Failed to update stopped session resume telemetry", { sessionId: row.session_id, error });
   });
   await recordSyncHistory(media, syncSummary, "progress");
@@ -507,12 +507,12 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
     return false;
   }
 
-  const existingPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
+  const existingPlaystate = await getPlaystateForMedia(media).catch(() => null);
   const resumeUpdatedAt = Number(media.updatedAt || 0);
   const playstateUpdatedAt = Number(existingPlaystate?.updated_at || 0);
 
   // After an authoritative restore, ignore resume positions whose app-side timestamp predates
-  // the restore — they are pre-restore state the backup has already superseded.
+  // the restore â€” they are pre-restore state the backup has already superseded.
   const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
   if (lastRestoreAt && resumeUpdatedAt > 0 && resumeUpdatedAt <= lastRestoreAt) {
     logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (pre-restore resume position)`);
@@ -521,18 +521,18 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
 
 
   if (existingPlaystate?.state === "unwatched" && (resumeUpdatedAt <= 0 || playstateUpdatedAt >= resumeUpdatedAt)) {
-    await deletePlaybackProgress(requireDb(), media).catch(() => null);
+    await deletePlaybackProgress(media).catch(() => null);
     logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (item is unwatched)`);
     return false;
   }
 
   if (existingPlaystate && (existingPlaystate.state === "watched" || (resumeUpdatedAt > 0 && playstateUpdatedAt >= resumeUpdatedAt))) {
-    await deletePlaybackProgress(requireDb(), media).catch(() => null);
+    await deletePlaybackProgress(media).catch(() => null);
     logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (${existingPlaystate.state === "watched" ? "item is watched" : "newer playstate"})`);
     return false;
   }
 
-  const existingProgress = await getPlaybackProgressForMedia(requireDb(), media).catch(() => null);
+  const existingProgress = await getPlaybackProgressForMedia(media).catch(() => null);
   const progressUpdatedAt = Number(existingProgress?.updated_at || 0);
 
 
@@ -547,7 +547,7 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
   }
 
   const progressRecord = mediaToPlaybackProgressRecord(media, media.source);
-  await upsertPlaybackProgress(requireDb(), {
+  await upsertPlaybackProgress({
     ...progressRecord,
     sync_dispatch_telemetry: buildProgressTelemetry(media, {
       skipped: false,
@@ -571,7 +571,7 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
     };
   }
 
-  await updatePlaybackProgressTelemetry(requireDb(), progressRecord, buildProgressTelemetry(media, summary)).catch(() => null);
+  await updatePlaybackProgressTelemetry(progressRecord, buildProgressTelemetry(media, summary)).catch(() => null);
   await recordSyncHistory(media, summary, "progress");
   logger(`Resume Sync: ${media.title} from ${media.source} -> ${summary.status}`);
   return summary.status === "success" || summary.status === "partial";
@@ -685,7 +685,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
         const directories = sectionsData?.MediaContainer?.Directory || [];
         // Bound the per-tick sweep: this runs every minute inside a 50s budget,
         // and each section costs a serial round trip to Plex. Very large installs
-        // still converge — the history endpoint above covers recent activity.
+        // still converge â€” the history endpoint above covers recent activity.
         const MAX_SECTIONS_PER_TICK = 6;
         let sectionsChecked = 0;
         for (const dir of directories) {
@@ -790,8 +790,8 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
           `Details: Watch event fetched from Plex library history; queueing sync.`,
         ].join("\n");
 
-        const result = await insertWatchRecord(requireDb(), watchRecord, { skipInvalidate: true });
-        await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at, { skipInvalidate: true });
+        const result = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+        await upsertPlaystateForMedia(media, "watched", result.record.watched_at, { skipInvalidate: true });
         const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
           skipped: false,
           status: "error",
@@ -809,7 +809,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
           ),
         ].join("\n");
 
-        await updateWatchTelemetry(requireDb(), result.id, telemetry, { skipInvalidate: true });
+        await updateWatchTelemetry(result.id, telemetry, { skipInvalidate: true });
         await recordSyncHistory(media, summary, "watched");
         syncedCount++;
       }
@@ -883,8 +883,8 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
           `Details: Watch event fetched from Emby library history; queueing sync.`,
         ].join("\n");
 
-        const result = await insertWatchRecord(requireDb(), watchRecord, { skipInvalidate: true });
-        await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at, { skipInvalidate: true });
+        const result = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+        await upsertPlaystateForMedia(media, "watched", result.record.watched_at, { skipInvalidate: true });
         const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
           skipped: false,
           status: "error",
@@ -902,7 +902,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
           ),
         ].join("\n");
 
-        await updateWatchTelemetry(requireDb(), result.id, telemetry, { skipInvalidate: true });
+        await updateWatchTelemetry(result.id, telemetry, { skipInvalidate: true });
         await recordSyncHistory(media, summary, "watched");
         syncedCount++;
       }
@@ -975,8 +975,8 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
           `Details: Watch event fetched from Jellyfin library history; queueing sync.`,
         ].join("\n");
 
-        const result = await insertWatchRecord(requireDb(), watchRecord, { skipInvalidate: true });
-        await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at, { skipInvalidate: true });
+        const result = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+        await upsertPlaystateForMedia(media, "watched", result.record.watched_at, { skipInvalidate: true });
         const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
           skipped: false,
           status: "error",
@@ -994,7 +994,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
           ),
         ].join("\n");
 
-        await updateWatchTelemetry(requireDb(), result.id, telemetry, { skipInvalidate: true });
+        await updateWatchTelemetry(result.id, telemetry, { skipInvalidate: true });
         await recordSyncHistory(media, summary, "watched");
         syncedCount++;
       }
@@ -1027,7 +1027,7 @@ function isTargetSynced(telemetry = "", target = "", source = "") {
     if (line.includes(`${tgt} status:`) || line.includes(`${tgt} progress status:`)) {
       if (line.includes("success")) return true;
       if (line.includes("loop")) return true;
-      // "not found" means the item simply isn't in this platform's library — treat as terminal
+      // "not found" means the item simply isn't in this platform's library â€” treat as terminal
       // so it doesn't get re-queued every minute forever. Only "error" is retryable.
       if (line.includes("skipped")) return true;
       return false;
@@ -1089,7 +1089,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
       };
 
       logger(`Background Queue: retrying/dispatching sync for ${media.title} (${id})...`);
-      await upsertPlaystateForMedia(requireDb(), media, "watched", row.watched_at, { skipInvalidate: true });
+      await upsertPlaystateForMedia(media, "watched", row.watched_at, { skipInvalidate: true });
       const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
         skipped: false,
         status: "error",
@@ -1107,7 +1107,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         ),
       ].join("\n");
 
-      await updateWatchTelemetry(requireDb(), id, telemetry, { skipInvalidate: true });
+      await updateWatchTelemetry(id, telemetry, { skipInvalidate: true });
       await recordSyncHistory(media, summary, "watched");
       syncedCount++;
     }
@@ -1139,7 +1139,7 @@ export async function runScheduledSync(logger = console.log) {
 
   // Only reset the restore-reconcile flag if the job's heartbeat has gone cold (i.e. the process
   // actually died mid-job). A long-but-alive restore refreshes restoreSyncHeartbeat continuously,
-  // so it is NEVER un-blocked here — that prevents the cron from running mid-push and re-importing
+  // so it is NEVER un-blocked here â€” that prevents the cron from running mid-push and re-importing
   // freshly-pushed items as watched-today. (Do NOT use restoreSyncStartedAt: a big push runs far
   // longer than any fixed timeout.)
   const RESTORE_HEARTBEAT_STALE_MS = 3 * 60 * 1000;
@@ -1263,14 +1263,14 @@ export async function runScheduledSync(logger = console.log) {
   const currentSessions = await fetchLiveSessions(config);
   const currentRows = currentSessions.map(buildCacheRow);
   const currentIds = new Set(currentRows.map((row) => row.session_id));
-  const cachedRows = await loadLiveTrackingCache(requireDb(), { includeCompleted: true });
+  const cachedRows = await loadLiveTrackingCache({ includeCompleted: true });
   const cachedById = new Map(cachedRows.map((row) => [row.session_id, row]));
   const completions = [];
   const progressUpdates = [];
   const staleIds = [];
 
   logger(`Scheduled Sync: live sessions: ${currentRows.length}, cached sessions in tracking: ${cachedRows.length}`);
-  await upsertLiveTrackingCache(requireDb(), currentRows);
+  await upsertLiveTrackingCache(currentRows);
 
   for (const row of cachedRows) {
     if (currentIds.has(row.session_id)) continue;
@@ -1296,8 +1296,8 @@ export async function runScheduledSync(logger = console.log) {
     staleIds.push(row.session_id);
   }
 
-  await deleteLiveTrackingCacheRows(requireDb(), staleIds);
-  await purgeCompletedLiveTrackingCache(requireDb());
+  await deleteLiveTrackingCacheRows(staleIds);
+  await purgeCompletedLiveTrackingCache();
 
   if (currentRows.length || completions.length || progressUpdates.length || staleIds.length || plexSynced || embySynced || jellyfinSynced || plexResumeSynced || embyResumeSynced || jellyfinResumeSynced || manualSynced) {
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
@@ -1755,8 +1755,8 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
           ...activeTargets.map(t => `Target ${t.charAt(0).toUpperCase() + t.slice(1)} status: success`)
         ].join("\n");
         if (newestTime > 0) unwatchedRecord.watched_at = new Date(newestTime).toISOString();
-        const inserted = await insertWatchRecord(requireDb(), unwatchedRecord, { skipInvalidate: true });
-        await upsertPlaystateForMedia(requireDb(), { ...mediaObj, source: "force_sync", isValid: true }, "unwatched", inserted.record.watched_at, { skipInvalidate: true });
+        const inserted = await insertWatchRecord(unwatchedRecord, { skipInvalidate: true });
+        await upsertPlaystateForMedia({ ...mediaObj, source: "force_sync", isValid: true }, "unwatched", inserted.record.watched_at, { skipInvalidate: true });
       }
 
       for (const target of activeTargets) {

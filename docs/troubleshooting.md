@@ -93,7 +93,7 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
 ## "Settings or config not saving"
 
 - Confirm `DATA_DIR` (`data/` by default) is writable.
-- In Docker, confirm the volume is mounted: `docker exec plembfinfire ls /data`.
+- In Docker, confirm the volume is mounted: `docker exec plembfin ls /data`.
 - `data/config.json` must be writable for credential/secret persistence.
 
 ## General: where do I look?
@@ -101,7 +101,7 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
 | Need | Place |
 | --- | --- |
 | What route handles X | `dispatch()` in `server/src/index.js` |
-| Live server logs | stdout of `node server/server.js` (or `docker logs plembfinfire`) |
+| Live server logs | stdout of `node server/server.js` (or `docker logs plembfin`) |
 | Database inspection | `sqlite3 data/plembfin.db` |
 | Run the background worker on demand | `POST /api/cron-sync` (streams a log) |
 | Frontend debug logs | `logDebug(...)` calls throughout `public/app.js` (and the in-app Logs panel) |

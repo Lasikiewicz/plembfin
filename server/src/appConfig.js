@@ -121,6 +121,9 @@ function logSecuritySummary() {
   if (pinned.length > 0) {
     console.log(`[security] Pinned secrets from env: ${pinned.join(", ")}`);
   }
+  if (config.authManagedInApp && (process.env.ADMIN_USERNAME || process.env.ADMIN_PASSWORD)) {
+    console.warn("[security] Admin credentials are managed in-app; ADMIN_USERNAME/ADMIN_PASSWORD environment variables are ignored (remove authManagedInApp from data/config.json to restore env control).");
+  }
   if (generatedInitialPassword) {
     console.warn("⚠️  Generated initial admin credentials (shown once — this password is not stored anywhere in plaintext):");
     console.warn(`   • Username: ${config.username}`);

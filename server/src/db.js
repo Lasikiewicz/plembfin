@@ -15,7 +15,44 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const schema = fs.readFileSync(path.join(here, "schema.sql"), "utf8");
 db.exec(schema);
 
-// Column migrations (ALTER TABLE IF NOT EXISTS isn't valid SQLite syntax)
+const migrations = [
+  {
+    id: 1,
+    up(database) {
+      const watchCols = database.pragma("table_info(watch_history)").map(c => c.name);
+      if (!watchCols.includes("logo_url")) database.exec("ALTER TABLE watch_history ADD COLUMN logo_url TEXT");
+    },
+  },
+  {
+    id: 2,
+    up(database) {
+      const watchCols = database.pragma("table_info(watch_history)").map(c => c.name);
+      if (!watchCols.includes("backdrop_url")) database.exec("ALTER TABLE watch_history ADD COLUMN backdrop_url TEXT");
+    },
+  },
+];
+
+function runSchemaMigrations() {
+  db.exec("CREATE TABLE IF NOT EXISTS schema_migrations (id INTEGER PRIMARY KEY, applied_at INTEGER)");
+  const appliedStmt = db.prepare("SELECT id FROM schema_migrations WHERE id = ?");
+  const insertStmt = db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)");
+  for (const migration of migrations) {
+    if (appliedStmt.get(migration.id)) continue;
+    db.transaction(() => {
+      migration.up(db);
+      insertStmt.run(migration.id, Date.now());
+    })();
+  }
+}
+
+try {
+  runSchemaMigrations();
+} catch (error) {
+  console.error("Schema migration failed", error);
+  throw error;
+}
+
+// Compatibility guard for databases from before the migration table existed.
 try {
   const watchCols = db.pragma("table_info(watch_history)").map(c => c.name);
   if (!watchCols.includes("logo_url")) db.exec("ALTER TABLE watch_history ADD COLUMN logo_url TEXT");

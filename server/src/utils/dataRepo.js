@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import { db, getDataVersion, bumpDataVersion, parseJson, toJson, transaction } from "../db.js";
 import { loadMediaConfig } from "./configStore.js";
 import { fetchPosterFromTmdb } from "./tmdbClient.js";
@@ -201,7 +201,7 @@ function normalizeImportedTitle(record = {}, mediaType = "") {
     // `record.title` and the episode number on `record.episode` (not the
     // `show_title`/`episode_number` fields that Trakt/import records use), so
     // include those as fallbacks. Only rebuild when we actually have a real show
-    // name — otherwise fall through to `record.title` so the stored title keeps
+    // name â€” otherwise fall through to `record.title` so the stored title keeps
     // the correct episode coordinates and id-based recovery can still fix it.
     const showTitle = showTitleFrom(
       record.show_title ||
@@ -540,6 +540,10 @@ function finalizeStatsPeriod(period) {
 }
 
 // --- History caches --------------------------------------------------------
+// These derived caches intentionally trade memory for simple, fast reads in the
+// single-process app. They load full history-derived result sets after each
+// invalidation; before adding any more full-table caches, move hot paths that need
+// pagination or large installations to indexed SQL with LIMIT/OFFSET.
 export async function getCachedHistory() {
   const version = getDataVersion();
   if (historyCache.version === version) return historyCache.rows;
@@ -651,7 +655,7 @@ export function playstateRecordFromMedia(media = {}, state = media?.syncAction |
   return record;
 }
 
-export async function upsertPlaystate(_unusedDb, record, stateOverride = undefined, { skipInvalidate = false } = {}) {
+export async function upsertPlaystate(record, stateOverride = undefined, { skipInvalidate = false } = {}) {
   const normalized = normalizeWatchRecord(record, record.source || "webhook");
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));
@@ -684,8 +688,8 @@ export async function upsertPlaystate(_unusedDb, record, stateOverride = undefin
   return { mediaKey, state, record: normalized };
 }
 
-export async function upsertPlaystateForMedia(_unusedDb, media, state = "watched", watchedAt = undefined, options = {}) {
-  return upsertPlaystate(_unusedDb, playstateRecordFromMedia(media, state, watchedAt), state, options);
+export async function upsertPlaystateForMedia(media, state = "watched", watchedAt = undefined, options = {}) {
+  return upsertPlaystate(playstateRecordFromMedia(media, state, watchedAt), state, options);
 }
 
 function sameEpisodeCoordinates(a = {}, b = {}) {
@@ -699,7 +703,7 @@ function newestByUpdatedAt(rows = []) {
     .sort((a, b) => Number(b.updated_at || b.updatedAt || 0) - Number(a.updated_at || a.updatedAt || 0))[0] || null;
 }
 
-export async function getPlaystateForMedia(_unusedDb, media) {
+export async function getPlaystateForMedia(media) {
   const record = playstateRecordFromMedia(media, media?.syncAction || "watched");
   const exact = selectPlaystateStmt.get(mediaKeyFor(record));
   const related = selectPlaystateByTitleStmt
@@ -736,7 +740,7 @@ export async function invalidateHistoryDerivedCaches() {
 }
 
 // --- Watch history writes --------------------------------------------------
-export async function insertWatchRecord(_unusedDb, record, { skipInvalidate = false } = {}) {
+export async function insertWatchRecord(record, { skipInvalidate = false } = {}) {
   const normalized = normalizeWatchRecord(record, record.source);
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));
@@ -774,7 +778,7 @@ function defaultTelemetry(record) {
   return [`Origin: ${source}`, `Loop-check: Pending`, `Dispatch status: pending`, `Details: Awaiting outbound sync telemetry`].join("\n");
 }
 
-export async function batchInsertWatchRecords(_unusedDb, records) {
+export async function batchInsertWatchRecords(records) {
   let inserted = 0;
   let skipped = 0;
   const rejected = [];
@@ -858,7 +862,7 @@ function relatedTrackedWatchRowsForDateEdit(existing = {}) {
   });
 }
 
-export async function updateWatchTelemetry(_unusedDb, id, telemetry, { skipInvalidate = false } = {}) {
+export async function updateWatchTelemetry(id, telemetry, { skipInvalidate = false } = {}) {
   if (!id) return;
   updateTelemetryStmt.run(String(telemetry || ""), Date.now(), String(id));
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
@@ -950,7 +954,7 @@ export function mediaToPlaybackProgressRecord(media, source = media?.source || "
   );
 }
 
-export async function upsertPlaybackProgress(_unusedDb, record) {
+export async function upsertPlaybackProgress(record) {
   const normalized = normalizePlaybackProgressRecord(record, record.source);
   if (!normalized.title) throw new Error("title is required");
   if (!["movie", "episode"].includes(normalized.media_type)) throw new Error("media_type must be movie or episode");
@@ -978,12 +982,12 @@ export async function upsertPlaybackProgress(_unusedDb, record) {
   return normalized;
 }
 
-export async function updatePlaybackProgressTelemetry(_unusedDb, mediaOrRecord, telemetry) {
+export async function updatePlaybackProgressTelemetry(mediaOrRecord, telemetry) {
   const normalized = normalizePlaybackProgressRecord(mediaOrRecord, mediaOrRecord?.source);
   updateProgressTelemetryStmt.run(normalized.media_key, String(telemetry || ""), Date.now());
 }
 
-export async function getPlaybackProgressForMedia(_unusedDb, mediaOrRecord) {
+export async function getPlaybackProgressForMedia(mediaOrRecord) {
   const normalized = normalizePlaybackProgressRecord(mediaOrRecord, mediaOrRecord?.source);
   const exact = selectProgressStmt.get(normalized.media_key);
   const related = selectProgressByTitleStmt
@@ -993,7 +997,7 @@ export async function getPlaybackProgressForMedia(_unusedDb, mediaOrRecord) {
   return row ? playbackProgressFromRow(row) : null;
 }
 
-export async function deletePlaybackProgress(_unusedDb, mediaOrRecord) {
+export async function deletePlaybackProgress(mediaOrRecord) {
   const normalized = normalizePlaybackProgressRecord(mediaOrRecord, mediaOrRecord?.source);
   if (!normalized.media_key) return false;
   const related = normalized.title
@@ -1035,7 +1039,7 @@ const deleteLiveStmt = db.prepare("DELETE FROM live_tracking_cache WHERE session
 const selectAllLiveStmt = db.prepare("SELECT * FROM live_tracking_cache");
 const deleteLiveByIdStmt = db.prepare("DELETE FROM live_tracking_cache WHERE session_id = ?");
 
-export async function loadLiveTrackingCache(_unusedDb, { includeCompleted = false } = {}) {
+export async function loadLiveTrackingCache({ includeCompleted = false } = {}) {
   return selectLiveStmt.all()
     .map((row) => ({
       session_id: row.session_id,
@@ -1049,7 +1053,7 @@ export async function loadLiveTrackingCache(_unusedDb, { includeCompleted = fals
     .filter((row) => includeCompleted || row.completed_at == null);
 }
 
-export async function upsertLiveTrackingCache(_unusedDb, rows = []) {
+export async function upsertLiveTrackingCache(rows = []) {
   if (!rows.length) return;
   transaction(() => {
     for (const row of rows) {
@@ -1067,12 +1071,12 @@ export async function upsertLiveTrackingCache(_unusedDb, rows = []) {
   });
 }
 
-export async function markLiveTrackingComplete(_unusedDb, sessionId, completedAt = Date.now()) {
+export async function markLiveTrackingComplete(sessionId, completedAt = Date.now()) {
   if (!sessionId) return;
   markLiveCompleteStmt.run(String(sessionId), Number(completedAt), Number(completedAt));
 }
 
-export async function deleteLiveTrackingCacheRows(_unusedDb, sessionIds = []) {
+export async function deleteLiveTrackingCacheRows(sessionIds = []) {
   const ids = sessionIds.map((sessionId) => cleanString(sessionId)).filter(Boolean);
   if (!ids.length) return;
   transaction(() => {
@@ -1080,7 +1084,7 @@ export async function deleteLiveTrackingCacheRows(_unusedDb, sessionIds = []) {
   });
 }
 
-export async function purgeCompletedLiveTrackingCache(_unusedDb, olderThan = Date.now() - 24 * 60 * 60 * 1000) {
+export async function purgeCompletedLiveTrackingCache(olderThan = Date.now() - 24 * 60 * 60 * 1000) {
   const rows = selectAllLiveStmt.all();
   transaction(() => {
     for (const row of rows) {
@@ -1186,7 +1190,7 @@ export async function listRecentTrackedWatchRows({ limit = 100, scanLimit = 400 
   return dedupeHistory(rows).slice(0, safeLimit);
 }
 
-export async function queryWatchHistory(_unusedDb, { search = "", mediaType = "", limit = 50, offset = 0, dedupe = true } = {}) {
+export async function queryWatchHistory({ search = "", mediaType = "", limit = 50, offset = 0, dedupe = true } = {}) {
   const safeLimit = Math.min(Number(limit) || 50, MAX_HISTORY_LIMIT);
   const safeOffset = Math.max(Number(offset) || 0, 0);
   const normalizedMediaType = ["movie", "episode"].includes(String(mediaType || "").toLowerCase()) ? String(mediaType).toLowerCase() : "";
@@ -1323,7 +1327,7 @@ function isLegacyInitialSyncPlaceholder(row = {}) {
   return origin.endsWith("_initial_sync") && !telemetryHasTargetStatus(telemetry) && details.includes("awaiting outbound sync telemetry");
 }
 
-// Returns true when every non-successful target says "No matching item found" — meaning
+// Returns true when every non-successful target says "No matching item found" â€” meaning
 // the content simply isn't in those libraries, not a fixable sync error.
 function allNonSuccessTargetsNotFound(telemetry) {
   const lines = String(telemetry || "").split(/\r?\n/);
@@ -1690,7 +1694,7 @@ export async function deleteWatchRecordById(id, { skipInvalidate = false } = {})
   return true;
 }
 
-export async function deleteWatchRecord(_unusedDb, media, { skipInvalidate = false } = {}) {
+export async function deleteWatchRecord(media, { skipInvalidate = false } = {}) {
   const key = mediaKeyFor({
     title: media.title,
     type: media.type,
@@ -1907,7 +1911,7 @@ function collapseMovieCluster(clusterRows = []) {
 }
 
 // Dedupe movies by clustering rows that refer to the same film. Rows are linked
-// (union-find) when they share ANY external id (imdb/tmdb/tvdb) — this collapses
+// (union-find) when they share ANY external id (imdb/tmdb/tvdb) â€” this collapses
 // records that carry different id subsets, e.g. one row with only tmdb and
 // another with imdb+tmdb. Rows with no ids at all (e.g. plex_initial_sync title-
 // only imports) fold into the unique id cluster sharing their canonical title;

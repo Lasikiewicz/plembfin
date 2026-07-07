@@ -1,8 +1,8 @@
 services:
-  plembfinfire:
+  plembfin:
     build: .
-    image: plembfinfire:latest
-    container_name: plembfinfire
+    image: plembfin:latest
+    container_name: plembfin
     ports:
       - "5055:5055"
     volumes:

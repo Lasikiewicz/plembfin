@@ -177,7 +177,6 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `settings.js` | Builds connection-config payloads from the settings form inputs (`connectionPayloadFromElements`). |
 | `logs.js` | Frontend debug-log store (localStorage ring buffer) + fetching backend diagnostic logs. |
 | `images.js` | Poster/artwork frontend: `posterMarkup`, `hydratePosterFallbacks`, `/api/poster` lookups with a persistent cache, TMDB image URL builders, `isCachedStorageImageUrl`. See [posters-artwork.md](posters-artwork.md). |
-| `timeline.js` | Browser-side direct probe of Plex/Emby/Jellyfin session endpoints (`fetchLocalActiveSessions`) merged into Now Playing. |
 | `sync.js` | Now Playing polling + rendering, sync-status pills/telemetry parsing, sync jobs + sync history panels, cron/force-sync triggers. |
 | `dashboard.js` | Dashboard rendering: Now Playing grid, recent-history rows, part-watched (continue watching) rail. See [dashboard.md](dashboard.md). |
 | `stats.js` | Stats page: KPI cards, leaderboards, platform split, month chart, yearly/monthly review reports. See [stats.md](stats.md). |
@@ -344,6 +343,11 @@ boot. All database access uses prepared statements.
 `bumpDataVersion()` invalidates them; the next read reloads from SQLite. This works
 because Plembfin is a single long-lived process — never assume a second process can
 share these caches.
+
+Gotcha: `getCachedHistory()`, `getCachedMovies()`, and `getCachedShows()` rebuild full
+history-derived result sets after invalidation. That is acceptable for current local
+install sizes, but large datasets should move hot paths to indexed SQL with
+`LIMIT`/`OFFSET` before adding more full-table caches.
 
 Table-by-table reference: [sqlite-schema.md](sqlite-schema.md).
 

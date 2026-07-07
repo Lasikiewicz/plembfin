@@ -10,7 +10,6 @@
     <link rel="modulepreload" href="/modules/auth.js" />
     <link rel="modulepreload" href="/modules/logs.js" />
     <link rel="modulepreload" href="/modules/settings.js" />
-    <link rel="modulepreload" href="/modules/timeline.js" />
     <link rel="modulepreload" href="/modules/state.js" />
     <link rel="modulepreload" href="/modules/utils.js" />
     <link rel="modulepreload" href="/modules/help-content.js" />
@@ -1240,6 +1239,10 @@
                                 Passphrase - <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">At least 12 chars</span>
                                 <input id="backupExportPassphrase" class="field" type="password" autocomplete="new-password" />
                               </label>
+                              <label class="checkbox-label backup-enable-row">
+                                <input id="backupExportRememberPassphrase" type="checkbox" />
+                                <span>Remember passphrase for scheduled backups</span>
+                              </label>
                             </div>
                             <div class="backup-settings-right">
                               <button id="savePlembfinBackupConfigButton" class="button-primary" type="button" disabled>Save Schedule</button>
@@ -1347,6 +1350,10 @@
                               <label class="field-label" style="flex: 1.5 !important;">
                                 Passphrase - <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">At least 12 chars</span>
                                 <input id="plembfinBackupRemotePassphrase" class="field" type="password" autocomplete="new-password" />
+                              </label>
+                              <label class="checkbox-label backup-enable-row">
+                                <input id="plembfinBackupRemoteRememberPassphrase" type="checkbox" />
+                                <span>Remember passphrase for scheduled remote backups</span>
                               </label>
                             </div>
                             <div class="backup-settings-right">

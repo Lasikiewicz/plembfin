@@ -96,7 +96,7 @@
    ```yaml
    services:
      plembfin:
-       image: plembfinfire:latest
+       image: plembfin:latest
        build: .
        container_name: plembfin
        ports:
@@ -252,7 +252,7 @@ Plembfin runs automated daily backups at a customizable time.
 ### Supported Backup Types
 
 *   **Local Watch History Backups**: Capture watch history snapshots, playstates, and resume markers. Saved to `data/backups/watch-history`.
-*   **Local Plembfin Backups**: Create full, AES-256-GCM encrypted database backups (including settings, API keys, credentials, and play history, excluding cache). Requires a secure passphrase. Saved to `data/backups/plembfin`.
+*   **Local Plembfin Backups**: Create full, AES-256-GCM encrypted database backups (including settings, API keys, credentials, and play history, excluding cache). Manual backups can use a one-time passphrase; scheduled backups require a remembered passphrase. Saved to `data/backups/plembfin`.
 *   **Remote Backups**: Mirror local watch-history and full encrypted Plembfin backups to a private Backblaze B2 bucket under **Settings → Backups → Remote Backups**.
 
 ---
@@ -275,7 +275,7 @@ The following environment variables can be set in your system or defined in `doc
 | `PORT` | `5055` | The network port the web interface and API will listen on. |
 | `DATA_DIR` | `./data` | Directory for the SQLite database (`plembfin.db`), configs, and cached posters. |
 | `ADMIN_USERNAME` | `admin` | Default administrator username for fresh setups. |
-| `ADMIN_PASSWORD` | _generated_ | Admin password. If unset on a brand-new install, a random password is generated and printed once to the server console/logs — check there after first start, then set your own via Settings or this variable. |
+| `ADMIN_PASSWORD` | _generated_ | Admin password. If unset on a brand-new install, a random password is generated and printed once to the server console/logs. This env var controls login until credentials are changed in Settings or sessions are revoked; then `authManagedInApp` in `data/config.json` takes precedence. |
 | `API_KEY` | _generated_ | Security token used to authorize incoming webhooks and API calls. |
 | `WEBHOOK_SECRET` | _generated_ | Secret used by webhook header/Bearer auth and the compatibility `?token=` URL. Rotatable independently of the API key. |
 | `SESSION_SECRET` | _generated_ | Signing secret for the dashboard session cookie. |
@@ -322,7 +322,9 @@ npm run dev      # start with auto-reload on http://localhost:5055
 
 ## License
 
-Plembfin is private software. See the [changelog.json](changelog.json) for the version history and commit logs, or open **Settings → Changelog** in the app to see your current version and any newer releases pulled from GitHub.
+Plembfin is licensed under the GNU Affero General Public License v3.0. See
+[LICENSE.md](LICENSE.md). Version history is bundled in [changelog.json](changelog.json)
+and shown in **Settings -> Changelog**.
 
 ---
 

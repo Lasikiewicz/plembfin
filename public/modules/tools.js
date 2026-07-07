@@ -778,14 +778,25 @@ export async function postPlembfinBackupAction(payload) {
   return body;
 }
 export function updatePlembfinButtonsState() {
+  const config = state.plembfinBackups?.config || {};
   const passphrase = elements.backupExportPassphrase?.value.trim() || "";
-  const disabled = passphrase.length < 12;
-  if (elements.savePlembfinBackupConfigButton) elements.savePlembfinBackupConfigButton.disabled = disabled;
-  if (elements.createPlembfinBackupButton) elements.createPlembfinBackupButton.disabled = disabled;
+  const remember = Boolean(elements.backupExportRememberPassphrase?.checked);
+  const hasStoredPassphrase = Boolean(config.passphraseStored);
+  const hasLocalPassphrase = passphrase.length >= 12 || (remember && hasStoredPassphrase);
+  const localScheduleEnabled = Boolean(elements.plembfinBackupEnabled?.checked);
+  if (elements.savePlembfinBackupConfigButton) {
+    elements.savePlembfinBackupConfigButton.disabled = localScheduleEnabled && (!remember || !hasLocalPassphrase);
+  }
+  if (elements.createPlembfinBackupButton) elements.createPlembfinBackupButton.disabled = !hasLocalPassphrase && passphrase.length < 12;
 
   const remotePassphrase = elements.plembfinBackupRemotePassphrase?.value.trim() || "";
-  const remoteDisabled = remotePassphrase.length < 12;
-  if (elements.savePlembfinBackupRemoteButton) elements.savePlembfinBackupRemoteButton.disabled = remoteDisabled;
+  const remoteRemember = Boolean(elements.plembfinBackupRemoteRememberPassphrase?.checked);
+  const hasStoredRemotePassphrase = Boolean(config.remotePassphraseStored);
+  const hasRemotePassphrase = remotePassphrase.length >= 12 || (remoteRemember && hasStoredRemotePassphrase);
+  const remoteScheduleEnabled = Boolean(elements.plembfinBackupRemoteEnabled?.checked);
+  if (elements.savePlembfinBackupRemoteButton) {
+    elements.savePlembfinBackupRemoteButton.disabled = remoteScheduleEnabled && !hasLocalPassphrase && (!remoteRemember || !hasRemotePassphrase);
+  }
 }
 export function renderPlembfinBackups() {
   if (!elements.plembfinBackupList) return;
@@ -804,13 +815,19 @@ export function renderPlembfinBackups() {
   elements.plembfinBackupEnabled && (elements.plembfinBackupEnabled.checked = Boolean(config.enabled));
   elements.plembfinBackupTime && (elements.plembfinBackupTime.value = config.time || "03:00");
   elements.plembfinBackupRetention && (elements.plembfinBackupRetention.value = String(config.retention || 7));
-  if (elements.backupExportPassphrase && !elements.backupExportPassphrase.value) {
-    elements.backupExportPassphrase.value = config.passphrase || "";
+  if (elements.backupExportRememberPassphrase) {
+    elements.backupExportRememberPassphrase.checked = Boolean(config.rememberPassphrase || config.passphraseStored);
+  }
+  if (elements.backupExportPassphrase) {
+    elements.backupExportPassphrase.placeholder = config.passphraseStored ? "Saved - leave blank to keep" : "";
   }
 
   elements.plembfinBackupRemoteEnabled && (elements.plembfinBackupRemoteEnabled.checked = Boolean(config.remoteEnabled));
-  if (elements.plembfinBackupRemotePassphrase && !elements.plembfinBackupRemotePassphrase.value) {
-    elements.plembfinBackupRemotePassphrase.value = config.remotePassphrase || "";
+  if (elements.plembfinBackupRemoteRememberPassphrase) {
+    elements.plembfinBackupRemoteRememberPassphrase.checked = Boolean(config.remoteRememberPassphrase || config.remotePassphraseStored);
+  }
+  if (elements.plembfinBackupRemotePassphrase) {
+    elements.plembfinBackupRemotePassphrase.placeholder = config.remotePassphraseStored ? "Saved - leave blank to keep" : "";
   }
   
   elements.plembfinBackupSummary && (elements.plembfinBackupSummary.textContent = config.enabled ? "Scheduled" : "Disabled");
@@ -872,11 +889,14 @@ export function renderPlembfinBackups() {
   updatePlembfinButtonsState();
 }
 export async function savePlembfinBackupSettings() {
+  const rememberPassphrase = Boolean(elements.backupExportRememberPassphrase?.checked);
   const config = {
+    ...state.plembfinBackups?.config,
     enabled: elements.plembfinBackupEnabled.checked,
     time: elements.plembfinBackupTime.value || "03:00",
     retention: Number(elements.plembfinBackupRetention.value) || 7,
-    passphrase: elements.backupExportPassphrase.value.trim(),
+    rememberPassphrase,
+    passphrase: rememberPassphrase ? elements.backupExportPassphrase.value.trim() : "",
   };
   await postPlembfinBackupAction({ action: "configure", config });
   state.plembfinBackups = null;
@@ -884,10 +904,12 @@ export async function savePlembfinBackupSettings() {
   _setMessage("Plembfin backup schedule saved.", "success");
 }
 export async function savePlembfinBackupRemoteSettings() {
+  const remoteRememberPassphrase = Boolean(elements.plembfinBackupRemoteRememberPassphrase?.checked);
   const config = {
     ...state.plembfinBackups?.config,
     remoteEnabled: elements.plembfinBackupRemoteEnabled.checked,
-    remotePassphrase: elements.plembfinBackupRemotePassphrase.value.trim(),
+    remoteRememberPassphrase,
+    remotePassphrase: remoteRememberPassphrase ? elements.plembfinBackupRemotePassphrase.value.trim() : "",
   };
   await postPlembfinBackupAction({ action: "configure", config });
   state.plembfinBackups = null;

@@ -1,5 +1,5 @@
 {
-  "name": "plembfinfire",
+  "name": "plembfin",
   "version": "0.4.26",
   "private": true,
   "type": "module",
@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "node --watch server/server.js",
+    "test": "node --test",
     "build": "node scripts/build-check.js",
     "seed:demo": "node scripts/seed-demo-content.js",
     "prepare": "node scripts/install-git-hooks.js",
@@ -25,8 +26,5 @@
     "rotating-file-stream": "^3.2.9",
     "sharp": "^0.35.2",
     "undici": "^8.4.1"
-  },
-  "devDependencies": {
-    "playwright": "^1.61.1"
   }
 }

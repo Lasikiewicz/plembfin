@@ -21,15 +21,25 @@ const upsertRuntime = db.prepare(`
   ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
 `);
 
-function safeConfig(value = {}) {
+function safeConfig(value = {}, previous = {}) {
   const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value.time || "")) ? String(value.time) : "03:00";
+  const passphrase = String(value.passphrase || "").trim();
+  const remotePassphrase = String(value.remotePassphrase || "").trim();
+  const rememberPassphrase = value.rememberPassphrase == null
+    ? Boolean(passphrase || previous.passphrase)
+    : Boolean(value.rememberPassphrase);
+  const remoteRememberPassphrase = value.remoteRememberPassphrase == null
+    ? Boolean(remotePassphrase || previous.remotePassphrase)
+    : Boolean(value.remoteRememberPassphrase);
   return {
     enabled: Boolean(value.enabled),
     time,
     retention: Math.max(1, Math.min(Number(value.retention) || 7, 365)),
-    passphrase: String(value.passphrase || "").trim(),
+    rememberPassphrase,
+    passphrase: rememberPassphrase ? passphrase || String(previous.passphrase || "").trim() : "",
     remoteEnabled: Boolean(value.remoteEnabled),
-    remotePassphrase: String(value.remotePassphrase || "").trim(),
+    remoteRememberPassphrase,
+    remotePassphrase: remoteRememberPassphrase ? remotePassphrase || String(previous.remotePassphrase || "").trim() : "",
   };
 }
 
@@ -38,9 +48,28 @@ export function loadPlembfinBackupConfig() {
 }
 
 export function savePlembfinBackupConfig(value = {}) {
-  const config = safeConfig(value);
+  const previous = loadPlembfinBackupConfig();
+  const config = safeConfig(value, previous);
+  const hasLocalPassphrase = config.rememberPassphrase && config.passphrase.length >= 12;
+  const hasRemotePassphrase = config.remoteRememberPassphrase && config.remotePassphrase.length >= 12;
+  if (config.enabled && !hasLocalPassphrase) {
+    throw new Error("Remember the Plembfin backup passphrase before enabling scheduled local backups.");
+  }
+  if (config.remoteEnabled && !hasLocalPassphrase && !hasRemotePassphrase) {
+    throw new Error("Remember a Plembfin backup passphrase before enabling scheduled remote backups.");
+  }
   upsertSetting.run(CONFIG_ID, toJson(config), Date.now());
-  return config;
+  return publicConfig(config);
+}
+
+function publicConfig(config = loadPlembfinBackupConfig()) {
+  return {
+    ...config,
+    passphrase: "",
+    remotePassphrase: "",
+    passphraseStored: Boolean(config.passphrase),
+    remotePassphraseStored: Boolean(config.remotePassphrase),
+  };
 }
 
 export function loadPlembfinBackupRuntime() {
@@ -205,7 +234,7 @@ export function deletePlembfinBackup(filename) {
 
 export function plembfinBackupStatus() {
   return {
-    config: loadPlembfinBackupConfig(),
+    config: publicConfig(),
     runtime: loadPlembfinBackupRuntime(),
     files: listPlembfinBackups(),
   };

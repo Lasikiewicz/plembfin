@@ -1,4 +1,4 @@
-# plembfinfire — self-hosted watch-state bridge (Sonarr/Radarr-style).
+# plembfin - self-hosted watch-state bridge (Sonarr/Radarr-style).
 FROM node:22-slim
 
 WORKDIR /app

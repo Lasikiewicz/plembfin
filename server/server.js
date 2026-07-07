@@ -195,7 +195,7 @@ const server = app.listen(PORT);
 server.on("listening", () => {
   const address = server.address();
   const listeningPort = typeof address === "object" && address ? address.port : PORT;
-  console.log(`plembfinfire listening on http://localhost:${listeningPort}`);
+  console.log(`plembfin listening on http://localhost:${listeningPort}`);
   if (process.env.PLEMBFIN_BUILD_CHECK === "1") {
     server.close((error) => {
       if (error) {

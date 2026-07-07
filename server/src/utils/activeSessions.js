@@ -1,4 +1,4 @@
-import { db, parseJson, toJson } from "../db.js";
+﻿import { db, parseJson, toJson } from "../db.js";
 
 const ACTIVE_SESSION_TTL_MS = 300_000; // 5 minutes
 
@@ -62,7 +62,7 @@ export async function listActiveSessions() {
   return selectAllStmt.all().map(fromRow);
 }
 
-export async function upsertActiveSession(_unusedKv, media) {
+export async function upsertActiveSession(media) {
   if (!media) return [];
   const now = Date.now();
   upsertStmt.run({
@@ -88,7 +88,7 @@ export async function upsertActiveSession(_unusedKv, media) {
   return listActiveSessions();
 }
 
-export async function deleteActiveSession(_unusedKv, media) {
+export async function deleteActiveSession(media) {
   if (!media) return [];
   deleteOneStmt.run(sessionIdentity(media));
   return listActiveSessions();

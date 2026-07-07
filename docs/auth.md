@@ -27,6 +27,12 @@ chars fail startup (`assertMinSecretLength`); a default `admin` password trigger
 forced-change flow (`mustChangePassword` in `/api/auth/status` pins the UI to Settings →
 General).
 
+When credentials are changed from Settings or all sessions are revoked,
+`authManagedInApp: true` is written to `data/config.json`. While that flag is present,
+`ADMIN_USERNAME` and `ADMIN_PASSWORD` environment variables are ignored on startup. The
+server logs a `[security]` notice if those env vars are set but inactive; remove
+`authManagedInApp` from `data/config.json` to restore env-var control.
+
 ## Sessions
 
 - Stateless: the cookie value is `base64url(payload).hmacSHA256(payload,

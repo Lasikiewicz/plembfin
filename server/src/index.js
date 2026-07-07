@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import fs from "node:fs";
 import nodePath from "node:path";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook, buildPlexMediaFromMetadata } from "./utils/parsers.js";
@@ -358,7 +358,7 @@ async function handleConfig(req, res) {
   if (req.method === "POST") {
     const config = await readJson(req);
     // Validate the merged result (stored + incoming) so a save that leaves a key
-    // field blank — because the browser never receives stored secrets — still
+    // field blank â€” because the browser never receives stored secrets â€” still
     // satisfies required-credential checks. Only sections present in the request
     // are validated, matching the previous per-section semantics.
     const merged = await mergeIncomingConfig(config);
@@ -485,7 +485,7 @@ async function handleSeerrRequest(req, res) {
             .filter((season) => Number.isInteger(season) && season > 0)
         : [];
       // Seerr's request handler expects `seasons` to be either an array of season
-      // numbers or the string "all" — anything else (including a missing field)
+      // numbers or the string "all" â€” anything else (including a missing field)
       // throws server-side, so always send one of those two shapes.
       payload.seasons = seasons.length ? [...new Set(seasons)] : "all";
     }
@@ -1048,7 +1048,7 @@ async function handleHistory(req, res) {
   const dedupe = !["0", "false", "no"].includes(String(req.query.dedupe || "").toLowerCase());
   const includeStats = !["0", "false", "no"].includes(statsMode);
   const requestedLimit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
-  const historyPromise = queryWatchHistory(requireDb(), { search: req.query.search || "", mediaType: req.query.mediaType || "", limit: requestedLimit + 1, offset: req.query.offset || 0, dedupe });
+  const historyPromise = queryWatchHistory({ search: req.query.search || "", mediaType: req.query.mediaType || "", limit: requestedLimit + 1, offset: req.query.offset || 0, dedupe });
   const historyVersionPromise = getHistoryCacheVersion();
 
   if (!includeStats) {
@@ -1115,7 +1115,7 @@ async function handleMovies(req, res) {
 }
 
 // Permanently delete a library item (all its plays + playstate + progress).
-// Destructive and irreversible — the client must send confirm: "DELETE".
+// Destructive and irreversible â€” the client must send confirm: "DELETE".
 async function handleDeleteMedia(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST" && req.method !== "DELETE") return methodNotAllowed(res);
@@ -1285,7 +1285,7 @@ async function handleImport(req, res) {
   const records = Array.isArray(body) ? body : body.records;
   if (!Array.isArray(records)) return sendJson(res, { error: "Expected an array of records" }, 400);
   if (records.length > 100) return sendJson(res, { error: "Batch size must be 100 records or fewer" }, 413);
-  return sendJson(res, { ok: true, ...(await batchInsertWatchRecords(requireDb(), records)) });
+  return sendJson(res, { ok: true, ...(await batchInsertWatchRecords(records)) });
 }
 
 async function handleBackupExport(req, res) {
@@ -1367,10 +1367,10 @@ async function startOneDriveDeviceAuth(destination) {
 
 async function pollOneDriveDeviceAuth(pendingId) {
   const session = deviceCodeSessions.get(pendingId);
-  if (!session) return { status: "error", error: "Login session expired — start again" };
+  if (!session) return { status: "error", error: "Login session expired â€” start again" };
   if (session.expiresAt < Date.now()) {
     deviceCodeSessions.delete(pendingId);
-    return { status: "error", error: "Login code expired — start again" };
+    return { status: "error", error: "Login code expired â€” start again" };
   }
   const params = new URLSearchParams({
     client_id: session.clientId,
@@ -1482,7 +1482,7 @@ async function shouldSkipPostRestoreCompletedWebhook(media) {
 function withTimeout(promise, ms, label) {
   const p = Promise.resolve(promise);
   // If the timeout wins the race, the underlying promise may still reject later with nobody
-  // awaiting it — absorb that so it doesn't surface as an unhandledRejection.
+  // awaiting it â€” absorb that so it doesn't surface as an unhandledRejection.
   p.catch(() => {});
   let timer;
   const timeout = new Promise((_, reject) => {
@@ -1661,11 +1661,11 @@ async function runRestoreReconcileJob(clearMode) {
   try {
     const config = await loadMediaConfig();
     if (clearMode === "wipe") {
-      log("Clear mode: full wipe — marking every watched item on each app as unwatched.");
+      log("Clear mode: full wipe â€” marking every watched item on each app as unwatched.");
       const cleared = await clearAppWatchstates(config, log);
       log(`Clear complete: Plex ${cleared.plex}, Emby ${cleared.emby}, Jellyfin ${cleared.jellyfin}, failed ${cleared.failed}.`);
     } else {
-      log("Clear mode: reconcile — pushing only items tracked by the backup.");
+      log("Clear mode: reconcile â€” pushing only items tracked by the backup.");
     }
     const pushed = await pushRestoredStateToApps(config, log);
     log(`Push complete: ${pushed.watched} watched, ${pushed.unwatched} unwatched, ${pushed.failed} failed.`);
@@ -1680,7 +1680,7 @@ async function runRestoreReconcileJob(clearMode) {
     const stampedAt = Date.now() + RESTORE_SKEW_BUFFER_MS;
     setLastRestoreAt(stampedAt);
     log(`Stamped lastRestoreAt = ${new Date(stampedAt).toISOString()}; cron will skip app history up to this point.`);
-    log("✓ Authoritative restore complete.");
+    log("âœ“ Authoritative restore complete.");
     await stop();
     // Clear the active flag LAST (after lastRestoreAt is stamped) so the first allowed cron tick
     // already sees the watermark.
@@ -1716,7 +1716,7 @@ async function startAuthoritativeRestore(filename, clearMode) {
     return { status: 400, body: { error: error.message } };
   }
 
-  // Fire-and-forget — the job stamps lastRestoreAt and clears the flag when it finishes.
+  // Fire-and-forget â€” the job stamps lastRestoreAt and clears the flag when it finishes.
   runRestoreReconcileJob(clearMode);
 
   return { status: 202, body: { ok: true, restore, clearMode, jobStarted: true } };
@@ -1981,19 +1981,19 @@ async function applyManualUnwatch(media, config, loopStore, recordId = "", { inc
       return false;
     });
   }
-  const wasDeletedByMediaKey = await deleteWatchRecord(requireDb(), media, { skipInvalidate: true }).catch((error) => {
+  const wasDeletedByMediaKey = await deleteWatchRecord(media, { skipInvalidate: true }).catch((error) => {
     console.error("Failed to delete watch record", error);
     return false;
   });
   wasDeleted = wasDeleted || wasDeletedByMediaKey;
-  await deletePlaybackProgress(requireDb(), media).catch(() => null);
+  await deletePlaybackProgress(media).catch(() => null);
 
   const pendingSummary = { skipped: false, status: "pending", details: "Unwatched propagation queued", targetStates: [] };
   const unplayedRecord = mediaToWatchRecord({ ...media, syncAction: "unwatched" }, media.source);
   unplayedRecord.sync_action = "unwatched";
   unplayedRecord.sync_dispatch_telemetry = formatDispatchTelemetry(pendingSummary, media, "unwatched");
-  const result = await insertWatchRecord(requireDb(), unplayedRecord, { skipInvalidate: true });
-  await upsertPlaystateForMedia(requireDb(), media, "unwatched", result.record.watched_at, { skipInvalidate: true });
+  const result = await insertWatchRecord(unplayedRecord, { skipInvalidate: true });
+  await upsertPlaystateForMedia(media, "unwatched", result.record.watched_at, { skipInvalidate: true });
 
   // Clear resume progress on all target platforms to prevent re-import on next sync
   // Use direct platform calls since shouldSyncResumeProgress blocks position 0
@@ -2015,7 +2015,7 @@ async function applyManualUnwatch(media, config, loopStore, recordId = "", { inc
     details: `Unwatched propagation failed: ${error.message || String(error)}`,
     targetStates: [],
   }));
-  await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "unwatched"), { skipInvalidate: true });
+  await updateWatchTelemetry(result.id, formatDispatchTelemetry(summary, media, "unwatched"), { skipInvalidate: true });
   await recordSyncHistory(media, summary, "unwatched");
   return { wasDeleted, id: result.id, summary };
 }
@@ -2079,7 +2079,7 @@ async function handleManualWatch(req, res) {
       const media = manualWatchMediaFromRecord(record);
       let id = "";
       if (!existing) {
-        const insertResult = await insertWatchRecord(requireDb(), record, { skipInvalidate: true });
+        const insertResult = await insertWatchRecord(record, { skipInvalidate: true });
         id = insertResult.id;
         await insertResult.assetPrefetch?.catch(() => null);
         inserted += 1;
@@ -2088,7 +2088,7 @@ async function handleManualWatch(req, res) {
         skipped += 1;
       }
 
-      await upsertPlaystateForMedia(requireDb(), media, "watched", record.watched_at, { skipInvalidate: true });
+      await upsertPlaystateForMedia(media, "watched", record.watched_at, { skipInvalidate: true });
       syncTasks.push({ media, id, record });
 
       results.push({ index, id, title: record.title, inserted: !existing, status: "pending", targetStates: [] });
@@ -2112,7 +2112,7 @@ async function handleManualWatch(req, res) {
             targetStates: [],
           }));
 
-          await updateWatchTelemetry(requireDb(), task.id, formatDispatchTelemetry(summary, task.media, "watched"), { skipInvalidate: true });
+          await updateWatchTelemetry(task.id, formatDispatchTelemetry(summary, task.media, "watched"), { skipInvalidate: true });
           await recordSyncHistory(task.media, summary, "watched");
         } catch (error) {
           console.error("Background manual watch sync failed:", error);
@@ -2195,17 +2195,17 @@ async function handlePlaybackProgressWatch(req, res) {
     const media = manualWatchMediaFromRecord(normalizedRecord);
     let id = "";
     if (!existing) {
-      const insertResult = await insertWatchRecord(requireDb(), normalizedRecord, { skipInvalidate: true });
+      const insertResult = await insertWatchRecord(normalizedRecord, { skipInvalidate: true });
       id = insertResult.id;
       await insertResult.assetPrefetch?.catch(() => null);
     } else {
       id = existing.id;
     }
 
-    await upsertPlaystateForMedia(requireDb(), media, "watched", record.watched_at, { skipInvalidate: true });
+    await upsertPlaystateForMedia(media, "watched", record.watched_at, { skipInvalidate: true });
 
-    await deletePlaybackProgress(requireDb(), { ...progressRow, media_key: mediaKey }).catch(() => null);
-    await deletePlaybackProgress(requireDb(), media).catch(() => null);
+    await deletePlaybackProgress({ ...progressRow, media_key: mediaKey }).catch(() => null);
+    await deletePlaybackProgress(media).catch(() => null);
 
     (async () => {
       try {
@@ -2215,7 +2215,7 @@ async function handlePlaybackProgressWatch(req, res) {
           details: `Watch propagation failed: ${error.message || String(error)}`,
           targetStates: [],
         }));
-        await updateWatchTelemetry(requireDb(), id, formatDispatchTelemetry(summary, media, "watched"), { skipInvalidate: true });
+        await updateWatchTelemetry(id, formatDispatchTelemetry(summary, media, "watched"), { skipInvalidate: true });
         await recordSyncHistory(media, summary, "watched");
       } catch (err) {
         console.error("Background sync for progress watch failed:", err);
@@ -2307,7 +2307,7 @@ async function handleRetrySync(req, res) {
     };
   }
 
-  await updateWatchTelemetry(requireDb(), id, formatDispatchTelemetry(summary, media, action));
+  await updateWatchTelemetry(id, formatDispatchTelemetry(summary, media, action));
   await recordSyncHistory(media, summary, action);
 
   return sendJson(res, { ok: true, status: summary.status, targetStates: summary.targetStates || [] });
@@ -2319,7 +2319,7 @@ async function handleNowPlaying(req, res) {
   if (!(await requireAdmin(req, res))) return;
 
   const [cacheRows, activeRows, runtime] = await Promise.all([
-    loadLiveTrackingCache(requireDb(), { includeCompleted: false }).catch(() => []),
+    loadLiveTrackingCache({ includeCompleted: false }).catch(() => []),
     listActiveSessions().catch(() => []),
     loadRuntimeState(),
   ]);
@@ -2428,7 +2428,7 @@ async function handleForceSync(req, res) {
     });
   }
 
-  // POST: fire-and-forget — return 202 immediately, run in background
+  // POST: fire-and-forget â€” return 202 immediately, run in background
   if (!(await requireAdmin(req, res))) return;
 
   const runtime = await loadRuntimeState();
@@ -2474,7 +2474,7 @@ async function handleForceSync(req, res) {
     }
   };
 
-  // Kick off in background — HTTP response returned below without awaiting this
+  // Kick off in background â€” HTTP response returned below without awaiting this
   Promise.resolve().then(async () => {
     const heartbeatTimer = setInterval(() => {
       setRuntimeState({ forceSyncHeartbeat: Date.now() }).catch(() => null);
@@ -2586,7 +2586,7 @@ async function handleWebhook(req, res) {
   }
 
   // While an authoritative restore is pushing fresh state to the apps, ignore inbound
-  // webhooks — they are the apps echoing our own marks back and would re-record as
+  // webhooks â€” they are the apps echoing our own marks back and would re-record as
   // watched-today. Real user plays resume the moment the restore job finishes.
   const restoreRuntime = await loadRuntimeState();
   if (restoreRuntime.restoreSyncActive === true) {
@@ -2693,12 +2693,12 @@ async function handleWebhook(req, res) {
           episodeMedia.posterUrl = posterPathFromMedia(episodeMedia);
 
           if (media.phase === "unplayed") {
-            await deleteActiveSession(null, episodeMedia).catch(() => null);
-            const wasDeleted = await deleteWatchRecord(requireDb(), episodeMedia, { skipInvalidate: true }).catch((error) => {
+            await deleteActiveSession(episodeMedia).catch(() => null);
+            const wasDeleted = await deleteWatchRecord(episodeMedia, { skipInvalidate: true }).catch((error) => {
               console.error("Failed to delete watch record", error);
               return false;
             });
-            await deletePlaybackProgress(requireDb(), episodeMedia).catch(() => null);
+            await deletePlaybackProgress(episodeMedia).catch(() => null);
 
             // Clear resume progress on target platforms to prevent re-import on next sync
             // Use direct platform calls since shouldSyncResumeProgress blocks position 0
@@ -2717,20 +2717,20 @@ async function handleWebhook(req, res) {
             const unplayedRecord = mediaToWatchRecord({ ...episodeMedia, syncAction: "unwatched" }, episodeMedia.source);
             unplayedRecord.sync_action = "unwatched";
             unplayedRecord.sync_dispatch_telemetry = formatDispatchTelemetry(pendingSummary, episodeMedia, "unwatched");
-            const dbResult = await insertWatchRecord(requireDb(), unplayedRecord, { skipInvalidate: true });
-            await upsertPlaystateForMedia(requireDb(), episodeMedia, "unwatched", dbResult.record.watched_at, { skipInvalidate: true });
+            const dbResult = await insertWatchRecord(unplayedRecord, { skipInvalidate: true });
+            await upsertPlaystateForMedia(episodeMedia, "unwatched", dbResult.record.watched_at, { skipInvalidate: true });
             const summary = await syncMediaUnplayedPlaystate(episodeMedia, config, loopStore).catch((error) => ({
               skipped: false,
               status: "error",
               details: `Unwatched propagation failed: ${error.message || String(error)}`,
               targetStates: [],
             }));
-            await updateWatchTelemetry(requireDb(), dbResult.id, formatDispatchTelemetry(summary, episodeMedia, "unwatched"), { skipInvalidate: true });
+            await updateWatchTelemetry(dbResult.id, formatDispatchTelemetry(summary, episodeMedia, "unwatched"), { skipInvalidate: true });
             await recordSyncHistory(episodeMedia, summary, "unwatched");
             results.push({ episodeId: ep.Id, title: episodeMedia.title, success: summary.status === "success" || summary.status === "partial" });
           } else {
-            await deleteActiveSession(null, episodeMedia).catch(() => null);
-            const existingPlaystate = await getPlaystateForMedia(requireDb(), episodeMedia).catch(() => null);
+            await deleteActiveSession(episodeMedia).catch(() => null);
+            const existingPlaystate = await getPlaystateForMedia(episodeMedia).catch(() => null);
             if (existingPlaystate?.state === "watched") {
               results.push({ episodeId: ep.Id, title: episodeMedia.title, success: true, skipped: true, reason: "Already marked watched" });
               return;
@@ -2742,17 +2742,17 @@ async function handleWebhook(req, res) {
             const watchRecord = mediaToWatchRecord(episodeMedia, episodeMedia.source);
             watchRecord.sync_action = "watched";
             watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, episodeMedia, "watched");
-            const dbResult = await insertWatchRecord(requireDb(), watchRecord, { skipInvalidate: true });
-            await upsertPlaystateForMedia(requireDb(), episodeMedia, "watched", dbResult.record.watched_at, { skipInvalidate: true });
+            const dbResult = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+            await upsertPlaystateForMedia(episodeMedia, "watched", dbResult.record.watched_at, { skipInvalidate: true });
             const summary = await syncMediaPlaystate(episodeMedia, config, loopStore).catch((error) => ({
               skipped: false,
               status: "error",
               details: `Propagation failed: ${error.message || String(error)}`,
               targetStates: [],
             }));
-            await updateWatchTelemetry(requireDb(), dbResult.id, formatDispatchTelemetry(summary, episodeMedia, "watched"), { skipInvalidate: true });
+            await updateWatchTelemetry(dbResult.id, formatDispatchTelemetry(summary, episodeMedia, "watched"), { skipInvalidate: true });
             await recordSyncHistory(episodeMedia, summary, "watched");
-            await deletePlaybackProgress(requireDb(), episodeMedia).catch(() => null);
+            await deletePlaybackProgress(episodeMedia).catch(() => null);
             await dbResult.assetPrefetch?.catch(() => null);
             results.push({ episodeId: ep.Id, title: episodeMedia.title, success: summary.status === "success" || summary.status === "partial" });
           }
@@ -2774,18 +2774,18 @@ async function handleWebhook(req, res) {
   }
 
   if (media.phase === "active") {
-    await upsertActiveSession(null, media);
+    await upsertActiveSession(media);
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
     return sendJson(res, { ok: true, active: true, inserted: false, propagated: false, title: media.title, source: media.source });
   }
 
   if (media.phase === "ended") {
-    await deleteActiveSession(null, media);
+    await deleteActiveSession(media);
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
     let progressSummary = { skipped: true, status: "skipped", details: "Resume progress is not actionable", targetStates: [] };
     if (shouldSyncResumeProgress(media)) {
       const progressRecord = mediaToPlaybackProgressRecord(media, media.source);
-      await upsertPlaybackProgress(requireDb(), {
+      await upsertPlaybackProgress({
         ...progressRecord,
         sync_dispatch_telemetry: formatProgressTelemetry({ skipped: false, status: "pending", details: "Resume propagation queued", targetStates: [] }, media),
       }).catch((error) => console.error("Failed to store resume progress", error));
@@ -2795,7 +2795,7 @@ async function handleWebhook(req, res) {
         details: `Resume propagation failed: ${error.message || String(error)}`,
         targetStates: [],
       }));
-      await updatePlaybackProgressTelemetry(requireDb(), progressRecord, formatProgressTelemetry(progressSummary, media)).catch(() => null);
+      await updatePlaybackProgressTelemetry(progressRecord, formatProgressTelemetry(progressSummary, media)).catch(() => null);
       await recordSyncHistory(media, progressSummary, "progress");
     }
     return sendJson(res, {
@@ -2815,7 +2815,7 @@ async function handleWebhook(req, res) {
         title: media.title,
         type: media.type,
       });
-      await deleteActiveSession(null, media);
+      await deleteActiveSession(media);
       await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
       const { wasDeleted, id } = await applyManualUnwatch(media, config, loopStore);
       console.log("Webhook: unwatched sync completed", {
@@ -2838,7 +2838,7 @@ async function handleWebhook(req, res) {
       progress: media.progress,
       positionMs: media.positionMs,
     });
-    await deleteActiveSession(null, media);
+    await deleteActiveSession(media);
 
     // Check if a recent watch record already exists (e.g., from full sync)
     // to avoid creating duplicates. Look for records watched in the last hour.
@@ -2853,14 +2853,14 @@ async function handleWebhook(req, res) {
       return sendJson(res, { ok: true, inserted: false, id: existingRecord.id, reason: "Watch record already exists from recent full sync" });
     }
 
-    const existingPlaystate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
+    const existingPlaystate = await getPlaystateForMedia(media).catch(() => null);
     if (existingPlaystate?.state === "watched") {
       console.log("Webhook: skipped watched echo because playstate is already watched", {
         source: media.source,
         title: media.title,
         playstateUpdatedAt: existingPlaystate.updated_at,
       });
-      await deletePlaybackProgress(requireDb(), media).catch(() => null);
+      await deletePlaybackProgress(media).catch(() => null);
       await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
       return sendJson(res, { ok: true, inserted: false, id: existingPlaystate.id, reason: "Already marked watched" });
     }
@@ -2883,14 +2883,14 @@ async function handleWebhook(req, res) {
     const watchRecord = mediaToWatchRecord(media, media.source);
     watchRecord.sync_action = "watched";
     watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, media, "watched");
-    const result = await insertWatchRecord(requireDb(), watchRecord, { skipInvalidate: true });
+    const result = await insertWatchRecord(watchRecord, { skipInvalidate: true });
     console.log("Webhook: inserted watch record", {
       source: media.source,
       title: media.title,
       recordId: result.id,
       watchedAt: result.record.watched_at,
     });
-    await upsertPlaystateForMedia(requireDb(), media, "watched", result.record.watched_at, { skipInvalidate: true });
+    await upsertPlaystateForMedia(media, "watched", result.record.watched_at, { skipInvalidate: true });
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
     const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
       skipped: false,
@@ -2905,9 +2905,9 @@ async function handleWebhook(req, res) {
       details: summary.details,
       targetStates: summary.targetStates,
     });
-    await updateWatchTelemetry(requireDb(), result.id, formatDispatchTelemetry(summary, media, "watched"), { skipInvalidate: true });
+    await updateWatchTelemetry(result.id, formatDispatchTelemetry(summary, media, "watched"), { skipInvalidate: true });
     await recordSyncHistory(media, summary, "watched");
-    await deletePlaybackProgress(requireDb(), media).catch(() => null);
+    await deletePlaybackProgress(media).catch(() => null);
     // Ensure TMDB metadata + artwork finish caching before the instance freezes,
     // so the detail page is instant on first click. Overlaps with the sync above.
     await result.assetPrefetch?.catch(() => null);
@@ -2930,7 +2930,7 @@ async function handleTestConnection(req, res) {
   const baseUrl = String(body.url || body.baseUrl || "").replace(/\/+$/, "");
   let token = String(body.token || body.apiKey || "");
   // The browser never receives stored secrets, so the settings form may submit a
-  // blank token for an already-configured server — fall back to the saved credential.
+  // blank token for an already-configured server â€” fall back to the saved credential.
   if (!token && ["plex", "emby", "jellyfin"].includes(type)) {
     const config = await loadMediaConfig().catch(() => null);
     token = type === "plex" ? String(config?.plex?.token || "") : String(config?.[type]?.apiKey || "");
@@ -2965,7 +2965,7 @@ async function handleTestConnection(req, res) {
   }
 }
 
-// Probes the Plex realtime notification WebSocket — the channel that powers event-driven
+// Probes the Plex realtime notification WebSocket â€” the channel that powers event-driven
 // unwatch detection. Accepts URL/token in the body (so the integrity check can test the
 // values currently entered in Settings), falling back to the saved Plex config.
 async function handleTestPlexNotifications(req, res) {
@@ -2996,14 +2996,14 @@ async function handleTestPlexNotifications(req, res) {
 const inflight = new Map();
 
 // A currently-playing item often has no watch_history or playback_progress row
-// yet — it only lives in the live-tracking cache / active sessions. Resolve it by
+// yet â€” it only lives in the live-tracking cache / active sessions. Resolve it by
 // media_key here so /api/poster can fetch and cache its artwork (the raw Plex/Emby
 // thumb path can't be loaded directly from a browser on an https page when the
 // media server is http). Returns a synthesized row carrying poster_url, or null.
 async function findLiveSessionPosterRow(mediaKey) {
   if (!mediaKey) return null;
   const [cacheRows, activeRows] = await Promise.all([
-    loadLiveTrackingCache(requireDb(), { includeCompleted: false }).catch(() => []),
+    loadLiveTrackingCache({ includeCompleted: false }).catch(() => []),
     listActiveSessions().catch(() => []),
   ]);
   const sessions = [...cacheRows.map(hydrateCachedSession), ...activeRows];
@@ -3587,7 +3587,7 @@ async function handleTmdbDetails(req, res) {
   }
 }
 
-// Ultra-cheap, no-auth endpoint that returns immediately — client calls this on
+// Ultra-cheap, no-auth endpoint that returns immediately â€” client calls this on
 // page load so the server is warm by the time the user clicks into anything.
 function handlePing(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
@@ -4110,7 +4110,7 @@ async function handleUpdateWatch(req, res) {
   if (body.title !== undefined) fields.title = body.title;
   if (body.youtube_url !== undefined) fields.youtube_url = body.youtube_url;
 
-  // Captured before the update runs — needed below to invalidate the cache row
+  // Captured before the update runs â€” needed below to invalidate the cache row
   // keyed by the *previous* tmdb_id when tvdb_id changes (Fix Match rematch).
   const preUpdateRow = body.tvdb_id !== undefined ? await getWatchRecordByIdLight(id).catch(() => null) : null;
 
@@ -4135,7 +4135,7 @@ async function handleUpdateWatch(req, res) {
       const cached = await cachePosterFromUrl(editedKey, chosenPosterFetchUrl, "custom").catch(() => null);
       if (cached?.url) {
         // The storage path is derived from media_key, so re-saving a poster
-        // overwrites the same file at the same URL — browsers and the client
+        // overwrites the same file at the same URL â€” browsers and the client
         // poster cache would keep serving the previous image. Append a version
         // token so each change yields a fresh URL that busts those caches.
         const versionedUrl = `${cached.url}${cached.url.includes("?") ? "&" : "?"}v=${Date.now()}`;
@@ -4184,7 +4184,7 @@ async function handleUpdateWatch(req, res) {
       }
       // The record's own poster_url/backdrop_url survive a rematch untouched, and
       // /api/poster serves a stored storage URL directly without consulting the
-      // (now-cleared) poster cache — so the old show/movie's artwork would keep
+      // (now-cleared) poster cache â€” so the old show/movie's artwork would keep
       // being served forever unless this request is itself uploading new artwork.
       if (body.poster_url === undefined && body.backdrop_url === undefined) {
         await clearWatchArtworkUrls(id).catch(() => null);
@@ -4193,7 +4193,7 @@ async function handleUpdateWatch(req, res) {
   }
 
   // If TVDB ID changed (Fix Match rematch), the old cached tv_{tmdbId} details row
-  // for this record's *previous* tmdb_id still points at the wrong show — force it
+  // for this record's *previous* tmdb_id still points at the wrong show â€” force it
   // stale so the next detail fetch re-resolves via the new tvdb_id instead of
   // serving mismatched cached data until the TTL happens to expire.
   if (body.tvdb_id !== undefined && preUpdateRow) {
@@ -4392,7 +4392,7 @@ async function handleClearCache(req, res) {
 //
 // Each build ships with a bundled changelog.json (served at /changelog.json) that
 // records the version this instance was built from. A running instance also polls
-// the changelog.json published on GitHub so the Settings → Changelog screen can
+// the changelog.json published on GitHub so the Settings â†’ Changelog screen can
 // show the user their current version alongside any newer releases. The browser
 // can't reach GitHub directly (CSP connect-src 'self'), so we proxy + cache it here.
 // ---------------------------------------------------------------------------
@@ -4667,7 +4667,7 @@ export async function runScheduledTick() {
 // Plex never sends a webhook when an item is marked unwatched, so we listen on its
 // notification WebSocket. When a movie/episode timeline event arrives, we resolve the
 // ratingKey to its current metadata, confirm it actually went to unwatched, and (if we
-// previously tracked it as watched) run the same propagation as a manual unwatch — which
+// previously tracked it as watched) run the same propagation as a manual unwatch â€” which
 // fans out to Emby and Jellyfin via the configured ID/title matching.
 // ---------------------------------------------------------------------------
 
@@ -4689,7 +4689,7 @@ async function handlePlexLibraryItemChange(ratingKey) {
   const media = buildPlexMediaFromMetadata(metadata);
   if (!media?.isValid || !["movie", "episode"].includes(media.type)) return;
 
-  // Still watched or only partially watched → this isn't an unwatch event.
+  // Still watched or only partially watched â†’ this isn't an unwatch event.
   const viewCount = Number(metadata.viewCount || 0);
   const viewOffset = Number(metadata.viewOffset || 0);
   if (viewCount > 0 || viewOffset > 0) return;
@@ -4698,7 +4698,7 @@ async function handlePlexLibraryItemChange(ratingKey) {
   // reacting to items we never tracked and short-circuits the echo when an unwatch that
   // originated on Emby/Jellyfin was just propagated *into* Plex (the originating flow has
   // already flipped our playstate to "unwatched").
-  const playstate = await getPlaystateForMedia(requireDb(), media).catch(() => null);
+  const playstate = await getPlaystateForMedia(media).catch(() => null);
   if (playstate?.state === "unwatched") return;
   if (playstate?.state !== "watched") {
     const watched = await findWatchedByAnyMediaKey({ ...media, syncAction: "watched" }).catch(() => null);

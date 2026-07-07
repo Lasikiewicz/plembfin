@@ -9,24 +9,28 @@ GitHub Actions, Docker, and the changelog/versioning machinery.
 npm install       # prebuilt binaries for better-sqlite3 + sharp; also installs git hooks (prepare)
 npm start         # serve UI + API + scheduler on http://localhost:5055
 npm run dev       # same, with --watch auto-reload
-npm run build     # the build check (see below) — this is the only "test" gate
+npm test          # focused node:test suite for parser/sync/key behavior
+npm run build     # syntax check + npm test + server boot gate
 npm run seed:demo # insert fictional demo movies/shows with generated posters
 ```
 
-There are no unit tests or linters configured. A local `.env` at the repo root is
-loaded by `server/src/env.js` (existing env vars win). Data lands in `<repo>/data/`
-(override with `DATA_DIR`).
+There is no separate linter configured. A local `.env` at the repo root is loaded by
+`server/src/env.js` (existing env vars win). Data lands in `<repo>/data/` (override
+with `DATA_DIR`).
 
 ## The build check (`scripts/build-check.js`)
 
 `npm run build` is the gate used by the pre-push hook and every CI job. It:
 
 1. runs `node --check` over every `.js` file in `public/`, `server/`, `scripts/`
-2. parses `package.json`, `package-lock.json`, `changelog.json`
-3. **rejects any bare `fetch(` in `server/`** — outbound calls must use
+2. runs the `node:test` suite (the same tests exposed by `npm test`)
+3. parses `package.json`, `package-lock.json`, `changelog.json`
+4. verifies every routed API handler is either intentionally public or calls
+   `requireAdmin`, `resolveAdminPrincipal`, or `verifyWebhookToken`
+5. **rejects any bare `fetch(` in `server/`** — outbound calls must use
    `fetchWithTimeout` (`server/src/utils/outbound.js`) or attach
    `AbortSignal.timeout` nearby
-4. boots the real server once against a temp `DATA_DIR` with
+6. boots the real server once against a temp `DATA_DIR` with
    `PLEMBFIN_BUILD_CHECK=1` (the server exits immediately after `listening`)
 
 ## Git hooks

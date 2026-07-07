@@ -25,6 +25,14 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `tvdb_season_cache` | Raw TheTVDB season/extended episode list, key `${tvdbId}_${seasonNumber}` | tvdbGateway | tmdb-season handler |
 | `omdb_cache` | OMDb/IMDb ratings, 7-day TTL, key is the IMDb ID (`tt…`) | omdb-rating handler | media detail pages |
 | `audit_log` | Security-relevant event log (login, credential change, rotation) | `writeAuditLog()` in `db.js` | ops/debugging only |
+| `schema_migrations` | Ordered migration ledger (`id`, `applied_at`) | `db.js` at startup | startup only |
+
+## Schema migrations
+
+`server/src/db.js` applies `schema.sql`, then runs ordered migration steps and records
+each applied id in `schema_migrations`. Existing databases that already have a migrated
+column still record the migration id after the idempotent check succeeds, so every
+database converges on the same ledger.
 
 ## `live_tracking_cache`
 

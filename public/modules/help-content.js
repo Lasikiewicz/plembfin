@@ -22,8 +22,8 @@ export function adminTokenGuide() {
       <p><b>What it is:</b> The local username and password for this self-hosted instance.</p>
       <ol>
         <li>Username defaults to <code>admin</code> on first run. If you didn't set <code>ADMIN_PASSWORD</code>, a random password is generated and printed once to the server console/logs — check there after first start.</li>
-        <li>Override by setting <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> environment variables (e.g. in <code>docker-compose.yml</code>).</li>
-        <li>Use that username and password to sign in to this dashboard. Change credentials here at any time.</li>
+        <li>Override fresh installs by setting <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> environment variables (e.g. in <code>docker-compose.yml</code>).</li>
+        <li>Use that username and password to sign in to this dashboard. After credentials are changed in Settings, Plembfin manages them in-app and ignores <code>ADMIN_USERNAME</code>/<code>ADMIN_PASSWORD</code> until <code>authManagedInApp</code> is removed from <code>data/config.json</code>.</li>
         <li>Webhooks use a separate secret token. Media servers can use the token in the webhook URL; automation clients can send it with <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code>. You can rotate it independently without affecting your admin password or API key.</li>
       </ol>
     </div>

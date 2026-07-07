@@ -714,8 +714,20 @@ function attachEvents() {
   elements.backupExportPassphrase?.addEventListener("input", () => {
     updatePlembfinButtonsState();
   });
+  elements.backupExportRememberPassphrase?.addEventListener("change", () => {
+    updatePlembfinButtonsState();
+  });
+  elements.plembfinBackupEnabled?.addEventListener("change", () => {
+    updatePlembfinButtonsState();
+  });
 
   elements.plembfinBackupRemotePassphrase?.addEventListener("input", () => {
+    updatePlembfinButtonsState();
+  });
+  elements.plembfinBackupRemoteRememberPassphrase?.addEventListener("change", () => {
+    updatePlembfinButtonsState();
+  });
+  elements.plembfinBackupRemoteEnabled?.addEventListener("change", () => {
     updatePlembfinButtonsState();
   });
 

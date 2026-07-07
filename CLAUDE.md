@@ -11,7 +11,7 @@ Agent instructions for working with this codebase.
 - **No Git Pushes** — Never execute `git push` or push commits to any remote repository unless the user explicitly instructs you to push in their request.
 - **No Deployments** — Never deploy the application or run deployment commands unless explicitly instructed by the user.
 - **No Unsolicited Actions** — Do only exactly what the user asks. Do not perform unsolicited refactorings, add extra features, or modify files outside the direct scope of the request.
-- **No Tests or Browser Actions** — Never run test commands (e.g., `npm test`, `pytest`) or open web browsers/browser tools unless the user has explicitly requested it.
+- **No Browser Actions Unless Asked** — Never open web browsers/browser tools unless the user has explicitly requested it. Test commands are part of the normal project checks: run `npm test` or `npm run build` when a change touches code covered by those checks or when the user asks for verification.
 - **Act immediately on simple requests** — If the user describes a clear, specific change, make it directly without preamble, planning steps, or explanation. Save analysis for genuinely complex or ambiguous tasks.
 
 ## "Push to git" command
@@ -129,7 +129,9 @@ npm run dev
 docker compose up --build
 ```
 
-There are no tests or linters configured in this project.
+`npm test` runs the focused `node:test` suite under `test/`. `npm run build` runs the
+syntax check, the same `node:test` suite, JSON validation, the server-side outbound-fetch guard, and a
+one-shot server boot against a temp `DATA_DIR`. There is no separate linter configured.
 
 The app listens on `PORT` (default `5055`). On a fresh install the admin username defaults
 to `admin`; if `ADMIN_PASSWORD` isn't set, a random password is generated and printed once
@@ -172,7 +174,6 @@ When adding frontend code, place it in the most specific existing module that ow
 | Auth, session, tokens | `modules/auth.js` |
 | Debug/diagnostic logs | `modules/logs.js` |
 | Connection config payloads | `modules/settings.js` |
-| Live session fetching/normalisation | `modules/timeline.js` |
 | Shared `state` and `elements` objects | `modules/state.js` |
 | App event wiring | `modules/app-events.js` |
 | Media-detail modal click delegation (cast/trailers/poster edit/watch actions/card navigation) | `modules/media-detail-events.js` |
@@ -210,7 +211,7 @@ folder** under `data/`.
 prefix and routes to `handleWebhook`, `handleHistory`, `handleMovies`, etc. `dispatch` is
 imported and mounted by `server.js`.
 
-**Frontend** (`public/`) — a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `timeline.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`, `tools-maintenance.js`, `media-detail.js`, `media-person.js`, `media-lightbox.js`, `edit-dialogs.js`, `watch-action.js`, `tmdb.js`, `app-events.js`). No framework, bundler, or TypeScript.
+**Frontend** (`public/`) — a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`, `tools-maintenance.js`, `media-detail.js`, `media-person.js`, `media-lightbox.js`, `edit-dialogs.js`, `watch-action.js`, `tmdb.js`, `app-events.js`). No framework, bundler, or TypeScript.
 
 ### Data layer (`server/src/db.js` + `schema.sql`)
 
