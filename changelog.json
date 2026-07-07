@@ -1,7 +1,14 @@
 {
-  "version": "0.4.29",
-  "updatedAt": "2026-07-07T11:44:02+01:00",
+  "version": "0.4.30",
+  "updatedAt": "2026-07-07T11:54:20+01:00",
   "entries": [
+    {
+      "version": "0.4.30",
+      "date": "2026-07-07T11:54:20+01:00",
+      "commit": "c507f0d5339d6f86fb7d1f5008cbdd23310d7e5f",
+      "message": "Fix - Preserve imdb links and live specials",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.4.29",
       "date": "2026-07-07T11:44:02+01:00",
