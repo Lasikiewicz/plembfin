@@ -1,7 +1,23 @@
 {
-  "version": "0.4.26",
-  "updatedAt": "2026-07-07T09:27:04+01:00",
+  "version": "0.4.27",
+  "updatedAt": "2026-07-07T10:22:21+01:00",
   "entries": [
+    {
+      "version": "0.4.27",
+      "date": "2026-07-07T10:22:21+01:00",
+      "commit": "ff78d4962b6bb339ea7fdd70cdc1976960b6c76e",
+      "message": "Chore - Implement repo improvement guardrails",
+      "author": "Lasikiewicz",
+      "details": [
+        "Rename the app package, Docker image, container, and startup log from plembfinfire to plembfin",
+        "Remove the unused browser-side Now Playing probe and document the server-backed polling sources",
+        "Add a focused node:test suite for parser phases, sync routing, loop detection, and media key formats",
+        "Expand the build check to run tests and reject routed API handlers without an auth guard",
+        "Warn operators when in-app credentials override ADMIN_USERNAME or ADMIN_PASSWORD env vars",
+        "Make encrypted backup passphrase persistence opt-in for new saves while preserving existing scheduled backups",
+        "Add a schema migration ledger, document cache scalability limits, and align README licensing with AGPL-3.0"
+      ]
+    },
     {
       "version": "0.4.26",
       "date": "2026-07-07T09:27:04+01:00",
