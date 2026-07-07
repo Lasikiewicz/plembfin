@@ -1,7 +1,19 @@
 {
-  "version": "0.4.30",
-  "updatedAt": "2026-07-07T11:54:20+01:00",
+  "version": "0.4.31",
+  "updatedAt": "2026-07-07T12:08:12+01:00",
   "entries": [
+    {
+      "version": "0.4.31",
+      "date": "2026-07-07T12:08:12+01:00",
+      "commit": "d00410a584e6c6c5980a008ba86873c4e3da12dc",
+      "message": "Fix - Repair changelog metadata",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add the missing release entry for the IMDb link and live Specials fixes.",
+        "Backfill the sparse Specials and TVDB links entry with user-facing details.",
+        "Align the bundled app version with the corrected changelog history."
+      ]
+    },
     {
       "version": "0.4.30",
       "date": "2026-07-07T11:54:20+01:00",
