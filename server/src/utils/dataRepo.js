@@ -182,11 +182,30 @@ function showTitleFrom(title = "") {
 }
 
 function episodeCoordinatesFromTitle(title = "") {
-  const match = cleanString(decodeBasicHtmlEntities(title)).match(/\bS(\d{1,3})E(\d{1,3})\b/i);
+  const text = cleanString(decodeBasicHtmlEntities(title));
+  const match = text.match(/\bS(\d{1,3})E(\d{1,3})\b/i);
   if (!match) return {};
   return {
     season: Number(match[1]),
     episode: Number(match[2]),
+  };
+}
+
+function repairedEpisodeTitle(title = "") {
+  return cleanString(decodeBasicHtmlEntities(title)).replace(
+    /\bS0\?E(\d{1,3})\b/gi,
+    (_, episode) => `S00E${String(Number(episode)).padStart(2, "0")}`,
+  );
+}
+
+function episodeCoordinatesFromTitleWithLegacyRepair(title = "") {
+  const exact = episodeCoordinatesFromTitle(title);
+  if (exact.season != null || exact.episode != null) return exact;
+  const match = cleanString(decodeBasicHtmlEntities(title)).match(/\bS0\?E(\d{1,3})\b/i);
+  if (!match) return {};
+  return {
+    season: 0,
+    episode: Number(match[1]),
   };
 }
 
@@ -254,9 +273,10 @@ function normalizeImportedTitle(record = {}, mediaType = "") {
 export function normalizeWatchRecord(record = {}, fallbackSource = "trakt_import") {
   const mediaType = normalizeMediaType(record.media_type || record.mediaType || record.type);
   const ids = record.ids || record.movie?.ids || record.show?.ids || record.episode?.ids || {};
-  const titleCoordinates = episodeCoordinatesFromTitle(record.title);
+  const titleCoordinates = episodeCoordinatesFromTitleWithLegacyRepair(record.title);
+  const title = normalizeImportedTitle(record, mediaType);
   const normalized = {
-    title: normalizeImportedTitle(record, mediaType),
+    title: mediaType === "episode" ? repairedEpisodeTitle(title) : title,
     media_type: mediaType,
     watched_at: normalizeWatchedAt(
       record.watched_at ||
@@ -401,10 +421,13 @@ function rowToWatch(row) {
       }
     }
   }
-  const titleCoordinates = episodeCoordinatesFromTitle(row.title);
+  const titleCoordinates = episodeCoordinatesFromTitleWithLegacyRepair(row.title);
+  const title = row.media_type === "episode"
+    ? repairedEpisodeTitle(row.title || "")
+    : decodeBasicHtmlEntities(row.title || "");
   return {
     id: row.id,
-    title: decodeBasicHtmlEntities(row.title || ""),
+    title,
     media_type: row.media_type || "",
     watched_at: row.watched_at || "",
     source: row.source || "",

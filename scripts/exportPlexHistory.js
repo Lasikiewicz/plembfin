@@ -1,3 +1,5 @@
+import { pathToFileURL } from "node:url";
+
 function requiredEnv(name) {
   const value = String(process.env[name] || "").trim();
   if (!value) throw new Error(`${name} is required`);
@@ -75,11 +77,21 @@ function movieRecord(item) {
   };
 }
 
-function episodeRecord(item) {
+function plexIndexOrBlank(value) {
+  if (value == null || value === "") return "";
+  const number = Number(value);
+  return Number.isFinite(number) ? number : "";
+}
+
+function episodeCodePart(value) {
+  return value === "" ? "?" : value;
+}
+
+export function episodeRecord(item) {
   const show = item.grandparentTitle || "Unknown Show";
-  const season = Number(item.parentIndex) || "";
-  const episode = Number(item.index) || "";
-  const title = `${show} - S${String(season || "?").padStart(2, "0")}E${String(episode || "?").padStart(2, "0")}`;
+  const season = plexIndexOrBlank(item.parentIndex);
+  const episode = plexIndexOrBlank(item.index);
+  const title = `${show} - S${String(episodeCodePart(season)).padStart(2, "0")}E${String(episodeCodePart(episode)).padStart(2, "0")}`;
   const watched = watchedAt(item);
   if (!watched) return undefined;
 
@@ -162,7 +174,9 @@ async function main() {
   console.log("Plex history export complete");
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

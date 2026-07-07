@@ -68,3 +68,17 @@ test("normalizeWatchRecord recovers specials coordinates from title", () => {
   assert.equal(normalized.season, 0);
   assert.equal(normalized.episode, 3);
 });
+
+test("normalizeWatchRecord repairs legacy malformed specials codes", () => {
+  const normalized = normalizeWatchRecord({
+    title: "Example Show - S0?E03 - Deleted Scene",
+    media_type: "episode",
+    watched_at: "2026-01-01T12:00:00.000Z",
+    source: "plex_initial_sync",
+    tvdb_id: "12345",
+  }, "plex_initial_sync");
+
+  assert.equal(normalized.season, 0);
+  assert.equal(normalized.episode, 3);
+  assert.equal(normalized.title, "Example Show - S00E03 - Deleted Scene");
+});
