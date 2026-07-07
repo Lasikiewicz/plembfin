@@ -10,7 +10,7 @@ import {
 import {
   escapeHtml, escapeAttribute, slug, showTitleFrom, showName,
   movieHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
-  computeProgress, sanitizeTitle, episodeTitle,
+  computeProgress, sanitizeTitle, episodeTitle, episodeCode,
 } from "./utils.js";
 import { posterMarkup, hydratePosters, tmdbPoster, tmdbProfile } from "./images.js";
 import {
@@ -897,7 +897,7 @@ function historyEntryDisplay(entry) {
   }
   const sourceBadge = entry.source ? sourceBadgeHtml(entry.source) : "None";
   const mediaLabel = isEpisode ? "TV Show" : "Movie";
-  const seasonEpisode = isEpisode ? `S${entry.season} - E${entry.episode}` : "";
+  const seasonEpisode = isEpisode ? episodeCode(entry.season, entry.episode) : "";
   return { isEpisode, displayTitle, epTitle, href, sourceBadge, mediaLabel, seasonEpisode };
 }
 function renderHistoryGridCard(entry) {
@@ -954,7 +954,7 @@ function renderHistoryPageCard(entry) {
           ${isEpisode ? `
             <div class="history-card-meta-row">
               <span class="meta-label">Season/Ep:</span>
-              <span class="meta-value">S${entry.season} · E${entry.episode}</span>
+              <span class="meta-value">${escapeHtml(episodeCode(entry.season, entry.episode))}</span>
             </div>
           ` : ""}
           <div class="history-card-meta-row">

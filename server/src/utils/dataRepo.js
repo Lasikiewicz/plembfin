@@ -90,6 +90,10 @@ function numberOrNull(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function firstPresent(...values) {
+  return values.find((value) => value != null && value !== "");
+}
+
 function normalizeMediaType(value) {
   const type = cleanString(value).toLowerCase();
   if (["movie", "movies", "film"].includes(type)) return "movie";
@@ -177,6 +181,15 @@ function showTitleFrom(title = "") {
   return removeTrailingYear(text.split(" - ")[0]) || "Unknown Show";
 }
 
+function episodeCoordinatesFromTitle(title = "") {
+  const match = cleanString(decodeBasicHtmlEntities(title)).match(/\bS(\d{1,3})E(\d{1,3})\b/i);
+  if (!match) return {};
+  return {
+    season: Number(match[1]),
+    episode: Number(match[2]),
+  };
+}
+
 export function mediaKeyFor(record = {}) {
   const type = normalizeMediaType(record.media_type || record.mediaType || record.type);
   const coordinates = [normalizeKeyPart(type), normalizeKeyPart(record.season), normalizeKeyPart(record.episode)].join(":");
@@ -209,14 +222,17 @@ function normalizeImportedTitle(record = {}, mediaType = "") {
         (typeof record.show === "string" ? record.show : "") ||
         record.title,
     );
-    const season = record.season || episode.season || "";
+    const season = firstPresent(record.season, episode.season);
     const episodeNumber =
-      record.episode_number ||
-      episode.number ||
-      (typeof record.episode === "object" ? "" : record.episode) ||
-      "";
-    if (showTitle && showTitle !== "Unknown Show" && (season || episodeNumber)) {
-      return `${showTitle} - S${String(season || "?").padStart(2, "0")}E${String(episodeNumber || "?").padStart(2, "0")}`;
+      firstPresent(
+        record.episode_number,
+        episode.number,
+        typeof record.episode === "object" ? "" : record.episode,
+      );
+    if (showTitle && showTitle !== "Unknown Show" && (season != null || episodeNumber != null)) {
+      const seasonText = season == null ? "?" : season;
+      const episodeText = episodeNumber == null ? "?" : episodeNumber;
+      return `${showTitle} - S${String(seasonText).padStart(2, "0")}E${String(episodeText).padStart(2, "0")}`;
     }
   }
 
@@ -238,6 +254,7 @@ function normalizeImportedTitle(record = {}, mediaType = "") {
 export function normalizeWatchRecord(record = {}, fallbackSource = "trakt_import") {
   const mediaType = normalizeMediaType(record.media_type || record.mediaType || record.type);
   const ids = record.ids || record.movie?.ids || record.show?.ids || record.episode?.ids || {};
+  const titleCoordinates = episodeCoordinatesFromTitle(record.title);
   const normalized = {
     title: normalizeImportedTitle(record, mediaType),
     media_type: mediaType,
@@ -256,8 +273,13 @@ export function normalizeWatchRecord(record = {}, fallbackSource = "trakt_import
     imdb_id: emptyToNull(record.imdb_id || record.imdbId || record.imdb || ids.imdb),
     tmdb_id: emptyToNull(record.tmdb_id || record.tmdbId || record.tmdb || ids.tmdb),
     tvdb_id: emptyToNull(record.tvdb_id || record.tvdbId || record.tvdb || ids.tvdb),
-    season: numberOrNull(record.season || record.episode?.season),
-    episode: numberOrNull(record.episode_number || record.episode?.number || (typeof record.episode === "object" ? "" : record.episode)),
+    season: numberOrNull(firstPresent(record.season, record.episode?.season, titleCoordinates.season)),
+    episode: numberOrNull(firstPresent(
+      record.episode_number,
+      record.episode?.number,
+      typeof record.episode === "object" ? "" : record.episode,
+      titleCoordinates.episode,
+    )),
     poster_url: emptyToNull(record.poster_url || record.posterUrl),
     sync_action: cleanString(record.sync_action || record.syncAction || record.action) || "watched",
     sync_dispatch_telemetry: emptyToNull(record.sync_dispatch_telemetry || record.syncDispatchTelemetry),
@@ -379,6 +401,7 @@ function rowToWatch(row) {
       }
     }
   }
+  const titleCoordinates = episodeCoordinatesFromTitle(row.title);
   return {
     id: row.id,
     title: decodeBasicHtmlEntities(row.title || ""),
@@ -388,8 +411,8 @@ function rowToWatch(row) {
     imdb_id: row.imdb_id || null,
     tmdb_id: tmdbId,
     tvdb_id: row.tvdb_id || null,
-    season: row.season ?? null,
-    episode: row.episode ?? null,
+    season: row.season ?? titleCoordinates.season ?? null,
+    episode: row.episode ?? titleCoordinates.episode ?? null,
     poster_url: row.poster_url || null,
     logo_url: row.logo_url || null,
     backdrop_url: row.backdrop_url || null,

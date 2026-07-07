@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normalizeHeader } from "./utils.js";
+import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normalizeHeader, episodeCode } from "./utils.js";
 import { initBackupTools } from "./tools-backups.js";
 import { initMaintenanceTools } from "./tools-maintenance.js";
 // Callbacks injected by app.js at startup to avoid circular imports.
@@ -115,6 +115,11 @@ function parseCsvExport(text) {
     return record;
   });
 }
+
+function firstPresent(...values) {
+  return values.find((value) => value != null && value !== "");
+}
+
 function mapImportRecord(record) {
   const source = record.source || "trakt_import";
   const movie = record.movie || {};
@@ -145,8 +150,8 @@ function mapImportRecord(record) {
     imdb_id: record.imdb_id || record.imdb || record.imdbid || ids.imdb || "",
     tmdb_id: record.tmdb_id || record.tmdb || record.tmdbid || ids.tmdb || "",
     tvdb_id: record.tvdb_id || record.tvdb || record.tvdbid || ids.tvdb || "",
-    season: record.season || episode.season || "",
-    episode: record.episode_number || episode.number || (typeof record.episode === "object" ? "" : record.episode) || "",
+    season: firstPresent(record.season, episode.season, ""),
+    episode: firstPresent(record.episode_number, episode.number, typeof record.episode === "object" ? "" : record.episode, ""),
   };
 }
 function importTitle(record, mediaType) {
@@ -155,10 +160,10 @@ function importTitle(record, mediaType) {
   const episode = record.episode || {};
   if (mediaType === "episode") {
     const showTitle = record.show_title || show.title || record.show || "";
-    const season = record.season || episode.season || "";
-    const episodeNumber = record.episode_number || episode.number || (typeof record.episode === "object" ? "" : record.episode) || "";
-    if (showTitle && (season || episodeNumber)) {
-      return `${showTitle} - S${String(season || "?").padStart(2, "0")}E${String(episodeNumber || "?").padStart(2, "0")}`;
+    const season = firstPresent(record.season, episode.season);
+    const episodeNumber = firstPresent(record.episode_number, episode.number, typeof record.episode === "object" ? "" : record.episode);
+    if (showTitle && (season != null || episodeNumber != null)) {
+      return `${showTitle} - ${episodeCode(season, episodeNumber)}`;
     }
   }
   return (
@@ -179,7 +184,7 @@ function inferMediaType(type, record) {
   const normalized = String(type || "").toLowerCase();
   if (normalized.includes("movie")) return "movie";
   if (normalized.includes("episode") || normalized.includes("show") || normalized.includes("tv")) return "episode";
-  if (record.season || record.episode) return "episode";
+  if (record.season != null || record.episode != null) return "episode";
   return "movie";
 }
 export function renderImportPreview() {

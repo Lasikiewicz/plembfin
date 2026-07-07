@@ -767,7 +767,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       if (item.type === "episode") {
         media.season = Number(item.parentIndex);
         media.episode = Number(item.index);
-        media.title = `${item.grandparentTitle} - S${String(media.season || "?").padStart(2, "0")}E${String(media.episode || "?").padStart(2, "0")}`;
+        media.title = `${item.grandparentTitle} - S${String(media.season ?? "?").padStart(2, "0")}E${String(media.episode ?? "?").padStart(2, "0")}`;
         media.episodeTitle = item.title;
       }
 
@@ -1419,7 +1419,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
             if (guidStr.includes("tvdb") || guidStr.includes("thetvdb")) media.tvdb = value;
           }
           if (item.type === "episode") {
-            media.title = `${item.grandparentTitle} - S${String(media.season || "?").padStart(2, "0")}E${String(media.episode || "?").padStart(2, "0")}`;
+            media.title = `${item.grandparentTitle} - S${String(media.season ?? "?").padStart(2, "0")}E${String(media.episode ?? "?").padStart(2, "0")}`;
             media.episodeTitle = item.title;
           }
           return media;

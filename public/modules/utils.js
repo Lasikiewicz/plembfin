@@ -243,7 +243,7 @@ export function idLine(entry) {
     entry.imdb_id ? `IMDb ${entry.imdb_id}` : "",
     entry.tmdb_id ? `TMDB ${entry.tmdb_id}` : "",
     entry.tvdb_id ? `TVDB ${entry.tvdb_id}` : "",
-    entry.season ? `S${String(entry.season).padStart(2, "0")}` : "",
+    entry.season != null ? `S${String(entry.season).padStart(2, "0")}` : "",
     entry.episode ? `E${String(entry.episode).padStart(2, "0")}` : "",
   ].filter(Boolean);
   return ids.join(" / ");
@@ -335,11 +335,13 @@ export function formatEpisodeAirtime(episode = {}, showTitle = "") {
 }
 
 export function showEpisodeKey(seasonNumber, episodeNumber) {
-  return `S${String(seasonNumber).padStart(2, "0")}E${String(episodeNumber).padStart(2, "0")}`;
+  return episodeCode(seasonNumber, episodeNumber);
 }
 
 export function episodeCode(seasonNumber, episodeNumber) {
-  return `S${String(seasonNumber || 0).padStart(2, "0")}E${String(episodeNumber || 0).padStart(2, "0")}`;
+  const season = seasonNumber == null || seasonNumber === "" ? "?" : seasonNumber;
+  const episode = episodeNumber == null || episodeNumber === "" ? "?" : episodeNumber;
+  return `S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")}`;
 }
 
 export function seasonLabel(seasonNumber) {

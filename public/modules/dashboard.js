@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle } from "./utils.js";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode } from "./utils.js";
 import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, tmdbPoster } from "./images.js";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
@@ -178,7 +178,7 @@ export function renderHistoryCard(entry) {
         <div class="history-mini-card-details">
           <b class="history-mini-card-title" title="${escapeAttribute(showTitle)}">${escapeHtml(showTitle)}</b>
           <span class="history-mini-card-sub history-card-episode-title" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>
-          <span class="history-mini-card-sub">S${entry.season} · E${entry.episode} · ${formatDate(entry.watched_at)}</span>
+          <span class="history-mini-card-sub">${escapeHtml(episodeCode(entry.season, entry.episode))} · ${formatDate(entry.watched_at)}</span>
         </div>
       </a>
     `;
@@ -237,7 +237,7 @@ function renderDashboardHistoryPageCard(entry) {
           ${isEpisode ? `
             <div class="history-card-meta-row">
               <span class="meta-label">Season/Ep:</span>
-              <span class="meta-value">S${entry.season} &middot; E${entry.episode}</span>
+              <span class="meta-value">${escapeHtml(episodeCode(entry.season, entry.episode))}</span>
             </div>
           ` : ""}
           <div class="history-card-meta-row">
@@ -448,7 +448,7 @@ export function renderPartWatchedCard(entry) {
           ${isEpisode ? `<span class="part-watched-card-episode" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>` : ""}
         </div>
         <div class="part-watched-card-meta">
-          ${isEpisode ? `<span><span class="meta-label">Season/Ep:</span> S${entry.season} · E${entry.episode}</span>` : ""}
+          ${isEpisode ? `<span><span class="meta-label">Season/Ep:</span> ${escapeHtml(episodeCode(entry.season, entry.episode))}</span>` : ""}
           <span><span class="meta-label">Last Played:</span> ${formattedTime}</span>
           <span><span class="meta-label">App Used:</span> ${sourceBadgeMarkup}</span>
         </div>

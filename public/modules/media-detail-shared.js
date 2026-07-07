@@ -408,12 +408,19 @@ export function tmdbTitleUrl(mediaType, tmdbId) {
   if (!id) return "";
   return `https://www.themoviedb.org/${mediaType === "tv" ? "tv" : "movie"}/${encodeURIComponent(id)}`;
 }
+
+export function tvdbSeriesUrl(tvdbId) {
+  const id = String(tvdbId || "").trim();
+  if (!id) return "";
+  return `https://thetvdb.com/dereferrer/series/${encodeURIComponent(id)}`;
+}
+
 export function ratingPillHtml({ label, value = "View", href = "", title = "" } = {}) {
   if (!label || !href) return "";
   return `
     <a class="rating-pill rating-pill-link" href="${escapeAttribute(href)}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(title || `${label} rating`)}">
       <span>${escapeHtml(label)}</span>
-      <span>${escapeHtml(value)}</span>
+      ${value ? `<span>${escapeHtml(value)}</span>` : ""}
     </a>
   `;
 }
@@ -558,13 +565,22 @@ export function refreshActiveMediaDetailAfterSeerrStatus(mediaType, tmdbId) {
 }
 export function renderExternalRatingPills(mediaType, tmdbData, title, rating = "") {
   const tmdbId = tmdbData?.id || tmdbData?.tmdb_id || "";
+  const tvdbId = tmdbData?.tvdb_id || tmdbData?.external_ids?.tvdb_id || "";
   const pills = [];
-  if (rating) {
+  if (tmdbId) {
     pills.push(ratingPillHtml({
       label: "TMDB",
-      value: rating,
+      value: rating || "View",
       href: tmdbTitleUrl(mediaType, tmdbId),
       title: "Open this title on TMDB",
+    }));
+  }
+  if (mediaType === "tv" && tvdbId) {
+    pills.push(ratingPillHtml({
+      label: "TVDB",
+      value: "",
+      href: tvdbSeriesUrl(tvdbId),
+      title: "Open this series on TheTVDB",
     }));
   }
   return pills.join("");

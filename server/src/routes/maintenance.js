@@ -292,8 +292,8 @@ export async function handleAdminFixHistory(req, res) {
           title: row.title,
           type: row.media_type,
           ids: { imdb: row.imdb_id || null, tmdb: row.tmdb_id || null, tvdb: row.tvdb_id || null },
-          season: row.season || null,
-          episode: row.episode || null,
+          season: row.season ?? null,
+          episode: row.episode ?? null,
         }).catch(() => null);
         const path = row.media_type === "episode"
           ? item?.grandparentThumb || item?.parentThumb || item?.thumb

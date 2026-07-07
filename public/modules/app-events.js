@@ -1101,7 +1101,7 @@ function attachEvents() {
           <div class="confirm-modal-media-info">
             <span class="confirm-modal-media-title">${escapeHtml(displayTitle)}</span>
             <span class="confirm-modal-media-meta">
-              ${isEpisode ? `<span>S${entry.season} · E${entry.episode}</span>` : ""}
+              ${isEpisode ? `<span>${escapeHtml(episodeCode(entry.season, entry.episode))}</span>` : ""}
               <span>${progressPercent}% watched</span>
             </span>
           </div>

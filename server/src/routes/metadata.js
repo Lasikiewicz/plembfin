@@ -255,8 +255,8 @@ export async function handlePoster(req, res) {
             title: row.title,
             type: row.media_type,
             ids: { imdb: row.imdb_id || null, tmdb: row.tmdb_id || null, tvdb: row.tvdb_id || null },
-            season: row.season || null,
-            episode: row.episode || null,
+            season: row.season ?? null,
+            episode: row.episode ?? null,
           }).catch((error) => {
             console.error("Poster Plex lookup failed", { id: row.id, title: row.title, error: error.message || String(error) });
             return null;
