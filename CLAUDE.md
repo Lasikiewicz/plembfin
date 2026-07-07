@@ -169,7 +169,8 @@ When adding frontend code, place it in the most specific existing module that ow
 | Manual watched/unwatched actions | `modules/watch-action.js` |
 | TMDB detail/season/person enrichment helpers | `modules/tmdb.js` |
 | Trailer playback and photo lightbox | `modules/media-lightbox.js` |
-| Backup, import, appearance tools | `modules/tools.js` |
+| Trakt/CSV import and settings tools bridge | `modules/tools.js` |
+| Backup and appearance tools | `modules/tools-backups.js` |
 | Maintenance diagnostics, cache tools, and sync repair tools | `modules/tools-maintenance.js` |
 | Auth, session, tokens | `modules/auth.js` |
 | Debug/diagnostic logs | `modules/logs.js` |
@@ -192,6 +193,30 @@ If a new feature area doesn't fit any existing module and would exceed 150 lines
 - No module may import from `app.js`
 - Avoid circular dependencies — if you need A→B and B→A, the shared logic belongs in a third module
 
+## Backend Module Discipline
+
+> These rules prevent `server/src/index.js` from growing back into a monolith.
+
+### File size limits
+- **`server/src/index.js`** - route table only. Keep it under **500 lines**.
+- **`server/src/routes/*.js`** - owning route modules. Soft limit **1,000 lines**; hard limit **1,500 lines**. Split by feature area before crossing the hard limit.
+
+### Where new route code goes
+- Add the route entry in `dispatch()` inside `server/src/index.js`.
+- Put the handler in the owning `server/src/routes/*.js` module.
+- Keep shared helpers in `server/src/utils/` only when more than one route module needs them.
+- Avoid circular imports back into `server/src/index.js`; route modules may import utilities and data-layer modules directly.
+
+| API area | Module |
+| --- | --- |
+| Config, appearance, Seerr/app links, connection tests | `server/src/routes/admin.js` |
+| Portable, watch-history, and encrypted backup APIs | `server/src/routes/backups.js` |
+| History, library, and watch-record edits | `server/src/routes/media.js` |
+| TMDB/TVDB/Fanart/OMDb/YouTube metadata and image APIs | `server/src/routes/metadata.js` |
+| Webhooks, manual watch/unwatch, playback progress, sync job/history listing, cron/force sync, now playing | `server/src/routes/sync.js` |
+| Backfill, repair, dedup, rematch, cache, logs, changelog, ping | `server/src/routes/maintenance.js` |
+| Scheduler tick and Plex notification listener lifecycle | `server/src/scheduler.js` |
+
 ## Architecture
 
 This is a **self-hosted, single-process app** in the style of Sonarr/Radarr/Jellyseerr.
@@ -211,7 +236,7 @@ folder** under `data/`.
 prefix and routes to `handleWebhook`, `handleHistory`, `handleMovies`, etc. `dispatch` is
 imported and mounted by `server.js`.
 
-**Frontend** (`public/`) — a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`, `tools-maintenance.js`, `media-detail.js`, `media-person.js`, `media-lightbox.js`, `edit-dialogs.js`, `watch-action.js`, `tmdb.js`, `app-events.js`). No framework, bundler, or TypeScript.
+**Frontend** (`public/`) — a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`, `tools-backups.js`, `tools-maintenance.js`, `media-detail.js`, `media-person.js`, `media-lightbox.js`, `edit-dialogs.js`, `watch-action.js`, `tmdb.js`, `app-events.js`). No framework, bundler, or TypeScript.
 
 ### Data layer (`server/src/db.js` + `schema.sql`)
 
@@ -243,7 +268,7 @@ When a play event arrives at `/api/webhook`:
 
 ### Scheduled sync (`runScheduledTick` / `/api/cron-sync`)
 
-`server.js` invokes `runScheduledTick()` (in `index.js`, wrapping `runScheduledSync` in
+`server.js` invokes `runScheduledTick()` (in `scheduler.js`, wrapping `runScheduledSync` in
 `scheduled.js`) once per minute, guarded against overlap. It queries recent watch history and
 the live tracking cache, checks whether active sessions crossed the "watched" threshold, and
 propagates outstanding sync jobs. Force sync (`/api/force-sync`) runs the same logic on demand

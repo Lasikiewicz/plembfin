@@ -2877,11 +2877,15 @@ details[open] .tool-accordion-chevron::before {
 .backup-settings-panel {
   display: grid;
   gap: var(--space-4);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .backup-type-stack {
   display: grid;
   gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .backup-section-heading {
@@ -2901,6 +2905,8 @@ details[open] .tool-accordion-chevron::before {
 .backup-type-card {
   display: grid;
   gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
   padding: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -2922,6 +2928,7 @@ details[open] .tool-accordion-chevron::before {
   display: grid;
   gap: 0.2rem;
   min-width: 0;
+  max-width: 100%;
 }
 
 .backup-type-head > div:first-child:has(b + span) {
@@ -12513,7 +12520,14 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   flex-direction: column;
   gap: 1.25rem;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   padding-top: 0.5rem;
+}
+
+.settings-content {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .settings-row {
@@ -12521,6 +12535,8 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   gap: 2rem;
   align-items: start;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .settings-row-main {
@@ -12529,6 +12545,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   flex-direction: column;
   gap: 1.5rem;
   min-width: 0;
+  max-width: 100%;
 }
 
 .settings-row-help {
@@ -12537,6 +12554,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   flex-direction: column;
   gap: 1.5rem;
   min-width: 0;
+  max-width: 100%;
 }
 
 .settings-card {
@@ -12879,6 +12897,47 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   .settings-row-help {
     flex: none;
     width: 100%;
+  }
+
+  .settings-pane[data-settings-panel="backups"] .backup-settings-inline {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .settings-pane[data-settings-panel="backups"] .backup-settings-left,
+  .settings-pane[data-settings-panel="backups"] .backup-settings-center,
+  .settings-pane[data-settings-panel="backups"] .backup-settings-right {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    justify-content: flex-start;
+  }
+
+  .settings-pane[data-settings-panel="backups"] .backup-settings-inline .field-label {
+    align-items: stretch !important;
+    flex-direction: column !important;
+    white-space: normal !important;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .settings-pane[data-settings-panel="backups"] .backup-settings-inline .field-label .field,
+  .settings-pane[data-settings-panel="backups"] .backup-settings-inline .field {
+    width: 100%;
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+
+  .settings-pane[data-settings-panel="backups"] .import-terminal {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
   }
 }
 

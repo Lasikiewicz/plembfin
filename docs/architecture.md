@@ -28,24 +28,24 @@ Overseerr requesting, and a backup system.
 
 | Task | Files | Doc |
 | --- | --- | --- |
-| Add/change an API route | `server/src/index.js` (`dispatch()` + `handleX` functions) | this doc |
-| Webhook parsing or phases | `server/src/utils/parsers.js`, `handleWebhook` in `index.js` | [webhooks.md](webhooks.md) |
+| Add/change an API route | `server/src/index.js` (`dispatch()` route table) plus the owning `server/src/routes/*.js` module | this doc |
+| Webhook parsing or phases | `server/src/utils/parsers.js`, `handleWebhook` in `server/src/routes/sync.js` | [webhooks.md](webhooks.md) |
 | Watched/unwatched propagation between platforms | `server/src/utils/syncOrchestrator.js`, platform clients | [webhooks.md](webhooks.md) |
 | Plex API calls, Plex WebSocket listener | `server/src/utils/plexClient.js`, `plexNotificationListener.js` | [plex.md](plex.md) |
 | Emby API calls | `server/src/utils/embyClient.js` | [emby.md](emby.md) |
 | Jellyfin API calls | `server/src/utils/jellyfinClient.js` | [jellyfin.md](jellyfin.md) |
-| Background/scheduled sync, catch-up sync | `server/src/scheduled.js` | [scheduled-sync.md](scheduled-sync.md) |
-| Now Playing (dashboard live sessions) | `handleNowPlaying`, `server/src/utils/liveSessions.js`, `activeSessions.js`, `public/modules/sync.js` | [now-playing.md](now-playing.md) |
+| Background/scheduled sync, catch-up sync | `server/src/scheduler.js`, `server/src/scheduled.js` | [scheduled-sync.md](scheduled-sync.md) |
+| Now Playing (dashboard live sessions) | `handleNowPlaying` in `server/src/routes/sync.js`, `server/src/utils/liveSessions.js`, `activeSessions.js`, `public/modules/sync.js` | [now-playing.md](now-playing.md) |
 | Dashboard rendering | `public/modules/dashboard.js` | [dashboard.md](dashboard.md) |
 | Movies library page | `public/modules/explorer.js`, `queryMovies` in `dataRepo.js` | [movies.md](movies.md) |
 | TV Shows library page | `public/modules/explorer.js`, `queryShows`, `showProgressCache.js`, `nextAiringCache.js` | [tv-shows.md](tv-shows.md) |
 | Movie/show/person detail pages | `public/modules/media-detail*.js`, `media-person.js` | [media-detail.md](media-detail.md) |
-| History page, Search page | `public/modules/explorer.js`, `handleHistory`, `handleMediaSearch` | [history-search.md](history-search.md) |
+| History page, Search page | `public/modules/explorer.js`, `handleHistory` in `routes/media.js`, `handleMediaSearch` in `routes/metadata.js` | [history-search.md](history-search.md) |
 | Stats page | `public/modules/stats.js`, `getWatchStats` in `dataRepo.js` | [stats.md](stats.md) |
-| TMDB/TVDB/Fanart/OMDb metadata | `server/src/utils/tmdbGateway.js`, `tvdbGateway.js`, `fanartGateway.js`, `omdbGateway.js` | [metadata.md](metadata.md) |
-| Posters, backdrops, logos, artwork caching | `server/src/utils/posterCache.js`, `handlePoster`, `public/modules/images.js` | [posters-artwork.md](posters-artwork.md) |
-| Backups (all three subsystems) | `server/src/utils/backup.js`, `watchHistoryBackups.js`, `plembfinBackups.js`, `backupDestinations/`, `public/modules/tools.js` | [backups.md](backups.md) |
-| Settings pages, connection config | `server/src/utils/configStore.js`, `public/modules/settings.js`, `tools.js` | [settings.md](settings.md) |
+| TMDB/TVDB/Fanart/OMDb metadata | `server/src/routes/metadata.js`, `server/src/utils/tmdbGateway.js`, `tvdbGateway.js`, `fanartGateway.js`, `omdbGateway.js` | [metadata.md](metadata.md) |
+| Posters, backdrops, logos, artwork caching | `server/src/utils/posterCache.js`, `handlePoster` in `routes/metadata.js`, `public/modules/images.js` | [posters-artwork.md](posters-artwork.md) |
+| Backups (all three subsystems) | `server/src/routes/backups.js`, `server/src/utils/backup.js`, `watchHistoryBackups.js`, `plembfinBackups.js`, `backupDestinations/`, `public/modules/tools-backups.js` | [backups.md](backups.md) |
+| Settings pages, connection config | `server/src/routes/admin.js`, `server/src/utils/configStore.js`, `public/modules/settings.js`, `public/modules/tools.js`, `public/modules/tools-backups.js` | [settings.md](settings.md) |
 | Login, sessions, API key, webhook secret | `server/src/utils/auth.js`, `server/src/appConfig.js`, `public/modules/auth.js` | [auth.md](auth.md) |
 | SPA routing, view switching, module layout | `public/app.js`, `public/modules/state.js`, `app-events.js` | [frontend.md](frontend.md) |
 | Database tables and their meaning | `server/src/schema.sql`, `server/src/db.js` | [sqlite-schema.md](sqlite-schema.md) |
@@ -110,13 +110,25 @@ including this file (`architecture.md`), the per-feature docs, and the
 | File | What it is |
 | --- | --- |
 | `server.js` | **Process entrypoint.** Express app: access logging (rotating `data/logs/access.log`, secrets redacted), security headers + dynamic CSP, rate limiters, raw-body capture for `/api/*` → `dispatch()`, static mounts for `/media` and `public/`, `/health`, `/changelog.json`, SPA fallback, the per-minute scheduler tick, the Plex notification listener startup, and graceful shutdown. |
-| `src/index.js` | **The API router.** `dispatch()` strips `/api/` and routes ~70 paths to `handleX` functions defined in the same file (history, movies, shows, webhook, poster, backups, TMDB/TVDB/Fanart/OMDb proxies, Seerr, force-sync, maintenance tools, changelog…). The full route table is the body of `dispatch()` near the bottom of the file. Also owns `runScheduledTick` (scheduler wrapper: cron sync + backup schedules + next-airing cache refresh) and `handlePlexLibraryItemChange` (the unwatch-detection callback for the Plex WebSocket listener). |
+| `src/index.js` | **The API router.** `dispatch()` strips `/api/` and routes paths to `handleX` functions exported by `src/routes/*.js`. The full route table is the body of `dispatch()`; feature behavior belongs in the owning route module. |
 | `src/db.js` | Opens `data/plembfin.db` via better-sqlite3 (WAL), applies `schema.sql`, runs column migrations, exposes `parseJson`/`toJson`/`transaction`/`writeAuditLog` and the in-process `dataVersion` counter that invalidates derived caches. |
 | `src/schema.sql` | Authoritative table definitions. See [sqlite-schema.md](sqlite-schema.md). |
 | `src/appConfig.js` | Resolves admin credentials + secrets from env / `data/config.json` (scrypt password hash, generated API key / webhook secret / session secret), warns about insecure config at startup, exports `AUTH`, `verifyWebhookToken`, `rotateWebhookSecret`, `updateAdminCredentials`. |
 | `src/env.js` | Minimal `.env` loader (`loadLocalEnv`) — parses `<repo>/.env` without a dotenv dependency; env vars already set take precedence. |
 | `src/paths.js` | Resolves `DATA_DIR` and every path under it (`MEDIA_DIR`, `POSTERS_DIR`, `BACKDROPS_DIR`, `PROFILES_DIR`, backup dirs, `DB_PATH`, `CONFIG_PATH`, `PUBLIC_DIR`); `ensureDataDirs()` creates them. |
 | `src/scheduled.js` | The background sync engine: live-session polling → `live_tracking_cache`, completed-session detection, resume-progress replication, per-platform catch-up sync (recently watched + resumable), manual dispatch queue, Plex unwatched reconciliation, `runScheduledSync` and `runForceSync`. See [scheduled-sync.md](scheduled-sync.md). |
+| `src/scheduler.js` | Scheduler wrapper and Plex notification listener lifecycle: per-minute tick orchestration, scheduled backup runs, next-airing cache refresh, startup/shutdown listener control, and Plex library-item unwatch callback. |
+
+### `server/src/routes/`
+
+| File | What it is |
+| --- | --- |
+| `admin.js` | Settings/admin API handlers: config, appearance, Seerr/app links, connection tests, and Plex notification probe. |
+| `backups.js` | Backup API handlers for portable import/export (`/api/import`, `/api/backup/export`, `/api/backup/import`), encrypted full backups (`/api/plembfin-backups`), and watch-history backup actions (`/api/watch-backups`). |
+| `media.js` | Library and history handlers: history, movies, shows/show detail, delete/update watch records, merge shows, full watchstate replay, and missing-telemetry clearing. |
+| `metadata.js` | Poster proxy and metadata/search handlers: TMDB details/search/season/images/person/poster/profile, TVDB search/images, Fanart images, media search, YouTube metadata, and OMDb ratings. |
+| `sync.js` | Sync/runtime handlers: webhook ingestion, manual watch/unwatch, playback progress, retry sync, sync job/history listing, Now Playing, active sessions, cron sync, force sync, and stop-force-sync. |
+| `maintenance.js` | Maintenance/admin utility handlers: ping, changelog/update check, diagnostic logs, backfill/repair/dedup/rematch, cache stats, and cache clearing. |
 
 ### `server/src/utils/`
 
@@ -192,7 +204,8 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `edit-dialogs.js` | Edit watched-date, edit images (poster/logo/backdrop picker), fix-match, and merge-show dialogs. |
 | `watch-action.js` | Manual mark watched/unwatched flows: date prompt, batched `/api/manual-watch` posts, delete-media, Seerr request submission. |
 | `tmdb.js` | Frontend TMDB enrichment helpers (`fetchTmdbDetails`, season details, episode-title resolution) with in-memory caches. |
-| `tools.js` | Settings → Tools/Backups UI: full export/import, watch-history backups, encrypted backups, destination cards, appearance settings, importer. See [backups.md](backups.md). |
+| `tools.js` | Settings tools bridge: Trakt/CSV import flows, `initTools()`, and compatibility re-exports for backup/appearance and maintenance tools. |
+| `tools-backups.js` | Settings backup and appearance UI: full export/import, watch-history backups, encrypted backups, destination cards, backup passphrase controls, and appearance settings. See [backups.md](backups.md). |
 | `tools-maintenance.js` | Maintenance diagnostics: System Integrity Check, repair workflow, dedup history, Trakt backfill, TV re-match, full watchstate sync, cache stats/clear. |
 | `help-content.js` | Static help/guide HTML: credential guides, webhook setup per platform, cron guide, settings inline help. |
 | `app-events.js` | Global app event wiring (delegated click/submit/keyboard handlers bound at startup). |
@@ -262,7 +275,7 @@ Full detail: [webhooks.md](webhooks.md).
 ## Scheduler
 
 `server.js` runs `setInterval(tick, 60000)` once the server is up, calling
-`runScheduledTick()` (defined in `index.js`, wrapping `runScheduledSync` from
+`runScheduledTick()` from `server/src/scheduler.js` (wrapping `runScheduledSync` from
 `scheduled.js`). The tick is guarded against overlap: if the previous tick is still
 running when the next fires, the new tick is skipped.
 
@@ -324,7 +337,7 @@ the sidebar version badge shows. On dashboard load `loadAppVersion()` calls `/ap
 with `?refresh=1` for a quick update check; when a newer release exists the badge changes
 from `v0.2.15` to `v0.2.15 - Update available` (accent-tinted).
 
-`GET /api/changelog` (`handleChangelog` in `index.js`) layers an update check on top: it
+`GET /api/changelog` (`handleChangelog` in `routes/maintenance.js`) layers an update check on top: it
 reads the bundled `changelog.json` for the current version and fetches the published
 `changelog.json` from GitHub raw (`Lasikiewicz/plembfin@main`), cached in-process for 30
 minutes (force-refresh with `?refresh=1`, 8-second fetch timeout). The browser cannot reach
