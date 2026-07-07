@@ -18,7 +18,7 @@ the module rules. Feature-specific behavior lives in the per-feature docs
   callback objects passed to each module's `init*(callbacks)` function. Modules never
   import from `app.js` — dependencies flow one way, and cross-module calls that would
   point "upward" go through those init callbacks instead.
-- **`public/modules/*.js`** — feature modules with named ES exports (soft limit 1,000
+- **`public/modules/*.js`** — feature modules with named ES exports (soft limit 1,200
   lines, hard limit 1,500). The authoritative "which module owns what" table plus the
   dependency rules live in [`../CLAUDE.md`](../CLAUDE.md); the file map in
   [architecture.md](architecture.md) has a one-line description of each.

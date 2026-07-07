@@ -1,11 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { DATA_DIR } from "../paths.js";
 import { db, bumpDataVersion } from "../db.js";
 import { getTmdbDetails } from "./tmdbGateway.js";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const CACHE_FILE_PATH = path.resolve(here, "..", "..", "..", "data", "tv_progress_cache.json");
+const CACHE_FILE_PATH = path.join(DATA_DIR, "tv_progress_cache.json");
 
 let progressCache = {};
 const pendingShowUpdates = new Set();
@@ -184,12 +183,19 @@ async function calculateAndSetShowProgress(showTitle) {
  */
 export async function flushShowProgressUpdates() {
   if (pendingShowUpdates.size === 0) return;
-  
+  // The database handle can close before the deferred startup refresh runs
+  // (e.g. the test suite's throwaway DB) — drop the queue instead of crashing.
+  if (!db.open) {
+    pendingShowUpdates.clear();
+    return;
+  }
+
   const titles = [...pendingShowUpdates];
   pendingShowUpdates.clear();
-  
+
   console.log(`[ShowProgressCache] Updating progress for ${titles.length} shows: ${titles.join(", ")}`);
   for (const title of titles) {
+    if (!db.open) return;
     await calculateAndSetShowProgress(title);
   }
   

@@ -145,7 +145,7 @@ a generated API key, and a session secret.
 
 ### File size limits
 - **`public/app.js`** — orchestrator only. Must stay under **3,000 lines**. If it approaches this limit, extract the next logical group into a module.
-- **`public/modules/*.js`** — individual modules. Soft limit **1,000 lines**; hard limit **1,500 lines**. If a module exceeds 1,000 lines, split it before adding more to it.
+- **`public/modules/*.js`** — individual modules. Soft limit **1,200 lines**; hard limit **1,500 lines**. If a module exceeds 1,200 lines, split it before adding more to it.
 
 ### Where new code goes
 When adding frontend code, place it in the most specific existing module that owns that feature area:
@@ -199,7 +199,7 @@ If a new feature area doesn't fit any existing module and would exceed 150 lines
 
 ### File size limits
 - **`server/src/index.js`** - route table only. Keep it under **500 lines**.
-- **`server/src/routes/*.js`** - owning route modules. Soft limit **1,000 lines**; hard limit **1,500 lines**. Split by feature area before crossing the hard limit.
+- **`server/src/routes/*.js`** - owning route modules. Soft limit **1,200 lines**; hard limit **1,500 lines**. Split by feature area before crossing the hard limit.
 
 ### Where new route code goes
 - Add the route entry in `dispatch()` inside `server/src/index.js`.
