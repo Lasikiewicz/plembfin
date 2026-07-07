@@ -1,7 +1,14 @@
 {
-  "version": "0.4.32",
-  "updatedAt": "2026-07-07T12:13:27+01:00",
+  "version": "0.4.33",
+  "updatedAt": "2026-07-07T12:14:20+01:00",
   "entries": [
+    {
+      "version": "0.4.33",
+      "date": "2026-07-07T12:14:20+01:00",
+      "commit": "0a2c8754ec315a1f25d4979dfbc0a4c4bc32431f",
+      "message": "Fix - Align node engine requirement",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.4.32",
       "date": "2026-07-07T12:13:27+01:00",
