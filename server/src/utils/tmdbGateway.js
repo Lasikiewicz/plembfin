@@ -560,8 +560,12 @@ export async function getTmdbImages({ mediaType, tmdbId, title = "", ids = {} })
   const images = imageGroups(details);
   if (hasImageCandidates(images)) return images;
 
-  const refreshed = await getTmdbDetails({ mediaType, tmdbId, title, ids, force: true }).catch(() => null);
-  return imageGroups(refreshed || details);
+  try {
+    const refreshed = await getTmdbDetails({ mediaType, tmdbId, title, ids, force: true });
+    return imageGroups(refreshed);
+  } catch {
+    return imageGroups(details);
+  }
 }
 
 export async function prewarmTmdbLibrary({ limit = 4 } = {}) {
