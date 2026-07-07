@@ -5,7 +5,7 @@
   "type": "module",
   "main": "server/server.js",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "start": "node server/server.js",
