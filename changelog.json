@@ -7,14 +7,27 @@
       "date": "2026-07-07T11:54:20+01:00",
       "commit": "c507f0d5339d6f86fb7d1f5008cbdd23310d7e5f",
       "message": "Fix - Preserve imdb links and live specials",
-      "author": "Lasikiewicz"
+      "author": "Lasikiewicz",
+      "details": [
+        "Preserve IMDb links and ratings on TV show detail pages when TVDB metadata is merged with TMDB details.",
+        "Keep watched-state matching for Specials season 0 episodes even when a source record omits the season number.",
+        "Treat season zero as a real live-session value so Emby and Jellyfin Specials keep their episode coordinates.",
+        "Refresh TV detail caches so existing shows pick up retained IMDb IDs after upgrade."
+      ]
     },
     {
       "version": "0.4.29",
       "date": "2026-07-07T11:44:02+01:00",
       "commit": "4715da05a65683bc474d68c3f1d7ea6e09a18c03",
       "message": "Fix - Handle specials and tvdb links",
-      "author": "Lasikiewicz"
+      "author": "Lasikiewicz",
+      "details": [
+        "Normalize episode labels as SxxEyy across dashboard, history, stats, tools, and confirmation dialogs, including Specials.",
+        "Preserve season 0 when creating media keys and normalizing imported or webhook watch records.",
+        "Recover episode coordinates from titles such as S00E03 when incoming records omit separate season and episode fields.",
+        "Recover missing show titles from stored IDs or sync telemetry so episode rows do not remain grouped as Unknown Show.",
+        "Add test coverage for season 0 media keys and watch-record normalization."
+      ]
     },
     {
       "version": "0.4.28",
