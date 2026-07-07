@@ -100,6 +100,33 @@ export async function openShowInlineDetail(showKey, activeSeasonNum = null, acti
   await renderImmersiveShowModal(showKey, activeSeasonNum, activeEpisodeNum);
 }
 
+async function fetchShowImdbPillHtml(show = {}, tmdbData = null, requestStillCurrent = () => true) {
+  const showImdbId = show.imdb_id || tmdbData?.external_ids?.imdb_id || "";
+  if (!showImdbId) return "";
+  const fallbackPill = () => ratingPillHtml({
+    label: "IMDb",
+    value: "",
+    href: `https://www.imdb.com/title/${escapeAttribute(showImdbId)}`,
+    title: "Open this title on IMDb",
+  });
+  if (!state.savedConfig?.omdb?.configured) return fallbackPill();
+
+  const omdbRes = await fetch(`/api/omdb-rating?imdbId=${encodeURIComponent(showImdbId)}`, { headers: authHeaders() }).catch(() => null);
+  if (!requestStillCurrent()) return "";
+  if (!omdbRes?.ok) return fallbackPill();
+
+  const omdbData = await omdbRes.json().catch(() => null);
+  if (!requestStillCurrent()) return "";
+  if (!omdbData?.imdbRating) return fallbackPill();
+
+  return ratingPillHtml({
+    label: "IMDb",
+    value: `${Math.round(parseFloat(omdbData.imdbRating) * 10)}%`,
+    href: `https://www.imdb.com/title/${escapeAttribute(showImdbId)}`,
+    title: `IMDb rating: ${omdbData.imdbRating}/10`,
+  });
+}
+
 export async function openShowImmersiveModalByTmdbId(tmdbId) {
   setMediaDetailActions("");
   state.activeShowTmdbId = String(tmdbId);
@@ -147,6 +174,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     `;
     return;
   }
+  if (tmdbData?.id) state.activeShowTmdbId = String(tmdbData.id);
 
   const showTitle = tmdbData.name || "Untitled TV Show";
   const seasons = [...(tmdbData.seasons || [])]
@@ -177,6 +205,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     episode_count: 0,
     season_count: seasons.length,
   });
+  const imdbPillHtml = await fetchShowImdbPillHtml(show, tmdbData, () => String(state.activeShowTmdbId || "") === String(tmdbData.id));
 
   renderShowModalContent(show, {
     activeSeasonNum: state.activeShowModalSeason,
@@ -184,6 +213,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     seasonDetailsByNumber,
     loading: false,
     tmdbOnly: !existingShow,
+    imdbPillHtml,
   });
 }
 
@@ -194,6 +224,15 @@ function watchedEpisodesByKey(show = {}) {
     map.set(showEpisodeKey(episode.season, episode.episode), episode);
   }
   return map;
+}
+
+function watchedEpisodeFor(watchedMap, seasonNumber, episodeNumber) {
+  const exact = watchedMap.get(showEpisodeKey(seasonNumber, episodeNumber));
+  if (exact) return exact;
+  if (Number(seasonNumber) === 0) {
+    return watchedMap.get(showEpisodeKey(null, episodeNumber)) || null;
+  }
+  return null;
 }
 
 function playbackProgressTitle(row = {}) {
@@ -400,7 +439,7 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
       for (const episode of tmdbEpisodes) {
         const episodeNumber = Number(episode.episode_number);
         knownEpNums.add(episodeNumber);
-        const watched = watchedMap.get(showEpisodeKey(seasonNumber, episodeNumber));
+        const watched = watchedEpisodeFor(watchedMap, seasonNumber, episodeNumber);
         rows.push({
           key: showEpisodeKey(seasonNumber, episodeNumber),
           showTitle: show.title,
@@ -656,7 +695,7 @@ export function renderShowModalContent(show, {
 
   state.showModalEpisodes = episodeRows;
   state.showModalEpisodeIndex = new Map(episodeRows.map((episode) => [episode.key, episode]));
-  state.activeShowRenderContext = { show, activeSeasonNum, tmdbData, seasonDetailsByNumber, loading };
+  state.activeShowRenderContext = { show, activeSeasonNum, tmdbData, seasonDetailsByNumber, loading, imdbPillHtml };
 
   const allSeasonsExpanded = state.showModalAllSeasonsExpanded;
   const selectedSeasonRecord = selectedSeason == null
@@ -831,6 +870,7 @@ export function renderShowModalContent(show, {
         const current = state.activeShowRenderContext;
         if (current?.tmdbData && !current.loading) {
           renderShowModalContent(current.show, {
+            ...current,
             activeSeasonNum: current.activeSeasonNum,
             tmdbData: current.tmdbData,
             seasonDetailsByNumber: current.seasonDetailsByNumber,
@@ -895,23 +935,8 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
   const tmdbData = await fetchTmdbDetails("tv", show.tmdb_id, show.title, tmdbLookupIdsFromShow(show));
   if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
   if (tmdbData?.id) state.activeShowTmdbId = String(tmdbData.id);
-  const showImdbId = show.imdb_id || tmdbData?.external_ids?.imdb_id || "";
-  let imdbPillHtml = "";
-  if (showImdbId && state.savedConfig?.omdb?.configured) {
-    const omdbRes = await fetch(`/api/omdb-rating?imdbId=${encodeURIComponent(showImdbId)}`, { headers: authHeaders() }).catch(() => null);
-    if (omdbRes?.ok) {
-      const omdbData = await omdbRes.json().catch(() => null);
-      if (omdbData?.imdbRating) {
-        imdbPillHtml = ratingPillHtml({
-          label: "IMDb",
-          value: `${Math.round(parseFloat(omdbData.imdbRating) * 10)}%`,
-          href: `https://www.imdb.com/title/${escapeAttribute(showImdbId)}`,
-          title: `IMDb rating: ${omdbData.imdbRating}/10`,
-        });
-      }
-    }
-    if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
-  }
+  const imdbPillHtml = await fetchShowImdbPillHtml(show, tmdbData, () => requestToken === state.showModalRequestToken && state.activeShowModalKey === showKey);
+  if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
   const currentSeasonNum = state.activeShowModalSeason;
   renderShowModalContent(show, { activeSeasonNum: currentSeasonNum, tmdbData, seasonDetailsByNumber: new Map(), loading: true, imdbPillHtml });
   const seasonDetailsByNumber = new Map();

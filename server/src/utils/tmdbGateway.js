@@ -9,7 +9,7 @@ import { resolveTvdbSeriesId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, shap
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DETAILS_SCHEMA_VERSION = 11; // bumped: empty "Specials" (season 0) placeholders with no TVDB episodes are now dropped from `seasons`
+const DETAILS_SCHEMA_VERSION = 12; // bumped: TV show details now retain TMDB's IMDb external id when TVDB remote ids omit it
 const PERSON_SCHEMA_VERSION = 5;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const MISSING_TTL_MS = DAY_MS;
@@ -452,7 +452,11 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
         ...shaped,
         ...extras,
         id: resolvedTmdbId || undefined,
-        external_ids: { ...shaped.external_ids, tmdb_id: resolvedTmdbId },
+        external_ids: {
+          ...shaped.external_ids,
+          imdb_id: shaped.external_ids?.imdb_id || raw?.external_ids?.imdb_id || "",
+          tmdb_id: resolvedTmdbId,
+        },
       };
 
       const nextAiring = await deriveNextAiring(details, tvdbId);

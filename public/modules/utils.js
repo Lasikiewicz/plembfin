@@ -339,9 +339,9 @@ export function showEpisodeKey(seasonNumber, episodeNumber) {
 }
 
 export function episodeCode(seasonNumber, episodeNumber) {
-  const season = seasonNumber == null || seasonNumber === "" ? "?" : seasonNumber;
-  const episode = episodeNumber == null || episodeNumber === "" ? "?" : episodeNumber;
-  return `S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")}`;
+  const season = seasonNumber == null || seasonNumber === "" ? "??" : String(seasonNumber).padStart(2, "0");
+  const episode = episodeNumber == null || episodeNumber === "" ? "??" : String(episodeNumber).padStart(2, "0");
+  return `S${season}E${episode}`;
 }
 
 export function seasonLabel(seasonNumber) {

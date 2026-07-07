@@ -96,6 +96,12 @@ function progressPercent(offsetMs, durationMs) {
   return Math.max(0, Math.min(100, Math.round((offsetMs / durationMs) * 100)));
 }
 
+function indexNumberOrNull(value) {
+  if (value == null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function formatEpisodeTitle(title, season, episode) {
   const base = String(title || "Unknown Show").trim() || "Unknown Show";
   const seasonText = Number.isFinite(Number(season)) ? String(Number(season)).padStart(2, "0") : "??";
@@ -176,8 +182,8 @@ function parsePlexSessions(xmlText = "", config = {}) {
       offsetMs,
       durationMs,
       progress: progressPercent(offsetMs, durationMs),
-      season: Number(attributes.parentIndex || 0) || null,
-      episode: Number(attributes.index || 0) || null,
+      season: indexNumberOrNull(attributes.parentIndex),
+      episode: indexNumberOrNull(attributes.index),
       posterUrl: plexPosterUrl(attributes, mediaType),
       client: {
         deviceName: player.title || player.product || player.platform || "",
@@ -254,8 +260,8 @@ function normalizeSessionItem(session = {}, source = "unknown", config = {}) {
     offsetMs,
     durationMs,
     progress: progressPercent(offsetMs, durationMs),
-    season: Number(item.ParentIndexNumber || 0) || null,
-    episode: Number(item.IndexNumber || 0) || null,
+    season: indexNumberOrNull(item.ParentIndexNumber),
+    episode: indexNumberOrNull(item.IndexNumber),
     posterUrl: embyLikePosterUrl(item, mediaType),
     ids: {
       imdb: item.ProviderIds?.Imdb || item.ProviderIds?.IMDb || undefined,
