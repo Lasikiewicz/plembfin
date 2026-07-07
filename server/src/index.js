@@ -74,7 +74,7 @@ import {
   deletePosterCacheByMediaKey,
   backfillUnknownShowTitles,
   clearWatchArtworkUrls,
-} from "./utils/firestoreRepo.js";
+} from "./utils/dataRepo.js";
 import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "./utils/tmdbClient.js";
@@ -4647,8 +4647,7 @@ async function runWithTimeBudget(label, task, timeoutMs) {
   }
 }
 
-// Invoked once per minute by the in-process scheduler in server.js
-// (replacing the scheduledSync Cloud Function).
+// Invoked once per minute by the in-process scheduler in server.js.
 export async function runScheduledTick() {
   await runWithTimeBudget("Scheduled sync", () => runScheduledSync(), 50_000);
   await runWithTimeBudget("Scheduled watch-history backup", () => runScheduledWatchBackup(), 30_000);

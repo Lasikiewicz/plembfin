@@ -1,4 +1,4 @@
-import { loadLiveTrackingCache as loadLiveTrackingCacheFromDb } from "./firestoreRepo.js";
+import { loadLiveTrackingCache as loadLiveTrackingCacheFromDb } from "./dataRepo.js";
 import { fetchWithTimeout } from "./outbound.js";
 import { decodeHtmlEntities } from "./parsers.js";
 

@@ -9,9 +9,6 @@ plan/
 # Local runtime data: SQLite database, cached artwork, generated config.json
 data/
 
-# Service account key (only needed for the one-time Firestore migration)
-service-account-key.json
-
 # Local editor/agent tooling
 .claude/
 .Jules/

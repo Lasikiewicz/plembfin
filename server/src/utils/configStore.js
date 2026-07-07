@@ -291,7 +291,7 @@ export async function loadRuntimeState() {
   return parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
 }
 
-// Append items onto an array field in runtime_state (replaces FieldValue.arrayUnion).
+// Append items onto an array field in runtime_state.
 export async function appendRuntimeLog(field, items = []) {
   const list = Array.isArray(items) ? items : [items];
   if (!list.length) return;

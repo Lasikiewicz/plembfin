@@ -13,7 +13,7 @@ import {
 
 // Initialize TV show progress cache on startup
 initShowProgressCache().catch((err) => {
-  console.error("[firestoreRepo] Failed to initialize show progress cache", err);
+  console.error("[dataRepo] Failed to initialize show progress cache", err);
 });
 
 
@@ -730,7 +730,7 @@ function queueProgressUpdateForRecord(record) {
 
 export async function invalidateHistoryDerivedCaches() {
   await flushShowProgressUpdates().catch((err) => {
-    console.error("[firestoreRepo] Failed to flush show progress updates", err);
+    console.error("[dataRepo] Failed to flush show progress updates", err);
   });
   bumpDataVersion();
 }
@@ -1674,7 +1674,7 @@ export async function backfillUnknownShowTitles() {
   });
   if (fixed) {
     await invalidateHistoryDerivedCaches();
-    console.log(`[firestoreRepo] backfillUnknownShowTitles: fixed ${fixed} of ${rows.length} records`);
+    console.log(`[dataRepo] backfillUnknownShowTitles: fixed ${fixed} of ${rows.length} records`);
   }
   return fixed;
 }

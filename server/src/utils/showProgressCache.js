@@ -13,7 +13,7 @@ const pendingShowUpdates = new Set();
 // cached shows are refetched instead of keeping a stale total indefinitely.
 const PROGRESS_CACHE_SCHEMA_VERSION = 2; // bumped: total_episodes now excludes specials (season 0)
 
-// Pure helper functions decoupled from firestoreRepo.js to avoid circular dependency issues
+// Pure helper functions decoupled from dataRepo.js to avoid circular dependency issues
 function decodeBasicHtmlEntities(value) {
   return String(value ?? "")
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))

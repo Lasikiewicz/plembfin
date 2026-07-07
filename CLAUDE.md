@@ -2,6 +2,10 @@
 
 Agent instructions for working with this codebase.
 
+> **Before changing anything, read [`docs/architecture.md`](docs/architecture.md).**
+> It is the master guide: the big picture, a complete map of every file in the repo,
+> and a task router that points to the feature doc covering the area you are touching.
+
 ## Agent Guidelines
 
 - **No Git Pushes** — Never execute `git push` or push commits to any remote repository unless the user explicitly instructs you to push in their request.
@@ -25,17 +29,32 @@ For every changed file, check whether the corresponding doc **and** the relevant
 
 | Changed area | Doc to check | README section to check |
 | --- | --- | --- |
-| Webhook auth / `parsers.js` / `auth.js` | `docs/webhooks.md` | ⚡ Webhook Setup |
+| Webhook auth / `parsers.js` / webhook flow | `docs/webhooks.md` | ⚡ Webhook Setup |
 | Scheduler / `scheduled.js` / `cron-sync` | `docs/scheduled-sync.md` | 🛠️ Architecture |
 | Now-playing / `live_tracking_cache` | `docs/now-playing.md` | — |
 | `schema.sql` / new SQLite tables | `docs/sqlite-schema.md` | ⚙️ Configuration Reference |
-| Auth / sessions / cookies | `docs/architecture.md` | 🔧 Full Setup Guide |
-| New feature or setting | `docs/architecture.md` | 🌟 Key Features / 🔧 Full Setup Guide |
+| Plex client / notification listener | `docs/plex.md` | ⚡ Webhook Setup |
+| Emby client | `docs/emby.md` | ⚡ Webhook Setup |
+| Jellyfin client | `docs/jellyfin.md` | ⚡ Webhook Setup |
+| TMDB / TVDB / Fanart / OMDb gateways or caches | `docs/metadata.md` | ⚙️ Configuration Reference |
+| Poster pipeline (`posterCache.js` / `images.js`) | `docs/posters-artwork.md` | — |
+| Dashboard (`dashboard.js`) | `docs/dashboard.md` | 🌟 Key Features |
+| Movies page | `docs/movies.md` | 🌟 Key Features |
+| TV Shows page / show progress / next-airing | `docs/tv-shows.md` | 🌟 Key Features |
+| Media detail / person pages / edit dialogs / watch actions | `docs/media-detail.md` | 🌟 Key Features |
+| History page / search | `docs/history-search.md` | 🌟 Key Features |
+| Stats page | `docs/stats.md` | 🌟 Key Features |
+| Settings tabs / config store / maintenance tools | `docs/settings.md` | 🔧 Full Setup Guide |
+| Auth / sessions / cookies / secrets | `docs/auth.md` + `docs/architecture.md` | 🔧 Full Setup Guide |
+| Backups / destinations / backup UI | `docs/backups.md` | 💾 Backup & Restore System |
+| SPA routing / state / module layout | `docs/frontend.md` | — |
+| Scripts / CI workflows / Docker / release pipeline | `docs/development.md` | 🚀 Getting Started |
+| New feature or setting | `docs/architecture.md` + the matching feature doc | 🌟 Key Features / 🔧 Full Setup Guide |
 | New env variable | `docs/architecture.md` | ⚙️ Configuration Reference |
+| New file, or a file moved/renamed | file map in `docs/architecture.md` | — |
 | Any server-side breaking change | `docs/troubleshooting.md` | relevant setup section |
-| Overall architecture change | `docs/README.md` | 🛠️ Architecture |
-| Docker / deployment change | `docs/README.md` | 🚀 Getting Started |
-| Backup destinations / backup UI | — | 💾 Backup & Restore System |
+| Overall architecture change | `docs/architecture.md` + `docs/README.md` | 🛠️ Architecture |
+| Docker / deployment change | `docs/development.md` | 🚀 Getting Started |
 | Key Features list in README | — | 🌟 Key Features |
 | Push-to-git / agent workflow change | `CLAUDE.md` | 🧑‍💻 Development Workflow |
 
@@ -196,7 +215,7 @@ imported and mounted by `server.js`.
 ### Data layer (`server/src/db.js` + `schema.sql`)
 
 `better-sqlite3` opens `data/plembfin.db` (WAL mode) and applies `schema.sql` on boot. The
-repo modules (`firestoreRepo.js`, `configStore.js`, `posterCache.js`, `activeSessions.js`,
+repo modules (`dataRepo.js`, `configStore.js`, `posterCache.js`, `activeSessions.js`,
 `loopStore.js`, `tmdbGateway.js`) use prepared SQL statements.
 
 Derived caches use **in-process memoization** keyed by an in-memory `dataVersion` integer

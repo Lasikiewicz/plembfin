@@ -32,7 +32,7 @@ import {
   upsertLiveTrackingCache,
   upsertPlaybackProgress,
   upsertPlaystateForMedia,
-} from "./utils/firestoreRepo.js";
+} from "./utils/dataRepo.js";
 
 const SCHEDULED_RECENT_WATCH_LIMIT = 50;
 const SCHEDULED_RESUME_LIMIT = 50;

@@ -176,7 +176,7 @@ app.get("/*name", (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, "index.html"));
 });
 
-// In-process scheduler — replaces the per-minute scheduledSync Cloud Function.
+// In-process scheduler — runs the per-minute background sync tick.
 let tickRunning = false;
 async function tick() {
   if (tickRunning) return;

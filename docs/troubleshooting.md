@@ -105,4 +105,5 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
 | Database inspection | `sqlite3 data/plembfin.db` |
 | Run the background worker on demand | `POST /api/cron-sync` (streams a log) |
 | Frontend debug logs | `logDebug(...)` calls throughout `public/app.js` (and the in-app Logs panel) |
-| Security audit | `docs/security-audit-2026-06-20.md` |
+| Which file owns a feature | The file map and task router in [architecture.md](architecture.md) |
+| Security remediation history | [security-checklist.md](security-checklist.md) |

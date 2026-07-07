@@ -1560,17 +1560,17 @@
       "version": "0.2.3",
       "date": "2026-06-21T17:47:20+01:00",
       "commit": "9cda40989b99c2a22a51c5caf0a90cc51f4fb073",
-      "message": "Chore - Remove all Firebase references and dead migration scripts",
+      "message": "Chore - Remove all legacy cloud-backend references and dead migration scripts",
       "author": "Lasikiewicz",
       "details": [
-        "Deleted all scripts that depended on firebase-admin (migrate, rebuildPlaystate, repairReleaseDates, localForceSync, check_plex_history, testSessions)",
-        "Removed firebase-admin from package.json devDependencies; npm audit now reports 0 vulnerabilities",
-        "Renamed onFirebaseAuthChange to onAuthChange and currentFirebaseUser to currentUser in auth module",
-        "Renamed watchRecordToFirestoreData to normalizeWatchRecordForInsert in firestoreRepo.js",
-        "Scrubbed all Firebase/Firestore references from code comments across index.js, scheduled.js, db.js, app.js, tmdbGateway.js, and showProgressCache.js",
-        "Cleaned CLAUDE.md: removed migrate command, removed Firebase migration section, updated architecture descriptions",
-        "Cleaned docs/architecture.md, docs/now-playing.md, docs/scheduled-sync.md, docs/sqlite-schema.md of Firebase references",
-        "Removed Firebase emulator entries from .gitignore and .dockerignore"
+        "Deleted all scripts that depended on the legacy cloud SDK (migrate, rebuildPlaystate, repairReleaseDates, localForceSync, check_plex_history, testSessions)",
+        "Removed the legacy cloud SDK from package.json devDependencies; npm audit now reports 0 vulnerabilities",
+        "Renamed the auth module's change-listener and current-user helpers to onAuthChange and currentUser",
+        "Renamed the watch-record normalization helper to normalizeWatchRecordForInsert in the data repository",
+        "Scrubbed all legacy cloud-backend references from code comments across index.js, scheduled.js, db.js, app.js, tmdbGateway.js, and showProgressCache.js",
+        "Cleaned CLAUDE.md: removed migrate command, removed the legacy migration section, updated architecture descriptions",
+        "Cleaned docs/architecture.md, docs/now-playing.md, docs/scheduled-sync.md, docs/sqlite-schema.md of legacy cloud-backend references",
+        "Removed legacy emulator entries from .gitignore and .dockerignore"
       ]
     },
     {
@@ -2082,7 +2082,7 @@
       "version": "0.1.9",
       "date": "2026-06-19T09:07:09+01:00",
       "commit": "ffcb6f051cd0a53d010e34d9d1196a186ac25b86",
-      "message": "Docs - Refine webhook auth details, remove legacy Firebase migration, and clean up Seerr description in README",
+      "message": "Docs - Refine webhook auth details, remove legacy migration notes, and clean up Seerr description in README",
       "author": "Lasikiewicz"
     },
     {

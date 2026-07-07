@@ -1,6 +1,6 @@
 # Security Remediation Checklist
 
-Generated from: [security-audit-2026-06-20.md](security-audit-2026-06-20.md)  
+Generated from the 2026-06-20 security audit (every finding is summarized inline below).  
 Audit date: 2026-06-20  
 Last updated: 2026-06-20
 

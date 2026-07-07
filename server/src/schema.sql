@@ -1,9 +1,9 @@
--- plembfinfire local SQLite schema.
--- One table per former Firestore collection. Doc ids become TEXT primary keys;
--- nested ids.{imdb,tmdb,tvdb} are flattened to columns; timestamps are INTEGER ms
--- (or ISO TEXT for watched_at, which is compared lexicographically throughout).
--- The Firestore-only derived caches (derivedCache, derivedShowSummaries) are
--- intentionally dropped: a single long-lived process memoizes them in memory.
+-- Plembfin local SQLite schema.
+-- Record ids are TEXT primary keys; provider ids ({imdb,tmdb,tvdb}) are flattened
+-- to columns; timestamps are INTEGER ms (or ISO TEXT for watched_at, which is
+-- compared lexicographically throughout).
+-- Derived caches (history/movie/show summaries) have no tables on purpose:
+-- a single long-lived process memoizes them in memory (see db.js dataVersion).
 
 CREATE TABLE IF NOT EXISTS watch_history (
   id TEXT PRIMARY KEY,

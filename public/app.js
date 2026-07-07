@@ -18,10 +18,9 @@ import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./mo
 import { initMediaLightbox } from "./modules/media-lightbox.js";
 import { initAppEvents } from "./modules/app-events.js";
 
-// Warm the backend the moment the app loads (no auth needed), so the Cloud
-// Function is hot by the time the user clicks into anything. A light keep-alive
-// holds it warm while the tab is open. This gives warm-instance latency without
-// the 24/7 cost of minInstances — we only ping while someone is actually here.
+// Ping the backend the moment the app loads (no auth needed), so the server's
+// caches and upstream connections are warm by the time the user clicks into
+// anything. A light keep-alive repeats the ping while the tab is visible.
 const BACKEND_KEEPALIVE_MS = 4 * 60 * 1000;
 function warmUpBackend() {
   try {

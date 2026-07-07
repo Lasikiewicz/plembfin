@@ -84,7 +84,7 @@ present in the database.
 **Root cause:** the dashboard previously consumed Now Playing as a **Server-Sent
 Events stream** — `startNowPlayingStream()` fetched `/api/now-playing?stream=1` and
 read a long-lived `text/event-stream` response. The server had a streaming branch
-that wrote `data:` frames and kept the connection open with `onSnapshot` listeners
+that wrote `data:` frames and kept the connection open with change listeners
 and a heartbeat.
 
 **Fix (current design):** SSE dropped entirely for Now Playing. `handleNowPlaying`
