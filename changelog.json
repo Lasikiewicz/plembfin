@@ -1,7 +1,19 @@
 {
-  "version": "0.4.36",
-  "updatedAt": "2026-07-07T12:49:06+01:00",
+  "version": "0.4.37",
+  "updatedAt": "2026-07-07T14:25:39+01:00",
   "entries": [
+    {
+      "version": "0.4.37",
+      "date": "2026-07-07T14:25:39+01:00",
+      "commit": "757739c4e49832d2923afb25f2121f20d59a5f83",
+      "message": "Chore - Improve module discipline and build integrity",
+      "author": "Lasikiewicz",
+      "details": [
+        "Raise module size soft limit from 1,000 to 1,200 lines (hard limit unchanged at 1,500) to accommodate larger feature modules while maintaining discipline",
+        "Fix showProgressCache to resolve cache file via DATA_DIR instead of hardcoded relative path, so builds no longer corrupt the real tv_progress_cache.json",
+        "Add null check in flushShowProgressUpdates to gracefully skip work if database handle is closed, eliminating test output noise"
+      ]
+    },
     {
       "version": "0.4.36",
       "date": "2026-07-07T12:49:06+01:00",
