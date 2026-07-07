@@ -1,7 +1,14 @@
 {
-  "version": "0.4.28",
-  "updatedAt": "2026-07-07T11:20:44+01:00",
+  "version": "0.4.29",
+  "updatedAt": "2026-07-07T11:44:02+01:00",
   "entries": [
+    {
+      "version": "0.4.29",
+      "date": "2026-07-07T11:44:02+01:00",
+      "commit": "4715da05a65683bc474d68c3f1d7ea6e09a18c03",
+      "message": "Fix - Handle specials and tvdb links",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.4.28",
       "date": "2026-07-07T11:20:44+01:00",
