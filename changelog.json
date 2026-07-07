@@ -1,7 +1,17 @@
 {
-  "version": "0.4.35",
-  "updatedAt": "2026-07-07T12:34:30+01:00",
+  "version": "0.4.36",
+  "updatedAt": "2026-07-07T12:49:06+01:00",
   "entries": [
+    {
+      "version": "0.4.36",
+      "date": "2026-07-07T12:49:06+01:00",
+      "commit": "aab602952d202c530ee095890215bed507b011fd",
+      "message": "refactor: improve error handling in image fetch retry logic",
+      "author": "Lasikiewicz",
+      "details": [
+        "Use explicit try/catch for better readability"
+      ]
+    },
     {
       "version": "0.4.35",
       "date": "2026-07-07T12:34:30+01:00",
