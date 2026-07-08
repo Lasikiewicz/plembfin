@@ -1,7 +1,22 @@
 {
-  "version": "0.4.40",
-  "updatedAt": "2026-07-08T11:19:31+01:00",
+  "version": "0.4.41",
+  "updatedAt": "2026-07-08T12:09:33+01:00",
   "entries": [
+    {
+      "version": "0.4.41",
+      "date": "2026-07-08T12:09:33+01:00",
+      "commit": "18635b57be110221441fb83798534508f738886f",
+      "message": "Feature - Visual progress and cache invalidation for edit dialogs",
+      "author": "Lasikiewicz",
+      "details": [
+        "Align media UI styling",
+        "Add visual progress bar and step status feedback to the TV show rematch dialog",
+        "Add saving states, button disablement, and success confirmation to the edit images dialog",
+        "Clear TMDB and TVDB local metadata caches on rematch to ensure fresh details are fetched immediately",
+        "Automatically invalidate local image URLs and trigger a frontend UI refresh upon saving a match",
+        "Avoid redundant DOM inserts when syncing the page topbar layout"
+      ]
+    },
     {
       "version": "0.4.40",
       "date": "2026-07-08T11:19:31+01:00",
