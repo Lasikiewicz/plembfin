@@ -1,7 +1,19 @@
 {
-  "version": "0.4.38",
-  "updatedAt": "2026-07-08T09:45:48+01:00",
+  "version": "0.4.39",
+  "updatedAt": "2026-07-08T10:00:39+01:00",
   "entries": [
+    {
+      "version": "0.4.39",
+      "date": "2026-07-08T10:00:39+01:00",
+      "commit": "3c208269d6db6e6e2a22c623be89c113fe3951f3",
+      "message": "Feature - Manual match search in the artwork picker",
+      "author": "Lasikiewicz",
+      "details": [
+        "The edit-images dialog on media pages now has a search box at the top to manually find the right title when artwork fails to load automatically",
+        "Picking a search result instantly reloads the poster, logo, and background choices from TMDB, TheTVDB, and fanart.tv for the selected title",
+        "Custom-image web search links follow the manually selected title"
+      ]
+    },
     {
       "version": "0.4.38",
       "date": "2026-07-08T09:45:48+01:00",
