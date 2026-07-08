@@ -1,7 +1,21 @@
 {
-  "version": "0.4.39",
-  "updatedAt": "2026-07-08T10:00:39+01:00",
+  "version": "0.4.40",
+  "updatedAt": "2026-07-08T11:19:31+01:00",
   "entries": [
+    {
+      "version": "0.4.40",
+      "date": "2026-07-08T11:19:31+01:00",
+      "commit": "bcb27862a79b892d06597db6ad1858a4943dcbda",
+      "message": "Feature - Add upcoming episodes calendar",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add an Upcoming page with a month calendar of future TV episode air dates",
+        "Add centered month controls, larger episode posters, and a mobile agenda layout",
+        "Add Upcoming search with matching episodes from later months shown below the calendar",
+        "Add an authenticated upcoming episodes API backed by TVDB season data and the next-airing cache",
+        "Document the Upcoming page, route, module, and API endpoint"
+      ]
+    },
     {
       "version": "0.4.39",
       "date": "2026-07-08T10:00:39+01:00",
