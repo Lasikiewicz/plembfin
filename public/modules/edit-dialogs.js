@@ -955,7 +955,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
       status.textContent = "";
 
       const thumbHtml = meta.thumbnails?.length
-        ? `<img src="${escapeAttribute(meta.thumbnails[0])}" alt="thumbnail" style="width:120px;height:68px;object-fit:cover;border-radius:4px;flex-shrink:0;" data-err="hide" />`
+        ? `<img src="${escapeAttribute(meta.thumbnails[0])}" alt="thumbnail" style="width:120px;height:68px;object-fit:cover;border-radius:var(--poster-radius);flex-shrink:0;" data-err="hide" />`
         : "";
       const descHtml = meta.description
         ? `<p style="font-size:0.8rem;color:var(--muted);margin:0.4rem 0 0;max-height:4.5rem;overflow:hidden;">${escapeHtml(meta.description)}</p>`

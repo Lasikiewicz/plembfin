@@ -34,7 +34,7 @@
     <link rel="modulepreload" href="/modules/media-lightbox.js" />
     <link rel="modulepreload" href="/modules/media-detail-events.js" />
     <link rel="modulepreload" href="/modules/app-events.js" />
-    <link rel="stylesheet" href="/styles.css?v=20260708.2" />
+    <link rel="stylesheet" href="/styles.css?v=20260708.5" />
   </head>
   <body>
     <div class="app-chassis">
@@ -371,19 +371,21 @@
         </section>
 
         <section id="upcoming-view" class="view-panel hidden" data-view-panel="upcoming">
-          <section class="upcoming-control-row" aria-label="Upcoming calendar controls">
-            <div id="upcomingTopbarControls" class="upcoming-controls">
-              <button id="upcomingPrevButton" class="button-ghost upcoming-nav-button" type="button" aria-label="Previous month">&#8249;</button>
-              <span id="upcomingMonthTitle" class="upcoming-month-title"></span>
-              <button id="upcomingNextButton" class="button-ghost upcoming-nav-button" type="button" aria-label="Next month">&#8250;</button>
-              <button id="upcomingTodayButton" class="button-ghost" type="button">Today</button>
-            </div>
-            <label class="compact-field upcoming-search-field">
-              <span>Search</span>
-              <input id="upcomingSearchInput" class="field" type="search" placeholder="Search upcoming..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
-            </label>
-          </section>
           <section class="glass-panel p-section">
+            <div class="view-control-source">
+              <div id="upcomingTopbarControls" class="upcoming-controls">
+                <label class="compact-field upcoming-search-field">
+                  <span>Search</span>
+                  <input id="upcomingSearchInput" class="field" type="search" placeholder="Search upcoming..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+                </label>
+                <div class="upcoming-month-controls" aria-label="Upcoming calendar controls">
+                  <button id="upcomingPrevButton" class="button-ghost upcoming-nav-button" type="button" aria-label="Previous month">&#8249;</button>
+                  <span id="upcomingMonthTitle" class="upcoming-month-title"></span>
+                  <button id="upcomingNextButton" class="button-ghost upcoming-nav-button" type="button" aria-label="Next month">&#8250;</button>
+                  <button id="upcomingTodayButton" class="button-ghost" type="button">Today</button>
+                </div>
+              </div>
+            </div>
             <div id="upcomingCalendar" class="upcoming-calendar"></div>
           </section>
         </section>

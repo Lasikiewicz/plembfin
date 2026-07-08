@@ -41,14 +41,17 @@
   --nav-active-bg: #172232;
   --nav-active-text: #d9ecff;
   --radius: 8px;
+  --poster-radius: 8px;
+  --library-poster-radius: var(--poster-radius);
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
   --sidebar-width: 16rem;
   --top-control-padding: 0.65rem;
+  --sidebar-logo-height: 2.4rem;
   --control-inline-padding: 0.7rem;
-  --right-topbar-height: 3rem;
+  --right-topbar-height: calc((var(--top-control-padding) * 2) + var(--sidebar-logo-height));
   --right-topbar-content-offset: 0.7rem;
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
@@ -196,7 +199,7 @@ h2 {
   max-width: 280px;
   aspect-ratio: 2 / 3;
   object-fit: cover;
-  border-radius: 5px;
+  border-radius: var(--poster-radius);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
 }
 
@@ -499,7 +502,7 @@ h2 {
   width: 100%;
   aspect-ratio: 2 / 3;
   object-fit: cover;
-  border-radius: 5px;
+  border-radius: var(--poster-radius);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
 }
 
@@ -986,7 +989,7 @@ h2 {
 }
 
 .page-shell[data-active-view="dashboard"] .live-panel {
-  padding-top: var(--right-topbar-content-offset);
+  padding-top: calc(var(--top-control-padding) + 0.6rem);
 }
 
 .page-shell:not([data-active-view="dashboard"]) .page-topbar + .view-panel {
@@ -1656,7 +1659,7 @@ h2 {
   display: block;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--poster-radius);
   background: var(--panel-3);
   object-fit: cover;
   aspect-ratio: 2 / 3;
@@ -1723,7 +1726,7 @@ h2 {
   height: auto;
   aspect-ratio: 2 / 3;
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: var(--poster-radius);
   border: 1px solid var(--line);
   background: var(--panel-3);
 }
@@ -1758,7 +1761,7 @@ h2 {
   flex: 0 0 var(--part-watched-poster-width, 120px);
   width: var(--part-watched-poster-width, 120px);
   aspect-ratio: 2/3;
-  border-radius: 6px;
+  border-radius: var(--poster-radius);
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   display: block;
@@ -2007,7 +2010,7 @@ h2 {
 }
 
 .folder-trigger .explorer-folder-poster {
-  border-radius: 8px;
+  border-radius: var(--library-poster-radius);
 }
 
 .poster-fallback::before {
@@ -2354,7 +2357,7 @@ h2 {
 .stats-lb-leader-poster {
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: 7px;
+  border-radius: var(--poster-radius);
   object-fit: cover;
   background: var(--panel);
   border: 1px solid var(--line-strong);
@@ -2474,7 +2477,7 @@ h2 {
 .stats-lb-podium-poster {
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: 5px;
+  border-radius: var(--poster-radius);
   object-fit: cover;
   background: var(--panel-3);
   border: 1px solid var(--line-strong);
@@ -2543,7 +2546,7 @@ h2 {
 .stats-lb-row-poster {
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: 4px;
+  border-radius: var(--poster-radius);
   object-fit: cover;
   background: var(--panel-3);
   border: 1px solid var(--line-strong);
@@ -4055,7 +4058,7 @@ details[open] .tool-accordion-chevron::before {
   width: 56px;
   height: 84px;
   flex: 0 0 auto;
-  border-radius: 6px;
+  border-radius: var(--poster-radius);
   object-fit: cover;
   background: var(--panel-3);
 }
@@ -4667,7 +4670,7 @@ details[open] .tool-accordion-chevron::before {
   width: 100%;
   aspect-ratio: 2 / 3;
   object-fit: cover;
-  border-radius: 3px;
+  border-radius: var(--poster-radius);
   display: block;
 }
 
@@ -4886,7 +4889,7 @@ details[open] .tool-accordion-chevron::before {
   width: 46px;
   height: 69px;
   object-fit: cover;
-  border-radius: 3px;
+  border-radius: var(--poster-radius);
   flex-shrink: 0;
 }
 
@@ -5402,7 +5405,7 @@ details[open] .tool-accordion-chevron::before {
   max-width: 400px;
   aspect-ratio: 2 / 3;
   object-fit: cover;
-  border-radius: 12px;
+  border-radius: var(--poster-radius);
   border: 1px solid var(--line-strong);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5);
 }
@@ -5813,7 +5816,7 @@ details[open] .tool-accordion-chevron::before {
   width: 100px;
   aspect-ratio: 2 / 3;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: var(--poster-radius);
   border: 1px solid var(--line);
   transition: transform 150ms ease, border-color 150ms ease;
 }
@@ -6575,7 +6578,7 @@ body {
 .brand-logo {
   display: block;
   width: 100%;
-  height: auto;
+  height: var(--sidebar-logo-height);
   max-height: none;
   object-fit: contain;
 }
@@ -7685,7 +7688,7 @@ h1 {
 .now-poster {
   width: 5.4rem;
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--poster-radius);
 }
 
 .movie-grid {
@@ -7717,6 +7720,7 @@ h1 {
   overflow: visible;
   content-visibility: visible;
   contain-intrinsic-size: auto;
+  cursor: pointer;
 }
 
 .movie-card:hover,
@@ -7740,10 +7744,15 @@ h1 {
 .history-poster,
 .explorer-poster {
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--poster-radius);
   background: #101010;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
   transition: transform 130ms ease, box-shadow 130ms ease, filter 130ms ease;
+}
+
+.movie-grid .movie-poster,
+.explorer-show-grid .folder-trigger .explorer-folder-poster {
+  border-radius: var(--library-poster-radius);
 }
 
 .movie-card-body {
@@ -7866,7 +7875,7 @@ h1 {
 .immersive-poster-img {
   width: 13.5rem;
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--poster-radius);
 }
 
 .immersive-title {
@@ -9186,7 +9195,7 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
   justify-content: center;
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: 10px;
+  border-radius: var(--poster-radius);
   background: var(--panel-3);
   border: 1px dashed var(--line-strong);
   color: var(--blue);
@@ -9362,7 +9371,7 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
   width: calc(var(--poster-width, 160px) * 0.4);
   height: calc(var(--poster-width, 160px) * 0.4 * 1.5);
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: var(--poster-radius);
   border: 1px solid var(--line);
   background: var(--panel-3);
   flex-shrink: 0;
@@ -10188,6 +10197,7 @@ html.light-mode .pill-toggle.active {
   aspect-ratio: 2 / 3;
   object-fit: cover;
   display: block;
+  border-radius: var(--poster-radius);
   background: #111;
 }
 
@@ -10335,7 +10345,7 @@ html.light-mode .pill-toggle.active {
   flex: 0 0 118px;
   width: 118px;
   aspect-ratio: 2 / 3;
-  border-radius: 6px;
+  border-radius: var(--poster-radius);
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   transition: transform 130ms ease, box-shadow 130ms ease;
@@ -11049,7 +11059,7 @@ details[open] > .tool-section-summary::before {
   font-size: 0.7rem;
   font-weight: 800;
   text-align: center;
-  border-radius: 10px 10px 0 0;
+  border-radius: var(--poster-radius) var(--poster-radius) 0 0;
   border: 1px solid var(--line);
   border-bottom: none;
   font-family: inherit;
@@ -11122,7 +11132,7 @@ details[open] > .tool-section-summary::before {
   aspect-ratio: 2 / 3;
   object-fit: cover;
   display: block;
-  border-radius: 6px;
+  border-radius: var(--poster-radius);
   border: 1px solid var(--line);
   background: var(--panel-3);
   transition: transform 140ms ease, border-color 140ms ease;
@@ -11212,7 +11222,7 @@ details[open] > .tool-section-summary::before {
   width: calc(var(--history-poster-width, 86px) * 0.42);
   height: calc(var(--history-poster-width, 86px) * 0.42 * 1.5);
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: var(--poster-radius);
   border: 1px solid var(--line);
   background: var(--panel-3);
   display: block;
@@ -11315,7 +11325,7 @@ details[open] > .tool-section-summary::before {
   flex: 0 0 var(--history-poster-width, 86px);
   width: var(--history-poster-width, 86px);
   aspect-ratio: 2/3;
-  border-radius: 4px;
+  border-radius: var(--poster-radius);
   overflow: hidden;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
   transition: transform 130ms ease, box-shadow 130ms ease;
@@ -12199,7 +12209,7 @@ html.light-mode .review-card {
   flex: 0 0 var(--part-watched-poster-width, 120px);
   width: var(--part-watched-poster-width, 120px);
   aspect-ratio: 2/3;
-  border-radius: 6px;
+  border-radius: var(--poster-radius);
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   transition: transform 130ms ease, box-shadow 130ms ease;
@@ -13157,21 +13167,21 @@ html.light-mode .settings-pane .drop-zone:hover {
 
 /* --- Upcoming calendar ------------------------------------------------- */
 
-.upcoming-control-row {
+.upcoming-controls {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  padding: 0.15rem 0 0.1rem;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
-.upcoming-controls {
+.upcoming-month-controls {
   display: grid;
   grid-template-columns: auto auto auto auto;
   align-items: center;
-  justify-content: center;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .upcoming-month-title {
@@ -13190,7 +13200,7 @@ html.light-mode .settings-pane .drop-zone:hover {
 
 .upcoming-search-field {
   grid-template-columns: auto minmax(0, 1fr);
-  width: min(21rem, 100%);
+  width: min(21rem, 28vw);
   min-width: 0;
 }
 
@@ -13304,7 +13314,7 @@ html.light-mode .settings-pane .drop-zone:hover {
   width: 2.35rem;
   height: 3.525rem;
   flex-shrink: 0;
-  border-radius: 4px;
+  border-radius: var(--poster-radius);
   object-fit: cover;
   background: var(--panel-3);
   display: block;
@@ -13415,18 +13425,17 @@ html.light-mode .upcoming-entry:hover {
 /* Mobile (≤760px): the 7-column grid becomes an agenda list — weekday header
    and empty/outside day cells are hidden, days with episodes stack full-width. */
 @media (max-width: 760px) {
-  .upcoming-control-row {
-    display: grid;
-    grid-template-columns: 1fr;
-    justify-items: center;
-    gap: 0.55rem;
-    padding-inline: 0;
+  .upcoming-controls {
+    display: flex;
+    width: max-content;
+    gap: 0.45rem;
+    align-items: center;
+    justify-content: flex-start;
   }
 
-  .upcoming-controls {
-    display: grid;
-    grid-template-columns: 2.75rem minmax(8rem, 1fr) 2.75rem;
-    width: min(100%, 28rem);
+  .upcoming-month-controls {
+    grid-template-columns: 2.75rem minmax(8rem, 1fr) 2.75rem auto;
+    width: max-content;
     gap: 0.45rem;
   }
 
@@ -13454,20 +13463,20 @@ html.light-mode .upcoming-entry:hover {
   }
 
   #upcomingTodayButton {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-self: center;
-    min-width: 7rem;
+    grid-column: 4;
+    grid-row: 1;
+    justify-self: start;
+    min-width: 5.5rem;
   }
 
   .upcoming-search-field {
-    grid-template-columns: minmax(0, 1fr);
-    width: min(100%, 28rem);
-    min-width: 0;
+    grid-template-columns: auto minmax(0, 1fr);
+    width: 14rem;
+    min-width: 14rem;
   }
 
-  .upcoming-search-field span {
-    display: none;
+  body .page-topbar-actions .upcoming-search-field input {
+    min-width: 10rem !important;
   }
 
   .upcoming-search-field input {
@@ -13555,8 +13564,15 @@ html.light-mode .upcoming-entry:hover {
 }
 
 @media (max-width: 420px) {
-  .upcoming-controls {
+  .upcoming-month-controls {
     grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
+  }
+
+  #upcomingTodayButton {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: center;
+    min-width: 7rem;
   }
 
   .upcoming-month-title {

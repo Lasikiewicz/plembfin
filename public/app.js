@@ -1305,6 +1305,7 @@ function syncPageTopbar() {
     elements.historyTopbarControls,
     elements.searchTopbarControls,
     elements.statsTopbarControls,
+    elements.upcomingTopbarControls,
     elements.settingsSubMenu,
   ].filter(Boolean);
   let title = "Dashboard";
@@ -1338,6 +1339,7 @@ function syncPageTopbar() {
   } else if (state.activeView === "upcoming") {
     title = "Upcoming";
     subtitle = "";
+    activeControls = elements.upcomingTopbarControls;
   } else if (state.activeView === "settings") {
     title = settingsTopbarTitle();
     subtitle = "";
