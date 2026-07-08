@@ -1,7 +1,20 @@
 {
-  "version": "0.4.37",
-  "updatedAt": "2026-07-07T14:25:39+01:00",
+  "version": "0.4.38",
+  "updatedAt": "2026-07-08T09:45:48+01:00",
   "entries": [
+    {
+      "version": "0.4.38",
+      "date": "2026-07-08T09:45:48+01:00",
+      "commit": "b157c45975000be0bf58576106d756d6fdb7c3bb",
+      "message": "Feature - Media detail pages show availability and app links instantly",
+      "author": "Lasikiewicz",
+      "details": [
+        "Media detail pages remember each title's availability badges (Available in 1080p/4K, per-season counts) and show them instantly on open instead of loading blank",
+        "Plex/Emby/Jellyfin open-in-app buttons appear immediately from the last visit and update silently in the background if availability changed",
+        "Availability shown on screen is no longer wiped when a background refresh fails; the last known state is kept and retried",
+        "Repeated availability lookups while a detail page loads are deduplicated, reducing redundant server queries"
+      ]
+    },
     {
       "version": "0.4.37",
       "date": "2026-07-07T14:25:39+01:00",
