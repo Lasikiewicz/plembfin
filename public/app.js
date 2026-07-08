@@ -1383,7 +1383,10 @@ function syncPageTopbar() {
   const mediaDetailActions = document.getElementById("mediaDetailActions");
   if (elements.pageTopbarActions) {
     if (activeControls) {
-      elements.pageTopbarActions.insertBefore(activeControls, mediaDetailActions || null);
+      const targetNextSibling = mediaDetailActions || null;
+      if (activeControls.parentElement !== elements.pageTopbarActions || activeControls.nextSibling !== targetNextSibling) {
+        elements.pageTopbarActions.insertBefore(activeControls, targetNextSibling);
+      }
       activeControls.classList.remove("hidden");
     }
     if (mediaDetailActions && mediaDetailActions.parentElement !== elements.pageTopbarActions) {

@@ -795,7 +795,7 @@ export function renderShowModalContent(show, {
         <span>Edit <br>Date</span>
       </button>` : ""}
     ${tmdbOnly ? "" : `
-      <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-poster-url="${escapeAttribute(show.poster_url || "")}" data-logo-url="${escapeAttribute(show.logo_url || "")}" data-backdrop-url="${escapeAttribute(show.backdrop_url || "")}">
+      <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-poster-url="${escapeAttribute(show.poster_url || "")}" data-logo-url="${escapeAttribute(show.logo_url || "")}" data-backdrop-url="${escapeAttribute(show.backdrop_url || "")}">
         ${imageIcon}
         <span>Edit <br>Images</span>
       </button>

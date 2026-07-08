@@ -370,11 +370,11 @@ function extractYouTubeId(url) {
   return null;
 }
 
-export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, onSaved) {
+export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, onSaved, options = {}) {
   document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
 
   let activeTab = "poster";
-  const mediaTitle = tmdbData?.title || tmdbData?.name || "";
+  const mediaTitle = tmdbData?.title || tmdbData?.name || options.title || "";
   // Identifiers used to resolve artwork. Overridable via the manual match search
   // box so images still load when the automatic match failed.
   const match = {
@@ -477,6 +477,12 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   const matchInput = overlay.querySelector(".edit-image-match-input");
   const matchBtn = overlay.querySelector(".edit-image-match-btn");
   const matchResults = overlay.querySelector(".edit-image-match-results");
+
+  const setDialogStatus = (message = "", tone = "error") => {
+    status.textContent = message;
+    status.classList.toggle("is-success", tone === "success");
+    status.classList.toggle("is-muted", tone === "muted");
+  };
 
   customToggle.addEventListener("click", () => {
     customPanel.hidden = !customPanel.hidden;
@@ -777,7 +783,7 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
       loadBackgrounds();
     } else if (tab === "youtube") {
       gridEl.innerHTML = "";
-      status.textContent = "";
+      setDialogStatus("");
       ytRow.style.display = "";
     }
   };
@@ -789,16 +795,18 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
   saveBtn.addEventListener("click", async () => {
     const url = urlInput.value.trim();
-    if (activeTab === "youtube" && !ytInput.value.trim()) { status.textContent = "Please enter a YouTube URL."; return; }
-    if (activeTab !== "youtube" && !url) { status.textContent = "Please select or upload an image."; return; }
-    status.textContent = "Saving…";
+    if (activeTab === "youtube" && !ytInput.value.trim()) { setDialogStatus("Please enter a YouTube URL."); return; }
+    if (activeTab !== "youtube" && !url) { setDialogStatus("Please select or upload an image."); return; }
+    const originalLabel = saveBtn.textContent;
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving...";
+    setDialogStatus("Saving...", "muted");
     try {
       const field = imageSections[activeTab]?.field || "poster_url";
       const payload = activeTab === "youtube"
         ? { youtube_url: ytInput.value.trim(), ...(url ? { poster_url: url } : {}) }
         : { [field]: url };
       const saved = await apiUpdateWatch(id, payload);
-      overlay.remove();
       onSaved?.({
         ...payload,
         ...(saved?.poster_url ? { poster_url: saved.poster_url } : {}),
@@ -806,8 +814,16 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
         storage_url: saved?.poster_url,
         updated_ids: saved?.updated_ids,
       });
+      setDialogStatus("Saved.", "success");
+      saveBtn.textContent = "Saved";
+      window.setTimeout(() => {
+        if (!saveBtn.isConnected) return;
+        saveBtn.textContent = imageSections[activeTab]?.saveLabel || originalLabel || "Save";
+      }, 1200);
     } catch (err) {
-      status.textContent = `Error: ${err.message}`;
+      setDialogStatus(`Error: ${err.message}`);
+    } finally {
+      saveBtn.disabled = false;
     }
   });
 
@@ -856,24 +872,65 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   const ytPreview = overlay.querySelector(".fix-match-yt-preview");
   const tmdbType = mediaType === "movie" ? "movie" : "tv";
 
-  const doTvRematch = async (tvdbId, title) => {
+  const setResultBusy = (button, label = "Saving match...") => {
+    for (const result of resultsEl.querySelectorAll(".fix-match-result")) {
+      result.disabled = true;
+      result.classList.toggle("is-rematching", result === button);
+    }
+    let progress = button.querySelector(".fix-match-result-progress");
+    if (!progress) {
+      progress = document.createElement("span");
+      progress.className = "fix-match-result-progress";
+      button.appendChild(progress);
+    }
+    progress.innerHTML = `
+      <span class="fix-match-result-progress-label">${escapeHtml(label)}</span>
+      <span class="fix-match-result-progress-track"><span style="width: 100%;"></span></span>
+    `;
+  };
+
+  const setEpisodeProgress = (button, saved, total) => {
+    setResultBusy(button, `Rematching ${saved}/${total} episodes`);
+    const percent = total > 0 ? Math.round((saved / total) * 100) : 100;
+    const fill = button.querySelector(".fix-match-result-progress-track span");
+    if (fill) fill.style.width = `${percent}%`;
+  };
+
+  const doTvRematch = async (tvdbId, title, resultButton) => {
     const rows = fullShowWatchedRows(currentTitle);
     if (rows.length) {
-      status.textContent = `Rematching 0/${rows.length} episodes...`;
+      status.textContent = "";
+      if (resultButton) setEpisodeProgress(resultButton, 0, rows.length);
       let saved = 0;
       for (const row of rows) {
         await apiUpdateWatch(row.id, { tvdb_id: tvdbId, tmdb_id: "" });
+        row.tvdb_id = tvdbId;
+        row.tmdb_id = "";
+        row.poster_url = "";
+        row.logo_url = "";
+        row.backdrop_url = "";
         saved += 1;
-        status.textContent = `Rematching ${saved}/${rows.length} episodes...`;
+        if (resultButton) setEpisodeProgress(resultButton, saved, rows.length);
       }
+    } else if (id) {
+      if (resultButton) setResultBusy(resultButton, "Saving match...");
+      await apiUpdateWatch(id, { tvdb_id: tvdbId, tmdb_id: "" });
     }
     const showKey = slug(currentTitle);
     const show = state.showsRaw.find((item) => slug(item.title) === showKey);
-    if (show) { show.tvdb_id = tvdbId; show.tmdb_id = ""; }
+    if (show) {
+      show.tvdb_id = tvdbId;
+      show.tmdb_id = "";
+      show.poster_url = "";
+      show.logo_url = "";
+      show.backdrop_url = "";
+    }
     state.tmdbDetailsCache.clear();
     state.tmdbSeasonCache.clear();
+    _clearDerivedUiCaches({ resetExplorer: true });
+    if (resultButton) setResultBusy(resultButton, "Refreshing artwork and metadata...");
+    await onSaved?.({ tmdb_id: "", tvdb_id: tvdbId, title, refreshed: true });
     overlay.remove();
-    onSaved?.({ tmdb_id: "", tvdb_id: tvdbId, title });
   };
 
   const doSearch = async () => {
@@ -896,11 +953,14 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
 
         resultsEl.querySelectorAll(".fix-match-result").forEach((btn) => {
           btn.addEventListener("click", async () => {
-            status.textContent = "Rematching…";
+            status.textContent = "";
+            setResultBusy(btn, "Preparing rematch...");
             try {
-              await doTvRematch(btn.dataset.tvdbId, btn.dataset.title);
+              await doTvRematch(btn.dataset.tvdbId, btn.dataset.title, btn);
             } catch (err) {
               status.textContent = `Error: ${err.message}`;
+              btn.classList.remove("is-rematching");
+              for (const result of resultsEl.querySelectorAll(".fix-match-result")) result.disabled = false;
             }
           });
         });
@@ -926,14 +986,20 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
 
       resultsEl.querySelectorAll(".fix-match-result").forEach((btn) => {
         btn.addEventListener("click", async () => {
-          status.textContent = "Saving…";
+          status.textContent = "";
+          setResultBusy(btn, "Saving match...");
           try {
             await apiUpdateWatch(id, { tmdb_id: btn.dataset.tmdbId });
             state.tmdbDetailsCache.clear();
+            state.tmdbSeasonCache.clear();
+            _clearDerivedUiCaches({ resetExplorer: true });
+            setResultBusy(btn, "Refreshing artwork and metadata...");
+            await onSaved?.({ tmdb_id: btn.dataset.tmdbId, title: btn.dataset.title, refreshed: true });
             overlay.remove();
-            onSaved?.({ tmdb_id: btn.dataset.tmdbId, title: btn.dataset.title });
           } catch (err) {
             status.textContent = `Error: ${err.message}`;
+            btn.classList.remove("is-rematching");
+            for (const result of resultsEl.querySelectorAll(".fix-match-result")) result.disabled = false;
           }
         });
       });

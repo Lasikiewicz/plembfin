@@ -592,9 +592,6 @@ function attachEvents() {
     window.clearTimeout(state.explorerSearchTimer);
     state.explorerSearchTimer = window.setTimeout(() => {
       state.explorerSearch = elements.explorerSearchInput.value.trim();
-      if (elements.globalSearchInput && elements.globalSearchInput.value !== state.explorerSearch) {
-        elements.globalSearchInput.value = state.explorerSearch;
-      }
       renderExplorer();
     }, 220);
   });
@@ -633,16 +630,6 @@ function attachEvents() {
     else {
       renderGlobalSearchDropdown(query);
       state.globalSearchRemoteTimer = window.setTimeout(() => loadGlobalDiscovery(query), 260);
-    }
-    if (state.activeView === "explorer") {
-      window.clearTimeout(state.explorerSearchTimer);
-      state.explorerSearchTimer = window.setTimeout(() => {
-        state.explorerSearch = query;
-        if (elements.explorerSearchInput && elements.explorerSearchInput.value !== query) {
-          elements.explorerSearchInput.value = query;
-        }
-        renderExplorer();
-      }, 220);
     }
   });
 

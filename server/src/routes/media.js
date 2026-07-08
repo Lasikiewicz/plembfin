@@ -486,8 +486,10 @@ export async function handleUpdateWatch(req, res) {
     if (row) {
       const mediaType = row.media_type === "movie" ? "movie" : "tv";
       const docKey = `${mediaType}_${body.tmdb_id}`;
-      // Don't delete the TMDB cache - the new ID may already be cached
-      // But do clear the poster cache so it re-fetches with the new TMDB ID
+      if (body.tmdb_id) {
+        db.prepare("DELETE FROM tmdb_metadata_cache WHERE id = ?").run(docKey);
+      }
+      // Clear the poster cache so it re-fetches with the new TMDB ID.
       const mediaKey = row.media_key;
       if (mediaKey) {
         await deletePosterCacheByMediaKey(mediaKey).catch(() => null);
@@ -509,6 +511,9 @@ export async function handleUpdateWatch(req, res) {
   if (body.tvdb_id !== undefined && preUpdateRow) {
     if (preUpdateRow.tmdb_id) {
       db.prepare("DELETE FROM tmdb_metadata_cache WHERE id = ?").run(`tv_${preUpdateRow.tmdb_id}`);
+    }
+    if (body.tvdb_id) {
+      db.prepare("DELETE FROM tvdb_metadata_cache WHERE id = ?").run(`series_${body.tvdb_id}`);
     }
     if (preUpdateRow.media_key) {
       await deletePosterCacheByMediaKey(preUpdateRow.media_key).catch(() => null);

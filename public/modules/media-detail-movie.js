@@ -178,7 +178,7 @@ function _renderWatchedMovieContent(root, movie, {
       <span>Mark <br>Unwatched</span>
     </button>
     ${ytWatchBtn}
-    <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
+    <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || movieTitle || "")}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
       ${imageIcon}
       <span>Edit <br>Images</span>
     </button>
@@ -287,7 +287,7 @@ export function patchMovieWatchedState(movie) {
       <span>Mark <br>Unwatched</span>
     </button>
     ${ytWatchBtn}
-    <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
+    <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
       ${imageIcon}
       <span>Edit <br>Images</span>
     </button>

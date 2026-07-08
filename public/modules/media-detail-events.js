@@ -182,6 +182,7 @@ export function attachMediaDetailEvents() {
       if (!tmdbData && entry?.tmdb_id && entry.media_type === "movie") {
         tmdbData = { id: entry.tmdb_id, title: entry.title, media_type: "movie" };
       }
+      const imageDialogTitle = editImageBtn.dataset.title || tmdbData?.title || tmdbData?.name || entry?.title || "";
       openEditImageDialog(container, id, editImageBtn.dataset.posterUrl, tmdbData, ({ poster_url, logo_url, backdrop_url, youtube_url, storage_url, updated_ids }) => {
         if (poster_url) {
           editImageBtn.dataset.posterUrl = poster_url;
@@ -230,7 +231,7 @@ export function attachMediaDetailEvents() {
         if (youtube_url !== undefined) {
           editImageBtn.dataset.youtubeUrl = youtube_url;
         }
-      });
+      }, { title: imageDialogTitle });
       return;
     }
 
@@ -245,8 +246,9 @@ export function attachMediaDetailEvents() {
     if (fixMatchBtn) {
       const container = fixMatchBtn.closest(".immersive-container, .modal-body") || document.body;
       const mediaType = fixMatchBtn.dataset.mediaType;
-      openFixMatchDialog(container, fixMatchBtn.dataset.editId, fixMatchBtn.dataset.title, mediaType, ({ tmdb_id }) => {
+      openFixMatchDialog(container, fixMatchBtn.dataset.editId, fixMatchBtn.dataset.title, mediaType, async ({ tmdb_id, tvdb_id, title }) => {
         state.tmdbDetailsCache.clear();
+        state.tmdbSeasonCache.clear();
         const syncJobCard = fixMatchBtn.closest(".sync-job-card");
         const inSyncIssues = fixMatchBtn.closest("#syncIssuesContainer");
         if (syncJobCard || inSyncIssues) {
@@ -257,10 +259,35 @@ export function attachMediaDetailEvents() {
           });
         } else if (mediaType === "movie") {
           const movie = state.history.find((h) => h.id === fixMatchBtn.dataset.editId);
-          if (movie) { movie.tmdb_id = tmdb_id; renderMovieImmersiveModalContent(movie).catch(() => { }); }
+          if (movie) {
+            movie.tmdb_id = tmdb_id;
+            movie.poster_url = "";
+            movie.logo_url = "";
+            movie.backdrop_url = "";
+          }
+          try {
+            const res = await fetch(`/api/history?id=${encodeURIComponent(fixMatchBtn.dataset.editId)}`, { headers: authHeaders(), cache: "no-store" });
+            const body = await res.json().catch(() => ({}));
+            const freshMovie = body.row || movie;
+            if (freshMovie) {
+              freshMovie.tmdb_id = tmdb_id;
+              await renderMovieImmersiveModalContent(freshMovie);
+            }
+          } catch {
+            if (movie) await renderMovieImmersiveModalContent(movie);
+          }
         } else if (state.activeShowModalKey) {
+          const showTitle = fixMatchBtn.dataset.title || title || "";
           const show = state.showsRaw.find((s) => slug(s.title) === state.activeShowModalKey);
-          if (show) { show.tmdb_id = tmdb_id; openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason, state.activeShowModalEpisode).catch(() => { }); }
+          if (show) {
+            show.tmdb_id = tmdb_id;
+            show.tvdb_id = tvdb_id || show.tvdb_id;
+            show.poster_url = "";
+            show.logo_url = "";
+            show.backdrop_url = "";
+          }
+          if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
+          await openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason, state.activeShowModalEpisode).catch(() => { });
         }
       });
       return;

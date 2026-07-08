@@ -4880,9 +4880,21 @@ details[open] .tool-accordion-chevron::before {
   transition: background 100ms, border-color 100ms;
 }
 
+.fix-match-result:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .fix-match-result:hover {
   background: var(--panel-3);
   border-color: var(--blue);
+}
+
+.fix-match-result.is-rematching {
+  align-items: flex-start;
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue), transparent 90%);
+  opacity: 1;
 }
 
 .fix-match-result img {
@@ -4896,6 +4908,47 @@ details[open] .tool-accordion-chevron::before {
 .fix-match-result small {
   color: var(--muted);
   font-size: 0.75rem;
+}
+
+.fix-match-result-progress {
+  display: grid;
+  gap: 0.35rem;
+  flex: 1 1 auto;
+  min-width: 9rem;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.fix-match-result-progress-label {
+  white-space: nowrap;
+}
+
+.fix-match-result-progress-track {
+  display: block;
+  width: 100%;
+  height: 0.36rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line), transparent 20%);
+}
+
+.fix-match-result-progress-track span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--blue);
+  transition: width 160ms ease;
+}
+
+.edit-dialog-status.is-success {
+  color: var(--green, #22c55e);
+}
+
+.edit-dialog-status.is-muted {
+  color: var(--muted);
 }
 
 /* ── end edit dialogs ────────────────────────────────────────────────── */

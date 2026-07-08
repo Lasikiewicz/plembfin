@@ -355,9 +355,6 @@ export function renderExplorer() {
   syncPageTopbar();
   const search = elements.explorerSearchInput ? elements.explorerSearchInput.value.trim() : state.explorerSearch;
   state.explorerSearch = search;
-  if (elements.globalSearchInput && elements.globalSearchInput.value !== state.explorerSearch) {
-    elements.globalSearchInput.value = state.explorerSearch;
-  }
   if (state.mediaDetailInline) {
     return;
   }
