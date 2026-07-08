@@ -44,6 +44,7 @@ pointed at the relevant file instead of re-deriving the architecture from the so
 | [dashboard.md](dashboard.md) | The home view: Now Playing, recent history rows, part-watched rail. |
 | [movies.md](movies.md) | The Movies library page. |
 | [tv-shows.md](tv-shows.md) | The TV Shows library page: progress, next-airing, show identity tools. |
+| [upcoming.md](upcoming.md) | The Upcoming page: month calendar, search, and future episode air dates. |
 | [media-detail.md](media-detail.md) | Movie/show/person detail pages: metadata, watch actions, Seerr, edit dialogs. |
 | [history-search.md](history-search.md) | The History page and global Search. |
 | [stats.md](stats.md) | The Stats page and its report payload. |

@@ -20,6 +20,7 @@
     <link rel="modulepreload" href="/modules/sync.js" />
     <link rel="modulepreload" href="/modules/dashboard.js" />
     <link rel="modulepreload" href="/modules/stats.js" />
+    <link rel="modulepreload" href="/modules/upcoming.js" />
     <link rel="modulepreload" href="/modules/explorer.js" />
     <link rel="modulepreload" href="/modules/edit-dialogs.js" />
     <link rel="modulepreload" href="/modules/watch-action.js" />
@@ -33,7 +34,7 @@
     <link rel="modulepreload" href="/modules/media-lightbox.js" />
     <link rel="modulepreload" href="/modules/media-detail-events.js" />
     <link rel="modulepreload" href="/modules/app-events.js" />
-    <link rel="stylesheet" href="/styles.css?v=20260704.19" />
+    <link rel="stylesheet" href="/styles.css?v=20260708.2" />
   </head>
   <body>
     <div class="app-chassis">
@@ -58,6 +59,7 @@
             <button class="nav-tab active" type="button" data-view="dashboard">Dashboard</button>
             <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="movies">Movies</button>
             <button class="nav-tab" type="button" data-view="explorer" data-explorer-nav="shows">TV Shows</button>
+            <button class="nav-tab" type="button" data-view="upcoming">Upcoming</button>
             <button class="nav-tab" type="button" data-view="history">History</button>
             <button class="nav-tab" type="button" data-view="stats">Stats</button>
           </div>
@@ -365,6 +367,24 @@
                 <div id="monthChart" class="month-chart"></div>
               </article>
             </div>
+          </section>
+        </section>
+
+        <section id="upcoming-view" class="view-panel hidden" data-view-panel="upcoming">
+          <section class="upcoming-control-row" aria-label="Upcoming calendar controls">
+            <div id="upcomingTopbarControls" class="upcoming-controls">
+              <button id="upcomingPrevButton" class="button-ghost upcoming-nav-button" type="button" aria-label="Previous month">&#8249;</button>
+              <span id="upcomingMonthTitle" class="upcoming-month-title"></span>
+              <button id="upcomingNextButton" class="button-ghost upcoming-nav-button" type="button" aria-label="Next month">&#8250;</button>
+              <button id="upcomingTodayButton" class="button-ghost" type="button">Today</button>
+            </div>
+            <label class="compact-field upcoming-search-field">
+              <span>Search</span>
+              <input id="upcomingSearchInput" class="field" type="search" placeholder="Search upcoming..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+            </label>
+          </section>
+          <section class="glass-panel p-section">
+            <div id="upcomingCalendar" class="upcoming-calendar"></div>
           </section>
         </section>
 

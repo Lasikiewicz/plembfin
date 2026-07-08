@@ -21,8 +21,8 @@ What the app does: it receives play/stop/scrobble **webhooks** from Plex, Emby, 
 Jellyfin, records watch history, and **propagates watched/unwatched state and resume
 progress to the other platforms** so all three stay in sync. On top of that it provides
 a dashboard (Now Playing + recent history), Movies/TV Shows library browsers, a stats
-page, rich media detail pages (TMDB/TVDB metadata, cast, trailers, artwork), Jellyseerr/
-Overseerr requesting, and a backup system.
+page, an upcoming-episodes calendar, rich media detail pages (TMDB/TVDB metadata,
+cast, trailers, artwork), Jellyseerr/Overseerr requesting, and a backup system.
 
 ## Task router — "I need to change X, where do I go?"
 
@@ -39,6 +39,7 @@ Overseerr requesting, and a backup system.
 | Dashboard rendering | `public/modules/dashboard.js` | [dashboard.md](dashboard.md) |
 | Movies library page | `public/modules/explorer.js`, `queryMovies` in `dataRepo.js` | [movies.md](movies.md) |
 | TV Shows library page | `public/modules/explorer.js`, `queryShows`, `showProgressCache.js`, `nextAiringCache.js` | [tv-shows.md](tv-shows.md) |
+| Upcoming episode calendar | `public/modules/upcoming.js`, `handleUpcoming` in `routes/metadata.js`, `nextAiringCache.js` | [upcoming.md](upcoming.md) |
 | Movie/show/person detail pages | `public/modules/media-detail*.js`, `media-person.js` | [media-detail.md](media-detail.md) |
 | History page, Search page | `public/modules/explorer.js`, `handleHistory` in `routes/media.js`, `handleMediaSearch` in `routes/metadata.js` | [history-search.md](history-search.md) |
 | Stats page | `public/modules/stats.js`, `getWatchStats` in `dataRepo.js` | [stats.md](stats.md) |
@@ -126,7 +127,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `admin.js` | Settings/admin API handlers: config, appearance, Seerr/app links, connection tests, and Plex notification probe. |
 | `backups.js` | Backup API handlers for portable import/export (`/api/import`, `/api/backup/export`, `/api/backup/import`), encrypted full backups (`/api/plembfin-backups`), and watch-history backup actions (`/api/watch-backups`). |
 | `media.js` | Library and history handlers: history, movies, shows/show detail, delete/update watch records, merge shows, full watchstate replay, and missing-telemetry clearing. |
-| `metadata.js` | Poster proxy and metadata/search handlers: TMDB details/search/season/images/person/poster/profile, TVDB search/images, Fanart images, media search, YouTube metadata, and OMDb ratings. |
+| `metadata.js` | Poster proxy and metadata/search handlers: TMDB details/search/season/images/person/poster/profile, TVDB search/images, Fanart images, media search, Upcoming episodes, YouTube metadata, and OMDb ratings. |
 | `sync.js` | Sync/runtime handlers: webhook ingestion, manual watch/unwatch, playback progress, retry sync, sync job/history listing, Now Playing, active sessions, cron sync, force sync, and stop-force-sync. |
 | `maintenance.js` | Maintenance/admin utility handlers: ping, changelog/update check, diagnostic logs, backfill/repair/dedup/rematch, cache stats, and cache clearing. |
 
@@ -173,7 +174,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 
 | File | What it is |
 | --- | --- |
-| `index.html` | The single HTML shell: nav tabs (Dashboard / Movies / TV Shows / History / Stats / Settings), one `view-panel` section per view, all modals/dialogs, and `modulepreload` links for every module. Element IDs here are what `bindElements()` queries. |
+| `index.html` | The single HTML shell: nav tabs (Dashboard / Movies / TV Shows / Upcoming / History / Stats / Settings), one `view-panel` section per view, all modals/dialogs, and `modulepreload` links for every module. Element IDs here are what `bindElements()` queries. |
 | `app.js` | **Frontend orchestrator** (keep under 3,000 lines): startup, theme init, backend warm-up ping, `bindElements`, SPA routing (`handleRouting`/`navigateTo`/`selectView`), auth flow wiring, and the callback objects handed to each module's `init*` function. Feature logic belongs in `public/modules/`, not here. |
 | `styles.css` | All styling for the app, including responsive/mobile rules (mobile ≤ 760px must be verified for any layout change). |
 | `favicon.svg`, `plembfin_header_logo_dark.png`, `plembfin_header_logo_light.png` | App icon and the theme-specific header logos swapped by the theme toggle. |
@@ -193,6 +194,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `dashboard.js` | Dashboard rendering: Now Playing grid, recent-history rows, part-watched (continue watching) rail. See [dashboard.md](dashboard.md). |
 | `stats.js` | Stats page: KPI cards, leaderboards, platform split, month chart, yearly/monthly review reports. See [stats.md](stats.md). |
 | `explorer.js` | Movies grid, TV Shows grid, History page, Search page: paging, sorting, filters, IntersectionObserver infinite scroll, TMDB prefetch. See [movies.md](movies.md), [tv-shows.md](tv-shows.md), [history-search.md](history-search.md). |
+| `upcoming.js` | Upcoming page: month calendar of future TV episode air dates, search, outside-month matches, poster hydration, and show navigation. See [upcoming.md](upcoming.md). |
 | `media-detail.js` | Detail-page entry points: open movie/show detail by id/slug/TMDB id, lookups, modal-close routing. |
 | `media-detail-context.js` | Detail-modal shell/context: init callbacks, `authHeaders`, modal DOM root, render token, debug modal, actions-menu state. |
 | `media-detail-shared.js` | Shared TMDB/Seerr rendering fragments: rating pills, availability labels, Seerr request pills/controls, external ratings, app links. |
@@ -384,8 +386,8 @@ Full detail: [auth.md](auth.md).
   feature code split across `public/modules/` and `app.js` kept to startup,
   routing, shared callbacks, and element binding.
 - SPA navigation via `navigateTo(url)` / `handleRouting()` / `history.pushState`.
-  Routes: `/` dashboard, `/movies`, `/tvshows`, `/history`, `/stats`, `/search`,
-  `/settings/:tab` (plus `/sync` and `/logs` shortcuts), `/movie/:id`,
+  Routes: `/` dashboard, `/movies`, `/tvshows`, `/upcoming`, `/history`, `/stats`,
+  `/search`, `/settings/:tab` (plus `/sync` and `/logs` shortcuts), `/movie/:id`,
   `/movie/tmdb/:id`, `/tvshow/:key(/season/:n(/episode/:n))`, `/tvshow/tmdb/:id`,
   `/person/:id`.
 - Auth handled by `onAuthChange()` (`modules/auth.js`) — which checks

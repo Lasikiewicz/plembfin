@@ -5129,6 +5129,7 @@ details[open] .tool-accordion-chevron::before {
 
   body .page-topbar-actions .explorer-controls:not(.hidden),
   body .page-topbar-actions .stats-controls:not(.hidden),
+  body .page-topbar-actions .upcoming-controls:not(.hidden),
   body .page-topbar-actions .sidebar-sub-menu:not(.hidden) {
     display: flex !important;
     flex-direction: row !important;
@@ -13151,5 +13152,418 @@ html.light-mode .settings-pane .drop-zone:hover {
   body .seerr-request-btn br,
   body .rating-pill br {
     display: none !important;
+  }
+}
+
+/* --- Upcoming calendar ------------------------------------------------- */
+
+.upcoming-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.15rem 0 0.1rem;
+}
+
+.upcoming-controls {
+  display: grid;
+  grid-template-columns: auto auto auto auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.upcoming-month-title {
+  font-size: 1rem;
+  font-weight: 800;
+  min-width: 10.5rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.upcoming-nav-button {
+  min-width: 2.4rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.upcoming-search-field {
+  grid-template-columns: auto minmax(0, 1fr);
+  width: min(21rem, 100%);
+  min-width: 0;
+}
+
+.upcoming-search-field input {
+  width: 100%;
+  min-width: 0;
+}
+
+.upcoming-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.upcoming-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0 0.2rem;
+}
+
+.upcoming-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.upcoming-day {
+  min-height: 7.35rem;
+  min-width: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.upcoming-day.is-outside {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--line);
+}
+
+.upcoming-day.is-past {
+  opacity: 0.55;
+}
+
+.upcoming-day.is-today {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.upcoming-day-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.upcoming-day-number {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--soft);
+}
+
+.upcoming-day.is-today .upcoming-day-number {
+  color: var(--accent);
+}
+
+.upcoming-day-weekday {
+  display: none;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.upcoming-day-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.upcoming-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  padding: 0.3rem 0.45rem 0.3rem 0.3rem;
+  color: var(--text);
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.upcoming-entry:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+.upcoming-entry-poster {
+  width: 2.35rem;
+  height: 3.525rem;
+  flex-shrink: 0;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--panel-3);
+  display: block;
+}
+
+.upcoming-entry-poster.poster-fallback {
+  border: 1px solid var(--line);
+}
+
+.upcoming-entry-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.upcoming-entry-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.upcoming-entry-code {
+  color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.upcoming-entry-date {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.upcoming-entry-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upcoming-entry-episode {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upcoming-status {
+  color: var(--muted);
+  padding: 0.6rem 0.2rem;
+}
+
+.upcoming-search-results {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.upcoming-search-results-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.upcoming-search-results-head p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.upcoming-search-results-head span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.upcoming-search-results-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 0.45rem;
+}
+
+html.light-mode .upcoming-day {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+html.light-mode .upcoming-day.is-outside {
+  background: transparent;
+}
+
+html.light-mode .upcoming-entry {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+html.light-mode .upcoming-entry:hover {
+  background: rgba(59, 130, 246, 0.06);
+}
+
+/* Mobile (≤760px): the 7-column grid becomes an agenda list — weekday header
+   and empty/outside day cells are hidden, days with episodes stack full-width. */
+@media (max-width: 760px) {
+  .upcoming-control-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 0.55rem;
+    padding-inline: 0;
+  }
+
+  .upcoming-controls {
+    display: grid;
+    grid-template-columns: 2.75rem minmax(8rem, 1fr) 2.75rem;
+    width: min(100%, 28rem);
+    gap: 0.45rem;
+  }
+
+  .upcoming-month-title {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    font-size: 0.96rem;
+    line-height: 1.2;
+    align-self: center;
+  }
+
+  .upcoming-nav-button {
+    min-width: 2.75rem;
+  }
+
+  #upcomingPrevButton {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  #upcomingNextButton {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  #upcomingTodayButton {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: center;
+    min-width: 7rem;
+  }
+
+  .upcoming-search-field {
+    grid-template-columns: minmax(0, 1fr);
+    width: min(100%, 28rem);
+    min-width: 0;
+  }
+
+  .upcoming-search-field span {
+    display: none;
+  }
+
+  .upcoming-search-field input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .upcoming-controls .button-ghost {
+    min-height: 2.75rem;
+  }
+
+  .upcoming-weekdays {
+    display: none;
+  }
+
+  .upcoming-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .upcoming-day.is-outside,
+  .upcoming-day.is-empty {
+    display: none;
+  }
+
+  .upcoming-day {
+    min-height: 0;
+    padding: 0.5rem;
+    gap: 0.45rem;
+  }
+
+  .upcoming-day.is-past {
+    opacity: 0.75;
+  }
+
+  .upcoming-day-weekday {
+    display: inline;
+  }
+
+  .upcoming-day-head {
+    gap: 0.45rem;
+  }
+
+  .upcoming-day-number,
+  .upcoming-day-weekday {
+    font-size: 0.85rem;
+  }
+
+  .upcoming-day-entries {
+    gap: 0.45rem;
+  }
+
+  .upcoming-entry {
+    min-height: 4.6rem;
+    gap: 0.65rem;
+    padding: 0.45rem;
+    font-size: 0.82rem;
+  }
+
+  .upcoming-entry-poster {
+    width: 2.9rem;
+    height: 4.35rem;
+  }
+
+  .upcoming-entry-title,
+  .upcoming-entry-episode {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .upcoming-entry-title {
+    -webkit-line-clamp: 2;
+  }
+
+  .upcoming-entry-episode {
+    -webkit-line-clamp: 2;
+  }
+
+  .upcoming-search-results-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .upcoming-controls {
+    grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
+  }
+
+  .upcoming-month-title {
+    font-size: 0.9rem;
+  }
+
+  .upcoming-entry {
+    align-items: flex-start;
   }
 }

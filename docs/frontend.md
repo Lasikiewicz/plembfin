@@ -10,9 +10,9 @@ the module rules. Feature-specific behavior lives in the per-feature docs
 ## Structure
 
 - **`public/index.html`** — the single shell: nav tabs, one `view-panel` section per
-  view (`data-view-panel="dashboard|history|stats|explorer|settings|search"`), every
-  modal/dialog, and `modulepreload` links for each module. All element IDs the JS uses
-  are defined here and bound once by `bindElements()` in `app.js`.
+  view (`data-view-panel="dashboard|history|stats|explorer|upcoming|settings|search"`),
+  every modal/dialog, and `modulepreload` links for each module. All element IDs the JS
+  uses are defined here and bound once by `bindElements()` in `app.js`.
 - **`public/app.js`** — orchestrator only (hard rule: stays under 3,000 lines):
   startup, theme, backend warm-up ping, element binding, routing, auth wiring, and the
   callback objects passed to each module's `init*(callbacks)` function. Modules never
@@ -48,6 +48,7 @@ SPA navigation via `history.pushState`:
 | --- | --- |
 | `/`, `/dashboard` | Dashboard |
 | `/movies`, `/tvshows` | Explorer in movies/shows mode |
+| `/upcoming` | Upcoming TV episode calendar |
 | `/history`, `/stats`, `/search?q=` | History / Stats / Search |
 | `/settings/:tab`, `/sync`, `/logs` | Settings (tab from `SETTINGS_TABS`) |
 | `/movie/:idOrSlug`, `/movie/tmdb/:id` | Movie detail (inline in explorer) |
@@ -86,6 +87,9 @@ SPA navigation via `history.pushState`:
   [posters-artwork.md](posters-artwork.md).
 - Now Playing polls only while the dashboard is visible — see
   [now-playing.md](now-playing.md).
+- Upcoming loads one month at a time through `/api/upcoming`; its search can prefetch
+  the next 12 months to list matches outside the selected month — see
+  [upcoming.md](upcoming.md).
 - Long-lived caches (explorer pages, dashboard history, poster lookups) persist to
   localStorage with TTLs and versioned keys; bump the key version when the cached
   shape changes.

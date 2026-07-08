@@ -9,6 +9,7 @@ import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinB
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync } from "./modules/sync.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
+import { initUpcoming, renderUpcoming, loadUpcoming } from "./modules/upcoming.js";
 import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js";
 import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js";
 import { initWatchAction, rerenderWatchDateCustomPicker, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js";
@@ -296,6 +297,13 @@ function bindElements() {
     statsMediaFilter: document.querySelector("#statsMediaFilter"),
     statsPeriodType: document.querySelector("#statsPeriodType"),
     statsPeriodValue: document.querySelector("#statsPeriodValue"),
+    upcomingCalendar: document.querySelector("#upcomingCalendar"),
+    upcomingTopbarControls: document.querySelector("#upcomingTopbarControls"),
+    upcomingMonthTitle: document.querySelector("#upcomingMonthTitle"),
+    upcomingPrevButton: document.querySelector("#upcomingPrevButton"),
+    upcomingNextButton: document.querySelector("#upcomingNextButton"),
+    upcomingTodayButton: document.querySelector("#upcomingTodayButton"),
+    upcomingSearchInput: document.querySelector("#upcomingSearchInput"),
     statsActivityTitle: document.querySelector("#statsActivityTitle"),
     statsActivitySubtitle: document.querySelector("#statsActivitySubtitle"),
     statsLeaderboardSubtitle: document.querySelector("#statsLeaderboardSubtitle"),
@@ -1103,6 +1111,10 @@ function handleRouting(path) {
     state.activeView = "stats";
     state.mediaDetailInline = false;
     clearMediaDetailState();
+  } else if (pathname === "/upcoming") {
+    state.activeView = "upcoming";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
   } else if (pathname === "/history") {
     state.activeView = "history";
     state.mediaDetailInline = false;
@@ -1323,6 +1335,9 @@ function syncPageTopbar() {
     title = "Stats";
     subtitle = "";
     activeControls = elements.statsTopbarControls;
+  } else if (state.activeView === "upcoming") {
+    title = "Upcoming";
+    subtitle = "";
   } else if (state.activeView === "settings") {
     title = settingsTopbarTitle();
     subtitle = "";
@@ -1414,6 +1429,10 @@ function applyActiveView() {
   if (state.activeView === "stats") {
     renderStats();
     loadStats().catch((error) => setMessage(error.message, "error"));
+  }
+  if (state.activeView === "upcoming") {
+    renderUpcoming();
+    loadUpcoming().catch((error) => setMessage(error.message, "error"));
   }
   if (state.activeView === "explorer" && !state.mediaDetailInline) renderExplorer();
   if (state.activeView === "search") renderSearchPage();
@@ -2453,6 +2472,10 @@ function initialize() {
   });
   initStats({
     slug,
+  });
+  initUpcoming({
+    navigateTo,
+    setMessage,
   });
   loadAppVersion();
   bootstrapTokenFromUrl();

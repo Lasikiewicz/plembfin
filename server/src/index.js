@@ -6,7 +6,7 @@ import { handleBackupExport, handleBackupImport, handleImport, handlePlembfinBac
 import { handleAppearance, handleConfig, handleMediaAppLinks, handleSeerrMediaStatus, handleSeerrRequest, handleSeerrStatus, handleTestConnection, handleTestPlexNotifications } from "./routes/admin.js";
 import { handleClearMissingTelemetry, handleDeleteMedia, handleFullSyncWatchstates, handleHistory, handleMergeShows, handleMovies, handleShow, handleShows, handleUpdateWatch } from "./routes/media.js";
 import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleManualUnwatch, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleRetrySync, handleStopForceSync, handleSyncHistory, handleSyncJobs, handleWebhook } from "./routes/sync.js";
-import { handleFanartImages, handleMediaSearch, handleOmdbRating, handlePoster, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleYoutubeMeta } from "./routes/metadata.js";
+import { handleFanartImages, handleMediaSearch, handleOmdbRating, handlePoster, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleYoutubeMeta } from "./routes/metadata.js";
 import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDedupHistory, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRematchTvShows } from "./routes/maintenance.js";
 
 function routePath(req) {
@@ -37,6 +37,7 @@ async function dispatch(req, res) {
     if (path === "delete-media") return handleDeleteMedia(req, res);
     if (path === "shows") return handleShows(req, res);
     if (path === "show") return handleShow(req, res);
+    if (path === "upcoming") return handleUpcoming(req, res);
     if (path === "full-sync-watchstates") return handleFullSyncWatchstates(req, res);
     if (path === "import") return handleImport(req, res);
     if (path === "backup/export") return handleBackupExport(req, res);

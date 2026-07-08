@@ -982,7 +982,7 @@ function attachEvents() {
   });
 
   window.addEventListener("scroll", () => {
-    if (state.activeView !== "explorer" && state.activeView !== "history") return;
+    if (state.activeView !== "explorer" && state.activeView !== "history" && state.activeView !== "upcoming") return;
     if (state.activeView === "explorer") {
       state.explorerScrollArmed = true;
     } else if (state.activeView === "history") {
@@ -994,7 +994,9 @@ function attachEvents() {
       state.posterHydrateScrollScheduled = false;
       const container = state.activeView === "explorer"
         ? elements.explorerPanel
-        : elements.historyPanel;
+        : state.activeView === "history"
+          ? elements.historyPanel
+          : elements.upcomingCalendar;
       hydratePosters(container);
     });
   }, { passive: true });

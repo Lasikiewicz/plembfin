@@ -27,6 +27,7 @@
 | **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |
 | **Now Playing dashboard** | Real-time active sessions, weekly charts, and recent watch history |
 | **Stats** | All-time and per-period reports with top shows, platform breakdowns, and watch trends |
+| **Upcoming episodes** | Month calendar with TV air dates, mobile agenda layout, and search across upcoming months |
 | **Trakt import** | Import your full Trakt history and push it out to all connected servers |
 | **Seerr integration** | Request movies and shows from detail pages via Overseerr or Jellyseerr |
 | **Movie collections** | Movie pages show a poster row of other films in the same franchise (sequels, prequels, spin-offs) |
@@ -307,7 +308,7 @@ Plembfin runs as a single-process Node application:
 *   **Scheduler**: Runs in-process on a `setInterval` timer (no crontab required). It executes once per minute to reconcile active play states, check sync queues, maintain the TV next-airing cache, and perform nightly backups.
 *   **Pre-push build check**: Before code is deployed or pushed, `npm run build` is run automatically. This checks JavaScript syntax and boots the server temporarily in a clean directory on port 0 to verify startup health.
 
-For the full technical reference — a complete map of every file in the repository, a task router, and per-feature deep dives (Plex/Emby/Jellyfin integrations, dashboard, libraries, media detail, backups, metadata, posters, auth) — start at [`docs/architecture.md`](docs/architecture.md) and the [docs index](docs/README.md).
+For the full technical reference — a complete map of every file in the repository, a task router, and per-feature deep dives (Plex/Emby/Jellyfin integrations, dashboard, libraries, upcoming episodes, media detail, backups, metadata, posters, auth) — start at [`docs/architecture.md`](docs/architecture.md) and the [docs index](docs/README.md).
 
 ---
 

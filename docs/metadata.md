@@ -12,6 +12,7 @@ caches every source (the CSP is `connect-src 'self'`).
 | `server/src/utils/tvdbGateway.js` | TheTVDB v4 gateway; caches in `tvdb_metadata_cache`, `tvdb_season_cache` |
 | `server/src/utils/fanartGateway.js` | Fanart.tv artwork (posters, backdrops, HD logos) |
 | `server/src/utils/omdbGateway.js` | OMDb — IMDb rating/votes by IMDb id (`omdb_cache`, 7-day TTL) |
+| `server/src/utils/nextAiringCache.js` | File-backed next-airing cache used to narrow Upcoming page episode lookups |
 | `server/src/utils/tmdbClient.js` | Thin poster-URL helper for the poster pipeline's TMDB fallback |
 | `public/modules/tmdb.js` | Frontend fetch + in-memory cache over the `/api/tmdb-*` endpoints |
 
@@ -82,6 +83,7 @@ so detail pages open hot. Settings → Cache (`GET /api/cache-stats`,
 | `GET /api/tmdb-poster`, `GET /api/tmdb-profile` | Image proxies (rate-limited 300/min) |
 | `GET /api/omdb-rating` | IMDb rating pill |
 | `GET /api/youtube-meta` | Trailer metadata |
+| `GET /api/upcoming?month=YYYY-MM` | Future TV episodes for the Upcoming calendar |
 | `POST /api/refresh-tmdb-metadata`, `POST /api/rematch-tv-shows` | Cache refresh / identity fixes |
 
 ## Frontend

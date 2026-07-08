@@ -22,7 +22,8 @@ import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, getCachedTvdbId } from "../utils/tmdbGateway.js";
-import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from "../utils/tvdbGateway.js";
+import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork, getTvdbSeasonEpisodes } from "../utils/tvdbGateway.js";
+import { readNextAiringCache, cachedNextAiringFor } from "../utils/nextAiringCache.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
@@ -860,5 +861,95 @@ export async function handleOmdbRating(req, res) {
     return sendJson(res, rating || {});
   } catch (err) {
     return sendJson(res, { error: err.message }, 500);
+  }
+}
+
+// --- Upcoming episodes calendar ---------------------------------------------
+// Powers the Upcoming page: every tracked show's episodes airing in a given
+// month. Candidates are pre-filtered through the next-airing cache (maintained
+// by the scheduler) so shows with nothing scheduled never trigger metadata
+// fetches; season data comes from the TVDB season cache.
+const upcomingMemo = new Map();
+const UPCOMING_MEMO_TTL_MS = 10 * 60 * 1000;
+const UPCOMING_MEMO_MAX_ENTRIES = 12;
+const UPCOMING_CONCURRENCY = 4;
+
+function upcomingMonthBounds(month) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  return { start: `${month}-01`, end: `${month}-${String(lastDay).padStart(2, "0")}` };
+}
+
+async function collectUpcomingEpisodes(month) {
+  const { start, end } = upcomingMonthBounds(month);
+  const today = new Date().toISOString().slice(0, 10);
+  const [shows, airingCache] = await Promise.all([getCachedShows(), readNextAiringCache()]);
+
+  const seenTmdbIds = new Set();
+  const queue = shows.filter((show) => {
+    if (!show.tmdb_id || seenTmdbIds.has(show.tmdb_id)) return false;
+    const entry = cachedNextAiringFor(airingCache.entries, show.tmdb_id, show.title);
+    if (!entry?.nextAiringDate || entry.nextAiringDate > end) return false;
+    seenTmdbIds.add(show.tmdb_id);
+    return true;
+  });
+
+  const episodes = [];
+  async function worker() {
+    for (let show = queue.shift(); show; show = queue.shift()) {
+      const details = await getTmdbDetails({ mediaType: "tv", tmdbId: show.tmdb_id, title: show.title, ids: { tvdbId: show.tvdb_id } }).catch(() => null);
+      const tvdbId = String(details?.external_ids?.tvdb_id || show.tvdb_id || "");
+      if (!tvdbId) continue;
+      const maxSeason = Math.max(0, ...(details?.seasons || []).map((season) => Number(season.season_number) || 0));
+      const seasonNumbers = [...new Set([maxSeason, maxSeason + 1])].filter((value) => value > 0);
+      for (const seasonNumber of seasonNumbers) {
+        const season = await getTvdbSeasonEpisodes({ tvdbId, seasonNumber }).catch(() => null);
+        for (const episode of season?.episodes || []) {
+          const airDate = String(episode.air_date || "");
+          if (!airDate || airDate < today || airDate < start || airDate > end) continue;
+          episodes.push({
+            airDate,
+            showTitle: show.title,
+            showId: show.id,
+            tmdbId: String(show.tmdb_id),
+            tvdbId,
+            posterUrl: show.poster_url || "",
+            posterRecordId: show.representative_episode?.id || "",
+            season: seasonNumber,
+            episode: Number(episode.episode_number) || 0,
+            episodeTitle: episode.name || "",
+            status: details?.status || show.status || "",
+          });
+        }
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(UPCOMING_CONCURRENCY, queue.length)) }, worker));
+
+  episodes.sort((a, b) => a.airDate.localeCompare(b.airDate)
+    || a.showTitle.localeCompare(b.showTitle)
+    || a.season - b.season
+    || a.episode - b.episode);
+  return { month, start, end, episodes };
+}
+
+export async function handleUpcoming(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const requested = String(req.query.month || "").trim();
+    const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : new Date().toISOString().slice(0, 7);
+    const memoized = upcomingMemo.get(month);
+    if (memoized && Date.now() - memoized.builtAtMs < UPCOMING_MEMO_TTL_MS) return sendJson(res, memoized.payload);
+    const payload = await collectUpcomingEpisodes(month);
+    upcomingMemo.set(month, { builtAtMs: Date.now(), payload });
+    for (const key of upcomingMemo.keys()) {
+      if (upcomingMemo.size <= UPCOMING_MEMO_MAX_ENTRIES) break;
+      upcomingMemo.delete(key);
+    }
+    return sendJson(res, payload);
+  } catch (error) {
+    return sendJson(res, { error: error.message }, error.status || 500);
   }
 }
