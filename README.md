@@ -203,6 +203,7 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 *   Each episode row on a TV show's detail page shows its resolution (e.g. 720p, 1080p, 4K) when the episode is available in one of the configured apps.
 *   Requesting a TV show opens a season picker listing every season (with current availability), so you can choose exactly which seasons to send to Seerr instead of requesting the whole series.
 *   Availability and resolution lookups are cached in memory for 3 minutes per title, so reopening a detail page doesn't re-query Plex/Emby/Jellyfin/Seerr every time; submitting a request clears that title's cache immediately.
+*   The browser also remembers the last known availability and open-in-app links for each title, so detail pages show availability badges and app buttons instantly on open and refresh them silently in the background when anything changed.
 
 ---
 

@@ -863,7 +863,10 @@ export function renderShowModalContent(show, {
     </div>
     ${renderWatchDatePrompt(state.pendingWatchAction)}
   `;
-  if (tvSeerrTmdbId && !hasTvSeerrStatus) {
+  // Refresh when there's no status yet, or when the rendered status came from
+  // the persisted cache (`stale`) — the fetch resolves null if nothing
+  // changed, so an up-to-date page never re-renders.
+  if (tvSeerrTmdbId && (!hasTvSeerrStatus || tvSeerrStatus.stale)) {
     fetchSeerrMediaStatus("tv", tvSeerrTmdbId)
       .then((status) => {
         if (!status || state.activeShowModalKey !== slug(show.title)) return;

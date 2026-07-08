@@ -8,6 +8,73 @@ function authHeaders() {
   return buildAuthHeaders(state.token);
 }
 
+// ── Persistent availability caches ─────────────────────────────────────────
+// Seerr media status and media-app-link lookups are slow (the server has to
+// ask Seerr and each media server), so the last known result of each is
+// persisted in localStorage. Detail pages render instantly from the persisted
+// copy, then a background refresh updates the page only when something
+// actually changed since the last visit.
+
+const SEERR_STATUS_CACHE_KEY = "plembfin:seerrStatusCache:v1";
+const APP_LINKS_CACHE_KEY = "plembfin:appLinksCache:v1";
+const AVAILABILITY_CACHE_LIMIT = 150;
+const APP_LINKS_REFRESH_TTL_MS = 5 * 60 * 1000;
+// Lookup key → when it was last refreshed over the network this session, so
+// the repeated re-renders of one detail page don't each refetch app links.
+const appLinksRefreshedAt = new Map();
+
+(function seedSeerrStatusCacheFromStorage() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(SEERR_STATUS_CACHE_KEY) || "{}");
+    for (const [key, entry] of Object.entries(stored)) {
+      if (!entry || typeof entry !== "object" || state.seerrMediaStatusCache.has(key)) continue;
+      // `stale` marks the entry as rendered-from-storage: it still needs a
+      // silent background refresh the next time its detail page renders.
+      state.seerrMediaStatusCache.set(key, { ...entry, loading: false, stale: true });
+    }
+  } catch { /* persisted availability is best-effort */ }
+})();
+
+function persistSeerrStatusCache() {
+  try {
+    const entries = [...state.seerrMediaStatusCache.entries()]
+      .filter(([, entry]) => entry?.ok)
+      .sort(([, a], [, b]) => (b._cachedAt || 0) - (a._cachedAt || 0))
+      .slice(0, AVAILABILITY_CACHE_LIMIT);
+    const snapshot = {};
+    for (const [key, entry] of entries) {
+      const { loading, stale, ...data } = entry;
+      snapshot[key] = data;
+    }
+    localStorage.setItem(SEERR_STATUS_CACHE_KEY, JSON.stringify(snapshot));
+  } catch { /* persisted availability is best-effort */ }
+}
+
+function comparableSeerrStatus(entry) {
+  if (!entry?.ok) return "";
+  const { loading, stale, _cachedAt, ...data } = entry;
+  return JSON.stringify(data);
+}
+
+function readAppLinksCache() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(APP_LINKS_CACHE_KEY) || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeAppLinksCacheEntry(cacheKey, links) {
+  try {
+    const cache = readAppLinksCache();
+    cache[cacheKey] = { links, ts: Date.now() };
+    const byRecency = Object.keys(cache).sort((a, b) => (cache[b]?.ts || 0) - (cache[a]?.ts || 0));
+    for (const staleKey of byRecency.slice(AVAILABILITY_CACHE_LIMIT)) delete cache[staleKey];
+    localStorage.setItem(APP_LINKS_CACHE_KEY, JSON.stringify(cache));
+  } catch { /* persisted availability is best-effort */ }
+}
+
 export function renderCastSection(tmdbData) {
   const cast = tmdbData?.credits?.cast || [];
   if (!cast.length) return "";
@@ -343,6 +410,22 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
   `;
 }
 
+function appLinkRowHtml(links = []) {
+  const linkMap = new Map(links.map((link) => [link.target, link]));
+  const activeLinkHtml = [...linkMap.values()].map((link) => `
+    <a class="media-app-link media-app-link--${escapeAttribute(link.target || "")}" href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(`Open in ${link.label}`)}" aria-label="${escapeAttribute(`Open in ${link.label}`)}">
+      ${link.iconUrl ? `<img class="media-app-link-logo" src="${escapeAttribute(link.iconUrl)}" alt="" loading="lazy" data-err="hide-show-next" />` : ""}
+      <span>${escapeHtml(link.label)}</span>
+    </a>
+  `).join("");
+  if (!activeLinkHtml) return "";
+  return `
+    <b class="media-app-link-row">
+      ${activeLinkHtml}
+    </b>
+  `;
+}
+
 export async function hydrateMediaAppLinks(root = document) {
   const containers = [...root.querySelectorAll("[data-media-app-links]")];
   if (!containers.length) return;
@@ -375,31 +458,30 @@ export async function hydrateMediaAppLinks(root = document) {
       </b>
     `;
 
-    container.innerHTML = greyedOutHtml;
+    // Render the last known links instantly; fall back to greyed placeholders
+    // only when this lookup has never succeeded before.
+    const cacheKey = params.toString();
+    const cachedEntry = readAppLinksCache()[cacheKey];
+    const cachedLinks = Array.isArray(cachedEntry?.links) ? cachedEntry.links : null;
+    const cachedRowHtml = cachedLinks ? appLinkRowHtml(cachedLinks) : "";
+    container.innerHTML = cachedRowHtml || greyedOutHtml;
+
+    // A detail page re-renders several times as metadata arrives; refresh a
+    // known result over the network at most once per TTL window.
+    if (cachedLinks && Date.now() - (appLinksRefreshedAt.get(cacheKey) || 0) < APP_LINKS_REFRESH_TTL_MS) return;
 
     try {
       const response = await fetch(`/api/media-app-links?${params.toString()}`, { headers: authHeaders(), cache: "no-store" });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(body.links)) return;
-      const links = body.links;
-      const linkMap = new Map(links.map((link) => [link.target, link]));
-
-      const activeLinkHtml = [...linkMap.values()].map((link) => `
-        <a class="media-app-link media-app-link--${escapeAttribute(link.target || "")}" href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(`Open in ${link.label}`)}" aria-label="${escapeAttribute(`Open in ${link.label}`)}">
-          ${link.iconUrl ? `<img class="media-app-link-logo" src="${escapeAttribute(link.iconUrl)}" alt="" loading="lazy" data-err="hide-show-next" />` : ""}
-          <span>${escapeHtml(link.label)}</span>
-        </a>
-      `).join("");
-
-      if (activeLinkHtml) {
-        container.innerHTML = `
-          <b class="media-app-link-row">
-            ${activeLinkHtml}
-          </b>
-        `;
-      }
+      appLinksRefreshedAt.set(cacheKey, Date.now());
+      if (JSON.stringify(body.links) === JSON.stringify(cachedLinks)) return;
+      writeAppLinksCacheEntry(cacheKey, body.links);
+      const freshRowHtml = appLinkRowHtml(body.links);
+      if (freshRowHtml) container.innerHTML = freshRowHtml;
+      else if (cachedRowHtml) container.innerHTML = greyedOutHtml;
     } catch {
-      // App links are optional; leave the greyed-out versions if lookup fails.
+      // App links are optional; leave whatever is rendered if the lookup fails.
     }
   }));
 }
@@ -542,17 +624,25 @@ export function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false
 export function fetchSeerrMediaStatus(mediaType, tmdbId) {
   if (!state.seerrConfigured || !tmdbId) return Promise.resolve(null);
   const cacheKey = `${mediaType}:${tmdbId}`;
-  if (state.seerrMediaStatusCache.get(cacheKey)?.loading) return Promise.resolve(null);
-  state.seerrMediaStatusCache.set(cacheKey, { ...(state.seerrMediaStatusCache.get(cacheKey) || {}), loading: true });
+  const previous = state.seerrMediaStatusCache.get(cacheKey);
+  if (previous?.loading) return Promise.resolve(null);
+  state.seerrMediaStatusCache.set(cacheKey, { ...(previous || {}), loading: true });
   return fetch(`/api/seerr/media-status?mediaType=${encodeURIComponent(mediaType)}&mediaId=${encodeURIComponent(tmdbId)}`, { headers: authHeaders() })
     .then((response) => response.json().then((body) => ({ response, body })).catch(() => ({ response, body: {} })))
     .then(({ response, body }) => {
       if (!response.ok || !body.ok) throw new Error(body.error || `Seerr status failed with ${response.status}`);
-      state.seerrMediaStatusCache.set(cacheKey, { ...body, loading: false });
+      const fresh = { ...body, loading: false, _cachedAt: Date.now() };
+      state.seerrMediaStatusCache.set(cacheKey, fresh);
+      persistSeerrStatusCache();
+      // Callers re-render when a status is returned, so resolve null when the
+      // background refresh matches what the persisted cache already rendered.
+      if (comparableSeerrStatus(previous) === comparableSeerrStatus(fresh)) return null;
       return body;
     })
     .catch(() => {
-      state.seerrMediaStatusCache.set(cacheKey, { loading: false });
+      // Keep the previously cached availability on a failed refresh; it stays
+      // marked stale so the next render retries it.
+      state.seerrMediaStatusCache.set(cacheKey, previous?.ok ? { ...previous, loading: false } : { loading: false });
       return null;
     });
 }

@@ -64,9 +64,15 @@ in-app navigation state. TV URLs support deep links:
   (`modules/sync.js`), with retry (`POST /api/retry-sync`).
 - **Seerr integration** — when Jellyseerr/Overseerr is configured, availability status
   (`GET /api/seerr/media-status`) and request buttons (`POST /api/seerr/request`,
-  season-level for TV, optional 4K) render on the page.
+  season-level for TV, optional 4K) render on the page. The last known status per
+  title is persisted in localStorage (`plembfin:seerrStatusCache:v1`), so availability
+  pills render instantly on page open; a silent background refresh re-renders the page
+  only when the status actually changed (`fetchSeerrMediaStatus` resolves `null` when
+  the fresh result matches the persisted one).
 - **App links** — "open in Plex/Emby/Jellyfin" deep links via
-  `GET /api/media-app-links`.
+  `GET /api/media-app-links`. The last known links per title are persisted in
+  localStorage (`plembfin:appLinksCache:v1`) and rendered instantly; a background
+  refresh (at most once per 5 minutes per title) updates the buttons only on change.
 - **Edit tools** — edit watched date (single, per-season, per-show), edit artwork
   (poster/logo/backdrop picker fed by `GET /api/tmdb-images`, `/api/tvdb-images`,
   `/api/fanart-images`; saves via `POST /api/update-watch`), fix match
