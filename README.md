@@ -34,7 +34,7 @@
 | **Automated backups** | Daily local backups with optional mirror to Backblaze B2 |
 | **Self-hosted & private** | SQLite on your own hardware — no cloud accounts required |
 | **Security hardening** | Strict CSP headers, scrypt hashing, rate-limited login, HMAC-signed sessions |
-| **Artwork pipeline** | Posters and logos fetched from TMDB, TheTVDB, and Fanart.tv, resized and cached locally |
+| **Artwork pipeline** | Posters and logos fetched from TMDB, TheTVDB, and Fanart.tv, resized and cached locally; the per-title artwork picker includes a manual search for titles that fail to match automatically |
 | **Accurate TV episode data** | TV show names, seasons, episode numbering, titles, and air dates are sourced from TheTVDB; cast, trailers, reviews, and recommendations are sourced from TMDB |
 
 ---

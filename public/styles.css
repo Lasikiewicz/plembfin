@@ -4575,6 +4575,22 @@ details[open] .tool-accordion-chevron::before {
   margin: 0.2rem 0 0;
 }
 
+.edit-image-match-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.edit-image-match-row .edit-image-match-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.edit-image-match-results {
+  max-height: 260px;
+  flex-shrink: 0;
+}
+
 .edit-image-tools {
   display: flex;
   flex-direction: column;

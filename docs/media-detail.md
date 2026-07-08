@@ -77,6 +77,10 @@ in-app navigation state. TV URLs support deep links:
   (poster/logo/backdrop picker fed by `GET /api/tmdb-images`, `/api/tvdb-images`,
   `/api/fanart-images`; saves via `POST /api/update-watch`), fix match
   (`GET /api/media-search` + re-link), merge show. All in `edit-dialogs.js`.
+  The artwork dialog has a match search box at the top (`GET /api/tmdb-search`):
+  when a title has no automatic TMDB/TVDB match, searching and picking a result
+  swaps the identifiers the picker browses with — the record itself is not
+  re-linked (use Fix Match for that).
 - **Debug modal** — `openHistoryDebugModal` shows the raw watch record + telemetry for
   a history row.
 

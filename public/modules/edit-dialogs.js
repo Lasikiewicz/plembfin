@@ -375,6 +375,13 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
 
   let activeTab = "poster";
   const mediaTitle = tmdbData?.title || tmdbData?.name || "";
+  // Identifiers used to resolve artwork. Overridable via the manual match search
+  // box so images still load when the automatic match failed.
+  const match = {
+    tmdbId: tmdbData?.id ? String(tmdbData.id) : "",
+    tvdbId: String(tmdbData?.tvdb_id || tmdbData?.external_ids?.tvdb_id || "").trim(),
+    title: mediaTitle,
+  };
   const imageSections = {
     poster: { label: "Poster", searchLabel: "posters", saveLabel: "Save poster", field: "poster_url" },
     logo: { label: "Logo", searchLabel: "logo art", saveLabel: "Save logo", field: "logo_url" },
@@ -383,7 +390,7 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   };
 
   const searchLinks = (kind) => {
-    const query = encodeURIComponent(`${mediaTitle || "media"} ${imageSections[kind]?.searchLabel || "artwork"}`);
+    const query = encodeURIComponent(`${match.title || "media"} ${imageSections[kind]?.searchLabel || "artwork"}`);
     return `
       <div class="edit-image-search-links">
         <a href="https://www.google.com/search?tbm=isch&q=${query}" target="_blank" rel="noopener noreferrer">Google</a>
@@ -418,6 +425,11 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
           </div>
           <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
         </div>
+        <div class="edit-image-match-row">
+          <input type="search" class="field edit-image-match-input" placeholder="Search for the correct title…" value="${escapeAttribute(mediaTitle)}" />
+          <button class="button-ghost edit-image-match-btn" type="button">Search</button>
+        </div>
+        <div class="fix-match-results edit-image-match-results" style="display:none;"></div>
         <p class="edit-dialog-status" style="margin:0;"></p>
         <div class="edit-image-yt-row" style="display:none;">
           <label class="field-label" style="margin-top: 0.75rem;">
@@ -461,6 +473,10 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   const subtitleEl = overlay.querySelector(".edit-image-subtitle");
   const toolsEl = overlay.querySelector(".edit-image-tools");
   const linksSlot = overlay.querySelector(".edit-image-links-slot");
+  const matchRow = overlay.querySelector(".edit-image-match-row");
+  const matchInput = overlay.querySelector(".edit-image-match-input");
+  const matchBtn = overlay.querySelector(".edit-image-match-btn");
+  const matchResults = overlay.querySelector(".edit-image-match-results");
 
   customToggle.addEventListener("click", () => {
     customPanel.hidden = !customPanel.hidden;
@@ -536,20 +552,18 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   ytFetchBtn.addEventListener("click", fetchYouTubeThumbnails);
   ytInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); fetchYouTubeThumbnails(); } });
 
-  const tvdbId = () => String(tmdbData?.tvdb_id || tmdbData?.external_ids?.tvdb_id || "").trim();
-
   let tmdbImages = null;
   const getTmdbImages = async () => {
     if (tmdbImages) return tmdbImages;
-    const tmdbId = tmdbData?.id;
+    const tmdbId = match.tmdbId;
     const mediaType = resolvedMediaType();
-    const canResolve = tmdbId || (mediaType === "tv" && (tvdbId() || mediaTitle));
+    const canResolve = tmdbId || (mediaType === "tv" && (match.tvdbId || match.title));
     if (state.savedConfig?.tmdb?.configured && canResolve) {
       try {
         const params = new URLSearchParams({ mediaType });
         if (tmdbId) params.set("tmdbId", String(tmdbId));
-        if (mediaTitle) params.set("title", mediaTitle);
-        if (mediaType === "tv" && tvdbId()) params.set("tvdbId", tvdbId());
+        if (match.title) params.set("title", match.title);
+        if (mediaType === "tv" && match.tvdbId) params.set("tvdbId", match.tvdbId);
         const res = await fetch(`/api/tmdb-images?${params.toString()}`, { headers: authHeaders() });
         tmdbImages = await res.json();
       } catch { tmdbImages = {}; }
@@ -566,9 +580,9 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
     if (mediaType !== "tv") { tvdbImages = {}; return tvdbImages; }
     try {
       const params = new URLSearchParams();
-      if (tvdbId()) params.set("tvdbId", tvdbId());
-      if (mediaTitle) params.set("title", mediaTitle);
-      if (tmdbData?.id) params.set("tmdbId", String(tmdbData.id));
+      if (match.tvdbId) params.set("tvdbId", match.tvdbId);
+      if (match.title) params.set("title", match.title);
+      if (match.tmdbId) params.set("tmdbId", match.tmdbId);
       const res = await fetch(`/api/tvdb-images?${params.toString()}`, { headers: authHeaders() });
       tvdbImages = await res.json();
     } catch { tvdbImages = {}; }
@@ -578,7 +592,7 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   let fanartImages = null;
   const getFanartImages = async () => {
     if (fanartImages) return fanartImages;
-    const tmdbId = tmdbData?.id;
+    const tmdbId = match.tmdbId;
     const mediaType = resolvedMediaType();
     if (tmdbId) {
       try {
@@ -683,6 +697,61 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
     else { status.textContent = state.savedConfig?.tmdb?.configured ? "No backgrounds found." : "Configure a TMDB API key to browse backgrounds."; gridEl.innerHTML = ""; }
   };
 
+  const reloadActiveTab = () => {
+    if (activeTab === "poster") loadPosters();
+    else if (activeTab === "logo") loadLogos();
+    else if (activeTab === "background") loadBackgrounds();
+  };
+
+  const doMatchSearch = async () => {
+    const query = matchInput.value.trim();
+    if (!query) return;
+    if (!state.savedConfig?.tmdb?.configured) { status.textContent = "Configure a TMDB API key to search for a match."; return; }
+    status.textContent = "Searching…";
+    matchResults.style.display = "none";
+    matchResults.innerHTML = "";
+    try {
+      const mediaType = resolvedMediaType();
+      const res = await fetch(`/api/tmdb-search?mediaType=${encodeURIComponent(mediaType)}&query=${encodeURIComponent(query)}`, { headers: authHeaders() });
+      const data = await res.json();
+      const results = (data.results || []).slice(0, 10);
+      if (!results.length) { status.textContent = "No matches found."; return; }
+      status.textContent = "";
+      matchResults.style.display = "";
+      matchResults.innerHTML = results.map((item) => {
+        const poster = tmdbPoster(item.poster_path) || "/favicon.svg";
+        const title = item.title || item.name || "Unknown";
+        const year = (item.release_date || item.first_air_date || "").slice(0, 4);
+        return `
+          <button class="fix-match-result" type="button" data-tmdb-id="${item.id}" data-title="${escapeAttribute(title)}">
+            <img src="${escapeAttribute(poster)}" alt="" data-err="fav" />
+            <span>${escapeHtml(title)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
+          </button>
+        `;
+      }).join("");
+      matchResults.querySelectorAll(".fix-match-result").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          match.tmdbId = btn.dataset.tmdbId;
+          match.title = btn.dataset.title;
+          match.tvdbId = "";
+          matchInput.value = btn.dataset.title;
+          matchResults.style.display = "none";
+          matchResults.innerHTML = "";
+          tmdbImages = null;
+          tvdbImages = null;
+          fanartImages = null;
+          linksSlot.innerHTML = searchLinks(activeTab);
+          reloadActiveTab();
+        });
+      });
+    } catch (err) {
+      status.textContent = `Search failed: ${err.message}`;
+    }
+  };
+
+  matchBtn.addEventListener("click", doMatchSearch);
+  matchInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doMatchSearch(); } });
+
   const switchTab = (tab) => {
     activeTab = tab;
     overlay.querySelectorAll(".edit-image-tab").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tab));
@@ -692,6 +761,9 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
     gridEl.style.display = "";
     gridEl.classList.remove("edit-image-grid--logo", "edit-image-grid--backdrop");
     ytRow.style.display = "none";
+    matchRow.style.display = tab === "youtube" ? "none" : "";
+    matchResults.style.display = "none";
+    matchResults.innerHTML = "";
     toolsEl.style.display = tab === "youtube" ? "none" : "";
     titleEl.textContent = imageSections[tab]?.label || "Poster";
     subtitleEl.textContent = tab === "youtube" ? "Paste a YouTube URL and choose the thumbnail to use." : "Choose TMDB or TVDB artwork, use fanart.tv fallback, or upload your own image.";
