@@ -1,7 +1,19 @@
 {
-  "version": "0.4.43",
-  "updatedAt": "2026-07-10T13:32:10+01:00",
+  "version": "0.4.44",
+  "updatedAt": "2026-07-10T16:16:26+01:00",
   "entries": [
+    {
+      "version": "0.4.44",
+      "date": "2026-07-10T16:16:26+01:00",
+      "commit": "2075e8b34524e6ca3e735168ad7f33eb54a1698c",
+      "message": "Fix - Make Part Watched app badges open media apps",
+      "author": "Lasikiewicz",
+      "details": [
+        "App Used badges now open matching Plex, Emby, or Jellyfin items from the Part Watched rail",
+        "Existing media identifiers and app-link lookups deep-link to the selected platform",
+        "Updated dashboard documentation and feature guidance"
+      ]
+    },
     {
       "version": "0.4.43",
       "date": "2026-07-10T13:32:10+01:00",
