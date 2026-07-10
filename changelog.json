@@ -1,7 +1,23 @@
 {
-  "version": "0.4.41",
-  "updatedAt": "2026-07-08T12:09:33+01:00",
+  "version": "0.4.42",
+  "updatedAt": "2026-07-10T09:36:41+01:00",
   "entries": [
+    {
+      "version": "0.4.42",
+      "date": "2026-07-10T09:36:41+01:00",
+      "commit": "edcbaf624a068fc6ce1133dda60652fccd963651",
+      "message": "Feature - Enhance person profiles with social links and filmography filtering",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add social media icons (IMDb, Instagram, X, Facebook, TikTok, Wikidata)",
+        "Add filter/sort controls for filmography by type (all/movie/TV), year, and genre",
+        "Redesigned layout: responsive two-column sidebar/content on desktop, stacked on mobile",
+        "Show biography and personal info in expandable sidebar with age display",
+        "Change filmography default sort from popularity to release date (newest first)",
+        "Improve responsive typography and spacing with CSS clamp()",
+        "Update media-detail.md documentation for person pages"
+      ]
+    },
     {
       "version": "0.4.41",
       "date": "2026-07-08T12:09:33+01:00",
