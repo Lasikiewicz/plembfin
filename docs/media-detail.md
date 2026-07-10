@@ -87,10 +87,16 @@ in-app navigation state. TV URLs support deep links:
 ## Person pages
 
 `loadCastMemberDetails(personId)` fetches `GET /api/tmdb-person` (server-cached, 7-day
-TTL), renders bio + filmography, and overlays watch badges by matching filmography
-entries against the local library (`findLibraryItem`,
-`hydratePersonFilmographyWatchStatuses`). Filmography paginates with an
-IntersectionObserver (`FILMOGRAPHY_PAGE_SIZE` 40). `state.personReturnUrl` remembers
+TTL), renders a sidebar with profile image, name, age, biography, and personal info
+(birthdate, place of birth, known-for department), plus social media links (IMDb,
+Instagram, X, Facebook, TikTok, Wikidata). The main content area shows filmography
+with three filter/sort controls: media type (all/movie/TV), year, and genre. Credits
+are sorted by default by release date (newest first); other sort options are popularity,
+release date (oldest first), and alphabetical title sort. A watch badge overlay on each
+credit indicates whether it's in the library. Filmography paginates with an
+IntersectionObserver (`FILMOGRAPHY_PAGE_SIZE` 40) and matches entries against the local
+library (`findLibraryItem`, `hydratePersonFilmographyWatchStatuses`). The page layout
+is responsive and stacks vertically on smaller screens. `state.personReturnUrl` remembers
 where to go back to.
 
 ## Gotchas

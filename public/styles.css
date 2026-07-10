@@ -9888,23 +9888,25 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
   cursor: pointer;
 }
 
-/* Person Profile Modal Styles */
+/* Person profile */
 .person-profile-container {
   display: grid;
-  grid-template-columns: 200px 1fr;
-  gap: 2rem;
+  grid-template-columns: minmax(360px, 440px) minmax(0, 1fr);
+  gap: clamp(1.5rem, 3vw, 3rem);
   align-items: start;
   min-width: 0;
 }
 
+.person-profile-sidebar,
 .person-profile-content {
   min-width: 0;
 }
 
 .person-profile-name {
-  margin: 0 0 1rem;
-  font-size: 1.6rem;
+  margin: 1.25rem 0 0;
+  font-size: clamp(1.55rem, 2.2vw, 2rem);
   font-weight: 800;
+  line-height: 1.1;
 }
 
 .person-profile-age {
@@ -9913,25 +9915,26 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
   color: var(--muted);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 920px) {
   .person-profile-container {
     grid-template-columns: 1fr;
-    gap: 1.5rem;
+    gap: 2rem;
   }
+
   .person-profile-sidebar {
-    display: flex;
-    gap: 1.5rem;
-    align-items: center;
+    max-width: 42rem;
   }
+
   .person-profile-img {
-    width: 160px !important;
-    height: 240px !important;
+    width: min(100%, 350px) !important;
   }
 }
 
 .person-profile-img {
-  width: 200px;
-  height: 300px;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 3;
   object-fit: cover;
   border-radius: var(--radius);
   border: 1px solid var(--line-strong);
@@ -9939,9 +9942,18 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
 }
 
 .person-profile-meta {
-  margin-top: 1.5rem;
-  display: grid;
-  gap: 0.75rem;
+  margin: 0 0 1.1rem;
+  padding: 0 0 0.35rem;
+}
+
+.person-profile-meta-items {
+  display: flex;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: thin;
 }
 
 .person-profile-meta h3 {
@@ -9950,13 +9962,15 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
   text-transform: uppercase;
   color: var(--blue);
   letter-spacing: 0.05em;
-  margin-bottom: 0.25rem;
+  margin: 0 0 0.55rem;
 }
 
 .person-profile-meta .meta-item {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .person-profile-meta .meta-label {
@@ -9969,35 +9983,51 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
 .person-profile-meta .meta-value {
   font-size: 0.85rem;
   color: var(--text);
+  white-space: nowrap;
 }
 
 .person-socials .person-socials-links {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .person-social-link {
-  display: inline-block;
-  padding: 0.18rem 0.55rem;
-  border-radius: 999px;
+  display: inline-flex;
+  width: 1.9rem;
+  height: 1.9rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  border-radius: var(--radius);
   background: var(--surface-hover);
   border: 1px solid var(--line);
   color: var(--soft);
-  font-size: 0.78rem;
-  font-weight: 700;
   text-decoration: none;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .person-social-link:hover {
   background: #2a3a4d;
   color: #fff;
+  border-color: var(--line-strong);
+}
+
+.person-social-icon {
+  display: block;
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.person-social-icon--imdb,
+.person-social-icon--wikidata {
+  width: 1.35rem;
 }
 
 .person-biography-section h3 {
   font-size: 1.1rem;
-  margin-bottom: 0.5rem;
+  margin: 1.4rem 0 0.5rem;
   color: #fff;
 }
 
@@ -10007,6 +10037,11 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
   color: var(--soft);
   white-space: pre-line;
   margin: 0;
+  max-width: 65ch;
+}
+
+.person-photos-section {
+  min-width: 0;
 }
 
 .person-photos-section h3,
@@ -10030,11 +10065,12 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
 
 .person-photos-grid {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.5rem;
-  max-height: 540px;
-  overflow-y: auto;
-  padding-bottom: 0.5rem;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 0 0.65rem;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
 }
@@ -10151,19 +10187,122 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
 
 .person-credits-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1.4rem 0.85rem;
 }
 
-@media (max-width: 900px) {
-  .person-credits-grid { grid-template-columns: repeat(3, 1fr); }
+.person-credits-section {
+  margin-top: 2.5rem;
 }
 
-@media (max-width: 600px) {
-  .person-credits-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-2);
-  }
+.person-credits-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.65rem 1.2rem;
+  padding: 0.55rem 0 0.8rem;
+}
+
+.person-credit-filter {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: 0;
+  gap: 0.45rem;
+}
+
+.person-credit-filter > span {
+  flex: 0 0 auto;
+  color: var(--soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.person-media-filter-buttons {
+  display: flex;
+  min-width: 0;
+  gap: 0.3rem;
+}
+
+.person-filter-button {
+  min-height: 1.9rem;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.person-filter-button:hover {
+  border-color: color-mix(in srgb, var(--blue), transparent 35%);
+  color: var(--soft);
+}
+
+.person-filter-button.active {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue), transparent 88%);
+  color: var(--blue);
+}
+
+.person-filter-button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.person-credit-filter select {
+  width: auto;
+  min-width: 7rem;
+  padding: 0.25rem 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  color: var(--soft);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.person-credit-filter select:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+
+.person-credits-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 0 0.85rem;
+}
+
+.person-credits-header h3 {
+  margin: 0;
+}
+
+.person-credits-count {
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.person-credits-loading {
+  display: flex;
+  min-height: 100px;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .pill-toggle-group {
@@ -10210,18 +10349,12 @@ html.light-mode .pill-toggle.active {
 }
 
 .person-credit-card {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  overflow: hidden;
-  transition: border-color 150ms ease, background 150ms ease;
+  display: block;
+  min-width: 0;
   cursor: pointer;
   text-decoration: none;
   color: inherit;
-  gap: 0;
+  transition: transform 160ms ease;
 }
 
 .person-credit-card:any-link {
@@ -10229,43 +10362,69 @@ html.light-mode .pill-toggle.active {
   text-decoration: none;
 }
 
-.person-credit-card.in-library {
-  border-color: rgba(16, 185, 129, 0.3);
-  background: rgba(16, 185, 129, 0.03);
+.person-credit-card:hover {
+  transform: translateY(-3px);
 }
 
-.person-credit-card.in-library:hover {
+.person-credit-card:focus-visible {
+  border-radius: var(--poster-radius);
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+
+.person-credit-poster-wrap {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 2 / 3;
+  border: 1px solid var(--line);
+  border-radius: var(--poster-radius);
+  background: var(--panel-2);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.person-credit-card.in-library .person-credit-poster-wrap {
+  border-color: rgba(16, 185, 129, 0.42);
+}
+
+.person-credit-card.in-library:hover .person-credit-poster-wrap {
   border-color: var(--green);
-  background: rgba(16, 185, 129, 0.08);
+  box-shadow: 0 8px 22px rgba(16, 185, 129, 0.12);
 }
 
-.person-credit-card:not(.in-library):hover {
+.person-credit-card:not(.in-library):hover .person-credit-poster-wrap {
   border-color: rgba(59, 130, 246, 0.5);
-  background: rgba(59, 130, 246, 0.05);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
 }
 
 .person-credit-poster {
-  width: 150px;
-  flex-shrink: 0;
+  width: 100%;
+  height: 100%;
   aspect-ratio: 2 / 3;
   object-fit: cover;
   display: block;
-  border-radius: var(--poster-radius);
   background: #111;
 }
 
 .person-credit-info {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  padding: 0.5rem 0.6rem;
-  flex: 1;
+  gap: 0.18rem;
+  padding: 0.5rem 0.1rem 0;
   min-width: 0;
-  justify-content: center;
+}
+
+.person-credit-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.35rem;
 }
 
 .person-credit-title {
-  font-size: 0.82rem;
+  min-width: 0;
+  flex: 1;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;
@@ -10282,16 +10441,20 @@ html.light-mode .pill-toggle.active {
 }
 
 .person-credit-year {
+  flex: 0 0 auto;
   font-size: 0.7rem;
   color: var(--soft);
 }
 
 .person-credit-badges {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  left: 0.4rem;
   display: flex;
-  flex-direction: row;
   flex-wrap: wrap;
   gap: 0.25rem;
-  margin-top: 0.25rem;
+  align-items: flex-end;
 }
 
 .library-badge,
@@ -10323,31 +10486,46 @@ html.light-mode .pill-toggle.active {
   opacity: 0.8;
 }
 
+@media (max-width: 1100px) {
+  .person-credits-controls {
+    flex-wrap: wrap;
+  }
+}
+
 @media (max-width: 768px) {
-  .person-credit-card {
-    flex-direction: column !important;
+  .person-media-filter-buttons {
+    flex-wrap: wrap;
   }
 
-  .person-credit-poster {
-    width: 100% !important;
-    height: auto !important;
-    aspect-ratio: 2 / 3 !important;
-  }
-
-  .person-credit-info {
-    padding: var(--space-2) !important;
+  .person-credits-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem var(--space-2);
   }
 
   .person-photos-grid {
-    display: grid !important;
-    grid-template-columns: repeat(3, 1fr) !important;
+    display: flex !important;
     gap: var(--space-2) !important;
   }
 
   .person-photo-thumb {
-    width: 100% !important;
-    height: auto !important;
-    aspect-ratio: 2 / 3 !important;
+    width: auto !important;
+    height: 150px !important;
+    aspect-ratio: auto !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .person-credits-controls {
+    align-items: stretch;
+  }
+
+  .person-credit-filter {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .person-credits-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -12163,6 +12341,13 @@ html.light-mode .person-credits-section h3 {
 
 html.light-mode .person-photos-count {
   background: var(--panel-3);
+  color: var(--soft);
+}
+
+html.light-mode .person-credit-filter select {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   color: var(--soft);
 }
 
