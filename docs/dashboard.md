@@ -40,7 +40,8 @@ detail page ([media-detail.md](media-detail.md)).
 `loadPartWatched` / `renderPartWatched` render them as progress-bar cards, deduped by
 media identity (`dedupePlaybackProgress`). Actions: mark watched
 (`POST /api/playback-progress/watch`) and dismiss/mark unwatched
-(`POST /api/playback-progress/unwatch`).
+(`POST /api/playback-progress/unwatch`). Each App Used badge opens the matching item
+in that configured media app when the item exists there.
 
 ### Version badge / update check
 

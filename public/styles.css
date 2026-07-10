@@ -1307,6 +1307,17 @@ h2 {
   flex: 0 0 auto;
 }
 
+.part-watched-app-badge {
+  cursor: pointer;
+  font: inherit;
+}
+
+.part-watched-app-badge:hover,
+.part-watched-app-badge:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .history-sync-row {
   display: inline-flex;
   align-items: center;

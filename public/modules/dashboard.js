@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode } from "./utils.js";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconUrl } from "./utils.js";
 import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, tmdbPoster } from "./images.js";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
@@ -427,7 +427,7 @@ export function renderPartWatchedCard(entry) {
   }
 
   const sources = Array.isArray(entry.sources) && entry.sources.length ? entry.sources : (entry.source ? [entry.source] : []);
-  const sourceBadges = sources.map(src => sourceBadgeHtml(src)).join(" ");
+  const sourceBadges = sources.map((src) => renderPartWatchedAppBadge(src, entry, isEpisode ? displayTitle : entry.title)).join(" ");
   const sourceBadgeMarkup = sourceBadges || "None";
   const progressPercent = Math.round(entry.progress || 0);
   const formattedTime = entry.updated_at ? formatDate(entry.updated_at) : "";
@@ -473,6 +473,60 @@ export function renderPartWatchedCard(entry) {
   `;
 }
 
+function renderPartWatchedAppBadge(source, entry, mediaTitle) {
+  const target = normalizePlatformSource(source);
+  const label = platformBadge(source);
+  return `
+    <button class="source-badge source-badge--icon ${sourceClass(source)} part-watched-app-badge" type="button"
+      data-part-watched-app-target="${escapeAttribute(target)}"
+      data-part-watched-app-type="${entry.media_type === "episode" ? "tv" : "movie"}"
+      data-part-watched-app-title="${escapeAttribute(mediaTitle || "")}"
+      data-part-watched-app-tmdb="${escapeAttribute(entry.tmdb_id || "")}"
+      data-part-watched-app-imdb="${escapeAttribute(entry.imdb_id || "")}"
+      data-part-watched-app-tvdb="${escapeAttribute(entry.tvdb_id || "")}"
+      aria-label="Open ${escapeAttribute(label)}"
+      title="Open in ${escapeAttribute(label)}">
+      <img class="source-badge-icon" src="${platformIconUrl(source)}" alt="" loading="lazy" />
+      <span>${escapeHtml(label)}</span>
+    </button>
+  `;
+}
+
+function bindPartWatchedAppBadges(root) {
+  for (const button of root.querySelectorAll("[data-part-watched-app-target]")) {
+    button.addEventListener("click", async () => {
+      const target = button.dataset.partWatchedAppTarget;
+      const popup = window.open("about:blank", "_blank");
+      if (!popup) {
+        _cb.setMessage?.("Allow pop-ups to open the media app.", "error");
+        return;
+      }
+      popup.opener = null;
+
+      try {
+        const params = new URLSearchParams({
+          mediaType: button.dataset.partWatchedAppType || "movie",
+          title: button.dataset.partWatchedAppTitle || "",
+        });
+        for (const [key, datasetKey] of [["tmdbId", "partWatchedAppTmdb"], ["imdbId", "partWatchedAppImdb"], ["tvdbId", "partWatchedAppTvdb"]]) {
+          if (button.dataset[datasetKey]) params.set(key, button.dataset[datasetKey]);
+        }
+
+        const response = await fetch(`/api/media-app-links?${params.toString()}`, { headers: authHeaders(), cache: "no-store" });
+        const body = await response.json().catch(() => ({}));
+        const link = Array.isArray(body.links)
+          ? body.links.find((candidate) => normalizePlatformSource(candidate?.target) === target)
+          : null;
+        if (!response.ok || !link?.url) throw new Error(`Could not open ${platformBadge(target)}.`);
+        popup.location.href = link.url;
+      } catch (error) {
+        popup.close();
+        _cb.setMessage?.(error.message, "error");
+      }
+    });
+  }
+}
+
 export function renderPartWatched() {
   if (!elements.partWatchedPanel) return;
   const key = "default";
@@ -499,6 +553,7 @@ export function renderPartWatched() {
   if (elements.partWatchedSection) elements.partWatchedSection.classList.remove("hidden");
   const items = state.partWatchedRaw.slice(0, PART_WATCHED_DASHBOARD_LIMIT);
   elements.partWatchedPanel.innerHTML = items.map(renderPartWatchedCard).join("");
+  bindPartWatchedAppBadges(elements.partWatchedPanel);
   hydratePosters(elements.partWatchedPanel);
   _cb.observeExplorerTmdbPrefetch?.(elements.partWatchedPanel);
   updateDashboardSplitState();
