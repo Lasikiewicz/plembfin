@@ -47,7 +47,38 @@ export function assertSafeOutboundUrl(value, { label = "URL" } = {}) {
   return url;
 }
 
+// Set PLEMBFIN_DEBUG_OUTBOUND=1 to log a per-host outbound request count once
+// a minute (visible in Settings → Logs via the diagnostic logger). Useful for
+// measuring how much traffic each upstream (TMDB, TVDB, fanart.tv, media
+// servers) actually receives before/after a caching change.
+const DEBUG_OUTBOUND = ["1", "true"].includes(String(process.env.PLEMBFIN_DEBUG_OUTBOUND || "").toLowerCase());
+const outboundCounts = new Map();
+let outboundWindowStartedAt = 0;
+
+function trackOutbound(url) {
+  if (!DEBUG_OUTBOUND) return;
+  let host = "";
+  try {
+    host = new URL(String(url)).host;
+  } catch {
+    host = "unparsed";
+  }
+  const now = Date.now();
+  if (!outboundWindowStartedAt) outboundWindowStartedAt = now;
+  outboundCounts.set(host, (outboundCounts.get(host) || 0) + 1);
+  if (now - outboundWindowStartedAt >= 60_000) {
+    const summary = [...outboundCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => `${name}=${count}`)
+      .join(" ");
+    console.log(`[outbound] last ${Math.round((now - outboundWindowStartedAt) / 1000)}s: ${summary}`);
+    outboundCounts.clear();
+    outboundWindowStartedAt = now;
+  }
+}
+
 export async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
+  trackOutbound(url);
   const controller = new AbortController();
   const upstreamSignal = options.signal;
   const timeout = setTimeout(() => controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)), timeoutMs);

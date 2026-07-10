@@ -442,6 +442,8 @@ function rowToWatch(row) {
     youtube_url: row.youtube_url || null,
     sync_action: row.sync_action || "watched",
     sync_dispatch_telemetry: row.sync_dispatch_telemetry || null,
+    sync_retry_count: Number(row.sync_retry_count || 0),
+    sync_next_retry_at: Number(row.sync_next_retry_at || 0),
     media_key: row.media_key || null,
     show_title: row.show_title ? decodeBasicHtmlEntities(row.show_title) : null,
     episode_title: row.episode_title ? decodeBasicHtmlEntities(row.episode_title) : null,
@@ -911,6 +913,16 @@ function relatedTrackedWatchRowsForDateEdit(existing = {}) {
 export async function updateWatchTelemetry(id, telemetry, { skipInvalidate = false } = {}) {
   if (!id) return;
   updateTelemetryStmt.run(String(telemetry || ""), Date.now(), String(id));
+  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
+}
+
+const updateSyncRetryStmt = db.prepare("UPDATE watch_history SET sync_retry_count = ?, sync_next_retry_at = ? WHERE id = ?");
+
+// Tracks the automatic-dispatch backoff state for a watch record. Deliberately
+// does not touch updated_at: backoff bookkeeping is not a content change.
+export async function updateWatchSyncRetry(id, retryCount, nextRetryAt, { skipInvalidate = false } = {}) {
+  if (!id) return;
+  updateSyncRetryStmt.run(Math.max(0, Number(retryCount) || 0), Math.max(0, Number(nextRetryAt) || 0), String(id));
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
 }
 

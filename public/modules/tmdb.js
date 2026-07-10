@@ -42,10 +42,16 @@ export function normalizeTmdbLookupIds(ids = {}) {
   };
 }
 
-export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}) {
+// `light: true` is used by grid prefetch: the server skips next-airing and
+// artwork enrichment on cold items. Light results are cached under their own
+// key so a later full request (detail pages) still fetches complete data;
+// full results satisfy light lookups.
+export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}, { light = false } = {}) {
   const lookupIds = normalizeTmdbLookupIds(ids);
-  const cacheKey = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}|${lookupIds.imdbId.toLowerCase()}|${lookupIds.tvdbId.toLowerCase()}`;
-  if (state.tmdbDetailsCache.has(cacheKey)) return state.tmdbDetailsCache.get(cacheKey);
+  const baseKey = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}|${lookupIds.imdbId.toLowerCase()}|${lookupIds.tvdbId.toLowerCase()}`;
+  if (state.tmdbDetailsCache.has(baseKey)) return state.tmdbDetailsCache.get(baseKey);
+  const cacheKey = light ? `${baseKey}|light` : baseKey;
+  if (light && state.tmdbDetailsCache.has(cacheKey)) return state.tmdbDetailsCache.get(cacheKey);
   if (!state.savedConfig.tmdb?.configured && !tmdbId && !title && !lookupIds.imdbId && !lookupIds.tvdbId) return null;
 
   const promise = new Promise((resolve, reject) => {
@@ -56,11 +62,12 @@ export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}) {
         title: title || undefined,
         imdbId: lookupIds.imdbId || undefined,
         tvdbId: lookupIds.tvdbId || undefined,
+        light: light || undefined,
       },
       resolve,
       reject,
     });
-    if (_tmdbBatchQueue.length >= 100) {
+    if (_tmdbBatchQueue.length >= 40) {
       clearTimeout(_tmdbBatchTimer);
       flushTmdbBatch();
     } else if (!_tmdbBatchTimer) {

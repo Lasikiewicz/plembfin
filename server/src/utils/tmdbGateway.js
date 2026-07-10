@@ -96,6 +96,15 @@ function fresh(data, ttl) {
   return Boolean(data?.updatedAtMs && Date.now() - data.updatedAtMs < ttl);
 }
 
+// A cached row satisfies a caller when it is schema-current and inside its TTL —
+// and, for full callers, was not produced by a light fetch (light rows skip
+// next-airing derivation and artwork enrichment, so a full request must refetch).
+function cacheSatisfies(cached, { light = false } = {}) {
+  if (!cached?.details) return false;
+  if (!light && cached.details.details_light) return false;
+  return cached.schemaVersion >= DETAILS_SCHEMA_VERSION && fresh(cached, detailsTtl(cached.details));
+}
+
 function boundedResults(resource, limit) {
   if (!resource || typeof resource !== "object") return resource;
   return { ...resource, results: Array.isArray(resource.results) ? resource.results.slice(0, limit) : [] };
@@ -346,13 +355,18 @@ async function deriveNextAiring(details, tvdbId) {
   return earliest;
 }
 
-export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force }) {
+// `light: true` is the grid-prefetch mode: it serves any fresh cached row, and
+// on a cache miss fetches the raw details but skips the enrichment that grids
+// don't need (collection parts, next-airing derivation, artwork/fanart
+// caching). Light-fetched rows are stamped `details_light` so the next full
+// caller refetches and completes them.
+export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false }) {
   const type = mediaTypeFor(mediaType);
-  if (type === "tv") return getTvShowDetails({ tmdbId, title, ids, force, forceTvdb });
-  return getMovieDetails({ tmdbId, title, ids, force });
+  if (type === "tv") return getTvShowDetails({ tmdbId, title, ids, force, forceTvdb, light: light && !force });
+  return getMovieDetails({ tmdbId, title, ids, force, light: light && !force });
 }
 
-async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = false }) {
+async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = false, light = false }) {
   const type = "movie";
   const resolvedId = await resolveTmdbId(type, tmdbId, title, ids);
   if (!resolvedId) {
@@ -360,21 +374,26 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
     error.status = 404;
     throw error;
   }
-  const key = `details:${type}:${resolvedId}:${force ? "force" : "cached"}`;
+  const key = `details:${type}:${resolvedId}:${force ? "force" : "cached"}:${light ? "light" : "full"}`;
   return collapse(key, async () => {
     const cacheId = `${type}_${resolvedId}`;
     const cached = metaGet(cacheId);
-    if (!force && cached?.details && cached.schemaVersion >= DETAILS_SCHEMA_VERSION && fresh(cached, detailsTtl(cached.details))) return cached.details;
+    if (!force && cacheSatisfies(cached, { light })) return cached.details;
     try {
       const fetched = await fetchTmdbRaw(type, resolvedId);
       const details = { ...(cached?.details || {}), ...fetched };
-      if (details.belongs_to_collection?.id) {
-        details.belongs_to_collection = {
-          ...details.belongs_to_collection,
-          parts: await fetchCollectionParts(details.belongs_to_collection.id),
-        };
+      if (light) {
+        details.details_light = true;
+      } else {
+        delete details.details_light;
+        if (details.belongs_to_collection?.id) {
+          details.belongs_to_collection = {
+            ...details.belongs_to_collection,
+            parts: await fetchCollectionParts(details.belongs_to_collection.id),
+          };
+        }
+        Object.assign(details, await cacheCanonicalArtwork(type, resolvedId, details));
       }
-      Object.assign(details, await cacheCanonicalArtwork(type, resolvedId, details));
       metaSet(cacheId, { tmdbId: resolvedId, mediaType: type, details, schemaVersion: DETAILS_SCHEMA_VERSION, updatedAtMs: Date.now() });
       return details;
     } catch (error) {
@@ -382,7 +401,7 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
       if (error.status === 404 && (title || ids.imdbId || ids.imdb_id || ids.imdb)) {
         const fallbackId = await resolveTmdbId(type, "", title, ids, { ignoreTmdbId: true }).catch(() => "");
         if (fallbackId && String(fallbackId) !== String(resolvedId)) {
-          return getMovieDetails({ tmdbId: fallbackId, title, ids, force });
+          return getMovieDetails({ tmdbId: fallbackId, title, ids, force, light });
         }
       }
       throw error;
@@ -396,7 +415,7 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
 // trailers, reviews, similar/recommendations, watch providers) and to keep
 // `id` = TMDB id, since Seerr requests and `/tvshow/tmdb/:id` routing are
 // TMDB-keyed throughout the rest of the app.
-async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force }) {
+async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false }) {
   let tvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
   if (!tvdbId) tvdbId = await resolveTvdbSeriesId({ title });
   if (!tvdbId && tmdbId) {
@@ -409,7 +428,7 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
     throw error;
   }
 
-  const key = `tv-details:${tvdbId}:${force ? "force" : "cached"}`;
+  const key = `tv-details:${tvdbId}:${force ? "force" : "cached"}:${light ? "light" : "full"}`;
   return collapse(key, async () => {
     // The caller's tmdbId may be empty (e.g. Fix Match clears it to force re-resolution
     // via the new tvdbId), so the cache row actually written might live under a
@@ -417,7 +436,7 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
     // is known, so lookups by the resolved tmdbId (getTmdbSeason, etc.) can find it.
     const initialCacheId = tmdbId ? `tv_${tmdbId}` : `tv_tvdb_${tvdbId}`;
     const cached = metaGet(initialCacheId);
-    if (!force && cached?.details && cached.schemaVersion >= DETAILS_SCHEMA_VERSION && fresh(cached, detailsTtl(cached.details))) return cached.details;
+    if (!force && cacheSatisfies(cached, { light })) return cached.details;
     try {
       const extended = await getTvdbSeriesExtended(tvdbId, { force: forceTvdb });
       const shaped = shapeTvdbSeriesAsTmdb(extended);
@@ -441,7 +460,7 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
       const cacheId = resolvedTmdbId ? `tv_${resolvedTmdbId}` : `tv_tvdb_${tvdbId}`;
       if (!force && cacheId !== initialCacheId) {
         const resolvedCached = metaGet(cacheId);
-        if (resolvedCached?.details && resolvedCached.schemaVersion >= DETAILS_SCHEMA_VERSION && fresh(resolvedCached, detailsTtl(resolvedCached.details))) return resolvedCached.details;
+        if (cacheSatisfies(resolvedCached, { light })) return resolvedCached.details;
       }
 
       const extras = raw ? {
@@ -472,11 +491,22 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
         },
       };
 
-      const nextAiring = await deriveNextAiring(details, tvdbId);
-      if (nextAiring) details.next_airing_date = nextAiring;
-      else delete details.next_airing_date;
+      if (light) {
+        // Light mode carries over previously derived fields instead of
+        // recomputing them; the details_light stamp makes the next full caller
+        // refetch and complete the row.
+        if (cached?.details?.next_airing_date) details.next_airing_date = cached.details.next_airing_date;
+        for (const field of ["cached_poster_url", "cached_backdrop_url", "cached_logo_url"]) {
+          if (cached?.details?.[field]) details[field] = cached.details[field];
+        }
+        details.details_light = true;
+      } else {
+        const nextAiring = await deriveNextAiring(details, tvdbId);
+        if (nextAiring) details.next_airing_date = nextAiring;
+        else delete details.next_airing_date;
 
-      Object.assign(details, await cacheCanonicalArtwork("tv", resolvedTmdbId || `tvdb-${tvdbId}`, details));
+        Object.assign(details, await cacheCanonicalArtwork("tv", resolvedTmdbId || `tvdb-${tvdbId}`, details));
+      }
       metaSet(cacheId, { tmdbId: resolvedTmdbId, mediaType: "tv", details, schemaVersion: DETAILS_SCHEMA_VERSION, updatedAtMs: Date.now() });
       return details;
     } catch (error) {

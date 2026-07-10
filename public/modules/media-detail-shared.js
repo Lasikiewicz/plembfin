@@ -2,7 +2,7 @@ import { state } from "./state.js";
 import { buildAuthHeaders } from "./auth.js";
 import { escapeHtml, escapeAttribute, slug, formatTmdbDate } from "./utils.js";
 import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js";
-import { fetchTmdbDetails } from "./tmdb.js?v=20260626";
+import { fetchTmdbDetails } from "./tmdb.js?v=20260710";
 
 function authHeaders() {
   return buildAuthHeaders(state.token);

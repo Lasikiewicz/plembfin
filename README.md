@@ -294,6 +294,7 @@ The following environment variables can be set in your system or defined in `doc
 | `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` | _none_ | Default Jellyfin connection values (Settings takes precedence). |
 | `WATCHED_PLAYED_SYNC_ENABLED` | `true` | Set to `false` to disable all watched/played propagation between platforms (watch recording still happens). |
 | `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | The frequency (in milliseconds) of database-heavy catch-up library scans on Plex/Emby/Jellyfin. |
+| `PLEMBFIN_DEBUG_OUTBOUND` | _off_ | Set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs) — useful for measuring how much traffic each metadata service and media server receives. |
 
 A commented template of every variable is provided in [`.env.example`](.env.example) — copy it to `.env` for bare-metal installs.
 
@@ -305,7 +306,7 @@ Plembfin runs as a single-process Node application:
 *   **Web Server**: Powered by Express (`server/server.js`), static-serving the SPA interface (`public/`) and poster binaries (`data/media`).
 *   **Manual Router**: A lightweight dispatcher routing API endpoints to specific controllers.
 *   **Database**: Uses `better-sqlite3` in WAL mode for rapid reading/writing and locks safety.
-*   **Scheduler**: Runs in-process on a `setInterval` timer (no crontab required). It executes once per minute to reconcile active play states, check sync queues, maintain the TV next-airing cache, and perform nightly backups.
+*   **Scheduler**: Runs in-process on a `setInterval` timer (no crontab required). It executes once per minute to reconcile active play states, check sync queues, maintain the TV next-airing cache, and perform nightly backups. Failed sync dispatches are retried with exponential backoff (up to 10 attempts) rather than every minute, so an offline media server never gets hammered.
 *   **Pre-push build check**: Before code is deployed or pushed, `npm run build` is run automatically. This checks JavaScript syntax and boots the server temporarily in a clean directory on port 0 to verify startup health.
 
 For the full technical reference — a complete map of every file in the repository, a task router, and per-feature deep dives (Plex/Emby/Jellyfin integrations, dashboard, libraries, upcoming episodes, media detail, backups, metadata, posters, auth) — start at [`docs/architecture.md`](docs/architecture.md) and the [docs index](docs/README.md).

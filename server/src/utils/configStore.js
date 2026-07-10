@@ -307,6 +307,30 @@ const insertSyncHistoryStmt = db.prepare(
 );
 const selectSyncHistoryStmt = db.prepare("SELECT * FROM sync_history ORDER BY timestamp DESC LIMIT ?");
 
+// Retention: sync_history is a diagnostic log, not canonical data (the UI reads
+// at most 200 rows). Keep 90 days / 10,000 rows, pruned at most once per hour
+// so the per-write cost stays negligible.
+const SYNC_HISTORY_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+const SYNC_HISTORY_MAX_ROWS = 10_000;
+const SYNC_HISTORY_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+let lastSyncHistoryPruneAt = 0;
+const pruneSyncHistoryByAgeStmt = db.prepare("DELETE FROM sync_history WHERE timestamp < ?");
+const pruneSyncHistoryByCountStmt = db.prepare(
+  "DELETE FROM sync_history WHERE id NOT IN (SELECT id FROM sync_history ORDER BY timestamp DESC LIMIT ?)",
+);
+
+export function pruneSyncHistory({ force = false, now = Date.now() } = {}) {
+  if (!force && now - lastSyncHistoryPruneAt < SYNC_HISTORY_PRUNE_INTERVAL_MS) return false;
+  lastSyncHistoryPruneAt = now;
+  try {
+    pruneSyncHistoryByAgeStmt.run(now - SYNC_HISTORY_MAX_AGE_MS);
+    pruneSyncHistoryByCountStmt.run(SYNC_HISTORY_MAX_ROWS);
+  } catch (error) {
+    console.error("Failed to prune sync history", error);
+  }
+  return true;
+}
+
 export async function appendSyncHistory(record) {
   insertSyncHistoryStmt.run({
     timestamp: Date.now(),
@@ -320,6 +344,7 @@ export async function appendSyncHistory(record) {
     raw_payload_debug: toJson(record.rawPayloadDebug || {}),
     created_at: Date.now(),
   });
+  pruneSyncHistory();
 }
 
 export async function getSyncHistory(limit = 50) {

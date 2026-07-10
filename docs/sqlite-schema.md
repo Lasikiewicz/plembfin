@@ -12,7 +12,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `active_sessions` | Live sessions from webhook `active` events (5-min TTL) | webhook `active` phase | `handleNowPlaying`, `active-sessions` |
 | `playback_progress` | Resume position records | webhook `ended`, sync orchestrator | resume propagation |
 | `playstate` | Per-item watched/unwatched state for sync targets | sync orchestrator | sync orchestrator |
-| `sync_history` | Log of all sync dispatch results | every sync attempt | sync-history endpoint |
+| `sync_history` | Log of sync dispatch results (90-day / 10,000-row retention, pruned hourly on write) | sync outcome changes | sync-history endpoint |
 | `runtime_state` | Single-row JSON blob — last cron time, force-sync state/log, `nowPlayingRefresh` signal | scheduler, force-sync, webhooks | dashboard polling |
 | `settings` | Single-row JSON blob — Plex/Emby/Jellyfin/TMDB/TVDB connection settings | config endpoint | everything that talks to servers |
 | `loop_keys` | Loop-detection KV with TTL | sync orchestrator | sync orchestrator |
@@ -24,6 +24,8 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `tvdb_metadata_cache` | Raw TheTVDB series/extended response, key `series_${tvdbId}` (also holds title-search results, key `search_${hash}`) | tvdbGateway | tv show detail resolution |
 | `tvdb_season_cache` | Raw TheTVDB season/extended episode list, key `${tvdbId}_${seasonNumber}` | tvdbGateway | tmdb-season handler |
 | `omdb_cache` | OMDb/IMDb ratings, 7-day TTL, key is the IMDb ID (`tt…`) | omdb-rating handler | media detail pages |
+| `fanart_cache` | Raw fanart.tv responses including "no artwork" misses, 7-day TTL (1 day for misses), key `movies/<tmdbId>` / `tv/<tvdbId>` | fanartGateway | artwork resolution, edit-image galleries |
+| `youtube_meta_cache` | Trailer metadata per YouTube video ID, 30-day TTL | youtube-meta handler | trailer playback |
 | `audit_log` | Security-relevant event log (login, credential change, rotation) | `writeAuditLog()` in `db.js` | ops/debugging only |
 | `schema_migrations` | Ordered migration ledger (`id`, `applied_at`) | `db.js` at startup | startup only |
 
@@ -82,6 +84,17 @@ Custom artwork selected from media detail pages is stored on each watch row:
 
 For TV shows, grouped show summaries inherit the first available poster, logo, and
 backdrop from their episode rows.
+
+## `watch_history` sync retry columns
+
+The scheduled dispatcher tracks its automatic-retry backoff on each watch row:
+- `sync_retry_count` — consecutive failed dispatch attempts (reset to 0 on
+  success or by the manual Retry Sync action)
+- `sync_next_retry_at` — epoch-ms timestamp before which the scheduler will not
+  re-dispatch this record (exponential backoff: 1 m → 5 m → 15 m → 1 h → 6 h)
+
+After 10 failed attempts the record is terminal and only a manual Retry Sync
+re-queues it. See [scheduled-sync.md](scheduled-sync.md).
 
 ## `audit_log`
 

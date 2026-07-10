@@ -2,7 +2,7 @@ import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils.js";
 import { posterUrlFor, tmdbPoster, bestTmdbLogo, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
-import { fetchTmdbDetails } from "./tmdb.js?v=20260626";
+import { fetchTmdbDetails } from "./tmdb.js?v=20260710";
 import { renderWatchDatePrompt } from "./watch-action.js";
 import { authHeaders, mediaDetailRoot, setMediaDetailActions, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js";
 import {

@@ -485,22 +485,37 @@ export async function handleTmdbDetailsBatch(req, res) {
   const items = Array.isArray(body.items) ? body.items.slice(0, 240) : [];
   if (!items.length) return sendJson(res, { results: [] });
 
-  const results = await Promise.all(items.map(async (item) => {
-    const mediaType = String(item?.mediaType || item?.type || "").trim().toLowerCase();
-    const tmdbId = String(item?.tmdbId || item?.id || "").trim();
-    const title = String(item?.title || "").trim();
-    const ids = {
-      imdbId: String(item?.imdbId || item?.imdb_id || item?.imdb || "").trim(),
-      tvdbId: String(item?.tvdbId || item?.tvdb_id || item?.tvdb || "").trim(),
-    };
-    if (!mediaType || (!tmdbId && !title && !ids.imdbId && !ids.tvdbId)) return { error: "invalid" };
-    try {
-      const details = await getTmdbDetails({ mediaType, tmdbId, title, ids });
-      return { details };
-    } catch (error) {
-      return { error: error.message || "failed", status: error.status || 500 };
+  // Bounded worker pool: upstream calls are serialized by the gateway throttles
+  // anyway, so unbounded Promise.all only inflates the in-flight promise count
+  // for a cold batch — 8 workers keeps cache hits fast without that.
+  const BATCH_CONCURRENCY = 8;
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const item = items[index];
+      const mediaType = String(item?.mediaType || item?.type || "").trim().toLowerCase();
+      const tmdbId = String(item?.tmdbId || item?.id || "").trim();
+      const title = String(item?.title || "").trim();
+      const ids = {
+        imdbId: String(item?.imdbId || item?.imdb_id || item?.imdb || "").trim(),
+        tvdbId: String(item?.tvdbId || item?.tvdb_id || item?.tvdb || "").trim(),
+      };
+      if (!mediaType || (!tmdbId && !title && !ids.imdbId && !ids.tvdbId)) {
+        results[index] = { error: "invalid" };
+        continue;
+      }
+      try {
+        const details = await getTmdbDetails({ mediaType, tmdbId, title, ids, light: item?.light === true });
+        results[index] = { details };
+      } catch (error) {
+        results[index] = { error: error.message || "failed", status: error.status || 500 };
+      }
     }
-  }));
+  }
+  await Promise.all(Array.from({ length: Math.min(BATCH_CONCURRENCY, items.length) }, worker));
 
   return sendJson(res, { results }, 200, { "Cache-Control": "private, max-age=300, stale-while-revalidate=86400", Vary: "Authorization" });
 }
@@ -788,6 +803,16 @@ function extractYouTubeVideoId(url) {
   return null;
 }
 
+// Trailer metadata is immutable per video id, so responses are cached 30 days.
+// A cached oEmbed-only entry is refetched once a Data API key appears, so the
+// richer fields (description, duration) fill in without waiting out the TTL.
+const YOUTUBE_META_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const youtubeMetaGetStmt = db.prepare("SELECT data, updated_at_ms FROM youtube_meta_cache WHERE id = ?");
+const youtubeMetaSetStmt = db.prepare(
+  `INSERT INTO youtube_meta_cache (id, data, updated_at_ms) VALUES (?, ?, ?)
+   ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at_ms=excluded.updated_at_ms`,
+);
+
 export async function handleYoutubeMeta(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -798,6 +823,16 @@ export async function handleYoutubeMeta(req, res) {
 
   const videoId = extractYouTubeVideoId(url);
   if (!videoId) return sendJson(res, { error: "Could not extract YouTube video ID from URL" }, 400);
+
+  const cachedRow = youtubeMetaGetStmt.get(videoId);
+  if (cachedRow && Date.now() - Number(cachedRow.updated_at_ms || 0) < YOUTUBE_META_TTL_MS) {
+    const cached = parseJson(cachedRow.data);
+    const config = await loadMediaConfig();
+    const wantsApiFields = Boolean(config.youtube?.apiKey);
+    if (cached && (!wantsApiFields || cached.publishedAt || cached.description)) {
+      return sendJson(res, cached);
+    }
+  }
 
   // oEmbed is free, no API key required
   let title = "";
@@ -842,7 +877,13 @@ export async function handleYoutubeMeta(req, res) {
     `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
   ];
 
-  return sendJson(res, { videoId, title, channelName, description, publishedAt, duration, thumbnails });
+  const payload = { videoId, title, channelName, description, publishedAt, duration, thumbnails };
+  // Only cache when at least the oEmbed call answered — an all-empty payload
+  // usually means a transient failure, not an empty video.
+  if (title || channelName) {
+    youtubeMetaSetStmt.run(videoId, toJson(payload), Date.now());
+  }
+  return sendJson(res, payload);
 }
 
 export async function handleOmdbRating(req, res) {

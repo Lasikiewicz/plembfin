@@ -60,6 +60,7 @@ import {
   requireDb,
   updateWatchPosterUrl,
   updatePlaybackProgressTelemetry,
+  updateWatchSyncRetry,
   updateWatchTelemetry,
   upsertPlaybackProgress,
   upsertPlaystateForMedia,
@@ -681,6 +682,9 @@ export async function handleRetrySync(req, res) {
     };
   }
 
+  // A manual retry resets the automatic backoff so the scheduled dispatcher
+  // picks the record back up even after it exhausted its retry budget.
+  await updateWatchSyncRetry(id, 0, 0, { skipInvalidate: true });
   await updateWatchTelemetry(id, formatDispatchTelemetry(summary, media, action));
   await recordSyncHistory(media, summary, action);
 

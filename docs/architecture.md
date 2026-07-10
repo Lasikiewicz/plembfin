@@ -224,6 +224,21 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `forcePushHistory.js` | Standalone one-shot replicator: fetches Plembfin's `/api/history` and replays every row against Plex/Emby/Jellyfin as mark-played calls. |
 | `seed-demo-content.js` | `npm run seed:demo` — inserts fictional movies/shows with generated poster art for demo screenshots/dev. |
 
+### `test/`
+
+The focused `node:test` suite run by `npm test` and the build check. Each file runs in
+its own process; DB-backed tests point `DATA_DIR` at a temp directory before importing
+server modules.
+
+| File | What it covers |
+| --- | --- |
+| `parsers.test.js` | Webhook normalization (Plex/Emby/Jellyfin/custom payload parsing, phases, GUID extraction). |
+| `mediaKey.test.js` | Canonical `mediaKeyFor`/`canonicalTitleKey` derivation and specials (season 0) normalization in watch records. |
+| `syncOrchestrator.test.js` | Target routing, resume-progress actionability, loop-store echo detection. |
+| `syncRetry.test.js` | Scheduled-dispatch retry backoff schedule/eligibility, retry columns, `sync_history` retention pruning. |
+| `metadataCaches.test.js` | Fanart response cache (hits and negative misses), TMDB details cache freshness, light-vs-full cache row semantics. |
+| `exportPlexHistory.test.js` | The standalone Plex history export script's episode-record shaping (specials season zero). |
+
 ## Request flow
 
 ```
@@ -342,7 +357,8 @@ from `v0.2.15` to `v0.2.15 - Update available` (accent-tinted).
 `GET /api/changelog` (`handleChangelog` in `routes/maintenance.js`) layers an update check on top: it
 reads the bundled `changelog.json` for the current version and fetches the published
 `changelog.json` from GitHub raw (`Lasikiewicz/plembfin@main`), cached in-process for 30
-minutes (force-refresh with `?refresh=1`, 8-second fetch timeout). The browser cannot reach
+minutes (8-second fetch timeout). `?refresh=1` forces a refresh but honors a 5-minute
+floor, so routine dashboard loads never turn into one GitHub fetch each. The browser cannot reach
 GitHub directly because the CSP is `connect-src 'self'`, so the server proxies and caches it.
 The response is `{ current, latest, updateAvailable, remoteAvailable, remoteError, newer,
 entries }`, where `newer` lists releases with a higher semver than the running build. If
@@ -464,6 +480,7 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `TVDB_PROJECT_KEY` — advanced: replace the built-in shared TheTVDB project key (used when no personal key is set). Only needed if the built-in key is revoked or exhausted.
 - `FANART_PROJECT_KEY` — advanced: replace the built-in shared Fanart.tv project key. Only needed if the built-in key is revoked or exhausted.
 - `FANART_API_KEY` — optional personal Fanart.tv key (raises the rate limit as a `client_key`)
+- `PLEMBFIN_DEBUG_OUTBOUND` — set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs); for measuring upstream traffic
 
 Environment variables act as **defaults** for connection settings: values saved in
 Settings (stored in the `settings` SQLite row) take precedence over env values

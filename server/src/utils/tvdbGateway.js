@@ -173,7 +173,18 @@ function tvdbEndpointUrl(endpoint, params = {}) {
   return url;
 }
 
+// After exhausted 429 retries the module cools down: the project key's rate
+// pool is shared by every Plembfin install, so once it's exhausted, queueing
+// more attempts only burns quota. During the cooldown, callers fail fast and
+// fall back to their stale SQLite caches.
+let rateLimitCooldownUntil = 0;
+
 async function upstream(endpoint, params = {}, attempt = 0) {
+  if (Date.now() < rateLimitCooldownUntil) {
+    const error = new Error("TVDB requests are cooling down after repeated 429 responses");
+    error.status = 429;
+    throw error;
+  }
   await throttle();
   const token = await getToken();
   const url = tvdbEndpointUrl(endpoint, params);
@@ -182,9 +193,14 @@ async function upstream(endpoint, params = {}, attempt = 0) {
     await getToken({ forceRefresh: true });
     return upstream(endpoint, params, attempt + 1);
   }
-  if (response.status === 429 && attempt < 2) {
-    await wait(1000 + Math.floor(Math.random() * 250));
-    return upstream(endpoint, params, attempt + 1);
+  if (response.status === 429) {
+    const retryAfterSec = Number(response.headers.get("retry-after"));
+    const retryMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0 ? retryAfterSec * 1000 : 2000 * (attempt + 1);
+    if (attempt < 2 && retryMs <= 15_000) {
+      await wait(retryMs + Math.floor(Math.random() * 250));
+      return upstream(endpoint, params, attempt + 1);
+    }
+    rateLimitCooldownUntil = Date.now() + Math.max(60_000, Math.min(retryMs, 15 * 60_000));
   }
   if (!response.ok) {
     const error = new Error(`TVDB request failed with ${response.status}`);

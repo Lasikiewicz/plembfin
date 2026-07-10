@@ -28,6 +28,7 @@ import {
   purgeCompletedLiveTrackingCache,
   requireDb,
   updatePlaybackProgressTelemetry,
+  updateWatchSyncRetry,
   updateWatchTelemetry,
   upsertLiveTrackingCache,
   upsertPlaybackProgress,
@@ -47,6 +48,24 @@ let lastPlexUnwatchedPollAt = 0;
 // do not need to run on every 1-minute tick.
 const CATCHUP_SYNC_INTERVAL_MS = Number(process.env.CATCHUP_SYNC_INTERVAL_MS || process.env.CATCHUP_SYNC_INTERVAL || 15 * 60 * 1000);
 let lastCatchupSyncAt = 0;
+
+// Automatic re-dispatch backoff for records whose sync targets keep failing.
+// Attempt N waits SYNC_RETRY_BACKOFF_MS[N-1] (last entry repeats) before the
+// next try; after SYNC_RETRY_MAX_ATTEMPTS the record is left alone until the
+// user triggers Retry Sync, which resets the counters. Without this, a single
+// offline target would be re-dispatched every minute forever.
+const SYNC_RETRY_BACKOFF_MS = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000, 6 * 60 * 60_000];
+export const SYNC_RETRY_MAX_ATTEMPTS = 10;
+
+export function syncRetryDelayMs(retryCount) {
+  const index = Math.min(Math.max(Number(retryCount) || 1, 1), SYNC_RETRY_BACKOFF_MS.length) - 1;
+  return SYNC_RETRY_BACKOFF_MS[index];
+}
+
+export function syncRetryEligible(row = {}, now = Date.now()) {
+  if (Number(row.sync_retry_count || 0) >= SYNC_RETRY_MAX_ATTEMPTS) return false;
+  return Number(row.sync_next_retry_at || 0) <= now;
+}
 
 function buildTelemetry(media, summary) {
   const targetStates = summary?.targetStates || [];
@@ -1047,6 +1066,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
 
     const activeTargets = getActiveTargetsForConfig(config);
     const toRetry = [];
+    const now = Date.now();
 
     for (const row of rows) {
       if (row.sync_action !== "watched") continue;
@@ -1064,7 +1084,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         }
       }
 
-      if (needsSync) {
+      if (needsSync && syncRetryEligible(row, now)) {
         toRetry.push(row);
       }
     }
@@ -1097,7 +1117,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         targetStates: [],
       }));
 
-      const telemetry = [
+      const telemetryLines = [
         `Origin: ${media.source}`,
         `Loop-check: Passed`,
         `Dispatch status: ${summary.status}`,
@@ -1105,10 +1125,34 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         ...(summary.targetStates || []).map(
           (t) => `Target ${t.target} status: ${t.status}${t.detail ? ` - ${t.detail}` : ""}`
         ),
-      ].join("\n");
+      ];
 
-      await updateWatchTelemetry(id, telemetry, { skipInvalidate: true });
-      await recordSyncHistory(media, summary, "watched");
+      const previousRetryCount = Number(row.sync_retry_count || 0);
+      const allSyncedNow = activeTargets.length > 0 && activeTargets.every((target) =>
+        isTargetSynced(telemetryLines.join("\n"), target, row.source)
+      );
+      let terminal = false;
+      if (allSyncedNow) {
+        await updateWatchSyncRetry(id, 0, 0, { skipInvalidate: true });
+      } else {
+        const nextCount = previousRetryCount + 1;
+        terminal = nextCount >= SYNC_RETRY_MAX_ATTEMPTS;
+        await updateWatchSyncRetry(id, nextCount, Date.now() + syncRetryDelayMs(nextCount), { skipInvalidate: true });
+        if (terminal) {
+          telemetryLines.push(`Retry: automatic retries exhausted after ${SYNC_RETRY_MAX_ATTEMPTS} attempts; use Retry Sync to try again.`);
+          logger(`Background Queue: giving up on ${media.title} (${id}) after ${SYNC_RETRY_MAX_ATTEMPTS} attempts.`);
+        } else {
+          telemetryLines.push(`Retry: attempt ${nextCount} of ${SYNC_RETRY_MAX_ATTEMPTS}; next automatic retry in ${Math.round(syncRetryDelayMs(nextCount) / 60_000)}m.`);
+        }
+      }
+
+      await updateWatchTelemetry(id, telemetryLines.join("\n"), { skipInvalidate: true });
+      // Only log a sync_history row when the outcome is new information: the
+      // first failed attempt, a success, or giving up. Identical failures on
+      // every backoff step would otherwise flood the table.
+      if (allSyncedNow || previousRetryCount === 0 || terminal) {
+        await recordSyncHistory(media, summary, "watched");
+      }
       syncedCount++;
     }
   } catch (error) {
@@ -1172,8 +1216,8 @@ export async function runScheduledSync(logger = console.log) {
 
   // Plex unwatch detection is now primarily event-driven via the notification WebSocket
   // (see startPlexNotificationListener in index.js). This poll is kept as a safety net for
-  // events missed while the socket was disconnected, but throttled to ~every 10 minutes so
-  // it no longer drives detection or re-scans every tick.
+  // events missed while the socket was disconnected, throttled to once every 6 hours
+  // (PLEX_UNWATCHED_POLL_INTERVAL_MS) so it never drives detection or re-scans every tick.
   if (plexActive && Date.now() - lastPlexUnwatchedPollAt >= PLEX_UNWATCHED_POLL_INTERVAL_MS) {
     lastPlexUnwatchedPollAt = Date.now();
     logger("Scheduled Sync: checking Plex unwatched status (fallback poll)...");
@@ -1608,7 +1652,10 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
   let addedToHistoryCount = 0;
   let deletedFromHistoryCount = 0;
 
-  const reconciliationConcurrency = Math.max(1, Math.min(Number(concurrency) || 1, 64));
+  // Ceiling of 8: force sync fires mark-played/unplayed calls at the user's own
+  // media servers, and a home NAS handles a burst of 64 concurrent writes badly
+  // (cascading timeouts that then feed the retry queue).
+  const reconciliationConcurrency = Math.max(1, Math.min(Number(concurrency) || 1, 8));
   if (reconciliationConcurrency > 1) {
     logger(`Force Sync: local concurrency enabled (${reconciliationConcurrency} workers).`);
   }

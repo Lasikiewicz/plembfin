@@ -3,7 +3,7 @@ import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTit
 import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260626";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260710";
 import { renderWatchDatePrompt } from "./watch-action.js";
 import { authHeaders, setMessage, mediaDetailRoot, setMediaDetailActions, prepareInlineMediaDetail, bumpMediaRenderToken } from "./media-detail-context.js";
 import {

@@ -30,6 +30,14 @@ const migrations = [
       if (!watchCols.includes("backdrop_url")) database.exec("ALTER TABLE watch_history ADD COLUMN backdrop_url TEXT");
     },
   },
+  {
+    id: 3,
+    up(database) {
+      const watchCols = database.pragma("table_info(watch_history)").map(c => c.name);
+      if (!watchCols.includes("sync_retry_count")) database.exec("ALTER TABLE watch_history ADD COLUMN sync_retry_count INTEGER DEFAULT 0");
+      if (!watchCols.includes("sync_next_retry_at")) database.exec("ALTER TABLE watch_history ADD COLUMN sync_next_retry_at INTEGER DEFAULT 0");
+    },
+  },
 ];
 
 function runSchemaMigrations() {

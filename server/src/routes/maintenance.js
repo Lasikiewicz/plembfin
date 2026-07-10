@@ -708,9 +708,14 @@ function readLocalChangelog() {
   }
 }
 
+// A forced refresh (dashboard update check) still honors a 5-minute floor so
+// routine navigation cannot turn into one GitHub fetch per dashboard load.
+const REMOTE_CHANGELOG_FORCE_FLOOR_MS = 5 * 60 * 1000;
+
 async function fetchRemoteChangelog({ force = false } = {}) {
   const now = Date.now();
-  if (!force && remoteChangelogCache.data && now - remoteChangelogCache.fetchedAt < REMOTE_CHANGELOG_TTL_MS) {
+  const ttl = force ? REMOTE_CHANGELOG_FORCE_FLOOR_MS : REMOTE_CHANGELOG_TTL_MS;
+  if (remoteChangelogCache.data && now - remoteChangelogCache.fetchedAt < ttl) {
     return remoteChangelogCache.data;
   }
   const response = await fetchWithTimeout(REMOTE_CHANGELOG_URL, {

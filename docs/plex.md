@@ -88,9 +88,10 @@ Every minute the scheduler (`scheduled.js`) polls `/status/sessions` via
   the configured username/account ID (`plexHistoryItemMatchesConfiguredUser`).
 - **Resumable items** (`fetchPlexResumableItems` → `syncRecentlyResumableFromPlex`) —
   replicates resume positions set on Plex to the other platforms.
-- **Unwatched reconciliation** (`checkPlexUnwatchedStatus`) — verifies items Plembfin
-  thinks are watched are still watched on Plex, catching unwatches missed by the
-  WebSocket.
+
+Every 6 hours, **unwatched reconciliation** (`checkPlexUnwatchedStatus`) verifies items
+Plembfin thinks are watched are still watched on Plex, as a backstop for unwatches
+missed while the WebSocket listener was disconnected.
 
 ## Outbound operations (`plexClient.js`)
 

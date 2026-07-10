@@ -26,6 +26,13 @@ Implementation lives in `server/src/scheduled.js`.
      that vanish below the threshold are marked/cleared as stale.
 2. **Manual dispatch queue** — **runs every minute**:
    - `syncPendingManualDispatches` processes anything queued by the UI (manual mark-watched, retries).
+   - Records whose targets keep failing are retried with **exponential backoff**
+     (1 m → 5 m → 15 m → 1 h → 6 h, tracked in the `sync_retry_count` /
+     `sync_next_retry_at` columns on `watch_history`). After 10 failed attempts a
+     record becomes terminal — its telemetry says automatic retries are exhausted
+     and only a manual **Retry Sync** (which resets the counters) re-queues it.
+     A `sync_history` row is only written when the outcome changes (first
+     failure, success, or giving up), not on every identical failed attempt.
 3. **Catch-up library sync** — **runs every 15 minutes** (configurable via `CATCHUP_SYNC_INTERVAL_MS` env variable) to avoid heavy redundant API queries:
    - Pulls recently-watched and continue-watching (resumable) items from each active server: `syncRecentlyWatchedFromPlex`/`syncRecentlyResumableFromPlex` (and Emby/Jellyfin equivalents) in `scheduled.js`.
    - Propagates playstate changes that were missed by webhooks. Each is wrapped in try/catch so one platform failing doesn't abort the run.
@@ -34,10 +41,13 @@ This is how a play that finishes without a final scrobble webhook still gets
 recorded: the poller sees it hit ≥ 90% then disappear, and completes it.
 
 4. **TV next-airing cache** — `runScheduledTick()` maintains
-   `data/next-airing-cache.json` from TMDB. To prevent timing out, the cache is
+   `data/next-airing-cache.json`. To prevent timing out, the cache is
    built and refreshed in small batches (default 40 shows per 30-minute tick)
-   sorted by the oldest update times. This allows the TV Shows page to sort by upcoming
-   episode date without querying TMDB for every row, while avoiding timeouts on large libraries.
+   sorted by the oldest update times. Each show is looked up through the regular
+   `getTmdbDetails` cache layer (no forced refetch), so a refresh cycle only
+   reaches TMDB/TVDB when a show's cached details have actually expired. This
+   allows the TV Shows page to sort by upcoming episode date without querying
+   TMDB for every row, while avoiding timeouts on large libraries.
 
 ## Why it matters for Now Playing
 

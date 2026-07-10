@@ -133,7 +133,7 @@ export function plexWebhookSetup() {
         <li>Set up webhooks per the <a href="https://support.plex.tv/articles/115002267687-webhooks/?utm_campaign=Plex%20Apps&utm_medium=Plex%20Web&utm_source=Plex%20Apps" target="_blank" rel="noopener noreferrer" style="color: var(--blue); text-decoration: underline;">Plex Webhook Documentation</a>. Point them to the URL above.</li>
         <li>Enable events: <code>media.play</code>, <code>media.resume</code>, <code>media.pause</code>, <code>media.stop</code>, <code>media.scrobble</code>.</li>
         <li><b>Unwatched sync (built-in):</b> Plembfin connects to your Plex Media Server via its WebSocket notification channel automatically — no external script required. Plex native webhooks cannot send unscrobble events, so this listener handles them.</li>
-        <li><b>Fallback:</b> The background cron worker also polls Plex every minute to catch any missed unwatched removals.</li>
+        <li><b>Fallback:</b> The background cron worker also re-checks recent watch history against Plex every 6 hours, catching unwatched removals missed while the listener was disconnected.</li>
       </ul>
     </div>
   `;

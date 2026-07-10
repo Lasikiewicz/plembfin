@@ -10,7 +10,7 @@ caches every source (the CSP is `connect-src 'self'`).
 | --- | --- |
 | `server/src/utils/tmdbGateway.js` | TMDB gateway + the merged TV details assembly; caches in `tmdb_metadata_cache`, `tmdb_search_cache`, `tmdb_person_cache` |
 | `server/src/utils/tvdbGateway.js` | TheTVDB v4 gateway; caches in `tvdb_metadata_cache`, `tvdb_season_cache` |
-| `server/src/utils/fanartGateway.js` | Fanart.tv artwork (posters, backdrops, HD logos) |
+| `server/src/utils/fanartGateway.js` | Fanart.tv artwork (posters, backdrops, HD logos); caches in `fanart_cache` |
 | `server/src/utils/omdbGateway.js` | OMDb — IMDb rating/votes by IMDb id (`omdb_cache`, 7-day TTL) |
 | `server/src/utils/nextAiringCache.js` | File-backed next-airing cache used to narrow Upcoming page episode lookups |
 | `server/src/utils/tmdbClient.js` | Thin poster-URL helper for the poster pipeline's TMDB fallback |
@@ -59,7 +59,9 @@ caches in SQLite:
 | `tmdb_person_cache` | Person details + credits, `PERSON_SCHEMA_VERSION` | 7 days |
 | `tvdb_metadata_cache` | Raw TVDB series/extended responses + title-search results | 14 days active / 180 days archived series; searches 180 days (1 hour for misses) |
 | `tvdb_season_cache` | Raw TVDB season episode lists | 2 days upcoming / 7 days active / 180 days archived |
-| `omdb_cache` | IMDb rating/votes | 7 days |
+| `fanart_cache` | Raw fanart.tv responses per item, key `movies/<tmdbId>` / `tv/<tvdbId>`, including "no artwork" 404 misses | 7 days (1 day for misses) |
+| `omdb_cache` | IMDb rating/votes, including HTTP-error negatives (bad key / exhausted quota) | 7 days (6 hours for HTTP errors) |
+| `youtube_meta_cache` | Trailer metadata per video ID (oEmbed + optional Data API fields) | 30 days |
 
 Schema-version bumps (`DETAILS_SCHEMA_VERSION`, `PERSON_SCHEMA_VERSION`,
 `PROGRESS_CACHE_SCHEMA_VERSION` in `showProgressCache.js`) force refetches after a
@@ -75,7 +77,7 @@ so detail pages open hot. Settings → Cache (`GET /api/cache-stats`,
 | Endpoint | Backing |
 | --- | --- |
 | `GET /api/tmdb-details` (alias `media-details`) | `getTmdbDetails` — merged movie/TV details |
-| `GET /api/tmdb-details-batch` | Batched details for explorer prefetch |
+| `POST /api/tmdb-details-batch` | Batched details for explorer prefetch (bounded worker pool; items may set `light: true` to skip next-airing/artwork enrichment on cold fetches — light-cached rows are refetched in full by detail pages) |
 | `GET /api/tmdb-season` | Season episode list (TVDB-backed for TV) |
 | `GET /api/tmdb-person` | Person details + filmography |
 | `GET /api/tmdb-search`, `GET /api/tvdb-search`, `GET /api/media-search` | Remote + local search |

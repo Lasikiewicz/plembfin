@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS watch_history (
   youtube_url TEXT,
   sync_action TEXT,
   sync_dispatch_telemetry TEXT,
+  sync_retry_count INTEGER DEFAULT 0,
+  sync_next_retry_at INTEGER DEFAULT 0,
   media_key TEXT,
   show_title TEXT,
   show_title_lower TEXT,
@@ -210,6 +212,19 @@ CREATE TABLE IF NOT EXISTS tvdb_season_cache (
 CREATE TABLE IF NOT EXISTS omdb_cache (
   id TEXT PRIMARY KEY,     -- IMDb ID (tt...)
   data TEXT,               -- JSON
+  updated_at_ms INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS fanart_cache (
+  id TEXT PRIMARY KEY,     -- fanart.tv request path (movies/{tmdbId} or tv/{tvdbId})
+  data TEXT,               -- JSON (raw fanart.tv response); NULL when missing = 1
+  missing INTEGER DEFAULT 0, -- 1 when fanart.tv has no artwork for this item (404)
+  updated_at_ms INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS youtube_meta_cache (
+  id TEXT PRIMARY KEY,     -- YouTube video ID
+  data TEXT,               -- JSON (trailer metadata response)
   updated_at_ms INTEGER
 );
 

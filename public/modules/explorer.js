@@ -49,8 +49,8 @@ function cachedExplorerPage(key) {
 function rememberExplorerPage(key, body) {
   _cb.rememberExplorerPage?.(key, body);
 }
-function fetchTmdbDetails(mediaType, tmdbId, title, ids) {
-  return _cb.fetchTmdbDetails?.(mediaType, tmdbId, title, ids) ?? Promise.resolve(null);
+function fetchTmdbDetails(mediaType, tmdbId, title, ids, options) {
+  return _cb.fetchTmdbDetails?.(mediaType, tmdbId, title, ids, options) ?? Promise.resolve(null);
 }
 function resolveEpisodeTitleFromTmdb(entry, el) {
   return _cb.resolveEpisodeTitleFromTmdb?.(entry, el);
@@ -515,7 +515,10 @@ export function observeExplorerTmdbPrefetch(container) {
         }
         if (mediaType && title) {
           if (state.token) {
-            fetchTmdbDetails(mediaType, tmdbId || undefined, title).then((data) => {
+            // Grid prefetch is a "light" request: on cold items the server
+            // skips next-airing/artwork enrichment (the scheduler completes
+            // those later) so scrolling a large library stays cheap.
+            fetchTmdbDetails(mediaType, tmdbId || undefined, title, undefined, { light: true }).then((data) => {
               if (!el.isConnected) return;
               if (data?.id && el.dataset.partWatchedMediaKey) {
                 const progressEntry = state.partWatchedRaw.find((item) => item.media_key === el.dataset.partWatchedMediaKey);
