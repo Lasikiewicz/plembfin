@@ -1,7 +1,24 @@
 {
-  "version": "0.4.42",
-  "updatedAt": "2026-07-10T09:36:41+01:00",
+  "version": "0.4.43",
+  "updatedAt": "2026-07-10T13:32:10+01:00",
   "entries": [
+    {
+      "version": "0.4.43",
+      "date": "2026-07-10T13:32:10+01:00",
+      "commit": "6b23f8989322b90484811f1d99cde42fa3486209",
+      "message": "Feature - Smarter API usage - sync retry backoff, metadata caching, and traffic limits",
+      "author": "Lasikiewicz",
+      "details": [
+        "Failed watched-sync dispatches now retry with exponential backoff (1m up to 6h) and stop after 10 attempts instead of retrying every minute forever; the Retry Sync button re-queues them",
+        "Sync History is kept to 90 days / 10,000 entries and only logs meaningful outcome changes, so it no longer grows without bound",
+        "Fanart.tv artwork lookups are throttled and cached for 7 days (24 hours for items with no artwork), matching the TMDB/TVDB gateways",
+        "The TV next-airing refresh reads through the normal metadata caches instead of force-refetching up to 40 shows from TMDB every 30 minutes",
+        "Library grids prefetch lightweight metadata so cold-scrolling a large library is far cheaper; detail pages still fetch complete data",
+        "TheTVDB rate-limit responses are honored with a cooldown so the shared project key is not hammered once its quota is exhausted",
+        "Trailer metadata is cached for 30 days, update checks fetch from GitHub at most once per 5 minutes, and OMDb errors are cached briefly so a dead key stops costing a request per page view",
+        "New PLEMBFIN_DEBUG_OUTBOUND setting logs per-host outbound request counts for measuring upstream traffic"
+      ]
+    },
     {
       "version": "0.4.42",
       "date": "2026-07-10T09:36:41+01:00",
