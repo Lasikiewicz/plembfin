@@ -1,7 +1,19 @@
 {
-  "version": "0.4.46",
-  "updatedAt": "2026-07-13T08:19:58+01:00",
+  "version": "0.4.47",
+  "updatedAt": "2026-07-13T08:30:09+01:00",
   "entries": [
+    {
+      "version": "0.4.47",
+      "date": "2026-07-13T08:30:09+01:00",
+      "commit": "a62e8217ff122edddf3a8a8ec5b77e5e40741615",
+      "message": "Fix - Prevent incomplete changelog entries",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add changed-file fallback details when a release commit has no bullet-point body",
+        "Preserve authored bullet points as the preferred changelog source",
+        "Document the fallback behavior in the changelog workflow"
+      ]
+    },
     {
       "version": "0.4.46",
       "date": "2026-07-13T08:19:58+01:00",
