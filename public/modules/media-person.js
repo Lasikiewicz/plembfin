@@ -78,6 +78,13 @@ function personCreditYear(credit = {}) {
   return Number.isFinite(year) ? year : null;
 }
 
+function personCreditLibraryHref(libItem, title) {
+  if (libItem?.type === "show" || libItem?.type === "tvshow") {
+    return `/tvshow/${encodeURIComponent(libItem.key)}`;
+  }
+  return movieHref(movieBySlugOrId(libItem?.id) || { id: libItem?.id, title });
+}
+
 export function closePersonProfile() {
   if (elements.personModal) {
     elements.personModal.classList.add("hidden");
@@ -162,7 +169,17 @@ export async function loadCastMemberDetails(personId, personName = null) {
       .filter((genreId) => PERSON_CREDIT_GENRES.has(genreId))
       .sort((a, b) => PERSON_CREDIT_GENRES.get(a).localeCompare(PERSON_CREDIT_GENRES.get(b)));
 
-    // Initialize temporary filter/sort preferences on state if not set
+    // Keep selections when returning to the same profile, but never carry them
+    // over to another person. Filmography options are profile-specific because
+    // the available years and genres differ between people.
+    const personKey = String(personId);
+    if (state.personCreditsPersonId !== personKey) {
+      state.personCreditsPersonId = personKey;
+      state.personCreditsFilter = "all";
+      state.personCreditsYear = "all";
+      state.personCreditsGenre = "all";
+      state.personCreditsSort = "date_desc";
+    }
     state.personCreditsFilter = state.personCreditsFilter || "all";
     state.personCreditsYear = state.personCreditsYear || "all";
     state.personCreditsGenre = state.personCreditsGenre || "all";
@@ -341,7 +358,7 @@ export async function loadCastMemberDetails(personId, personName = null) {
           const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
           const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
           if (isTv) libraryTvCredits.push({ credit, libItem, title });
-          const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : movieHref(movieBySlugOrId(libItem.id) || { id: libItem.id, title });
+          const href = personCreditLibraryHref(libItem, title);
           return `
             <a class="person-credit-card in-library" href="${escapeAttribute(href)}" data-library-item-type="${libItem.type}" data-library-item-id="${escapeAttribute(libItem.id || libItem.key)}" data-library-item-title="${escapeAttribute(title)}">
               <span class="person-credit-poster-wrap">
@@ -364,7 +381,7 @@ export async function loadCastMemberDetails(personId, personName = null) {
           const cachedTmdb = isTv ? resolvedTmdbCache("tv", credit.id, title) : null;
           const watchProgress = isTv ? libraryTvWatchProgress(libItem, cachedTmdb) : null;
           if (isTv) libraryTvCredits.push({ credit, libItem, title });
-          const href = libItem.type === "tvshow" ? `/tvshow/${libItem.key}` : movieHref(movieBySlugOrId(libItem.id) || { id: libItem.id, title });
+          const href = personCreditLibraryHref(libItem, title);
           return `
             <a class="person-credit-card in-library" href="${escapeAttribute(href)}" data-library-item-type="${libItem.type}" data-library-item-id="${escapeAttribute(libItem.id || libItem.key)}" data-library-item-title="${escapeAttribute(title)}">
               <span class="person-credit-poster-wrap">
