@@ -9,7 +9,11 @@
       "message": "Fix - Keep mobile controls accessible across breakpoints",
       "author": "Lasikiewicz",
       "details": [
-        "Fix - Keep mobile controls accessible across breakpoints"
+        "Responsive Stats and Upcoming controls now fit without hidden overflow from 320–1280 px",
+        "Mobile controls now use 44 px touch targets",
+        "Closed navigation is now inert, aria-hidden, and removed from keyboard and screen-reader navigation",
+        "Routed pages now have proper h1 headings with a logical Dashboard and Stats section hierarchy",
+        "Fixed the tablet breakpoint regression affecting layouts from 761–1023 px"
       ]
     },
     {
