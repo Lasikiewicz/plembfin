@@ -13832,3 +13832,23 @@ html.light-mode .upcoming-entry:hover {
     align-items: flex-start;
   }
 }
+
+/* iOS enlarges the visual viewport when a focused form control renders below
+   16px. Keep text-entry controls at that threshold on phone-sized screens so
+   search, sign-in, and settings fields do not zoom the whole application. */
+@media (max-width: 760px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="url"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
