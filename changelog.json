@@ -1,7 +1,17 @@
 {
-  "version": "0.4.48",
-  "updatedAt": "2026-07-13T09:26:44+01:00",
+  "version": "0.4.49",
+  "updatedAt": "2026-07-13T10:13:09+01:00",
   "entries": [
+    {
+      "version": "0.4.49",
+      "date": "2026-07-13T10:13:09+01:00",
+      "commit": "4afa92b8a310846a64909cb2e8367ed39ab72706",
+      "message": "Fix - Keep mobile controls accessible across breakpoints",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix - Keep mobile controls accessible across breakpoints"
+      ]
+    },
     {
       "version": "0.4.48",
       "date": "2026-07-13T09:26:44+01:00",
