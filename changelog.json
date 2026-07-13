@@ -1,7 +1,14 @@
 {
-  "version": "0.4.45",
-  "updatedAt": "2026-07-10T16:56:33+01:00",
+  "version": "0.4.46",
+  "updatedAt": "2026-07-13T08:19:58+01:00",
   "entries": [
+    {
+      "version": "0.4.46",
+      "date": "2026-07-13T08:19:58+01:00",
+      "commit": "73b97e9e33a2a55d2bd7c886b2bc635a9e6ff248",
+      "message": "Fix - Scope biography filmography filters",
+      "author": "Lasikiewicz"
+    },
     {
       "version": "0.4.45",
       "date": "2026-07-10T16:56:33+01:00",
