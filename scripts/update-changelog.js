@@ -61,6 +61,27 @@ try {
   // COMMITS_JSON absent or malformed (e.g. a manual workflow run) — just skip backfill.
 }
 
+// Do not allow a subject-only head commit to create a release with no details.
+// Commit bodies remain the preferred source, but changed files provide a useful
+// automatic fallback when a contributor only supplies a one-line summary.
+if (sourceDetails.length === 0) {
+  let sourceFiles = [];
+  try {
+    const commits = JSON.parse(process.env.COMMITS_JSON || "[]");
+    const source = commits.find((commit) => commit.id === sourceCommit);
+    sourceFiles = [
+      ...(Array.isArray(source?.added) ? source.added : []),
+      ...(Array.isArray(source?.modified) ? source.modified : []),
+      ...(Array.isArray(source?.removed) ? source.removed : []),
+    ].filter(Boolean);
+  } catch {
+    // COMMITS_JSON absent or malformed — use the commit summary below.
+  }
+  sourceDetails.push(sourceFiles.length
+    ? `Changed files: ${sourceFiles.slice(0, 8).join(", ")}${sourceFiles.length > 8 ? " (and more)" : ""}`
+    : sourceMessage);
+}
+
 const allDetails = [...backfilledDetails, ...sourceDetails].filter((v, i, arr) => v && arr.indexOf(v) === i);
 
 if (!sourceCommit) {
