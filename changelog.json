@@ -1,7 +1,20 @@
 {
-  "version": "0.4.49",
-  "updatedAt": "2026-07-13T10:13:09+01:00",
+  "version": "0.4.50",
+  "updatedAt": "2026-07-13T10:28:21+01:00",
   "entries": [
+    {
+      "version": "0.4.50",
+      "date": "2026-07-13T10:28:21+01:00",
+      "commit": "86c60793199372a3091f9c7e71d795c52c1853d8",
+      "message": "Fix - Prevent incomplete changelog releases",
+      "author": "Lasikiewicz",
+      "details": [
+        "Reject user-visible commits that omit meaningful release details",
+        "Apply the same validation locally and in CI, including multi-commit pushes",
+        "Treat bullets that merely repeat the commit subject as incomplete",
+        "Document and test the enforced changelog workflow"
+      ]
+    },
     {
       "version": "0.4.49",
       "date": "2026-07-13T10:13:09+01:00",
