@@ -1,7 +1,17 @@
 {
-  "version": "0.4.47",
-  "updatedAt": "2026-07-13T08:30:09+01:00",
+  "version": "0.4.48",
+  "updatedAt": "2026-07-13T09:26:44+01:00",
   "entries": [
+    {
+      "version": "0.4.48",
+      "date": "2026-07-13T09:26:44+01:00",
+      "commit": "b1d2a762a6479ead6d3a7de3e9fa464cee5d3ada",
+      "message": "Fix - Prevent iOS form focus zoom",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix - Prevent iOS form focus zoom"
+      ]
+    },
     {
       "version": "0.4.47",
       "date": "2026-07-13T08:30:09+01:00",
