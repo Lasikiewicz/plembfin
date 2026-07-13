@@ -36,9 +36,11 @@ with `DATA_DIR`).
 ## Git hooks
 
 `npm install` runs `scripts/install-git-hooks.js` (via the `prepare` script), which
-points `core.hooksPath` at `.githooks/`. The `.githooks/pre-push` hook runs
-`git pull --rebase origin main` and then `npm run build` — so a push always goes out
-rebased and build-checked.
+points `core.hooksPath` at `.githooks/`. The `.githooks/commit-msg` hook rejects
+user-visible release commits whose body has no meaningful changelog bullet (a repeat
+of the subject does not count). The `.githooks/pre-push` hook runs `git pull --rebase
+origin main` and then `npm run build` — so a push always goes out rebased and
+build-checked.
 
 ## Release pipeline (push to `main`)
 
@@ -49,8 +51,10 @@ rebased and build-checked.
    higher `package.json` version) and appends a `changelog.json` entry — the entry's
    headline comes from the head commit's subject line (conventional-commit prefixes
    become labels: `feat:` → "Feature - …"), and its `details` are backfilled from the
-   bullet points of **every** commit in the push (subject line if a commit has no
-   bullets), so multi-commit pushes lose nothing
+   bullet points of **every** commit in the push. User-visible `feat`, `fix`,
+   `security`, `enhance`, and `docs` commits are rejected unless they contain at
+   least one meaningful body bullet; maintenance commits can fall back to their
+   subject, so multi-commit pushes lose nothing
 3. commits `changelog.json` + `package.json` + `package-lock.json` back to `main` as
    `chore: update changelog for <sha>` — this is why `origin/main` is usually one
    commit ahead right after a push (expected; see the "Push to git" section of
@@ -96,8 +100,9 @@ on GitHub — see the changelog section of [architecture.md](architecture.md).
 
 ## Conventions that CI enforces or assumes
 
-- Commit messages follow `type: summary` with `- ` bullet bodies — the changelog
-  generator parses them (full workflow in [`../CLAUDE.md`](../CLAUDE.md)).
+- Commit messages follow `type: summary` with `- ` bullet bodies — the commit hook
+  and changelog generator both reject user-visible release messages with missing or
+  title-repeating details (full workflow in [`../CLAUDE.md`](../CLAUDE.md)).
 - The version in `package.json`/`changelog.json` is CI-managed; only set it manually
   for a deliberate major/minor bump.
 - `data/` is never committed and never in the image; all state must live under

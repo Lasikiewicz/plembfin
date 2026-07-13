@@ -321,6 +321,12 @@ npm install      # install dependencies
 npm run dev      # start with auto-reload on http://localhost:5055
 ```
 
+Commits for user-visible features, fixes, security changes, enhancements, and docs
+must use a `type: summary` subject plus meaningful `- ` bullet points in the body.
+The installed commit hook and CI changelog generator both reject title-only release
+messages, preventing sparse entries in **Settings -> Changelog**. See
+[`docs/development.md`](docs/development.md) for the full release workflow.
+
 ---
 
 ## License

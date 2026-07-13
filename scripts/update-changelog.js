@@ -3,26 +3,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { bulletPointsFrom, formatChangelogMessage, validateReleaseMessage } from "./changelog-message.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const changelogPath = path.join(root, "changelog.json");
 const packagePath = path.join(root, "package.json");
 const packageLockPath = path.join(root, "package-lock.json");
-
-// Map a conventional-commit type prefix to the human-readable label shown in the
-// changelog UI, e.g. "feat: add thing" -> "Feature - Add thing". Messages that
-// don't start with a known type (older free-form commit summaries) pass through
-// unchanged.
-const TYPE_LABELS = { feat: "Feature", fix: "Fix", security: "Security", chore: "Chore", docs: "Docs", ci: "CI", enhance: "Enhancement" };
-function formatChangelogMessage(message) {
-  const m = String(message || "").match(/^([a-zA-Z]+)(?:\([^)]*\))?:\s*(.*)$/);
-  if (!m) return message;
-  const label = TYPE_LABELS[m[1].toLowerCase()];
-  if (!label) return message;
-  const rest = m[2].trim();
-  if (!rest) return label;
-  return `${label} - ${rest.charAt(0).toUpperCase()}${rest.slice(1)}`;
-}
 
 const sourceCommit = String(process.env.SOURCE_COMMIT || "").trim();
 const rawMessage = String(process.env.SOURCE_MESSAGE || "Update application").trim();
@@ -30,14 +16,24 @@ const sourceMessage = formatChangelogMessage(rawMessage.split(/\r?\n/, 1)[0]);
 const sourceDate = String(process.env.SOURCE_DATE || new Date().toISOString()).trim();
 const sourceAuthor = String(process.env.SOURCE_AUTHOR || "unknown").trim();
 
-// Extract bullet-point lines from a commit message body as structured details
-function bulletPointsFrom(message) {
-  return String(message || "")
-    .split(/\r?\n/)
-    .slice(1)
-    .map((l) => l.trim())
-    .filter((l) => /^[-*]\s+/.test(l))
-    .map((l) => l.replace(/^[-*]\s+/, ""));
+let pushedCommits = [];
+try {
+  const parsedCommits = JSON.parse(process.env.COMMITS_JSON || "[]");
+  if (Array.isArray(parsedCommits)) pushedCommits = parsedCommits;
+} catch {
+  // COMMITS_JSON absent or malformed — the head commit is still validated below.
+}
+
+const messagesToValidate = [
+  { id: sourceCommit, message: rawMessage },
+  ...pushedCommits.filter((commit) => commit.id !== sourceCommit),
+].filter((commit) => !/^chore: update changelog for /.test(String(commit.message || "")));
+const messageErrors = messagesToValidate.flatMap((commit) =>
+  validateReleaseMessage(commit.message).map((error) => `${String(commit.id || "head").slice(0, 7)}: ${error}`));
+if (messageErrors.length > 0) {
+  console.error("Refusing to generate an incomplete changelog entry:");
+  for (const error of messageErrors) console.error(`- ${error}`);
+  process.exit(1);
 }
 
 const sourceDetails = bulletPointsFrom(rawMessage);
@@ -49,34 +45,24 @@ const sourceDetails = bulletPointsFrom(rawMessage);
 // commit contributes its own bullet points, or its subject line if it has none,
 // so no commit's work is ever dropped just because it wasn't the last one pushed.
 let backfilledDetails = [];
-try {
-  const commits = JSON.parse(process.env.COMMITS_JSON || "[]");
-  const others = commits.filter((c) => c.id !== sourceCommit && !/^chore: update changelog for /.test(String(c.message || "")));
-  for (const commit of others) {
-    const bullets = bulletPointsFrom(commit.message);
-    if (bullets.length) backfilledDetails.push(...bullets);
-    else backfilledDetails.push(String(commit.message || "").split(/\r?\n/, 1)[0].trim());
-  }
-} catch {
-  // COMMITS_JSON absent or malformed (e.g. a manual workflow run) — just skip backfill.
+const otherCommits = pushedCommits.filter((commit) =>
+  commit.id !== sourceCommit && !/^chore: update changelog for /.test(String(commit.message || "")));
+for (const commit of otherCommits) {
+  const bullets = bulletPointsFrom(commit.message);
+  if (bullets.length) backfilledDetails.push(...bullets);
+  else backfilledDetails.push(String(commit.message || "").split(/\r?\n/, 1)[0].trim());
 }
 
 // Do not allow a subject-only head commit to create a release with no details.
 // Commit bodies remain the preferred source, but changed files provide a useful
 // automatic fallback when a contributor only supplies a one-line summary.
 if (sourceDetails.length === 0) {
-  let sourceFiles = [];
-  try {
-    const commits = JSON.parse(process.env.COMMITS_JSON || "[]");
-    const source = commits.find((commit) => commit.id === sourceCommit);
-    sourceFiles = [
-      ...(Array.isArray(source?.added) ? source.added : []),
-      ...(Array.isArray(source?.modified) ? source.modified : []),
-      ...(Array.isArray(source?.removed) ? source.removed : []),
-    ].filter(Boolean);
-  } catch {
-    // COMMITS_JSON absent or malformed — use the commit summary below.
-  }
+  const source = pushedCommits.find((commit) => commit.id === sourceCommit);
+  const sourceFiles = [
+    ...(Array.isArray(source?.added) ? source.added : []),
+    ...(Array.isArray(source?.modified) ? source.modified : []),
+    ...(Array.isArray(source?.removed) ? source.removed : []),
+  ].filter(Boolean);
   sourceDetails.push(sourceFiles.length
     ? `Changed files: ${sourceFiles.slice(0, 8).join(", ")}${sourceFiles.length > 8 ? " (and more)" : ""}`
     : sourceMessage);

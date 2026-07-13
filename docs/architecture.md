@@ -79,7 +79,7 @@ Every tracked file in the repository, by directory.
 | `.editorconfig` | Editor whitespace/indent conventions. |
 | `.gitattributes` | Normalizes line endings to LF; marks image formats binary. |
 | `.gitignore` | Ignores `node_modules`, `data/`, logs, local env files. |
-| `.githooks/pre-push` | Git pre-push hook: rebases onto `origin/main`, then runs `npm run build` (the build check). Installed by `scripts/install-git-hooks.js` via the npm `prepare` hook. |
+| `.githooks/commit-msg`, `.githooks/pre-push` | Git hooks installed by `scripts/install-git-hooks.js`: release commit messages must contain meaningful changelog bullets; pushes rebase onto `origin/main` and run `npm run build`. |
 | `LICENSE.md` | Project license. |
 | `SECURITY.md` | Vulnerability reporting policy. |
 | `CONTRIBUTING.md` | Contribution guidelines. |
@@ -217,7 +217,9 @@ including this file (`architecture.md`), the per-feature docs, and the
 | File | What it is |
 | --- | --- |
 | `build-check.js` | The `npm run build` gate: syntax-checks every JS file, validates the JSON manifests, rejects bare `fetch(` in `server/` (must be `fetchWithTimeout`), then boots the server once against a temp DATA_DIR (`PLEMBFIN_BUILD_CHECK=1`). |
-| `update-changelog.js` | CI helper: bumps the patch version (honouring a manually-set higher version), converts the pushed commits' messages + bullet points into a `changelog.json` entry, and syncs `package.json`/`package-lock.json`. |
+| `changelog-message.js` | Shared changelog-message formatting, bullet extraction, and release-detail validation used by local hooks, tests, and CI. |
+| `validate-commit-message.js` | CLI used by the commit-message hook to reject user-visible release commits with missing or title-repeating details. |
+| `update-changelog.js` | CI helper: validates release details, bumps the patch version (honouring a manually-set higher version), converts the pushed commits' messages + bullet points into a `changelog.json` entry, and syncs `package.json`/`package-lock.json`. |
 | `install-git-hooks.js` | Sets `core.hooksPath` to `.githooks` (runs automatically via npm `prepare`). |
 | `docker-entrypoint.sh` | Container entrypoint: chowns `/data` when starting as root, then drops to the `plembfin` user via gosu. |
 | `exportPlexHistory.js` | Standalone one-shot importer: reads a Plex server's watch history over its API and posts it to `/api/import` in chunks. Driven by env vars (`PLEX_URL`, `PLEX_TOKEN`, `API_KEY`). |
@@ -232,6 +234,7 @@ server modules.
 
 | File | What it covers |
 | --- | --- |
+| `changelogMessage.test.js` | Changelog subject formatting, bullet extraction, and rejection of missing or title-repeating release details. |
 | `parsers.test.js` | Webhook normalization (Plex/Emby/Jellyfin/custom payload parsing, phases, GUID extraction). |
 | `mediaKey.test.js` | Canonical `mediaKeyFor`/`canonicalTitleKey` derivation and specials (season 0) normalization in watch records. |
 | `syncOrchestrator.test.js` | Target routing, resume-progress actionability, loop-store echo detection. |

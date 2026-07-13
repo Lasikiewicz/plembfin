@@ -90,6 +90,16 @@ Keep bullet points to the 3–8 most significant user-visible changes. Skip inte
 
 Do not create single-line commits for user-visible changes. If the change affects behavior, UI, docs, setup, data sources, sync, caching, or settings, the commit body must include bullet-point details. The changelog generator only reads body lines that start with `- ` or `* `; without them, the Settings → Changelog entry will be sparse. If you are about to commit without bullet details, stop and rewrite the commit message before committing.
 
+This is an enforced release requirement, not optional guidance. Before committing, compare the staged diff with the bullet list and make sure every significant user-visible outcome is represented. A bullet that merely repeats the subject is not a detail. Use separate `-m` arguments (or a commit-message file) so the body is actually recorded:
+
+```bash
+git commit -m "fix: concise summary" \
+  -m "- First concrete user-visible outcome
+- Second concrete user-visible outcome"
+```
+
+The `.githooks/commit-msg` hook rejects `feat`, `fix`, `security`, `enhance`, and `docs` commits that have no meaningful bullet. `scripts/update-changelog.js` applies the same validation in CI, so bypassing local hooks cannot publish a title-only changelog entry. After committing, verify the recorded message with `git log -1 --format=full` before pushing.
+
 ### 5 — Stage and commit
 Stage all modified files **except** `data/`, `node_modules/`, and any secrets. Commit using the message written in step 4.
 
@@ -99,7 +109,7 @@ git push origin main
 ```
 CI will then auto-bump the patch version, add a `changelog.json` entry, and build/push the Docker image.
 
-The generated entry's headline and version always come from the last commit in the push, but the `details` list is backfilled from bullet points in *every* commit included in that push (falling back to a commit's subject line if it has no bullets) — see `scripts/update-changelog.js`. Nothing gets silently dropped even if the final commit's message doesn't summarize the whole push. Still, write the last commit's message as a proper user-facing summary of the session's work — features and fixes, no internal implementation details (file names, CSS properties, line counts) — since it becomes the entry's headline.
+The generated entry's headline and version always come from the last commit in the push, while the `details` list is backfilled from bullet points in *every* commit included in that push. Maintenance commits may fall back to their subject; user-visible release commits must pass the meaningful-bullet validation above. Nothing gets silently dropped even if the final commit's message doesn't summarize the whole push. Still, write the last commit's message as a proper user-facing summary of the session's work — features and fixes, no internal implementation details (file names, CSS properties, line counts) — since it becomes the entry's headline.
 
 #### Expect `main` to be ahead — this is normal, not a conflict to escalate
 
