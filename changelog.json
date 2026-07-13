@@ -7,7 +7,12 @@
       "date": "2026-07-13T08:19:58+01:00",
       "commit": "73b97e9e33a2a55d2bd7c886b2bc635a9e6ff248",
       "message": "Fix - Scope biography filmography filters",
-      "author": "Lasikiewicz"
+      "author": "Lasikiewicz",
+      "details": [
+        "TV shows in biography filmographies now open their TV-show detail pages instead of incorrectly using movie routes",
+        "Filmography filters reset when opening a different person, so movie, TV, year, genre, and sort choices do not leak between profiles",
+        "Filter selections are retained when returning to the same person’s biography"
+      ]
     },
     {
       "version": "0.4.45",
