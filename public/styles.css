@@ -1016,7 +1016,7 @@ h2 {
   overflow: hidden;
 }
 
-.page-topbar-copy p {
+.page-topbar-copy h1 {
   margin: 0;
   color: var(--text);
   font-size: 0.95rem;
@@ -1136,7 +1136,9 @@ h2 {
   margin-bottom: var(--space-3);
 }
 
-.section-heading p {
+.section-heading p,
+.section-heading h2 {
+  margin: 0;
   color: var(--text);
   font-size: 0.95rem;
   font-weight: 850;
@@ -8059,8 +8061,13 @@ h1 {
     padding: 0 !important;
   }
 
-  .brand-block h1 {
+  .brand-heading {
     font-size: 1rem;
+  }
+
+  .topnav.nav-closed .global-search,
+  .topnav.nav-closed .sidebar-scrollable {
+    visibility: hidden;
   }
 
   .brand-logo {
@@ -8611,7 +8618,8 @@ h1 {
 
   /* Text overflow fix */
   .immersive-meta p,
-  .section-heading p {
+  .section-heading p,
+  .section-heading h2 {
     white-space: normal;
     word-wrap: break-word;
   }
@@ -13830,6 +13838,130 @@ html.light-mode .upcoming-entry:hover {
 
   .upcoming-entry {
     align-items: flex-start;
+  }
+}
+
+/* Compact topbar controls reflow within the available column instead of
+   relying on a hidden horizontal swipe for calendar navigation. */
+@media (max-width: 1023px) {
+  body .page-topbar-actions .upcoming-controls:not(.hidden) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-shrink: 1 !important;
+  }
+
+  body .page-topbar-actions .upcoming-search-field {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body .page-topbar-actions .upcoming-search-field input {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body .page-topbar-actions .upcoming-month-controls {
+    grid-template-columns: 2.4rem minmax(8rem, 1fr) 2.4rem auto;
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  body .page-topbar-actions .stats-controls:not(.hidden) {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-shrink: 1 !important;
+  }
+
+  body .page-topbar-actions .stats-controls .compact-field {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: var(--space-1) !important;
+  }
+
+  body .page-topbar-actions .stats-controls .compact-field:last-child {
+    grid-column: 1 / -1;
+  }
+
+  body .page-topbar-actions .stats-controls .field {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body .page-topbar-actions .upcoming-controls:not(.hidden) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-shrink: 1 !important;
+  }
+
+  body .page-topbar-actions .upcoming-search-field {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body .page-topbar-actions .upcoming-search-field input {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body .page-topbar-actions .upcoming-month-controls {
+    grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem auto;
+    width: 100%;
+    min-width: 0;
+  }
+
+  body .page-topbar-actions .upcoming-nav-button {
+    width: 2.75rem !important;
+    min-width: 2.75rem !important;
+    padding-inline: 0 !important;
+  }
+
+  body .page-topbar-actions #upcomingTodayButton {
+    width: auto !important;
+    min-width: 7rem !important;
+  }
+
+  .brand-link,
+  .nav-tab,
+  .settings-tab,
+  .button-primary,
+  .button-ghost,
+  .icon-button,
+  .field,
+  .theme-toggle-button {
+    min-height: 2.75rem;
+  }
+
+  .brand-link {
+    display: flex;
+    align-items: center;
+  }
+
+  body .page-topbar-actions .compact-field input,
+  body .page-topbar-actions .compact-field select,
+  body .page-topbar-actions .sidebar-sub-menu .settings-tab {
+    min-height: 2.75rem !important;
+    height: 2.75rem !important;
+  }
+}
+
+@media (max-width: 420px) {
+  body .page-topbar-actions .upcoming-month-controls {
+    grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
   }
 }
 

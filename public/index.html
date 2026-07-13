@@ -38,10 +38,10 @@
   </head>
   <body>
     <div class="app-chassis">
-      <nav class="topnav" aria-label="Primary navigation">
+      <nav class="topnav nav-closed" aria-label="Primary navigation">
         <div class="brand-search">
           <div class="brand-block">
-            <h1><a id="brandLink" class="brand-link" href="/"><img class="brand-logo" src="/plembfin_header_logo_dark.png" alt="Plembfin" /></a></h1>
+            <div class="brand-heading"><a id="brandLink" class="brand-link" href="/"><img class="brand-logo" src="/plembfin_header_logo_dark.png" alt="Plembfin" /></a></div>
           </div>
           <label class="global-search" for="globalSearchInput">
             <span>Search</span>
@@ -196,7 +196,7 @@
           <div class="page-topbar-title">
             <button id="explorerBackButton" class="immersive-back-button hidden" type="button">&larr; Back</button>
             <div class="page-topbar-copy">
-              <p id="explorerTitle">Dashboard</p>
+              <h1 id="explorerTitle">Dashboard</h1>
               <span id="explorerSubtitle">Overview</span>
             </div>
           </div>
@@ -210,10 +210,11 @@
         </header>
 
         <section id="timeline-view" class="view-panel" data-view-panel="dashboard">
+          <h1 class="sr-only">Dashboard</h1>
           <section class="glass-panel p-section live-panel">
             <div class="section-heading">
               <div>
-                <p>Now Playing</p>
+                <h2>Now Playing</h2>
               </div>
             </div>
             <div id="nowPlayingGrid" class="now-playing-grid" aria-live="polite"></div>
@@ -222,7 +223,7 @@
           <section id="partWatchedDashboardSection" class="glass-panel p-section history-timeline-panel">
             <div class="section-heading">
               <div>
-                <p>Part Watched</p>
+                <h2>Part Watched</h2>
               </div>
             </div>
             <div id="partWatchedRow" class="horizontal-scroll-row" aria-live="polite"></div>
@@ -231,7 +232,7 @@
           <section class="glass-panel p-section history-timeline-panel">
             <div class="section-heading">
               <div>
-                <p>Watch history</p>
+                <h2>Watch history</h2>
               </div>
             </div>
             
@@ -333,7 +334,7 @@
             <article class="glass-panel p-section stats-leaderboard-panel" id="topMediaReport">
               <div class="section-heading">
                 <div>
-                  <p>Most Played</p>
+                  <h2>Most Played</h2>
                   <span id="statsLeaderboardSubtitle">All time - by plays</span>
                 </div>
               </div>
@@ -348,7 +349,7 @@
               <article class="glass-panel p-section">
                 <div class="section-heading">
                   <div>
-                    <p>Playback Platforms</p>
+                    <h2>Playback Platforms</h2>
                     <span>by watch events</span>
                   </div>
                 </div>
@@ -360,7 +361,7 @@
               <article class="glass-panel p-section">
                 <div class="section-heading">
                   <div>
-                    <p id="statsActivityTitle">Watch Activity</p>
+                    <h2 id="statsActivityTitle">Watch Activity</h2>
                     <span id="statsActivitySubtitle">Monthly archive volume</span>
                   </div>
                 </div>
