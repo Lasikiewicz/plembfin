@@ -1,7 +1,17 @@
 {
-  "version": "0.4.52",
-  "updatedAt": "2026-07-16T09:50:31+01:00",
+  "version": "0.4.53",
+  "updatedAt": "2026-07-16T10:08:38+01:00",
   "entries": [
+    {
+      "version": "0.4.53",
+      "date": "2026-07-16T10:08:38+01:00",
+      "commit": "b440efd0a78015e84b0e9cf3310432b781cd386c",
+      "message": "Fix - Recover orphaned force sync locks",
+      "author": "Lasikiewicz",
+      "details": [
+        "Clear persisted force-sync locks automatically when the server restarts.\\n- Keep a Stop / Reset Sync kill switch available for live and orphaned jobs.\\n- Add regression coverage for cancel, reset, and idle control states."
+      ]
+    },
     {
       "version": "0.4.52",
       "date": "2026-07-16T09:50:31+01:00",
