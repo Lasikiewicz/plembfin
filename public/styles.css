@@ -89,53 +89,10 @@
   font-size: 1rem;
 }
 
-.settings-task-nav {
-  display: flex;
-  gap: var(--space-1);
-  padding: 0 0 var(--space-3);
-  margin-bottom: var(--space-4);
-  overflow-x: auto;
-  border-bottom: 1px solid var(--line);
-  scrollbar-width: none;
-}
-
-.settings-task-nav::-webkit-scrollbar {
-  display: none;
-}
-
-.settings-task-link {
-  min-height: 2.75rem;
-  padding: var(--space-2) var(--space-3);
-  flex: 0 0 auto;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.86rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.settings-task-link:hover,
-.settings-task-link:focus-visible {
-  color: var(--text);
-  background: var(--panel-2);
-}
-
-.settings-task-link:focus-visible,
-.settings-status-row:focus-visible,
-.settings-action-links button:focus-visible,
 .settings-help-disclosure > summary:focus-visible,
 .settings-advanced-disclosure > summary:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
-}
-
-.settings-task-link.active {
-  color: var(--text);
-  border-color: var(--line-strong);
-  background: var(--panel-3);
 }
 
 .settings-overview {
@@ -157,8 +114,7 @@
   gap: var(--space-2);
 }
 
-.settings-overview-header h2,
-.settings-next-actions h3 {
+.settings-overview-header h2 {
   margin: 0;
   color: var(--text);
   font-size: 1.5rem;
@@ -174,141 +130,16 @@
   line-height: 1.6;
 }
 
-.settings-status-list {
-  display: grid;
-  border-block: 1px solid var(--line);
-}
-
-.settings-status-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  gap: var(--space-3);
-  align-items: center;
-  min-height: 4.75rem;
-  padding: var(--space-3) 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-}
-
-.settings-status-row:last-child {
-  border-bottom: 0;
-}
-
-.settings-status-row:hover {
-  background: color-mix(in srgb, var(--panel-2) 72%, transparent);
-}
-
-.settings-status-mark {
-  width: 0.68rem;
-  height: 0.68rem;
-  border-radius: 50%;
-  background: var(--muted);
-  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--muted) 12%, transparent);
-}
-
-.settings-status-row[data-tone="ready"] .settings-status-mark { background: var(--green); box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--green) 14%, transparent); }
-.settings-status-row[data-tone="warning"] .settings-status-mark { background: var(--yellow); box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--yellow) 14%, transparent); }
-.settings-status-row[data-tone="loading"] .settings-status-mark { background: var(--blue); box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--blue) 14%, transparent); }
-
-.settings-status-copy {
-  display: grid;
-  gap: 0.18rem;
-  min-width: 0;
-}
-
-.settings-status-copy strong {
-  font-size: 0.92rem;
-}
-
-.settings-status-copy small {
-  overflow-wrap: anywhere;
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.45;
-}
-
-.settings-status-value {
-  color: var(--soft);
-  font-size: 0.78rem;
-  font-weight: 750;
-  white-space: nowrap;
-}
-
-.settings-status-arrow {
-  color: var(--muted);
-  font-size: 1rem;
-}
-
-.settings-next-actions {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.settings-next-actions > div:first-child {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.settings-action-links {
-  display: grid;
-  border-top: 1px solid var(--line);
-}
-
-.settings-action-links button {
-  display: grid;
-  gap: var(--space-1);
-  min-height: 4.5rem;
-  padding: var(--space-3) 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-}
-
-.settings-action-links button:hover {
-  padding-inline: var(--space-2);
-  background: var(--panel-2);
-}
-
-.settings-action-links strong {
-  font-size: 0.88rem;
-}
-
-.settings-action-links span {
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.45;
-}
 
 .settings-pane {
   width: 100%;
   padding-top: 0;
 }
 
-.settings-pane > .settings-top-tabs {
-  display: none !important;
-}
-
-.settings-pane .settings-row {
-  display: block;
-  width: 100%;
-}
-
-.settings-pane .settings-row-main {
-  display: grid;
-  gap: var(--space-4);
-  width: 100%;
-}
-
 .settings-pane .settings-card,
 .settings-pane .sync-panel,
-.settings-pane .logs-panel {
+.settings-pane .logs-panel,
+.settings-pane .backup-settings-panel {
   width: 100%;
   padding: var(--space-4) !important;
   border: 1px solid var(--line);
@@ -404,6 +235,7 @@
 html.light-mode .settings-pane .settings-card,
 html.light-mode .settings-pane .sync-panel,
 html.light-mode .settings-pane .logs-panel,
+html.light-mode .settings-pane .backup-settings-panel,
 html.light-mode .settings-advanced-disclosure {
   background: var(--panel);
 }
@@ -411,11 +243,6 @@ html.light-mode .settings-advanced-disclosure {
 @media (min-width: 48rem) {
   .settings-overview-header {
     grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .settings-action-links {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: var(--space-5);
   }
 }
 
@@ -430,23 +257,10 @@ html.light-mode .settings-advanced-disclosure {
     gap: var(--space-5);
   }
 
-  .settings-status-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-
-  .settings-status-value {
-    grid-column: 2;
-    justify-self: start;
-  }
-
-  .settings-status-arrow {
-    grid-column: 3;
-    grid-row: 1 / span 2;
-  }
-
   .settings-pane .settings-card,
   .settings-pane .sync-panel,
-  .settings-pane .logs-panel {
+  .settings-pane .logs-panel,
+  .settings-pane .backup-settings-panel {
     padding: var(--space-3) !important;
   }
 
@@ -465,9 +279,6 @@ html.light-mode .settings-advanced-disclosure {
 }
 
 @media (pointer: coarse) {
-  .settings-task-link,
-  .settings-status-row,
-  .settings-action-links button,
   .settings-help-disclosure > summary,
   .settings-advanced-disclosure > summary {
     min-height: 2.75rem;
@@ -3186,18 +2997,9 @@ h2 {
   background: var(--green);
 }
 
-.settings-pane[data-settings-panel="general"] {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-3);
-}
 
 /* ── Tools accordion ─────────────────────────────────────── */
 
-.settings-pane[data-settings-panel="tools"] {
-  display: grid;
-  gap: var(--space-2);
-}
 
 .tool-accordion {
   border-radius: var(--radius);
@@ -3410,6 +3212,7 @@ details[open] .tool-accordion-chevron::before {
   align-items: center;
   gap: var(--space-3);
   width: 100%;
+  flex-wrap: wrap;
 }
 
 .backup-settings-left {
@@ -3424,6 +3227,7 @@ details[open] .tool-accordion-chevron::before {
   justify-content: center;
   align-items: center;
   gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .backup-settings-right {
@@ -3462,14 +3266,20 @@ details[open] .tool-accordion-chevron::before {
   align-items: center !important;
   gap: 0.5rem !important;
   grid-column: auto !important;
-  white-space: nowrap !important;
-  flex-wrap: nowrap !important;
+  white-space: normal !important;
+  flex-wrap: wrap !important;
   margin-bottom: 0 !important;
 }
 
 .backup-settings-inline .field-label .field {
   flex: 1 !important;
   min-width: 150px !important;
+}
+
+.backup-settings-inline .backup-passphrase-label {
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: var(--space-1) !important;
 }
 
 .backup-enable-row input {
@@ -3682,102 +3492,6 @@ details[open] .tool-accordion-chevron::before {
   gap: var(--space-2);
 }
 
-.backup-destination-add {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-}
-
-.watch-backup-destinations {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.watch-backup-destination {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel-3);
-}
-
-.destination-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.destination-badge {
-  font-weight: 600;
-  font-size: 0.8rem;
-  padding: 0.15rem 0.55rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel-2);
-}
-
-.destination-label {
-  flex: 1 1 160px;
-  min-width: 120px;
-}
-
-.destination-fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2) var(--space-3);
-}
-
-.destination-help {
-  font-size: 0.82rem;
-  color: var(--muted);
-}
-
-.destination-help summary {
-  cursor: pointer;
-  color: var(--accent, #4aa3ff);
-  user-select: none;
-}
-
-.destination-help p,
-.destination-help ol {
-  margin: var(--space-2) 0 0;
-  line-height: 1.45;
-}
-
-.destination-help ol {
-  padding-left: 1.2rem;
-}
-
-.destination-help a {
-  color: var(--accent, #4aa3ff);
-}
-
-.destination-feedback {
-  color: var(--muted);
-  font-size: 0.82rem;
-  min-height: 1rem;
-}
-
-.destination-feedback:empty {
-  display: none;
-}
-
-.destination-restore {
-  display: grid;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px dashed var(--line);
-}
-
-.destination-restore-head {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--muted);
-}
-
 .recovery-guide {
   display: grid;
   gap: var(--space-2);
@@ -3789,12 +3503,6 @@ details[open] .tool-accordion-chevron::before {
   background: var(--panel-2);
   padding: 0.05rem 0.35rem;
   border-radius: 4px;
-}
-
-.destination-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }
 
 @media (max-width: 860px) {
@@ -3828,10 +3536,6 @@ details[open] .tool-accordion-chevron::before {
     flex-direction: column;
   }
 
-  .backup-destination-add {
-    justify-content: flex-start;
-  }
-
   .watch-backup-row {
     align-items: stretch;
     flex-direction: column;
@@ -3841,28 +3545,6 @@ details[open] .tool-accordion-chevron::before {
     justify-content: flex-start;
   }
 
-  .destination-fields {
-    grid-template-columns: 1fr;
-  }
-}
-
-.settings-config-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-3);
-}
-
-.apps-server-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-}
-
-.apps-secondary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
 }
 
 .stat-card {
@@ -4108,36 +3790,6 @@ details[open] .tool-accordion-chevron::before {
 .settings-card .field-label,
 .settings-card .field {
   min-width: 0;
-}
-
-.integration-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  margin: 0;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 0.78rem;
-  font-weight: 700;
-  line-height: 1.2;
-  white-space: nowrap;
-  user-select: none;
-}
-
-.integration-toggle input {
-  width: 1rem;
-  height: 1rem;
-  margin: 0;
-  accent-color: var(--blue);
-  flex: 0 0 auto;
-}
-
-.integration-fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-  gap: var(--space-2);
-  align-items: end;
 }
 
 .admin-credentials-form {
@@ -5441,10 +5093,7 @@ details[open] .tool-accordion-chevron::before {
 
   .insight-grid,
   .stats-toolbar,
-  .settings-config-grid,
   .admin-credentials-grid,
-  .apps-server-grid,
-  .apps-secondary-grid,
   .explorer-overview-view,
   .stats-grid,
   .episode-row,
@@ -13230,7 +12879,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 .settings-pane {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.5rem;
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -13252,7 +12901,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 }
 
 .settings-row-main {
-  flex: 65;
+  flex: 60;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -13261,7 +12910,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 }
 
 .settings-row-help {
-  flex: 35;
+  flex: 40;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -13417,63 +13066,6 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 .settings-pane .checkbox-label input[type="checkbox"]:checked::before {
   transform: translateX(1.25rem);
   background: #ffffff;
-}
-
-/* Branded Integration Cards */
-.integration-card {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.integration-card .section-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  padding-bottom: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-
-.integration-card .section-heading p {
-  font-size: 1.1rem !important;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-/* Disabled state desaturation */
-.integration-card:has(.integration-toggle input:not(:checked)) .integration-fields,
-.integration-card:has(.integration-toggle input:not(:checked)) .test-connection-button {
-  opacity: 0.35;
-  filter: saturate(0.1);
-  pointer-events: none;
-}
-
-/* Checked integration switch accents (subtle, unified design) */
-.integration-card.integration-plex .integration-toggle input[type="checkbox"]:checked {
-  background: var(--yellow) !important;
-}
-
-.integration-card.integration-emby .integration-toggle input[type="checkbox"]:checked {
-  background: var(--green) !important;
-}
-
-.integration-card.integration-jellyfin .integration-toggle input[type="checkbox"]:checked {
-  background: #00a4dc !important;
-}
-
-.integration-card.integration-seerr .integration-toggle input[type="checkbox"]:checked {
-  background: var(--red) !important;
-}
-
-/* Brand icon styling */
-.integration-brand-logo {
-  width: 1.25rem;
-  height: 1.25rem;
-  fill: currentColor;
-  flex-shrink: 0;
 }
 
 /* Operational activity log */
@@ -13858,57 +13450,6 @@ html.light-mode .settings-pane .checkbox-label input[type="checkbox"]:checked {
 html.light-mode .cache-gauge-card {
   background: rgba(0, 0, 0, 0.01);
   border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-/* Top Sub-tabs Navigation inside Settings Panels */
-.settings-top-tabs {
-  display: flex;
-  gap: 0.5rem;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 0.75rem;
-  margin-bottom: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.settings-top-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.settings-sub-tab {
-  background: transparent !important;
-  border: 1px solid transparent !important;
-  border-radius: 6px !important;
-  padding: 0.5rem 1rem !important;
-  font-size: 0.82rem !important;
-  font-weight: 700 !important;
-  color: var(--muted) !important;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s ease !important;
-  height: 2.2rem !important;
-  min-height: 2.2rem !important;
-}
-
-.settings-sub-tab:hover {
-  color: var(--text) !important;
-  background: rgba(255, 255, 255, 0.03) !important;
-}
-
-.settings-sub-tab.active {
-  border-color: rgba(59, 130, 246, 0.25) !important;
-  background: rgba(59, 130, 246, 0.08) !important;
-  color: var(--blue) !important;
-}
-
-html.light-mode .settings-sub-tab:hover {
-  background: rgba(0, 0, 0, 0.02) !important;
-}
-
-html.light-mode .settings-sub-tab.active {
-  border-color: rgba(59, 130, 246, 0.2) !important;
-  background: rgba(59, 130, 246, 0.06) !important;
 }
 
 /* Refined Trakt drop zone */
@@ -14513,5 +14054,378 @@ html.light-mode .upcoming-entry:hover {
   textarea,
   select {
     font-size: 16px !important;
+  }
+}
+
+/* Sonarr-style Settings Page Layout (Desktop Viewports) */
+@media (min-width: 900px) {
+  /* Disable multi-column grid layouts for settings forms to stack all fields vertically */
+  .settings-pane .admin-credentials-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: var(--space-3) !important;
+  }
+
+  /* Two-column grid layout for form field-label containers: label on left (240px), control on right (1fr) */
+  .settings-pane .field-label:not(.backup-enable-row):not(.checkbox-label):not(.tool-item-row .field-label):not(.backup-type-card .field-label) {
+    display: grid !important;
+    grid-template-columns: 240px 1fr !important;
+    gap: 1.5rem !important;
+    align-items: center !important;
+    text-align: right !important;
+    width: 100% !important;
+    max-width: none !important;
+    white-space: normal !important;
+  }
+
+  /* Constrain inputs inside the two-column layout so they don't stretch too wide */
+  .settings-pane .field-label:not(.backup-enable-row):not(.checkbox-label):not(.tool-item-row .field-label):not(.backup-type-card .field-label) .field {
+    text-align: left !important;
+    max-width: 480px !important;
+    width: 100% !important;
+  }
+
+  /* Align checkbox toggles to the same vertical columns */
+  .settings-pane .checkbox-label:not(.backup-enable-row):not(.tool-item-row .checkbox-label):not(.backup-type-card .checkbox-label) {
+    display: grid !important;
+    grid-template-columns: 240px 1fr !important;
+    gap: 1.5rem !important;
+    align-items: center !important;
+    text-align: right !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .settings-pane .checkbox-label:not(.backup-enable-row):not(.tool-item-row .checkbox-label):not(.backup-type-card .checkbox-label) input {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    justify-self: start !important;
+  }
+
+  .settings-pane .checkbox-label:not(.backup-enable-row):not(.tool-item-row .checkbox-label):not(.backup-type-card .checkbox-label) span {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    color: var(--soft) !important;
+    white-space: normal !important;
+  }
+
+  /* Align settings action buttons (Save / Test buttons) with the input fields on the right side */
+  .settings-pane .settings-actions {
+    padding-left: 240px !important;
+    margin-left: 1.5rem !important;
+    justify-content: flex-start !important;
+    display: flex !important;
+    gap: var(--space-2) !important;
+    width: 100% !important;
+  }
+}
+
+/* ── Sonarr-style settings: landing link list ─────────────────────────── */
+.settings-link-list {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+
+.settings-link-row {
+  display: grid;
+  gap: var(--space-1);
+  min-height: 4.25rem;
+  padding: var(--space-3) 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-link-row:hover,
+.settings-link-row:focus-visible {
+  padding-inline: var(--space-2);
+  background: var(--panel-2);
+}
+
+.settings-link-row:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
+}
+
+.settings-link-row strong {
+  font-size: 0.95rem;
+}
+
+.settings-link-row span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+/* ── Sonarr-style settings: service card grid ─────────────────────────── */
+.settings-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.service-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: 6.25rem;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+
+.service-card:hover,
+.service-card:focus-visible {
+  border-color: var(--line-strong);
+  background: var(--panel-3);
+  transform: translateY(-2px);
+}
+
+.service-card:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.service-card b {
+  font-size: 1rem;
+  font-weight: 750;
+}
+
+.service-card-desc {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.service-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: auto;
+}
+
+.service-card--add {
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  background: transparent;
+  color: var(--muted);
+}
+
+.service-card--add span {
+  font-size: 2rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.service-card--add:hover,
+.service-card--add:focus-visible {
+  color: var(--text);
+}
+
+/* ── Sonarr-style settings: edit / picker modals ──────────────────────── */
+.settings-modal {
+  width: min(640px, 94vw);
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.settings-picker-modal {
+  width: min(760px, 94vw);
+}
+
+.settings-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-modal-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.settings-modal-close {
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-modal-close:hover,
+.settings-modal-close:focus-visible {
+  color: var(--text);
+  background: var(--panel-2);
+}
+
+.settings-modal-body {
+  display: grid;
+  gap: var(--space-3);
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.settings-modal-status {
+  min-height: 1.2rem;
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-2);
+  font-size: 0.8rem;
+}
+
+.settings-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.settings-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.settings-picker-intro {
+  margin: 0;
+  color: var(--soft);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.settings-modal-field {
+  display: grid;
+  gap: var(--space-1);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--soft);
+}
+
+.settings-modal-field-control {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.settings-modal-field--checkbox .settings-modal-field-control {
+  justify-items: start;
+}
+
+.settings-modal-field--checkbox input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--accent, var(--blue));
+}
+
+.settings-field-help {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.settings-field-optional {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.settings-modal-help {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.settings-modal-help > summary {
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-modal-help > .settings-help-body {
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.settings-help-steps {
+  padding-left: 1.2rem;
+}
+
+/* Sonarr-style aligned label/control rows inside the modal on desktop. */
+@media (min-width: 761px) {
+  .settings-modal-field {
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  .settings-modal-field-label {
+    padding-top: 0.55rem;
+    text-align: right;
+  }
+
+  .settings-modal-field--checkbox .settings-modal-field-label {
+    padding-top: 0.1rem;
+  }
+
+  .settings-modal-field-control .field {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  .settings-modal {
+    width: 96vw;
+    max-height: 92dvh;
+  }
+
+  .settings-modal-foot {
+    flex-wrap: wrap;
+  }
+
+  .settings-modal-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .settings-modal-delete {
+    margin-right: auto;
+  }
+
+  .settings-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .service-card {
+    transition: none;
   }
 }

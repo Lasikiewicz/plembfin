@@ -22,6 +22,9 @@ the module rules. Feature-specific behavior lives in the per-feature docs
   lines, hard limit 1,500). The authoritative "which module owns what" table plus the
   dependency rules live in [`../CLAUDE.md`](../CLAUDE.md); the file map in
   [architecture.md](architecture.md) has a one-line description of each.
+- **`public/modules/settings-ui.js`** — reusable settings card-grid, picker, and edit
+  dialog primitives. `settings-services.js` owns media-server/metadata behavior, while
+  `tools-backups.js` consumes the same primitives for remote destinations.
 - **`public/styles.css`** — all styling, including the ≤ 760px mobile rules. Any
   layout/appearance change must be verified on mobile.
 
@@ -50,8 +53,8 @@ SPA navigation via `history.pushState`:
 | `/movies`, `/tvshows` | Explorer in movies/shows mode |
 | `/upcoming` | Upcoming TV episode calendar |
 | `/history`, `/stats`, `/search?q=` | History / Stats / Search |
-| `/settings`, `/settings/:group/:task?` | Settings overview and focused administration tasks |
-| `/sync`, `/logs`, legacy `/settings/:tab` URLs | Compatibility aliases normalized to the matching Settings task |
+| `/settings`, `/settings/:section` | Settings landing list and flat administration sections |
+| `/sync`, `/logs`, retired grouped `/settings/*` URLs | Compatibility aliases normalized to canonical flat sections |
 | `/movie/:idOrSlug`, `/movie/tmdb/:id` | Movie detail (inline in explorer) |
 | `/tvshow/:key(/season/:n(/episode/:n))`, `/tvshow/tmdb/:id` | Show detail, with season/episode deep links (legacy `#seasonNepM` hash also parsed) |
 | `/person/:id` | Person profile |
@@ -63,8 +66,9 @@ SPA navigation via `history.pushState`:
 - Detail pages record `state.mediaDetailReturnView` so closing returns to where the
   user came from; `state.internalHistoryCount` tracks how deep in-app history goes so
   back-button behavior stays sane.
-- `modules/settings-shell.js` is the settings route registry. It resolves group/task
-  defaults, legacy aliases, overview status, focused panels, and task navigation.
+- `modules/settings-shell.js` is the settings route registry. It resolves flat sections
+  and legacy aliases, renders the landing list/sidebar/mobile selector, and applies
+  focused panel visibility.
 - `popstate` re-runs `handleRouting` for browser back/forward; direct URL loads hydrate
   the same UI (the server falls back to `index.html` for any non-API path).
 

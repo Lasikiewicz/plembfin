@@ -1,7 +1,8 @@
 # Backups
 
 Plembfin has **three backup subsystems** plus a set of pluggable remote destinations.
-All are managed from **Settings → Data & Backup** (UI in `public/modules/tools-backups.js`).
+Schedules and destinations are managed from **Settings → Backups**; recovery workflows
+live under **Settings → Restore** (UI in `public/modules/tools-backups.js`).
 
 | Subsystem | What it saves | Format | Files |
 | --- | --- | --- | --- |
@@ -65,6 +66,14 @@ Destination records (`{ id, type, label, settings, secrets }`) live in the setti
 flags (`loadBackupDestinationsRedacted`). Backup transfers use a 60-second outbound
 timeout (vs the 10s default).
 
+The settings UI currently exposes Backblaze B2 destinations. Each configured target is
+shown as a status card; the trailing **+** card opens the type picker, and selecting a
+card opens an edit dialog with Save, Test, and Delete. The B2 form uses the adapter's
+canonical `region`, `bucket`, `accessKeyId`, `prefix`, and `secretAccessKey` fields.
+Secret values are never prefilled; a configured placeholder means leaving the field
+blank preserves the stored application key. Multiple B2 destination records are
+supported.
+
 ## Encrypted full backups (`plembfinBackups.js`)
 
 Nightly encrypted snapshots of the entire portable backup document.
@@ -92,26 +101,26 @@ The portable-format engine the other subsystems build on, also exposed directly:
 
 - `GET /api/backup/export` (`handleBackupExport`) — pages collections out via
   `exportCollectionPage` (cursor + limit ≤ 500) so the browser can assemble a full
-  plain-JSON backup for download (Settings → Data & Backup → Backups).
+  plain-JSON backup for download (Settings → Backups).
 - `POST /api/backup/import` (`handleBackupImport`) — imports batches via
   `importCollectionBatch` (≤ 250 documents per batch, optional per-collection reset).
   Importing watch-state collections bumps `dataVersion` so derived caches reload.
 - The `portableValue`/`reviveValue` helpers keep timestamps portable, and the format
   also revives `_seconds`-style timestamps found in old exports.
 
-## Watch-history importer (Settings → Data & Backup → Trakt import)
+## Watch-history importer (Settings → Import)
 
 Separate from backups: `POST /api/import` (`handleImport`) ingests watch records from
 CSV/JSON files (e.g. Trakt exports, `scripts/exportPlexHistory.js` output). Frontend
 flow in `tools.js` (`parseSelectedFiles`, `renderImportPreview`, `startImport`) parses
 files in the browser and posts records in batches.
 
-## Frontend (`public/modules/tools.js`)
+## Frontend (`public/modules/tools-backups.js`)
 
-Settings → Data & Backup renders: schedule/retention settings, destination cards
-(add/save/test/remove/connect OAuth/list remote files/restore from remote), backup-now
-buttons, backup file lists with download/delete/restore, dry-run/merge/replace restore
-choices, and transfer status (`setBackupTransferState`). State lives in
+Settings → Backups renders schedule/retention settings, Backblaze destination cards and
+edit dialogs, backup-now buttons, and local backup lists. Settings → Restore renders
+local/uploaded/remote backup choices and restore status (`setBackupTransferState`).
+State lives in
 `state.watchBackups`, `state.remoteBackupFiles`, `state.backupImport`,
 `state.activeBackupsTab`.
 

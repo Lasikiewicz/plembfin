@@ -68,5 +68,5 @@ addresses.
 - Or watch the server process stdout — tick start/stop and any errors are logged.
 - Key log lines: `"live sessions: N, cached sessions in tracking: M"` tells you
   whether the poller is seeing anything.
-- Force sync from the dashboard: **Settings → System → Sync → Force Sync** streams the same
+- Force sync from the dashboard: **Settings → Sync → Force Sync** streams the same
   log in-browser and shows per-platform status.

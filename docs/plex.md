@@ -16,7 +16,7 @@ one outbound client. Read [architecture.md](architecture.md) first for the big p
 
 ## Configuration
 
-Settings → Connections → Plex needs three values (stored in the `settings` SQLite row via
+Settings → Media Servers → Plex needs three values (stored in the `settings` SQLite row via
 `configStore.js`; env vars `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` act as
 defaults):
 
@@ -27,7 +27,8 @@ defaults):
   memoized (`resolvePlexAccountId` in `plexClient.js`, 10-min TTL, 1-min negative TTL)
 
 `validateConfig` requires all three when Plex is enabled. Test the connection with
-**Settings → Connections → Plex → Test Connection** (`POST /api/test-connection`).
+Open the Plex card under **Settings → Media Servers** and select **Test**
+(`POST /api/test-connection`).
 
 ## Auth style
 

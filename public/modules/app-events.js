@@ -1,11 +1,10 @@
 import { buildAuthHeaders, buildNowPlayingUrl, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./auth.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js";
-import { connectionLabel, connectionPayloadFromElements } from "./settings.js";
-import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, DASHBOARD_HISTORY_VIEW_KEY, DASHBOARD_HISTORY_VIEW_MODES, PRIMARY_VIEWS, SETTINGS_TABS } from "./state.js";
+import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, DASHBOARD_HISTORY_VIEW_KEY, DASHBOARD_HISTORY_VIEW_MODES, PRIMARY_VIEWS } from "./state.js";
 import { escapeHtml, sanitizeTitle, safeImageUrl, movieSlug, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js";
-import { adminTokenGuide, plexCredentialGuide, embyCredentialGuide, jellyfinCredentialGuide, buildWebhookUrl, plexWebhookSetup, embyWebhookSetup, jellyfinWebhookSetup, webhookWarning, cronSyncGuide, renderSettingsInlineHelp } from "./help-content.js";
+import { buildWebhookUrl, renderSettingsInlineHelp } from "./help-content.js";
 import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile } from "./images.js";
-import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, addBackupDestination, saveBackupDestinationCard, testBackupDestinationCard, removeBackupDestinationCard, listRemoteBackupsForCard, restoreRemoteBackupFromCard, connectBackupDestinationCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runDedupHistory, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog, loadPlembfinBackups, savePlembfinBackupSettings, createPlembfinBackupNow, downloadPlembfinBackup, deletePlembfinBackupFile, restorePlembfinBackupFromServer, renderPlembfinBackups, updatePlembfinButtonsState, saveWatchBackupRemoteSettings, testWatchBackupRemoteSettings, savePlembfinBackupRemoteSettings } from "./tools.js";
+import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, restoreRemoteBackupFromCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runDedupHistory, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog, loadPlembfinBackups, savePlembfinBackupSettings, createPlembfinBackupNow, downloadPlembfinBackup, deletePlembfinBackupFile, restorePlembfinBackupFromServer, renderPlembfinBackups, updatePlembfinButtonsState, savePlembfinBackupRemoteSettings } from "./tools.js";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerCronSync, triggerStopSync, triggerForceSync } from "./sync.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./dashboard.js";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, renderRankingTable } from "./stats.js";
@@ -24,7 +23,7 @@ export function initAppEvents(callbacks = {}) {
   attachEvents();
 }
 
-const authHeaders = (...args) => _cb.authHeaders?.(...args), setMessage = (...args) => _cb.setMessage?.(...args), unlockWithToken = (...args) => _cb.unlockWithToken?.(...args), clearSearchInputs = (...args) => _cb.clearSearchInputs?.(...args), selectView = (...args) => _cb.selectView?.(...args), testConnection = (...args) => _cb.testConnection?.(...args), renderLogs = (...args) => _cb.renderLogs?.(...args), logsText = (...args) => _cb.logsText?.(...args), copyToClipboard = (...args) => _cb.copyToClipboard?.(...args), selectSettingsTab = (...args) => _cb.selectSettingsTab?.(...args), selectBackupsTab = (...args) => _cb.selectBackupsTab?.(...args), navigateTo = (...args) => _cb.navigateTo?.(...args), renderChangelog = (...args) => _cb.renderChangelog?.(...args), lockDashboard = (...args) => _cb.lockDashboard?.(...args), toggleTheme = (...args) => _cb.toggleTheme?.(...args), showConfirmModal = (...args) => _cb.showConfirmModal?.(...args), closeGlobalSearchDropdown = (...args) => _cb.closeGlobalSearchDropdown?.(...args), saveAdminCredentials = (...args) => _cb.saveAdminCredentials?.(...args), saveSavedConfig = (...args) => _cb.saveSavedConfig?.(...args), saveSectionConfig = (...args) => _cb.saveSectionConfig?.(...args), syncSettingsInputsDisabledState = (...args) => _cb.syncSettingsInputsDisabledState?.(...args), applyActiveView = (...args) => _cb.applyActiveView?.(...args), handleRouting = (...args) => _cb.handleRouting?.(...args), loadHistory = (...args) => _cb.loadHistory?.(...args), loadStats = (...args) => _cb.loadStats?.(...args), loadSavedConfig = (...args) => _cb.loadSavedConfig?.(...args), renderHelp = (...args) => _cb.renderHelp?.(...args), renderDbStatus = (...args) => _cb.renderDbStatus?.(...args), showErrorExplainModal = (...args) => _cb.showErrorExplainModal?.(...args), runRefreshMetadataWorkflow = (...args) => _cb.runRefreshMetadataWorkflow?.(...args), showToast = (...args) => _cb.showToast?.(...args), logDebug = (...args) => _cb.logDebug?.(...args), syncPageTopbar = (...args) => _cb.syncPageTopbar?.(...args), setUnlocked = (...args) => _cb.setUnlocked?.(...args), setConnectionButton = (...args) => _cb.setConnectionButton?.(...args), setConnectionStatus = (...args) => _cb.setConnectionStatus?.(...args), renderSettingsStatus = (...args) => _cb.renderSettingsStatus?.(...args), renderAdminCredentialsStatus = (...args) => _cb.renderAdminCredentialsStatus?.(...args), toggleSet = (...args) => _cb.toggleSet?.(...args), renderGlobalSearchDropdown = (...args) => _cb.renderGlobalSearchDropdown?.(...args), loadGlobalDiscovery = (...args) => _cb.loadGlobalDiscovery?.(...args);
+const authHeaders = (...args) => _cb.authHeaders?.(...args), setMessage = (...args) => _cb.setMessage?.(...args), unlockWithToken = (...args) => _cb.unlockWithToken?.(...args), clearSearchInputs = (...args) => _cb.clearSearchInputs?.(...args), selectView = (...args) => _cb.selectView?.(...args), renderLogs = (...args) => _cb.renderLogs?.(...args), logsText = (...args) => _cb.logsText?.(...args), copyToClipboard = (...args) => _cb.copyToClipboard?.(...args), selectBackupsTab = (...args) => _cb.selectBackupsTab?.(...args), navigateTo = (...args) => _cb.navigateTo?.(...args), renderChangelog = (...args) => _cb.renderChangelog?.(...args), lockDashboard = (...args) => _cb.lockDashboard?.(...args), toggleTheme = (...args) => _cb.toggleTheme?.(...args), showConfirmModal = (...args) => _cb.showConfirmModal?.(...args), closeGlobalSearchDropdown = (...args) => _cb.closeGlobalSearchDropdown?.(...args), saveAdminCredentials = (...args) => _cb.saveAdminCredentials?.(...args), applyActiveView = (...args) => _cb.applyActiveView?.(...args), handleRouting = (...args) => _cb.handleRouting?.(...args), loadHistory = (...args) => _cb.loadHistory?.(...args), loadStats = (...args) => _cb.loadStats?.(...args), loadSavedConfig = (...args) => _cb.loadSavedConfig?.(...args), renderHelp = (...args) => _cb.renderHelp?.(...args), renderDbStatus = (...args) => _cb.renderDbStatus?.(...args), showErrorExplainModal = (...args) => _cb.showErrorExplainModal?.(...args), runRefreshMetadataWorkflow = (...args) => _cb.runRefreshMetadataWorkflow?.(...args), showToast = (...args) => _cb.showToast?.(...args), logDebug = (...args) => _cb.logDebug?.(...args), syncPageTopbar = (...args) => _cb.syncPageTopbar?.(...args), setUnlocked = (...args) => _cb.setUnlocked?.(...args), renderSettingsStatus = (...args) => _cb.renderSettingsStatus?.(...args), renderAdminCredentialsStatus = (...args) => _cb.renderAdminCredentialsStatus?.(...args), toggleSet = (...args) => _cb.toggleSet?.(...args), renderGlobalSearchDropdown = (...args) => _cb.renderGlobalSearchDropdown?.(...args), loadGlobalDiscovery = (...args) => _cb.loadGlobalDiscovery?.(...args);
 
 function attachEvents() {
   document.querySelectorAll(".backup-managed-form").forEach((form) => {
@@ -205,18 +204,6 @@ function attachEvents() {
 
   // No scroll events or arrow click handlers needed for fixed-fit rows
 
-  elements.testConnectionButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      testConnection(button.dataset.testConnection, button).catch((error) => {
-        const type = button.dataset.testConnection;
-        const message = `${connectionLabel(type)} connection test exception: ${error?.message || "unknown error"}`;
-        setConnectionButton(button, "✘ Failed", "error");
-        setConnectionStatus(type, message, "error");
-        logDebug(message);
-      });
-    });
-  });
-
   elements.clearLogsButton.addEventListener("click", () => {
     state.debugLogs = clearDebugLogs();
     clearBackendDiagnosticLogs(authHeaders())
@@ -226,10 +213,6 @@ function attachEvents() {
 
   elements.copyLogsButton.addEventListener("click", () => {
     copyToClipboard(state.renderedLogsText || logsText() || "[no diagnostic logs captured yet]");
-  });
-
-  elements.settingsTabButtons.forEach((button) => {
-    button.addEventListener("click", () => selectSettingsTab(button.dataset.settingsTab));
   });
 
   document.querySelector("#settingsSectionSelect")?.addEventListener("change", (event) => {
@@ -248,42 +231,12 @@ function attachEvents() {
     elements.sidebarAppearanceButton.setAttribute("aria-expanded", String(!isOpen));
   });
 
-  // Generic settings top-tab switching handler
-  document.addEventListener("click", (e) => {
-    const subTabBtn = e.target.closest("[data-sub-tab]");
-    if (!subTabBtn) return;
-    
-    const subTabName = subTabBtn.dataset.subTab;
-    const settingsPane = subTabBtn.closest(".settings-pane");
-    if (!settingsPane) return;
-    
-    // Toggle active status on subtab buttons
-    settingsPane.querySelectorAll("[data-sub-tab]").forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.subTab === subTabName);
-    });
-    
-    // Show/hide sub-panels
-    settingsPane.querySelectorAll("[data-sub-panel]").forEach((panel) => {
-      panel.classList.toggle("hidden", panel.dataset.subPanel !== subTabName);
-    });
-  });
-
-  elements.backupsSubTabButtons.forEach((button) => {
-    button.addEventListener("click", () => navigateTo(`/settings/data/${button.dataset.backupsTab === "restore" ? "restore" : "backups"}`));
-  });
-
   for (const id of ["appearShowLogoArt", "appearShowCast", "appearShowTrailers", "appearShowReviews", "appearShowImages", "appearShowRelated"]) {
     elements[id]?.addEventListener("change", () => saveAppearanceSettings().catch(() => null));
   }
 
   elements.saveWatchBackupConfigButton?.addEventListener("click", () => {
     saveWatchBackupSettings().catch((error) => setMessage(error.message, "error"));
-  });
-  elements.saveWatchBackupRemoteButton?.addEventListener("click", () => {
-    saveWatchBackupRemoteSettings().catch((error) => setMessage(error.message, "error"));
-  });
-  elements.testWatchBackupRemoteButton?.addEventListener("click", () => {
-    testWatchBackupRemoteSettings().catch((error) => setMessage(error.message, "error"));
   });
   elements.createWatchBackupButton?.addEventListener("click", () => {
     createWatchBackupNow().catch((error) => setMessage(error.message, "error"));
@@ -348,32 +301,6 @@ function attachEvents() {
         .catch((error) => setMessage(error.message, "error"));
     }
   });
-
-  elements.addWatchBackupDestinationButton?.addEventListener("click", () => {
-    addBackupDestination().catch((error) => setMessage(error.message, "error"));
-  });
-  elements.watchBackupDestinations?.addEventListener("click", (event) => {
-    const restoreFile = event.target.closest("[data-dest-restore-file]");
-    if (restoreFile) {
-      const card = restoreFile.closest("[data-dest-id]");
-      if (card) restoreRemoteBackupFromCard(card, restoreFile.dataset.destRestoreFile, state.restoreClearMode || "reconcile").catch((error) => setMessage(error.message, "error"));
-      return;
-    }
-    const button = event.target.closest("[data-dest-action]");
-    if (!button) return;
-    const card = button.closest("[data-dest-id]");
-    if (!card) return;
-    const actions = {
-      save: saveBackupDestinationCard,
-      test: testBackupDestinationCard,
-      remove: removeBackupDestinationCard,
-      connect: connectBackupDestinationCard,
-      "restore-list": listRemoteBackupsForCard,
-    };
-    const run = actions[button.dataset.destAction];
-    if (run) run(card).catch((error) => setMessage(error.message, "error"));
-  });
-
 
   elements.explorerButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -441,7 +368,7 @@ function attachEvents() {
   }
 
   elements.appVersion?.addEventListener("click", () => {
-    navigateTo("/settings/system/about");
+    navigateTo("/settings/about");
   });
 
   elements.changelogRefreshButton?.addEventListener("click", () => {
@@ -575,46 +502,6 @@ function attachEvents() {
       setMessage(`Failed to rotate webhook secret: ${error.message}`, "error");
     }
   });
-
-  elements.saveConfigButton?.addEventListener("click", () => {
-    saveSavedConfig().catch((error) => {
-      renderSettingsStatus(error.message, "error");
-      setMessage(error.message, "error");
-    });
-  });
-
-  elements.savePlexConfigButton?.addEventListener("click", () => {
-    saveSectionConfig("plex");
-  });
-  elements.saveEmbyConfigButton?.addEventListener("click", () => {
-    saveSectionConfig("emby");
-  });
-  elements.saveJellyfinConfigButton?.addEventListener("click", () => {
-    saveSectionConfig("jellyfin");
-  });
-  elements.saveTmdbConfigButton?.addEventListener("click", () => {
-    saveSectionConfig("tmdb");
-  });
-  elements.saveYoutubeConfigButton?.addEventListener("click", () => {
-    saveSectionConfig("youtube");
-  });
-  elements.saveFanartConfigButton?.addEventListener("click", () => {
-    saveSectionConfig("fanart");
-  });
-  elements.saveTvdbConfigButton?.addEventListener("click", () => {
-    saveSectionConfig("tvdb");
-  });
-  elements.saveOmdbConfigButton?.addEventListener("click", () => {
-    saveSectionConfig("omdb");
-  });
-  elements.saveSeerrConfigButton?.addEventListener("click", () => {
-    saveSectionConfig("seerr");
-  });
-
-  elements.plexEnabled?.addEventListener("change", syncSettingsInputsDisabledState);
-  elements.embyEnabled?.addEventListener("change", syncSettingsInputsDisabledState);
-  elements.jellyfinEnabled?.addEventListener("change", syncSettingsInputsDisabledState);
-  elements.seerrEnabled?.addEventListener("change", syncSettingsInputsDisabledState);
 
   elements.explorerSearchInput?.addEventListener("input", () => {
     window.clearTimeout(state.explorerSearchTimer);

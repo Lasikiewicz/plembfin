@@ -81,7 +81,7 @@ Common gotchas:
    the server cannot (e.g. a different LAN segment or a VPN-gated address) will
    fail silently for the background sync while appearing fine in the UI probe.
 2. **Webhook secret in URL** — The webhook endpoint requires `?token=<webhookSecret>`
-   in the URL. Omitting it returns 401. Copy the full URL from Settings → Connections → Webhooks.
+   in the URL. Omitting it returns 401. Copy the full URL from Settings → Webhooks.
 3. **Config persistence** — Credentials and settings are stored in `data/config.json`
    (generated on first boot) and in the `settings` SQLite row. The Docker volume mount
    at `/data` must be persistent across container restarts or settings will reset.

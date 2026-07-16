@@ -11,6 +11,8 @@
     <link rel="modulepreload" href="/modules/logs.js" />
     <link rel="modulepreload" href="/modules/settings.js" />
     <link rel="modulepreload" href="/modules/settings-shell.js" />
+    <link rel="modulepreload" href="/modules/settings-ui.js" />
+    <link rel="modulepreload" href="/modules/settings-services.js" />
     <link rel="modulepreload" href="/modules/state.js" />
     <link rel="modulepreload" href="/modules/utils.js" />
     <link rel="modulepreload" href="/modules/help-content.js" />
@@ -67,11 +69,7 @@
           <div class="sidebar-secondary">
             <button class="nav-tab" type="button" data-view="settings">Settings</button>
             <div id="sidebarSettingsMenu" class="sidebar-sub-menu hidden">
-              <button class="settings-tab" type="button" data-settings-tab="account" data-settings-group="account">Account &amp; Security</button>
-              <button class="settings-tab" type="button" data-settings-tab="connections" data-settings-group="connections">Connections</button>
-              <button class="settings-tab" type="button" data-settings-tab="metadata" data-settings-group="metadata">Metadata</button>
-              <button class="settings-tab" type="button" data-settings-tab="data" data-settings-group="data">Data &amp; Backup</button>
-              <button class="settings-tab" type="button" data-settings-tab="system" data-settings-group="system">System</button>
+              <!-- Section links are rendered by prepareSettingsShell() from SETTINGS_SECTIONS. -->
               <button id="lockButton" class="settings-tab button-signout hidden" type="button">Sign out</button>
             </div>
           </div>
@@ -467,73 +465,21 @@
                 <label for="settingsSectionSelect">Settings section</label>
                 <select id="settingsSectionSelect" class="field">
                   <option value="/settings">Overview</option>
-                  <option value="/settings/account">Account &amp; Security</option>
-                  <option value="/settings/connections">Connections</option>
-                  <option value="/settings/metadata">Metadata</option>
-                  <option value="/settings/data">Data &amp; Backup</option>
-                  <option value="/settings/system">System</option>
                 </select>
               </div>
-
-              <nav id="settingsTaskNav" class="settings-task-nav hidden" aria-label="Tasks in this settings section"></nav>
 
               <section id="settingsOverview" class="settings-overview" aria-labelledby="settingsOverviewTitle">
                 <header class="settings-overview-header">
                   <div>
                     <p class="settings-eyebrow">Administration</p>
-                    <h2 id="settingsOverviewTitle">Settings overview</h2>
-                    <p>See what needs attention, then go directly to the right task.</p>
+                    <h2 id="settingsOverviewTitle">Settings</h2>
+                    <p>Pick a section to configure connections, metadata, backups, and system tools.</p>
                   </div>
-                  <button class="button-ghost" type="button" data-settings-path="/settings/system/health">Run system check</button>
                 </header>
-
-                <div class="settings-status-list" aria-live="polite">
-                  <button class="settings-status-row" type="button" data-settings-status="connections" data-settings-path="/settings/connections/plex" data-tone="unknown">
-                    <span class="settings-status-mark" aria-hidden="true"></span>
-                    <span class="settings-status-copy"><strong>Connections</strong><small data-status-detail>Configuration has not loaded yet.</small></span>
-                    <span class="settings-status-value" data-status-label>Unknown</span>
-                    <span class="settings-status-arrow" aria-hidden="true">→</span>
-                  </button>
-                  <button class="settings-status-row" type="button" data-settings-status="metadata" data-settings-path="/settings/metadata/tmdb" data-tone="unknown">
-                    <span class="settings-status-mark" aria-hidden="true"></span>
-                    <span class="settings-status-copy"><strong>Metadata</strong><small data-status-detail>Metadata configuration has not loaded yet.</small></span>
-                    <span class="settings-status-value" data-status-label>Unknown</span>
-                    <span class="settings-status-arrow" aria-hidden="true">→</span>
-                  </button>
-                  <button class="settings-status-row" type="button" data-settings-status="backups" data-settings-path="/settings/data/backups" data-tone="unknown">
-                    <span class="settings-status-mark" aria-hidden="true"></span>
-                    <span class="settings-status-copy"><strong>Data protection</strong><small data-status-detail>Backup status has not loaded yet.</small></span>
-                    <span class="settings-status-value" data-status-label>Unknown</span>
-                    <span class="settings-status-arrow" aria-hidden="true">→</span>
-                  </button>
-                  <button class="settings-status-row" type="button" data-settings-status="sync" data-settings-path="/settings/system/sync" data-tone="unknown">
-                    <span class="settings-status-mark" aria-hidden="true"></span>
-                    <span class="settings-status-copy"><strong>Synchronization</strong><small data-status-detail>Sync status has not loaded yet.</small></span>
-                    <span class="settings-status-value" data-status-label>Unknown</span>
-                    <span class="settings-status-arrow" aria-hidden="true">→</span>
-                  </button>
-                </div>
-
-                <div class="settings-next-actions">
-                  <div>
-                    <p class="settings-eyebrow">Common tasks</p>
-                    <h3>Go straight to the work</h3>
-                  </div>
-                  <div class="settings-action-links">
-                    <button type="button" data-settings-path="/settings/account/login"><strong>Secure this account</strong><span>Change the administrator login and revoke old sessions.</span></button>
-                    <button type="button" data-settings-path="/settings/connections/webhooks"><strong>Configure live updates</strong><span>Copy webhook and scheduler endpoints for connected servers.</span></button>
-                    <button type="button" data-settings-path="/settings/data/restore"><strong>Restore data</strong><span>Recover watch history or a complete encrypted Plembfin backup.</span></button>
-                    <button type="button" data-settings-path="/settings/system/logs"><strong>Troubleshoot a problem</strong><span>Inspect live server and browser diagnostic output.</span></button>
-                  </div>
-                </div>
+                <div id="settingsOverviewList" class="settings-link-list"></div>
               </section>
 
               <section class="settings-pane" data-settings-panel="general">
-                <div class="settings-top-tabs">
-                  <button class="settings-sub-tab active" type="button" data-sub-tab="general-login">Admin Login</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="general-endpoints">API Endpoints</button>
-                </div>
-
                 <!-- Admin Login Tab -->
                 <div class="settings-row" data-sub-panel="general-login">
                   <div class="settings-row-main">
@@ -616,425 +562,26 @@
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="apps">
-                <div class="settings-top-tabs">
-                  <button class="settings-sub-tab active" type="button" data-sub-tab="apps-plex">Plex</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="apps-emby">Emby</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="apps-jellyfin">Jellyfin</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="apps-seerr">Seerr</button>
-                </div>
-
-                <!-- Plex Row -->
-                <div class="settings-row" data-sub-panel="apps-plex">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card integration-card integration-plex">
-                      <div class="section-heading">
-                        <div>
-                          <p><svg class="integration-brand-logo" viewBox="0 0 24 24" style="color: #eab308;"><path fill="currentColor" d="M19 12l-12-10v20z"/></svg>Plex Setup</p>
-                        </div>
-                        <label class="checkbox-label integration-toggle">
-                          <input id="plexEnabled" type="checkbox" />
-                          <span>Enable Plex</span>
-                        </label>
-                      </div>
-                      <div class="integration-fields">
-                        <label class="field-label">
-                          Plex Server URL
-                          <input id="plexServerUrl" class="field" type="url" placeholder="http://127.0.0.1:32400" />
-                        </label>
-                        <label class="field-label">
-                          Plex Token
-                          <input id="plexToken" class="field" type="text" autocomplete="off" />
-                        </label>
-                        <label class="field-label">
-                          Plex Username
-                          <input id="plexUsername" class="field" type="text" autocomplete="off" />
-                        </label>
-                      </div>
-                      <div class="settings-actions">
-                        <button id="savePlexConfigButton" class="button-primary" type="button">Save Plex</button>
-                        <button class="button-ghost test-connection-button" type="button" data-test-connection="plex">Test Connection</button>
-                        <span id="plexConfigStatus" class="message" role="status" aria-live="polite"></span>
-                        <p class="connection-test-status" data-test-status="plex" aria-live="polite"></p>
-                      </div>
-                    </article>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Plex Integration Guide</p>
-                        <span>Credentials &amp; Webhook</span>
-                      </div>
-                      <div id="plexHelp"></div>
-                    </article>
+                <div class="section-heading">
+                  <div>
+                    <p>Media Servers</p>
+                    <span>Connected media servers and request services. Select a card to edit it, or use + to add one.</span>
                   </div>
                 </div>
-
-                <!-- Emby Row -->
-                <div class="settings-row hidden" data-sub-panel="apps-emby">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card integration-card integration-emby">
-                      <div class="section-heading">
-                        <div>
-                          <p><svg class="integration-brand-logo" viewBox="0 0 24 24" style="color: #10b981;"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>Emby Setup</p>
-                        </div>
-                        <label class="checkbox-label integration-toggle">
-                          <input id="embyEnabled" type="checkbox" />
-                          <span>Enable Emby</span>
-                        </label>
-                      </div>
-                      <div class="integration-fields">
-                        <label class="field-label">
-                          Emby Server URL
-                          <input id="embyServerUrl" class="field" type="url" placeholder="http://127.0.0.1:8096" />
-                        </label>
-                        <label class="field-label">
-                          Emby API Key
-                          <input id="embyApiKey" class="field" type="text" autocomplete="off" />
-                        </label>
-                        <label class="field-label">
-                          Emby User ID
-                          <input id="embyUserId" class="field" type="text" autocomplete="off" />
-                        </label>
-                      </div>
-                      <div class="settings-actions">
-                        <button id="saveEmbyConfigButton" class="button-primary" type="button">Save Emby</button>
-                        <button class="button-ghost test-connection-button" type="button" data-test-connection="emby">Test Connection</button>
-                        <span id="embyConfigStatus" class="message" role="status" aria-live="polite"></span>
-                        <p class="connection-test-status" data-test-status="emby" aria-live="polite"></p>
-                      </div>
-                    </article>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Emby Integration Guide</p>
-                        <span>Credentials &amp; Webhook</span>
-                      </div>
-                      <div id="embyHelp"></div>
-                    </article>
-                  </div>
-                </div>
-
-                <!-- Jellyfin Row -->
-                <div class="settings-row hidden" data-sub-panel="apps-jellyfin">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card integration-card integration-jellyfin">
-                      <div class="section-heading">
-                        <div>
-                          <p><svg class="integration-brand-logo" viewBox="0 0 24 24" style="color: #00a4dc;"><path fill="currentColor" d="M12 2a10 10 0 00-7.07 17.07l1.41-1.41A8 8 0 1112 20v2a10 10 0 000-20z"/></svg>Jellyfin Setup</p>
-                        </div>
-                        <label class="checkbox-label integration-toggle">
-                          <input id="jellyfinEnabled" type="checkbox" />
-                          <span>Enable Jellyfin</span>
-                        </label>
-                      </div>
-                      <div class="integration-fields">
-                        <label class="field-label">
-                          Jellyfin Server URL
-                          <input id="jellyfinServerUrl" class="field" type="url" placeholder="http://127.0.0.1:8096" />
-                        </label>
-                        <label class="field-label">
-                          Jellyfin API Key
-                          <input id="jellyfinApiKey" class="field" type="text" autocomplete="off" />
-                        </label>
-                        <label class="field-label">
-                          Jellyfin User ID
-                          <input id="jellyfinUserId" class="field" type="text" autocomplete="off" />
-                        </label>
-                      </div>
-                      <div class="settings-actions">
-                        <button id="saveJellyfinConfigButton" class="button-primary" type="button">Save Jellyfin</button>
-                        <button class="button-ghost test-connection-button" type="button" data-test-connection="jellyfin">Test Connection</button>
-                        <span id="jellyfinConfigStatus" class="message" role="status" aria-live="polite"></span>
-                        <p class="connection-test-status" data-test-status="jellyfin" aria-live="polite"></p>
-                      </div>
-                    </article>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Jellyfin Integration Guide</p>
-                        <span>Credentials &amp; Webhook</span>
-                      </div>
-                      <div id="jellyfinHelp"></div>
-                    </article>
-                  </div>
-                </div>
-
-                <!-- Seerr Row -->
-                <div class="settings-row hidden" data-sub-panel="apps-seerr">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card integration-card integration-seerr">
-                      <div class="section-heading">
-                        <div>
-                          <p><svg class="integration-brand-logo" viewBox="0 0 24 24" style="color: #e11d48;"><path fill="currentColor" d="M12 22a2 2 0 002-2h-4a2 2 0 002 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4a1.5 1.5 0 00-3 0v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>Seerr Setup</p>
-                        </div>
-                        <label class="checkbox-label integration-toggle">
-                          <input id="seerrEnabled" type="checkbox" />
-                          <span>Enable Seerr</span>
-                        </label>
-                      </div>
-                      <div class="integration-fields">
-                        <label class="field-label">
-                          Seerr Server URL
-                          <input id="seerrServerUrl" class="field" type="url" placeholder="http://localhost:5055" />
-                        </label>
-                        <label class="field-label">
-                          Seerr API Key
-                          <input id="seerrApiKey" class="field" type="text" autocomplete="off" />
-                        </label>
-                      </div>
-                      <div class="settings-actions">
-                        <button id="saveSeerrConfigButton" class="button-primary" type="button">Save Seerr</button>
-                        <button class="button-ghost test-connection-button" type="button" data-test-connection="seerr">Test Connection</button>
-                        <span id="seerrConfigStatus" class="message" role="status" aria-live="polite"></span>
-                        <p class="connection-test-status" data-test-status="seerr" aria-live="polite"></p>
-                      </div>
-                    </article>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Seerr Integration Guide</p>
-                        <span>URL &amp; API Key</span>
-                      </div>
-                      <p class="tool-accordion-desc">
-                        <b>Seerr URL:</b> The base URL of your Seerr instance, typically <code>http://localhost:5055</code>.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>API Key:</b> Open Seerr → <b>Settings → General</b> and copy the <b>API Key</b> shown at the top of the page.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        Once configured, a <b>"Request on Seerr"</b> button will appear on every movie and TV show detail page, letting you submit media requests directly without leaving Plembfin.
-                      </p>
-                    </article>
-                  </div>
-                </div>
+                <div id="mediaServerCards" class="settings-card-grid"></div>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="api-keys">
-                <div class="settings-top-tabs">
-                  <button class="settings-sub-tab active" type="button" data-sub-tab="api-tmdb">TMDB</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="api-youtube">YouTube</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="api-fanart">Fanart.tv</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="api-tvdb">TheTVDB</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="api-omdb">OMDb</button>
-                </div>
-
-                <!-- TMDB Row -->
-                <div class="settings-row" data-sub-panel="api-tmdb">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <div>
-                          <p>TMDB Setup</p>
-                          <span>Artwork, cast details, trailers, and metadata</span>
-                        </div>
-                      </div>
-                      <label class="field-label" for="tmdbApiKey">
-                        TMDB API Key (v3)
-                        <input id="tmdbApiKey" class="field" type="text" autocomplete="off" />
-                      </label>
-                      <div class="settings-actions">
-                        <button id="saveTmdbConfigButton" class="button-primary" type="button">Save TMDB Key</button>
-                        <span id="tmdbConfigStatus" class="message" role="status" aria-live="polite"></span>
-                      </div>
-                    </article>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>TMDB Help</p>
-                        <span>Metadata &amp; Posters</span>
-                      </div>
-                      <p class="tool-accordion-desc">
-                        Provides poster artwork, cast directories, descriptions, and related recommendations. To obtain a free v3 API key:
-                      </p>
-                      <ol class="tool-accordion-desc" style="margin: 0 0 var(--space-3) 1.25rem; padding: 0; list-style: decimal; font-size: 0.8rem;">
-                        <li>Create an account at <b>themoviedb.org</b></li>
-                        <li>Go to <b>Settings → API</b> in your profile menu</li>
-                        <li>Request a Developer key</li>
-                      </ol>
-                    </article>
+                <div class="section-heading">
+                  <div>
+                    <p>Metadata Providers</p>
+                    <span>TMDB is required for artwork and detail pages; the other providers are optional enhancements.</span>
                   </div>
                 </div>
-
-                <!-- YouTube Row -->
-                <div class="settings-row hidden" data-sub-panel="api-youtube">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <div>
-                          <p>YouTube Setup</p>
-                          <span>Channel details, publish dates, and trailer durations</span>
-                        </div>
-                      </div>
-                      <label class="field-label" for="youtubeApiKey">
-                        YouTube Data API Key
-                        <input id="youtubeApiKey" class="field" type="text" autocomplete="off" />
-                      </label>
-                      <div class="settings-actions">
-                        <button id="saveYoutubeConfigButton" class="button-primary" type="button">Save YouTube Key</button>
-                        <span id="youtubeConfigStatus" class="message" role="status" aria-live="polite"></span>
-                      </div>
-                    </article>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>YouTube Help</p>
-                        <span>Trailer Telemetry</span>
-                      </div>
-                      <p class="tool-accordion-desc">
-                        Enables downloading trailer meta descriptions and length info. To create a key:
-                      </p>
-                      <ol class="tool-accordion-desc" style="margin: 0 0 var(--space-3) 1.25rem; padding: 0; list-style: decimal; font-size: 0.8rem;">
-                        <li>Go to <b>console.cloud.google.com</b></li>
-                        <li>Enable the <b>YouTube Data API v3</b> in your project</li>
-                        <li>Generate an API Key under Credentials</li>
-                      </ol>
-                    </article>
-                  </div>
-                </div>
-
-                <!-- Fanart.tv Row -->
-                <div class="settings-row hidden" data-sub-panel="api-fanart">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <div>
-                          <p>Fanart.tv Setup</p>
-                          <span>Fallback posters, backdrops, and logo art</span>
-                        </div>
-                      </div>
-                      <label class="field-label" for="fanartApiKey">
-                        Fanart.tv Personal API Key <span class="muted-copy" style="font-weight:normal;">(optional)</span>
-                        <input id="fanartApiKey" class="field" type="text" autocomplete="off" />
-                      </label>
-                      <div class="settings-actions">
-                        <button id="saveFanartConfigButton" class="button-primary" type="button">Save Fanart Key</button>
-                        <span id="fanartConfigStatus" class="message" role="status" aria-live="polite"></span>
-                      </div>
-                    </article>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Fanart.tv Help</p>
-                        <span>Fallback Artwork</span>
-                      </div>
-                      <p class="tool-accordion-desc">
-                        Plembfin uses <a href="https://fanart.tv" target="_blank" rel="noopener noreferrer">fanart.tv</a> as a fallback source for posters, backdrops, and logo art when <a href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer">TMDB</a> doesn't have images for a title. A built-in project key is already configured — no key is required to use this feature.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        Entering your own personal API key gives you higher rate limits and access to images uploaded by your fanart.tv account. To get a personal key:
-                      </p>
-                      <ol class="tool-accordion-desc" style="margin: 0 0 var(--space-3) 1.25rem; padding: 0; list-style: decimal; font-size: 0.8rem;">
-                        <li>Create an account at <b>fanart.tv</b></li>
-                        <li>Go to your <b>Profile → API Key</b></li>
-                        <li>Copy your personal key and paste it above</li>
-                      </ol>
-                    </article>
-                  </div>
-                </div>
-
-                <!-- TheTVDB Row -->
-                <div class="settings-row hidden" data-sub-panel="api-tvdb">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <div>
-                          <p>TheTVDB Setup</p>
-                          <span>Source for TV show episode/season data</span>
-                        </div>
-                      </div>
-                      <label class="field-label" for="tvdbApiKey">
-                        TheTVDB Personal API Key <span class="muted-copy" style="font-weight:normal;">(optional)</span>
-                        <input id="tvdbApiKey" class="field" type="text" autocomplete="off" />
-                      </label>
-                      <div class="settings-actions">
-                        <button id="saveTvdbConfigButton" class="button-primary" type="button">Save TVDB Key</button>
-                        <span id="tvdbConfigStatus" class="message" role="status" aria-live="polite"></span>
-                      </div>
-                    </article>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>TheTVDB Help</p>
-                        <span>TV Show Episode Data</span>
-                      </div>
-                      <p class="tool-accordion-desc">
-                        TV show names, seasons, episode numbering, air dates, and artwork are sourced from <a href="https://thetvdb.com" target="_blank" rel="noopener noreferrer">TheTVDB</a> for more accurate episode ordering than TMDB alone. Cast, trailers, reviews, and similar shows still come from <a href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer">TMDB</a>. A built-in project key is already configured — no key is required to use this feature.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        Entering your own personal API key gives you your own request quota. To get a personal key:
-                      </p>
-                      <ol class="tool-accordion-desc" style="margin: 0 0 var(--space-3) 1.25rem; padding: 0; list-style: decimal; font-size: 0.8rem;">
-                        <li>Create an account at <b>thetvdb.com</b></li>
-                        <li>Go to <b>Dashboard → API Keys</b> and request a key</li>
-                        <li>Copy your personal key and paste it above</li>
-                      </ol>
-                    </article>
-                  </div>
-                </div>
-
-                <!-- OMDb Row -->
-                <div class="settings-row hidden" data-sub-panel="api-omdb">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <div>
-                          <p>OMDb Setup</p>
-                          <span>IMDb ratings on movie pages</span>
-                        </div>
-                      </div>
-                      <label class="field-label" for="omdbApiKey">
-                        OMDb API Key <span class="muted-copy" style="font-weight:normal;">(optional)</span>
-                        <input id="omdbApiKey" class="field" type="text" autocomplete="off" />
-                      </label>
-                      <div class="settings-actions">
-                        <button id="saveOmdbConfigButton" class="button-primary" type="button">Save OMDb Key</button>
-                        <span id="omdbConfigStatus" class="message" role="status" aria-live="polite"></span>
-                      </div>
-                    </article>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>OMDb Help</p>
-                        <span>IMDb Ratings</span>
-                      </div>
-                      <p class="tool-accordion-desc">
-                        When configured, Plembfin fetches IMDb ratings from the <a href="https://www.omdbapi.com" target="_blank" rel="noopener noreferrer">OMDb API</a> and displays them as a rating badge next to the TMDB score on movie pages. Ratings are cached for 7 days. The free tier allows 1,000 requests/day.
-                      </p>
-                      <ol class="tool-accordion-desc" style="margin: 0 0 var(--space-3) 1.25rem; padding: 0; list-style: decimal; font-size: 0.8rem;">
-                        <li>Go to <b>omdbapi.com/apikey.aspx</b></li>
-                        <li>Register for a free API key</li>
-                        <li>Paste the key above and save</li>
-                      </ol>
-                    </article>
-                  </div>
-                </div>
+                <div id="metadataProviderCards" class="settings-card-grid"></div>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="tools">
-                <div class="settings-top-tabs">
-                  <button class="settings-sub-tab active" type="button" data-sub-tab="tools-diagnostics">Diagnostics</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="tools-migration">Migration &amp; Import</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="tools-repairs">Database Repairs</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="tools-sync">Sync &amp; Cache</button>
-                </div>
-
                 <!-- Diagnostics Tab -->
                 <div class="settings-row" data-sub-panel="tools-diagnostics">
                   <div class="settings-row-main">
@@ -1248,14 +795,10 @@
 
               <!-- Backups Settings Panel -->
               <section class="settings-pane hidden" data-settings-panel="backups" data-backups-panel="settings">
-                <div class="settings-top-tabs">
-                  <button class="settings-sub-tab active" type="button" data-backups-tab="settings">Backups</button>
-                  <button class="settings-sub-tab" type="button" data-backups-tab="restore">Restore</button>
-                </div>
                 <!-- Local Backups row -->
                 <div class="settings-row">
                   <div class="settings-row-main">
-                    <section class="glass-panel p-section backup-settings-panel">
+                    <section class="glass-panel p-section settings-card backup-settings-panel">
                       <div class="section-heading sync-heading backup-section-heading">
                         <div>
                           <p>Local Backups</p>
@@ -1319,7 +862,7 @@
                                 Backups to retain
                                 <input id="plembfinBackupRetention" class="field" type="number" min="1" max="365" value="7" />
                               </label>
-                              <label class="field-label" style="flex: 1.5 !important;">
+                              <label class="field-label backup-passphrase-label" style="flex: 1.5 !important;">
                                 Passphrase - <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">At least 12 chars</span>
                                 <input id="backupExportPassphrase" class="field" name="backupPassphrase" type="password" autocomplete="new-password" />
                               </label>
@@ -1359,7 +902,7 @@
                 <!-- Remote Backups row -->
                 <div class="settings-row" style="margin-top: var(--space-4);">
                   <div class="settings-row-main">
-                    <section class="glass-panel p-section backup-settings-panel">
+                    <section class="glass-panel p-section settings-card backup-settings-panel">
                       <div class="section-heading">
                         <div>
                           <p>Remote Backups</p>
@@ -1370,51 +913,11 @@
                         <article class="backup-type-card">
                           <div class="backup-type-head">
                             <div>
-                              <b>Remote Watch History Backups</b>
-                              <span>Enable remote mirroring for scheduled watch-history backups.</span>
+                              <b>Remote Destinations</b>
+                              <span>Scheduled watch-history backups are mirrored to every enabled destination. Select a card to edit it, or use + to add one.</span>
                             </div>
                           </div>
-                          
-                          <form class="backup-managed-form" data-submit-target="saveWatchBackupRemoteButton">
-                          <div class="backup-settings-grid backup-settings-inline">
-                            <div class="backup-settings-left">
-                              <label class="checkbox-label backup-enable-row">
-                                <input id="watchBackupRemoteEnabled" type="checkbox" />
-                                <span>Enable remote mirroring</span>
-                              </label>
-                            </div>
-                            <div class="backup-settings-center" style="display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: var(--muted); font-weight: 500; text-align: center;">Runs daily after local backups</div>
-                            <div class="backup-settings-right">
-                              <button id="saveWatchBackupRemoteButton" class="button-primary" type="button">Save Settings</button>
-                              <button id="testWatchBackupRemoteButton" class="button-ghost" type="button">Test Connection</button>
-                            </div>
-                          </div>
-
-                          <div class="destination-fields" style="margin-top: var(--space-3); border-top: 1px solid var(--line); padding-top: var(--space-3);">
-                            <label class="field-label">
-                              Region or endpoint (e.g. eu-central-003)
-                              <input id="watchBackupRemoteRegion" class="field" type="text" placeholder="eu-central-003" />
-                            </label>
-                            <label class="field-label">
-                              Bucket name
-                              <input id="watchBackupRemoteBucket" class="field" type="text" placeholder="plembfinlocal" />
-                            </label>
-                            <label class="field-label">
-                              keyID
-                              <input id="watchBackupRemoteKeyId" class="field" type="text" placeholder="003ec1fd6658cde000000000003" />
-                            </label>
-                            <label class="field-label">
-                              Key prefix (optional)
-                              <input id="watchBackupRemotePrefix" class="field" type="text" placeholder="plembfin/" />
-                            </label>
-                            <label class="field-label">
-                              applicationKey
-                              <input id="watchBackupRemoteAppKey" class="field" name="applicationKey" type="password" autocomplete="new-password" placeholder="•••••••• (saved — leave blank to keep)" />
-                            </label>
-                          </div>
-                          </form>
-
-                          <div id="watchBackupRemoteRuntime" class="backup-runtime" aria-live="polite"></div>
+                          <div id="backupDestinationCards" class="settings-card-grid"></div>
                         </article>
 
                         <article class="backup-type-card backup-type-card-muted">
@@ -1433,7 +936,7 @@
                               </label>
                             </div>
                             <div class="backup-settings-center" style="flex: 2.2;">
-                              <label class="field-label" style="flex: 1.5 !important;">
+                              <label class="field-label backup-passphrase-label" style="flex: 1.5 !important;">
                                 Passphrase - <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">At least 12 chars</span>
                                 <input id="plembfinBackupRemotePassphrase" class="field" name="remoteBackupPassphrase" type="password" autocomplete="new-password" />
                               </label>
@@ -1456,16 +959,10 @@
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Backblaze B2 Setup</p>
-                        <span>Free 10 GB · ~5 min</span>
+                        <p>Remote Backup Guide</p>
+                        <span>Off-server Mirroring</span>
                       </div>
-                      <ol class="tool-accordion-desc" style="font-size: 0.8rem; margin: 0 0 var(--space-2); padding-left: 1.2rem; line-height: 1.5;">
-                        <li>Create a free account at <a href="https://www.backblaze.com/sign-up/cloud-storage" target="_blank" rel="noopener" style="color: var(--accent);">backblaze.com</a> and enable <b>B2 Cloud Storage</b>.</li>
-                        <li><b>Buckets → Create a Bucket</b>: pick a globally-unique name, set files <b>Private</b>. Note the <b>Endpoint</b> shown (e.g. <code>s3.us-west-004.backblazeb2.com</code>) — the middle part is your <b>Region</b> (<code>us-west-004</code>).</li>
-                        <li><b>Application Keys → Add a New Application Key</b>: restrict it to that one bucket, then create. Copy the <b>keyID</b> and <b>applicationKey</b> — shown only once.</li>
-                        <li>Fill in Region, Bucket, keyID, applicationKey, <b>Save</b>, then <b>Test</b>. Tick <b>Enabled</b> and use <b>Back Up Now</b> under Local Watch History Backups.</li>
-                      </ol>
-                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin: 0;">This mirrors watch-history and Plembfin backups.</p>
+                      <p class="tool-accordion-desc" style="font-size: 0.8rem; margin: 0;">Remote destinations mirror watch-history and Plembfin backups after each scheduled run. Each destination card has its own edit dialog with a step-by-step setup guide, connection test, and delete action.</p>
                     </article>
                   </div>
                 </div>
@@ -1473,15 +970,11 @@
 
               <!-- Backups Restore Panel -->
               <section class="settings-pane hidden" data-settings-panel="backups" data-backups-panel="restore">
-                <div class="settings-top-tabs">
-                  <button class="settings-sub-tab" type="button" data-backups-tab="settings">Backups</button>
-                  <button class="settings-sub-tab active" type="button" data-backups-tab="restore">Restore</button>
-                </div>
 
                 <!-- Local Restore row -->
                 <div class="settings-row">
                   <div class="settings-row-main">
-                    <section class="glass-panel p-section backup-settings-panel backup-restore-section">
+                    <section class="glass-panel p-section settings-card backup-settings-panel backup-restore-section">
                       <div class="section-heading sync-heading backup-section-heading">
                         <div>
                           <p>Local Backups</p>
@@ -1515,7 +1008,7 @@
 
                           <form class="backup-settings-grid backup-settings-inline backup-managed-form" data-submit-target="backupImportButton">
                             <div class="backup-settings-left" style="flex: 2;">
-                              <label class="field-label" style="width: 100%;">
+                              <label class="field-label backup-passphrase-label" style="width: 100%;">
                                 Backup encryption passphrase - <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">Required to restore full backups</span>
                                 <input id="backupRestorePassphrase" class="field" name="restorePassphrase" type="password" autocomplete="new-password" />
                               </label>
@@ -1582,7 +1075,7 @@
                 <!-- Remote Restore row -->
                 <div class="settings-row" style="margin-top: var(--space-4);">
                   <div class="settings-row-main">
-                    <section class="glass-panel p-section backup-settings-panel">
+                    <section class="glass-panel p-section settings-card backup-settings-panel">
                       <div class="section-heading sync-heading backup-section-heading">
                         <div>
                           <p>Remote Backups</p>
@@ -1628,11 +1121,6 @@
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="sync">
-                <div class="settings-top-tabs">
-                  <button class="settings-sub-tab active" type="button" data-sub-tab="sync-issues">Sync Issues</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="sync-history">Sync History</button>
-                  <button class="settings-sub-tab" type="button" data-sub-tab="sync-tools">Sync Tools</button>
-                </div>
 
                 <!-- Sync Issues Row -->
                 <div class="settings-row" data-sub-panel="sync-issues">
@@ -1868,7 +1356,7 @@
                         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Warnings and errors</summary>
                         <ul class="tool-accordion-desc" style="margin-top: var(--space-2); padding-left: var(--space-4); line-height: 1.7;">
                           <li><b>[WARN]</b> — A non-critical issue, such as a missing metadata field or a server returning unexpected data. Sync continues.</li>
-                          <li><b>[ERROR]</b> — Something failed, such as a network error reaching Plex, Emby, or Jellyfin, or a failed sync dispatch. Check your server URLs and API keys in Settings → Connections if these repeat.</li>
+                          <li><b>[ERROR]</b> — Something failed, such as a network error reaching Plex, Emby, or Jellyfin, or a failed sync dispatch. Check your server URLs and API keys in Settings → Media Servers if these repeat.</li>
                           <li><b>Plex / Emby / Jellyfin ERROR: failed to fetch watched items</b> — The scheduled sync could not reach that server. Usually a network or credential issue.</li>
                           <li><b>loop detected</b> — A sync propagation triggered a webhook back from the target server. The loop guard blocked it. Normal when all three platforms are connected.</li>
                         </ul>
@@ -1876,7 +1364,7 @@
 
                       <details style="margin-top: var(--space-2);">
                         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Force sync logs</summary>
-                        <p class="tool-accordion-desc" style="margin-top: var(--space-2);">When you run a force sync from Settings → System → Sync, progress is streamed here in real time: how many items were fetched from each server, how many were reconciled, and the result of each mark-played or mark-unplayed call. A <b>Force Sync: process complete</b> line confirms it finished.</p>
+                        <p class="tool-accordion-desc" style="margin-top: var(--space-2);">When you run a force sync from Settings → Sync, progress is streamed here in real time: how many items were fetched from each server, how many were reconciled, and the result of each mark-played or mark-unplayed call. A <b>Force Sync: process complete</b> line confirms it finished.</p>
                       </details>
 
                       <p class="tool-accordion-desc" style="margin-top: var(--space-3); font-size: 0.8rem; color: var(--text-muted);">Use <b>Clear Logs</b> to wipe the in-memory buffer, or <b>Copy Logs</b> to paste them when reporting an issue.</p>

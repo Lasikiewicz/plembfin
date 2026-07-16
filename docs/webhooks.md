@@ -20,7 +20,7 @@ setups can continue using the query-token URL above when custom headers are not
 available; access logs redact sensitive query parameters before writing to disk.
 
 `webhookSecret` is generated on first boot and stored in `data/config.json`. Copy the
-full URL (including token) from **Settings → Connections → Webhooks** in the dashboard. You can
+full URL (including token) from **Settings → Webhooks** in the dashboard. You can
 rotate it independently via the "Rotate Secret" button without affecting the admin
 password or API key.
 
@@ -89,4 +89,4 @@ platforms.
 - Plex does **not** send unwatched (unscrobble) events. Plembfin compensates via
   the built-in Plex WebSocket notification listener, which connects automatically
   using the configured Plex URL and token.
-- The expandable help under Settings → Connections documents per-server webhook configuration.
+- The setup help in each card under Settings → Media Servers documents per-server webhook configuration.

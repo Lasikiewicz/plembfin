@@ -190,7 +190,7 @@ export function webhookWarning() {
         <ul style="padding-left: 1.2rem; margin: 0; display: grid; gap: 4px;">
           <li>Plex does not support sending unwatched (unscrobble) events via native webhooks or Tautulli.</li>
           <li>For resume sync, Plex webhook traffic must include playback lifecycle events such as <code>media.play</code>, <code>media.resume</code>, <code>media.pause</code>, <code>media.stop</code>, and <code>media.scrobble</code>. Plembfin reads <code>viewOffset</code> and <code>duration</code> when Plex provides them.</li>
-          <li><b>Real-time Sync (Built-in):</b> Plembfin's server includes a built-in Plex notification listener. It connects to your Plex Media Server via the WebSocket notification channel (configured automatically from your Plex URL and token in Settings → Connections → Plex), records watched library changes, and forwards unwatched changes directly — no external script or daemon is required.</li>
+          <li><b>Real-time Sync (Built-in):</b> Plembfin's server includes a built-in Plex notification listener. It connects to your Plex Media Server via the WebSocket notification channel (configured automatically from your Plex URL and token in Settings → Media Servers), records watched library changes, and forwards unwatched changes directly — no external script or daemon is required.</li>
           <li><b>Cron Sync (Fallback):</b> Plembfin's background cron worker polls Plex periodically to catch recently watched and unwatched changes missed while the notification listener was disconnected.</li>
           <li>For general playback events, set up webhooks according to the <a href="https://support.plex.tv/articles/115002267687-webhooks/?utm_campaign=Plex%20Apps&utm_medium=Plex%20Web&utm_source=Plex%20Apps" target="_blank" rel="noopener noreferrer" style="color: #4b96e6; text-decoration: underline;">Plex Webhook Documentation</a>.</li>
         </ul>
@@ -377,7 +377,7 @@ function forcePushHistoryGuide() {
 
 // Saved tokens/API keys are never sent back to the browser, so credential inputs
 // render blank with a "Configured" placeholder once a value is stored.
-function savedCredentialNote() {
+export function savedCredentialNote() {
   return `
     <div class="guide-callout credential-guide">
       <b>About saved credentials</b>
@@ -389,15 +389,6 @@ function savedCredentialNote() {
 export function renderSettingsInlineHelp() {
   const adminLoginHelp = document.getElementById("adminLoginHelp");
   if (adminLoginHelp) adminLoginHelp.innerHTML = adminTokenGuide();
-
-  const plexHelp = document.getElementById("plexHelp");
-  if (plexHelp) plexHelp.innerHTML = plexCredentialGuide() + savedCredentialNote() + plexWebhookSetup();
-
-  const embyHelp = document.getElementById("embyHelp");
-  if (embyHelp) embyHelp.innerHTML = embyCredentialGuide() + savedCredentialNote() + embyWebhookSetup();
-
-  const jellyfinHelp = document.getElementById("jellyfinHelp");
-  if (jellyfinHelp) jellyfinHelp.innerHTML = jellyfinCredentialGuide() + savedCredentialNote() + jellyfinWebhookSetup();
 
   const migrationHelp = document.getElementById("migrationHelp");
   if (migrationHelp) {

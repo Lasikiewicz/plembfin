@@ -65,7 +65,7 @@ TV-specific extras:
 
 ## Show identity maintenance
 
-Two admin tools deal with mis-grouped shows under Settings → System → Advanced:
+Two admin tools deal with mis-grouped shows under Settings → Advanced:
 
 - **Merge shows** (`POST /api/merge-shows`, `mergeShows` in `dataRepo.js`,
   dialog in `edit-dialogs.js`) — folds one show title's episode rows into another.

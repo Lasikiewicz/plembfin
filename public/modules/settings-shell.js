@@ -1,84 +1,130 @@
-const GROUPS = {
-  account: {
-    label: "Account & Security",
-    shortLabel: "Account",
-    defaultTask: "login",
-    tasks: {
-      login: { label: "Admin login", panel: "general", subPanels: ["general-login"] },
-    },
-  },
-  connections: {
-    label: "Connections",
-    defaultTask: "plex",
-    tasks: {
-      plex: { label: "Plex", panel: "apps", subPanels: ["apps-plex"] },
-      emby: { label: "Emby", panel: "apps", subPanels: ["apps-emby"] },
-      jellyfin: { label: "Jellyfin", panel: "apps", subPanels: ["apps-jellyfin"] },
-      seerr: { label: "Seerr", panel: "apps", subPanels: ["apps-seerr"] },
-      webhooks: { label: "Webhooks", panel: "general", subPanels: ["general-endpoints"] },
-    },
+// Settings navigation shell: the flat section list, route parsing with legacy
+// redirects, the Sonarr-style landing page, the settings sidebar, and the
+// panel show/hide engine. Pure route logic lives at the top so it stays
+// testable under Node without a DOM.
+const SECTIONS = {
+  "media-servers": {
+    label: "Media Servers",
+    description: "Plex, Emby, Jellyfin, and Seerr connections",
+    panel: "apps",
   },
   metadata: {
     label: "Metadata",
-    defaultTask: "tmdb",
-    tasks: {
-      tmdb: { label: "TMDB", panel: "api-keys", subPanels: ["api-tmdb"] },
-      youtube: { label: "YouTube", panel: "api-keys", subPanels: ["api-youtube"] },
-      fanart: { label: "Fanart.tv", panel: "api-keys", subPanels: ["api-fanart"] },
-      tvdb: { label: "TheTVDB", panel: "api-keys", subPanels: ["api-tvdb"] },
-      omdb: { label: "OMDb", panel: "api-keys", subPanels: ["api-omdb"] },
-    },
+    description: "TMDB, TVDB, Fanart.tv, OMDb, and YouTube providers",
+    panel: "api-keys",
   },
-  data: {
-    label: "Data & Backup",
-    defaultTask: "backups",
-    tasks: {
-      backups: { label: "Backups", panel: "backups", backupTab: "settings" },
-      restore: { label: "Restore", panel: "backups", backupTab: "restore" },
-      import: { label: "Trakt import", panel: "tools", subPanels: ["tools-migration"] },
-    },
+  webhooks: {
+    label: "Webhooks",
+    description: "Webhook listener and background scheduler endpoints",
+    panel: "general",
+    subPanels: ["general-endpoints"],
   },
-  system: {
-    label: "System",
-    defaultTask: "health",
-    tasks: {
-      health: { label: "Health", panel: "tools", subPanels: ["tools-diagnostics"] },
-      sync: { label: "Sync", panel: "sync", subPanels: ["sync-issues", "sync-history", "sync-tools"] },
-      logs: { label: "Logs", panel: "logs" },
-      storage: { label: "Storage", panel: "cache" },
-      about: { label: "About", panel: "changelog" },
-      advanced: { label: "Advanced", panel: "tools", subPanels: ["tools-repairs", "tools-sync"] },
-    },
+  account: {
+    label: "Account & Security",
+    description: "Administrator username, password, and sessions",
+    panel: "general",
+    subPanels: ["general-login"],
+  },
+  backups: {
+    label: "Backups",
+    description: "Backup schedules and remote destinations",
+    panel: "backups",
+    backupTab: "settings",
+  },
+  restore: {
+    label: "Restore",
+    description: "Recover watch history or a full encrypted backup",
+    panel: "backups",
+    backupTab: "restore",
+  },
+  import: {
+    label: "Import",
+    description: "Bring watch history in from Trakt or CSV exports",
+    panel: "tools",
+    subPanels: ["tools-migration"],
+  },
+  sync: {
+    label: "Sync",
+    description: "Unresolved sync issues, history, and repair tools",
+    panel: "sync",
+    subPanels: ["sync-issues", "sync-history", "sync-tools"],
+  },
+  health: {
+    label: "Health",
+    description: "Connection diagnostics and system checks",
+    panel: "tools",
+    subPanels: ["tools-diagnostics"],
+  },
+  logs: {
+    label: "Logs",
+    description: "Live server and browser diagnostic output",
+    panel: "logs",
+  },
+  storage: {
+    label: "Storage & Cache",
+    description: "Artwork and metadata cache usage",
+    panel: "cache",
+  },
+  advanced: {
+    label: "Advanced",
+    description: "Database repairs, rebuilds, and backfills",
+    panel: "tools",
+    subPanels: ["tools-repairs", "tools-sync"],
+  },
+  about: {
+    label: "About",
+    description: "Version and changelog",
+    panel: "changelog",
   },
 };
 
 const LEGACY_PATHS = {
-  "/sync": "/settings/system/sync",
-  "/logs": "/settings/system/logs",
-  "/settings/general": "/settings/account/login",
-  "/settings/apps": "/settings/connections/plex",
-  "/settings/api-keys": "/settings/metadata/tmdb",
-  "/settings/backups": "/settings/data/backups",
-  "/settings/tools": "/settings/system/advanced",
-  "/settings/sync": "/settings/system/sync",
-  "/settings/logs": "/settings/system/logs",
-  "/settings/cache": "/settings/system/storage",
-  "/settings/changelog": "/settings/system/about",
+  "/sync": "/settings/sync",
+  "/logs": "/settings/logs",
+  "/settings/general": "/settings/account",
+  "/settings/apps": "/settings/media-servers",
+  "/settings/api-keys": "/settings/metadata",
+  "/settings/tools": "/settings/advanced",
+  "/settings/cache": "/settings/storage",
+  "/settings/changelog": "/settings/about",
+  "/settings/account/login": "/settings/account",
+  "/settings/connections": "/settings/media-servers",
+  "/settings/connections/plex": "/settings/media-servers",
+  "/settings/connections/emby": "/settings/media-servers",
+  "/settings/connections/jellyfin": "/settings/media-servers",
+  "/settings/connections/seerr": "/settings/media-servers",
+  "/settings/connections/webhooks": "/settings/webhooks",
+  "/settings/metadata/tmdb": "/settings/metadata",
+  "/settings/metadata/youtube": "/settings/metadata",
+  "/settings/metadata/fanart": "/settings/metadata",
+  "/settings/metadata/tvdb": "/settings/metadata",
+  "/settings/metadata/omdb": "/settings/metadata",
+  "/settings/data": "/settings/backups",
+  "/settings/data/backups": "/settings/backups",
+  "/settings/data/restore": "/settings/restore",
+  "/settings/data/import": "/settings/import",
+  "/settings/system": "/settings/health",
+  "/settings/system/health": "/settings/health",
+  "/settings/system/sync": "/settings/sync",
+  "/settings/system/logs": "/settings/logs",
+  "/settings/system/storage": "/settings/storage",
+  "/settings/system/about": "/settings/about",
+  "/settings/system/advanced": "/settings/advanced",
 };
 
 const LEGACY_TABS = {
-  general: "/settings/account/login",
-  apps: "/settings/connections/plex",
-  "api-keys": "/settings/metadata/tmdb",
-  backups: "/settings/data/backups",
-  tools: "/settings/system/advanced",
-  sync: "/settings/system/sync",
-  logs: "/settings/system/logs",
-  cache: "/settings/system/storage",
-  changelog: "/settings/system/about",
+  general: "/settings/account",
+  apps: "/settings/media-servers",
+  "api-keys": "/settings/metadata",
+  backups: "/settings/backups",
+  tools: "/settings/advanced",
+  sync: "/settings/sync",
+  logs: "/settings/logs",
+  cache: "/settings/storage",
+  changelog: "/settings/about",
 };
 
-export const SETTINGS_GROUPS = Object.freeze(GROUPS);
+export const SETTINGS_SECTIONS = Object.freeze(SECTIONS);
 
 function cleanPath(value = "") {
   const path = String(value || "/settings").split(/[?#]/, 1)[0] || "/settings";
@@ -88,125 +134,90 @@ function cleanPath(value = "") {
 export function settingsPathForLegacy(value = "") {
   const key = String(value || "").trim();
   if (key.startsWith("/")) return LEGACY_PATHS[cleanPath(key)] || cleanPath(key);
-  return LEGACY_TABS[key] || (GROUPS[key] ? `/settings/${key}` : "/settings");
+  return LEGACY_TABS[key] || (SECTIONS[key] ? `/settings/${key}` : "/settings");
+}
+
+function sectionRoute(section, requestedPath) {
+  const definition = SECTIONS[section];
+  return {
+    kind: "task",
+    group: section,
+    task: "",
+    path: `/settings/${section}`,
+    requestedPath,
+    title: definition.label,
+    panel: definition.panel,
+    subPanels: definition.subPanels,
+    backupTab: definition.backupTab,
+  };
 }
 
 export function parseSettingsRoute(value = "/settings", { mustChangePassword = false } = {}) {
   const requestedPath = cleanPath(value);
-  if (mustChangePassword) {
-    const task = GROUPS.account.tasks.login;
-    return { kind: "task", group: "account", task: "login", path: "/settings/account/login", requestedPath, title: "Account & Security", ...task };
-  }
+  if (mustChangePassword) return sectionRoute("account", requestedPath);
 
-  const canonicalLegacy = LEGACY_PATHS[requestedPath];
-  const canonicalPath = canonicalLegacy || requestedPath;
+  const canonicalPath = LEGACY_PATHS[requestedPath] || requestedPath;
   if (canonicalPath === "/settings") {
     return { kind: "overview", group: "overview", task: "", path: "/settings", requestedPath, title: "Settings overview" };
   }
 
   const parts = canonicalPath.split("/").filter(Boolean);
-  if (parts[0] !== "settings" || !GROUPS[parts[1]]) {
+  if (parts[0] !== "settings" || !SECTIONS[parts[1]]) {
     return { kind: "overview", group: "overview", task: "", path: "/settings", requestedPath, title: "Settings overview" };
   }
-
-  const group = parts[1];
-  const groupDefinition = GROUPS[group];
-  const taskName = groupDefinition.tasks[parts[2]] ? parts[2] : groupDefinition.defaultTask;
-  const task = groupDefinition.tasks[taskName];
-  return {
-    kind: "task",
-    group,
-    task: taskName,
-    path: `/settings/${group}/${taskName}`,
-    requestedPath,
-    title: taskName === groupDefinition.defaultTask ? groupDefinition.label : `${groupDefinition.label} - ${task.label}`,
-    ...task,
-  };
+  return sectionRoute(parts[1], requestedPath);
 }
 
-export function settingsDashboardSummary({ config = {}, configLoaded = false, watchBackups = null, plembfinBackups = null, backupsLoading = false, syncJobs = [], syncJobsLoaded = false, syncJobsLoading = false, syncActive = false } = {}) {
-  const connectionKeys = ["plex", "emby", "jellyfin", "seerr"];
-  const enabledConnections = connectionKeys.filter((key) => !config[key]?.disabled);
-  const connected = enabledConnections.filter((key) => config[key]?.configured);
-  const connectionAttention = enabledConnections.filter((key) => !config[key]?.configured);
-  const connections = !configLoaded
-    ? { tone: "unknown", label: "Unknown", detail: "Configuration has not loaded yet." }
-    : connectionAttention.length
-      ? { tone: "warning", label: `${connectionAttention.length} need attention`, detail: `${connected.length} of ${enabledConnections.length} enabled services are configured.` }
-      : enabledConnections.length
-        ? { tone: "ready", label: `${connected.length} connected`, detail: "Enabled media services have saved credentials." }
-        : { tone: "muted", label: "None enabled", detail: "Connect a media service to begin syncing." };
-
-  const metadataKeys = ["tmdb", "youtube", "fanart", "tvdb", "omdb"];
-  const metadataCount = metadataKeys.filter((key) => config[key]?.configured).length;
-  const metadata = !configLoaded
-    ? { tone: "unknown", label: "Unknown", detail: "Metadata configuration has not loaded yet." }
-    : !config.tmdb?.configured
-      ? { tone: "warning", label: "TMDB required", detail: `${metadataCount} of ${metadataKeys.length} providers have personal keys.` }
-      : { tone: "ready", label: `${metadataCount} configured`, detail: "TMDB is ready; other providers are optional." };
-
-  const backupSources = [watchBackups, plembfinBackups].filter(Boolean);
-  const backupConfigs = backupSources.map((item) => item?.config || {});
-  const scheduled = backupConfigs.some((item) => item.enabled || item.remoteEnabled);
-  const backupErrors = backupSources.map((item) => item?.runtime?.lastError || item?.runtime?.lastRemoteError).filter(Boolean);
-  const successfulDates = backupSources.map((item) => Date.parse(item?.runtime?.lastSuccessAt || "")).filter(Number.isFinite);
-  const lastSuccess = successfulDates.length ? Math.max(...successfulDates) : 0;
-  const stale = scheduled && lastSuccess && Date.now() - lastSuccess > 48 * 60 * 60 * 1000;
-  const backups = backupsLoading && !backupSources.length
-    ? { tone: "loading", label: "Loading", detail: "Reading backup schedules and recent runs." }
-    : !backupSources.length
-      ? { tone: "unknown", label: "Unknown", detail: "Backup status has not loaded yet." }
-      : backupErrors.length
-        ? { tone: "warning", label: "Action required", detail: "A recent backup operation reported an error." }
-        : !scheduled
-          ? { tone: "muted", label: "Not scheduled", detail: "Manual backups remain available." }
-          : stale
-            ? { tone: "warning", label: "Backup may be stale", detail: "No successful scheduled backup was recorded in the last 48 hours." }
-            : { tone: "ready", label: "Scheduled", detail: lastSuccess ? "A recent scheduled backup completed successfully." : "The schedule is enabled; no successful run is recorded yet." };
-
-  const sync = syncActive
-    ? { tone: "loading", label: "Sync running", detail: "A manual synchronization is currently active." }
-    : syncJobsLoading && !syncJobsLoaded
-      ? { tone: "loading", label: "Loading", detail: "Checking unresolved synchronization work." }
-      : !syncJobsLoaded
-        ? { tone: "unknown", label: "Unknown", detail: "Sync status has not loaded yet." }
-        : syncJobs.length
-          ? { tone: "warning", label: `${syncJobs.length} unresolved`, detail: "Review failed or outstanding propagation attempts." }
-          : { tone: "ready", label: "No open issues", detail: "No unresolved synchronization work is currently listed." };
-
-  return { connections, metadata, backups, sync };
+function renderSettingsSidebar() {
+  const menu = document.querySelector("#sidebarSettingsMenu");
+  if (!menu) return;
+  menu.querySelectorAll("[data-settings-group]").forEach((el) => el.remove());
+  const lockButton = menu.querySelector("#lockButton");
+  const fragment = document.createDocumentFragment();
+  for (const [id, definition] of Object.entries(SECTIONS)) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "settings-tab";
+    button.dataset.settingsGroup = id;
+    button.dataset.settingsPath = `/settings/${id}`;
+    button.textContent = definition.label;
+    fragment.append(button);
+  }
+  menu.insertBefore(fragment, lockButton || null);
 }
 
-function setStatusRow(key, status) {
-  const row = document.querySelector(`[data-settings-status="${key}"]`);
-  if (!row) return;
-  row.dataset.tone = status.tone;
-  const label = row.querySelector("[data-status-label]");
-  const detail = row.querySelector("[data-status-detail]");
-  if (label) label.textContent = status.label;
-  if (detail) detail.textContent = status.detail;
+function renderSettingsSectionSelect() {
+  const select = document.querySelector("#settingsSectionSelect");
+  if (!select) return;
+  select.replaceChildren();
+  const overview = document.createElement("option");
+  overview.value = "/settings";
+  overview.textContent = "Overview";
+  select.append(overview);
+  for (const [id, definition] of Object.entries(SECTIONS)) {
+    const option = document.createElement("option");
+    option.value = `/settings/${id}`;
+    option.textContent = definition.label;
+    select.append(option);
+  }
 }
 
-export function renderSettingsDashboard(source = {}) {
-  const summary = settingsDashboardSummary(source);
-  for (const [key, status] of Object.entries(summary)) setStatusRow(key, status);
-  return summary;
-}
-
-function moveHelpIntoDisclosure(row) {
-  const help = row.querySelector(":scope > .settings-row-help");
-  const main = row.querySelector(":scope > .settings-row-main");
-  if (!help || !main) return;
-  const details = document.createElement("details");
-  details.className = "settings-help-disclosure";
-  const summary = document.createElement("summary");
-  summary.textContent = "Setup help";
-  const body = document.createElement("div");
-  body.className = "settings-help-body";
-  while (help.firstChild) body.append(help.firstChild);
-  details.append(summary, body);
-  main.append(details);
-  help.remove();
+function renderSettingsOverview() {
+  const list = document.querySelector("#settingsOverviewList");
+  if (!list) return;
+  list.replaceChildren();
+  for (const [id, definition] of Object.entries(SECTIONS)) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "settings-link-row";
+    row.dataset.settingsPath = `/settings/${id}`;
+    const title = document.createElement("strong");
+    title.textContent = definition.label;
+    const description = document.createElement("span");
+    description.textContent = definition.description;
+    row.append(title, description);
+    list.append(row);
+  }
 }
 
 function prepareAdvancedDisclosures() {
@@ -228,24 +239,10 @@ function prepareAdvancedDisclosures() {
 }
 
 export function prepareSettingsShell() {
-  document.querySelectorAll(".settings-row").forEach(moveHelpIntoDisclosure);
+  renderSettingsSidebar();
+  renderSettingsSectionSelect();
+  renderSettingsOverview();
   prepareAdvancedDisclosures();
-}
-
-function renderTaskNavigation(route) {
-  const nav = document.querySelector("#settingsTaskNav");
-  if (!nav) return;
-  if (route.kind === "overview") {
-    nav.replaceChildren();
-    nav.classList.add("hidden");
-    return;
-  }
-  const group = GROUPS[route.group];
-  nav.classList.toggle("hidden", Object.keys(group.tasks).length <= 1);
-  nav.innerHTML = Object.entries(group.tasks).map(([key, task]) => {
-    const active = key === route.task;
-    return `<button class="settings-task-link${active ? " active" : ""}" type="button" data-settings-path="/settings/${route.group}/${key}"${active ? ' aria-current="page"' : ""}>${task.label}</button>`;
-  }).join("");
 }
 
 export function applySettingsRoute(route) {
@@ -275,15 +272,15 @@ export function applySettingsRoute(route) {
     else button.removeAttribute("aria-current");
   });
   const select = document.querySelector("#settingsSectionSelect");
-  if (select) select.value = route.kind === "overview" ? "/settings" : `/settings/${route.group}`;
-  renderTaskNavigation(route);
+  if (select) select.value = route.kind === "overview" ? "/settings" : route.path;
   return route;
 }
 
 export function focusSettingsRoute(route) {
   const target = route?.kind === "overview"
     ? document.querySelector("#settingsOverviewTitle")
-    : document.querySelector("#settingsTaskNav [aria-current=\"page\"]") || document.querySelector(`[data-settings-panel="${route?.panel}"]:not(.hidden) .section-heading p`);
+    : document.querySelector(`[data-settings-panel="${route?.panel}"]:not(.hidden) .section-heading p`)
+      || document.querySelector(`[data-settings-panel="${route?.panel}"]:not(.hidden)`);
   if (!target) return;
   if (!target.matches("button, a, input, select, textarea")) target.setAttribute("tabindex", "-1");
   target.focus({ preventScroll: true });

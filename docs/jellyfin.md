@@ -17,7 +17,7 @@ fork and keeps most of the API surface) with a few differences noted below. Read
 
 ## Configuration
 
-Settings → Connections → Jellyfin needs three values (stored in the `settings` SQLite row; env
+Settings → Media Servers → Jellyfin needs three values (stored in the `settings` SQLite row; env
 vars `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` act as defaults):
 
 - **baseUrl** — reachable *from the Plembfin server machine*

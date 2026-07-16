@@ -46,7 +46,7 @@ cast, trailers, artwork), Jellyseerr/Overseerr requesting, and a backup system.
 | TMDB/TVDB/Fanart/OMDb metadata | `server/src/routes/metadata.js`, `server/src/utils/tmdbGateway.js`, `tvdbGateway.js`, `fanartGateway.js`, `omdbGateway.js` | [metadata.md](metadata.md) |
 | Posters, backdrops, logos, artwork caching | `server/src/utils/posterCache.js`, `handlePoster` in `routes/metadata.js`, `public/modules/images.js` | [posters-artwork.md](posters-artwork.md) |
 | Backups (all three subsystems) | `server/src/routes/backups.js`, `server/src/utils/backup.js`, `watchHistoryBackups.js`, `plembfinBackups.js`, `backupDestinations/`, `public/modules/tools-backups.js` | [backups.md](backups.md) |
-| Settings pages, connection config | `server/src/routes/admin.js`, `server/src/utils/configStore.js`, `public/modules/settings-shell.js`, `public/modules/settings.js`, `public/modules/tools.js`, `public/modules/tools-backups.js` | [settings.md](settings.md) |
+| Settings pages, connection config | `server/src/routes/admin.js`, `server/src/utils/configStore.js`, `public/modules/settings-shell.js`, `public/modules/settings-ui.js`, `public/modules/settings-services.js`, `public/modules/tools-backups.js` | [settings.md](settings.md) |
 | Login, sessions, API key, webhook secret | `server/src/utils/auth.js`, `server/src/appConfig.js`, `public/modules/auth.js` | [auth.md](auth.md) |
 | SPA routing, view switching, module layout | `public/app.js`, `public/modules/state.js`, `app-events.js` | [frontend.md](frontend.md) |
 | Database tables and their meaning | `server/src/schema.sql`, `server/src/db.js` | [sqlite-schema.md](sqlite-schema.md) |
@@ -151,7 +151,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `outbound.js` | `fetchWithTimeout` (10s default — **all** server-side outbound HTTP must use it; enforced by the build check), `normalizeHttpUrl`, `assertSafeOutboundUrl` (blocks cloud-metadata endpoints). |
 | `http.js` | `sendJson` / `sendOptions` / `methodNotAllowed` / `notFound` response helpers. Same-origin only — no CORS headers are ever sent. |
 | `requestBody.js` | `readJson` and `readFormData` (urlencoded + multipart via busboy) over the raw body captured by `server.js`. |
-| `diagnosticLogger.js` | Wraps `console.log/warn/error` to keep the last 1,000 log lines in memory (secrets redacted) for Settings → System → Logs (`/api/diagnostic-logs`). |
+| `diagnosticLogger.js` | Wraps `console.log/warn/error` to keep the last 1,000 log lines in memory (secrets redacted) for Settings → Logs (`/api/diagnostic-logs`). |
 | `posterCache.js` | Artwork fetch-resize-store pipeline: downloads a remote image (Plex token moved to a header), resizes with sharp to webp (poster 340w / backdrop 1600w / profile 780w / logo 800w), writes to `data/media/<variant>s/`, records metadata in `poster_cache` with negative caching for missing/failed. See [posters-artwork.md](posters-artwork.md). |
 | `tmdbGateway.js` | TMDB API gateway + SQLite caches (`tmdb_metadata_cache`, `tmdb_search_cache`, `tmdb_person_cache`): details, search, seasons, people, images, library prewarm, request throttling and in-flight dedupe. For TV it merges TVDB structural data — see [metadata.md](metadata.md). |
 | `tvdbGateway.js` | TheTVDB v4 gateway (built-in shared project key, optional personal key): series/season/episode data, title search, artwork; raw responses cached in `tvdb_metadata_cache` / `tvdb_season_cache`; `shapeTvdbSeriesAsTmdb` adapts TVDB shapes to TMDB-style fields. |
@@ -160,7 +160,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `tmdbClient.js` | Tiny wrapper `fetchPosterFromTmdb(row)` used by the poster pipeline's TMDB fallback. |
 | `nextAiringCache.js` | File-backed cache (`data/next-airing-cache.json`) of each show's next episode air date + status, so the TV Shows page can sort by "next airing" without live TVDB/TMDB calls. TTL 6h for active shows, 7d for ended. |
 | `showProgressCache.js` | File-backed cache (`data/tv_progress_cache.json`) of per-show watched/total episode counts, so library rows can show watch progress without recomputing on every request. |
-| `backup.js` | Portable full-backup format: exports/imports the core SQLite tables as versioned JSON collections (paged export, batched import, optional reset). Used by Settings → Data & Backup and the encrypted backup subsystem. |
+| `backup.js` | Portable full-backup format: exports/imports the core SQLite tables as versioned JSON collections (paged export, batched import, optional reset). Used by Settings → Backups / Restore and the encrypted backup subsystem. |
 | `watchHistoryBackups.js` | Watch-history-only backup subsystem: gzip JSON of `watch_history` + `playstate` + `playback_progress` with checksum manifest, daily scheduling, retention, dry-run/merge/replace restore, remote destination management (secrets kept server-side, redacted in every API response), cron-sync pausing around restores. See [backups.md](backups.md). |
 | `plembfinBackups.js` | Full encrypted backup subsystem: AES-256-GCM (PBKDF2) encrypted export of the entire portable backup, daily scheduling + retention, optional remote mirroring. |
 | `backupDestinations/index.js` | Adapter registry: `folder`, `webdav`, `s3` (also `backblaze`), `onedrive`, `dropbox` — all sharing `testConnection / upload / list / download / delete`. |
@@ -187,8 +187,10 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `state.js` | The single shared `state` object, the `elements` registry, localStorage keys, view/tab constants. No logic. |
 | `utils.js` | Formatting/escaping/date helpers (`escapeHtml`, `formatDate`, `platformBadge`, `slug`, show/episode title parsing, duration/progress formatting…). |
 | `auth.js` | Login/logout/status against `/api/auth/*`, `onAuthChange`, credential updates, webhook-secret rotation, auth header building. See [auth.md](auth.md). |
-| `settings.js` | Builds connection-config payloads from the settings form inputs (`connectionPayloadFromElements`). |
-| `settings-shell.js` | Owns settings group/task routes, legacy aliases, overview status, focused panels, and progressive help/advanced disclosures. |
+| `settings.js` | Shared connection-label formatting. |
+| `settings-ui.js` | Reusable settings edit dialog, provider picker, and status-card grid primitives. |
+| `settings-services.js` | Media-server and metadata-provider card grids, edit dialogs, config saves, and connection tests. |
+| `settings-shell.js` | Owns flat settings routes, legacy aliases, the landing list, sidebar/mobile navigation, focused panels, and advanced disclosures. |
 | `logs.js` | Frontend debug-log store (localStorage ring buffer) + fetching backend diagnostic logs. |
 | `images.js` | Poster/artwork frontend: `posterMarkup`, `hydratePosterFallbacks`, `/api/poster` lookups with a persistent cache, TMDB image URL builders, `isCachedStorageImageUrl`. See [posters-artwork.md](posters-artwork.md). |
 | `sync.js` | Now Playing polling + rendering, sync-status pills/telemetry parsing, sync jobs + sync history panels, cron/force-sync triggers. |
@@ -208,7 +210,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `watch-action.js` | Manual mark watched/unwatched flows: date prompt, batched `/api/manual-watch` posts, delete-media, Seerr request submission. |
 | `tmdb.js` | Frontend TMDB enrichment helpers (`fetchTmdbDetails`, season details, episode-title resolution) with in-memory caches. |
 | `tools.js` | Settings tools bridge: Trakt/CSV import flows, `initTools()`, and compatibility re-exports for backup/appearance and maintenance tools. |
-| `tools-backups.js` | Settings backup and appearance UI: full export/import, watch-history backups, encrypted backups, destination cards, backup passphrase controls, and appearance settings. See [backups.md](backups.md). |
+| `tools-backups.js` | Settings backup and appearance UI: full export/import, watch-history backups, encrypted backups, Backblaze destination cards/dialogs, backup passphrase controls, and appearance settings. See [backups.md](backups.md). |
 | `tools-maintenance.js` | Maintenance diagnostics: System Integrity Check, repair workflow, dedup history, Trakt backfill, TV re-match, full watchstate sync, cache stats/clear. |
 | `help-content.js` | Static help/guide HTML: credential guides, webhook setup per platform, cron guide, settings inline help. |
 | `app-events.js` | Global app event wiring (delegated click/submit/keyboard handlers bound at startup). |
@@ -338,7 +340,7 @@ every caller (routes, frontend, `deriveNextAiring`) is unaware of the split:
 
 Like `fanartGateway.js`, `tvdbGateway.js` ships a hardcoded project API key so TVDB
 lookups work out of the box; an optional personal key can be set in Settings →
-API Keys → TheTVDB or via `TVDB_API_KEY` for a higher personal rate limit.
+Metadata → TheTVDB or via `TVDB_API_KEY` for a higher personal rate limit.
 
 Raw TVDB API responses are cached in `tvdb_metadata_cache` / `tvdb_season_cache`;
 the merged TMDB+TVDB result is cached in the `tmdb_metadata_cache` table
@@ -366,7 +368,7 @@ floor, so routine dashboard loads never turn into one GitHub fetch each. The bro
 GitHub directly because the CSP is `connect-src 'self'`, so the server proxies and caches it.
 The response is `{ current, latest, updateAvailable, remoteAvailable, remoteError, newer,
 entries }`, where `newer` lists releases with a higher semver than the running build. If
-GitHub is unreachable it falls back to the bundled entries. Settings → System → About renders the
+GitHub is unreachable it falls back to the bundled entries. Settings → About renders the
 current version, an update banner, and the full release list with newer versions highlighted.
 
 ## Data layer (`server/src/db.js` + `schema.sql`)
@@ -407,7 +409,8 @@ Full detail: [auth.md](auth.md).
   routing, shared callbacks, and element binding.
 - SPA navigation via `navigateTo(url)` / `handleRouting()` / `history.pushState`.
   Routes: `/` dashboard, `/movies`, `/tvshows`, `/upcoming`, `/history`, `/stats`,
-  `/search`, `/settings/:tab` (plus `/sync` and `/logs` shortcuts), `/movie/:id`,
+  `/search`, `/settings` and `/settings/:section` (plus `/sync`, `/logs`, and retired
+  grouped settings aliases), `/movie/:id`,
   `/movie/tmdb/:id`, `/tvshow/:key(/season/:n(/episode/:n))`, `/tvshow/tmdb/:id`,
   `/person/:id`.
 - Auth handled by `onAuthChange()` (`modules/auth.js`) — which checks
@@ -484,7 +487,7 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `TVDB_PROJECT_KEY` — advanced: replace the built-in shared TheTVDB project key (used when no personal key is set). Only needed if the built-in key is revoked or exhausted.
 - `FANART_PROJECT_KEY` — advanced: replace the built-in shared Fanart.tv project key. Only needed if the built-in key is revoked or exhausted.
 - `FANART_API_KEY` — optional personal Fanart.tv key (raises the rate limit as a `client_key`)
-- `PLEMBFIN_DEBUG_OUTBOUND` — set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → System → Logs); for measuring upstream traffic
+- `PLEMBFIN_DEBUG_OUTBOUND` — set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs); for measuring upstream traffic
 
 Environment variables act as **defaults** for connection settings: values saved in
 Settings (stored in the `settings` SQLite row) take precedence over env values

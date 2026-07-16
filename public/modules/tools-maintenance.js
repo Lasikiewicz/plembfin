@@ -128,12 +128,12 @@ export async function runSystemIntegrityCheck() {
     }
   }
 
-  const plexUrl = elements.plexServerUrl?.value?.trim() || "";
-  const plexToken = elements.plexToken?.value?.trim() || "";
-  const embyUrl = elements.embyServerUrl?.value?.trim() || "";
-  const embyApiKey = elements.embyApiKey?.value?.trim() || "";
-  const jellyfinUrl = elements.jellyfinServerUrl?.value?.trim() || "";
-  const jellyfinApiKey = elements.jellyfinApiKey?.value?.trim() || "";
+  // Connection settings now live in edit modals, so diagnostics must use the
+  // redacted saved config instead of reading inputs that may not exist. A blank
+  // secret deliberately asks the backend to fall back to the stored credential.
+  const plexUrl = String(state.savedConfig?.plex?.baseUrl || state.savedConfig?.plex?.url || "").trim();
+  const embyUrl = String(state.savedConfig?.emby?.baseUrl || state.savedConfig?.emby?.url || "").trim();
+  const jellyfinUrl = String(state.savedConfig?.jellyfin?.baseUrl || state.savedConfig?.jellyfin?.url || "").trim();
 
   const testConnection = async (type, url, token, name) => {
     // Secrets are never sent to the browser, so the token input is blank for an
@@ -154,13 +154,13 @@ export async function runSystemIntegrityCheck() {
     }
   };
 
-  await testConnection("plex", plexUrl, plexToken, "Plex Media Server");
+  await testConnection("plex", plexUrl, "", "Plex Media Server");
 
-  if (plexUrl && (plexToken || state.savedConfig?.plex?.configured)) {
+  if (plexUrl && state.savedConfig?.plex?.configured) {
     try {
       const startTime = Date.now();
       // A blank token is fine — the backend falls back to the saved Plex config.
-      const response = await fetch("/api/test-plex-notifications", { method: "POST", headers: authHeaders(), body: JSON.stringify({ url: plexUrl, token: plexToken }) });
+      const response = await fetch("/api/test-plex-notifications", { method: "POST", headers: authHeaders(), body: JSON.stringify({ url: plexUrl, token: "" }) });
       const body = await response.json().catch(() => ({}));
       const elapsed = Date.now() - startTime;
       if (response.ok && body.ok) {
@@ -175,14 +175,14 @@ export async function runSystemIntegrityCheck() {
     results.push({ name: "Plex Realtime Notifications", status: "skipped", detail: "Skipped - Plex URL or token not provided." });
   }
 
-  await testConnection("emby", embyUrl, embyApiKey, "Emby Media Server");
-  await testConnection("jellyfin", jellyfinUrl, jellyfinApiKey, "Jellyfin Media Server");
+  await testConnection("emby", embyUrl, "", "Emby Media Server");
+  await testConnection("jellyfin", jellyfinUrl, "", "Jellyfin Media Server");
 
   container.innerHTML = results.map((res) => {
     let statusLabel = "Skipped";
     let pillStyle = "border-color: var(--line); background: var(--panel-3); color: var(--muted);";
     let fixInstruction = "";
-    let settingsLink = "";
+    let settingsPath = "";
 
     if (res.status === "success") { statusLabel = "Online"; pillStyle = "border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.12); color: var(--green);"; }
     else if (res.status === "error") { statusLabel = "Failed"; pillStyle = "border-color: rgba(244, 63, 94, 0.5); background: rgba(244, 63, 94, 0.12); color: var(--red);"; }
@@ -190,15 +190,15 @@ export async function runSystemIntegrityCheck() {
     else if (res.status === "warning") { statusLabel = "Warnings Detected"; pillStyle = "border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.12); color: var(--yellow);"; }
 
     if (res.status !== "success") {
-      if (res.name === "Scheduled Cron Job") { fixInstruction = "Fix: The background sync worker runs in-process every minute. If it hasn't fired, confirm the server is running and check the server logs for errors. You can also trigger it manually via /api/cron-sync."; settingsLink = "sync"; }
+      if (res.name === "Scheduled Cron Job") { fixInstruction = "Fix: The background sync worker runs in-process every minute. If it hasn't fired, confirm the server is running and check the server logs for errors. You can also trigger it manually via /api/cron-sync."; settingsPath = "/settings/sync"; }
       else if (res.name === "Watch History API") { fixInstruction = "Fix: The SQLite database may be locked or the data directory may not be writable. Check the server logs and confirm DATA_DIR is set correctly."; }
-      else if (res.name === "Server Configuration") { fixInstruction = "Fix: Try saving your configuration again in Settings → Connections. If the error persists, check that data/config.json is writable."; }
+      else if (res.name === "Server Configuration") { fixInstruction = "Fix: Try saving your configuration again in Settings → Media Servers. If the error persists, check that data/config.json is writable."; }
       else if (res.name === "Webhook Listener Endpoint") { fixInstruction = "Fix: Confirm the server is running and accessible at the expected host and port. Check for firewall or reverse-proxy rules blocking /api/webhook."; }
       else if (res.name === "Outbound Playstate Sync") { fixInstruction = "Fix: Open the latest history row debug details, review sync_dispatch_telemetry, then correct the failed platform credentials or provider-ID match."; }
-      else if (res.name === "Plex Media Server") { fixInstruction = "Fix: Enter the Plex Server URL and Plex Token in Settings → Connections, then confirm the server is reachable from the machine running Plembfin."; }
-      else if (res.name === "Plex Realtime Notifications") { fixInstruction = "Fix: Ensure any reverse proxy / Cloudflare in front of Plex forwards WebSocket upgrades on /:/websockets/notifications, or set the Plex Server URL to the direct LAN address (e.g. http://192.168.x.x:32400). Unwatch sync still works via the fallback poll until this is fixed."; settingsLink = "apps"; }
-      else if (res.name === "Emby Media Server") { fixInstruction = "Fix: Enter the Emby Server URL, API Key, and User ID in Settings → Connections, then confirm the server is reachable from the machine running Plembfin."; }
-      else if (res.name === "Jellyfin Media Server") { fixInstruction = "Fix: Enter the Jellyfin Server URL, API Key, and User ID in Settings → Connections, then confirm the server is reachable from the machine running Plembfin."; }
+      else if (res.name === "Plex Media Server") { fixInstruction = "Fix: Enter the Plex Server URL and Plex Token in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
+      else if (res.name === "Plex Realtime Notifications") { fixInstruction = "Fix: Ensure any reverse proxy / Cloudflare in front of Plex forwards WebSocket upgrades on /:/websockets/notifications, or set the Plex Server URL to the direct LAN address (e.g. http://192.168.x.x:32400). Unwatch sync still works via the fallback poll until this is fixed."; settingsPath = "/settings/media-servers"; }
+      else if (res.name === "Emby Media Server") { fixInstruction = "Fix: Enter the Emby Server URL, API Key, and User ID in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
+      else if (res.name === "Jellyfin Media Server") { fixInstruction = "Fix: Enter the Jellyfin Server URL, API Key, and User ID in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
     }
 
     return `
@@ -207,7 +207,7 @@ export async function runSystemIntegrityCheck() {
           <b>${escapeHtml(res.name)}</b>
           <span style="font-size: 0.8rem; color: var(--muted);">${escapeHtml(res.detail)}</span>
           ${fixInstruction ? `<span style="font-size: 0.8rem; color: var(--text);">${escapeHtml(fixInstruction)}</span>` : ""}
-          ${settingsLink ? `<button type="button" data-settings-link="${escapeAttribute(settingsLink)}" style="width: fit-content; border: 1px solid var(--line); background: var(--panel-3); color: var(--text); border-radius: 6px; padding: 0.25rem 0.5rem; font-size: 0.78rem; font-weight: 800;">Open setup guide</button>` : ""}
+          ${settingsPath ? `<button type="button" data-settings-path="${escapeAttribute(settingsPath)}" style="width: fit-content; border: 1px solid var(--line); background: var(--panel-3); color: var(--text); border-radius: 6px; padding: 0.25rem 0.5rem; font-size: 0.78rem; font-weight: 800;">Open settings</button>` : ""}
         </div>
         <span class="target-pill" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; border: 1px solid; border-radius: 999px; ${pillStyle}">${statusLabel}</span>
       </div>

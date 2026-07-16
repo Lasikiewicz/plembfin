@@ -977,13 +977,13 @@ export async function triggerRetrySync(id, button) {
           termLog(`Details: ${telLine || "Connection failed"}`, "info");
           const errLower = (telLine || "").toLowerCase();
           if (errLower.includes("unauthorized") || errLower.includes("401") || errLower.includes("token") || errLower.includes("auth")) {
-            termLog("👉 FIX: Open Settings → Connections for this app and verify that the API key or token is correct, valid, and not expired.", "success");
+            termLog("👉 FIX: Open Settings → Media Servers for this app and verify that the API key or token is correct, valid, and not expired.", "success");
           } else if (errLower.includes("refused") || errLower.includes("timeout") || errLower.includes("conn") || errLower.includes("reach") || errLower.includes("address")) {
             termLog("👉 FIX: Verify that the Server URL is correct, the target server is currently online, and there are no network rules or firewalls blocking the connection from the machine running Plembfin.", "success");
           } else if (errLower.includes("not found") || errLower.includes("404") || errLower.includes("match")) {
             termLog("👉 FIX: The media item was not found on the target platform. Ensure the TMDB/IMDB/TVDB IDs are correct and that the media is properly scanned/matched in your Plex/Emby/Jellyfin library.", "success");
           } else {
-            termLog("👉 FIX: Check Settings → Connections for this platform, then test the connection to verify credentials and endpoint URLs.", "success");
+            termLog("👉 FIX: Check Settings → Media Servers for this platform, then test the connection to verify credentials and endpoint URLs.", "success");
           }
         }
       } else if (pendings.length > 0) {

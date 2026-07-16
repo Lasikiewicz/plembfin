@@ -1,72 +1,100 @@
 # Settings
 
-Settings is a task-oriented administration area. `/settings` shows connection,
-metadata, backup, and sync summaries without running external diagnostics. Five groups
-lead to focused configuration and maintenance tasks:
+Settings is a flat, task-oriented administration area modeled on Sonarr. `/settings`
+shows a plain list of sections with a title and one-line description; it does not run
+external diagnostics or preload status summaries. Desktop renders the same sections in
+the settings sidebar, while mobile uses the **Settings section** select control.
 
-| Group | Routes and responsibilities |
-| --- | --- |
-| Account & Security | `/settings/account/login` — administrator credentials and session revocation |
-| Connections | `/settings/connections/:provider` — Plex, Emby, Jellyfin, Seerr, webhooks, and scheduler endpoints |
-| Metadata | `/settings/metadata/:provider` — TMDB, YouTube, Fanart.tv, TheTVDB, and OMDb keys |
-| Data & Backup | `/settings/data/:task` — local/remote backups, restore, and Trakt import |
-| System | `/settings/system/:task` — health, sync, logs, cache storage, version information, and advanced maintenance |
+| Section | Canonical route | Responsibility |
+| --- | --- | --- |
+| Media Servers | `/settings/media-servers` | Plex, Emby, Jellyfin, and Seerr connections |
+| Metadata | `/settings/metadata` | TMDB, YouTube, Fanart.tv, TheTVDB, and OMDb keys |
+| Webhooks | `/settings/webhooks` | Webhook listener URL, secret rotation, and scheduler endpoint |
+| Account & Security | `/settings/account` | Administrator credentials and sessions |
+| Backups | `/settings/backups` | Local schedules and remote destinations |
+| Restore | `/settings/restore` | Local/uploaded/remote watch-history restore and full encrypted restore |
+| Import | `/settings/import` | Trakt and CSV watch-history import |
+| Sync | `/settings/sync` | Unresolved issues, sync history, force sync, and repair tools |
+| Health | `/settings/health` | Database and media-server diagnostics |
+| Logs | `/settings/logs` | Browser and server diagnostic logs |
+| Storage & Cache | `/settings/storage` | Artwork and metadata cache usage |
+| Advanced | `/settings/advanced` | Database repair, rebuild, rematch, and backfill tools |
+| About | `/settings/about` | Version and changelog |
 
-Desktop keeps the five groups in the sidebar. Mobile uses a section picker and a
-horizontally scrollable task navigator. Each task has one main content column; setup
-guides are collapsed until requested. Database repairs and full-library rebuilds are
-collapsed under **System → Advanced**.
+## Card and modal workflows
+
+Media servers and metadata providers use card grids. Configured or previously touched
+services appear as cards with status badges; the trailing **+** card opens a provider
+picker. Selecting a card opens an edit dialog with aligned label/control rows, inline
+help, and Save/Cancel actions. Media-server dialogs also provide **Test** and an Enable
+switch. Fixed services can be disabled but not deleted because the config API has no
+credential-clear operation.
+
+Remote backup destinations use the same card and modal primitives. The Backblaze B2
+dialog edits its name, enabled state, region/endpoint, bucket, key ID, optional prefix,
+and application key. Save and Test persist the destination before refreshing status;
+Delete removes the destination record after confirmation without deleting remote files.
+
+Dialogs are singletons, close on Escape/backdrop/close button, keep their header and
+footer visible while the body scrolls, and collapse to stacked fields on mobile.
 
 ## Frontend ownership
 
 | File | Role |
 | --- | --- |
-| `public/modules/settings-shell.js` | Route registry, legacy aliases, overview status derivation, focused task visibility, help disclosures, and advanced disclosures |
-| `public/modules/settings.js` | Connection test payload helpers |
+| `public/modules/settings-shell.js` | Flat route registry, legacy aliases, landing list, sidebar, mobile selector, panel visibility, and advanced disclosures |
+| `public/modules/settings-ui.js` | Shared edit modal, picker modal, and service-card grid primitives |
+| `public/modules/settings-services.js` | Media-server and metadata definitions, config saves, connection tests, cards, and dialogs |
+| `public/modules/settings.js` | Shared connection-label formatting |
 | `public/modules/tools.js` | Trakt import and compatibility exports for backup and maintenance behavior |
-| `public/modules/tools-backups.js` | Backup, restore, destination, and appearance behavior |
+| `public/modules/tools-backups.js` | Backup schedules, restore, destination cards/dialogs, and appearance behavior |
 | `public/modules/tools-maintenance.js` | Diagnostics, repairs, backfills, and cache behavior |
-| `public/modules/help-content.js` | Credential and webhook setup guides inserted into the expandable help areas |
+| `public/modules/help-content.js` | Credential, webhook, migration, and account setup guides |
 | `public/modules/logs.js` / `public/modules/sync.js` | Logs and sync rendering/loaders |
-| `public/app.js` | SPA routing, data loading, form saves, and compatibility navigation |
+| `public/app.js` | SPA routing, data loading, element binding, and module callback injection |
 
 ## Route compatibility
 
 Old bookmarks are normalized with `history.replaceState`:
 
-| Previous route | Current route |
+| Previous route | Canonical route |
 | --- | --- |
-| `/settings/general` | `/settings/account/login` |
-| `/settings/apps` | `/settings/connections/plex` |
-| `/settings/api-keys` | `/settings/metadata/tmdb` |
-| `/settings/backups` | `/settings/data/backups` |
-| `/settings/tools` | `/settings/system/advanced` |
-| `/settings/sync` or `/sync` | `/settings/system/sync` |
-| `/settings/logs` or `/logs` | `/settings/system/logs` |
-| `/settings/cache` | `/settings/system/storage` |
-| `/settings/changelog` | `/settings/system/about` |
+| `/settings/general`, `/settings/account/login` | `/settings/account` |
+| `/settings/apps`, `/settings/connections`, `/settings/connections/:provider` | `/settings/media-servers` |
+| `/settings/api-keys`, `/settings/metadata/:provider` | `/settings/metadata` |
+| `/settings/connections/webhooks` | `/settings/webhooks` |
+| `/settings/backups`, `/settings/data`, `/settings/data/backups` | `/settings/backups` |
+| `/settings/data/restore` | `/settings/restore` |
+| `/settings/data/import` | `/settings/import` |
+| `/settings/sync`, `/settings/system/sync`, `/sync` | `/settings/sync` |
+| `/settings/logs`, `/settings/system/logs`, `/logs` | `/settings/logs` |
+| `/settings/cache`, `/settings/system/storage` | `/settings/storage` |
+| `/settings/changelog`, `/settings/system/about` | `/settings/about` |
+| `/settings/tools`, `/settings/system/advanced` | `/settings/advanced` |
+| `/settings/system/health` | `/settings/health` |
 
-The forced-password-change state always resolves to `/settings/account/login`.
+The forced-password-change state always resolves to `/settings/account`.
 
 ## Configuration and secrets
 
-Connection forms continue to post to `POST /api/config`. The server merges the incoming
-section over the stored configuration. Blank secret fields keep the saved credential
-because browser-safe config responses expose only `configured` booleans. URLs are
-restricted to HTTP/HTTPS, embedded credentials and cloud-metadata hosts are rejected,
-and saved values take precedence over environment defaults.
+Service dialogs post one section at a time to `POST /api/config`. The server merges the
+incoming section over stored configuration. Browser-safe responses expose only a
+`configured` boolean for secrets, so secret inputs are always blank. A configured field
+shows a replacement placeholder; saving or testing with it blank keeps and uses the
+stored credential. Seerr and destination secrets are omitted from payloads when blank.
 
-Provider forms retain independent save and connection-test feedback. The overview uses
-existing config, backup, runtime, and sync loaders; a value that has not loaded is shown
-as **Unknown**, never as healthy.
+URLs are restricted to HTTP/HTTPS, embedded credentials and cloud-metadata hosts are
+rejected, and saved values take precedence over environment defaults. Connection tests
+fall back to stored credentials when the modal secret field is blank.
 
 ## Maintenance disposition
 
-- System health runs the existing integrity and media-server reachability checks.
+- Health runs the integrity, database, webhook, scheduler, and media-server checks.
 - Sync combines unresolved jobs, history, repair-recent, force, stop/reset, and refresh.
 - Storage displays and clears image cache categories.
 - Advanced retains history repair, deduplication, full watch-state sync, metadata refresh,
-  TV rematching, and Trakt poster backfill with their existing confirmations and logs.
-- Data & Backup owns Trakt import plus all local/remote backup and restore workflows.
+  TV rematching, and Trakt poster backfill with their confirmations and logs.
+- Import owns the Trakt/CSV importer; Backups and Restore own their respective workflows.
 
-No maintenance API or stored configuration format changes as part of the settings shell.
+No maintenance API or stored media configuration format changes are introduced by the
+settings shell.

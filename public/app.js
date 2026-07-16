@@ -1,12 +1,12 @@
 import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./modules/logs.js";
-import { connectionLabel, connectionPayloadFromElements } from "./modules/settings.js";
-import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, renderSettingsDashboard, settingsPathForLegacy } from "./modules/settings-shell.js";
+import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, settingsPathForLegacy } from "./modules/settings-shell.js";
+import { initSettingsServices, applyConfigToSettingsUi, refreshSeerrCapabilities, renderMediaServerCards, renderMetadataCards } from "./modules/settings-services.js";
 import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS } from "./modules/state.js";
 import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSlug, movieHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./modules/utils.js";
-import { adminTokenGuide, plexCredentialGuide, embyCredentialGuide, jellyfinCredentialGuide, buildWebhookUrl, plexWebhookSetup, embyWebhookSetup, jellyfinWebhookSetup, webhookWarning, cronSyncGuide, renderSettingsInlineHelp } from "./modules/help-content.js";
+import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-content.js";
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile } from "./modules/images.js";
-import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, addBackupDestination, saveBackupDestinationCard, testBackupDestinationCard, removeBackupDestinationCard, listRemoteBackupsForCard, restoreRemoteBackupFromCard, connectBackupDestinationCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runDedupHistory, runTraktBackfill, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups } from "./modules/tools.js";
+import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runDedupHistory, runTraktBackfill, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups } from "./modules/tools.js";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync } from "./modules/sync.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
@@ -193,18 +193,7 @@ function bindElements() {
     watchBackupRuntime: document.querySelector("#watchBackupRuntime"),
     watchBackupList: document.querySelector("#watchBackupList"),
     remoteWatchBackupList: document.querySelector("#remoteWatchBackupList"),
-    watchBackupDestinations: document.querySelector("#watchBackupDestinations"),
-    watchBackupDestinationType: document.querySelector("#watchBackupDestinationType"),
-    addWatchBackupDestinationButton: document.querySelector("#addWatchBackupDestinationButton"),
-    watchBackupRemoteEnabled: document.querySelector("#watchBackupRemoteEnabled"),
-    saveWatchBackupRemoteButton: document.querySelector("#saveWatchBackupRemoteButton"),
-    testWatchBackupRemoteButton: document.querySelector("#testWatchBackupRemoteButton"),
-    watchBackupRemoteRegion: document.querySelector("#watchBackupRemoteRegion"),
-    watchBackupRemoteBucket: document.querySelector("#watchBackupRemoteBucket"),
-    watchBackupRemoteKeyId: document.querySelector("#watchBackupRemoteKeyId"),
-    watchBackupRemotePrefix: document.querySelector("#watchBackupRemotePrefix"),
-    watchBackupRemoteAppKey: document.querySelector("#watchBackupRemoteAppKey"),
-    watchBackupRemoteRuntime: document.querySelector("#watchBackupRemoteRuntime"),
+    backupDestinationCards: document.querySelector("#backupDestinationCards"),
     plembfinBackupRemoteEnabled: document.querySelector("#plembfinBackupRemoteEnabled"),
     plembfinBackupRemotePassphrase: document.querySelector("#plembfinBackupRemotePassphrase"),
     plembfinBackupRemoteRememberPassphrase: document.querySelector("#plembfinBackupRemoteRememberPassphrase"),
@@ -252,28 +241,6 @@ function bindElements() {
     syncToolsToggle: document.querySelector("#syncToolsToggle"),
     syncToolsContent: document.querySelector("#syncToolsContent"),
     syncToolsToggleIcon: document.querySelector("#syncToolsToggleIcon"),
-    plexEnabled: document.querySelector("#plexEnabled"),
-    plexServerUrl: document.querySelector("#plexServerUrl"),
-    plexToken: document.querySelector("#plexToken"),
-    plexUsername: document.querySelector("#plexUsername"),
-    tmdbApiKey: document.querySelector("#tmdbApiKey"),
-    youtubeApiKey: document.querySelector("#youtubeApiKey"),
-    fanartApiKey: document.querySelector("#fanartApiKey"),
-    tvdbApiKey: document.querySelector("#tvdbApiKey"),
-    omdbApiKey: document.querySelector("#omdbApiKey"),
-    embyEnabled: document.querySelector("#embyEnabled"),
-    embyServerUrl: document.querySelector("#embyServerUrl"),
-    embyApiKey: document.querySelector("#embyApiKey"),
-    embyUserId: document.querySelector("#embyUserId"),
-    jellyfinEnabled: document.querySelector("#jellyfinEnabled"),
-    jellyfinServerUrl: document.querySelector("#jellyfinServerUrl"),
-    jellyfinApiKey: document.querySelector("#jellyfinApiKey"),
-    jellyfinUserId: document.querySelector("#jellyfinUserId"),
-    seerrEnabled: document.querySelector("#seerrEnabled"),
-    seerrServerUrl: document.querySelector("#seerrServerUrl"),
-    seerrApiKey: document.querySelector("#seerrApiKey"),
-    saveSeerrConfigButton: document.querySelector("#saveSeerrConfigButton"),
-    seerrConfigStatus: document.querySelector("#seerrConfigStatus"),
     cronSyncUrl: document.querySelector("#cronSyncUrl"),
     runRepairButton: document.querySelector("#runRepairButton"),
     repairStatus: document.querySelector("#repairStatus"),
@@ -295,10 +262,7 @@ function bindElements() {
     settingsUsername: document.querySelector("#settingsUsername"),
     settingsForm: document.querySelector("#settingsForm"),
     settingsStatus: document.querySelector("#settingsStatus"),
-    settingsTabButtons: [...document.querySelectorAll("[data-settings-tab]")],
     settingsPanels: [...document.querySelectorAll("[data-settings-panel]")],
-    backupsSubTabButtons: [...document.querySelectorAll("[data-backups-tab]")],
-    backupsPanels: [...document.querySelectorAll("[data-backups-panel]")],
     sourceRanking: document.querySelector("#sourceRanking"),
     statsMediaFilter: document.querySelector("#statsMediaFilter"),
     statsPeriodType: document.querySelector("#statsPeriodType"),
@@ -326,33 +290,12 @@ function bindElements() {
     topPlatform: document.querySelector("#topPlatform"),
     dbSize: document.querySelector("#dbSize"),
     trackingSpan: document.querySelector("#trackingSpan"),
-    saveConfigButton: document.querySelector("#saveConfigButton"),
-    savePlexConfigButton: document.querySelector("#savePlexConfigButton"),
-    plexConfigStatus: document.querySelector("#plexConfigStatus"),
-    saveEmbyConfigButton: document.querySelector("#saveEmbyConfigButton"),
-    embyConfigStatus: document.querySelector("#embyConfigStatus"),
-    saveJellyfinConfigButton: document.querySelector("#saveJellyfinConfigButton"),
-    jellyfinConfigStatus: document.querySelector("#jellyfinConfigStatus"),
-    saveTmdbConfigButton: document.querySelector("#saveTmdbConfigButton"),
-    tmdbConfigStatus: document.querySelector("#tmdbConfigStatus"),
-    saveYoutubeConfigButton: document.querySelector("#saveYoutubeConfigButton"),
-    youtubeConfigStatus: document.querySelector("#youtubeConfigStatus"),
-    saveFanartConfigButton: document.querySelector("#saveFanartConfigButton"),
-    fanartConfigStatus: document.querySelector("#fanartConfigStatus"),
-    saveTvdbConfigButton: document.querySelector("#saveTvdbConfigButton"),
-    tvdbConfigStatus: document.querySelector("#tvdbConfigStatus"),
-    saveOmdbConfigButton: document.querySelector("#saveOmdbConfigButton"),
-    omdbConfigStatus: document.querySelector("#omdbConfigStatus"),
-    saveSeerrConfigButton: document.querySelector("#saveSeerrConfigButton") || elements.saveSeerrConfigButton,
-    seerrConfigStatus: document.querySelector("#seerrConfigStatus") || elements.seerrConfigStatus,
     saveAdminCredentialsButton: document.querySelector("#saveAdminCredentialsButton"),
     webhookUrl: document.querySelector("#webhookUrl"),
     rotateWebhookButton: document.querySelector("#rotateWebhookButton"),
     runCompleteCheckButton: document.querySelector("#runCompleteCheckButton"),
     refreshCacheStatsButton: document.querySelector("#refreshCacheStatsButton"),
     completeCheckResults: document.querySelector("#completeCheckResults"),
-    testConnectionButtons: [...document.querySelectorAll("[data-test-connection]")],
-    testConnectionStatuses: [...document.querySelectorAll("[data-test-status]")],
     syncHistoryPanel: document.querySelector("#syncHistoryPanel"),
     syncHistorySummary: document.querySelector("#syncHistorySummary"),
     syncJobsPanel: document.querySelector("#syncJobsPanel"),
@@ -1258,10 +1201,6 @@ function selectView(view) {
   }
 }
 
-function selectSettingsTab(tab) {
-  navigateTo(settingsPathForLegacy(tab));
-}
-
 function selectBackupsTab(tab) {
   const validTabs = ["settings", "restore"];
   state.activeBackupsTab = validTabs.includes(tab) ? tab : "settings";
@@ -1477,33 +1416,8 @@ function applyActiveView() {
     state.activeSettingsTab = route.group;
     localStorage.setItem(ACTIVE_SETTINGS_TAB_KEY, route.group);
     applySettingsRoute(route);
-    renderSettingsDashboard({
-      config: state.savedConfig,
-      configLoaded: state.configLoaded,
-      watchBackups: state.watchBackups,
-      plembfinBackups: state.plembfinBackups,
-      backupsLoading: state.watchBackupsLoading || state.plembfinBackupsLoading,
-      syncJobs: state.syncJobs,
-      syncJobsLoaded: state.syncJobsLoaded,
-      syncJobsLoading: state.syncJobsLoading,
-      syncActive: state.fullSyncActive,
-    });
-    if (route.kind === "overview") {
-      const refreshOverview = () => renderSettingsDashboard({
-        config: state.savedConfig,
-        configLoaded: state.configLoaded,
-        watchBackups: state.watchBackups,
-        plembfinBackups: state.plembfinBackups,
-        backupsLoading: state.watchBackupsLoading || state.plembfinBackupsLoading,
-        syncJobs: state.syncJobs,
-        syncJobsLoaded: state.syncJobsLoaded,
-        syncJobsLoading: state.syncJobsLoading,
-        syncActive: state.fullSyncActive,
-      });
-      loadWatchBackups().then(refreshOverview).catch(refreshOverview);
-      loadPlembfinBackups().then(refreshOverview).catch(refreshOverview);
-      loadSyncJobs().then(refreshOverview).catch(refreshOverview);
-    }
+    if (route.panel === "apps") renderMediaServerCards();
+    if (route.panel === "api-keys") renderMetadataCards();
     if (route.panel === "sync") {
       renderSyncJobs();
       renderSyncHistory();
@@ -1512,15 +1426,6 @@ function applyActiveView() {
     }
     if (route.panel === "backups") {
       state.activeBackupsTab = route.backupTab || "settings";
-      // Update backup sub-tab buttons and panels
-      for (const button of elements.backupsSubTabButtons || []) {
-        button.classList.toggle("active", button.dataset.backupsTab === state.activeBackupsTab);
-      }
-      for (const panel of elements.backupsPanels || []) {
-        const isVisible = panel.dataset.backupsPanel === state.activeBackupsTab;
-        panel.classList.toggle("hidden", !isVisible);
-      }
-
       renderWatchBackups();
       loadWatchBackups().catch((error) => setMessage(error.message, "error"));
       renderPlembfinBackups();
@@ -1545,112 +1450,6 @@ function applyActiveView() {
   if (state.token) {
     syncNowPlayingPolling();
   }
-}
-
-function configFromInputs() {
-  return {
-    plex: {
-      baseUrl: elements.plexServerUrl.value.trim(),
-      token: elements.plexToken.value.trim(),
-      username: elements.plexUsername.value.trim(),
-      disabled: !elements.plexEnabled.checked,
-    },
-    tmdb: {
-      apiKey: elements.tmdbApiKey?.value.trim() || "",
-    },
-    youtube: {
-      apiKey: elements.youtubeApiKey?.value.trim() || "",
-    },
-    emby: {
-      baseUrl: elements.embyServerUrl.value.trim(),
-      apiKey: elements.embyApiKey.value.trim(),
-      userId: elements.embyUserId.value.trim(),
-      disabled: !elements.embyEnabled.checked,
-    },
-    jellyfin: {
-      baseUrl: elements.jellyfinServerUrl.value.trim(),
-      apiKey: elements.jellyfinApiKey.value.trim(),
-      userId: elements.jellyfinUserId.value.trim(),
-      disabled: !elements.jellyfinEnabled.checked,
-    },
-  };
-}
-
-function syncSettingsInputsDisabledState() {
-  const plexActive = elements.plexEnabled.checked;
-  elements.plexServerUrl.disabled = !plexActive;
-  elements.plexToken.disabled = !plexActive;
-  elements.plexUsername.disabled = !plexActive;
-  if (elements.savePlexConfigButton && !elements.savePlexConfigButton.disabled) {
-    elements.savePlexConfigButton.textContent = plexActive ? "Save Plex" : "Save & disable Plex";
-  }
-
-  const embyActive = elements.embyEnabled.checked;
-  elements.embyServerUrl.disabled = !embyActive;
-  elements.embyApiKey.disabled = !embyActive;
-  elements.embyUserId.disabled = !embyActive;
-  if (elements.saveEmbyConfigButton && !elements.saveEmbyConfigButton.disabled) {
-    elements.saveEmbyConfigButton.textContent = embyActive ? "Save Emby" : "Save & disable Emby";
-  }
-
-  const jellyfinActive = elements.jellyfinEnabled?.checked;
-  if (elements.jellyfinServerUrl) elements.jellyfinServerUrl.disabled = !jellyfinActive;
-  if (elements.jellyfinApiKey) elements.jellyfinApiKey.disabled = !jellyfinActive;
-  if (elements.jellyfinUserId) elements.jellyfinUserId.disabled = !jellyfinActive;
-  if (elements.saveJellyfinConfigButton && !elements.saveJellyfinConfigButton.disabled) {
-    elements.saveJellyfinConfigButton.textContent = jellyfinActive ? "Save Jellyfin" : "Save & disable Jellyfin";
-  }
-
-  const seerrActive = elements.seerrEnabled?.checked;
-  if (elements.seerrServerUrl) elements.seerrServerUrl.disabled = !seerrActive;
-  if (elements.seerrApiKey) elements.seerrApiKey.disabled = !seerrActive;
-  if (elements.saveSeerrConfigButton && !elements.saveSeerrConfigButton.disabled) {
-    elements.saveSeerrConfigButton.textContent = seerrActive ? "Save Seerr" : "Save & disable Seerr";
-  }
-}
-
-function populateConfigForm(config = {}) {
-  // Secrets never reach the browser — /api/config returns a `configured` flag per
-  // section instead. Token/key inputs stay blank; a blank field on save means
-  // "keep the stored credential" server-side.
-  elements.plexEnabled.checked = !config.plex?.disabled;
-  elements.plexServerUrl.value = config.plex?.baseUrl || config.plex?.url || "";
-  elements.plexToken.value = "";
-  elements.plexToken.placeholder = config.plex?.configured ? "Configured - enter a new token to replace it" : "Plex token";
-  elements.plexUsername.value = config.plex?.username || "";
-
-  elements.embyEnabled.checked = !config.emby?.disabled;
-  elements.embyServerUrl.value = config.emby?.baseUrl || config.emby?.url || "";
-  elements.embyApiKey.value = "";
-  elements.embyApiKey.placeholder = config.emby?.configured ? "Configured - enter a new key to replace it" : "Emby API key";
-  elements.embyUserId.value = config.emby?.userId || "";
-
-  elements.jellyfinEnabled.checked = !config.jellyfin?.disabled;
-  elements.jellyfinServerUrl.value = config.jellyfin?.baseUrl || config.jellyfin?.url || "";
-  elements.jellyfinApiKey.value = "";
-  elements.jellyfinApiKey.placeholder = config.jellyfin?.configured ? "Configured - enter a new key to replace it" : "Jellyfin API key";
-  elements.jellyfinUserId.value = config.jellyfin?.userId || "";
-
-  if (elements.tmdbApiKey) elements.tmdbApiKey.value = "";
-  if (elements.tmdbApiKey) elements.tmdbApiKey.placeholder = config.tmdb?.configured ? "Configured - enter a new key to replace it" : "TMDB API key";
-  if (elements.youtubeApiKey) elements.youtubeApiKey.value = "";
-  if (elements.youtubeApiKey) elements.youtubeApiKey.placeholder = config.youtube?.configured ? "Configured - enter a new key to replace it" : "YouTube Data API key (optional)";
-  if (elements.fanartApiKey) elements.fanartApiKey.value = "";
-  if (elements.fanartApiKey) elements.fanartApiKey.placeholder = config.fanart?.configured ? "Configured - enter a new key to replace it" : "Personal API key (optional)";
-  if (elements.tvdbApiKey) elements.tvdbApiKey.value = "";
-  if (elements.tvdbApiKey) elements.tvdbApiKey.placeholder = config.tvdb?.configured ? "Configured - enter a new key to replace it" : "Personal API key (optional)";
-  if (elements.omdbApiKey) elements.omdbApiKey.value = "";
-  if (elements.omdbApiKey) elements.omdbApiKey.placeholder = config.omdb?.configured ? "Configured - enter a new key to replace it" : "OMDb API key";
-
-  if (elements.seerrEnabled) elements.seerrEnabled.checked = !config.seerr?.disabled;
-  if (elements.seerrServerUrl) elements.seerrServerUrl.value = config.seerr?.baseUrl || "";
-  if (elements.seerrApiKey) elements.seerrApiKey.value = "";
-  if (elements.seerrApiKey) elements.seerrApiKey.placeholder = config.seerr?.configured ? "Configured - enter a new key to replace it" : "Seerr API key";
-
-  // Update the global Seerr configured flag so detail pages show/hide the button.
-  state.seerrConfigured = Boolean(config.seerr?.configured);
-
-  syncSettingsInputsDisabledState();
 }
 
 function renderSettingsStatus(text, tone = "muted") {
@@ -1728,7 +1527,7 @@ async function loadSavedConfig() {
   state.lastWebhook = body.lastWebhook;
   state.syncHistory = Array.isArray(body.history) ? body.history : state.syncHistory;
   state.syncHistoryLoaded = Array.isArray(body.history);
-  populateConfigForm(body.config || {});
+  applyConfigToSettingsUi(body.config || {});
   state.configLoaded = true;
   state.posterLookupCache.clear();
   state.posterLookupInflight.clear();
@@ -1740,248 +1539,6 @@ async function loadSavedConfig() {
   renderSyncHistory();
   refreshHelpIfVisible();
   return body.config || {};
-}
-
-async function refreshSeerrCapabilities() {
-  if (!state.seerrConfigured) {
-    state.seerrSupports4k = { movie: false, tv: false };
-    return state.seerrSupports4k;
-  }
-  const response = await fetch("/api/seerr/status", { headers: authHeaders() });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || !body.ok) throw new Error(body.error || `Seerr status failed with ${response.status}`);
-  state.seerrSupports4k = {
-    movie: Boolean(body.capabilities?.movie4k),
-    tv: Boolean(body.capabilities?.tv4k),
-  };
-  return state.seerrSupports4k;
-}
-
-async function saveSavedConfig() {
-  const button = elements.saveConfigButton;
-  const originalText = button ? button.textContent : "";
-  if (button) {
-    button.disabled = true;
-    button.textContent = "Saving...";
-  }
-
-  try {
-    const config = configFromInputs();
-    const response = await fetch("/api/config", {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify(config),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || `Config save failed with ${response.status}`);
-
-    state.savedConfig = body.config || {
-      ...config,
-      tmdb: { configured: Boolean(config.tmdb?.apiKey || state.savedConfig.tmdb?.configured) },
-    };
-    // Re-populate from the server's redacted config: secret inputs are blanked
-    // and their placeholders switch to "Configured".
-    if (body.config) populateConfigForm(body.config);
-    else if (elements.tmdbApiKey) elements.tmdbApiKey.value = "";
-    state.configLoaded = true;
-    clearDerivedUiCaches();
-    renderSettingsStatus("Configuration saved. Run Full Sync Watchstates if a media server was rebuilt or newly added.", "success");
-    renderDashboard();
-    renderActiveSessions();
-    refreshHelpIfVisible();
-    setMessage("Configuration saved. Full sync is recommended for rebuilt or newly added servers.", "success");
-    return body;
-  } finally {
-    if (button) {
-      button.disabled = false;
-      button.textContent = originalText;
-    }
-  }
-}
-
-async function saveSectionConfig(section) {
-  const buttonId = `save${section.charAt(0).toUpperCase() + section.slice(1)}ConfigButton`;
-  const statusId = `${section}ConfigStatus`;
-
-  const button = elements[buttonId];
-  const statusEl = elements[statusId];
-
-  const originalText = button ? button.textContent : "";
-  if (button) {
-    button.disabled = true;
-    button.textContent = "Saving...";
-  }
-  if (statusEl) {
-    statusEl.textContent = "Saving...";
-    statusEl.className = "message muted";
-  }
-
-  try {
-    const payload = {};
-    if (section === "plex") {
-      payload.plex = {
-        baseUrl: elements.plexServerUrl.value.trim(),
-        token: elements.plexToken.value.trim(),
-        username: elements.plexUsername.value.trim(),
-        disabled: !elements.plexEnabled.checked,
-      };
-    } else if (section === "emby") {
-      payload.emby = {
-        baseUrl: elements.embyServerUrl.value.trim(),
-        apiKey: elements.embyApiKey.value.trim(),
-        userId: elements.embyUserId.value.trim(),
-        disabled: !elements.embyEnabled.checked,
-      };
-    } else if (section === "jellyfin") {
-      payload.jellyfin = {
-        baseUrl: elements.jellyfinServerUrl.value.trim(),
-        apiKey: elements.jellyfinApiKey.value.trim(),
-        userId: elements.jellyfinUserId.value.trim(),
-        disabled: !elements.jellyfinEnabled.checked,
-      };
-    } else if (section === "tmdb") {
-      payload.tmdb = {
-        apiKey: elements.tmdbApiKey.value.trim(),
-      };
-    } else if (section === "youtube") {
-      payload.youtube = {
-        apiKey: elements.youtubeApiKey.value.trim(),
-      };
-    } else if (section === "fanart") {
-      payload.fanart = {
-        apiKey: elements.fanartApiKey.value.trim(),
-      };
-    } else if (section === "tvdb") {
-      payload.tvdb = {
-        apiKey: elements.tvdbApiKey.value.trim(),
-      };
-    } else if (section === "omdb") {
-      payload.omdb = {
-        apiKey: elements.omdbApiKey.value.trim(),
-      };
-    } else if (section === "seerr") {
-      payload.seerr = {
-        baseUrl: elements.seerrServerUrl?.value.trim() || "",
-        disabled: !(elements.seerrEnabled?.checked ?? true),
-      };
-      const seerrApiKey = elements.seerrApiKey?.value.trim() || "";
-      if (seerrApiKey) payload.seerr.apiKey = seerrApiKey;
-    }
-
-    const response = await fetch("/api/config", {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify(payload),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || `Save failed with ${response.status}`);
-
-    const savedSectionConfig = body.config?.[section];
-    const previousSectionConfig = state.savedConfig?.[section] || {};
-
-    // Update state.savedConfig with new section values — prefer the server's
-    // redacted echo (it carries the authoritative `configured` flag).
-    state.savedConfig = {
-      ...state.savedConfig,
-      [section]: savedSectionConfig || payload[section],
-    };
-    if (section === "plex" || section === "emby" || section === "jellyfin") {
-      const secretInput = section === "plex" ? elements.plexToken : section === "emby" ? elements.embyApiKey : elements.jellyfinApiKey;
-      const emptyLabel = section === "plex" ? "Plex token" : section === "emby" ? "Emby API key" : "Jellyfin API key";
-      if (secretInput) {
-        secretInput.value = "";
-        secretInput.placeholder = savedSectionConfig?.configured
-          ? `Configured - enter a new ${section === "plex" ? "token" : "key"} to replace it`
-          : emptyLabel;
-      }
-    }
-    if (section === "youtube") {
-      state.savedConfig.youtube = {
-        configured: Boolean(payload.youtube.apiKey || state.savedConfig.youtube?.configured),
-      };
-      if (elements.youtubeApiKey) elements.youtubeApiKey.value = "";
-      if (elements.youtubeApiKey) elements.youtubeApiKey.placeholder = state.savedConfig.youtube.configured ? "Configured - enter a new key to replace it" : "YouTube Data API key (optional)";
-    }
-    if (section === "tmdb") {
-      state.savedConfig.tmdb = {
-        configured: Boolean(payload.tmdb.apiKey || state.savedConfig.tmdb?.configured)
-      };
-      elements.tmdbApiKey.value = "";
-      elements.tmdbApiKey.placeholder = state.savedConfig.tmdb.configured ? "Configured - enter a new key to replace it" : "TMDB API key";
-    }
-    if (section === "fanart") {
-      state.savedConfig.fanart = {
-        configured: Boolean(payload.fanart.apiKey || state.savedConfig.fanart?.configured)
-      };
-      if (elements.fanartApiKey) elements.fanartApiKey.value = "";
-      if (elements.fanartApiKey) elements.fanartApiKey.placeholder = state.savedConfig.fanart.configured ? "Configured - enter a new key to replace it" : "Personal API key (optional)";
-    }
-    if (section === "tvdb") {
-      state.savedConfig.tvdb = {
-        configured: Boolean(payload.tvdb.apiKey || state.savedConfig.tvdb?.configured)
-      };
-      if (elements.tvdbApiKey) elements.tvdbApiKey.value = "";
-      if (elements.tvdbApiKey) elements.tvdbApiKey.placeholder = state.savedConfig.tvdb.configured ? "Configured - enter a new key to replace it" : "Personal API key (optional)";
-    }
-    if (section === "omdb") {
-      state.savedConfig.omdb = {
-        configured: Boolean(payload.omdb.apiKey || state.savedConfig.omdb?.configured)
-      };
-      if (elements.omdbApiKey) elements.omdbApiKey.value = "";
-      if (elements.omdbApiKey) elements.omdbApiKey.placeholder = state.savedConfig.omdb.configured ? "Configured - enter a new key to replace it" : "OMDb API key";
-    }
-    if (section === "seerr") {
-      if (savedSectionConfig) {
-        state.savedConfig.seerr = savedSectionConfig;
-        state.seerrConfigured = Boolean(savedSectionConfig.configured);
-        if (elements.seerrServerUrl) elements.seerrServerUrl.value = savedSectionConfig.baseUrl || "";
-        if (elements.seerrEnabled) elements.seerrEnabled.checked = !savedSectionConfig.disabled;
-        if (elements.seerrApiKey) elements.seerrApiKey.value = "";
-        if (elements.seerrApiKey) elements.seerrApiKey.placeholder = state.seerrConfigured ? "Configured - enter a new key to replace it" : "Seerr API key";
-        syncSettingsInputsDisabledState();
-      } else {
-        // Recompute configured flag based on what was just saved.
-        const apiKeySet = Boolean(payload.seerr?.apiKey || previousSectionConfig?.configured);
-        const urlSet = Boolean(payload.seerr?.baseUrl);
-        const enabled = !payload.seerr?.disabled;
-        state.savedConfig.seerr = {
-          configured: apiKeySet && urlSet && enabled,
-          baseUrl: payload.seerr?.baseUrl || "",
-          disabled: Boolean(payload.seerr?.disabled),
-        };
-        state.seerrConfigured = state.savedConfig.seerr.configured;
-        if (elements.seerrApiKey) elements.seerrApiKey.value = "";
-        if (elements.seerrApiKey) elements.seerrApiKey.placeholder = state.seerrConfigured ? "Configured - enter a new key to replace it" : "Seerr API key";
-      }
-      await refreshSeerrCapabilities().catch(() => {
-        state.seerrSupports4k = { movie: false, tv: false };
-      });
-    }
-
-    state.configLoaded = true;
-    clearDerivedUiCaches();
-
-    if (statusEl) {
-      statusEl.textContent = "Saved successfully.";
-      statusEl.className = "message success";
-    }
-    renderDashboard();
-    renderActiveSessions();
-    refreshHelpIfVisible();
-    setMessage(`Saved ${section} settings successfully.`, "success");
-    return body;
-  } catch (error) {
-    if (statusEl) {
-      statusEl.textContent = error.message;
-      statusEl.className = "message error";
-    }
-    setMessage(error.message, "error");
-  } finally {
-    if (button) {
-      button.disabled = false;
-      button.textContent = originalText;
-    }
-  }
 }
 
 async function loadHistory({ force = false } = {}) {
@@ -2101,126 +1658,6 @@ function syncLogsRefresh() {
   }
 }
 
-function setConnectionStatus(type, text, tone = "muted") {
-  const status = elements.testConnectionStatuses.find((item) => item.dataset.testStatus === type);
-  if (!status) return;
-  status.textContent = text;
-  status.dataset.tone = tone;
-}
-
-function setConnectionButton(button, text, tone = "muted", disabled = false) {
-  button.textContent = text;
-  button.dataset.tone = tone;
-  button.disabled = disabled;
-}
-
-async function testConnection(type, button) {
-  // Seerr uses its own status endpoint rather than the generic test-connection proxy.
-  if (type === "seerr") {
-    const hasNewUrl    = Boolean(elements.seerrServerUrl?.value.trim());
-    const hasNewApiKey = Boolean(elements.seerrApiKey?.value.trim());
-
-    // Allow testing if already configured (key was previously saved and field is blank),
-    // but require at minimum that a URL is present somewhere.
-    if (!hasNewUrl && !state.seerrConfigured) {
-      setConnectionStatus(type, "Enter a Seerr Server URL first.", "error");
-      return;
-    }
-    if (!state.seerrConfigured && !hasNewApiKey) {
-      setConnectionStatus(type, "Enter a Seerr API key first.", "error");
-      return;
-    }
-
-    setConnectionButton(button, "Testing...", "loading", true);
-    setConnectionStatus(type, "Testing Seerr connection...", "muted");
-    let seerrTestRes, seerrTestBody = {};
-    try {
-      // Only save if the user has entered new values in the fields.
-      if (hasNewUrl || hasNewApiKey) {
-        await saveSectionConfig("seerr");
-      }
-      if (!state.seerrConfigured) {
-        setConnectionButton(button, "✘ Failed", "error");
-        setConnectionStatus(type, "Enter a Seerr API key first.", "error");
-        return;
-      }
-      seerrTestRes = await fetch("/api/seerr/status", { headers: authHeaders() });
-      seerrTestBody = await seerrTestRes.json().catch(() => ({}));
-    } catch (err) {
-      setConnectionButton(button, "✘ Failed", "error");
-      setConnectionStatus(type, `Seerr fetch failed: ${err.message}`, "error");
-      button.disabled = false;
-      return;
-    } finally {
-      button.disabled = false;
-    }
-    if (seerrTestRes.ok && seerrTestBody.ok) {
-      state.seerrSupports4k = {
-        movie: Boolean(seerrTestBody.capabilities?.movie4k),
-        tv: Boolean(seerrTestBody.capabilities?.tv4k),
-      };
-      const title = seerrTestBody.applicationTitle || "Seerr";
-      setConnectionButton(button, "✔ Connected", "success");
-      setConnectionStatus(type, `✔ Connected to "${title}"`, "success");
-      window.setTimeout(() => setConnectionButton(button, "Test Connection", "muted"), 3000);
-    } else {
-      setConnectionButton(button, "✘ Failed", "error");
-      setConnectionStatus(type, `✘ ${seerrTestBody.error || "Connection failed"}`, "error");
-    }
-    return;
-  }
-
-  const payload = connectionPayloadFromElements(type, elements);
-  const label = connectionLabel(type);
-
-  // A blank token is allowed when the server is already configured — the backend
-  // falls back to the stored credential (secrets are never sent to the browser).
-  if (!payload.url || (!payload.token && !state.savedConfig?.[type]?.configured)) {
-    const message = `${label} test blocked: server URL and token are required.`;
-    setConnectionStatus(type, message, "error");
-    logDebug(message);
-    return;
-  }
-
-  setConnectionButton(button, "Testing...", "loading", true);
-  setConnectionStatus(type, `Testing ${label} endpoint...`, "muted");
-  logDebug(`Initiating request loop to ${label} local host address...`, { url: payload.url, type });
-
-  let response;
-  let body = {};
-  try {
-    response = await fetch("/api/test-connection", {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify(payload),
-    });
-    body = await response.json().catch(() => ({}));
-  } catch (error) {
-    const message = `${label} fetch failed. Reason: FETCH_FAILED (${error?.message || "request could not be sent"})`;
-    setConnectionButton(button, `✘ Failed`, "error");
-    setConnectionStatus(type, message, "error");
-    logDebug(message);
-    return;
-  } finally {
-    button.disabled = false;
-  }
-
-  logDebug(`${label} test-connection endpoint returned HTTP ${response.status}`, body);
-
-  if (response.ok && body.ok) {
-    const message = `✔ Connected (HTTP ${body.status || response.status})`;
-    setConnectionButton(button, message, "success");
-    setConnectionStatus(type, `${body.detail || "Server identity verified"} in ${body.elapsedMs || 0}ms`, "success");
-    window.setTimeout(() => setConnectionButton(button, "Test Connection", "muted"), 3000);
-    return;
-  }
-
-  const statusText = body.status ? `HTTP ${body.status}` : `HTTP ${response.status}`;
-  const errorMessage = body.error || `Connection failed with ${statusText}`;
-  setConnectionButton(button, `✘ Failed`, "error");
-  setConnectionStatus(type, `✘ Failed: ${errorMessage} (${statusText})`, "error");
-}
-
 function refreshHelpIfVisible() {}
 
 function toggleSet(set, key) {
@@ -2289,7 +1726,7 @@ async function lockDashboard() {
   await signOutAdmin().catch(() => { });
   elements.adminToken.value = "";
   if (elements.settingsUsername) elements.settingsUsername.value = "";
-  populateConfigForm({});
+  applyConfigToSettingsUi({});
   renderDashboard();
   renderActiveSessions();
   renderSyncHistory();
@@ -2363,7 +1800,7 @@ function showErrorExplainModal(title, errorMsg) {
   } else if (errLower.includes("timeout") || errLower.includes("refused") || errLower.includes("network") || errLower.includes("fetch") || errLower.includes("connect")) {
     resolutionInstructions = "\n\n👉 How to Resolve:\nNetwork connection failed. Verify that your media server is online and reachable from the Plembfin server, and check that no firewall or proxy is blocking outbound API requests.";
   } else {
-    resolutionInstructions = "\n\n👉 How to Resolve:\nCheck Settings → System → Logs for a detailed traceback, then test the media server credentials under Settings → Connections.";
+    resolutionInstructions = "\n\n👉 How to Resolve:\nCheck Settings → Logs for a detailed traceback, then test the media server credentials under Settings → Media Servers.";
   }
 
   elements.confirmModalMessage.innerHTML = `<span style="white-space: pre-wrap; display: block; line-height: 1.5; color: var(--text);">${escapeHtml(errorMsg)}${escapeHtml(resolutionInstructions)}</span>`;
@@ -2424,6 +1861,12 @@ function primeSensitiveRouteState(path = "") {
 function initialize() {
   bindElements();
   prepareSettingsShell();
+  initSettingsServices({
+    setMessage,
+    clearDerivedUiCaches,
+    renderDashboard,
+    renderActiveSessions,
+  });
   initTools({
     setMessage,
     openConfirmDialog,
@@ -2533,11 +1976,9 @@ function initialize() {
     unlockWithToken,
     clearSearchInputs,
     selectView,
-    testConnection,
     renderLogs,
     logsText,
     copyToClipboard,
-    selectSettingsTab,
     selectBackupsTab,
     navigateTo,
     renderChangelog,
@@ -2550,9 +1991,6 @@ function initialize() {
     closeGlobalSearchDropdown,
     openHistoryDebugModal,
     saveAdminCredentials,
-    saveSavedConfig,
-    saveSectionConfig,
-    syncSettingsInputsDisabledState,
     applyActiveView,
     handleRouting,
     loadHistory,
@@ -2566,8 +2004,6 @@ function initialize() {
     syncPageTopbar,
     loadStats,
     setUnlocked,
-    setConnectionButton,
-    setConnectionStatus,
     renderSettingsStatus,
     renderAdminCredentialsStatus,
     toggleSet,
@@ -2584,7 +2020,7 @@ function initialize() {
     elements.cronSyncUrl.textContent = `${window.location.origin}/api/cron-sync`;
   }
   applyActiveView();
-  populateConfigForm({});
+  applyConfigToSettingsUi({});
   renderDashboard();
   renderActiveSessions();
   renderStats();

@@ -66,7 +66,7 @@ Documentation and README copy must stand on its own for a first-time reader. Sta
 
 ### 3 — Sync in-app help
 For every changed feature or setting, check the relevant frontend module in `public/modules/` or `public/app.js`:
-- **`HELP_TOPICS`** array — update or add topic bodies if flows changed
+- **Feature-owned help renderers and modal `helpHtml`** — update any setup copy if flows changed
 - **`renderSettingsInlineHelp()`** — check that the inline help content in each settings panel still matches the current behaviour
 - **`webhookWarning()` / `plexWebhookSetup()` / `embyWebhookSetup()` / `jellyfinWebhookSetup()`** — update if webhook setup steps changed (live in `modules/help-content.js` after refactor)
 - **`cronSyncGuide()`** — update if scheduler endpoint or behaviour changed
@@ -185,8 +185,10 @@ When adding frontend code, place it in the most specific existing module that ow
 | Maintenance diagnostics, cache tools, and sync repair tools | `modules/tools-maintenance.js` |
 | Auth, session, tokens | `modules/auth.js` |
 | Debug/diagnostic logs | `modules/logs.js` |
-| Connection config payloads | `modules/settings.js` |
-| Settings routes, overview status, and focused task shell | `modules/settings-shell.js` |
+| Connection label formatting | `modules/settings.js` |
+| Shared settings modal, picker, and card-grid primitives | `modules/settings-ui.js` |
+| Media-server and metadata-provider settings cards/modals | `modules/settings-services.js` |
+| Flat settings routes, landing list, sidebar, and mobile section selector | `modules/settings-shell.js` |
 | Shared `state` and `elements` objects | `modules/state.js` |
 | App event wiring | `modules/app-events.js` |
 | Media-detail modal click delegation (cast/trailers/poster edit/watch actions/card navigation) | `modules/media-detail-events.js` |
@@ -200,7 +202,7 @@ If a new feature area doesn't fit any existing module and would exceed 150 lines
 4. Update this table above
 
 ### Dependency rules
-- Modules may import from `state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`
+- Modules may import from `state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `settings-ui.js`
 - `sync.js` may be imported by `dashboard.js` and `media-detail.js` — not the reverse
 - No module may import from `app.js`
 - Avoid circular dependencies — if you need A→B and B→A, the shared logic belongs in a third module
@@ -248,7 +250,7 @@ folder** under `data/`.
 prefix and routes to `handleWebhook`, `handleHistory`, `handleMovies`, etc. `dispatch` is
 imported and mounted by `server.js`.
 
-**Frontend** (`public/`) — a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `settings-shell.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`, `tools-backups.js`, `tools-maintenance.js`, `media-detail.js`, `media-person.js`, `media-lightbox.js`, `edit-dialogs.js`, `watch-action.js`, `tmdb.js`, `app-events.js`). No framework, bundler, or TypeScript.
+**Frontend** (`public/`) — a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `settings-ui.js`, `settings-services.js`, `settings-shell.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`, `tools-backups.js`, `tools-maintenance.js`, `media-detail.js`, `media-person.js`, `media-lightbox.js`, `edit-dialogs.js`, `watch-action.js`, `tmdb.js`, `app-events.js`). No framework, bundler, or TypeScript.
 
 ### Data layer (`server/src/db.js` + `schema.sql`)
 

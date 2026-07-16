@@ -1,6 +1,7 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, formatNumber, formatDate } from "./utils.js";
+import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid } from "./settings-ui.js";
 
 let _setMessage = () => {};
 let _openConfirmDialog = async () => false;
@@ -374,7 +375,7 @@ export function renderWatchBackups() {
         </div>
       </article>
     `).join("") : `<div class="empty-log"><b>No local backups yet</b><span>Use Back Up Now or enable the daily schedule.</span></div>`;
-    populateWatchBackupRemoteFields(data);
+    renderBackupDestinationCards();
     return;
   }
   const localEntries = files.map((f) => ({ ...f, source: "local", destId: null, destLabel: "Local" }));
@@ -465,239 +466,138 @@ export async function loadRemoteBackupsForRestoreTab() {
 const DESTINATION_FORMS = {
   backblaze: {
     label: "Backblaze B2",
+    description: "Mirror backups to a Backblaze B2 bucket",
     settings: [
-      { key: "region", label: "Region or endpoint (e.g. eu-central-003 — pasting the full endpoint is fine too)", placeholder: "eu-central-003" },
+      { key: "region", label: "Region or endpoint", placeholder: "eu-central-003", help: "A region name or full S3 endpoint is accepted." },
       { key: "bucket", label: "Bucket name", placeholder: "yourname-plembfin" },
-      { key: "accessKeyId", label: "keyID", placeholder: "0035…" },
-      { key: "prefix", label: "Key prefix (optional)", placeholder: "plembfin/" },
+      { key: "accessKeyId", label: "Key ID", placeholder: "0035..." },
+      { key: "prefix", label: "Key prefix", placeholder: "plembfin/", optional: true, help: "Optional folder-like prefix within the bucket." },
     ],
-    secrets: [{ key: "secretAccessKey", label: "applicationKey" }],
-    oauth: null,
+    secrets: [{ key: "secretAccessKey", label: "Application key", placeholder: "Backblaze application key" }],
+    helpHtml: `
+      <p class="tool-accordion-desc">Create a private bucket in Backblaze B2, then create an application key restricted to that bucket with read and write access.</p>
+      <ol class="tool-accordion-desc settings-help-steps">
+        <li>Open <b>Buckets</b> in Backblaze and note the bucket name.</li>
+        <li>Open <b>Application Keys</b>, add a key for that bucket, and copy both the <b>keyID</b> and <b>applicationKey</b>.</li>
+        <li>Copy the bucket region (for example <code>eu-central-003</code>) or its full S3 endpoint.</li>
+      </ol>
+      <p class="tool-accordion-desc">The application key is shown by Backblaze only once. Plembfin stores it securely and never sends it back to the browser.</p>
+    `,
   },
 };
-function destinationStatusPill(destination, status) {
-  const connected = !destination.secretFlags || destination.secretFlags.refreshToken;
-  const needsOauth = DESTINATION_FORMS[destination.type]?.oauth;
-  if (needsOauth && !destination.secretFlags?.refreshToken) {
-    return `<span class="status-pill status-warning">Not connected</span>`;
-  }
-  if (status?.status === "success") {
-    return `<span class="status-pill status-ready">Synced ${escapeHtml(watchBackupDate(status.lastSuccessAt))}</span>`;
-  }
-  if (status?.status === "error") {
-    return `<span class="status-pill status-danger">Last run failed</span>`;
-  }
-  return `<span class="status-pill status-muted">${connected ? "Not run yet" : "Not connected"}</span>`;
-}
-function renderDestinationField(destination, field) {
-  const value = destination.settings?.[field.key];
-  const span = field.full ? ' style="grid-column: 1 / -1;"' : "";
-  if (field.type === "checkbox") {
-    const checked = value === undefined ? field.default : Boolean(value);
-    return `<label class="checkbox-label"${span}><input type="checkbox" data-dest-setting="${field.key}" ${checked ? "checked" : ""} /><span>${escapeHtml(field.label)}</span></label>`;
-  }
-  return `<label class="field-label"${span}>${escapeHtml(field.label)}
-    <input class="field" data-dest-setting="${field.key}" value="${escapeAttribute(value || "")}" placeholder="${escapeAttribute(field.placeholder || "")}" />
-  </label>`;
-}
-function renderDestinationSecret(destination, field) {
-  const isSet = destination.secretFlags?.[field.key];
-  return `<label class="field-label">${escapeHtml(field.label)}
-    <input class="field" type="password" autocomplete="new-password" data-dest-secret="${field.key}" placeholder="${isSet ? "•••••••• (saved — leave blank to keep)" : ""}" />
-  </label>`;
-}
-export function populateWatchBackupRemoteFields(data) {
-  const destinations = Array.isArray(data?.destinations) ? data.destinations : [];
-  const b2 = destinations.find(d => d.type === "backblaze") || {
-    id: "backblaze",
-    type: "backblaze",
-    label: "Backblaze B2",
-    enabled: false,
-    settings: {},
-    secretFlags: {},
-  };
-  
-  if (elements.watchBackupRemoteEnabled) {
-    elements.watchBackupRemoteEnabled.checked = Boolean(b2.enabled);
-  }
-  if (elements.watchBackupRemoteRegion) {
-    elements.watchBackupRemoteRegion.value = b2.settings?.endpoint || "";
-  }
-  if (elements.watchBackupRemoteBucket) {
-    elements.watchBackupRemoteBucket.value = b2.settings?.bucket || "";
-  }
-  if (elements.watchBackupRemoteKeyId) {
-    elements.watchBackupRemoteKeyId.value = b2.settings?.keyId || "";
-  }
-  if (elements.watchBackupRemotePrefix) {
-    elements.watchBackupRemotePrefix.value = b2.settings?.prefix || "";
-  }
-  if (elements.watchBackupRemoteAppKey) {
-    const isSet = b2.secretFlags?.applicationKey;
-    elements.watchBackupRemoteAppKey.placeholder = isSet ? "•••••••• (saved — leave blank to keep)" : "";
-    elements.watchBackupRemoteAppKey.value = "";
-  }
-
-  if (elements.watchBackupRemoteRuntime) {
-    const statusMap = data?.runtime?.destinations || {};
-    const status = statusMap[b2.id];
-    let statusHtml = "";
-    if (status) {
-      if (status.status === "success") {
-        statusHtml = `
-          <div><span>Last successful sync</span><b>${escapeHtml(watchBackupDate(status.lastSuccessAt))}</b></div>
-          <div><span>Last attempt</span><b>${escapeHtml(watchBackupDate(status.lastAttemptAt))} (Success)</b></div>
-          <div><span>Status</span><b>Connected</b></div>
-        `;
-      } else if (status.status === "error") {
-        statusHtml = `
-          <div><span>Last successful sync</span><b>${escapeHtml(watchBackupDate(status.lastSuccessAt))}</b></div>
-          <div><span>Last attempt</span><b>${escapeHtml(watchBackupDate(status.lastAttemptAt))} (Error)</b></div>
-          <div><span>Status</span><b style="color: var(--red);">Not connected</b></div>
-          ${status.lastError ? `<p class="backup-runtime-error">${escapeHtml(status.lastError)}</p>` : ""}
-        `;
-      }
-    } else {
-      statusHtml = `
-        <div><span>Last successful sync</span><b>Never</b></div>
-        <div><span>Last attempt</span><b>Never</b></div>
-        <div><span>Status</span><b>Not connected</b></div>
-      `;
-    }
-    elements.watchBackupRemoteRuntime.innerHTML = statusHtml;
-  }
+function destinationBadges(destination, status) {
+  const badges = [{ label: destination.enabled ? "Enabled" : "Disabled", tone: destination.enabled ? "ready" : "muted" }];
+  if (status?.status === "success") badges.push({ label: "Connected", tone: "ready" });
+  else if (status?.status === "error") badges.push({ label: "Last run failed", tone: "danger" });
+  else badges.push({ label: "Not tested", tone: "warning" });
+  return badges;
 }
 
-export async function saveWatchBackupRemoteSettings() {
-  const destination = {
-    id: "backblaze",
-    type: "backblaze",
-    label: "Backblaze B2",
-    enabled: Boolean(elements.watchBackupRemoteEnabled?.checked),
-    settings: {
-      endpoint: elements.watchBackupRemoteRegion?.value.trim(),
-      bucket: elements.watchBackupRemoteBucket?.value.trim(),
-      keyId: elements.watchBackupRemoteKeyId?.value.trim(),
-      prefix: elements.watchBackupRemotePrefix?.value.trim(),
-    },
-    secrets: {},
-  };
-  if (elements.watchBackupRemoteAppKey?.value) {
-    destination.secrets.applicationKey = elements.watchBackupRemoteAppKey.value.trim();
-  }
-  await postWatchBackupAction({ action: "save-destination", destination });
-  state.watchBackups = null;
-  await loadWatchBackups({ force: true });
-  _setMessage("Remote backup settings saved.", "success");
+function destinationFields(destination, form) {
+  return [
+    { key: "label", label: "Name", value: destination.label || form.label, help: "A recognizable name for this backup target." },
+    { key: "enabled", label: "Enable", type: "checkbox", value: Boolean(destination.enabled) },
+    ...form.settings.map((field) => ({ ...field, value: destination.settings?.[field.key] || "" })),
+    ...form.secrets.map((field) => ({
+      ...field,
+      type: "password",
+      secret: true,
+      configured: Boolean(destination.secretFlags?.[field.key]),
+      configuredPlaceholder: `Configured - enter a new ${field.label.toLowerCase()} to replace it`,
+    })),
+  ];
 }
 
-export async function testWatchBackupRemoteSettings() {
-  const destination = {
-    id: "backblaze",
-    type: "backblaze",
-    label: "Backblaze B2",
-    enabled: Boolean(elements.watchBackupRemoteEnabled?.checked),
-    settings: {
-      endpoint: elements.watchBackupRemoteRegion?.value.trim(),
-      bucket: elements.watchBackupRemoteBucket?.value.trim(),
-      keyId: elements.watchBackupRemoteKeyId?.value.trim(),
-      prefix: elements.watchBackupRemotePrefix?.value.trim(),
-    },
-    secrets: {},
-  };
-  if (elements.watchBackupRemoteAppKey?.value) {
-    destination.secrets.applicationKey = elements.watchBackupRemoteAppKey.value.trim();
-  }
-  await postWatchBackupAction({ action: "save-destination", destination });
-  const result = await postWatchBackupAction({ action: "test-destination", destinationId: destination.id });
-  _setMessage(`Connection OK — ${result.result?.detail || "reachable"}.`, "success");
-  state.watchBackups = null;
-  await loadWatchBackups({ force: true });
-}
-function collectDestination(card) {
-  const settings = {};
-  card.querySelectorAll("[data-dest-setting]").forEach((input) => {
-    settings[input.dataset.destSetting] = input.type === "checkbox" ? input.checked : input.value.trim();
-  });
+function destinationFromValues(destination, form, values) {
+  const settings = Object.fromEntries(form.settings.map((field) => [field.key, values[field.key]]));
   const secrets = {};
-  card.querySelectorAll("[data-dest-secret]").forEach((input) => {
-    if (input.value) secrets[input.dataset.destSecret] = input.value;
-  });
+  for (const field of form.secrets) {
+    if (values[field.key]) secrets[field.key] = values[field.key];
+  }
   return {
-    id: card.dataset.destId,
-    type: card.dataset.destType,
-    label: card.querySelector('[data-dest-meta="label"]')?.value?.trim() || card.dataset.destType,
-    enabled: Boolean(card.querySelector('[data-dest-meta="enabled"]')?.checked),
+    ...(destination.id ? { id: destination.id } : {}),
+    type: destination.type,
+    label: values.label || form.label,
+    enabled: Boolean(values.enabled),
     settings,
     secrets,
   };
 }
-export async function addBackupDestination() {
-  const type = elements.watchBackupDestinationType?.value || "backblaze";
-  const label = DESTINATION_FORMS[type]?.label || type;
-  await postWatchBackupAction({ action: "save-destination", destination: { type, label, enabled: false, settings: {}, secrets: {} } });
-  state.watchBackups = null;
-  await loadWatchBackups({ force: true });
-  _setMessage(`Added ${label} destination — fill in the details and Save.`, "success");
-}
-export async function saveBackupDestinationCard(card) {
-  await postWatchBackupAction({ action: "save-destination", destination: collectDestination(card) });
-  state.watchBackups = null;
-  await loadWatchBackups({ force: true });
-  _setMessage("Destination saved.", "success");
-}
-export async function testBackupDestinationCard(card) {
-  const destination = collectDestination(card);
-  await postWatchBackupAction({ action: "save-destination", destination });
-  const result = await postWatchBackupAction({ action: "test-destination", destinationId: destination.id });
-  _setMessage(`Connection OK — ${result.result?.detail || "reachable"}.`, "success");
+
+async function refreshBackupDestinations() {
   state.watchBackups = null;
   await loadWatchBackups({ force: true });
 }
-export async function removeBackupDestinationCard(card) {
-  const approved = await _openConfirmDialog({
-    title: "Remove destination?",
-    body: "Stop mirroring backups here? Files already uploaded to the remote are left untouched.",
-    confirmLabel: "Remove",
-    danger: true,
+
+async function saveDestinationValues(destination, form, values) {
+  const body = await postWatchBackupAction({
+    action: "save-destination",
+    destination: destinationFromValues(destination, form, values),
   });
-  if (!approved) return;
-  await postWatchBackupAction({ action: "remove-destination", destinationId: card.dataset.destId });
-  state.watchBackups = null;
-  await loadWatchBackups({ force: true });
-  _setMessage("Destination removed.", "success");
+  if (body.destination) Object.assign(destination, body.destination);
+  return body.destination;
 }
-export async function listRemoteBackupsForCard(card) {
-  const panel = card.querySelector("[data-dest-restore]");
-  if (!panel) return;
-  if (!panel.hidden) {
-    panel.hidden = true;
-    panel.innerHTML = "";
-    return;
-  }
-  await postWatchBackupAction({ action: "save-destination", destination: collectDestination(card) });
-  panel.hidden = false;
-  panel.innerHTML = `<div class="empty-log"><b>Loading backups…</b></div>`;
-  const result = await postWatchBackupAction({ action: "list-remote-backups", destinationId: card.dataset.destId });
-  const files = Array.isArray(result.files) ? result.files : [];
-  if (!files.length) {
-    panel.innerHTML = `<div class="empty-log"><b>No backups found on this destination</b><span>Run "Back Up Now" first, or recheck the credentials.</span></div>`;
-    return;
-  }
-  panel.innerHTML = `
-    <div class="destination-restore-head">Backups on this destination — newest first</div>
-    ${files.map((file) => `
-      <div class="watch-backup-row">
-        <div class="watch-backup-copy">
-          <b>${escapeHtml(file.name)}</b>
-          <span>${escapeHtml(watchBackupDate(file.createdAt))} · ${escapeHtml(formatBytes(file.sizeBytes))}</span>
-        </div>
-        <div class="watch-backup-actions">
-          <button class="button-danger" type="button" data-dest-restore-file="${escapeAttribute(file.name)}">Restore Watch History</button>
-        </div>
-      </div>
-    `).join("")}
-  `;
+
+export function openBackupDestinationModal(destination = {}) {
+  const type = destination.type || "backblaze";
+  const form = DESTINATION_FORMS[type];
+  if (!form) throw new Error(`Unsupported destination type: ${type}`);
+  const target = { type, settings: {}, secretFlags: {}, ...destination };
+  openSettingsEditModal({
+    title: target.id ? `Edit ${target.label || form.label}` : `Add ${form.label}`,
+    fields: destinationFields(target, form),
+    enabledKey: "enabled",
+    saveDisabledLabel: "Save & disable",
+    helpHtml: form.helpHtml,
+    onSave: async (values) => {
+      await saveDestinationValues(target, form, values);
+      await refreshBackupDestinations();
+      _setMessage("Backup destination saved.", "success");
+    },
+    onTest: async (values) => {
+      const saved = await saveDestinationValues(target, form, values);
+      const result = await postWatchBackupAction({ action: "test-destination", destinationId: saved.id });
+      await refreshBackupDestinations();
+      return `Connection OK - ${result.result?.detail || "reachable"}.`;
+    },
+    onDelete: target.id ? async () => {
+      const approved = await _openConfirmDialog({
+        title: "Remove destination?",
+        body: "Stop mirroring backups here? Files already uploaded to the remote are left untouched.",
+        confirmLabel: "Remove",
+        danger: true,
+      });
+      if (!approved) return false;
+      await postWatchBackupAction({ action: "remove-destination", destinationId: target.id });
+      await refreshBackupDestinations();
+      _setMessage("Destination removed.", "success");
+    } : undefined,
+  });
+}
+
+function openBackupDestinationPicker() {
+  openSettingsPickerModal({
+    title: "Add Backup Destination",
+    intro: "Choose where Plembfin should mirror scheduled backups.",
+    items: Object.entries(DESTINATION_FORMS).map(([id, form]) => ({ id, name: form.label, description: form.description })),
+    onPick: (type) => openBackupDestinationModal({ type }),
+  });
+}
+
+export function renderBackupDestinationCards() {
+  const destinations = Array.isArray(state.watchBackups?.destinations) ? state.watchBackups.destinations : [];
+  const statusMap = state.watchBackups?.runtime?.destinations || {};
+  renderServiceCardGrid(elements.backupDestinationCards, {
+    items: destinations.map((destination) => ({
+      id: destination.id,
+      name: destination.label || DESTINATION_FORMS[destination.type]?.label || destination.type,
+      description: DESTINATION_FORMS[destination.type]?.description || "Remote backup destination",
+      badges: destinationBadges(destination, statusMap[destination.id]),
+    })),
+    onSelect: (id) => openBackupDestinationModal(destinations.find((destination) => destination.id === id)),
+    onAdd: openBackupDestinationPicker,
+    addLabel: "Add backup destination",
+  });
 }
 export async function restoreRemoteBackupFromCard(card, filename, clearMode = "reconcile") {
   const wipe = clearMode === "wipe";
@@ -711,10 +611,6 @@ export async function restoreRemoteBackupFromCard(card, filename, clearMode = "r
   });
   if (!approved) return;
   await runAuthoritativeRestore({ action: "restore-remote-backup", destinationId: card.dataset.destId, filename, clearMode });
-}
-export async function connectBackupDestinationCard(card) {
-  const destination = collectDestination(card);
-  await postWatchBackupAction({ action: "save-destination", destination });
 }
 export async function loadWatchBackups({ force = false } = {}) {
   if (!state.token || state.watchBackupsLoading || (state.watchBackups && !force)) return state.watchBackups;
