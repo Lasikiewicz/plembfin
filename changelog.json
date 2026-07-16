@@ -1,7 +1,17 @@
 {
-  "version": "0.4.51",
-  "updatedAt": "2026-07-16T09:20:07+01:00",
+  "version": "0.4.52",
+  "updatedAt": "2026-07-16T09:50:31+01:00",
   "entries": [
+    {
+      "version": "0.4.52",
+      "date": "2026-07-16T09:50:31+01:00",
+      "commit": "780a8ac1ed314cca5a19c5af5a0fd4afaa7f166c",
+      "message": "Feature - Add targeted sync repair progress",
+      "author": "Lasikiewicz",
+      "details": [
+        "Replace the macOS-style consoles with native activity panels and taller output areas.\\n- Show sync stages, elapsed time, item progress, and estimated remaining time.\\n- Add a lightweight recent-item repair that bypasses the catch-up throttle without scanning full libraries."
+      ]
+    },
     {
       "version": "0.4.51",
       "date": "2026-07-16T09:20:07+01:00",
