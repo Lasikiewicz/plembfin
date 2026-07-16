@@ -1,7 +1,22 @@
 {
-  "version": "0.4.54",
-  "updatedAt": "2026-07-16T10:22:50+01:00",
+  "version": "0.4.55",
+  "updatedAt": "2026-07-16T11:07:02+01:00",
   "entries": [
+    {
+      "version": "0.4.55",
+      "date": "2026-07-16T11:07:02+01:00",
+      "commit": "3a0410bc4e0c6668b8e38a21763cde2ece7ebb5d",
+      "message": "Feature - Overhaul settings navigation and workflows",
+      "author": "Lasikiewicz",
+      "details": [
+        "Adds a task-oriented Settings overview with status summaries and direct next actions",
+        "Organizes account, connections, metadata, backups, and system tools into focused responsive routes",
+        "Keeps legacy Settings, sync, and logs links working through canonical redirects",
+        "Places specialist maintenance operations in clear Advanced disclosures with consequence guidance",
+        "Uses the full available page width and keeps Save available when disabling a connected app",
+        "Updates setup documentation, inline help, and route and dashboard-state test coverage"
+      ]
+    },
     {
       "version": "0.4.54",
       "date": "2026-07-16T10:22:50+01:00",
