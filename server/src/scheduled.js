@@ -1168,7 +1168,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
   return syncedCount;
 }
 
-export async function runScheduledSync(logger = console.log) {
+export async function runScheduledSync(logger = console.log, { forceCatchup = false } = {}) {
   if (isCronSyncPaused()) {
     logger("Scheduled Sync: skipped because cron sync is paused (likely due to restore in progress).");
     return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true };
@@ -1240,10 +1240,12 @@ export async function runScheduledSync(logger = console.log) {
   let jellyfinResumeSynced = 0;
   let manualSynced = 0;
 
-  const shouldRunCatchup = !lastCatchupSyncAt || (Date.now() - lastCatchupSyncAt >= CATCHUP_SYNC_INTERVAL_MS);
+  const shouldRunCatchup = forceCatchup || !lastCatchupSyncAt || (Date.now() - lastCatchupSyncAt >= CATCHUP_SYNC_INTERVAL_MS);
   if (shouldRunCatchup) {
     lastCatchupSyncAt = Date.now();
-    logger(`Scheduled Sync: running catch-up library checks (interval: ${CATCHUP_SYNC_INTERVAL_MS / 60000}m)...`);
+    logger(forceCatchup
+      ? "Scheduled Sync: running requested recent-item repair..."
+      : `Scheduled Sync: running catch-up library checks (interval: ${CATCHUP_SYNC_INTERVAL_MS / 60000}m)...`);
 
     if (plexActive) {
       try {
@@ -1686,6 +1688,10 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
     if (abortResult) return true;
     processedCount += 1;
     const checkEvery = reconciliationConcurrency > 1 ? 20 : 5;
+    const reportEvery = Math.max(checkEvery, Math.ceil(consideredKeys.length / 100));
+    if (processedCount === 1 || processedCount === consideredKeys.length || processedCount % reportEvery === 0) {
+      logger(`Force Sync progress: ${processedCount}/${consideredKeys.length} items.`);
+    }
     if (processedCount % checkEvery !== 0) return false;
     const currentRuntime = await loadRuntimeState();
     if (currentRuntime.forceSyncCancelRequested === true) {

@@ -1689,20 +1689,32 @@
                       </button>
                       <div id="syncToolsContent" style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
                         <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
-                          <button id="runCronSyncButton" class="button-primary sync-action-btn" type="button" title="Run the scheduled sync job immediately">Run Cron Sync</button>
+                          <button id="runCronSyncButton" class="button-primary sync-action-btn" type="button" title="Check recent watched and part-watched items for missing Plembfin records">Repair Recent Items</button>
                           <button id="forceSyncButton" class="button-primary sync-action-btn" type="button" title="Force an immediate sync of all pending watched states">Force Sync</button>
                           <button id="stopSyncButton" class="button-danger hidden" type="button" title="Stop the currently running sync">Stop Sync</button>
                           <button id="refreshSyncButton" class="button-ghost sync-btn" type="button" title="Refresh the sync issues list">Refresh</button>
                         </div>
-                        <div class="terminal-wrapper">
-                          <div class="terminal-header">
-                            <div class="terminal-header-dots">
-                              <span class="dot-red"></span>
-                              <span class="dot-yellow"></span>
-                              <span class="dot-green"></span>
+                        <div class="activity-log">
+                          <div class="activity-log-header">
+                            <div class="activity-log-heading">
+                              <svg class="activity-log-icon" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M4 5.5h12M4 10h12M4 14.5h8" />
+                              </svg>
+                              <span class="activity-log-copy">
+                                <strong>Activity log</strong>
+                                <small>Latest sync output</small>
+                              </span>
                             </div>
-                            <span class="terminal-header-title">Sync Console</span>
-                            <div class="terminal-header-right"></div>
+                            <span class="activity-log-state">Live output</span>
+                          </div>
+                          <div id="syncProgress" class="sync-progress hidden" role="group" aria-label="Sync progress">
+                            <div class="sync-progress-summary">
+                              <strong id="syncProgressLabel" aria-live="polite">Preparing sync</strong>
+                              <span id="syncProgressMeta">0% · Estimating remaining</span>
+                            </div>
+                            <div id="syncProgressTrack" class="sync-progress-track" role="progressbar" aria-label="Sync progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                              <span id="syncProgressFill" class="sync-progress-fill"></span>
+                            </div>
                           </div>
                           <pre id="forceSyncTerminal" class="import-terminal compact-terminal hidden" aria-live="polite">[idle] Waiting for force sync.</pre>
                         </div>
@@ -1718,7 +1730,7 @@
                       </div>
 
                       <p class="tool-accordion-desc" style="margin-bottom: var(--space-3);">
-                        <b>Run Cron Sync:</b> Executes the scheduled sync job immediately, checking for outstanding propagations and updating resume positions across all platforms.
+                        <b>Repair Recent Items:</b> Quickly checks the latest watched and part-watched items on each server, adds anything Plembfin missed, and syncs those changes. It does not scan your full libraries.
                       </p>
                       <p class="tool-accordion-desc" style="margin-bottom: var(--space-3);">
                         <b>Force Sync:</b> Forcefully propagates all pending watched-state changes to your other platforms right away, bypassing the 60-second scheduled interval. Use this to immediately sync a watch or unwatched state.
@@ -1748,15 +1760,18 @@
                           <button id="copyLogsButton" class="button-primary" type="button">Copy Logs</button>
                         </div>
                       </div>
-                      <div class="terminal-wrapper">
-                        <div class="terminal-header">
-                          <div class="terminal-header-dots">
-                            <span class="dot-red"></span>
-                            <span class="dot-yellow"></span>
-                            <span class="dot-green"></span>
+                      <div class="activity-log">
+                        <div class="activity-log-header">
+                          <div class="activity-log-heading">
+                            <svg class="activity-log-icon" viewBox="0 0 20 20" aria-hidden="true">
+                              <path d="M4 5.5h12M4 10h12M4 14.5h8" />
+                            </svg>
+                            <span class="activity-log-copy">
+                              <strong>Activity log</strong>
+                              <small>Backend and browser output</small>
+                            </span>
                           </div>
-                          <span class="terminal-header-title">Server Console</span>
-                          <div class="terminal-header-right"></div>
+                          <span class="activity-log-state">Live output</span>
                         </div>
                         <pre id="logsTerminal" class="logs-terminal" aria-live="polite"></pre>
                       </div>

@@ -13048,57 +13048,132 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   flex-shrink: 0;
 }
 
-/* macOS Developer Terminal Console */
-.terminal-wrapper {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  background: #06090e;
+/* Operational activity log */
+.activity-log {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel-3);
   overflow: hidden;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-  margin-top: 1rem;
 }
 
-.terminal-wrapper:has(.hidden) {
+.activity-log:has(> .import-terminal.hidden) {
   display: none !important;
 }
 
-.terminal-header {
+.activity-log-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 0.5rem 0.85rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  gap: var(--space-3);
+  min-height: 3rem;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
 }
 
-.terminal-header-dots {
+.activity-log-heading {
   display: flex;
-  gap: 0.35rem;
   align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
-.terminal-header-dots span {
-  width: 0.65rem;
-  height: 0.65rem;
-  border-radius: 50%;
-  display: inline-block;
+.activity-log-icon {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 1.6;
+  stroke-linecap: round;
 }
 
-.terminal-header-dots .dot-red { background: #f43f5e; }
-.terminal-header-dots .dot-yellow { background: #eab308; }
-.terminal-header-dots .dot-green { background: #10b981; }
+.activity-log-copy {
+  display: grid;
+  gap: 0.05rem;
+  min-width: 0;
+}
 
-.terminal-header-title {
-  font-family: 'Outfit', sans-serif;
-  font-size: 0.72rem;
-  font-weight: 600;
+.activity-log-copy strong {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.activity-log-copy small,
+.activity-log-state {
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.25;
 }
 
-.terminal-header-right {
-  width: 2.2rem;
+.activity-log-state {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.sync-progress {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-3);
+}
+
+.sync-progress.hidden {
+  display: none;
+}
+
+.sync-progress-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.sync-progress-summary strong {
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.sync-progress-summary span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-align: right;
+}
+
+.sync-progress-track {
+  height: 0.38rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line-strong) 72%, transparent);
+}
+
+.sync-progress-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--blue);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sync-progress[data-status="complete"] .sync-progress-fill {
+  background: var(--green);
+}
+
+.sync-progress[data-status="error"] .sync-progress-fill {
+  background: var(--red);
+}
+
+.sync-progress[data-status="stopped"] .sync-progress-fill {
+  background: var(--yellow);
 }
 
 .settings-pane .logs-terminal,
@@ -13111,6 +13186,34 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   line-height: 1.6 !important;
   padding: 1rem !important;
   color: #e2e8f0 !important;
+}
+
+.settings-pane #forceSyncTerminal {
+  height: clamp(18rem, 48vh, 38rem);
+  min-height: 18rem;
+  max-height: 38rem;
+}
+
+@media (max-width: 30rem) {
+  .sync-progress-summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .sync-progress-summary span {
+    text-align: left;
+  }
+
+  .settings-pane #forceSyncTerminal {
+    height: 22rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-progress-fill {
+    transition: none;
+  }
 }
 
 /* Cache Gauges */
@@ -13296,14 +13399,14 @@ html.light-mode .settings-pane .backup-file-button:hover {
   transform: none !important;
 }
 
-html.light-mode .terminal-wrapper {
-  background: #f1f5f9;
-  border-color: rgba(0, 0, 0, 0.08);
+html.light-mode .activity-log {
+  background: var(--panel-3);
+  border-color: var(--line-strong);
 }
 
-html.light-mode .terminal-header {
-  background: rgba(0, 0, 0, 0.02);
-  border-bottom-color: rgba(0, 0, 0, 0.05);
+html.light-mode .activity-log-header {
+  background: var(--panel-2);
+  border-bottom-color: var(--line);
 }
 
 html.light-mode .settings-pane .logs-terminal,

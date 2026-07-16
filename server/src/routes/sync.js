@@ -765,7 +765,9 @@ export async function handleCronSync(req, res) {
   };
 
   try {
-    const result = await runScheduledSync(logger);
+    // A manual/API-triggered run is an explicit request to repair recent gaps now,
+    // so bypass the periodic catch-up throttle without invoking the full-library sync.
+    const result = await runScheduledSync(logger, { forceCatchup: true });
     await setRuntimeState({ lastCronResult: { ok: true, result, finishedAt: Date.now() } }).catch(() => null);
     res.write(`RESULT: ${JSON.stringify(result)}\n`);
     res.end();

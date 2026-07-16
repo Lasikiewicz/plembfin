@@ -1019,16 +1019,134 @@ export async function triggerRetrySync(id, button) {
   }
 }
 
+let syncProgressTimer = null;
+let syncProgressState = null;
+
+function formatSyncDuration(milliseconds) {
+  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}
+
+function renderSyncProgress() {
+  if (!syncProgressState || !elements.syncProgress) return;
+  const value = Math.max(0, Math.min(100, Math.round(syncProgressState.value)));
+  const elapsed = formatSyncDuration(Date.now() - syncProgressState.startedAt);
+  let meta = `${value}% · ${elapsed} elapsed · ${syncProgressState.remaining || "Estimating remaining"}`;
+  if (syncProgressState.status === "complete") meta = `100% · ${elapsed} total`;
+  if (syncProgressState.status === "stopped") meta = `${value}% · Stopped after ${elapsed}`;
+  if (syncProgressState.status === "error") meta = `${value}% · Failed after ${elapsed}`;
+
+  elements.syncProgress.classList.remove("hidden");
+  elements.syncProgress.dataset.status = syncProgressState.status;
+  if (elements.syncProgressLabel) elements.syncProgressLabel.textContent = syncProgressState.label;
+  if (elements.syncProgressMeta) elements.syncProgressMeta.textContent = meta;
+  if (elements.syncProgressTrack) elements.syncProgressTrack.setAttribute("aria-valuenow", String(value));
+  if (elements.syncProgressFill) elements.syncProgressFill.style.transform = `scaleX(${value / 100})`;
+}
+
+function beginSyncProgress(label) {
+  if (syncProgressTimer) clearInterval(syncProgressTimer);
+  syncProgressState = {
+    label,
+    value: 3,
+    status: "running",
+    remaining: "Estimating remaining",
+    startedAt: Date.now(),
+    itemSample: null,
+  };
+  renderSyncProgress();
+  syncProgressTimer = setInterval(renderSyncProgress, 1000);
+}
+
+function setSyncProgress(label, value, remaining = null) {
+  if (!syncProgressState) return;
+  syncProgressState.label = label;
+  syncProgressState.value = Math.max(syncProgressState.value, value);
+  if (remaining) syncProgressState.remaining = remaining;
+  renderSyncProgress();
+}
+
+function updateSyncProgressFromLine(line, mode) {
+  if (!syncProgressState || !line) return;
+  const text = String(line);
+  const lower = text.toLowerCase();
+
+  if (mode === "force") {
+    const itemProgress = text.match(/Force Sync progress:\s*(\d+)\/(\d+) items/i);
+    if (itemProgress) {
+      const processed = Number(itemProgress[1]);
+      const total = Math.max(1, Number(itemProgress[2]));
+      const now = Date.now();
+      let remaining = null;
+      const previous = syncProgressState.itemSample;
+      if (previous && processed > previous.processed && now > previous.at) {
+        const itemsPerMs = (processed - previous.processed) / (now - previous.at);
+        const remainingMs = (total - processed) / itemsPerMs;
+        if (Number.isFinite(remainingMs) && remainingMs >= 0) remaining = `About ${formatSyncDuration(remainingMs)} remaining`;
+      }
+      syncProgressState.itemSample = { processed, at: now };
+      setSyncProgress(`Reconciling library items (${processed}/${total})`, 58 + (processed / total) * 38, remaining);
+      return;
+    }
+
+    const stages = [
+      ["loading media configuration", "Loading media configuration", 8],
+      ["active media targets resolved", "Media servers connected", 15],
+      ["querying watched libraries", "Scanning watched libraries", 24],
+      ["collected ", "Watched libraries scanned", 38],
+      ["loading plembfin watchhistory", "Loading Plembfin history", 45],
+      ["grouping and matching", "Matching items across servers", 52],
+      ["resolving watched state", "Preparing reconciliation", 58],
+      ["process complete", "Sync complete", 100],
+    ];
+    const stage = stages.find(([needle]) => lower.includes(needle));
+    if (stage) setSyncProgress(stage[1], stage[2]);
+    return;
+  }
+
+  const stages = [
+    ["starting background sync workflow", "Loading sync configuration", 8],
+    ["checking plex unwatched status", "Checking Plex watched state", 16],
+    ["running catch-up library checks", "Starting recent-item repair", 22],
+    ["running requested recent-item repair", "Starting recent-item repair", 22],
+    ["checking plex recently watched", "Scanning Plex history", 30],
+    ["checking emby recently watched", "Scanning Emby history", 38],
+    ["checking jellyfin recently watched", "Scanning Jellyfin history", 46],
+    ["checking plex continue watching", "Checking Plex progress", 54],
+    ["checking emby continue watching", "Checking Emby progress", 62],
+    ["checking jellyfin continue watching", "Checking Jellyfin progress", 70],
+    ["processing pending manual dispatches", "Sending pending changes", 80],
+    ["scanning active sessions", "Checking active sessions", 90],
+    ["scheduled sync complete", "Sync complete", 100],
+  ];
+  const stage = stages.find(([needle]) => lower.includes(needle));
+  if (stage) setSyncProgress(stage[1], stage[2]);
+}
+
+function finishSyncProgress(status, label) {
+  if (!syncProgressState) return;
+  if (syncProgressTimer) clearInterval(syncProgressTimer);
+  syncProgressTimer = null;
+  syncProgressState.status = status;
+  syncProgressState.label = label;
+  if (status === "complete") syncProgressState.value = 100;
+  renderSyncProgress();
+}
+
 export async function triggerCronSync() {
   const button = elements.runCronSyncButton;
   const terminal = elements.forceSyncTerminal;
   if (!button) return;
 
   if (terminal) { terminal.classList.remove("hidden"); terminal.textContent = "Cron Sync started...\n"; }
+  beginSyncProgress("Preparing recent-item repair");
 
   const originalText = button.textContent;
   button.disabled = true;
-  button.textContent = "Syncing...";
+  button.textContent = "Repairing...";
 
   try {
     const response = await fetch("/api/cron-sync", { method: "POST", headers: authHeaders() });
@@ -1054,6 +1172,7 @@ export async function triggerCronSync() {
           terminal.textContent += `${trimmed}\n`;
           terminal.scrollTop = terminal.scrollHeight;
         }
+        updateSyncProgressFromLine(trimmed, "cron");
       }
     }
 
@@ -1065,12 +1184,18 @@ export async function triggerCronSync() {
         terminal.textContent += `${trimmed}\n`;
         terminal.scrollTop = terminal.scrollHeight;
       }
+      updateSyncProgressFromLine(trimmed, "cron");
+    }
+
+    if (finalResult?.success === false) {
+      throw new Error(finalResult.error || "Scheduled sync failed");
     }
 
     if (finalResult) {
       const detail = `Cron run complete! Sessions: ${finalResult.sessions ?? 0}, completions: ${finalResult.completions ?? 0}, cached: ${finalResult.cached ?? 0}`;
       _cb.showToast?.(detail);
       if (terminal) { terminal.textContent += `\nSUCCESS: ${detail}\n`; terminal.scrollTop = terminal.scrollHeight; }
+      finishSyncProgress("complete", "Recent-item repair complete");
     } else {
       throw new Error("No final result returned from server");
     }
@@ -1079,6 +1204,7 @@ export async function triggerCronSync() {
   } catch (error) {
     _cb.showToast?.(`Error: ${error.message}`);
     if (terminal) { terminal.textContent += `\nERROR: ${error.message}\n`; terminal.scrollTop = terminal.scrollHeight; }
+    finishSyncProgress("error", "Recent-item repair failed");
   } finally {
     button.disabled = false;
     button.textContent = originalText;
@@ -1114,6 +1240,7 @@ export async function triggerForceSync() {
     "Are you sure you want to run Force Sync?\n\nThis will check all configured media servers (Plex, Emby, Jellyfin) and resolve their watched/unwatched states based on the newest timestamp. It may take some time.",
     async () => {
       if (terminal) { terminal.classList.remove("hidden"); terminal.textContent = "Force Sync starting...\n"; }
+      beginSyncProgress("Preparing force sync");
       const originalText = button.textContent;
       button.disabled = true;
       button.textContent = "Syncing...";
@@ -1148,6 +1275,7 @@ export async function triggerForceSync() {
               terminal.textContent += `${line}\n`;
               terminal.scrollTop = terminal.scrollHeight;
             }
+            updateSyncProgressFromLine(line, "force");
           }
           seenLines = log.length;
           if (!statusBody.active) { finalResult = finalResult || statusBody.result; pollActive = false; }
@@ -1160,6 +1288,7 @@ export async function triggerForceSync() {
             : `Force Sync complete! Targets: ${(finalResult.activeTargets || []).join(", ") || "none"}. Found: ${stats.totalWatchedFoundAcrossServers ?? 0}, added: ${stats.addedToHistory ?? 0}, deleted: ${stats.deletedFromHistory ?? 0}, propagated: ${stats.propagatedUpdates ?? 0}`;
           _cb.showToast?.(detail);
           if (terminal) { terminal.textContent += `\n${finalResult.aborted ? "ABORTED" : "SUCCESS"}: ${detail}\n`; terminal.scrollTop = terminal.scrollHeight; }
+          finishSyncProgress(finalResult.aborted ? "stopped" : "complete", finalResult.aborted ? "Force sync stopped" : "Force sync complete");
         } else if (finalResult) {
           throw new Error(finalResult.error || "Force Sync ended with an unknown error.");
         }
@@ -1168,6 +1297,7 @@ export async function triggerForceSync() {
       } catch (error) {
         _cb.showToast?.(`Error: ${error.message}`);
         if (terminal) { terminal.textContent += `\nERROR: ${error.message}\n`; terminal.scrollTop = terminal.scrollHeight; }
+        finishSyncProgress("error", "Force sync failed");
       } finally {
         button.disabled = false;
         button.textContent = originalText;
