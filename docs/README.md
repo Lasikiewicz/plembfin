@@ -49,7 +49,7 @@ pointed at the relevant file instead of re-deriving the architecture from the so
 | [history-search.md](history-search.md) | The History page and global Search. |
 | [stats.md](stats.md) | The Stats page and its report payload. |
 | [posters-artwork.md](posters-artwork.md) | Posters, backdrops, logos: the fetch-resize-cache pipeline end to end. |
-| [settings.md](settings.md) | Settings tabs, connection config persistence, maintenance tools, in-app help. |
+| [settings.md](settings.md) | Settings task routes, overview status, connection config persistence, maintenance tools, and in-app help. |
 | [backups.md](backups.md) | All three backup subsystems and the remote destination adapters. |
 | [watch-history-backups.md](watch-history-backups.md) | The original design/delivery plan for the watch-history backup subsystem. |
 
@@ -81,7 +81,7 @@ Common gotchas:
    the server cannot (e.g. a different LAN segment or a VPN-gated address) will
    fail silently for the background sync while appearing fine in the UI probe.
 2. **Webhook secret in URL** — The webhook endpoint requires `?token=<webhookSecret>`
-   in the URL. Omitting it returns 401. Copy the full URL from Settings → API Endpoints.
+   in the URL. Omitting it returns 401. Copy the full URL from Settings → Connections → Webhooks.
 3. **Config persistence** — Credentials and settings are stored in `data/config.json`
    (generated on first boot) and in the `settings` SQLite row. The Docker volume mount
    at `/data` must be persistent across container restarts or settings will reset.

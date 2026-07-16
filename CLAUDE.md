@@ -186,6 +186,7 @@ When adding frontend code, place it in the most specific existing module that ow
 | Auth, session, tokens | `modules/auth.js` |
 | Debug/diagnostic logs | `modules/logs.js` |
 | Connection config payloads | `modules/settings.js` |
+| Settings routes, overview status, and focused task shell | `modules/settings-shell.js` |
 | Shared `state` and `elements` objects | `modules/state.js` |
 | App event wiring | `modules/app-events.js` |
 | Media-detail modal click delegation (cast/trailers/poster edit/watch actions/card navigation) | `modules/media-detail-events.js` |
@@ -247,7 +248,7 @@ folder** under `data/`.
 prefix and routes to `handleWebhook`, `handleHistory`, `handleMovies`, etc. `dispatch` is
 imported and mounted by `server.js`.
 
-**Frontend** (`public/`) — a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`, `tools-backups.js`, `tools-maintenance.js`, `media-detail.js`, `media-person.js`, `media-lightbox.js`, `edit-dialogs.js`, `watch-action.js`, `tmdb.js`, `app-events.js`). No framework, bundler, or TypeScript.
+**Frontend** (`public/`) — a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `settings-shell.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`, `tools-backups.js`, `tools-maintenance.js`, `media-detail.js`, `media-person.js`, `media-lightbox.js`, `edit-dialogs.js`, `watch-action.js`, `tmdb.js`, `app-events.js`). No framework, bundler, or TypeScript.
 
 ### Data layer (`server/src/db.js` + `schema.sql`)
 

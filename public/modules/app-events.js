@@ -1,4 +1,4 @@
-import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./auth.js";
+import { buildAuthHeaders, buildNowPlayingUrl, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./auth.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js";
 import { connectionLabel, connectionPayloadFromElements } from "./settings.js";
 import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, DASHBOARD_HISTORY_VIEW_KEY, DASHBOARD_HISTORY_VIEW_MODES, PRIMARY_VIEWS, SETTINGS_TABS } from "./state.js";
@@ -232,6 +232,16 @@ function attachEvents() {
     button.addEventListener("click", () => selectSettingsTab(button.dataset.settingsTab));
   });
 
+  document.querySelector("#settingsSectionSelect")?.addEventListener("change", (event) => {
+    navigateTo(event.currentTarget.value);
+  });
+
+  document.addEventListener("click", (event) => {
+    const target = event.target.closest("[data-settings-path]");
+    if (!target) return;
+    navigateTo(target.dataset.settingsPath);
+  });
+
   elements.sidebarAppearanceButton?.addEventListener("click", () => {
     const isOpen = !elements.sidebarAppearancePanel?.classList.contains("hidden");
     elements.sidebarAppearancePanel?.classList.toggle("hidden", isOpen);
@@ -259,7 +269,7 @@ function attachEvents() {
   });
 
   elements.backupsSubTabButtons.forEach((button) => {
-    button.addEventListener("click", () => selectBackupsTab(button.dataset.backupsTab));
+    button.addEventListener("click", () => navigateTo(`/settings/data/${button.dataset.backupsTab === "restore" ? "restore" : "backups"}`));
   });
 
   for (const id of ["appearShowLogoArt", "appearShowCast", "appearShowTrailers", "appearShowReviews", "appearShowImages", "appearShowRelated"]) {
@@ -431,7 +441,7 @@ function attachEvents() {
   }
 
   elements.appVersion?.addEventListener("click", () => {
-    navigateTo("/settings/changelog");
+    navigateTo("/settings/system/about");
   });
 
   elements.changelogRefreshButton?.addEventListener("click", () => {
@@ -553,14 +563,6 @@ function attachEvents() {
       renderAdminCredentialsStatus(error.message, "error");
       setMessage(error.message, "error");
     });
-  });
-
-  elements.checkSessionButton.addEventListener("click", async () => {
-    const user = currentUser();
-    const text = user ? `Signed in as ${user.username || user.email || "admin"}.` : "Sign in again from the lock screen.";
-    const tone = user ? "success" : "error";
-    renderAdminCredentialsStatus(text, tone);
-    setMessage(text, tone);
   });
 
   elements.rotateWebhookButton?.addEventListener("click", async () => {

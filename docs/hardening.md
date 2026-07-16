@@ -8,10 +8,10 @@ A practical checklist for running Plembfin securely in production.
 
 | What | Recommendation |
 |------|----------------|
-| Admin password | Fresh installs get a random password generated on first boot (printed once to the server console) — record it before it scrolls off. Set your own via `ADMIN_PASSWORD` or **Settings → General**. Minimum 12 characters. |
+| Admin password | Fresh installs get a random password generated on first boot (printed once to the server console) — record it before it scrolls off. Set your own via `ADMIN_PASSWORD` or **Settings → Account & Security**. Minimum 12 characters. |
 | `SESSION_SECRET` | Pin to a random 32+ char string via env var. Auto-generated value is fine for single-host installs. |
 | `API_KEY` | Pin if you share the key with external scripts or Home Assistant. |
-| `WEBHOOK_SECRET` | Rotate via **Settings → Integrations → Rotate** after any suspected exposure. |
+| `WEBHOOK_SECRET` | Rotate via **Settings → Connections → Webhooks → Rotate Secret** after any suspected exposure. |
 
 Generate a strong secret:
 
@@ -112,7 +112,7 @@ https://plembfin.example.com/api/webhook?token=<WEBHOOK_SECRET>
 ```
 
 - Configure this URL inside each media server (Plex, Emby, Jellyfin).
-- If the token is ever exposed, rotate it in **Settings → Integrations → Rotate Webhook Token**. Rotations take effect immediately; update all media servers afterwards.
+- If the token is ever exposed, rotate it in **Settings → Connections → Webhooks → Rotate Secret**. Rotations take effect immediately; update all media servers afterwards.
 
 ---
 
@@ -128,7 +128,7 @@ The entire application state lives in two locations:
 
 For filesystem-level backups, stop the container before copying `data/` so SQLite can
 checkpoint the WAL files cleanly. For online backups, use the built-in
-**Settings -> Backups** systems (see [backups.md](backups.md)) or snapshot the database
+**Settings → Data & Backup** systems (see [backups.md](backups.md)) or snapshot the database
 with SQLite itself:
 
 ```bash
@@ -170,7 +170,7 @@ healthcheck:
 
 | Secret | How to rotate |
 |--------|---------------|
-| Admin password | **Settings → General → Change Login** |
-| Webhook token | **Settings → Integrations → Rotate Webhook Token** |
+| Admin password | **Settings → Account & Security → Admin login** |
+| Webhook token | **Settings → Connections → Webhooks → Rotate Secret** |
 | Session secret | Set a new `SESSION_SECRET` env var and restart — invalidates all sessions |
 | API key | Set a new `API_KEY` env var and restart — update any external integrations |

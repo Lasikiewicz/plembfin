@@ -1,7 +1,8 @@
 import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./modules/logs.js";
 import { connectionLabel, connectionPayloadFromElements } from "./modules/settings.js";
-import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS, SETTINGS_TABS } from "./modules/state.js";
+import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, renderSettingsDashboard, settingsPathForLegacy } from "./modules/settings-shell.js";
+import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS } from "./modules/state.js";
 import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSlug, movieHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./modules/utils.js";
 import { adminTokenGuide, plexCredentialGuide, embyCredentialGuide, jellyfinCredentialGuide, buildWebhookUrl, plexWebhookSetup, embyWebhookSetup, jellyfinWebhookSetup, webhookWarning, cronSyncGuide, renderSettingsInlineHelp } from "./modules/help-content.js";
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile } from "./modules/images.js";
@@ -345,7 +346,6 @@ function bindElements() {
     saveSeerrConfigButton: document.querySelector("#saveSeerrConfigButton") || elements.saveSeerrConfigButton,
     seerrConfigStatus: document.querySelector("#seerrConfigStatus") || elements.seerrConfigStatus,
     saveAdminCredentialsButton: document.querySelector("#saveAdminCredentialsButton"),
-    checkSessionButton: document.querySelector("#checkSessionButton"),
     webhookUrl: document.querySelector("#webhookUrl"),
     rotateWebhookButton: document.querySelector("#rotateWebhookButton"),
     runCompleteCheckButton: document.querySelector("#runCompleteCheckButton"),
@@ -392,7 +392,7 @@ async function loadAppVersion() {
     if (response.ok) {
       state.changelog = data;
       updateVersionBadge(data);
-      if (state.activeView === "settings" && state.activeSettingsTab === "changelog") renderChangelog().catch(() => { });
+      if (state.activeView === "settings" && state.activeSettingsRoute?.panel === "changelog") renderChangelog().catch(() => { });
     }
   } catch {
     // Keep the HTML fallback version when release metadata is unavailable.
@@ -976,7 +976,7 @@ function applyMustChangePassword() {
       elements.appShell?.prepend(banner);
     }
     state.activeView = "settings";
-    state.activeSettingsTab = "general";
+    state.activeSettingsRoute = parseSettingsRoute("/settings/account/login", { mustChangePassword: true });
     document.body.classList.add("pw-change-required");
   } else {
     existing?.remove();
@@ -1145,25 +1145,14 @@ function handleRouting(path) {
       query = searchParams.get("q") || searchParams.get("query") || "";
     }
     triggerSearchPage(query);
-  } else if (pathname === "/sync") {
-    state.activeView = "settings";
-    state.activeSettingsTab = "sync";
-    state.mediaDetailInline = false;
-    clearMediaDetailState();
-  } else if (pathname === "/logs") {
-    state.activeView = "settings";
-    state.activeSettingsTab = "logs";
-    state.mediaDetailInline = false;
-    clearMediaDetailState();
-  } else if (pathname.startsWith("/settings")) {
+  } else if (pathname === "/sync" || pathname === "/logs" || pathname.startsWith("/settings")) {
     state.activeView = "settings";
     state.mediaDetailInline = false;
     clearMediaDetailState();
-    const parts = pathname.split("/");
-    if (parts[2] && SETTINGS_TABS.includes(parts[2])) {
-      state.activeSettingsTab = parts[2];
-    } else {
-      state.activeSettingsTab = "general";
+    state.activeSettingsRoute = parseSettingsRoute(pathname, { mustChangePassword: state.mustChangePassword });
+    state.activeSettingsTab = state.activeSettingsRoute.group;
+    if (state.activeSettingsRoute.path !== pathname) {
+      history.replaceState(history.state, "", state.activeSettingsRoute.path);
     }
 
   } else {
@@ -1191,6 +1180,7 @@ function clearSearchInputs() {
 
 function navigateTo(url) {
   const currentUrl = window.location.pathname + window.location.hash;
+  const settingsRouteChanged = url.startsWith("/settings") && currentUrl.split("#")[0] !== url.split("#")[0];
   if (currentUrl !== url) {
     const nextIndex = (history.state?.index || 0) + 1;
     history.pushState({ index: nextIndex }, "", url);
@@ -1203,13 +1193,12 @@ function navigateTo(url) {
   }
   handleRouting(url);
   applyActiveView();
+  if (settingsRouteChanged) requestAnimationFrame(() => focusSettingsRoute(state.activeSettingsRoute));
 }
 
 function selectView(view) {
   if (state.mustChangePassword && view !== "settings") {
-    state.activeView = "settings";
-    state.activeSettingsTab = "general";
-    applyActiveView();
+    navigateTo("/settings/account/login");
     return;
   }
   const legacyImporterView = view === "importer";
@@ -1248,7 +1237,7 @@ function selectView(view) {
   } else if (targetView === "explorer") {
     url = state.explorerMode === "shows" ? "/tvshows" : "/movies";
   } else if (targetView === "settings") {
-    url = `/settings/${legacySettingsTab || "general"}`;
+    url = legacySettingsTab ? settingsPathForLegacy(legacySettingsTab) : "/settings";
 
   } else if (targetView === "search") {
     const q = state.searchQuery || new URLSearchParams(window.location.search).get("q") || "";
@@ -1270,8 +1259,7 @@ function selectView(view) {
 }
 
 function selectSettingsTab(tab) {
-  const targetTab = SETTINGS_TABS.includes(tab) ? tab : "general";
-  navigateTo(`/settings/${targetTab}`);
+  navigateTo(settingsPathForLegacy(tab));
 }
 
 function selectBackupsTab(tab) {
@@ -1289,18 +1277,9 @@ function selectBackupsTab(tab) {
 }
 
 function settingsTopbarTitle() {
-  const labels = {
-    general: "General",
-    apps: "Apps",
-    "api-keys": "API Keys",
-    tools: "Tools",
-    backups: state.activeBackupsTab === "restore" ? "Restore" : "Backups",
-    sync: "Sync",
-    logs: "Logs",
-    changelog: "Changelog",
-    cache: "Cache",
-  };
-  return `Settings - ${labels[state.activeSettingsTab] || "General"}`;
+  return state.activeSettingsRoute?.title === "Settings overview"
+    ? "Settings"
+    : `Settings - ${state.activeSettingsRoute?.title || "Overview"}`;
 }
 
 
@@ -1356,7 +1335,7 @@ function syncPageTopbar() {
   } else if (state.activeView === "settings") {
     title = settingsTopbarTitle();
     subtitle = "";
-    activeControls = isMobile ? elements.settingsSubMenu : null;
+    activeControls = null;
 
   } else if (state.activeView === "search") {
     const searchQuery = state.searchQuery || query.get("q") || "";
@@ -1493,20 +1472,46 @@ function applyActiveView() {
 
   if (state.activeView === "settings") {
     renderSettingsInlineHelp();
-    localStorage.setItem(ACTIVE_SETTINGS_TAB_KEY, state.activeSettingsTab);
-    for (const button of elements.settingsTabButtons || []) {
-      button.classList.toggle("active", button.dataset.settingsTab === state.activeSettingsTab);
+    const route = state.activeSettingsRoute || parseSettingsRoute(window.location.pathname, { mustChangePassword: state.mustChangePassword });
+    state.activeSettingsRoute = route;
+    state.activeSettingsTab = route.group;
+    localStorage.setItem(ACTIVE_SETTINGS_TAB_KEY, route.group);
+    applySettingsRoute(route);
+    renderSettingsDashboard({
+      config: state.savedConfig,
+      configLoaded: state.configLoaded,
+      watchBackups: state.watchBackups,
+      plembfinBackups: state.plembfinBackups,
+      backupsLoading: state.watchBackupsLoading || state.plembfinBackupsLoading,
+      syncJobs: state.syncJobs,
+      syncJobsLoaded: state.syncJobsLoaded,
+      syncJobsLoading: state.syncJobsLoading,
+      syncActive: state.fullSyncActive,
+    });
+    if (route.kind === "overview") {
+      const refreshOverview = () => renderSettingsDashboard({
+        config: state.savedConfig,
+        configLoaded: state.configLoaded,
+        watchBackups: state.watchBackups,
+        plembfinBackups: state.plembfinBackups,
+        backupsLoading: state.watchBackupsLoading || state.plembfinBackupsLoading,
+        syncJobs: state.syncJobs,
+        syncJobsLoaded: state.syncJobsLoaded,
+        syncJobsLoading: state.syncJobsLoading,
+        syncActive: state.fullSyncActive,
+      });
+      loadWatchBackups().then(refreshOverview).catch(refreshOverview);
+      loadPlembfinBackups().then(refreshOverview).catch(refreshOverview);
+      loadSyncJobs().then(refreshOverview).catch(refreshOverview);
     }
-    for (const panel of elements.settingsPanels || []) {
-      panel.classList.toggle("hidden", panel.dataset.settingsPanel !== state.activeSettingsTab);
-    }
-    if (state.activeSettingsTab === "sync") {
+    if (route.panel === "sync") {
       renderSyncJobs();
       renderSyncHistory();
       loadSyncJobs().catch((error) => setMessage(error.message, "error"));
       loadSyncHistory().catch((error) => setMessage(error.message, "error"));
     }
-    if (state.activeSettingsTab === "backups") {
+    if (route.panel === "backups") {
+      state.activeBackupsTab = route.backupTab || "settings";
       // Update backup sub-tab buttons and panels
       for (const button of elements.backupsSubTabButtons || []) {
         button.classList.toggle("active", button.dataset.backupsTab === state.activeBackupsTab);
@@ -1524,9 +1529,9 @@ function applyActiveView() {
         loadRemoteBackupsForRestoreTab().catch((error) => setMessage(error.message, "error"));
       }
     }
-    if (state.activeSettingsTab === "logs") renderLogs().catch(() => { });
-    if (state.activeSettingsTab === "changelog") renderChangelog().catch(() => { });
-    if (state.activeSettingsTab === "cache") {
+    if (route.panel === "logs") renderLogs().catch(() => { });
+    if (route.panel === "changelog") renderChangelog().catch(() => { });
+    if (route.panel === "cache") {
       renderCachePanel();
       if (!state.cacheStats && !state.cacheStatsLoading) loadCacheStats().catch((error) => setMessage(error.message, "error"));
     }
@@ -1576,20 +1581,32 @@ function syncSettingsInputsDisabledState() {
   elements.plexServerUrl.disabled = !plexActive;
   elements.plexToken.disabled = !plexActive;
   elements.plexUsername.disabled = !plexActive;
+  if (elements.savePlexConfigButton && !elements.savePlexConfigButton.disabled) {
+    elements.savePlexConfigButton.textContent = plexActive ? "Save Plex" : "Save & disable Plex";
+  }
 
   const embyActive = elements.embyEnabled.checked;
   elements.embyServerUrl.disabled = !embyActive;
   elements.embyApiKey.disabled = !embyActive;
   elements.embyUserId.disabled = !embyActive;
+  if (elements.saveEmbyConfigButton && !elements.saveEmbyConfigButton.disabled) {
+    elements.saveEmbyConfigButton.textContent = embyActive ? "Save Emby" : "Save & disable Emby";
+  }
 
   const jellyfinActive = elements.jellyfinEnabled?.checked;
   if (elements.jellyfinServerUrl) elements.jellyfinServerUrl.disabled = !jellyfinActive;
   if (elements.jellyfinApiKey) elements.jellyfinApiKey.disabled = !jellyfinActive;
   if (elements.jellyfinUserId) elements.jellyfinUserId.disabled = !jellyfinActive;
+  if (elements.saveJellyfinConfigButton && !elements.saveJellyfinConfigButton.disabled) {
+    elements.saveJellyfinConfigButton.textContent = jellyfinActive ? "Save Jellyfin" : "Save & disable Jellyfin";
+  }
 
   const seerrActive = elements.seerrEnabled?.checked;
   if (elements.seerrServerUrl) elements.seerrServerUrl.disabled = !seerrActive;
   if (elements.seerrApiKey) elements.seerrApiKey.disabled = !seerrActive;
+  if (elements.saveSeerrConfigButton && !elements.saveSeerrConfigButton.disabled) {
+    elements.saveSeerrConfigButton.textContent = seerrActive ? "Save Seerr" : "Save & disable Seerr";
+  }
 }
 
 function populateConfigForm(config = {}) {
@@ -2002,7 +2019,7 @@ async function loadHistory({ force = false } = {}) {
     renderDashboard();
     renderStats();
     if (state.activeView === "stats") loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
-    if (state.activeView === "settings" && state.activeSettingsTab === "sync") {
+    if (state.activeView === "settings" && state.activeSettingsRoute?.panel === "sync") {
       loadSyncJobs({ force: true }).catch((error) => setMessage(error.message, "error"));
       loadSyncHistory({ force: true }).catch((error) => setMessage(error.message, "error"));
     }
@@ -2070,11 +2087,11 @@ async function renderLogs() {
 }
 
 function syncLogsRefresh() {
-  const shouldRefresh = state.activeView === "settings" && state.activeSettingsTab === "logs" && state.token;
+  const shouldRefresh = state.activeView === "settings" && state.activeSettingsRoute?.panel === "logs" && state.token;
   if (shouldRefresh && !state.logsRefreshInterval) {
     renderLogs().catch(() => { });
     state.logsRefreshInterval = window.setInterval(() => {
-      if (state.activeView === "settings" && state.activeSettingsTab === "logs") {
+      if (state.activeView === "settings" && state.activeSettingsRoute?.panel === "logs") {
         renderLogs().catch(() => { });
       }
     }, 3000);
@@ -2346,7 +2363,7 @@ function showErrorExplainModal(title, errorMsg) {
   } else if (errLower.includes("timeout") || errLower.includes("refused") || errLower.includes("network") || errLower.includes("fetch") || errLower.includes("connect")) {
     resolutionInstructions = "\n\n👉 How to Resolve:\nNetwork connection failed. Verify that your media server is online and reachable from the Plembfin server, and check that no firewall or proxy is blocking outbound API requests.";
   } else {
-    resolutionInstructions = "\n\n👉 How to Resolve:\nPlease check the Server Logs under Settings -> Logs for a detailed traceback, and test your media server connection credentials in Settings -> Apps.";
+    resolutionInstructions = "\n\n👉 How to Resolve:\nCheck Settings → System → Logs for a detailed traceback, then test the media server credentials under Settings → Connections.";
   }
 
   elements.confirmModalMessage.innerHTML = `<span style="white-space: pre-wrap; display: block; line-height: 1.5; color: var(--text);">${escapeHtml(errorMsg)}${escapeHtml(resolutionInstructions)}</span>`;
@@ -2373,6 +2390,12 @@ function showErrorExplainModal(title, errorMsg) {
 
 function primeSensitiveRouteState(path = "") {
   const pathname = path.split("?")[0].split("#")[0];
+  if (pathname === "/sync" || pathname === "/logs" || pathname.startsWith("/settings")) {
+    state.activeView = "settings";
+    state.activeSettingsRoute = parseSettingsRoute(pathname, { mustChangePassword: state.mustChangePassword });
+    state.activeSettingsTab = state.activeSettingsRoute.group;
+    return true;
+  }
   if (pathname.startsWith("/movie/")) {
     state.activeView = "explorer";
     state.explorerMode = "movies";
@@ -2400,6 +2423,7 @@ function primeSensitiveRouteState(path = "") {
 
 function initialize() {
   bindElements();
+  prepareSettingsShell();
   initTools({
     setMessage,
     openConfirmDialog,

@@ -87,7 +87,7 @@ status, duration, uploaded bytes, and error detail.
 
 ## Settings UI
 
-Add **Settings -> Tools -> Automatic Watch History Backups** with:
+Use **Settings → Data & Backup → Backups** for automatic watch-history backups:
 
 - Enable automatic backups
 - Schedule and timezone
@@ -112,7 +112,7 @@ before OAuth, remote retention, and provider failure modes are introduced.
 
 ## Implementation Status
 
-Stage 1 is implemented with a dedicated **Settings -> Backups** page, local gzip
+Stage 1 is implemented under **Settings → Data & Backup**, with local gzip
 files, daily scheduling, retention, authenticated downloads, checksum validation,
 and dry-run, merge, or replace restores.
 

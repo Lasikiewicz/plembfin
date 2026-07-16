@@ -10,6 +10,7 @@
     <link rel="modulepreload" href="/modules/auth.js" />
     <link rel="modulepreload" href="/modules/logs.js" />
     <link rel="modulepreload" href="/modules/settings.js" />
+    <link rel="modulepreload" href="/modules/settings-shell.js" />
     <link rel="modulepreload" href="/modules/state.js" />
     <link rel="modulepreload" href="/modules/utils.js" />
     <link rel="modulepreload" href="/modules/help-content.js" />
@@ -34,7 +35,7 @@
     <link rel="modulepreload" href="/modules/media-lightbox.js" />
     <link rel="modulepreload" href="/modules/media-detail-events.js" />
     <link rel="modulepreload" href="/modules/app-events.js" />
-    <link rel="stylesheet" href="/styles.css?v=20260708.5" />
+    <link rel="stylesheet" href="/styles.css?v=20260716.1" />
   </head>
   <body>
     <div class="app-chassis">
@@ -66,15 +67,11 @@
           <div class="sidebar-secondary">
             <button class="nav-tab" type="button" data-view="settings">Settings</button>
             <div id="sidebarSettingsMenu" class="sidebar-sub-menu hidden">
-              <button class="settings-tab active" type="button" data-settings-tab="general">General</button>
-              <button class="settings-tab" type="button" data-settings-tab="api-keys">API Keys</button>
-              <button class="settings-tab" type="button" data-settings-tab="apps">Apps</button>
-              <button class="settings-tab" type="button" data-settings-tab="backups">Backups</button>
-              <button class="settings-tab" type="button" data-settings-tab="logs">Logs</button>
-              <button class="settings-tab" type="button" data-settings-tab="sync">Sync</button>
-              <button class="settings-tab" type="button" data-settings-tab="tools">Tools</button>
-              <button class="settings-tab" type="button" data-settings-tab="changelog">Changelog</button>
-              <button class="settings-tab" type="button" data-settings-tab="cache">Cache</button>
+              <button class="settings-tab" type="button" data-settings-tab="account" data-settings-group="account">Account &amp; Security</button>
+              <button class="settings-tab" type="button" data-settings-tab="connections" data-settings-group="connections">Connections</button>
+              <button class="settings-tab" type="button" data-settings-tab="metadata" data-settings-group="metadata">Metadata</button>
+              <button class="settings-tab" type="button" data-settings-tab="data" data-settings-group="data">Data &amp; Backup</button>
+              <button class="settings-tab" type="button" data-settings-tab="system" data-settings-group="system">System</button>
               <button id="lockButton" class="settings-tab button-signout hidden" type="button">Sign out</button>
             </div>
           </div>
@@ -465,8 +462,72 @@
 
         <section id="settings-view" class="view-panel hidden" data-view-panel="settings">
           <section class="settings-hub">
-
             <div class="settings-content">
+              <div class="settings-mobile-section">
+                <label for="settingsSectionSelect">Settings section</label>
+                <select id="settingsSectionSelect" class="field">
+                  <option value="/settings">Overview</option>
+                  <option value="/settings/account">Account &amp; Security</option>
+                  <option value="/settings/connections">Connections</option>
+                  <option value="/settings/metadata">Metadata</option>
+                  <option value="/settings/data">Data &amp; Backup</option>
+                  <option value="/settings/system">System</option>
+                </select>
+              </div>
+
+              <nav id="settingsTaskNav" class="settings-task-nav hidden" aria-label="Tasks in this settings section"></nav>
+
+              <section id="settingsOverview" class="settings-overview" aria-labelledby="settingsOverviewTitle">
+                <header class="settings-overview-header">
+                  <div>
+                    <p class="settings-eyebrow">Administration</p>
+                    <h2 id="settingsOverviewTitle">Settings overview</h2>
+                    <p>See what needs attention, then go directly to the right task.</p>
+                  </div>
+                  <button class="button-ghost" type="button" data-settings-path="/settings/system/health">Run system check</button>
+                </header>
+
+                <div class="settings-status-list" aria-live="polite">
+                  <button class="settings-status-row" type="button" data-settings-status="connections" data-settings-path="/settings/connections/plex" data-tone="unknown">
+                    <span class="settings-status-mark" aria-hidden="true"></span>
+                    <span class="settings-status-copy"><strong>Connections</strong><small data-status-detail>Configuration has not loaded yet.</small></span>
+                    <span class="settings-status-value" data-status-label>Unknown</span>
+                    <span class="settings-status-arrow" aria-hidden="true">→</span>
+                  </button>
+                  <button class="settings-status-row" type="button" data-settings-status="metadata" data-settings-path="/settings/metadata/tmdb" data-tone="unknown">
+                    <span class="settings-status-mark" aria-hidden="true"></span>
+                    <span class="settings-status-copy"><strong>Metadata</strong><small data-status-detail>Metadata configuration has not loaded yet.</small></span>
+                    <span class="settings-status-value" data-status-label>Unknown</span>
+                    <span class="settings-status-arrow" aria-hidden="true">→</span>
+                  </button>
+                  <button class="settings-status-row" type="button" data-settings-status="backups" data-settings-path="/settings/data/backups" data-tone="unknown">
+                    <span class="settings-status-mark" aria-hidden="true"></span>
+                    <span class="settings-status-copy"><strong>Data protection</strong><small data-status-detail>Backup status has not loaded yet.</small></span>
+                    <span class="settings-status-value" data-status-label>Unknown</span>
+                    <span class="settings-status-arrow" aria-hidden="true">→</span>
+                  </button>
+                  <button class="settings-status-row" type="button" data-settings-status="sync" data-settings-path="/settings/system/sync" data-tone="unknown">
+                    <span class="settings-status-mark" aria-hidden="true"></span>
+                    <span class="settings-status-copy"><strong>Synchronization</strong><small data-status-detail>Sync status has not loaded yet.</small></span>
+                    <span class="settings-status-value" data-status-label>Unknown</span>
+                    <span class="settings-status-arrow" aria-hidden="true">→</span>
+                  </button>
+                </div>
+
+                <div class="settings-next-actions">
+                  <div>
+                    <p class="settings-eyebrow">Common tasks</p>
+                    <h3>Go straight to the work</h3>
+                  </div>
+                  <div class="settings-action-links">
+                    <button type="button" data-settings-path="/settings/account/login"><strong>Secure this account</strong><span>Change the administrator login and revoke old sessions.</span></button>
+                    <button type="button" data-settings-path="/settings/connections/webhooks"><strong>Configure live updates</strong><span>Copy webhook and scheduler endpoints for connected servers.</span></button>
+                    <button type="button" data-settings-path="/settings/data/restore"><strong>Restore data</strong><span>Recover watch history or a complete encrypted Plembfin backup.</span></button>
+                    <button type="button" data-settings-path="/settings/system/logs"><strong>Troubleshoot a problem</strong><span>Inspect live server and browser diagnostic output.</span></button>
+                  </div>
+                </div>
+              </section>
+
               <section class="settings-pane" data-settings-panel="general">
                 <div class="settings-top-tabs">
                   <button class="settings-sub-tab active" type="button" data-sub-tab="general-login">Admin Login</button>
@@ -504,7 +565,6 @@
                         </div>
                         <p id="adminCredentialsStatus" class="message" role="status" aria-live="polite">Saving changes signs out other dashboard sessions.</p>
                         <div class="settings-actions">
-                          <button id="checkSessionButton" class="button-ghost" type="button">Check Session</button>
                           <button id="saveAdminCredentialsButton" class="button-primary" type="submit">Save Login</button>
                         </div>
                       </form>
@@ -1808,7 +1868,7 @@
                         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Warnings and errors</summary>
                         <ul class="tool-accordion-desc" style="margin-top: var(--space-2); padding-left: var(--space-4); line-height: 1.7;">
                           <li><b>[WARN]</b> — A non-critical issue, such as a missing metadata field or a server returning unexpected data. Sync continues.</li>
-                          <li><b>[ERROR]</b> — Something failed, such as a network error reaching Plex, Emby, or Jellyfin, or a failed sync dispatch. Check your server URLs and API keys in Settings → Apps if these repeat.</li>
+                          <li><b>[ERROR]</b> — Something failed, such as a network error reaching Plex, Emby, or Jellyfin, or a failed sync dispatch. Check your server URLs and API keys in Settings → Connections if these repeat.</li>
                           <li><b>Plex / Emby / Jellyfin ERROR: failed to fetch watched items</b> — The scheduled sync could not reach that server. Usually a network or credential issue.</li>
                           <li><b>loop detected</b> — A sync propagation triggered a webhook back from the target server. The loop guard blocked it. Normal when all three platforms are connected.</li>
                         </ul>
@@ -1816,7 +1876,7 @@
 
                       <details style="margin-top: var(--space-2);">
                         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Force sync logs</summary>
-                        <p class="tool-accordion-desc" style="margin-top: var(--space-2);">When you run a force sync from Settings → Tools, progress is streamed here in real time: how many items were fetched from each server, how many were reconciled, and the result of each mark-played or mark-unplayed call. A <b>Force Sync: process complete</b> line confirms it finished.</p>
+                        <p class="tool-accordion-desc" style="margin-top: var(--space-2);">When you run a force sync from Settings → System → Sync, progress is streamed here in real time: how many items were fetched from each server, how many were reconciled, and the result of each mark-played or mark-unplayed call. A <b>Force Sync: process complete</b> line confirms it finished.</p>
                       </details>
 
                       <p class="tool-accordion-desc" style="margin-top: var(--space-3); font-size: 0.8rem; color: var(--text-muted);">Use <b>Clear Logs</b> to wipe the in-memory buffer, or <b>Copy Logs</b> to paste them when reporting an issue.</p>

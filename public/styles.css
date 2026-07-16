@@ -47,6 +47,8 @@
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
   --sidebar-width: 16rem;
   --top-control-padding: 0.65rem;
   --sidebar-logo-height: 2.4rem;
@@ -54,6 +56,422 @@
   --right-topbar-height: calc((var(--top-control-padding) * 2) + var(--sidebar-logo-height));
   --right-topbar-content-offset: 0.7rem;
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Settings task shell ----------------------------------------------------- */
+.settings-hub {
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-content {
+  width: 100%;
+  container-type: inline-size;
+}
+
+.settings-mobile-section {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.settings-mobile-section label,
+.settings-eyebrow {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-mobile-section .field {
+  min-height: 2.75rem;
+  font-size: 1rem;
+}
+
+.settings-task-nav {
+  display: flex;
+  gap: var(--space-1);
+  padding: 0 0 var(--space-3);
+  margin-bottom: var(--space-4);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: none;
+}
+
+.settings-task-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-task-link {
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-task-link:hover,
+.settings-task-link:focus-visible {
+  color: var(--text);
+  background: var(--panel-2);
+}
+
+.settings-task-link:focus-visible,
+.settings-status-row:focus-visible,
+.settings-action-links button:focus-visible,
+.settings-help-disclosure > summary:focus-visible,
+.settings-advanced-disclosure > summary:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.settings-task-link.active {
+  color: var(--text);
+  border-color: var(--line-strong);
+  background: var(--panel-3);
+}
+
+.settings-overview {
+  display: grid;
+  gap: var(--space-6);
+  width: 100%;
+}
+
+.settings-overview-header {
+  display: grid;
+  gap: var(--space-4);
+  align-items: end;
+  padding: var(--space-2) 0 var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-overview-header > div {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.settings-overview-header h2,
+.settings-next-actions h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.settings-overview-header p:not(.settings-eyebrow) {
+  max-width: 58ch;
+  margin: 0;
+  color: var(--soft);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.settings-status-list {
+  display: grid;
+  border-block: 1px solid var(--line);
+}
+
+.settings-status-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 4.75rem;
+  padding: var(--space-3) 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-status-row:last-child {
+  border-bottom: 0;
+}
+
+.settings-status-row:hover {
+  background: color-mix(in srgb, var(--panel-2) 72%, transparent);
+}
+
+.settings-status-mark {
+  width: 0.68rem;
+  height: 0.68rem;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--muted) 12%, transparent);
+}
+
+.settings-status-row[data-tone="ready"] .settings-status-mark { background: var(--green); box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--green) 14%, transparent); }
+.settings-status-row[data-tone="warning"] .settings-status-mark { background: var(--yellow); box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--yellow) 14%, transparent); }
+.settings-status-row[data-tone="loading"] .settings-status-mark { background: var(--blue); box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--blue) 14%, transparent); }
+
+.settings-status-copy {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.settings-status-copy strong {
+  font-size: 0.92rem;
+}
+
+.settings-status-copy small {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.settings-status-value {
+  color: var(--soft);
+  font-size: 0.78rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.settings-status-arrow {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.settings-next-actions {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.settings-next-actions > div:first-child {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.settings-action-links {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+
+.settings-action-links button {
+  display: grid;
+  gap: var(--space-1);
+  min-height: 4.5rem;
+  padding: var(--space-3) 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-action-links button:hover {
+  padding-inline: var(--space-2);
+  background: var(--panel-2);
+}
+
+.settings-action-links strong {
+  font-size: 0.88rem;
+}
+
+.settings-action-links span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.settings-pane {
+  width: 100%;
+  padding-top: 0;
+}
+
+.settings-pane > .settings-top-tabs {
+  display: none !important;
+}
+
+.settings-pane .settings-row {
+  display: block;
+  width: 100%;
+}
+
+.settings-pane .settings-row-main {
+  display: grid;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.settings-pane .settings-card,
+.settings-pane .sync-panel,
+.settings-pane .logs-panel {
+  width: 100%;
+  padding: var(--space-4) !important;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  box-shadow: none;
+}
+
+.settings-help-disclosure,
+.settings-advanced-disclosure {
+  border-block: 1px solid var(--line);
+  background: transparent;
+}
+
+.settings-help-disclosure > summary,
+.settings-advanced-disclosure > summary {
+  min-height: 2.75rem;
+  padding: var(--space-3) 0;
+  color: var(--soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-help-disclosure > summary::marker {
+  color: var(--muted);
+}
+
+.settings-help-body {
+  padding-bottom: var(--space-4);
+}
+
+.settings-help-body > .settings-card,
+.settings-help-body > article {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.settings-help-body .section-heading {
+  display: none;
+}
+
+.settings-advanced-disclosure {
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.settings-advanced-disclosure > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  list-style: none;
+}
+
+.settings-advanced-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-advanced-disclosure > summary > span:first-child {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.settings-advanced-disclosure > summary strong {
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.settings-advanced-disclosure > summary small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.settings-advanced-disclosure[open] > summary > span:last-child {
+  transform: rotate(45deg);
+}
+
+.settings-advanced-disclosure .settings-row {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.settings-pane[data-settings-panel="sync"] > .settings-row + .settings-row {
+  margin-top: var(--space-4);
+}
+
+html.light-mode .settings-pane .settings-card,
+html.light-mode .settings-pane .sync-panel,
+html.light-mode .settings-pane .logs-panel,
+html.light-mode .settings-advanced-disclosure {
+  background: var(--panel);
+}
+
+@media (min-width: 48rem) {
+  .settings-overview-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .settings-action-links {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-5);
+  }
+}
+
+@media (min-width: 56.3125rem) {
+  .settings-mobile-section {
+    display: none;
+  }
+}
+
+@media (max-width: 40rem) {
+  .settings-overview {
+    gap: var(--space-5);
+  }
+
+  .settings-status-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .settings-status-value {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .settings-status-arrow {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+
+  .settings-pane .settings-card,
+  .settings-pane .sync-panel,
+  .settings-pane .logs-panel {
+    padding: var(--space-3) !important;
+  }
+
+  .settings-pane .settings-actions,
+  .settings-pane .logs-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-pane .settings-actions button,
+  .settings-pane .logs-actions button,
+  .settings-pane .backup-file-button {
+    width: 100%;
+    min-height: 2.75rem !important;
+  }
+}
+
+@media (pointer: coarse) {
+  .settings-task-link,
+  .settings-status-row,
+  .settings-action-links button,
+  .settings-help-disclosure > summary,
+  .settings-advanced-disclosure > summary {
+    min-height: 2.75rem;
+  }
 }
 
 * {
@@ -13027,7 +13445,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 
 /* Disabled state desaturation */
 .integration-card:has(.integration-toggle input:not(:checked)) .integration-fields,
-.integration-card:has(.integration-toggle input:not(:checked)) .settings-actions button:not(.integration-toggle) {
+.integration-card:has(.integration-toggle input:not(:checked)) .test-connection-button {
   opacity: 0.35;
   filter: saturate(0.1);
   pointer-events: none;

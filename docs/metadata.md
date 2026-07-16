@@ -34,7 +34,7 @@ bumping) are in the "TV metadata" section of [architecture.md](architecture.md).
 
 ## API keys
 
-- **TMDB** — user-supplied key (Settings → API Keys or `TMDB_API_KEY`). Required for
+- **TMDB** — user-supplied key (Settings → Metadata or `TMDB_API_KEY`). Required for
   metadata-rich pages.
 - **TheTVDB** — works out of the box via a built-in shared project key
   (`TVDB_PROJECT_KEY` overrides it); a personal key (Settings or `TVDB_API_KEY`) takes
@@ -42,7 +42,7 @@ bumping) are in the "TV metadata" section of [architecture.md](architecture.md).
   keyed by a fingerprint of the key in use.
 - **Fanart.tv** — built-in shared project key (`FANART_PROJECT_KEY` overrides); an
   optional personal key is passed as `client_key` for a higher limit.
-- **OMDb** — optional user key (Settings → Integrations or `OMDB_API_KEY`); enables the
+- **OMDb** — optional user key (Settings → Metadata or `OMDB_API_KEY`); enables the
   IMDb rating pill.
 - **YouTube** — optional user key; enables trailer metadata via `GET /api/youtube-meta`
   (key sent as an `X-goog-api-key` header, never in the URL).
@@ -68,7 +68,7 @@ Schema-version bumps (`DETAILS_SCHEMA_VERSION`, `PERSON_SCHEMA_VERSION`,
 shape change — never hand-edit cache rows to migrate them.
 
 `prewarmTmdbLibrary` (driven by the scheduler) warms details for recently watched items
-so detail pages open hot. Settings → Cache (`GET /api/cache-stats`,
+so detail pages open hot. Settings → System → Storage (`GET /api/cache-stats`,
 `POST /api/clear-cache`, handlers in `index.js`) reports and clears the caches;
 `POST /api/refresh-tmdb-metadata` force-refreshes items.
 

@@ -1,7 +1,7 @@
 # Backups
 
 Plembfin has **three backup subsystems** plus a set of pluggable remote destinations.
-All are managed from **Settings → Backups** (UI in `public/modules/tools.js`).
+All are managed from **Settings → Data & Backup** (UI in `public/modules/tools-backups.js`).
 
 | Subsystem | What it saves | Format | Files |
 | --- | --- | --- | --- |
@@ -92,14 +92,14 @@ The portable-format engine the other subsystems build on, also exposed directly:
 
 - `GET /api/backup/export` (`handleBackupExport`) — pages collections out via
   `exportCollectionPage` (cursor + limit ≤ 500) so the browser can assemble a full
-  plain-JSON backup for download (Settings → Backups → Export).
+  plain-JSON backup for download (Settings → Data & Backup → Backups).
 - `POST /api/backup/import` (`handleBackupImport`) — imports batches via
   `importCollectionBatch` (≤ 250 documents per batch, optional per-collection reset).
   Importing watch-state collections bumps `dataVersion` so derived caches reload.
 - The `portableValue`/`reviveValue` helpers keep timestamps portable, and the format
   also revives `_seconds`-style timestamps found in old exports.
 
-## Watch-history importer (Settings → Tools)
+## Watch-history importer (Settings → Data & Backup → Trakt import)
 
 Separate from backups: `POST /api/import` (`handleImport`) ingests watch records from
 CSV/JSON files (e.g. Trakt exports, `scripts/exportPlexHistory.js` output). Frontend
@@ -108,7 +108,7 @@ files in the browser and posts records in batches.
 
 ## Frontend (`public/modules/tools.js`)
 
-Settings → Backups renders: schedule/retention settings, destination cards
+Settings → Data & Backup renders: schedule/retention settings, destination cards
 (add/save/test/remove/connect OAuth/list remote files/restore from remote), backup-now
 buttons, backup file lists with download/delete/restore, dry-run/merge/replace restore
 choices, and transfer status (`setBackupTransferState`). State lives in

@@ -192,13 +192,13 @@ export async function runSystemIntegrityCheck() {
     if (res.status !== "success") {
       if (res.name === "Scheduled Cron Job") { fixInstruction = "Fix: The background sync worker runs in-process every minute. If it hasn't fired, confirm the server is running and check the server logs for errors. You can also trigger it manually via /api/cron-sync."; settingsLink = "sync"; }
       else if (res.name === "Watch History API") { fixInstruction = "Fix: The SQLite database may be locked or the data directory may not be writable. Check the server logs and confirm DATA_DIR is set correctly."; }
-      else if (res.name === "Server Configuration") { fixInstruction = "Fix: Try saving your configuration again in Settings → Apps. If the error persists, check that data/config.json is writable."; }
+      else if (res.name === "Server Configuration") { fixInstruction = "Fix: Try saving your configuration again in Settings → Connections. If the error persists, check that data/config.json is writable."; }
       else if (res.name === "Webhook Listener Endpoint") { fixInstruction = "Fix: Confirm the server is running and accessible at the expected host and port. Check for firewall or reverse-proxy rules blocking /api/webhook."; }
       else if (res.name === "Outbound Playstate Sync") { fixInstruction = "Fix: Open the latest history row debug details, review sync_dispatch_telemetry, then correct the failed platform credentials or provider-ID match."; }
-      else if (res.name === "Plex Media Server") { fixInstruction = "Fix: Enter the Plex Server URL and Plex Token in Settings → Apps, then confirm the server is reachable from the machine running Plembfin."; }
+      else if (res.name === "Plex Media Server") { fixInstruction = "Fix: Enter the Plex Server URL and Plex Token in Settings → Connections, then confirm the server is reachable from the machine running Plembfin."; }
       else if (res.name === "Plex Realtime Notifications") { fixInstruction = "Fix: Ensure any reverse proxy / Cloudflare in front of Plex forwards WebSocket upgrades on /:/websockets/notifications, or set the Plex Server URL to the direct LAN address (e.g. http://192.168.x.x:32400). Unwatch sync still works via the fallback poll until this is fixed."; settingsLink = "apps"; }
-      else if (res.name === "Emby Media Server") { fixInstruction = "Fix: Enter the Emby Server URL, API Key, and User ID in Settings → Apps, then confirm the server is reachable from the machine running Plembfin."; }
-      else if (res.name === "Jellyfin Media Server") { fixInstruction = "Fix: Enter the Jellyfin Server URL, API Key, and User ID in Settings → Apps, then confirm the server is reachable from the machine running Plembfin."; }
+      else if (res.name === "Emby Media Server") { fixInstruction = "Fix: Enter the Emby Server URL, API Key, and User ID in Settings → Connections, then confirm the server is reachable from the machine running Plembfin."; }
+      else if (res.name === "Jellyfin Media Server") { fixInstruction = "Fix: Enter the Jellyfin Server URL, API Key, and User ID in Settings → Connections, then confirm the server is reachable from the machine running Plembfin."; }
     }
 
     return `

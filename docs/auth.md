@@ -16,16 +16,16 @@ for integrations, and a separate webhook secret. No external identity provider.
 
 | Credential | Purpose | Storage | Rotation |
 | --- | --- | --- | --- |
-| Admin username + password | Dashboard login | scrypt hash in `data/config.json` (`ADMIN_USERNAME`/`ADMIN_PASSWORD` env override until credentials are managed in-app) | Settings → General |
+| Admin username + password | Dashboard login | scrypt hash in `data/config.json` (`ADMIN_USERNAME`/`ADMIN_PASSWORD` env override until credentials are managed in-app) | Settings → Account & Security |
 | Session secret | Signs the `plembfin_session` cookie | `data/config.json` (`SESSION_SECRET` pins it) | Rotating it (credential change, revoke-all, env change + restart) invalidates every session at once |
 | API key | Integrations/automation: `X-Api-Key` or `Authorization: Bearer` | `data/config.json` (`API_KEY` pins it) | Set a new `API_KEY` and restart |
-| Webhook secret | Authorizes `/api/webhook` only | `data/config.json` (`WEBHOOK_SECRET` pins it) | Settings → API Keys → Rotate (`POST /api/auth/webhook-secret`) — independent of everything else |
+| Webhook secret | Authorizes `/api/webhook` only | `data/config.json` (`WEBHOOK_SECRET` pins it) | Settings → Connections → Webhooks → Rotate Secret (`POST /api/auth/webhook-secret`) — independent of everything else |
 
 First boot: if `ADMIN_PASSWORD` is unset, a random password is generated and printed
 **once** to the server console; only the scrypt hash is stored. Secrets shorter than 32
 chars fail startup (`assertMinSecretLength`); a default `admin` password triggers a
 forced-change flow (`mustChangePassword` in `/api/auth/status` pins the UI to Settings →
-General).
+Account & Security).
 
 When credentials are changed from Settings or all sessions are revoked,
 `authManagedInApp: true` is written to `data/config.json`. While that flag is present,

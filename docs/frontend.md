@@ -50,7 +50,8 @@ SPA navigation via `history.pushState`:
 | `/movies`, `/tvshows` | Explorer in movies/shows mode |
 | `/upcoming` | Upcoming TV episode calendar |
 | `/history`, `/stats`, `/search?q=` | History / Stats / Search |
-| `/settings/:tab`, `/sync`, `/logs` | Settings (tab from `SETTINGS_TABS`) |
+| `/settings`, `/settings/:group/:task?` | Settings overview and focused administration tasks |
+| `/sync`, `/logs`, legacy `/settings/:tab` URLs | Compatibility aliases normalized to the matching Settings task |
 | `/movie/:idOrSlug`, `/movie/tmdb/:id` | Movie detail (inline in explorer) |
 | `/tvshow/:key(/season/:n(/episode/:n))`, `/tvshow/tmdb/:id` | Show detail, with season/episode deep links (legacy `#seasonNepM` hash also parsed) |
 | `/person/:id` | Person profile |
@@ -62,6 +63,8 @@ SPA navigation via `history.pushState`:
 - Detail pages record `state.mediaDetailReturnView` so closing returns to where the
   user came from; `state.internalHistoryCount` tracks how deep in-app history goes so
   back-button behavior stays sane.
+- `modules/settings-shell.js` is the settings route registry. It resolves group/task
+  defaults, legacy aliases, overview status, focused panels, and task navigation.
 - `popstate` re-runs `handleRouting` for browser back/forward; direct URL loads hydrate
   the same UI (the server falls back to `index.html` for any non-API path).
 

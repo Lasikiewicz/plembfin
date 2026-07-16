@@ -10,7 +10,7 @@ Causes, in order of likelihood:
    server machine. If that machine can't reach the configured Plex/Emby/Jellyfin
    URLs, `live_tracking_cache` stays empty. The browser-side local probe compensates
    for display but the scheduler's completion/catch-up logic won't run. Check the
-   server logs and Settings → Tools → System Integrity Check.
+   server logs and Settings → System → Health.
 2. **Database is stale.** Check via SQLite directly:
    ```sh
    sqlite3 data/plembfin.db "SELECT title, last_progress, completed_at FROM live_tracking_cache ORDER BY updated_at DESC LIMIT 10;"
@@ -69,7 +69,7 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
 - The session cookie `plembfin_session` must be present and unexpired (7-day TTL).
 - If `COOKIE_SECURE=true` is set, the cookie is only sent over HTTPS. Accessing the
   app over HTTP will silently drop it.
-- API key is shown after sign-in via Settings → API Endpoints (click the eye icon
+- API key is shown after sign-in via Settings → Connections → Webhooks (click the eye icon
   if present) or from `GET /api/auth/apikey` with a valid session.
 - If all sessions appear invalid, `sessionSecret` may have rotated (e.g. after
   "Revoke All Sessions"). Sign in again.
@@ -77,7 +77,7 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
 ## "Webhook returns 401"
 
 - The webhook secret is missing or wrong. Media-server setup usually uses the
-  `?token=` URL from **Settings -> API Endpoints**; automation can send
+  `?token=` URL from **Settings → Connections → Webhooks**; automation can send
   `X-Plembfin-Webhook-Secret` or `Authorization: Bearer <secret>`.
 - If you rotated the webhook secret ("Rotate Secret" button), all media servers need
   to be updated with the new URL or header value.

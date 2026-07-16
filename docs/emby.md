@@ -15,7 +15,7 @@ polling. Read [architecture.md](architecture.md) first for the big picture.
 
 ## Configuration
 
-Settings → Apps → Emby needs three values (stored in the `settings` SQLite row; env
+Settings → Connections → Emby needs three values (stored in the `settings` SQLite row; env
 vars `EMBY_SERVER_URL` / `EMBY_API_KEY` / `EMBY_USER_ID` act as defaults):
 
 - **baseUrl** — reachable *from the Plembfin server machine*

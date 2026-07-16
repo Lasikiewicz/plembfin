@@ -20,7 +20,7 @@ export const HISTORY_FILTERS = ["all", "movies", "shows"];
 export const DASHBOARD_HISTORY_VIEW_KEY = "plembfin:dashboardHistoryView";
 export const DASHBOARD_HISTORY_VIEW_MODES = ["cards", "posters"];
 export const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "upcoming", "settings", "help", "search", "history"];
-export const SETTINGS_TABS = ["general", "apps", "api-keys", "tools", "backups", "sync", "logs", "changelog", "cache"];
+export const SETTINGS_TABS = ["account", "connections", "metadata", "data", "system"];
 
 function _startOfWeek(value) {
   const date = new Date(value);
@@ -39,6 +39,7 @@ export const state = {
   currentUser: undefined,
   activeView: localStorage.getItem(ACTIVE_VIEW_KEY) || "dashboard",
   activeSettingsTab: localStorage.getItem(ACTIVE_SETTINGS_TAB_KEY) || "general",
+  activeSettingsRoute: null,
   activeBackupsTab: localStorage.getItem("activeBackupsTab") || "settings",
   remoteBackupFiles: [],
   remoteBackupFilesLoading: false,

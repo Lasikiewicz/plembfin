@@ -159,10 +159,10 @@
 ## Full Setup & Integration Guide
 
 ### 1. Sign In & Set Admin Credentials
-Sign in with `admin` and the password you set via `ADMIN_PASSWORD`, or the random password Plembfin generated and printed to the console on first boot. If the configured admin password is the insecure default `admin`, Plembfin redirects to **Settings → General** with a security banner until the password is changed.
+Sign in with `admin` and the password you set via `ADMIN_PASSWORD`, or the random password Plembfin generated and printed to the console on first boot. If the configured admin password is the insecure default `admin`, Plembfin redirects to **Settings → Account & Security** with a security banner until the password is changed.
 
 ### 2. Connect Your Media Apps
-Go to **Settings → Apps** and configure connection settings for the platforms you use:
+Go to **Settings → Connections** and configure the platforms you use:
 
 #### Plex Integration
 *   Enable Plex.
@@ -187,14 +187,14 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 
 #### TheTVDB (TV Show Episode Data)
 *   Plembfin includes a built-in project key for [TheTVDB](https://thetvdb.com) — no setup is required. TV show names, seasons, episode numbering, titles, and air dates are sourced from TheTVDB, since it is often more accurate for TV episode ordering. Cast, trailers, reviews, and recommendations are sourced from TMDB.
-*   **Personal API Key (optional)**: Register at thetvdb.com (Dashboard → API Keys) and enter your personal key under **Settings → API Keys → TheTVDB** for your own request quota.
+*   **Personal API Key (optional)**: Register at thetvdb.com (Dashboard → API Keys) and enter your personal key under **Settings → Metadata → TheTVDB** for your own request quota.
 
 #### Fanart.tv (Artwork Fallback)
 *   Plembfin includes a built-in project key for [Fanart.tv](https://fanart.tv) — no setup is required. Fanart.tv is queried after TMDB as a fallback/additional source for posters, backdrops, and transparent logo art.
-*   **Personal API Key (optional)**: Register at fanart.tv and enter your personal key under **Settings → API Keys → Fanart.tv** to get higher rate limits and access to your own uploaded artwork.
+*   **Personal API Key (optional)**: Register at fanart.tv and enter your personal key under **Settings → Metadata → Fanart.tv** to get higher rate limits and access to your own uploaded artwork.
 
 #### OMDb (IMDb Ratings)
-*   **Optional**: Register for a free API key at [omdbapi.com](https://www.omdbapi.com/apikey.aspx) (1,000 req/day free tier) and paste it under **Settings → Integrations → OMDb Setup**.
+*   **Optional**: Register for a free API key at [omdbapi.com](https://www.omdbapi.com/apikey.aspx) (1,000 req/day free tier) and paste it under **Settings → Metadata → OMDb**.
 *   When configured, IMDb ratings appear as a rating badge (e.g. **IMDb 85%**) next to the TMDB score on media detail pages. If no OMDb key is configured, IMDb rating badges are hidden. Ratings are cached locally for 7 days. Can also be set via the `OMDB_API_KEY` environment variable.
 
 #### Seerr (Request Manager)
@@ -210,7 +210,7 @@ Go to **Settings → Apps** and configure connection settings for the platforms 
 
 ## Webhook Setup (Critical for Live Sync)
 
-Playback events are sent to Plembfin via webhooks. Plembfin accepts the webhook secret in the `X-Plembfin-Webhook-Secret` header, as `Authorization: Bearer <secret>`, or in the compatibility query-token URL used by Plex/Emby/Jellyfin. Copy the full URL from **Settings → General → API Endpoints** after signing in. It will look like:
+Playback events are sent to Plembfin via webhooks. Plembfin accepts the webhook secret in the `X-Plembfin-Webhook-Secret` header, as `Authorization: Bearer <secret>`, or in the compatibility query-token URL used by Plex/Emby/Jellyfin. Copy the full URL from **Settings → Connections → Webhooks** after signing in. It will look like:
 
 ```
 http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
@@ -224,7 +224,7 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 #### 1. Plex Webhook Setup
 1.  Navigate to Plex Web → **Account Settings → Webhooks**.
 2.  Click **Add Webhook**.
-3.  Paste the full webhook URL (with `?token=`) from **Settings → General → API Endpoints**.
+3.  Paste the full webhook URL (with `?token=`) from **Settings → Connections → Webhooks**.
 4.  Enable events: `media.play`, `media.resume`, `media.pause`, `media.stop`, `media.scrobble`.
 5.  Save changes.
 
@@ -232,7 +232,7 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 
 #### 2. Emby Webhook Setup
 1.  Go to Emby Server Settings → **Webhooks** and add a new webhook.
-2.  Set the URL to the full webhook URL (with `?token=`) from **Settings → General → API Endpoints**.
+2.  Set the URL to the full webhook URL (with `?token=`) from **Settings → Connections → Webhooks**.
 3.  Under **Events → Playback**, check: `Start`, `Pause`, `Unpause`, `Stop`.
 4.  Under **Events → Users**, check: `Mark Played`, `Mark Unplayed`.
 5.  Enable **Send All Properties** so payloads include position data for resume sync.
@@ -240,7 +240,7 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 #### 3. Jellyfin Webhook Setup
 1.  Install the **Webhooks** plugin from the Jellyfin Plugin Catalog.
 2.  Add a new **Generic Webhook** named `plembfin`.
-3.  Set the URL to the full webhook URL (with `?token=`) from **Settings → General → API Endpoints**.
+3.  Set the URL to the full webhook URL (with `?token=`) from **Settings → Connections → Webhooks**.
 4.  Under **Notification Type**, check: `Playback Start`, `Playback Progress`, `Playback Stop`, `User Data Saved`.
 5.  Under **Item Type**, select: `Movies`, `Episodes`.
 6.  Check **Send All Properties (ignores template)** and save.
@@ -255,7 +255,7 @@ Plembfin runs automated daily backups at a customizable time.
 
 *   **Local Watch History Backups**: Capture watch history snapshots, playstates, and resume markers. Saved to `data/backups/watch-history`.
 *   **Local Plembfin Backups**: Create full, AES-256-GCM encrypted database backups (including settings, API keys, credentials, and play history, excluding cache). Manual backups can use a one-time passphrase; scheduled backups require a remembered passphrase. Saved to `data/backups/plembfin`.
-*   **Remote Backups**: Mirror local watch-history and full encrypted Plembfin backups to a private Backblaze B2 bucket under **Settings → Backups → Remote Backups**.
+*   **Remote Backups**: Mirror local watch-history and full encrypted Plembfin backups to a private Backblaze B2 bucket under **Settings → Data & Backup → Backups**.
 
 ---
 
@@ -263,8 +263,8 @@ Plembfin runs automated daily backups at a customizable time.
 
 ### Trakt Watch History Import
 1. Download a JSON watch history export of your Trakt profile.
-2. Go to **Settings → Tools** in Plembfin, upload the JSON, and start the import.
-3. Once completed, click **Full Sync Watchstates** to propagate the Trakt watch history to all connected Plex, Emby, and Jellyfin servers.
+2. Go to **Settings → Data & Backup → Trakt import**, upload the JSON, and start the import.
+3. Once completed, use **Settings → System → Advanced → Library rebuilds and backfills → Full Sync Watchstates** to propagate the Trakt watch history to all connected Plex, Emby, and Jellyfin servers.
 
 ---
 
@@ -286,15 +286,15 @@ The following environment variables can be set in your system or defined in `doc
 | `TVDB_API_KEY` | _none_ | Optional personal TheTVDB API key for a higher personal rate limit. A built-in project key is used when this is unset. |
 | `TVDB_PROJECT_KEY` | _built-in_ | Advanced: replaces the built-in shared TheTVDB project key. Only needed if the built-in key is revoked or exhausted. |
 | `FANART_PROJECT_KEY` | _built-in_ | Advanced: replaces the built-in shared Fanart.tv project key. Only needed if the built-in key is revoked or exhausted. |
-| `TMDB_API_KEY` | _none_ | Default TMDB API key (Settings → API Keys takes precedence). |
+| `TMDB_API_KEY` | _none_ | Default TMDB API key (Settings → Metadata takes precedence). |
 | `YOUTUBE_API_KEY` | _none_ | Optional YouTube Data API key for trailer metadata (Settings takes precedence). |
 | `OMDB_API_KEY` | _none_ | Optional OMDb API key. When set, IMDb ratings are fetched and displayed as a rating badge on media detail pages. Free tier: 1,000 req/day. |
-| `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` / `PLEX_ENABLED` | _none_ | Default Plex connection values. Anything saved in Settings → Apps takes precedence. |
+| `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` / `PLEX_ENABLED` | _none_ | Default Plex connection values. Anything saved in Settings → Connections takes precedence. |
 | `EMBY_SERVER_URL` / `EMBY_API_KEY` / `EMBY_USER_ID` / `EMBY_ENABLED` | _none_ | Default Emby connection values (Settings takes precedence). |
 | `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` | _none_ | Default Jellyfin connection values (Settings takes precedence). |
 | `WATCHED_PLAYED_SYNC_ENABLED` | `true` | Set to `false` to disable all watched/played propagation between platforms (watch recording still happens). |
 | `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | The frequency (in milliseconds) of database-heavy catch-up library scans on Plex/Emby/Jellyfin. |
-| `PLEMBFIN_DEBUG_OUTBOUND` | _off_ | Set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs) — useful for measuring how much traffic each metadata service and media server receives. |
+| `PLEMBFIN_DEBUG_OUTBOUND` | _off_ | Set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → System → Logs) — useful for measuring how much traffic each metadata service and media server receives. |
 
 A commented template of every variable is provided in [`.env.example`](.env.example) — copy it to `.env` for bare-metal installs.
 
@@ -324,7 +324,7 @@ npm run dev      # start with auto-reload on http://localhost:5055
 Commits for user-visible features, fixes, security changes, enhancements, and docs
 must use a `type: summary` subject plus meaningful `- ` bullet points in the body.
 The installed commit hook and CI changelog generator both reject title-only release
-messages, preventing sparse entries in **Settings -> Changelog**. See
+messages, preventing sparse entries in **Settings → System → About**. See
 [`docs/development.md`](docs/development.md) for the full release workflow.
 
 ---
@@ -333,7 +333,7 @@ messages, preventing sparse entries in **Settings -> Changelog**. See
 
 Plembfin is licensed under the GNU Affero General Public License v3.0. See
 [LICENSE.md](LICENSE.md). Version history is bundled in [changelog.json](changelog.json)
-and shown in **Settings -> Changelog**.
+and shown in **Settings → System → About**.
 
 ---
 
