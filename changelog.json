@@ -1,7 +1,17 @@
 {
-  "version": "0.4.53",
-  "updatedAt": "2026-07-16T10:08:38+01:00",
+  "version": "0.4.54",
+  "updatedAt": "2026-07-16T10:22:50+01:00",
   "entries": [
+    {
+      "version": "0.4.54",
+      "date": "2026-07-16T10:22:50+01:00",
+      "commit": "2fc85751652bc23f3a40f22e3251f4a3206a6fb6",
+      "message": "Fix - Harden backup forms and TMDB timeouts",
+      "author": "Lasikiewicz",
+      "details": [
+        "Remove browser password-form warnings from backup settings and show a useful fallback when TMDB times out."
+      ]
+    },
     {
       "version": "0.4.53",
       "date": "2026-07-16T10:08:38+01:00",
