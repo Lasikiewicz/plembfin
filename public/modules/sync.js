@@ -1141,7 +1141,7 @@ export async function triggerCronSync() {
   const terminal = elements.forceSyncTerminal;
   if (!button) return;
 
-  if (terminal) { terminal.classList.remove("hidden"); terminal.textContent = "Cron Sync started...\n"; }
+  if (terminal) { terminal.classList.remove("hidden"); terminal.textContent = ""; }
   beginSyncProgress("Preparing recent-item repair");
 
   const originalText = button.textContent;
@@ -1213,6 +1213,7 @@ export async function triggerCronSync() {
 
 export async function triggerStopSync() {
   const button = elements.stopSyncButton;
+  const terminal = elements.forceSyncTerminal;
   if (!button) return;
   const originalText = button.textContent;
   button.disabled = true;
@@ -1221,7 +1222,12 @@ export async function triggerStopSync() {
     const response = await fetch("/api/stop-force-sync", { method: "POST", headers: authHeaders() });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Stop sync failed with HTTP ${response.status}`);
-    _cb.showToast?.("Stop sync request sent.");
+    _cb.showToast?.(body.message || "Stop sync request sent.");
+    if (body.reset && terminal) {
+      terminal.classList.remove("hidden");
+      terminal.textContent += `${terminal.textContent ? "\n" : ""}RESET: ${body.message}\n`;
+      terminal.scrollTop = terminal.scrollHeight;
+    }
   } catch (error) {
     _cb.showToast?.(`Error stopping sync: ${error.message}`);
   } finally {
@@ -1232,7 +1238,6 @@ export async function triggerStopSync() {
 
 export async function triggerForceSync() {
   const button = elements.forceSyncButton;
-  const stopButton = elements.stopSyncButton;
   const terminal = elements.forceSyncTerminal;
   if (!button) return;
 
@@ -1245,7 +1250,6 @@ export async function triggerForceSync() {
       button.disabled = true;
       button.textContent = "Syncing...";
       button.classList.add("hidden");
-      if (stopButton) stopButton.classList.remove("hidden");
 
       try {
         const startResponse = await fetch("/api/force-sync", { method: "POST", headers: authHeaders() });
@@ -1302,7 +1306,6 @@ export async function triggerForceSync() {
         button.disabled = false;
         button.textContent = originalText;
         button.classList.remove("hidden");
-        if (stopButton) stopButton.classList.add("hidden");
       }
     }
   );

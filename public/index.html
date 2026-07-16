@@ -1691,7 +1691,7 @@
                         <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
                           <button id="runCronSyncButton" class="button-primary sync-action-btn" type="button" title="Check recent watched and part-watched items for missing Plembfin records">Repair Recent Items</button>
                           <button id="forceSyncButton" class="button-primary sync-action-btn" type="button" title="Force an immediate sync of all pending watched states">Force Sync</button>
-                          <button id="stopSyncButton" class="button-danger hidden" type="button" title="Stop the currently running sync">Stop Sync</button>
+                          <button id="stopSyncButton" class="button-danger" type="button" title="Cancel a running force sync or clear a sync lock left behind by a server restart">Stop / Reset Sync</button>
                           <button id="refreshSyncButton" class="button-ghost sync-btn" type="button" title="Refresh the sync issues list">Refresh</button>
                         </div>
                         <div class="activity-log">
@@ -1736,7 +1736,7 @@
                         <b>Force Sync:</b> Forcefully propagates all pending watched-state changes to your other platforms right away, bypassing the 60-second scheduled interval. Use this to immediately sync a watch or unwatched state.
                       </p>
                       <p class="tool-accordion-desc" style="margin-bottom: var(--space-3);">
-                        <b>Stop Sync:</b> Halts a currently running force sync operation. Appears only when a sync is actively running.
+                        <b>Stop / Reset Sync:</b> Cancels a running force sync. If the server restarted mid-sync, it immediately clears the orphaned lock so recent-item repair can run again.
                       </p>
                       <p class="tool-accordion-desc" style="margin: 0;">
                         <b>Refresh:</b> Reloads the sync issues list to check for any new or resolved issues without waiting for the next scheduled check.

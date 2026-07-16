@@ -13,7 +13,8 @@ loadLocalEnv();
 const { DATA_DIR, PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
 const { dispatch, runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener, backfillUnknownShowTitles } = await import("./src/index.js");
 const { db } = await import("./src/db.js");
-const { loadMediaConfig } = await import("./src/utils/configStore.js");
+const { appendRuntimeLog, loadMediaConfig, loadRuntimeState, setRuntimeState } = await import("./src/utils/configStore.js");
+const { forceSyncStopAction } = await import("./src/utils/forceSyncControl.js");
 
 ensureDataDirs();
 const LOGS_DIR = path.join(DATA_DIR, "logs");
@@ -192,7 +193,21 @@ async function tick() {
 
 const server = app.listen(PORT);
 
-server.on("listening", () => {
+async function clearOrphanedForceSyncLockAtBoot() {
+  const runtime = await loadRuntimeState();
+  if (forceSyncStopAction({ runtimeActive: runtime.forceSyncActive === true, cancelRequested: runtime.forceSyncCancelRequested === true }) !== "reset") return;
+  const message = "Orphaned force-sync lock cleared automatically after server restart.";
+  await appendRuntimeLog("forceSyncLog", [`RESET: ${message}`]).catch(() => null);
+  await setRuntimeState({
+    forceSyncActive: false,
+    forceSyncCancelRequested: false,
+    forceSyncHeartbeat: Date.now(),
+    forceSyncResult: { success: true, aborted: true, reset: true, reason: message },
+  });
+  console.warn(message);
+}
+
+server.on("listening", async () => {
   const address = server.address();
   const listeningPort = typeof address === "object" && address ? address.port : PORT;
   console.log(`plembfin listening on http://localhost:${listeningPort}`);
@@ -205,6 +220,7 @@ server.on("listening", () => {
     });
     return;
   }
+  await clearOrphanedForceSyncLockAtBoot().catch((error) => console.error("Failed to clear orphaned force-sync lock", error));
   // Fix any episodes stored with "Unknown Show" title when a better title is now known.
   backfillUnknownShowTitles().catch((err) => console.error("backfillUnknownShowTitles failed", err));
   // Kick once shortly after boot, then every minute.

@@ -12,6 +12,7 @@ import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessio
 import { runForceSync, runScheduledSync } from "../scheduled.js";
 import { getLogs as getDiagnosticLogs, clearLogs as clearDiagnosticLogs } from "../utils/diagnosticLogger.js";
 import { appendSyncHistory, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "../utils/configStore.js";
+import { forceSyncStopAction } from "../utils/forceSyncControl.js";
 import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes } from "../utils/plexClient.js";
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "../utils/embyClient.js";
@@ -898,8 +899,31 @@ export async function handleStopForceSync(req, res) {
   if (!(await requireAdmin(req, res))) return;
 
   try {
-    await setRuntimeState({ forceSyncCancelRequested: true });
-    return sendJson(res, { ok: true, message: "Cancellation request received." });
+    const runtime = await loadRuntimeState();
+    const action = forceSyncStopAction({
+      workerRunning: forceSyncRunning,
+      runtimeActive: runtime.forceSyncActive === true,
+      cancelRequested: runtime.forceSyncCancelRequested === true,
+    });
+
+    if (action === "cancel") {
+      await setRuntimeState({ forceSyncCancelRequested: true });
+      return sendJson(res, { ok: true, active: true, reset: false, message: "Cancellation request sent to the running force sync." });
+    }
+
+    const reset = action === "reset";
+    const message = reset
+      ? "Orphaned force-sync lock cleared. Recent-item repair can run now."
+      : "No force sync was active. The sync lock is already clear.";
+
+    if (reset) await appendRuntimeLog("forceSyncLog", [`RESET: ${message}`]).catch(() => null);
+    await setRuntimeState({
+      forceSyncActive: false,
+      forceSyncCancelRequested: false,
+      forceSyncHeartbeat: Date.now(),
+      ...(reset ? { forceSyncResult: { success: true, aborted: true, reset: true, reason: message } } : {}),
+    });
+    return sendJson(res, { ok: true, active: false, reset, message });
   } catch (error) {
     return sendJson(res, { ok: false, error: error.message }, 500);
   }
