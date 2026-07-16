@@ -677,7 +677,7 @@ function renderGlobalSearchDropdown(query) {
 
   const finalPeople = people.slice(0, 5);
 
-  if (!movies.length && !shows.length && !finalPeople.length && !discoveryState?.loading) return;
+  if (!movies.length && !shows.length && !finalPeople.length && !discoveryState?.loading && !discoveryState?.error) return;
 
   const anchor = document.querySelector(".global-search");
   if (!anchor) return;
@@ -717,6 +717,7 @@ function renderGlobalSearchDropdown(query) {
       </div>
     </div>
     ${discoveryState?.loading ? `<div class="gsd-loading">Searching TMDB…</div>` : ""}
+    ${discoveryState?.error ? `<div class="gsd-error" role="status">${escapeHtml(discoveryState.error)}</div>` : ""}
     <button class="gsd-more" data-search="${escapeAttribute(query)}">View All Results</button>
   `;
 
@@ -755,11 +756,18 @@ async function loadGlobalDiscovery(query) {
   try {
     const response = await fetch(`/api/tmdb-search?query=${encodeURIComponent(query)}&mediaType=multi`, { headers: authHeaders() });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || `Search failed with ${response.status}`);
+    if (!response.ok) {
+      const error = new Error(body.error || `Search failed with ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
     state.globalDiscoveryResults.set(normalized, { loading: false, results: body.results || [] });
   } catch (error) {
-    state.globalDiscoveryResults.set(normalized, { loading: false, results: [] });
-    console.error("TMDB discovery search failed", error);
+    const message = error.status === 504 || /timed out/i.test(error.message || "")
+      ? "TMDB is taking too long to respond. Local results are still available; try again shortly."
+      : "TMDB results are unavailable right now. Local results are still available; try again.";
+    state.globalDiscoveryResults.set(normalized, { loading: false, results: [], error: message });
+    console.warn("TMDB discovery search unavailable", error);
   }
   if (token === state.globalSearchRequestToken && elements.globalSearchInput?.value.trim().toLowerCase() === normalized) {
     renderGlobalSearchDropdown(query);

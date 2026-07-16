@@ -1243,7 +1243,7 @@
                             </div>
                           </div>
                           
-                          <div class="backup-settings-grid backup-settings-inline">
+                          <form class="backup-settings-grid backup-settings-inline backup-managed-form" data-submit-target="savePlembfinBackupConfigButton">
                             <div class="backup-settings-left">
                               <label class="checkbox-label backup-enable-row">
                                 <input id="plembfinBackupEnabled" type="checkbox" />
@@ -1261,7 +1261,7 @@
                               </label>
                               <label class="field-label" style="flex: 1.5 !important;">
                                 Passphrase - <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">At least 12 chars</span>
-                                <input id="backupExportPassphrase" class="field" type="password" autocomplete="new-password" />
+                                <input id="backupExportPassphrase" class="field" name="backupPassphrase" type="password" autocomplete="new-password" />
                               </label>
                               <label class="checkbox-label backup-enable-row">
                                 <input id="backupExportRememberPassphrase" type="checkbox" />
@@ -1272,7 +1272,7 @@
                               <button id="savePlembfinBackupConfigButton" class="button-primary" type="button" disabled>Save Schedule</button>
                               <button id="createPlembfinBackupButton" class="button-ghost" type="button" disabled>Back Up Now</button>
                             </div>
-                          </div>
+                          </form>
 
                           <div id="plembfinBackupRuntime" class="backup-runtime" aria-live="polite"></div>
                         </article>
@@ -1315,6 +1315,7 @@
                             </div>
                           </div>
                           
+                          <form class="backup-managed-form" data-submit-target="saveWatchBackupRemoteButton">
                           <div class="backup-settings-grid backup-settings-inline">
                             <div class="backup-settings-left">
                               <label class="checkbox-label backup-enable-row">
@@ -1348,9 +1349,10 @@
                             </label>
                             <label class="field-label">
                               applicationKey
-                              <input id="watchBackupRemoteAppKey" class="field" type="password" placeholder="•••••••• (saved — leave blank to keep)" />
+                              <input id="watchBackupRemoteAppKey" class="field" name="applicationKey" type="password" autocomplete="new-password" placeholder="•••••••• (saved — leave blank to keep)" />
                             </label>
                           </div>
+                          </form>
 
                           <div id="watchBackupRemoteRuntime" class="backup-runtime" aria-live="polite"></div>
                         </article>
@@ -1363,7 +1365,7 @@
                             </div>
                           </div>
                           
-                          <div class="backup-settings-grid backup-settings-inline">
+                          <form class="backup-settings-grid backup-settings-inline backup-managed-form" data-submit-target="savePlembfinBackupRemoteButton">
                             <div class="backup-settings-left">
                               <label class="checkbox-label backup-enable-row">
                                 <input id="plembfinBackupRemoteEnabled" type="checkbox" />
@@ -1373,7 +1375,7 @@
                             <div class="backup-settings-center" style="flex: 2.2;">
                               <label class="field-label" style="flex: 1.5 !important;">
                                 Passphrase - <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">At least 12 chars</span>
-                                <input id="plembfinBackupRemotePassphrase" class="field" type="password" autocomplete="new-password" />
+                                <input id="plembfinBackupRemotePassphrase" class="field" name="remoteBackupPassphrase" type="password" autocomplete="new-password" />
                               </label>
                               <label class="checkbox-label backup-enable-row">
                                 <input id="plembfinBackupRemoteRememberPassphrase" type="checkbox" />
@@ -1383,7 +1385,7 @@
                             <div class="backup-settings-right">
                               <button id="savePlembfinBackupRemoteButton" class="button-primary" type="button" disabled>Save Settings</button>
                             </div>
-                          </div>
+                          </form>
 
                           <div id="plembfinBackupRemoteRuntime" class="backup-runtime" aria-live="polite"></div>
                         </article>
@@ -1451,11 +1453,11 @@
                             <span id="backupRestoreStatus" class="status-pill status-muted">Idle</span>
                           </div>
 
-                          <div class="backup-settings-grid backup-settings-inline">
+                          <form class="backup-settings-grid backup-settings-inline backup-managed-form" data-submit-target="backupImportButton">
                             <div class="backup-settings-left" style="flex: 2;">
                               <label class="field-label" style="width: 100%;">
                                 Backup encryption passphrase - <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">Required to restore full backups</span>
-                                <input id="backupRestorePassphrase" class="field" type="password" autocomplete="new-password" />
+                                <input id="backupRestorePassphrase" class="field" name="restorePassphrase" type="password" autocomplete="new-password" />
                               </label>
                             </div>
                             <div class="backup-settings-right">
@@ -1465,7 +1467,7 @@
                               </label>
                               <button id="backupImportButton" class="button-primary" type="button" disabled>Restore Plembfin Backup</button>
                             </div>
-                          </div>
+                          </form>
 
                           <div id="plembfinBackupList" class="watch-backup-list" data-watch-backup-list="local" aria-live="polite" style="margin-top: var(--space-3);"></div>
                           <pre id="backupRestoreLog" class="import-terminal compact-terminal" aria-live="polite" style="margin-top: var(--space-2);">[idle] Enter a passphrase, then choose a local or uploaded encrypted Plembfin backup.</pre>

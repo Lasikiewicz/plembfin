@@ -6890,6 +6890,16 @@ h1 {
   font-size: 0.8rem;
 }
 
+.gsd-error {
+  padding: 0.65rem 1rem;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--yellow) 9%, var(--panel-2));
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .media-detail-page button:focus-visible,
 .media-detail-page a:focus-visible,
 #globalSearchDropdown button:focus-visible {

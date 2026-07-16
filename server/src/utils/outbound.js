@@ -1,5 +1,12 @@
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
 
+export function createUpstreamTimeoutError(timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
+  const error = new Error(`Upstream request timed out after ${timeoutMs}ms`);
+  error.status = 504;
+  error.code = "UPSTREAM_TIMEOUT";
+  return error;
+}
+
 export function normalizeHttpUrl(value = "", { label = "URL", allowRelativeMedia = false } = {}) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -81,7 +88,8 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FE
   trackOutbound(url);
   const controller = new AbortController();
   const upstreamSignal = options.signal;
-  const timeout = setTimeout(() => controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)), timeoutMs);
+  const timeoutError = createUpstreamTimeoutError(timeoutMs);
+  const timeout = setTimeout(() => controller.abort(timeoutError), timeoutMs);
   const abortFromUpstream = () => controller.abort(upstreamSignal.reason);
   if (upstreamSignal) {
     if (upstreamSignal.aborted) abortFromUpstream();
@@ -90,6 +98,9 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FE
 
   try {
     return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted && controller.signal.reason === timeoutError) throw timeoutError;
+    throw error;
   } finally {
     clearTimeout(timeout);
     if (upstreamSignal) upstreamSignal.removeEventListener("abort", abortFromUpstream);
