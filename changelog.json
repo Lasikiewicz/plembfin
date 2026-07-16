@@ -1,7 +1,19 @@
 {
-  "version": "0.4.56",
-  "updatedAt": "2026-07-16T13:19:03+01:00",
+  "version": "0.4.57",
+  "updatedAt": "2026-07-16T16:22:37+01:00",
   "entries": [
+    {
+      "version": "0.4.57",
+      "date": "2026-07-16T16:22:37+01:00",
+      "commit": "d9b1dec8979d8ec789ac413cc91d8e33cca5c883",
+      "message": "Fix - Keep part watched progress accurate",
+      "author": "Lasikiewicz",
+      "details": [
+        "Derive watched percentages from the authoritative playback position and duration when webhook percentage fields are stale.",
+        "Refresh the Part Watched dashboard rail whenever live playback state changes.",
+        "Correct existing zero-percent rows when they are read without requiring a database migration."
+      ]
+    },
     {
       "version": "0.4.56",
       "date": "2026-07-16T13:19:03+01:00",
