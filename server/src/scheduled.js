@@ -201,7 +201,7 @@ function resumePositionUnchanged(existingProgress = {}, media = {}) {
   );
 }
 
-function mediaFromPlexResumableItem(item = {}) {
+export function mediaFromPlexResumableItem(item = {}) {
   const type = item.type === "episode" ? "episode" : "movie";
   const positionMs = millisecondsFrom(item.viewOffset);
   const durationMs = millisecondsFrom(item.duration);
@@ -239,8 +239,14 @@ function embyLikeResumeUpdatedAt(item = {}) {
   );
 }
 
-function mediaFromEmbyLikeResumableItem(item = {}, source = "emby", normalizeProviderIds = (ids) => ids || {}) {
-  const ids = normalizeProviderIds(item.ProviderIds);
+export function mediaFromEmbyLikeResumableItem(item = {}, source = "emby", normalizeProviderIds = (ids) => ids || {}) {
+  // Episode provider IDs are often episode-scoped. Cross-server lookup first
+  // resolves the series and then selects SxxExx, so retain the series IDs too.
+  const ids = normalizeProviderIds(
+    item.Type === "Episode"
+      ? { ...(item.ProviderIds || {}), ...(item.SeriesProviderIds || {}) }
+      : (item.ProviderIds || {}),
+  );
   const type = item.Type === "Episode" ? "episode" : "movie";
   const season = item.ParentIndexNumber != null ? Number(item.ParentIndexNumber) : null;
   const episode = item.IndexNumber != null ? Number(item.IndexNumber) : null;

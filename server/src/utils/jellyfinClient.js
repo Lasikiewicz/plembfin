@@ -418,7 +418,7 @@ export async function fetchJellyfinResumableItems(config, { limit = 0 } = {}) {
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("Filters", "IsResumable");
   url.searchParams.set("IncludeItemTypes", "Movie,Episode");
-  url.searchParams.set("Fields", "ProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks");
+  url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks");
   url.searchParams.set("SortBy", "DatePlayed");
   url.searchParams.set("SortOrder", "Descending");
   if (Number(limit) > 0) url.searchParams.set("Limit", String(Math.max(1, Math.round(Number(limit)))));

@@ -1,15 +1,26 @@
 import { createLoopStore } from "./utils/loopStore.js";
-import { loadMediaConfig } from "./utils/configStore.js";
+import { appendSyncHistory, loadMediaConfig } from "./utils/configStore.js";
 import { createPlexNotificationListener } from "./utils/plexNotificationListener.js";
 import { fetchPlexMetadataItem } from "./utils/plexClient.js";
 import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
 import { runScheduledSync } from "./scheduled.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
+import { syncMediaPlaystate } from "./utils/syncOrchestrator.js";
 import { getTmdbDetails, prewarmTmdbLibrary } from "./utils/tmdbGateway.js";
 import { cachedNextAiringFor, mergeNextAiringCacheEntries, nextAiringCacheEntryStale, nextAiringCacheKey, readNextAiringCache } from "./utils/nextAiringCache.js";
 import { runScheduledWatchBackup } from "./utils/watchHistoryBackups.js";
 import { runScheduledPlembfinBackup } from "./utils/plembfinBackups.js";
-import { getCachedShows, findWatchedByAnyMediaKey, getPlaystateForMedia, invalidateHistoryDerivedCaches } from "./utils/dataRepo.js";
+import {
+  deletePlaybackProgress,
+  findWatchedByAnyMediaKey,
+  getCachedShows,
+  getPlaystateForMedia,
+  insertWatchRecord,
+  invalidateHistoryDerivedCaches,
+  mediaToWatchRecord,
+  updateWatchTelemetry,
+  upsertPlaystateForMedia,
+} from "./utils/dataRepo.js";
 import { applyManualUnwatch } from "./routes/sync.js";
 
 const NEXT_AIRING_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
@@ -108,7 +119,7 @@ export async function runScheduledTick() {
 }
 
 // ---------------------------------------------------------------------------
-// Plex real-time unwatch detection
+// Plex real-time watch-state detection
 //
 // Plex never sends a webhook when an item is marked unwatched, so we listen on its
 // notification WebSocket. When a movie/episode timeline event arrives, we resolve the
@@ -138,7 +149,63 @@ async function handlePlexLibraryItemChange(ratingKey) {
   // Still watched or only partially watched â†’ this isn't an unwatch event.
   const viewCount = Number(metadata.viewCount || 0);
   const viewOffset = Number(metadata.viewOffset || 0);
-  if (viewCount > 0 || viewOffset > 0) return;
+  if (viewCount > 0) {
+    const playstate = await getPlaystateForMedia(media).catch(() => null);
+    if (playstate?.state === "watched") {
+      await deletePlaybackProgress(media).catch(() => null);
+      return;
+    }
+    if (!playstate) {
+      const watched = await findWatchedByAnyMediaKey({ ...media, syncAction: "watched" }).catch(() => null);
+      if (watched) return;
+    }
+
+    const watchedAtSeconds = Number(metadata.lastViewedAt || metadata.viewedAt || 0);
+    const watchedAt = watchedAtSeconds > 0
+      ? new Date(watchedAtSeconds * 1000).toISOString()
+      : new Date().toISOString();
+    const watchRecord = mediaToWatchRecord(media, "plex");
+    watchRecord.watched_at = watchedAt;
+    watchRecord.sync_action = "watched";
+    watchRecord.sync_dispatch_telemetry = "Origin: plex\nDispatch status: pending\nDetails: Plex library watch-state notification received.";
+
+    console.log("Plex notifications: item marked watched, storing and propagating", {
+      title: media.title,
+      ratingKey,
+      type: media.type,
+    });
+
+    const result = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+    await upsertPlaystateForMedia(media, "watched", watchedAt, { skipInvalidate: true });
+    const summary = await syncMediaPlaystate(media, config, createLoopStore()).catch((error) => ({
+      skipped: false,
+      status: "error",
+      details: `Plex watch-state propagation failed: ${error.message || String(error)}`,
+      targetStates: [],
+    }));
+    const telemetry = [
+      "Origin: plex",
+      `Dispatch status: ${summary.status || "unknown"}`,
+      `Details: ${summary.details || "Plex library watch-state notification processed."}`,
+      ...(summary.targetStates || []).map((state) => `Target ${state.target} status: ${state.status}${state.detail ? ` - ${state.detail}` : ""}`),
+    ].join("\n");
+    await updateWatchTelemetry(result.id, telemetry, { skipInvalidate: true });
+    await appendSyncHistory({
+      mediaType: media.type,
+      title: media.title,
+      source: "plex",
+      status: summary.status,
+      details: summary.details,
+      action: "watched",
+      targetStates: summary.targetStates || [],
+      rawPayloadDebug: { ratingKey, ids: media.ids || {} },
+    }).catch(() => null);
+    await deletePlaybackProgress(media).catch(() => null);
+    await result.assetPrefetch?.catch(() => null);
+    await invalidateHistoryDerivedCaches().catch(() => null);
+    return;
+  }
+  if (viewOffset > 0) return;
 
   // Only propagate if our store currently considers this item watched. This avoids
   // reacting to items we never tracked and short-circuits the echo when an unwatch that

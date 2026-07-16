@@ -51,6 +51,8 @@ Every minute `fetchLiveSessions` polls `/Sessions` for Now Playing. The catch-up
   whose webhooks were missed.
 - **Resumable items** — `fetchEmbyResumableItems` (`/Users/<id>/Items/Resume`) →
   `syncRecentlyResumableFromEmby` replicates resume positions to the other platforms.
+  Episode rows include series provider IDs so cross-server lookup can resolve the
+  series before selecting the matching season and episode.
 
 Playback positions use Emby's tick units (1 tick = 100 ns); `scheduled.js` converts
 with `ticksToMilliseconds`.

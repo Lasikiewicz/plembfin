@@ -8,7 +8,7 @@ one outbound client. Read [architecture.md](architecture.md) first for the big p
 | File | Role |
 | --- | --- |
 | `server/src/utils/plexClient.js` | Outbound HTTP client — all Plex API calls |
-| `server/src/utils/plexNotificationListener.js` | Real-time WebSocket listener for library-item changes (unwatch detection) |
+| `server/src/utils/plexNotificationListener.js` | Real-time WebSocket listener for library watch-state changes |
 | `server/src/utils/parsers.js` | `parsePlexWebhook` / `parsePlexGuids` / `buildPlexMediaFromMetadata` — webhook + metadata normalization |
 | `server/src/scheduled.js` | `syncRecentlyWatchedFromPlex`, `syncRecentlyResumableFromPlex`, `checkPlexUnwatchedStatus` — catch-up polling |
 | `server/src/utils/liveSessions.js` | Polls `/status/sessions` for Now Playing |
@@ -66,10 +66,11 @@ and watches `timeline` notifications for movies (type 1) and episodes (type 4) f
 library section. It is pure transport: reconnect with backoff (3s → 60s), debounce per
 ratingKey (2.5s), then hand each changed ratingKey to `onLibraryItemChange`.
 
-The callback (`handlePlexLibraryItemChange` in `server/src/index.js`) fetches the item's
-metadata, checks the actual view state, and — if the item was marked unwatched in Plex —
-records the unwatch and propagates it to Emby/Jellyfin. This is how unwatching in Plex
-syncs even though Plex has no unwatch webhook.
+The callback (`handlePlexLibraryItemChange` in `server/src/scheduler.js`) fetches the
+item's metadata and checks its actual view state. A watched transition is recorded in
+Plembfin history and propagated to Emby/Jellyfin; an unwatched transition runs the same
+unwatch propagation as the dashboard action. This channel covers library UI changes
+that Plex webhooks do not reliably report, including unwatching.
 
 The listener is started by `server.js` at boot (`startPlexNotificationListener`) and
 stopped during graceful shutdown. `probePlexNotificationSocket` runs the same connection

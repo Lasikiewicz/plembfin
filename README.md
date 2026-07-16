@@ -228,7 +228,7 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 4.  Enable events: `media.play`, `media.resume`, `media.pause`, `media.stop`, `media.scrobble`.
 5.  Save changes.
 
-> **Unwatched sync:** Plex native webhooks cannot send unscrobble events. Plembfin includes a built-in Plex notification listener that connects automatically via WebSocket using your configured Plex URL and token — no external script required.
+> **Plex library watch-state sync:** Plex does not reliably send native webhooks for watch-state changes made from its library UI. Plembfin includes a built-in notification listener that connects automatically via WebSocket using your configured Plex URL and token, records watched changes, and handles unscrobble events without an external script.
 
 #### 2. Emby Webhook Setup
 1.  Go to Emby Server Settings → **Webhooks** and add a new webhook.

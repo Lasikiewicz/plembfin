@@ -51,7 +51,9 @@ Every minute `fetchLiveSessions` polls `/Sessions` for Now Playing. The catch-up
 - **Recently watched** — `fetchJellyfinWatchedItems` → `syncRecentlyWatchedFromJellyfin`
   records watches whose webhooks were missed.
 - **Resumable items** — `fetchJellyfinResumableItems` (`/Users/<id>/Items/Resume`) →
-  `syncRecentlyResumableFromJellyfin` replicates resume positions.
+  `syncRecentlyResumableFromJellyfin` replicates resume positions. Episode rows include
+  series provider IDs so cross-server lookup can resolve the series before selecting
+  the matching season and episode.
 
 Playback positions use tick units (1 tick = 100 ns), converted in `scheduled.js`.
 

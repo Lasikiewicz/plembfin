@@ -655,6 +655,9 @@ export async function getCachedShows() {
 // --- Playstate -------------------------------------------------------------
 const selectPlaystateStmt = db.prepare("SELECT * FROM playstate WHERE media_key = ?");
 const selectPlaystateByTitleStmt = db.prepare("SELECT * FROM playstate WHERE media_type = ? AND title_lower = ?");
+const selectPlaystateByImdbStmt = db.prepare("SELECT * FROM playstate WHERE media_type = ? AND imdb_id = ?");
+const selectPlaystateByTmdbStmt = db.prepare("SELECT * FROM playstate WHERE media_type = ? AND tmdb_id = ?");
+const selectPlaystateByTvdbStmt = db.prepare("SELECT * FROM playstate WHERE media_type = ? AND tvdb_id = ?");
 const upsertPlaystateStmt = db.prepare(
   `INSERT INTO playstate (media_key, title, title_lower, media_type, state, watched_at, last_source, sources, imdb_id, tmdb_id, tvdb_id, season, episode, poster_url, updated_at)
    VALUES (@media_key, @title, @title_lower, @media_type, @state, @watched_at, @last_source, @sources, @imdb_id, @tmdb_id, @tvdb_id, @season, @episode, @poster_url, @updated_at)
@@ -709,8 +712,9 @@ export async function upsertPlaystate(record, stateOverride = undefined, { skipI
   if (errors.length) throw new Error(errors.join(", "));
 
   const state = normalizePlaystateState(stateOverride || normalized.sync_action);
-  const mediaKey = mediaKeyFor(normalized);
-  const existing = selectPlaystateStmt.get(mediaKey);
+  const identityMatches = playstateRowsForIdentity(normalized);
+  const mediaKey = identityMatches[0]?.media_key || mediaKeyFor(normalized);
+  const existing = selectPlaystateStmt.get(mediaKey) || identityMatches[0];
   const sources = new Set(parseJson(existing?.sources, []) || []);
   if (normalized.source) sources.add(normalized.source);
 
@@ -723,9 +727,9 @@ export async function upsertPlaystate(record, stateOverride = undefined, { skipI
     watched_at: normalized.watched_at,
     last_source: normalized.source,
     sources: toJson([...sources].sort()),
-    imdb_id: normalized.imdb_id || null,
-    tmdb_id: normalized.tmdb_id || null,
-    tvdb_id: normalized.tvdb_id || null,
+    imdb_id: normalized.imdb_id || existing?.imdb_id || null,
+    tmdb_id: normalized.tmdb_id || existing?.tmdb_id || null,
+    tvdb_id: normalized.tvdb_id || existing?.tvdb_id || null,
     season: normalized.season,
     episode: normalized.episode,
     poster_url: normalized.poster_url || existing?.poster_url || null,
@@ -751,13 +755,33 @@ function newestByUpdatedAt(rows = []) {
     .sort((a, b) => Number(b.updated_at || b.updatedAt || 0) - Number(a.updated_at || a.updatedAt || 0))[0] || null;
 }
 
+function identityRows(record = {}, selectors = {}) {
+  const type = normalizeMediaType(record.media_type || record.mediaType || record.type);
+  const rows = [];
+  const add = (row) => {
+    if (row && sameEpisodeCoordinates(record, row) && !rows.some((item) => item.media_key === row.media_key)) rows.push(row);
+  };
+  if (record.imdb_id) selectors.imdb?.all(type, record.imdb_id).forEach(add);
+  if (record.tmdb_id) selectors.tmdb?.all(type, record.tmdb_id).forEach(add);
+  if (record.tvdb_id) selectors.tvdb?.all(type, record.tvdb_id).forEach(add);
+  return rows.sort((a, b) => Number(b.updated_at || 0) - Number(a.updated_at || 0));
+}
+
+function playstateRowsForIdentity(record = {}) {
+  return identityRows(record, {
+    imdb: selectPlaystateByImdbStmt,
+    tmdb: selectPlaystateByTmdbStmt,
+    tvdb: selectPlaystateByTvdbStmt,
+  });
+}
+
 export async function getPlaystateForMedia(media) {
   const record = playstateRecordFromMedia(media, media?.syncAction || "watched");
   const exact = selectPlaystateStmt.get(mediaKeyFor(record));
   const related = selectPlaystateByTitleStmt
     .all(record.media_type, record.title.toLowerCase())
     .filter((row) => sameEpisodeCoordinates(record, row));
-  const row = newestByUpdatedAt([exact, ...related]);
+  const row = newestByUpdatedAt([exact, ...playstateRowsForIdentity(record), ...related]);
   return row ? playstateFromRow(row) : null;
 }
 
@@ -942,6 +966,9 @@ const updateProgressTelemetryStmt = db.prepare(
 const deleteProgressStmt = db.prepare("DELETE FROM playback_progress WHERE media_key = ?");
 const selectProgressStmt = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?");
 const selectProgressByTitleStmt = db.prepare("SELECT * FROM playback_progress WHERE media_type = ? AND LOWER(title) = ?");
+const selectProgressByImdbStmt = db.prepare("SELECT * FROM playback_progress WHERE media_type = ? AND imdb_id = ?");
+const selectProgressByTmdbStmt = db.prepare("SELECT * FROM playback_progress WHERE media_type = ? AND tmdb_id = ?");
+const selectProgressByTvdbStmt = db.prepare("SELECT * FROM playback_progress WHERE media_type = ? AND tvdb_id = ?");
 const selectProgressReplayStmt = db.prepare("SELECT * FROM playback_progress ORDER BY updated_at DESC LIMIT ? OFFSET ?");
 const countProgressStmt = db.prepare("SELECT COUNT(*) AS c FROM playback_progress");
 
@@ -1018,14 +1045,16 @@ export async function upsertPlaybackProgress(record) {
   if (!["movie", "episode"].includes(normalized.media_type)) throw new Error("media_type must be movie or episode");
   if (!normalized.position_ms) throw new Error("position_ms is required");
 
+  const identityMatch = progressRowsForIdentity(normalized)[0];
+  const mediaKey = identityMatch?.media_key || normalized.media_key;
   upsertProgressStmt.run({
-    media_key: normalized.media_key,
+    media_key: mediaKey,
     title: normalized.title,
     media_type: normalized.media_type,
     source: normalized.source,
-    imdb_id: normalized.imdb_id || null,
-    tmdb_id: normalized.tmdb_id || null,
-    tvdb_id: normalized.tvdb_id || null,
+    imdb_id: normalized.imdb_id || identityMatch?.imdb_id || null,
+    tmdb_id: normalized.tmdb_id || identityMatch?.tmdb_id || null,
+    tvdb_id: normalized.tvdb_id || identityMatch?.tvdb_id || null,
     season: normalized.season,
     episode: normalized.episode,
     position_ms: normalized.position_ms,
@@ -1037,12 +1066,21 @@ export async function upsertPlaybackProgress(record) {
   if (normalized.tmdb_id || normalized.title) {
     prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
   }
-  return normalized;
+  return { ...normalized, media_key: mediaKey };
+}
+
+function progressRowsForIdentity(record = {}) {
+  return identityRows(record, {
+    imdb: selectProgressByImdbStmt,
+    tmdb: selectProgressByTmdbStmt,
+    tvdb: selectProgressByTvdbStmt,
+  });
 }
 
 export async function updatePlaybackProgressTelemetry(mediaOrRecord, telemetry) {
   const normalized = normalizePlaybackProgressRecord(mediaOrRecord, mediaOrRecord?.source);
-  updateProgressTelemetryStmt.run(normalized.media_key, String(telemetry || ""), Date.now());
+  const mediaKey = progressRowsForIdentity(normalized)[0]?.media_key || normalized.media_key;
+  updateProgressTelemetryStmt.run(mediaKey, String(telemetry || ""), Date.now());
 }
 
 export async function getPlaybackProgressForMedia(mediaOrRecord) {
@@ -1051,7 +1089,7 @@ export async function getPlaybackProgressForMedia(mediaOrRecord) {
   const related = selectProgressByTitleStmt
     .all(normalized.media_type, normalized.title.toLowerCase())
     .filter((row) => sameEpisodeCoordinates(normalized, row));
-  const row = newestByUpdatedAt([exact, ...related]);
+  const row = newestByUpdatedAt([exact, ...progressRowsForIdentity(normalized), ...related]);
   return row ? playbackProgressFromRow(row) : null;
 }
 
@@ -1063,7 +1101,11 @@ export async function deletePlaybackProgress(mediaOrRecord) {
         .all(normalized.media_type, normalized.title.toLowerCase())
         .filter((row) => sameEpisodeCoordinates(normalized, row))
     : [];
-  const keys = new Set([normalized.media_key, ...related.map((row) => row.media_key).filter(Boolean)]);
+  const keys = new Set([
+    normalized.media_key,
+    ...progressRowsForIdentity(normalized).map((row) => row.media_key).filter(Boolean),
+    ...related.map((row) => row.media_key).filter(Boolean),
+  ]);
   for (const key of keys) {
     deleteProgressStmt.run(key);
   }

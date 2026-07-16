@@ -10,8 +10,20 @@ import path from "node:path";
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "plembfin-sync-retry-test-"));
 process.env.DATA_DIR = dataDir;
 
-const { syncRetryDelayMs, syncRetryEligible, SYNC_RETRY_MAX_ATTEMPTS } = await import("../server/src/scheduled.js");
+const {
+  mediaFromEmbyLikeResumableItem,
+  syncRetryDelayMs,
+  syncRetryEligible,
+  SYNC_RETRY_MAX_ATTEMPTS,
+} = await import("../server/src/scheduled.js");
 const { appendSyncHistory, pruneSyncHistory, getSyncHistory } = await import("../server/src/utils/configStore.js");
+const {
+  getPlaybackProgressForMedia,
+  getPlaystateForMedia,
+  upsertPlaybackProgress,
+  upsertPlaystateForMedia,
+} = await import("../server/src/utils/dataRepo.js");
+const { normalizeProviderIds } = await import("../server/src/utils/parsers.js");
 const { db } = await import("../server/src/db.js");
 
 test("syncRetryDelayMs follows the backoff schedule and repeats the last step", () => {
@@ -52,6 +64,85 @@ test("watch_history carries sync retry columns with zero defaults", () => {
   const row = db.prepare("SELECT sync_retry_count, sync_next_retry_at FROM watch_history WHERE id = ?").get("retry-test-1");
   assert.equal(Number(row.sync_retry_count || 0), 0);
   assert.equal(Number(row.sync_next_retry_at || 0), 0);
+});
+
+test("Emby-like resumable episodes use series provider IDs for cross-server matching", () => {
+  const media = mediaFromEmbyLikeResumableItem({
+    Type: "Episode",
+    Name: "Pilot",
+    SeriesName: "Example Show",
+    ParentIndexNumber: 1,
+    IndexNumber: 2,
+    ProviderIds: { Tvdb: "episode-22" },
+    SeriesProviderIds: { Tvdb: "series-11", Imdb: "tt-series" },
+    UserData: { PlaybackPositionTicks: 900_000_000 },
+    RunTimeTicks: 3_600_000_000,
+  }, "emby", normalizeProviderIds);
+
+  assert.deepEqual(media.ids, { imdb: "tt-series", tmdb: undefined, tvdb: "series-11" });
+  assert.equal(media.positionMs, 90_000);
+  assert.equal(media.progress, 25);
+});
+
+test("playback progress merges aliases that share any provider ID", async () => {
+  db.prepare("DELETE FROM playback_progress").run();
+  await upsertPlaybackProgress({
+    title: "Gabriel's Redemption: Part I",
+    type: "movie",
+    source: "emby",
+    ids: { tmdb: "12345" },
+    positionMs: 120_000,
+    durationMs: 1_200_000,
+    updatedAt: 100,
+  });
+  await upsertPlaybackProgress({
+    title: "Gabriel's Redemption: Part One",
+    type: "movie",
+    source: "plex",
+    ids: { imdb: "tt123", tmdb: "12345" },
+    positionMs: 180_000,
+    durationMs: 1_200_000,
+    updatedAt: 200,
+  });
+
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM playback_progress").get().n, 1);
+  const row = await getPlaybackProgressForMedia({
+    title: "A third title alias",
+    type: "movie",
+    ids: { tmdb: "12345" },
+  });
+  assert.equal(row.position_ms, 180_000);
+  assert.equal(row.source, "plex");
+  assert.equal(row.imdb_id, "tt123");
+});
+
+test("playstate merges title aliases that share any provider ID", async () => {
+  db.prepare("DELETE FROM playstate").run();
+  await upsertPlaystateForMedia({
+    title: "Gabriel's Redemption: Part I",
+    type: "movie",
+    source: "emby",
+    ids: { tmdb: "12345" },
+    isValid: true,
+  }, "unwatched");
+  await upsertPlaystateForMedia({
+    title: "Gabriel's Redemption: Part One",
+    type: "movie",
+    source: "plex",
+    ids: { imdb: "tt123", tmdb: "12345" },
+    isValid: true,
+  }, "watched");
+
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM playstate").get().n, 1);
+  const row = await getPlaystateForMedia({
+    title: "Another alias",
+    type: "movie",
+    source: "jellyfin",
+    ids: { tmdb: "12345" },
+  });
+  assert.equal(row.state, "watched");
+  assert.equal(row.source, "plex");
+  assert.equal(row.imdb_id, "tt123");
 });
 
 test("pruneSyncHistory drops rows older than the retention window", async () => {
