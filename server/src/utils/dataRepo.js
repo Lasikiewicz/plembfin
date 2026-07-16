@@ -973,6 +973,8 @@ const selectProgressReplayStmt = db.prepare("SELECT * FROM playback_progress ORD
 const countProgressStmt = db.prepare("SELECT COUNT(*) AS c FROM playback_progress");
 
 function playbackProgressFromRow(row) {
+  const positionMs = Number(row.position_ms || 0);
+  const durationMs = row.duration_ms == null ? null : Number(row.duration_ms);
   return {
     id: row.media_key,
     media_key: row.media_key,
@@ -984,12 +986,22 @@ function playbackProgressFromRow(row) {
     tvdb_id: row.tvdb_id || null,
     season: row.season ?? null,
     episode: row.episode ?? null,
-    position_ms: Number(row.position_ms || 0),
-    duration_ms: row.duration_ms ?? null,
-    progress: Number(row.progress || 0),
+    position_ms: positionMs,
+    duration_ms: durationMs,
+    progress: playbackProgressPercent(positionMs, durationMs, row.progress),
     updated_at: Number(row.updated_at || 0),
     sync_dispatch_telemetry: row.sync_dispatch_telemetry || null,
   };
+}
+
+function playbackProgressPercent(positionMs = 0, durationMs = 0, fallback = 0) {
+  const position = Number(positionMs);
+  const duration = Number(durationMs);
+  if (Number.isFinite(position) && position >= 0 && Number.isFinite(duration) && duration > 0) {
+    return Math.max(0, Math.min(100, (position / duration) * 100));
+  }
+  const value = Number(fallback);
+  return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
 }
 
 export function normalizePlaybackProgressRecord(record = {}, fallbackSource = "webhook") {
@@ -999,7 +1011,7 @@ export function normalizePlaybackProgressRecord(record = {}, fallbackSource = "w
   const positionMs = Math.max(0, Math.round(Number(record.position_ms ?? record.positionMs ?? record.offsetMs ?? 0)));
   const durationMsValue = Number(record.duration_ms ?? record.durationMs ?? 0);
   const durationMs = Number.isFinite(durationMsValue) && durationMsValue > 0 ? Math.round(durationMsValue) : null;
-  const progressValue = Number(record.progress ?? (durationMs ? (positionMs / durationMs) * 100 : 0));
+  const progressValue = playbackProgressPercent(positionMs, durationMs, record.progress);
   const normalized = {
     title,
     media_type: mediaType,
@@ -1011,7 +1023,7 @@ export function normalizePlaybackProgressRecord(record = {}, fallbackSource = "w
     episode: numberOrNull(record.episode),
     position_ms: positionMs,
     duration_ms: durationMs,
-    progress: Number.isFinite(progressValue) ? Math.max(0, Math.min(100, progressValue)) : 0,
+    progress: progressValue,
     updated_at: Number(record.updated_at || record.updatedAt || Date.now()),
     sync_dispatch_telemetry: emptyToNull(record.sync_dispatch_telemetry || record.syncDispatchTelemetry),
   };
@@ -2302,7 +2314,7 @@ export function progressRowToMedia(row = {}, source = "plex") {
     ...watchRowToMedia(row, source),
     positionMs: Number(row.position_ms || 0),
     durationMs: row.duration_ms == null ? undefined : Number(row.duration_ms),
-    progress: Number(row.progress || 0),
+    progress: playbackProgressPercent(row.position_ms, row.duration_ms, row.progress),
   };
 }
 

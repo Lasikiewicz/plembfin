@@ -1928,6 +1928,8 @@ function initialize() {
   initSync({
     logDebug,
     loadHistory,
+    resetPartWatchedView,
+    renderPartWatched,
     setMessage,
     updateDashboardSplitState,
     nowPlayingHref,

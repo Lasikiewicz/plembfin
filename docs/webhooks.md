@@ -77,7 +77,10 @@ the `sync_history` SQLite table.
 On `ended` (and via the scheduled poller), if resume is actionable
 (`shouldSyncResumeProgress`), a record goes into `playback_progress` keyed by
 `media_key`, and `syncMediaProgress()` pushes the resume position to the other
-platforms.
+platforms. When position and duration are available, Plembfin derives the percentage
+from those timing fields instead of trusting a conflicting percentage supplied by the
+webhook. This keeps stop-phase classification, stored progress, and the dashboard in
+agreement with the resume position written to each media server.
 
 ## Plex specifics worth remembering
 

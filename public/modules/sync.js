@@ -838,6 +838,8 @@ export async function loadActiveSessions() {
 
   if (refreshChanged) {
     _cb.loadHistory?.().catch((error) => _cb.setMessage?.(error.message, "error"));
+    _cb.resetPartWatchedView?.("default");
+    _cb.renderPartWatched?.();
   }
 
   return sessions;

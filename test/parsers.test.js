@@ -43,6 +43,32 @@ test("parseEmbyWebhook derives phase boundaries", () => {
   assert.equal(parseEmbyWebhook({ Event: "something.else", ...base }).phase, "ignored");
 });
 
+test("Emby and Jellyfin webhooks derive progress from position when a stale zero percentage is present", () => {
+  const item = {
+    Type: "Movie",
+    Name: "Arrival",
+    RunTimeTicks: 4_000_000_000,
+    ProviderIds: { Tmdb: "329865" },
+  };
+  const emby = parseEmbyWebhook({
+    Event: "playback.stop",
+    Progress: 0,
+    PlayState: { PositionTicks: 1_000_000_000 },
+    Item: item,
+  });
+  const jellyfin = parseJellyfinWebhook({
+    NotificationType: "PlaybackStop",
+    PlayedPercentage: 0,
+    PlayState: { PositionTicks: 1_000_000_000 },
+    Item: item,
+  });
+
+  assert.equal(emby.progress, 25);
+  assert.equal(emby.phase, "ended");
+  assert.equal(jellyfin.progress, 25);
+  assert.equal(jellyfin.phase, "ended");
+});
+
 test("parseJellyfinWebhook derives phase boundaries", () => {
   const base = { Item: { Type: "Movie", Name: "Arrival", ProviderIds: { Tmdb: "329865" } } };
   assert.equal(parseJellyfinWebhook({ NotificationType: "PlaybackStop", Progress: 89, ...base }).phase, "ended");

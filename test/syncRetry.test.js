@@ -116,6 +116,24 @@ test("playback progress merges aliases that share any provider ID", async () => 
   assert.equal(row.imdb_id, "tt123");
 });
 
+test("playback progress derives its percentage from position and duration", async () => {
+  db.prepare("DELETE FROM playback_progress").run();
+  await upsertPlaybackProgress({
+    title: "Arrival",
+    type: "movie",
+    source: "emby",
+    ids: { tmdb: "329865" },
+    positionMs: 300_000,
+    durationMs: 1_200_000,
+    progress: 0,
+    updatedAt: 300,
+  });
+
+  const row = await getPlaybackProgressForMedia({ title: "Arrival", type: "movie", ids: { tmdb: "329865" } });
+  assert.equal(row.progress, 25);
+  assert.equal(db.prepare("SELECT progress FROM playback_progress").get().progress, 25);
+});
+
 test("playstate merges title aliases that share any provider ID", async () => {
   db.prepare("DELETE FROM playstate").run();
   await upsertPlaystateForMedia({

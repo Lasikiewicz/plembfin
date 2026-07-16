@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconUrl } from "./utils.js";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconUrl, computeProgress } from "./utils.js";
 import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, tmdbPoster } from "./images.js";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
@@ -119,7 +119,7 @@ export function dedupePlaybackProgress(items = []) {
       Object.assign(existing, item);
       existing.sources = sources;
     } else if (itemTime === existingTime) {
-      if (Number(item.progress || 0) > Number(existing.progress || 0)) {
+      if (partWatchedProgress(item) > partWatchedProgress(existing)) {
         const sources = existing.sources;
         Object.assign(existing, item);
         existing.sources = sources;
@@ -127,6 +127,14 @@ export function dedupePlaybackProgress(items = []) {
     }
   }
   return [...map.values()];
+}
+
+export function partWatchedProgress(entry = {}) {
+  const positionMs = Number(entry.position_ms ?? entry.positionMs ?? 0);
+  const durationMs = Number(entry.duration_ms ?? entry.durationMs ?? 0);
+  if (Number.isFinite(durationMs) && durationMs > 0) return computeProgress(positionMs, durationMs);
+  const progress = Number(entry.progress || 0);
+  return Number.isFinite(progress) ? Math.max(0, Math.min(100, Math.round(progress))) : 0;
 }
 
 function prefetchDashboardHistoryTmdb(tvEntries, movieEntries) {
@@ -429,7 +437,7 @@ export function renderPartWatchedCard(entry) {
   const sources = Array.isArray(entry.sources) && entry.sources.length ? entry.sources : (entry.source ? [entry.source] : []);
   const sourceBadges = sources.map((src) => renderPartWatchedAppBadge(src, entry, isEpisode ? displayTitle : entry.title)).join(" ");
   const sourceBadgeMarkup = sourceBadges || "None";
-  const progressPercent = Math.round(entry.progress || 0);
+  const progressPercent = partWatchedProgress(entry);
   const formattedTime = entry.updated_at ? formatDate(entry.updated_at) : "";
   const prefetchType = isEpisode ? "tv" : "movie";
   const prefetchTitle = isEpisode ? displayTitle : entry.title;

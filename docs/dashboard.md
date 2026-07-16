@@ -43,6 +43,11 @@ media identity (`dedupePlaybackProgress`). Actions: mark watched
 (`POST /api/playback-progress/unwatch`). Each App Used badge opens the matching item
 in that configured media app when the item exists there.
 
+The displayed percentage is derived from the saved playback position and duration when
+both are available, so an incomplete percentage field from a webhook cannot show `0%`
+for an item with real resume progress. The Now Playing refresh token also invalidates and
+reloads this rail, keeping it aligned with playback changes without a full page reload.
+
 ### Version badge / update check
 
 The sidebar version badge is populated from `/api/changelog` on dashboard load; see

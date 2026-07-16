@@ -139,16 +139,6 @@ function embyLikePosterInfo(item = {}, type = "unknown") {
 }
 
 function progressPercentFrom(values = {}) {
-  const direct = Number(
-    values.progress ??
-      values.Progress ??
-      values.PercentComplete ??
-      values.PlayedPercentage ??
-      values.PlaybackProgress ??
-      values.PlaybackProgressPercentage,
-  );
-  if (Number.isFinite(direct)) return direct > 1 ? direct : direct * 100;
-
   const position =
     Number(values.viewOffset) ||
     Number(values.PlaybackPositionTicks) ||
@@ -164,6 +154,16 @@ function progressPercentFrom(values = {}) {
   if (position > 0 && duration > 0) {
     return Math.max(0, Math.min(100, (position / duration) * 100));
   }
+
+  const direct = Number(
+    values.progress ??
+      values.Progress ??
+      values.PercentComplete ??
+      values.PlayedPercentage ??
+      values.PlaybackProgress ??
+      values.PlaybackProgressPercentage,
+  );
+  if (Number.isFinite(direct)) return direct > 1 ? direct : direct * 100;
 
   return 0;
 }
