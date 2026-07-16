@@ -1,7 +1,22 @@
 {
-  "version": "0.4.55",
-  "updatedAt": "2026-07-16T11:07:02+01:00",
+  "version": "0.4.56",
+  "updatedAt": "2026-07-16T13:19:03+01:00",
   "entries": [
+    {
+      "version": "0.4.56",
+      "date": "2026-07-16T13:19:03+01:00",
+      "commit": "ee755a93bfae03270fdbc6e0957b96d000b74d69",
+      "message": "Feature - Complete card-based settings workflows",
+      "author": "Lasikiewicz",
+      "details": [
+        "Replaces grouped settings tasks with flat canonical sections, a link-list landing page, desktop sidebar entries, and a mobile section picker.",
+        "Adds reusable card grids and edit dialogs for media servers and metadata providers with per-service save, test, enable, and stored-secret behavior.",
+        "Adds Backblaze destination cards with add, edit, connection test, disable, and confirmed delete workflows.",
+        "Keeps health diagnostics working from redacted saved configuration and updates repair links to the new settings routes.",
+        "Refines responsive settings layouts and removes obsolete form, sub-tab, integration, and destination styling.",
+        "Synchronizes setup, backup, security, routing, and architecture documentation with the new navigation and dialogs."
+      ]
+    },
     {
       "version": "0.4.55",
       "date": "2026-07-16T11:07:02+01:00",
