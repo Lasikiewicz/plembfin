@@ -1,7 +1,19 @@
 {
-  "version": "0.4.50",
-  "updatedAt": "2026-07-13T10:28:21+01:00",
+  "version": "0.4.51",
+  "updatedAt": "2026-07-16T09:20:07+01:00",
   "entries": [
+    {
+      "version": "0.4.51",
+      "date": "2026-07-16T09:20:07+01:00",
+      "commit": "bdf20d4ab95753a7a541b8e8ed969252adf3e8ec",
+      "message": "Fix - Repair cross-platform watch-state syncing",
+      "author": "Lasikiewicz",
+      "details": [
+        "Record Plex library mark-watched changes in Plembfin history and propagate them immediately",
+        "Match title aliases through shared provider IDs to prevent duplicate Part Watched entries",
+        "Use series provider IDs when syncing Emby and Jellyfin episode resume positions"
+      ]
+    },
     {
       "version": "0.4.50",
       "date": "2026-07-13T10:28:21+01:00",
