@@ -72,7 +72,7 @@ on GitHub — see the changelog section of [architecture.md](architecture.md).
 
 | Workflow | What it does |
 | --- | --- |
-| `security.yml` | `npm audit --audit-level=high` + CodeQL, on push/PR/daily |
+| `security.yml` | `npm audit --audit-level=high` + CodeQL, on push/PR/daily. CodeQL loads `.github/codeql/codeql-config.yml`, which excludes the `js/request-forgery` query repo-wide — every outbound request funnels through the centralized, validated fetch guard in `server/src/utils/outbound.js`, and admin-configured LAN media server URLs make that query permanently false-positive for this app |
 | `secret-scan.yml` | TruffleHog verified-secret scan on push/PR |
 | `dependabot.yml` | Dependency update PRs |
 

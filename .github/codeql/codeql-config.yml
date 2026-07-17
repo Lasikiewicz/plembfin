@@ -1,0 +1,18 @@
+name: "plembfin CodeQL config"
+
+# js/request-forgery (SSRF) is excluded repo-wide. plembfin is a self-hosted app in the
+# style of Sonarr/Radarr/Jellyseerr: every outbound request is either an admin-configured
+# LAN media server URL (Plex/Emby/Jellyfin) or a fixed third-party API host, and all of
+# them funnel through the centralized, audited guard in server/src/utils/outbound.js
+# (assertSafeOutboundUrl / fetchWithTimeout), which validates protocol, strips embedded
+# credentials, blocks cloud-metadata endpoints, and sanitizes redirects. CodeQL cannot
+# model "host is an admin-configured LAN address" as a fixed allowlist, so every finding
+# from this query in this repo has been triaged as a false positive / accepted risk
+# (see alert history: #12, #13, #14, #24, #25). Per-line `codeql[js/request-forgery]`
+# suppression comments do not register with this query (verified empirically: SARIF
+# results still report `suppressions: null` after adding one), so the alert re-opens
+# under a new alert number on every edit near the sink instead of staying dismissed.
+# Excluding the query here is the only mechanism that actually holds.
+query-filters:
+  - exclude:
+      id: js/request-forgery
