@@ -1,7 +1,18 @@
 {
-  "version": "0.4.59",
-  "updatedAt": "2026-07-17T19:05:41+01:00",
+  "version": "0.4.60",
+  "updatedAt": "2026-07-17T20:39:04+01:00",
   "entries": [
+    {
+      "version": "0.4.60",
+      "date": "2026-07-17T20:39:04+01:00",
+      "commit": "82f77990392fd80fcce50596977caf943af98d40",
+      "message": "Security - Suppress audited outbound SSRF finding",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep administrator-configured LAN integrations behind the centralized URL and redirect checks",
+        "Prevent CodeQL from reopening the audited shared request boundary as a new alert"
+      ]
+    },
     {
       "version": "0.4.59",
       "date": "2026-07-17T19:05:41+01:00",
