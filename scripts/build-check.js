@@ -119,10 +119,9 @@ for (const file of ["package.json", "package-lock.json", "changelog.json"]) {
 
 checkRoutedHandlersAuthenticate();
 
-// Guard: every outbound call in server code must carry a timeout. Bare global
-// fetch hangs on an unresponsive upstream (media server, metadata API, backup
-// destination) — use fetchWithTimeout from server/src/utils/outbound.js, or an
-// explicit `signal: AbortSignal.timeout(...)` on the same call.
+// Guard: every outbound call in server code must use the shared request boundary.
+// Besides enforcing a timeout, fetchWithTimeout validates initial and redirected
+// URLs and prevents credentials from crossing origins.
 {
   const barePattern = /(?:await|return)\s+fetch\(/;
   const offenders = [];
@@ -131,14 +130,11 @@ checkRoutedHandlersAuthenticate();
     const lines = fs.readFileSync(path.join(root, file), "utf8").split("\n");
     lines.forEach((line, index) => {
       if (!barePattern.test(line)) return;
-      // Allow calls that attach their own AbortSignal.timeout within the next few lines.
-      const window = lines.slice(index, index + 8).join("\n");
-      if (window.includes("AbortSignal.timeout")) return;
       offenders.push(`${file}:${index + 1}`);
     });
   }
   if (offenders.length) {
-    console.error("Bare fetch() without a timeout found — use fetchWithTimeout (server/src/utils/outbound.js):");
+    console.error("Bare fetch() bypasses outbound security checks — use fetchWithTimeout (server/src/utils/outbound.js):");
     for (const offender of offenders) console.error(`  ${offender}`);
     process.exit(1);
   }

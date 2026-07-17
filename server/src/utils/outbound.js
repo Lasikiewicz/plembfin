@@ -1,4 +1,5 @@
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
+const MAX_OUTBOUND_REDIRECTS = 5;
 
 export function createUpstreamTimeoutError(timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
   const error = new Error(`Upstream request timed out after ${timeoutMs}ms`);
@@ -47,11 +48,59 @@ export function assertSafeOutboundUrl(value, { label = "URL" } = {}) {
   } catch {
     throw new Error(`${label} must be a valid URL`);
   }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`${label} must use http or https`);
+  }
+  if (url.username || url.password) {
+    throw new Error(`${label} must not contain embedded credentials`);
+  }
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (BLOCKED_HOSTS.has(host)) {
     throw new Error(`${label} targets a blocked metadata endpoint`);
   }
   return url;
+}
+
+function redirectRequestOptions(options, status, fromUrl, toUrl) {
+  const redirected = { ...options };
+  const method = String(redirected.method || "GET").toUpperCase();
+  if ((status === 303 && method !== "GET" && method !== "HEAD") || ((status === 301 || status === 302) && method === "POST")) {
+    redirected.method = "GET";
+    delete redirected.body;
+  }
+
+  if (fromUrl.origin !== toUrl.origin && redirected.headers) {
+    const headers = new Headers(redirected.headers);
+    for (const name of [...headers.keys()]) {
+      if (/authorization|cookie|token|api[-_]?key|secret/i.test(name)) headers.delete(name);
+    }
+    redirected.headers = headers;
+  }
+  return redirected;
+}
+
+async function fetchFollowingSafeRedirects(url, options) {
+  let currentUrl = assertSafeOutboundUrl(url, { label: "Outbound URL" });
+  let currentOptions = { ...options, redirect: "manual" };
+
+  for (let redirects = 0; redirects <= MAX_OUTBOUND_REDIRECTS; redirects += 1) {
+    // The URL and every redirect target are validated immediately above/below. This
+    // application deliberately permits configured LAN media servers, while blocking
+    // cloud-metadata endpoints and unsafe URL forms at this shared request boundary.
+    const response = await fetch(currentUrl, currentOptions);
+    if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+
+    const location = response.headers.get("location");
+    if (!location) return response;
+    if (redirects === MAX_OUTBOUND_REDIRECTS) throw new Error("Upstream request exceeded the redirect limit");
+
+    const nextUrl = assertSafeOutboundUrl(new URL(location, currentUrl), { label: "Outbound redirect URL" });
+    await response.body?.cancel();
+    currentOptions = { ...redirectRequestOptions(currentOptions, response.status, currentUrl, nextUrl), redirect: "manual" };
+    currentUrl = nextUrl;
+  }
+
+  throw new Error("Upstream request exceeded the redirect limit");
 }
 
 // Set PLEMBFIN_DEBUG_OUTBOUND=1 to log a per-host outbound request count once
@@ -85,7 +134,8 @@ function trackOutbound(url) {
 }
 
 export async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
-  trackOutbound(url);
+  const safeUrl = assertSafeOutboundUrl(url, { label: "Outbound URL" });
+  trackOutbound(safeUrl);
   const controller = new AbortController();
   const upstreamSignal = options.signal;
   const timeoutError = createUpstreamTimeoutError(timeoutMs);
@@ -97,7 +147,7 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FE
   }
 
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    return await fetchFollowingSafeRedirects(safeUrl, { ...options, signal: controller.signal });
   } catch (error) {
     if (controller.signal.aborted && controller.signal.reason === timeoutError) throw timeoutError;
     throw error;

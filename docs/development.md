@@ -27,9 +27,9 @@ with `DATA_DIR`).
 3. parses `package.json`, `package-lock.json`, `changelog.json`
 4. verifies every routed API handler is either intentionally public or calls
    `requireAdmin`, `resolveAdminPrincipal`, or `verifyWebhookToken`
-5. **rejects any bare `fetch(` in `server/`** — outbound calls must use
-   `fetchWithTimeout` (`server/src/utils/outbound.js`) or attach
-   `AbortSignal.timeout` nearby
+5. **rejects any bare `fetch(` outside `server/src/utils/outbound.js`** — outbound
+   calls must use `fetchWithTimeout`, which enforces timeouts and validates both
+   initial and redirected URLs
 6. boots the real server once against a temp `DATA_DIR` with
    `PLEMBFIN_BUILD_CHECK=1` (the server exits immediately after `listening`)
 

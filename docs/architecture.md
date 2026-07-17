@@ -148,7 +148,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `syncFlags.js` | `watchedPlayedSyncEnabled()` — global kill-switch for watched/played propagation via `WATCHED_PLAYED_SYNC_ENABLED`. |
 | `configStore.js` | The `settings` SQLite row: media-server connection config (Plex/Emby/Jellyfin/Seerr/TMDB/Fanart/TVDB/YouTube/OMDb) with env-var defaults, secret-preserving merges (`mergeIncomingConfig`), browser-safe shape (`publicMediaConfig`), URL validation; plus `runtime_state` helpers and the `sync_history` log. |
 | `auth.js` | Session cookie sign/verify (HMAC, 7-day TTL), API-key matching, `requireAdmin`, and the auth route handlers (`login`, `logout`, `auth/status`, `auth/apikey`, `auth/webhook-secret`, `auth/credentials`, `auth/sessions/revoke-all`). See [auth.md](auth.md). |
-| `outbound.js` | `fetchWithTimeout` (10s default — **all** server-side outbound HTTP must use it; enforced by the build check), `normalizeHttpUrl`, `assertSafeOutboundUrl` (blocks cloud-metadata endpoints). |
+| `outbound.js` | `fetchWithTimeout` (10s default — **all** server-side outbound HTTP must use it; enforced by the build check), `normalizeHttpUrl`, and `assertSafeOutboundUrl`. The shared boundary permits configured LAN media servers while rejecting unsafe schemes, embedded credentials, cloud-metadata targets, and unsafe redirect targets; credentials are removed from cross-origin redirects. |
 | `http.js` | `sendJson` / `sendOptions` / `methodNotAllowed` / `notFound` response helpers. Same-origin only — no CORS headers are ever sent. |
 | `requestBody.js` | `readJson` and `readFormData` (urlencoded + multipart via busboy) over the raw body captured by `server.js`. |
 | `diagnosticLogger.js` | Wraps `console.log/warn/error` to keep the last 1,000 log lines in memory (secrets redacted) for Settings → Logs (`/api/diagnostic-logs`). |
@@ -273,8 +273,10 @@ browser ──/changelog.json▶ Express ──▶ bundled changelog.json
    body omits the token.
 5. Outbound HTTP: every server-side call to an external service goes through
    `fetchWithTimeout` (`server/src/utils/outbound.js`, 10s default; backup
-   transfers use 60s) or carries an explicit `AbortSignal.timeout`. The build
-   check (`scripts/build-check.js`) fails on any bare `fetch(` in `server/`.
+   transfers use 60s). The helper validates initial and redirected URLs, blocks
+   cloud-metadata targets, and removes credentials from cross-origin redirects.
+   The build check (`scripts/build-check.js`) fails on any bare `fetch(` outside
+   that shared boundary.
    Plex HTTP requests send `X-Plex-Token` as a header rather than a query
    parameter so tokens stay out of access logs; the Plex notification WebSocket
    is the one exception because the handshake cannot carry custom headers.

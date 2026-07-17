@@ -268,24 +268,21 @@ export async function handleSeerrStatus(req, res) {
 
   try {
     const seerrHeaders = { "X-Api-Key": apiKey, Accept: "application/json" };
-    const seerrRes = await fetch(`${baseUrl}/api/v1/auth/me`, {
+    const seerrRes = await fetchWithTimeout(`${baseUrl}/api/v1/auth/me`, {
       headers: seerrHeaders,
-      signal: AbortSignal.timeout(8000),
-    });
+    }, 8000);
     if (!seerrRes.ok) {
       const text = await seerrRes.text().catch(() => "");
       return sendJson(res, { ok: false, configured: true, error: `Seerr returned ${seerrRes.status}: ${text.slice(0, 200)}` }, 502);
     }
     const data = await seerrRes.json().catch(() => ({}));
     const [radarrSettings, sonarrSettings] = await Promise.all([
-      fetch(`${baseUrl}/api/v1/settings/radarr`, {
+      fetchWithTimeout(`${baseUrl}/api/v1/settings/radarr`, {
         headers: seerrHeaders,
-        signal: AbortSignal.timeout(8000),
-      }).then((response) => response.ok ? response.json() : []).catch(() => []),
-      fetch(`${baseUrl}/api/v1/settings/sonarr`, {
+      }, 8000).then((response) => response.ok ? response.json() : []).catch(() => []),
+      fetchWithTimeout(`${baseUrl}/api/v1/settings/sonarr`, {
         headers: seerrHeaders,
-        signal: AbortSignal.timeout(8000),
-      }).then((response) => response.ok ? response.json() : []).catch(() => []),
+      }, 8000).then((response) => response.ok ? response.json() : []).catch(() => []),
     ]);
     const radarrServers = Array.isArray(radarrSettings) ? radarrSettings : (radarrSettings?.radarrServers || radarrSettings?.servers || []);
     const sonarrServers = Array.isArray(sonarrSettings) ? sonarrSettings : (sonarrSettings?.sonarrServers || sonarrSettings?.servers || []);
@@ -340,12 +337,11 @@ export async function handleSeerrRequest(req, res) {
       payload.seasons = seasons.length ? [...new Set(seasons)] : "all";
     }
 
-    const seerrRes = await fetch(`${baseUrl}/api/v1/request`, {
+    const seerrRes = await fetchWithTimeout(`${baseUrl}/api/v1/request`, {
       method: "POST",
       headers: { "X-Api-Key": apiKey, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10000),
-    });
+    }, 10000);
 
     const responseBody = await seerrRes.json().catch(() => ({}));
 
@@ -800,10 +796,9 @@ export async function handleSeerrMediaStatus(req, res) {
     let lastErrorMsg = "";
     for (const path of paths) {
       try {
-        const seerrRes = await fetch(`${baseUrl}${path}`, {
+        const seerrRes = await fetchWithTimeout(`${baseUrl}${path}`, {
           headers,
-          signal: AbortSignal.timeout(8000),
-        });
+        }, 8000);
         if (!seerrRes.ok) {
           const body = await seerrRes.json().catch(() => ({}));
           lastErrorMsg = body?.message || body?.error || `Seerr returned ${seerrRes.status}`;
