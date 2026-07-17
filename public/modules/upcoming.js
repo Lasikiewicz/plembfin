@@ -72,7 +72,7 @@ function shiftUpcomingMonth(delta) {
 function setUpcomingMonth(month) {
   state.upcomingMonth = month;
   renderUpcoming();
-  loadUpcoming().catch((error) => _cb.setMessage?.(error.message, "error"));
+  loadUpcoming({ force: true }).catch((error) => _cb.setMessage?.(error.message, "error"));
   scheduleUpcomingSearchWindow();
 }
 
@@ -280,11 +280,11 @@ export function renderUpcoming() {
   const allEpisodes = state.upcomingByMonth.get(month);
   const isLoading = state.upcomingLoadingMonth === month;
   if (!allEpisodes && isLoading) {
-    container.innerHTML = `<p class="upcoming-status">Loading upcoming episodes...</p>`;
+    container.innerHTML = `<p class="upcoming-status">Loading episode air dates...</p>`;
     return;
   }
   if (!allEpisodes) {
-    container.innerHTML = `<p class="upcoming-status">Upcoming episodes have not loaded yet.</p>`;
+    container.innerHTML = `<p class="upcoming-status">Episode air dates have not loaded yet.</p>`;
     return;
   }
   const searchQuery = state.upcomingSearch || "";
@@ -322,8 +322,8 @@ export function renderUpcoming() {
 
   const emptyMonth = !episodes.length
     ? `<p class="upcoming-status">${hasSearch
-      ? `No upcoming episodes match "${escapeHtml(searchQuery.trim())}" this month.`
-      : `No upcoming episodes ${dateIsCurrentMonth(month) ? "for the rest of this month" : "this month"}.`}</p>`
+      ? `No episodes match "${escapeHtml(searchQuery.trim())}" this month.`
+      : "No episode air dates this month."}</p>`
     : "";
 
   container.innerHTML = `
@@ -332,8 +332,4 @@ export function renderUpcoming() {
     ${emptyMonth}
     ${hasSearch ? searchResultsMarkup(month, searchQuery) : ""}`;
   hydratePosters(container);
-}
-
-function dateIsCurrentMonth(month) {
-  return month === currentMonth();
 }

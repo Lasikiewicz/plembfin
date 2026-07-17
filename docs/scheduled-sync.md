@@ -50,6 +50,12 @@ recorded: the poller sees it hit ≥ 90% then disappear, and completes it.
    allows the TV Shows page to sort by upcoming episode date without querying
    TMDB for every row, while avoiding timeouts on large libraries.
 
+5. **Upcoming calendar cache** — every 10 minutes the scheduler processes one month
+   in `data/upcoming-calendar-cache.json`. It builds the previous 24 months once and
+   checks the current month plus the next 12 months every 6 hours. Future checks only
+   rewrite stored data when episode results changed; historical months are not refreshed.
+   Newly tracked shows are merged into cached months on the next calendar request.
+
 ## Why it matters for Now Playing
 
 `live_tracking_cache` is the **primary** source for Now Playing (see

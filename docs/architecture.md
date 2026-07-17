@@ -39,7 +39,7 @@ cast, trailers, artwork), Jellyseerr/Overseerr requesting, and a backup system.
 | Dashboard rendering | `public/modules/dashboard.js` | [dashboard.md](dashboard.md) |
 | Movies library page | `public/modules/explorer.js`, `queryMovies` in `dataRepo.js` | [movies.md](movies.md) |
 | TV Shows library page | `public/modules/explorer.js`, `queryShows`, `showProgressCache.js`, `nextAiringCache.js` | [tv-shows.md](tv-shows.md) |
-| Upcoming episode calendar | `public/modules/upcoming.js`, `handleUpcoming` in `routes/metadata.js`, `nextAiringCache.js` | [upcoming.md](upcoming.md) |
+| Upcoming episode calendar | `public/modules/upcoming.js`, `handleUpcoming` in `routes/metadata.js`, `upcomingCalendarCache.js`, `nextAiringCache.js` | [upcoming.md](upcoming.md) |
 | Movie/show/person detail pages | `public/modules/media-detail*.js`, `media-person.js` | [media-detail.md](media-detail.md) |
 | History page, Search page | `public/modules/explorer.js`, `handleHistory` in `routes/media.js`, `handleMediaSearch` in `routes/metadata.js` | [history-search.md](history-search.md) |
 | Stats page | `public/modules/stats.js`, `getWatchStats` in `dataRepo.js` | [stats.md](stats.md) |
@@ -159,6 +159,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `omdbGateway.js` | OMDb gateway: IMDb rating + vote count by IMDb id, cached 7 days in `omdb_cache`. |
 | `tmdbClient.js` | Tiny wrapper `fetchPosterFromTmdb(row)` used by the poster pipeline's TMDB fallback. |
 | `nextAiringCache.js` | File-backed cache (`data/next-airing-cache.json`) of each show's next episode air date + status, so the TV Shows page can sort by "next airing" without live TVDB/TMDB calls. TTL 6h for active shows, 7d for ended. |
+| `upcomingCalendarCache.js` | Persistent month-level episode calendar (`data/upcoming-calendar-cache.json`): serves cached results, builds historical months once, checks current/future results for changes, and merges newly tracked shows without rebuilding existing entries. |
 | `showProgressCache.js` | File-backed cache (`data/tv_progress_cache.json`) of per-show watched/total episode counts, so library rows can show watch progress without recomputing on every request. |
 | `backup.js` | Portable full-backup format: exports/imports the core SQLite tables as versioned JSON collections (paged export, batched import, optional reset). Used by Settings → Backups / Restore and the encrypted backup subsystem. |
 | `watchHistoryBackups.js` | Watch-history-only backup subsystem: gzip JSON of `watch_history` + `playstate` + `playback_progress` with checksum manifest, daily scheduling, retention, dry-run/merge/replace restore, remote destination management (secrets kept server-side, redacted in every API response), cron-sync pausing around restores. See [backups.md](backups.md). |
@@ -197,7 +198,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `dashboard.js` | Dashboard rendering: Now Playing grid, recent-history rows, part-watched (continue watching) rail. See [dashboard.md](dashboard.md). |
 | `stats.js` | Stats page: KPI cards, leaderboards, platform split, month chart, yearly/monthly review reports. See [stats.md](stats.md). |
 | `explorer.js` | Movies grid, TV Shows grid, History page, Search page: paging, sorting, filters, IntersectionObserver infinite scroll, TMDB prefetch. See [movies.md](movies.md), [tv-shows.md](tv-shows.md), [history-search.md](history-search.md). |
-| `upcoming.js` | Upcoming page: month calendar of future TV episode air dates, search, outside-month matches, poster hydration, and show navigation. See [upcoming.md](upcoming.md). |
+| `upcoming.js` | Upcoming page: month calendar of historical and future TV episode air dates, search, outside-month matches, poster hydration, and show navigation. See [upcoming.md](upcoming.md). |
 | `media-detail.js` | Detail-page entry points: open movie/show detail by id/slug/TMDB id, lookups, modal-close routing. |
 | `media-detail-context.js` | Detail-modal shell/context: init callbacks, `authHeaders`, modal DOM root, render token, debug modal, actions-menu state. |
 | `media-detail-shared.js` | Shared TMDB/Seerr rendering fragments: rating pills, availability labels, Seerr request pills/controls, external ratings, app links. |
@@ -309,10 +310,10 @@ The same logic runs on demand via:
   dashboard to poll; `stop-force-sync` cancels.
 
 The tick also runs the scheduled watch-history backup and encrypted backup jobs
-([backups.md](backups.md)) and maintains `data/next-airing-cache.json`: on startup it
-builds a full TVDB-backed TV next-airing cache for every show, then refreshes stale
-entries in small batches so the TV Shows library can sort by upcoming episodes without
-per-row TVDB calls during page loads.
+([backups.md](backups.md)), maintains `data/next-airing-cache.json`, and progressively
+builds `data/upcoming-calendar-cache.json`. The calendar cache stores the previous 24
+months without refreshing them, checks current/future months for actual changes, and
+merges newly tracked shows on access without repeating existing TVDB season pulls.
 
 Full detail: [scheduled-sync.md](scheduled-sync.md).
 

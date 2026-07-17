@@ -8,6 +8,7 @@ import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { syncMediaPlaystate } from "./utils/syncOrchestrator.js";
 import { getTmdbDetails, prewarmTmdbLibrary } from "./utils/tmdbGateway.js";
 import { cachedNextAiringFor, mergeNextAiringCacheEntries, nextAiringCacheEntryStale, nextAiringCacheKey, readNextAiringCache } from "./utils/nextAiringCache.js";
+import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
 import { runScheduledWatchBackup } from "./utils/watchHistoryBackups.js";
 import { runScheduledPlembfinBackup } from "./utils/plembfinBackups.js";
 import {
@@ -24,9 +25,11 @@ import {
 import { applyManualUnwatch } from "./routes/sync.js";
 
 const NEXT_AIRING_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
+const UPCOMING_CALENDAR_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 const NEXT_AIRING_REFRESH_LIMIT = 40;
 let lastNextAiringRefreshAt = 0;
 let nextAiringInitialBuildPending = true;
+let lastUpcomingCalendarRefreshAt = 0;
 
 async function refreshNextAiringCache({ limit = NEXT_AIRING_REFRESH_LIMIT, forceAll = false } = {}) {
   const cache = await readNextAiringCache();
@@ -115,6 +118,10 @@ export async function runScheduledTick() {
     const forceAll = nextAiringInitialBuildPending;
     nextAiringInitialBuildPending = false;
     await runWithTimeBudget("Next airing cache refresh", () => refreshNextAiringCache({ forceAll }), 45_000);
+  }
+  if (Date.now() - lastUpcomingCalendarRefreshAt > UPCOMING_CALENDAR_REFRESH_INTERVAL_MS) {
+    lastUpcomingCalendarRefreshAt = Date.now();
+    await runWithTimeBudget("Upcoming calendar cache refresh", () => refreshUpcomingCalendarCache(), 50_000);
   }
 }
 

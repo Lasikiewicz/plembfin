@@ -257,7 +257,7 @@ export function cronSyncGuide() {
 
 X-Api-Key: <your-api-key>`, "http")}
       <h3>What this runs</h3>
-      <p>The worker writes a heartbeat timestamp, polls Plex, Emby, and Jellyfin for active playback, updates live-session cache rows, detects completed sessions after 90% progress, writes completed watches to <code>watch_history</code>, dispatches outbound watched-state sync, checks recent Plex items for unwatched removals, and maintains <code>data/next-airing-cache.json</code> for TV show upcoming episode dates.</p>
+      <p>The worker writes a heartbeat timestamp, polls Plex, Emby, and Jellyfin for active playback, updates live-session cache rows, detects completed sessions after 90% progress, writes completed watches to <code>watch_history</code>, dispatches outbound watched-state sync, checks recent Plex items for unwatched removals, maintains <code>data/next-airing-cache.json</code>, and progressively stores month results in <code>data/upcoming-calendar-cache.json</code>.</p>
     </section>
   `;
 }

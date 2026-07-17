@@ -1368,7 +1368,7 @@ function applyActiveView() {
   }
   if (state.activeView === "upcoming") {
     renderUpcoming();
-    loadUpcoming().catch((error) => setMessage(error.message, "error"));
+    loadUpcoming({ force: true }).catch((error) => setMessage(error.message, "error"));
   }
   if (state.activeView === "explorer" && !state.mediaDetailInline) renderExplorer();
   if (state.activeView === "search") renderSearchPage();

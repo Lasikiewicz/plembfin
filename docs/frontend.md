@@ -94,9 +94,9 @@ SPA navigation via `history.pushState`:
   [posters-artwork.md](posters-artwork.md).
 - Now Playing polls only while the dashboard is visible — see
   [now-playing.md](now-playing.md).
-- Upcoming loads one month at a time through `/api/upcoming`; its search can prefetch
-  the next 12 months to list matches outside the selected month — see
-  [upcoming.md](upcoming.md).
+- Upcoming loads one month at a time through `/api/upcoming`; server-side month results
+  persist locally across restarts, while search can prefetch the next 12 months to list
+  matches outside the selected month — see [upcoming.md](upcoming.md).
 - Long-lived caches (explorer pages, dashboard history, poster lookups) persist to
   localStorage with TTLs and versioned keys; bump the key version when the cached
   shape changes.
