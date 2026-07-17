@@ -1,7 +1,19 @@
 {
-  "version": "0.4.58",
-  "updatedAt": "2026-07-17T18:51:55+01:00",
+  "version": "0.4.59",
+  "updatedAt": "2026-07-17T19:05:41+01:00",
   "entries": [
+    {
+      "version": "0.4.59",
+      "date": "2026-07-17T19:05:41+01:00",
+      "commit": "0e457fe1ef82243f15992b264462672208ada47a",
+      "message": "Security - Harden outbound requests against SSRF",
+      "author": "Lasikiewicz",
+      "details": [
+        "Reject unsafe outbound URLs and cloud-metadata endpoints before any connection is made",
+        "Validate redirects and prevent credentials from being forwarded to another origin",
+        "Apply the protections to Seerr requests and enforce them for future server integrations"
+      ]
+    },
     {
       "version": "0.4.58",
       "date": "2026-07-17T18:51:55+01:00",
