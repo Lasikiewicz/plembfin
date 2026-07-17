@@ -87,6 +87,9 @@ async function fetchFollowingSafeRedirects(url, options) {
     // The URL and every redirect target are validated immediately above/below. This
     // application deliberately permits configured LAN media servers, while blocking
     // cloud-metadata endpoints and unsafe URL forms at this shared request boundary.
+    // CodeQL cannot model that policy as a fixed host allowlist because LAN hosts are
+    // administrator-configurable; suppress only this audited, centralized fetch sink.
+    // codeql[js/request-forgery]
     const response = await fetch(currentUrl, currentOptions);
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
 
