@@ -1,7 +1,20 @@
 {
-  "version": "0.4.57",
-  "updatedAt": "2026-07-16T16:22:37+01:00",
+  "version": "0.4.58",
+  "updatedAt": "2026-07-17T18:51:55+01:00",
   "entries": [
+    {
+      "version": "0.4.58",
+      "date": "2026-07-17T18:51:55+01:00",
+      "commit": "38b6e5496a9c5c0425cd1d2f08b4fdc4e8886399",
+      "message": "Feature - Add persistent historic episode calendar",
+      "author": "Lasikiewicz",
+      "details": [
+        "Show historical episode air dates when navigating earlier months on the Upcoming page.",
+        "Store calendar months locally across restarts and progressively preload the previous 24 months without refreshing completed history.",
+        "Check the current and next 12 months for schedule changes while avoiding rewrites when episode data is unchanged.",
+        "Detect newly tracked shows on calendar access and merge only their episodes into existing month results."
+      ]
+    },
     {
       "version": "0.4.57",
       "date": "2026-07-16T16:22:37+01:00",
