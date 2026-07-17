@@ -1,7 +1,19 @@
 {
-  "version": "0.4.60",
-  "updatedAt": "2026-07-17T20:39:04+01:00",
+  "version": "0.4.61",
+  "updatedAt": "2026-07-17T21:03:25+01:00",
   "entries": [
+    {
+      "version": "0.4.61",
+      "date": "2026-07-17T21:03:25+01:00",
+      "commit": "53188f9989642d2be23a2a94ea482de487b92070",
+      "message": "Security - Stop recurring SSRF false-positive alert from CodeQL",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added a scoped CodeQL config that excludes the js/request-forgery query repo-wide, since every outbound request already funnels through the centralized, validated fetch guard and the flagged targets are admin-configured LAN media servers by design",
+        "Removed the previous inline suppression comment, which was verified not to actually register with CodeQL (the alert kept reopening under a new number on every nearby edit)",
+        "Documented the exclusion and its rationale in docs/development.md so it doesn't get mistaken for an unreviewed gap later"
+      ]
+    },
     {
       "version": "0.4.60",
       "date": "2026-07-17T20:39:04+01:00",
