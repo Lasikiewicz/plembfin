@@ -1,7 +1,19 @@
 {
-  "version": "0.5.0",
-  "updatedAt": "2026-07-18T17:51:45+01:00",
+  "version": "0.5.1",
+  "updatedAt": "2026-07-18T18:51:54+01:00",
   "entries": [
+    {
+      "version": "0.5.1",
+      "date": "2026-07-18T18:51:54+01:00",
+      "commit": "160ab3875b15d593abf9809f56aff7962f18d04b",
+      "message": "Fix - Speed up media detail loading and show rematches",
+      "author": "Lasikiewicz",
+      "details": [
+        "Replace green status pills with an accessible loading animation across media detail pages",
+        "Update every episode match in one request while metadata refreshes in the background",
+        "Keep the corrected TVDB identity authoritative during progress and artwork refresh"
+      ]
+    },
     {
       "version": "0.5.0",
       "date": "2026-07-18T17:51:45+01:00",
