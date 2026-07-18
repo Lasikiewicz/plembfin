@@ -36,7 +36,7 @@ without enough title/type/progress data to record a watch.
 - `playback.start` / `playback.unpause` / `playback.progress` / `playback.pause` → `active`
 - `item.markplayed`, or a userdata-saved event with `Played=true` → `completed`
 - `item.markunplayed`, or `Played=false` → `unplayed`
-- `playback.stop` → `completed` if progress ≥ 90%, else `ended`
+- `playback.stop` → `completed` at the watched threshold (90% by default), else `ended`
 
 Unlike Plex, Emby **does** send mark-unplayed events, so unwatch propagation works
 purely through the webhook — no extra listener is needed.

@@ -173,6 +173,74 @@ const METADATA_SERVICES = {
 
 export const SERVICE_DEFS = Object.freeze({ ...CONNECTION_SERVICES, ...METADATA_SERVICES });
 
+// Sync tuning is not part of the add/remove service picker — it's a single,
+// always-visible card, so it's kept out of CONNECTION_SERVICES/METADATA_SERVICES
+// (which drive the "Add Media Server"/"Add Metadata Provider" pickers).
+const TUNING_FIELD_DEFS = [
+  { key: "watchedThresholdPercent", label: "Watched Threshold", unit: "%", help: "Playback progress percentage at which a play counts as watched." },
+  { key: "minResumePositionSec", label: "Minimum Resume Position", unit: "sec", help: "Minimum playback position before a stopped play is saved as a resume point." },
+  { key: "activeSessionTtlMin", label: "Active Session TTL", unit: "min", help: `How long a "now playing" session is kept without an update before it's considered stale.` },
+  { key: "outboundTimeoutSec", label: "Outbound Request Timeout", unit: "sec", help: "How long Plembfin waits for a response from Plex, Emby, or Jellyfin before giving up." },
+];
+const EXTRA_SERVICE_NAMES = { tuning: "Sync Tuning" };
+
+function tuningBadges(tuning = {}) {
+  const overriddenCount = TUNING_FIELD_DEFS.filter((field) => tuning[field.key]?.overridden).length;
+  if (!overriddenCount) return [{ label: "Defaults", tone: "muted" }];
+  return [{ label: `${overriddenCount} customized`, tone: "ready" }];
+}
+
+function syncTuningFieldSpecs(tuning = {}) {
+  return TUNING_FIELD_DEFS.map((field) => {
+    const info = tuning[field.key] || {};
+    return {
+      key: field.key,
+      label: `${field.label}${field.unit ? ` (${field.unit})` : ""}`,
+      type: "number",
+      value: info.overridden ? info.value : "",
+      placeholder: info.default != null ? String(info.default) : "",
+      optional: true,
+      help: `${field.help} Default: ${info.default}${field.unit || ""}. Valid range: ${info.min}-${info.max}.`,
+    };
+  });
+}
+
+// Blank ⇒ null ⇒ configStore.js interprets null as "not overridden, fall back
+// to the environment variable or built-in default" (see server/src/utils/tuning.js).
+function syncTuningPayload(values = {}) {
+  const payload = {};
+  for (const field of TUNING_FIELD_DEFS) {
+    const raw = String(values[field.key] ?? "").trim();
+    payload[field.key] = raw === "" ? null : Number(raw);
+  }
+  return payload;
+}
+
+export function openSyncTuningEditModal() {
+  const tuning = state.savedConfig?.tuning || {};
+  openSettingsEditModal({
+    title: "Sync Tuning",
+    fields: syncTuningFieldSpecs(tuning),
+    onSave: (values) => saveServiceConfig("tuning", syncTuningPayload(values)),
+    helpHtml: `<p class="tool-accordion-desc">Leave any field blank to use its default (or the matching environment variable, if the server has one set).</p>`,
+  });
+}
+
+export function renderSyncTuningCard() {
+  const container = document.querySelector("#syncTuningCard");
+  if (!container) return;
+  const tuning = state.savedConfig?.tuning || {};
+  renderServiceCardGrid(container, {
+    items: [{
+      id: "tuning",
+      name: "Sync Tuning",
+      description: "Watched threshold, resume position, session TTL, and outbound timeout",
+      badges: tuningBadges(tuning),
+    }],
+    onSelect: () => openSyncTuningEditModal(),
+  });
+}
+
 function connectionTouched(config) {
   return Boolean(config && (config.configured || config.baseUrl || config.url || config.disabled === true));
 }
@@ -237,7 +305,8 @@ async function saveServiceConfig(section, sectionPayload) {
   renderActiveSessions();
   renderMediaServerCards();
   renderMetadataCards();
-  setMessage(`Saved ${SERVICE_DEFS[section]?.name || section} settings successfully.`, "success");
+  renderSyncTuningCard();
+  setMessage(`Saved ${SERVICE_DEFS[section]?.name || EXTRA_SERVICE_NAMES[section] || section} settings successfully.`, "success");
   return body;
 }
 
@@ -369,4 +438,5 @@ export function applyConfigToSettingsUi(config = {}) {
   state.seerrConfigured = Boolean(config.seerr?.configured);
   renderMediaServerCards();
   renderMetadataCards();
+  renderSyncTuningCard();
 }

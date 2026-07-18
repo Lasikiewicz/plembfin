@@ -1,6 +1,5 @@
 ﻿import { db, parseJson, toJson } from "../db.js";
-
-const ACTIVE_SESSION_TTL_MS = 300_000; // 5 minutes
+import { activeSessionTtlMs } from "./tuning.js";
 
 function normalizePart(value) {
   return String(value ?? "none").trim().toLowerCase().replace(/[^a-z0-9._:-]+/g, "-");
@@ -57,7 +56,7 @@ const upsertStmt = db.prepare(
 const deleteOneStmt = db.prepare("DELETE FROM active_sessions WHERE id = ?");
 
 export async function listActiveSessions() {
-  const cutoff = Date.now() - ACTIVE_SESSION_TTL_MS;
+  const cutoff = Date.now() - activeSessionTtlMs();
   deleteStaleStmt.run(cutoff);
   return selectAllStmt.all().map(fromRow);
 }
@@ -83,7 +82,7 @@ export async function upsertActiveSession(media) {
       deviceName: media.device || media.deviceName || "",
     }),
     updated_at: now,
-    expire_at: now + ACTIVE_SESSION_TTL_MS,
+    expire_at: now + activeSessionTtlMs(),
   });
   return listActiveSessions();
 }

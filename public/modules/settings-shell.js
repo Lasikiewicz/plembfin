@@ -47,7 +47,7 @@ const SECTIONS = {
     label: "Sync",
     description: "Unresolved sync issues, history, and repair tools",
     panel: "sync",
-    subPanels: ["sync-issues", "sync-history", "sync-tools"],
+    subPanels: ["sync-issues", "sync-tuning", "sync-history", "sync-tools"],
   },
   health: {
     label: "Health",

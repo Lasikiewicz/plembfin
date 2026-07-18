@@ -12,8 +12,9 @@ The dashboard's "Now Playing" row. This has caused a real production outage (Jun
    snapshots whatever is currently playing. Only rows with `completed_at IS NULL`
    are returned.
 2. **`active_sessions`** - written by the **webhook** `active` phase
-   (`upsertActiveSession`). These have a **5-minute TTL**: `listActiveSessions`
-   deletes any row whose `updated_at` is more than 5 minutes old before returning.
+   (`upsertActiveSession`). These have a configurable TTL (**5 minutes by default**):
+   `listActiveSessions` deletes any row whose `updated_at` is older than the active
+   session TTL before returning.
 
 The merge de-duplicates by `(source, title, season, episode)` and sorts by
 `updated_at` desc. A session can reach Now Playing via the scheduler, via a
@@ -95,8 +96,9 @@ Work outside-in:
    - If empty/stale -> the scheduler isn't reaching the servers. Check the server logs
      for poller errors. Confirm the Plex/Emby/Jellyfin URLs in Settings are reachable
      from the Plembfin server.
-   - If all rows have `completed_at != NULL` -> they were marked complete (>= 90%
-     progress then disappeared), so they won't show. Expected.
+   - If all rows have `completed_at != NULL` -> they were marked complete after
+     reaching the watched threshold (90% by default) and disappearing, so they
+     won't show. Expected.
 
 2. **Does the API return it?** DevTools -> Network -> filter `now-playing`. You should
    see repeating requests every 10s returning a JSON array. If the array has

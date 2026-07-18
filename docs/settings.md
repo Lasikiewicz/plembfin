@@ -44,11 +44,11 @@ footer visible while the body scrolls, and collapse to stacked fields on mobile.
 | --- | --- |
 | `public/modules/settings-shell.js` | Flat route registry, legacy aliases, landing list, sidebar, mobile selector, panel visibility, and advanced disclosures |
 | `public/modules/settings-ui.js` | Shared edit modal, picker modal, and service-card grid primitives |
-| `public/modules/settings-services.js` | Media-server and metadata definitions, config saves, connection tests, cards, and dialogs |
+| `public/modules/settings-services.js` | Media-server, metadata, and Sync Tuning definitions; config saves, connection tests, cards, and dialogs |
 | `public/modules/settings.js` | Shared connection-label formatting |
 | `public/modules/tools.js` | Trakt import and compatibility exports for backup and maintenance behavior |
 | `public/modules/tools-backups.js` | Backup schedules, restore, destination cards/dialogs, and appearance behavior |
-| `public/modules/tools-maintenance.js` | Diagnostics, repairs, backfills, and cache behavior |
+| `public/modules/tools-maintenance.js` | Diagnostics, cross-platform match reporting, repairs, backfills, and cache behavior |
 | `public/modules/help-content.js` | Credential, webhook, migration, and account setup guides |
 | `public/modules/logs.js` / `public/modules/sync.js` | Logs and sync rendering/loaders |
 | `public/app.js` | SPA routing, data loading, element binding, and module callback injection |
@@ -87,10 +87,20 @@ URLs are restricted to HTTP/HTTPS, embedded credentials and cloud-metadata hosts
 rejected, and saved values take precedence over environment defaults. Connection tests
 fall back to stored credentials when the modal secret field is blank.
 
+The **Sync Tuning** card exposes four optional numeric settings: watched threshold,
+minimum resume position, active-session TTL, and outbound request timeout. Blank fields
+inherit the matching environment variable or built-in default; saved values take
+precedence. The defaults remain 90%, 60 seconds, 5 minutes, and 10 seconds respectively.
+
 ## Maintenance disposition
 
-- Health runs the integrity, database, webhook, scheduler, and media-server checks.
+- Health runs the integrity, database, webhook, scheduler, media-server, and
+  cross-platform library matching checks.
 - Sync combines unresolved jobs, history, repair-recent, force, stop/reset, and refresh.
+  The Sync Issues panel also contains the Cross-Platform Match Report (backed by the
+  admin-guarded `GET /api/sync-match-report` endpoint), which groups every
+  "no matching item found" sync result by platform with per-platform unique-media
+  counts, movie/episode splits, and sample rows.
 - Storage displays and clears image cache categories.
 - Advanced retains history repair, deduplication, full watch-state sync, metadata refresh,
   TV rematching, and Trakt poster backfill with their confirmations and logs.

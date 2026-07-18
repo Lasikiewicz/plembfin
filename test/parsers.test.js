@@ -8,6 +8,7 @@ import {
   parsePlexGuids,
   parsePlexWebhook,
 } from "../server/src/utils/parsers.js";
+import { applyTuningConfig, resetTuningForTests } from "../server/src/utils/tuning.js";
 
 function plexForm(event, metadata = {}) {
   const form = new FormData();
@@ -100,4 +101,44 @@ test("parsePlexGuids supports modern and legacy agent formats", () => {
 test("decodeHtmlEntities decodes once without double-unescaping", () => {
   assert.equal(decodeHtmlEntities("Tom &amp; Jerry"), "Tom & Jerry");
   assert.equal(decodeHtmlEntities("Tom &#38;amp; Jerry"), "Tom &amp; Jerry");
+});
+
+test("phase boundaries follow the configured watched threshold", async (t) => {
+  t.after(() => resetTuningForTests());
+
+  applyTuningConfig({ watchedThresholdPercent: 70 });
+
+  const stopBelow = await parsePlexWebhook(plexForm("media.stop", { duration: 100_000, viewOffset: 69_000 }));
+  assert.equal(stopBelow.phase, "ended");
+  const stopAtThreshold = await parsePlexWebhook(plexForm("media.stop", { duration: 100_000, viewOffset: 70_000 }));
+  assert.equal(stopAtThreshold.phase, "completed");
+
+  const embyBase = { Item: { Type: "Movie", Name: "Arrival", ProviderIds: { Tmdb: "329865" } } };
+  assert.equal(parseEmbyWebhook({ Event: "playback.stop", Progress: 69, ...embyBase }).phase, "ended");
+  assert.equal(parseEmbyWebhook({ Event: "playback.stop", Progress: 70, ...embyBase }).phase, "completed");
+
+  const jellyfinBase = { Item: { Type: "Movie", Name: "Arrival", ProviderIds: { Tmdb: "329865" } } };
+  assert.equal(parseJellyfinWebhook({ NotificationType: "PlaybackStop", Progress: 69, ...jellyfinBase }).phase, "ended");
+  assert.equal(parseJellyfinWebhook({ NotificationType: "PlaybackStop", Progress: 70, ...jellyfinBase }).phase, "completed");
+
+  applyTuningConfig({ watchedThresholdPercent: 95 });
+
+  const stopBelowHigh = await parsePlexWebhook(plexForm("media.stop", { duration: 100_000, viewOffset: 94_000 }));
+  assert.equal(stopBelowHigh.phase, "ended");
+  const stopAtHighThreshold = await parsePlexWebhook(plexForm("media.stop", { duration: 100_000, viewOffset: 95_000 }));
+  assert.equal(stopAtHighThreshold.phase, "completed");
+
+  assert.equal(parseEmbyWebhook({ Event: "playback.stop", Progress: 94, ...embyBase }).phase, "ended");
+  assert.equal(parseEmbyWebhook({ Event: "playback.stop", Progress: 95, ...embyBase }).phase, "completed");
+
+  assert.equal(parseJellyfinWebhook({ NotificationType: "PlaybackStop", Progress: 94, ...jellyfinBase }).phase, "ended");
+  assert.equal(parseJellyfinWebhook({ NotificationType: "PlaybackStop", Progress: 95, ...jellyfinBase }).phase, "completed");
+});
+
+test("phase boundaries fall back to the default 90% threshold once tuning is reset", async () => {
+  resetTuningForTests();
+  const stopBelow = await parsePlexWebhook(plexForm("media.stop", { duration: 100_000, viewOffset: 89_000 }));
+  assert.equal(stopBelow.phase, "ended");
+  const stopAt = await parsePlexWebhook(plexForm("media.stop", { duration: 100_000, viewOffset: 90_000 }));
+  assert.equal(stopAt.phase, "completed");
 });

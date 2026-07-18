@@ -7,7 +7,7 @@ import { handleAppearance, handleConfig, handleMediaAppLinks, handleSeerrMediaSt
 import { handleClearMissingTelemetry, handleDeleteMedia, handleFullSyncWatchstates, handleHistory, handleMergeShows, handleMovies, handleShow, handleShows, handleUpdateWatch } from "./routes/media.js";
 import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleManualUnwatch, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleRetrySync, handleStopForceSync, handleSyncHistory, handleSyncJobs, handleWebhook } from "./routes/sync.js";
 import { handleFanartImages, handleMediaSearch, handleOmdbRating, handlePoster, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleYoutubeMeta } from "./routes/metadata.js";
-import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDedupHistory, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRematchTvShows } from "./routes/maintenance.js";
+import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDedupHistory, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRematchTvShows, handleSyncMatchReport } from "./routes/maintenance.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -31,6 +31,7 @@ async function dispatch(req, res) {
     if (path === "appearance") return handleAppearance(req, res);
     if (path === "history") return handleHistory(req, res);
     if (path === "sync-jobs") return handleSyncJobs(req, res);
+    if (path === "sync-match-report") return handleSyncMatchReport(req, res);
     if (path === "sync-history") return handleSyncHistory(req, res);
     if (path === "clear-missing-telemetry") return handleClearMissingTelemetry(req, res);
     if (path === "movies") return handleMovies(req, res);

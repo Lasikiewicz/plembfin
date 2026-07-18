@@ -129,7 +129,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `media.js` | Library and history handlers: history, movies, shows/show detail, delete/update watch records, merge shows, full watchstate replay, and missing-telemetry clearing. |
 | `metadata.js` | Poster proxy and metadata/search handlers: TMDB details/search/season/images/person/poster/profile, TVDB search/images, Fanart images, media search, Upcoming episodes, YouTube metadata, and OMDb ratings. |
 | `sync.js` | Sync/runtime handlers: webhook ingestion, manual watch/unwatch, playback progress, retry sync, sync job/history listing, Now Playing, active sessions, cron sync, force sync, and stop-force-sync. |
-| `maintenance.js` | Maintenance/admin utility handlers: ping, changelog/update check, diagnostic logs, backfill/repair/dedup/rematch, cache stats, and cache clearing. |
+| `maintenance.js` | Maintenance/admin utility handlers: ping, changelog/update check, diagnostic logs, cross-platform match reporting, backfill/repair/dedup/rematch, cache stats, and cache clearing. |
 
 ### `server/src/utils/`
 
@@ -138,17 +138,19 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `dataRepo.js` | **The data repository** — pure SQLite. All prepared-statement CRUD for watch history, playstate, playback progress, live tracking cache; the memoized derived caches (`getCachedHistory/Movies/Shows`, `getWatchStats`); `mediaKeyFor` canonical keys; query functions behind `/api/history`, `/api/movies`, `/api/shows`, `/api/show`; dedup/merge/backfill helpers. |
 | `parsers.js` | Webhook normalization: `parsePlexWebhook` (multipart), `parseEmbyWebhook`, `parseJellyfinWebhook`, `parseCustomWebhook` → a unified `media` object with a `phase` field (`active`/`completed`/`ended`/`unplayed`/`ignored`). Also `parsePlexGuids`, `normalizeProviderIds`, `decodeHtmlEntities`, `buildPlexMediaFromMetadata`. See [webhooks.md](webhooks.md). |
 | `syncOrchestrator.js` | Cross-platform propagation: `syncMediaPlaystate` / `syncMediaUnplayedPlaystate` / `syncMediaProgress` fan out to the other platforms' clients, with `TARGETS_BY_SOURCE` routing, echo-loop detection via `loopStore.checkAndClaim`, and result summaries written to telemetry. |
+| `syncMatchReport.js` | Pure aggregation of current watch-history telemetry into per-platform unmatched-media counts, movie/episode splits, and bounded samples for Settings → Sync Issues. |
+| `tuning.js` | Import-free runtime accessors for watched threshold, minimum resume position, active-session TTL, and outbound timeout; reads environment defaults and applies validated Settings overrides. |
 | `plexClient.js` | Plex HTTP client: find items by GUID/title, mark played/unplayed, set resume progress, fetch watched/resumable/metadata/episodes; username→accountID resolution with memoization. Token always sent as `X-Plex-Token` header. See [plex.md](plex.md). |
 | `plexNotificationListener.js` | Plex real-time WebSocket listener (`/:/websockets/notifications`): detects watched/unwatched changes the webhook can never deliver, reconnects with backoff, debounces per ratingKey; plus `probePlexNotificationSocket` for the System Integrity Check. |
 | `embyClient.js` | Emby HTTP client (same operation set as Plex client, `X-Emby-Token` auth, provider-ID `AnyProviderIdEquals` lookups). See [emby.md](emby.md). |
 | `jellyfinClient.js` | Jellyfin HTTP client (same shape as Emby client; sends both `X-Emby-Token` and `X-MediaBrowser-Token`). See [jellyfin.md](jellyfin.md). |
 | `liveSessions.js` | Polls Plex/Emby/Jellyfin `sessions` endpoints for what's playing now (`fetchLiveSessions`), normalizes them (`buildCacheRow`, `sessionIdentity`, `hydrateCachedSession`) for `live_tracking_cache`. Feeds Now Playing and completed-session detection. |
-| `activeSessions.js` | The `active_sessions` table (webhook `active`-phase sessions, 5-minute TTL enforced on read). |
+| `activeSessions.js` | The `active_sessions` table (webhook `active`-phase sessions, configurable 5-minute TTL by default, enforced on read). |
 | `loopStore.js` | SQLite-backed loop-detection KV (`loop_keys` table) with TTL; `checkAndClaim` runs check+claim in one transaction so concurrent webhooks can't both pass. |
 | `syncFlags.js` | `watchedPlayedSyncEnabled()` — global kill-switch for watched/played propagation via `WATCHED_PLAYED_SYNC_ENABLED`. |
-| `configStore.js` | The `settings` SQLite row: media-server connection config (Plex/Emby/Jellyfin/Seerr/TMDB/Fanart/TVDB/YouTube/OMDb) with env-var defaults, secret-preserving merges (`mergeIncomingConfig`), browser-safe shape (`publicMediaConfig`), URL validation; plus `runtime_state` helpers and the `sync_history` log. |
+| `configStore.js` | The `settings` SQLite row: media-server connection config (Plex/Emby/Jellyfin/Seerr/TMDB/Fanart/TVDB/YouTube/OMDb) and sync-tuning overrides with env-var defaults, secret-preserving merges (`mergeIncomingConfig`), browser-safe shape (`publicMediaConfig`), URL/range validation; plus `runtime_state` helpers and the `sync_history` log. |
 | `auth.js` | Session cookie sign/verify (HMAC, 7-day TTL), API-key matching, `requireAdmin`, and the auth route handlers (`login`, `logout`, `auth/status`, `auth/apikey`, `auth/webhook-secret`, `auth/credentials`, `auth/sessions/revoke-all`). See [auth.md](auth.md). |
-| `outbound.js` | `fetchWithTimeout` (10s default — **all** server-side outbound HTTP must use it; enforced by the build check), `normalizeHttpUrl`, and `assertSafeOutboundUrl`. The shared boundary permits configured LAN media servers while rejecting unsafe schemes, embedded credentials, cloud-metadata targets, and unsafe redirect targets; credentials are removed from cross-origin redirects. |
+| `outbound.js` | `fetchWithTimeout` (configurable 10s default — **all** server-side outbound HTTP must use it; enforced by the build check), `normalizeHttpUrl`, and `assertSafeOutboundUrl`. The shared boundary permits configured LAN media servers while rejecting unsafe schemes, embedded credentials, cloud-metadata targets, and unsafe redirect targets; credentials are removed from cross-origin redirects. |
 | `http.js` | `sendJson` / `sendOptions` / `methodNotAllowed` / `notFound` response helpers. Same-origin only — no CORS headers are ever sent. |
 | `requestBody.js` | `readJson` and `readFormData` (urlencoded + multipart via busboy) over the raw body captured by `server.js`. |
 | `diagnosticLogger.js` | Wraps `console.log/warn/error` to keep the last 1,000 log lines in memory (secrets redacted) for Settings → Logs (`/api/diagnostic-logs`). |
@@ -272,7 +274,7 @@ browser ──/changelog.json▶ Express ──▶ bundled changelog.json
    Test-connection endpoints fall back to the stored credential when the request
    body omits the token.
 5. Outbound HTTP: every server-side call to an external service goes through
-   `fetchWithTimeout` (`server/src/utils/outbound.js`, 10s default; backup
+   `fetchWithTimeout` (`server/src/utils/outbound.js`, configurable 10s default; backup
    transfers use 60s). The helper validates initial and redirected URLs, blocks
    cloud-metadata targets, and removes credentials from cross-origin redirects.
    The build check (`scripts/build-check.js`) fails on any bare `fetch(` outside
@@ -480,6 +482,10 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `COOKIE_SECURE` — set to `true` when behind an HTTPS reverse proxy
 - `WATCHED_PLAYED_SYNC_ENABLED` — set to `false`/`0`/`off` to disable all watched/played propagation (recording still happens)
 - `CATCHUP_SYNC_INTERVAL_MS` — how often the catch-up library sync runs inside the scheduler (default 15 minutes)
+- `WATCHED_THRESHOLD_PERCENT` — playback percentage that counts as watched (default `90`, range 50–100)
+- `MIN_RESUME_POSITION_SEC` — minimum stopped-play position saved as resume progress (default `60`, range 0–3600 seconds)
+- `ACTIVE_SESSION_TTL_MIN` — time without a webhook update before an active session is stale (default `5`, range 1–120 minutes)
+- `OUTBOUND_TIMEOUT_SEC` — default timeout for outbound media-server requests (default `10`, range 2–120 seconds)
 - `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` / `PLEX_ENABLED` — Plex connection defaults (Settings values take precedence)
 - `EMBY_SERVER_URL` / `EMBY_API_KEY` / `EMBY_USER_ID` / `EMBY_ENABLED` — Emby connection defaults
 - `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` — Jellyfin connection defaults
@@ -492,6 +498,6 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `FANART_API_KEY` — optional personal Fanart.tv key (raises the rate limit as a `client_key`)
 - `PLEMBFIN_DEBUG_OUTBOUND` — set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs); for measuring upstream traffic
 
-Environment variables act as **defaults** for connection settings: values saved in
-Settings (stored in the `settings` SQLite row) take precedence over env values
-(`mergeEnvDefaults` in `configStore.js`).
+Environment variables act as **defaults** for connection and sync-tuning settings:
+values saved in Settings (stored in the `settings` SQLite row) take precedence over
+env values (`mergeEnvDefaults` in `configStore.js`).

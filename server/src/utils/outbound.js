@@ -1,3 +1,5 @@
+import { outboundTimeoutMs } from "./tuning.js";
+
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
 const MAX_OUTBOUND_REDIRECTS = 5;
 
@@ -135,13 +137,14 @@ function trackOutbound(url) {
   }
 }
 
-export async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
+export async function fetchWithTimeout(url, options = {}, timeoutMs = undefined) {
+  const resolvedTimeoutMs = timeoutMs ?? outboundTimeoutMs();
   const safeUrl = assertSafeOutboundUrl(url, { label: "Outbound URL" });
   trackOutbound(safeUrl);
   const controller = new AbortController();
   const upstreamSignal = options.signal;
-  const timeoutError = createUpstreamTimeoutError(timeoutMs);
-  const timeout = setTimeout(() => controller.abort(timeoutError), timeoutMs);
+  const timeoutError = createUpstreamTimeoutError(resolvedTimeoutMs);
+  const timeout = setTimeout(() => controller.abort(timeoutError), resolvedTimeoutMs);
   const abortFromUpstream = () => controller.abort(upstreamSignal.reason);
   if (upstreamSignal) {
     if (upstreamSignal.aborted) abortFromUpstream();

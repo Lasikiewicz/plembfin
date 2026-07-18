@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, platformName } from "./utils.js";
+import { escapeHtml, escapeAttribute, platformName, formatDate } from "./utils.js";
 import { categorizeIssues } from "./sync.js";
 
 let _setMessage = () => {};
@@ -9,6 +9,7 @@ let _loadSyncJobs = async () => {};
 let _loadSyncHistory = async () => {};
 let _loadHistory = async () => {};
 let _clearDerivedUiCaches = () => {};
+let _loadSavedConfig = async () => {};
 
 export function initMaintenanceTools(callbacks = {}) {
   if (callbacks.setMessage) _setMessage = callbacks.setMessage;
@@ -17,6 +18,8 @@ export function initMaintenanceTools(callbacks = {}) {
   if (callbacks.loadSyncHistory) _loadSyncHistory = callbacks.loadSyncHistory;
   if (callbacks.loadHistory) _loadHistory = callbacks.loadHistory;
   if (callbacks.clearDerivedUiCaches) _clearDerivedUiCaches = callbacks.clearDerivedUiCaches;
+  if (callbacks.loadSavedConfig) _loadSavedConfig = callbacks.loadSavedConfig;
+  initSyncMatchReport();
 }
 
 function authHeaders() { return buildAuthHeaders(state.token); }
@@ -178,6 +181,21 @@ export async function runSystemIntegrityCheck() {
   await testConnection("emby", embyUrl, "", "Emby Media Server");
   await testConnection("jellyfin", jellyfinUrl, "", "Jellyfin Media Server");
 
+  try {
+    const report = await fetchSyncMatchReport();
+    const lines = ["plex", "emby", "jellyfin"]
+      .map((platform) => ({ platform, stats: report.platforms?.[platform] }))
+      .filter((entry) => entry.stats && entry.stats.uniqueMediaCount > 0)
+      .map((entry) => `${platformName(entry.platform)}: ${entry.stats.uniqueMediaCount} item${entry.stats.uniqueMediaCount !== 1 ? "s" : ""} unmatched (${entry.stats.movies} movies, ${entry.stats.episodes} episodes)`);
+    if (!lines.length) {
+      results.push({ name: "Cross-Platform Library Matching", status: "success", detail: `No "no matching item" sync failures across ${report.scannedRows} records with telemetry.` });
+    } else {
+      results.push({ name: "Cross-Platform Library Matching", status: "warning", detail: `Warnings - ${lines.join("; ")}.` });
+    }
+  } catch (error) {
+    results.push({ name: "Cross-Platform Library Matching", status: "error", detail: `Match report failed: ${error.message}` });
+  }
+
   container.innerHTML = results.map((res) => {
     let statusLabel = "Skipped";
     let pillStyle = "border-color: var(--line); background: var(--panel-3); color: var(--muted);";
@@ -195,6 +213,7 @@ export async function runSystemIntegrityCheck() {
       else if (res.name === "Server Configuration") { fixInstruction = "Fix: Try saving your configuration again in Settings → Media Servers. If the error persists, check that data/config.json is writable."; }
       else if (res.name === "Webhook Listener Endpoint") { fixInstruction = "Fix: Confirm the server is running and accessible at the expected host and port. Check for firewall or reverse-proxy rules blocking /api/webhook."; }
       else if (res.name === "Outbound Playstate Sync") { fixInstruction = "Fix: Open the latest history row debug details, review sync_dispatch_telemetry, then correct the failed platform credentials or provider-ID match."; }
+      else if (res.name === "Cross-Platform Library Matching") { fixInstruction = "Fix: Open the Cross-Platform Match Report under Settings → Sync → Sync Issues to see which media each platform could not find, then add the media to that library or correct its metadata/external IDs."; settingsPath = "/settings/sync"; }
       else if (res.name === "Plex Media Server") { fixInstruction = "Fix: Enter the Plex Server URL and Plex Token in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
       else if (res.name === "Plex Realtime Notifications") { fixInstruction = "Fix: Ensure any reverse proxy / Cloudflare in front of Plex forwards WebSocket upgrades on /:/websockets/notifications, or set the Plex Server URL to the direct LAN address (e.g. http://192.168.x.x:32400). Unwatch sync still works via the fallback poll until this is fixed."; settingsPath = "/settings/media-servers"; }
       else if (res.name === "Emby Media Server") { fixInstruction = "Fix: Enter the Emby Server URL, API Key, and User ID in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
@@ -216,6 +235,88 @@ export async function runSystemIntegrityCheck() {
 
   button.disabled = false;
   button.textContent = "Run System Diagnostic";
+}
+
+// ── Cross-platform match report ────────────────────────────────────────────
+
+export async function fetchSyncMatchReport() {
+  const response = await fetch("/api/sync-match-report", { headers: authHeaders() });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Failed with HTTP ${response.status}`);
+  return body.report || { scannedRows: 0, totalUnmatchedRows: 0, platforms: {} };
+}
+
+function matchReportSampleLabel(sample = {}) {
+  if (sample.media_type === "episode") {
+    const show = sample.show_title || sample.title || "Unknown show";
+    const hasCode = sample.season != null && sample.episode != null;
+    const code = hasCode ? ` S${String(sample.season).padStart(2, "0")}E${String(sample.episode).padStart(2, "0")}` : "";
+    return `${show}${code}`;
+  }
+  return sample.title || "Unknown title";
+}
+
+export function renderSyncMatchReport(report = {}) {
+  const platforms = ["plex", "emby", "jellyfin"]
+    .map((platform) => ({ platform, stats: report.platforms?.[platform] }))
+    .filter((entry) => entry.stats && entry.stats.uniqueMediaCount > 0);
+
+  if (!platforms.length) {
+    return `<div class="empty-log"><b>No match failures</b><span>No platform reported "no matching item found" for any synced media (${report.scannedRows || 0} records with telemetry scanned).</span></div>`;
+  }
+
+  return platforms.map(({ platform, stats }) => {
+    const truncated = stats.uniqueMediaCount > stats.samples.length
+      ? `<div style="font-size: 0.8rem; color: var(--muted); margin-top: var(--space-1);">Showing the first ${stats.samples.length} of ${stats.uniqueMediaCount} unmatched items.</div>`
+      : "";
+    return `
+      <div>
+        <div style="font-weight: 700; margin-bottom: var(--space-1);">
+          ${escapeHtml(platformName(platform))}
+          <span style="font-weight: 400; color: var(--muted); margin-left: var(--space-1);">${stats.uniqueMediaCount} item${stats.uniqueMediaCount !== 1 ? "s" : ""} not found (${stats.movies} movie${stats.movies !== 1 ? "s" : ""}, ${stats.episodes} episode${stats.episodes !== 1 ? "s" : ""}) across ${stats.rowCount} record${stats.rowCount !== 1 ? "s" : ""}</span>
+        </div>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+            <thead>
+              <tr style="text-align: left; color: var(--muted);">
+                <th style="padding: 0.3rem 0.5rem;">Title</th>
+                <th style="padding: 0.3rem 0.5rem;">Type</th>
+                <th style="padding: 0.3rem 0.5rem;">Last watched</th>
+                <th style="padding: 0.3rem 0.5rem;">Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${stats.samples.map((sample) => `
+                <tr style="border-top: 1px solid var(--line);">
+                  <td style="padding: 0.3rem 0.5rem; word-break: break-word;">${escapeHtml(matchReportSampleLabel(sample))}</td>
+                  <td style="padding: 0.3rem 0.5rem;">${escapeHtml(sample.media_type === "episode" ? "TV" : "Movie")}</td>
+                  <td style="padding: 0.3rem 0.5rem; white-space: nowrap;">${escapeHtml(formatDate(sample.watched_at))}</td>
+                  <td style="padding: 0.3rem 0.5rem; color: var(--muted); word-break: break-word;">${escapeHtml(sample.detail || "")}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+        ${truncated}
+      </div>
+    `;
+  }).join("");
+}
+
+function initSyncMatchReport() {
+  const details = document.getElementById("syncMatchReport");
+  const container = document.getElementById("syncMatchReportContainer");
+  if (!details || !container || details.dataset.matchReportBound) return;
+  details.dataset.matchReportBound = "1";
+  details.addEventListener("toggle", () => {
+    if (!details.open) return;
+    container.innerHTML = `<div class="idle-state"><b>Loading match report...</b></div>`;
+    fetchSyncMatchReport()
+      .then((report) => { container.innerHTML = renderSyncMatchReport(report); })
+      .catch((error) => {
+        container.innerHTML = `<div class="empty-log"><b>Match report unavailable</b><span>${escapeHtml(error.message)}</span></div>`;
+      });
+  });
 }
 
 // ── Clear missing telemetry ────────────────────────────────────────────────

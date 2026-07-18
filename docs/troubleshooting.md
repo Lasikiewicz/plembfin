@@ -24,7 +24,8 @@ See [now-playing.md](now-playing.md) for full diagnosis steps.
 
 - Confirm the webhook reached Plembfin with the correct `?token=` secret. The server
   logs every incoming webhook attempt and whether auth passed.
-- Check `media.phase` was `completed` — a Plex `media.stop` below 90% becomes
+- Check `media.phase` was `completed` — a Plex `media.stop` below the watched
+  threshold (90% by default) becomes
   `ended`, not `completed`. See the phase table in [webhooks.md](webhooks.md).
 - Check `sync_history` and the watch record's `sync_dispatch_telemetry` for errors.
 

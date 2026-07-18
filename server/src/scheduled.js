@@ -1,4 +1,5 @@
 ﻿import { fetchWithTimeout } from "./utils/outbound.js";
+import { watchedThresholdPercent } from "./utils/tuning.js";
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { parsePlexGuids } from "./utils/parsers.js";
 import { findPlexItem, plexAuthHeaders, resolvePlexAccountId } from "./utils/plexClient.js";
@@ -417,7 +418,7 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
 
 async function processCompletedSession(row, config, loopStore) {
   const media = cachedRowToMedia(row);
-  if (!media.isValid || Number(media.progress || 0) < 90) return null;
+  if (!media.isValid || Number(media.progress || 0) < watchedThresholdPercent()) return null;
 
   // After an authoritative restore, drop stale cached sessions whose last update predates the
   // restore â€” they would otherwise post a watch record dated today. Sessions still genuinely
@@ -1328,7 +1329,7 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
     if (currentIds.has(row.session_id)) continue;
     if (row.completed_at) continue;
 
-    if (Number(row.last_progress || 0) >= 90) {
+    if (Number(row.last_progress || 0) >= watchedThresholdPercent()) {
       logger(`Scheduled Sync: session completed playback: ${row.title} (${row.session_id})`);
       const completion = await processCompletedSession(row, config, loopStore).catch((error) => {
         logger(`Scheduled Sync ERROR: processCompletedSession failed for ${row.title}: ${error.message}`);

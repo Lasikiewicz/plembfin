@@ -2,11 +2,10 @@ import { markPlexPlayed, markPlexUnplayed, setPlexProgress } from "./plexClient.
 import { markEmbyPlayed, markEmbyUnplayed, setEmbyProgress } from "./embyClient.js";
 import { markJellyfinPlayed, markJellyfinUnplayed, setJellyfinProgress } from "./jellyfinClient.js";
 import { watchedPlayedSyncEnabled } from "./syncFlags.js";
+import { minResumePositionMs, watchedThresholdPercent } from "./tuning.js";
 
 const LOOP_CACHE_TTL_SECONDS = 60;
 const LOOP_WINDOW_MS = 15_000;
-const MIN_RESUME_POSITION_MS = 60_000;
-const MAX_RESUME_PROGRESS = 90;
 
 const TARGETS_BY_SOURCE = {
   plex: ["emby", "jellyfin"],
@@ -57,8 +56,10 @@ export function shouldSyncResumeProgress(media = {}) {
   const progress = Number(media.progress || 0);
   if (!media?.isValid) return false;
   if (!["movie", "episode"].includes(media.type || media.mediaType)) return false;
-  if (!Number.isFinite(positionMs) || positionMs < MIN_RESUME_POSITION_MS) return false;
-  if (Number.isFinite(progress) && progress >= MAX_RESUME_PROGRESS) return false;
+  if (!Number.isFinite(positionMs) || positionMs < minResumePositionMs()) return false;
+  // Resume progress stops being actionable at the same boundary that marks a
+  // play "watched" — past that point there's nothing left to resume.
+  if (Number.isFinite(progress) && progress >= watchedThresholdPercent()) return false;
   return true;
 }
 

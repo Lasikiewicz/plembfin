@@ -56,8 +56,9 @@ can show "just finished" state, then purged after 24h.
 
 ## `active_sessions`
 
-Written by `upsertActiveSession`. **5-minute TTL enforced in code:** `listActiveSessions`
-deletes rows with `updated_at` older than 5 minutes on every read. The table will be
+Written by `upsertActiveSession`. **Configurable TTL enforced in code (5 minutes by
+default):** `listActiveSessions` deletes rows with `updated_at` older than the active
+session TTL on every read. The table will be
 absent from queries when playback events haven't arrived recently — that's normal.
 
 ## `runtime_state` (single row)

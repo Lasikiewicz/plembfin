@@ -1,3 +1,5 @@
+import { watchedThresholdPercent } from "./tuning.js";
+
 const EMPTY_IDS = { imdb: undefined, tmdb: undefined, tvdb: undefined };
 const PLEX_ACTIVE_EVENTS = ["media.play", "media.resume", "media.progress", "media.pause"];
 const PLEX_COMPLETE_EVENTS = ["media.scrobble", "user.playrate"];
@@ -230,7 +232,7 @@ function durationMillisecondsFrom(values = {}) {
 function phaseFromPlexEvent(event, metadata) {
   const progress = progressPercentFrom(metadata);
   if (PLEX_COMPLETE_EVENTS.includes(event)) return "completed";
-  if (event === "media.stop") return progress >= 90 ? "completed" : "ended";
+  if (event === "media.stop") return progress >= watchedThresholdPercent() ? "completed" : "ended";
   if (PLEX_ACTIVE_EVENTS.includes(event)) return "active";
   return "ignored";
 }
@@ -244,7 +246,7 @@ function phaseFromEmbyEvent(event, json, item) {
   if (["itemmarkunplayed", "itemmarkedunplayed", "itemmarkedasunplayed", "itemunplayed"].includes(compactEventKey)) return "unplayed";
   if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === true) return "completed";
   if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === false) return "unplayed";
-  if (compactEventKey === "playbackstop") return progress >= 90 ? "completed" : "ended";
+  if (compactEventKey === "playbackstop") return progress >= watchedThresholdPercent() ? "completed" : "ended";
   if (EMBY_ACTIVE_EVENTS.map((activeEvent) => activeEvent.replace(/[^a-z0-9]/g, "")).includes(compactEventKey)) return "active";
   return "ignored";
 }
@@ -258,7 +260,7 @@ function phaseFromJellyfinEvent(event, json, item) {
   if (["itemmarkunplayed", "itemmarkedunplayed", "itemmarkedasunplayed", "itemunplayed"].includes(compactEventKey)) return "unplayed";
   if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === true) return "completed";
   if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === false) return "unplayed";
-  if (compactEventKey === "playbackstop") return progress >= 90 ? "completed" : "ended";
+  if (compactEventKey === "playbackstop") return progress >= watchedThresholdPercent() ? "completed" : "ended";
   if (JELLYFIN_ACTIVE_EVENTS.map((activeEvent) => activeEvent.toLowerCase()).includes(eventKey)) return "active";
   return "ignored";
 }

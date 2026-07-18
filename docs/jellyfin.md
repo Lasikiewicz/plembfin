@@ -37,7 +37,7 @@ phase:
 - `PlaybackStart` / `PlaybackProgress` / `PlaybackPause` → `active`
 - Mark-played events, or userdata saved with `Played=true` → `completed`
 - Mark-unplayed events, or `Played=false` → `unplayed`
-- `PlaybackStop` → `completed` if progress ≥ 90%, else `ended`
+- `PlaybackStop` → `completed` at the watched threshold (90% by default), else `ended`
 
 Jellyfin sends mark-unplayed events, so unwatch propagation works purely through the
 webhook. The in-app guide (`jellyfinWebhookSetup()` in `help-content.js`) documents

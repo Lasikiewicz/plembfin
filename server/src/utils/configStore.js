@@ -1,5 +1,6 @@
 import { db, parseJson, toJson } from "../db.js";
 import { assertSafeOutboundUrl, normalizeHttpUrl } from "./outbound.js";
+import { applyTuningConfig, normalizeTuningSection, tuningClamps, tuningEnvDefaults } from "./tuning.js";
 
 const SETTINGS_ID = "mediaConfig";
 const RUNTIME_ID = "main";
@@ -61,6 +62,7 @@ function envMediaConfig() {
     omdb: {
       apiKey: envValue("OMDB_API_KEY"),
     },
+    tuning: tuningEnvDefaults(),
   });
 }
 
@@ -85,6 +87,11 @@ function mergeEnvDefaults(stored = {}) {
 
   // Seerr has no env-var defaults — carry stored values through as-is.
   merged.seerr = normalized.seerr;
+
+  // Tuning uses numbers-or-null (null = fall back to env/default) rather than
+  // the blank-string check above, so it's carried through as-is; the
+  // env/default fallback happens in applyTuningConfig()'s effective getters.
+  merged.tuning = normalized.tuning;
 
   for (const section of ["plex", "emby", "jellyfin"]) {
     if (hasConfiguredFields(normalized[section])) {
@@ -137,6 +144,9 @@ export function normalizeStoredConfig(stored = {}) {
     omdb: {
       apiKey: String(stored.omdb?.apiKey || "").trim(),
     },
+    // Numbers-or-null (null = not overridden, fall back to env/default) rather
+    // than the string-based normalization the other sections use above.
+    tuning: normalizeTuningSection(stored.tuning || {}),
   };
 }
 
@@ -148,7 +158,9 @@ const upsertSettingsStmt = db.prepare(
 
 export async function loadMediaConfig() {
   const row = selectSettingsStmt.get(SETTINGS_ID);
-  return mergeEnvDefaults(parseJson(row?.data, {}) || {});
+  const merged = mergeEnvDefaults(parseJson(row?.data, {}) || {});
+  applyTuningConfig(merged.tuning);
+  return merged;
 }
 
 // The browser-facing config shape. Secrets (tokens/API keys) are never included —
@@ -185,7 +197,29 @@ export function publicMediaConfig(config = {}) {
     tvdb: { configured: Boolean(normalized.tvdb.apiKey) },
     youtube: { configured: Boolean(normalized.youtube.apiKey) },
     omdb: { configured: Boolean(normalized.omdb.apiKey) },
+    tuning: publicTuningConfig(normalized.tuning),
   };
+}
+
+// Effective value (stored override, else env/default) plus an `overridden`
+// flag per field, so the settings UI can show the active value as a
+// placeholder while leaving the input blank when nothing is stored.
+function publicTuningConfig(storedTuning = {}) {
+  const envDefaults = tuningEnvDefaults();
+  const clamps = tuningClamps();
+  const result = {};
+  for (const key of Object.keys(envDefaults)) {
+    const overrideValue = storedTuning[key];
+    const overridden = overrideValue !== null && overrideValue !== undefined;
+    result[key] = {
+      value: overridden ? overrideValue : envDefaults[key],
+      default: envDefaults[key],
+      overridden,
+      min: clamps[key][0],
+      max: clamps[key][1],
+    };
+  }
+  return result;
 }
 
 // Merge an incoming section over the stored one. Secret fields (tokens/API keys)
@@ -216,12 +250,14 @@ export async function mergeIncomingConfig(config = {}) {
     tvdb: mergeSection(existing.tvdb, config.tvdb, ["apiKey"]),
     youtube: mergeSection(existing.youtube, config.youtube, ["apiKey"]),
     omdb: mergeSection(existing.omdb, config.omdb, ["apiKey"]),
+    tuning: mergeSection(existing.tuning, config.tuning, []),
   });
 }
 
 export async function saveMediaConfig(config) {
   const normalized = await mergeIncomingConfig(config);
   upsertSettingsStmt.run(SETTINGS_ID, toJson(normalized), Date.now());
+  applyTuningConfig(normalized.tuning);
 }
 
 export function validateConfig(config = {}) {
@@ -270,6 +306,15 @@ export function validateConfig(config = {}) {
 
   if (config.seerr && !config.seerr.disabled && config.seerr.baseUrl) {
     validateBaseUrl(config.seerr.baseUrl, "seerr.baseUrl");
+  }
+
+  if (config.tuning) {
+    const clamps = tuningClamps();
+    for (const [key, value] of Object.entries(normalizeTuningSection(config.tuning))) {
+      if (value === null) continue;
+      const [min, max] = clamps[key];
+      if (value < min || value > max) errors.push(`tuning.${key} must be between ${min} and ${max}`);
+    }
   }
 
   return errors;

@@ -208,6 +208,10 @@ Save and Test actions:
 *   Availability and resolution lookups are cached in memory for 3 minutes per title, so reopening a detail page doesn't re-query Plex/Emby/Jellyfin/Seerr every time; submitting a request clears that title's cache immediately.
 *   The browser also remembers the last known availability and open-in-app links for each title, so detail pages show availability badges and app buttons instantly on open and refresh them silently in the background when anything changed.
 
+#### Sync Tuning and Match Diagnostics
+*   **Settings → Sync → Sync Tuning** controls the watched threshold, minimum resume position, active-session TTL, and default outbound timeout. Blank fields inherit their environment variable or built-in default.
+*   **Settings → Sync → Sync Issues** includes a Cross-Platform Match Report showing which media each target library could not match, with unique-media counts and representative samples for Plex, Emby, and Jellyfin.
+
 ---
 
 ## Webhook Setup (Critical for Live Sync)
@@ -296,6 +300,10 @@ The following environment variables can be set in your system or defined in `doc
 | `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` | _none_ | Default Jellyfin connection values (Settings takes precedence). |
 | `WATCHED_PLAYED_SYNC_ENABLED` | `true` | Set to `false` to disable all watched/played propagation between platforms (watch recording still happens). |
 | `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | The frequency (in milliseconds) of database-heavy catch-up library scans on Plex/Emby/Jellyfin. |
+| `WATCHED_THRESHOLD_PERCENT` | `90` | Playback percentage that counts as watched (50–100). Settings → Sync → Sync Tuning takes precedence. |
+| `MIN_RESUME_POSITION_SEC` | `60` | Minimum stopped-play position saved and propagated as resume progress (0–3600 seconds). Settings takes precedence. |
+| `ACTIVE_SESSION_TTL_MIN` | `5` | Time without a webhook update before an active session is stale (1–120 minutes). Settings takes precedence. |
+| `OUTBOUND_TIMEOUT_SEC` | `10` | Default timeout for media-server outbound requests (2–120 seconds). Explicit per-call timeouts still take precedence. |
 | `PLEMBFIN_DEBUG_OUTBOUND` | _off_ | Set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs) — useful for measuring how much traffic each metadata service and media server receives. |
 
 A commented template of every variable is provided in [`.env.example`](.env.example) — copy it to `.env` for bare-metal installs.

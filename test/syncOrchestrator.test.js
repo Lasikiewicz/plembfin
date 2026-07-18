@@ -9,6 +9,7 @@ import {
   shouldSyncResumeProgress,
   syncMediaPlaystate,
 } from "../server/src/utils/syncOrchestrator.js";
+import { applyTuningConfig, resetTuningForTests } from "../server/src/utils/tuning.js";
 
 test("getTargetsForSource routes to every other enabled platform", () => {
   assert.deepEqual(getTargetsForSource("plex"), ["emby", "jellyfin"]);
@@ -24,6 +25,19 @@ test("shouldSyncResumeProgress enforces actionability boundaries", () => {
   assert.equal(shouldSyncResumeProgress({ isValid: true, type: "movie", offsetMs: 60_000, progress: 90 }), false);
   assert.equal(shouldSyncResumeProgress({ isValid: true, type: "series", offsetMs: 60_000, progress: 20 }), false);
   assert.equal(shouldSyncResumeProgress({ isValid: false, type: "movie", offsetMs: 60_000, progress: 20 }), false);
+});
+
+test("shouldSyncResumeProgress honors changed tuning for both boundaries", (t) => {
+  t.after(() => resetTuningForTests());
+
+  applyTuningConfig({ minResumePositionSec: 30, watchedThresholdPercent: 70 });
+  assert.equal(shouldSyncResumeProgress({ isValid: true, type: "movie", offsetMs: 29_999, progress: 20 }), false);
+  assert.equal(shouldSyncResumeProgress({ isValid: true, type: "movie", offsetMs: 30_000, progress: 69.9 }), true);
+  assert.equal(shouldSyncResumeProgress({ isValid: true, type: "movie", offsetMs: 30_000, progress: 70 }), false);
+
+  resetTuningForTests();
+  assert.equal(shouldSyncResumeProgress({ isValid: true, type: "movie", offsetMs: 29_999, progress: 20 }), false);
+  assert.equal(shouldSyncResumeProgress({ isValid: true, type: "movie", offsetMs: 60_000, progress: 20 }), true);
 });
 
 test("loop store checkAndClaim detects a recently claimed source echo", async () => {

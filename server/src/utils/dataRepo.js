@@ -811,6 +811,55 @@ export async function invalidateHistoryDerivedCaches() {
   bumpDataVersion();
 }
 
+function patchCachedRow(rows, freshRow) {
+  if (!Array.isArray(rows) || !freshRow?.id) return null;
+  const index = rows.findIndex((row) => row.id === freshRow.id);
+  if (index < 0) return null;
+  const patched = rows.slice();
+  patched[index] = rowToWatch(freshRow);
+  return patched;
+}
+
+// Row-scoped metadata writes still advance the global history version (the SPA
+// uses it as a refresh contract), but can carry forward derived caches whose
+// result is provably unchanged. Leaving a cache at its old version is the safe
+// fallback: its next reader performs the existing full rebuild.
+async function invalidateAfterRowMetaWrite(id, oldRow, changed) {
+  const previousVersion = getDataVersion();
+  await flushShowProgressUpdates().catch((err) => {
+    console.error("[dataRepo] Failed to flush show progress updates", err);
+  });
+  const version = bumpDataVersion();
+  const freshRow = id ? selectByIdStmt.get(String(id)) : null;
+  if (!oldRow || !freshRow || version !== previousVersion + 1) return;
+
+  if (historyCache.version === previousVersion) {
+    const rows = patchCachedRow(historyCache.rows, freshRow);
+    if (rows) historyCache = { version, rows };
+  }
+
+  const trackedFlipped = isPlembfinTrackedWatchRow(oldRow) !== isPlembfinTrackedWatchRow(freshRow);
+  if (movieCache.version === previousVersion && Array.isArray(movieCache.rows) && !trackedFlipped) {
+    if (freshRow.media_type === "movie") {
+      const rows = patchCachedRow(movieCache.rows, freshRow);
+      if (rows) movieCache = { version, rows };
+    } else {
+      movieCache = { version, rows: movieCache.rows };
+    }
+  }
+
+  if (trackedFlipped || changed === "artwork") return;
+
+  if (statsCache.version === previousVersion && statsCache.stats) {
+    statsCache = { version, stats: statsCache.stats };
+  }
+
+  const showCacheUnaffected = changed === "retry" || freshRow.media_type === "movie";
+  if (showCacheUnaffected && showCache.version === previousVersion) {
+    showCache = { version, shows: showCache.shows };
+  }
+}
+
 // --- Watch history writes --------------------------------------------------
 export async function insertWatchRecord(record, { skipInvalidate = false } = {}) {
   const normalized = normalizeWatchRecord(record, record.source);
@@ -936,8 +985,9 @@ function relatedTrackedWatchRowsForDateEdit(existing = {}) {
 
 export async function updateWatchTelemetry(id, telemetry, { skipInvalidate = false } = {}) {
   if (!id) return;
+  const oldRow = selectByIdStmt.get(String(id));
   updateTelemetryStmt.run(String(telemetry || ""), Date.now(), String(id));
-  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
+  if (!skipInvalidate) await invalidateAfterRowMetaWrite(id, oldRow, "telemetry");
 }
 
 const updateSyncRetryStmt = db.prepare("UPDATE watch_history SET sync_retry_count = ?, sync_next_retry_at = ? WHERE id = ?");
@@ -946,8 +996,9 @@ const updateSyncRetryStmt = db.prepare("UPDATE watch_history SET sync_retry_coun
 // does not touch updated_at: backoff bookkeeping is not a content change.
 export async function updateWatchSyncRetry(id, retryCount, nextRetryAt, { skipInvalidate = false } = {}) {
   if (!id) return;
+  const oldRow = selectByIdStmt.get(String(id));
   updateSyncRetryStmt.run(Math.max(0, Number(retryCount) || 0), Math.max(0, Number(nextRetryAt) || 0), String(id));
-  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
+  if (!skipInvalidate) await invalidateAfterRowMetaWrite(id, oldRow, "retry");
 }
 
 // --- Playback progress -----------------------------------------------------
@@ -1558,8 +1609,9 @@ const clearArtworkStmt = db.prepare("UPDATE watch_history SET poster_url = NULL,
 // of being re-resolved against the new match.
 export async function clearWatchArtworkUrls(id) {
   if (!id) return false;
+  const oldRow = selectByIdStmt.get(String(id));
   clearArtworkStmt.run(Date.now(), String(id));
-  await invalidateHistoryDerivedCaches();
+  await invalidateAfterRowMetaWrite(id, oldRow, "artwork");
   return true;
 }
 
@@ -1570,7 +1622,7 @@ export async function updateWatchPosterUrl(id, posterUrl) {
   if (!row) return false;
   if ((row.poster_url || "") === cleanUrl) return false;
   updatePosterStmt.run(cleanUrl, Date.now(), String(id));
-  await invalidateHistoryDerivedCaches();
+  await invalidateAfterRowMetaWrite(id, row, "artwork");
   return true;
 }
 
@@ -1619,8 +1671,9 @@ export async function setWatchPosterUrls(updates = []) {
 export async function setWatchBackdropUrl(id, backdropUrl) {
   const url = cleanString(backdropUrl);
   if (!id || !url) return false;
+  const oldRow = selectByIdStmt.get(String(id));
   updateBackdropStmt.run(url, Date.now(), String(id));
-  await invalidateHistoryDerivedCaches();
+  await invalidateAfterRowMetaWrite(id, oldRow, "artwork");
   return true;
 }
 

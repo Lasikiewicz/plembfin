@@ -257,7 +257,7 @@ export function cronSyncGuide() {
 
 X-Api-Key: <your-api-key>`, "http")}
       <h3>What this runs</h3>
-      <p>The worker writes a heartbeat timestamp, polls Plex, Emby, and Jellyfin for active playback, updates live-session cache rows, detects completed sessions after 90% progress, writes completed watches to <code>watch_history</code>, dispatches outbound watched-state sync, checks recent Plex items for unwatched removals, maintains <code>data/next-airing-cache.json</code>, and progressively stores month results in <code>data/upcoming-calendar-cache.json</code>.</p>
+      <p>The worker writes a heartbeat timestamp, polls Plex, Emby, and Jellyfin for active playback, updates live-session cache rows, detects completed sessions at the watched threshold (90% by default), writes completed watches to <code>watch_history</code>, dispatches outbound watched-state sync, checks recent Plex items for unwatched removals, maintains <code>data/next-airing-cache.json</code>, and progressively stores month results in <code>data/upcoming-calendar-cache.json</code>.</p>
     </section>
   `;
 }
@@ -406,6 +406,14 @@ export function renderSettingsInlineHelp() {
         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Force Push History Guide</summary>
         <div style="margin-top: var(--space-2);">${forcePushHistoryGuide()}</div>
       </details>
+    `;
+  }
+
+  const syncIssuesHelp = document.getElementById("syncIssuesHelp");
+  if (syncIssuesHelp) {
+    syncIssuesHelp.innerHTML = `
+      <b style="display: block; margin-bottom: var(--space-1);">Cross-Platform Match Report</b>
+      <p class="tool-accordion-desc" style="margin: 0;">The expandable report below Sync Issues groups current <code>No matching item found</code> results by target platform. Use its unique-media counts and samples to find items that are absent from a library or have mismatched metadata IDs.</p>
     `;
   }
 }

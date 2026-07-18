@@ -33,13 +33,17 @@ Implementation lives in `server/src/scheduled.js`.
      and only a manual **Retry Sync** (which resets the counters) re-queues it.
      A `sync_history` row is only written when the outcome changes (first
      failure, success, or giving up), not on every identical failed attempt.
+     Targets that answer "No matching item found" are recorded in the row's
+     telemetry and aggregated per platform by the Cross-Platform Match Report
+     (Settings → Sync → Sync Issues, backed by `GET /api/sync-match-report`).
 3. **Catch-up library sync** — **runs every 15 minutes** (configurable via `CATCHUP_SYNC_INTERVAL_MS` env variable) to avoid heavy redundant API queries:
    - Pulls recently-watched and continue-watching (resumable) items from each active server: `syncRecentlyWatchedFromPlex`/`syncRecentlyResumableFromPlex` (and Emby/Jellyfin equivalents) in `scheduled.js`.
    - Emby/Jellyfin episode resume rows retain series provider IDs so the corresponding SxxExx item can be found on another server. Resume and playstate records sharing any IMDb, TMDB, or TVDB ID are treated as one media item even when app titles differ.
    - Propagates playstate changes that were missed by webhooks. Each is wrapped in try/catch so one platform failing doesn't abort the run.
 
 This is how a play that finishes without a final scrobble webhook still gets
-recorded: the poller sees it hit ≥ 90% then disappear, and completes it.
+recorded: the poller sees it hit the watched threshold (90% by default), then
+disappear, and completes it.
 
 4. **TV next-airing cache** — `runScheduledTick()` maintains
    `data/next-airing-cache.json`. To prevent timing out, the cache is

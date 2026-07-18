@@ -7,6 +7,7 @@ import { fetchWithTimeout, assertSafeOutboundUrl } from "../utils/outbound.js";
 import { AUTH, verifyWebhookToken } from "../appConfig.js";
 import { db, parseJson, toJson, writeAuditLog } from "../db.js";
 import { createLoopStore } from "../utils/loopStore.js";
+import { buildSyncMatchReport } from "../utils/syncMatchReport.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
 import { runForceSync, runScheduledSync } from "../scheduled.js";
@@ -422,6 +423,14 @@ export function handlePing(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET" && req.method !== "HEAD") return methodNotAllowed(res);
   return sendJson(res, { ok: true, ts: Date.now() }, 200, { "Cache-Control": "no-store" });
+}
+
+export async function handleSyncMatchReport(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const rows = await getCachedHistory();
+  return sendJson(res, { report: buildSyncMatchReport(rows) }, 200, { "Cache-Control": "no-store" });
 }
 
 export async function handleDiagnosticLogs(req, res) {

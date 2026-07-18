@@ -64,7 +64,7 @@ Destination records (`{ id, type, label, settings, secrets }`) live in the setti
 `watchBackupDestinations`. Secret fields (`password`, `secretAccessKey`, `appSecret`,
 `refreshToken`) never reach the browser — every API response redacts them to "is-set"
 flags (`loadBackupDestinationsRedacted`). Backup transfers use a 60-second outbound
-timeout (vs the 10s default).
+timeout (vs the configurable 10s default).
 
 The settings UI currently exposes Backblaze B2 destinations. Each configured target is
 shown as a status card; the trailing **+** card opens the type picker, and selecting a

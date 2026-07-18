@@ -45,7 +45,7 @@ Plex webhooks (a Plex Pass feature) POST **multipart form data** to
 
 - `media.play` / `media.resume` / `media.progress` / `media.pause` → `active`
 - `media.scrobble` / `user.playrate` → `completed`
-- `media.stop` → `completed` if progress ≥ 90%, else `ended`
+- `media.stop` → `completed` at the watched threshold (90% by default), else `ended`
 
 Provider IDs come from `parsePlexGuids`, which understands both modern
 (`tmdb://`, `tvdb://`, `imdb://`) and legacy agent (`themoviedb`, `thetvdb`) GUID
@@ -54,7 +54,8 @@ formats.
 Two Plex-specific caveats (also in [webhooks.md](webhooks.md)):
 
 - Native Plex webhooks fire only on **state changes** — there is no heartbeat. A single
-  `media.play` creates an `active_sessions` row that expires after 5 minutes unless
+  `media.play` creates an `active_sessions` row that expires after the active-session
+  TTL (5 minutes by default) unless
   another event arrives. Continuous "still playing" tracking comes from the scheduler's
   session polling, not from webhooks.
 - Plex **never sends unwatched (unscrobble) events**. The WebSocket listener below

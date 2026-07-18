@@ -37,8 +37,8 @@ object. The crucial output is `media.phase`, derived per platform by
 
 | phase | Meaning | What `handleWebhook` does |
 | --- | --- | --- |
-| `active` | Currently playing (play/resume/progress) | `upsertActiveSession()` → writes `active_sessions` row (5-min TTL), bumps `runtimeState.nowPlayingRefresh`. **No history insert.** |
-| `completed` | Watched (scrobble, mark-played, or stop ≥ 90%) | Inserts/updates a `watch_history` record + propagates *watched* to the other platforms. |
+| `active` | Currently playing (play/resume/progress) | `upsertActiveSession()` → writes `active_sessions` row (5-minute TTL by default), bumps `runtimeState.nowPlayingRefresh`. **No history insert.** |
+| `completed` | Watched (scrobble, mark-played, or stop at the watched threshold, 90% by default) | Inserts/updates a `watch_history` record + propagates *watched* to the other platforms. |
 | `ended` | Stopped below the watched threshold | Deletes active session; if resume is actionable, stores/propagates resume progress to `playback_progress`. |
 | `unplayed` | Marked unwatched/unplayed | Deletes active session, deletes the watch record, inserts an `unwatched` row, and propagates *unwatched* to the other platforms. |
 | `ignored` | Not actionable | Dropped early. |
@@ -62,12 +62,16 @@ variants) in `server/src/utils/syncOrchestrator.js` propagate the change to the
 `jellyfinClient.js`).
 
 **Loop detection:** when Plembfin writes a state to (say) Emby, Emby fires its own
-webhook back. The in-memory `loopStore` map tracks recently-dispatched events keyed
-by platform + media identifier; an incoming webhook matching a recent dispatch is
-detected as an echo and dropped before it can trigger another round.
+webhook back. `loopStore` (`server/src/utils/loopStore.js`) tracks
+recently-dispatched events keyed by platform + media identifier in the SQLite
+`loop_keys` table (a key/value store with per-row TTL, see `schema.sql`); an
+incoming webhook matching a recent dispatch is detected as an echo and dropped
+before it can trigger another round.
 
-> `loopStore` is in-memory per process. Because Plembfin is a single long-running
-> process, this works reliably — echoes arrive within seconds and are always caught.
+> `loop_keys` rows are persisted in the database, so loop detection survives a
+> process restart. The check-then-claim step (`checkAndClaim`) runs the read and
+> the write inside a single SQLite transaction, so a concurrent claim for the
+> same key cannot slip in between the check and the write.
 
 Results are written back as `sync_dispatch_telemetry` on the watch record and into
 the `sync_history` SQLite table.
@@ -86,7 +90,8 @@ agreement with the resume position written to each media server.
 
 - Native Plex webhooks only fire on **state changes** (play/pause/resume/stop/
   scrobble) — there is **no heartbeat**. So a single `media.play` creates an
-  `active_sessions` row that **expires after 5 minutes** unless another event
+  `active_sessions` row that **expires after the active-session TTL (5 minutes by
+  default)** unless another event
   arrives. Continuous "still playing" tracking for Plex comes from the
   in-process scheduler (→ `live_tracking_cache`), not from native webhooks.
 - Plex does **not** send unwatched (unscrobble) events. Plembfin compensates via
