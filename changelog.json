@@ -1,7 +1,20 @@
 {
-  "version": "0.4.62",
-  "updatedAt": "2026-07-18T16:30:03+01:00",
+  "version": "0.5.0",
+  "updatedAt": "2026-07-18T17:51:45+01:00",
   "entries": [
+    {
+      "version": "0.5.0",
+      "date": "2026-07-18T17:51:45+01:00",
+      "commit": "0707a5f627fb6d11f32bc4d05c4d6fe59aa5d44e",
+      "message": "Feature - Add safe multi-process operation",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add SQLite-backed cache invalidation, fenced scheduler leadership, and durable background jobs.",
+        "Support all, web, and worker roles with shared diagnostics and split deployment guidance.",
+        "Add migration, concurrency, failover, and real local multi-process acceptance coverage.",
+        "Release Plembfin 0.5.0."
+      ]
+    },
     {
       "version": "0.4.62",
       "date": "2026-07-18T16:30:03+01:00",
