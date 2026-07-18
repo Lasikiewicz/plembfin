@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf 
 COPY package.json package-lock.json* ./
 COPY scripts/install-git-hooks.js ./scripts/install-git-hooks.js
 COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY scripts/check-worker-health.js ./scripts/check-worker-health.js
 RUN npm ci --omit=dev && chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Application code.

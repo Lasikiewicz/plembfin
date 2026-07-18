@@ -85,8 +85,10 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
 
 ## "Scheduler / background sync not running"
 
-- The scheduler runs inside the server process. Confirm the server is running:
-  check `GET /api/ping` (returns `{"ok":true}` with no auth).
+- Check `GET /health`: `worker.available` must be true. In split mode, inspect the
+  worker container/process rather than only the web process.
+- Confirm every process uses the same local `DATA_DIR` and that no network filesystem
+  is involved.
 - Trigger it manually: `POST /api/cron-sync` with your API key — the response
   streams a line-by-line log.
 - Watch the server stdout for `[cron]` log lines.

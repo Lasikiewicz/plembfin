@@ -7,6 +7,7 @@ scripts
 !scripts/
 !scripts/install-git-hooks.js
 !scripts/docker-entrypoint.sh
+!scripts/check-worker-health.js
 docs
 scratch
 *.log

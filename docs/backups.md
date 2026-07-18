@@ -24,7 +24,7 @@ Small, automatic backups of just the data needed to restore watch state.
 - **Contents** — the three watch-state tables plus a manifest (format/version, app
   version, creation time, row counts, checksum). Poster URLs are excluded (derived
   data, may embed expired tokens).
-- **Scheduling** — the in-process scheduler runs `runScheduledWatchBackup()` once per
+- **Scheduling** — the elected background worker runs `runScheduledWatchBackup()` once per
   tick; it fires daily at the configured time (default 03:00), catching up if the
   scheduled time was missed. Config (`enabled`, `time`, `retention`) lives in the
   `settings` row `watchHistoryBackups`; run state in `runtime_state`

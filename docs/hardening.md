@@ -154,7 +154,19 @@ Subscribe to GitHub release notifications to be alerted of security patches.
 
 ## 7. Monitoring
 
-The `/health` endpoint returns `{ ok: true, ts: <epoch-ms> }` with HTTP 200 when the server is ready. Use it as a Docker `HEALTHCHECK` or in your uptime monitor.
+The `/health` endpoint returns HTTP 200 with the process role, database status, and
+non-sensitive worker availability/heartbeat ages. Use it as a liveness check and
+alert separately when `worker.available` is false.
+
+## Multi-process constraints
+
+`ROLE=all` remains the default. `ROLE=web` and `ROLE=worker` may share one `DATA_DIR`
+only when every process runs on the same host and local filesystem. SQLite WAL on
+NFS, SMB, clustered volumes, or separate hosts is unsupported. All web replicas must
+share `SESSION_SECRET`, `API_KEY`, and `WEBHOOK_SECRET`. Stop every old-version
+process before upgrading; mixed-version rolling deployments are unsupported. To
+roll back operationally, stop the split services and restart one `ROLE=all` process.
+The additive coordination tables may remain in the database.
 
 ```yaml
 healthcheck:

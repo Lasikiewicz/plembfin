@@ -327,9 +327,11 @@ const upsertRuntimeStmt = db.prepare(
 );
 
 export async function setRuntimeState(values = {}) {
-  const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
-  const merged = { ...current, ...values, updatedAt: Date.now() };
-  upsertRuntimeStmt.run(RUNTIME_ID, toJson(merged), Date.now());
+  db.transaction(() => {
+    const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+    const merged = { ...current, ...values, updatedAt: Date.now() };
+    upsertRuntimeStmt.run(RUNTIME_ID, toJson(merged), Date.now());
+  }).immediate();
 }
 
 export async function loadRuntimeState() {
@@ -340,10 +342,12 @@ export async function loadRuntimeState() {
 export async function appendRuntimeLog(field, items = []) {
   const list = Array.isArray(items) ? items : [items];
   if (!list.length) return;
-  const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
-  const existing = Array.isArray(current[field]) ? current[field] : [];
-  const merged = { ...current, [field]: [...existing, ...list], updatedAt: Date.now() };
-  upsertRuntimeStmt.run(RUNTIME_ID, toJson(merged), Date.now());
+  db.transaction(() => {
+    const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+    const existing = Array.isArray(current[field]) ? current[field] : [];
+    const merged = { ...current, [field]: [...existing, ...list], updatedAt: Date.now() };
+    upsertRuntimeStmt.run(RUNTIME_ID, toJson(merged), Date.now());
+  }).immediate();
 }
 
 const insertSyncHistoryStmt = db.prepare(

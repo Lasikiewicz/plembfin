@@ -9,10 +9,17 @@ import { db, parseJson, toJson, writeAuditLog } from "../db.js";
 import { createLoopStore } from "../utils/loopStore.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
-import { runForceSync, runScheduledSync } from "../scheduled.js";
 import { getLogs as getDiagnosticLogs, clearLogs as clearDiagnosticLogs } from "../utils/diagnosticLogger.js";
 import { appendSyncHistory, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "../utils/configStore.js";
 import { forceSyncStopAction } from "../utils/forceSyncControl.js";
+import {
+  enqueueBackgroundJob,
+  getBackgroundJob,
+  getBackgroundJobLogs,
+  getLatestBackgroundJob,
+  requestBackgroundJobCancellation,
+  workerAvailable,
+} from "../utils/backgroundJobs.js";
 import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes } from "../utils/plexClient.js";
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "../utils/embyClient.js";
@@ -754,30 +761,33 @@ export async function handleCronSync(req, res) {
   if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
 
+  if (!workerAvailable()) return sendJson(res, { error: "No background worker is available." }, 503);
+  const job = enqueueBackgroundJob("cron_sync", { forceCatchup: true });
+
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
-  res.write("Cron Sync started...\n");
+  res.write("Cron Sync queued...\n");
 
-  const logger = (msg) => {
-    res.write(`${msg}\n`);
-    console.log(msg);
-  };
-
-  try {
-    // A manual/API-triggered run is an explicit request to repair recent gaps now,
-    // so bypass the periodic catch-up throttle without invoking the full-library sync.
-    const result = await runScheduledSync(logger, { forceCatchup: true });
-    await setRuntimeState({ lastCronResult: { ok: true, result, finishedAt: Date.now() } }).catch(() => null);
-    res.write(`RESULT: ${JSON.stringify(result)}\n`);
-    res.end();
-  } catch (error) {
-    logger(`ERROR: Cron Sync failed: ${error.message}`);
-    await setRuntimeState({ lastCronResult: { ok: false, error: error.message, finishedAt: Date.now() } }).catch(() => null);
-    res.write(`RESULT: ${JSON.stringify({ success: false, error: error.message })}\n`);
-    res.end();
+  let closed = false;
+  res.on("close", () => { closed = true; });
+  let seen = 0;
+  while (!closed) {
+    const logs = getBackgroundJobLogs(job.id);
+    for (const entry of logs.slice(seen)) res.write(`${entry.message}\n`);
+    seen = logs.length;
+    const current = getBackgroundJob(job.id);
+    if (["succeeded", "failed", "cancelled"].includes(current?.status)) {
+      if (!logs.some((entry) => entry.message.startsWith("RESULT:"))) {
+        res.write(`RESULT: ${JSON.stringify(current.result || { success: false, error: current.error || current.status })}\n`);
+      }
+      res.end();
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
+  return;
 }
 
 export async function handleCronSyncStatus(req, res) {
@@ -791,8 +801,6 @@ export async function handleCronSyncStatus(req, res) {
   }, 200, { "Cache-Control": "no-store" });
 }
 
-let forceSyncRunning = false;
-
 export async function handleForceSync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
@@ -800,95 +808,53 @@ export async function handleForceSync(req, res) {
   // GET: poll for current status and log lines stored in runtimeState
   if (req.method === "GET") {
     if (!(await requireAdmin(req, res))) return;
+    const job = getLatestBackgroundJob("force_sync");
+    if (job) {
+      return sendJson(res, {
+        active: ["queued", "running"].includes(job.status),
+        log: getBackgroundJobLogs(job.id).map((entry) => entry.message),
+        result: job.result || (job.error ? { success: false, error: job.error } : null),
+        startedAt: job.startedAt || job.requestedAt,
+        jobId: job.id,
+        status: job.status,
+        workerAvailable: workerAvailable(),
+      });
+    }
     const runtime = await loadRuntimeState();
     return sendJson(res, {
       active: runtime.forceSyncActive === true,
       log: Array.isArray(runtime.forceSyncLog) ? runtime.forceSyncLog : [],
       result: runtime.forceSyncResult || null,
       startedAt: runtime.forceSyncStartedAt || null,
+      jobId: null,
+      status: runtime.forceSyncActive === true ? "running" : "idle",
+      workerAvailable: workerAvailable(),
     });
   }
 
   // POST: fire-and-forget â€” return 202 immediately, run in background
   if (!(await requireAdmin(req, res))) return;
 
-  const runtime = await loadRuntimeState();
-  const FORCE_SYNC_HEARTBEAT_STALE_MS = 3 * 60 * 1000;
-  const heartbeat = Number(runtime.forceSyncHeartbeat || runtime.forceSyncStartedAt || 0);
-  const stale = !heartbeat || heartbeat < Date.now() - FORCE_SYNC_HEARTBEAT_STALE_MS;
-  if (forceSyncRunning || (runtime.forceSyncActive === true && !stale)) {
+  if (!workerAvailable()) return sendJson(res, { ok: false, error: "No background worker is available." }, 503);
+  const existingJob = getLatestBackgroundJob("force_sync");
+  if (["queued", "running"].includes(existingJob?.status)) {
     return sendJson(res, { ok: false, error: "Another force sync job is already running." }, 409);
   }
-  if (runtime.forceSyncActive === true && stale) {
-    await setRuntimeState({ forceSyncActive: false, forceSyncCancelRequested: false }).catch(() => null);
+  let queuedJob;
+  try {
+    queuedJob = enqueueBackgroundJob("force_sync");
+  } catch (error) {
+    if (error?.code === "JOB_ACTIVE") return sendJson(res, { ok: false, error: error.message }, 409);
+    throw error;
   }
+  return sendJson(res, {
+    ok: true,
+    started: true,
+    jobId: queuedJob.id,
+    status: queuedJob.status,
+    message: "Force Sync queued. Poll GET /api/force-sync for status.",
+  }, 202);
 
-  // Clear the previous log and mark as active before returning
-  await setRuntimeState({
-    forceSyncLog: ["Force Sync started..."],
-    forceSyncResult: null,
-    forceSyncActive: true,
-    forceSyncStartedAt: Date.now(),
-    forceSyncHeartbeat: Date.now(),
-    forceSyncCancelRequested: false,
-  });
-  forceSyncRunning = true;
-
-  // Batch log writes: collect lines in memory, flush every 3s.
-  const logBuffer = [];
-  let flushTimer = null;
-
-  const flushLog = async () => {
-    if (!logBuffer.length) return;
-    const batch = logBuffer.splice(0, logBuffer.length);
-    await appendRuntimeLog("forceSyncLog", batch).catch(() => null);
-  };
-
-  const logLine = (msg) => {
-    console.log(msg);
-    logBuffer.push(msg);
-    if (!flushTimer) {
-      flushTimer = setTimeout(async () => {
-        flushTimer = null;
-        await flushLog();
-      }, 3000);
-    }
-  };
-
-  // Kick off in background â€” HTTP response returned below without awaiting this
-  Promise.resolve().then(async () => {
-    const heartbeatTimer = setInterval(() => {
-      setRuntimeState({ forceSyncHeartbeat: Date.now() }).catch(() => null);
-    }, 30_000);
-    heartbeatTimer.unref?.();
-    try {
-      const result = await runForceSync(logLine, { lockAlreadyClaimed: true });
-      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
-      await flushLog(); // flush any remaining lines
-      await appendRuntimeLog("forceSyncLog", [`RESULT: ${JSON.stringify(result)}`]).catch(() => null);
-      await setRuntimeState({
-        forceSyncActive: false,
-        forceSyncResult: result,
-        forceSyncHeartbeat: Date.now(),
-      }).catch(() => null);
-    } catch (error) {
-      const msg = `ERROR: Force Sync failed: ${error.message}`;
-      console.error(msg);
-      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
-      await flushLog();
-      await appendRuntimeLog("forceSyncLog", [msg]).catch(() => null);
-      await setRuntimeState({
-        forceSyncActive: false,
-        forceSyncResult: { success: false, error: error.message },
-        forceSyncHeartbeat: Date.now(),
-      }).catch(() => null);
-    } finally {
-      clearInterval(heartbeatTimer);
-      forceSyncRunning = false;
-    }
-  });
-
-  return sendJson(res, { ok: true, started: true, message: "Force Sync started. Poll GET /api/force-sync for status." }, 202);
 }
 
 
@@ -898,10 +864,23 @@ export async function handleStopForceSync(req, res) {
   if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
 
+  const job = getLatestBackgroundJob("force_sync");
+  if (job && ["queued", "running"].includes(job.status)) {
+    const updated = requestBackgroundJobCancellation(job.id);
+    if (job.status === "running") await setRuntimeState({ forceSyncCancelRequested: true });
+    return sendJson(res, {
+      ok: true,
+      active: updated?.status === "running",
+      reset: false,
+      jobId: job.id,
+      message: job.status === "queued" ? "Queued force sync cancelled." : "Cancellation request sent to the running force sync.",
+    });
+  }
+
   try {
     const runtime = await loadRuntimeState();
     const action = forceSyncStopAction({
-      workerRunning: forceSyncRunning,
+      workerRunning: false,
       runtimeActive: runtime.forceSyncActive === true,
       cancelRequested: runtime.forceSyncCancelRequested === true,
     });

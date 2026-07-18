@@ -93,7 +93,7 @@ agreement with the resume position written to each media server.
   `active_sessions` row that **expires after the active-session TTL (5 minutes by
   default)** unless another event
   arrives. Continuous "still playing" tracking for Plex comes from the
-  in-process scheduler (→ `live_tracking_cache`), not from native webhooks.
+  elected scheduler worker (→ `live_tracking_cache`), not from native webhooks.
 - Plex does **not** send unwatched (unscrobble) events. Plembfin compensates via
   the built-in Plex WebSocket notification listener, which connects automatically
   using the configured Plex URL and token.

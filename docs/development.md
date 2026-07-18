@@ -10,6 +10,7 @@ npm install       # prebuilt binaries for better-sqlite3 + sharp; also installs 
 npm start         # serve UI + API + scheduler on http://localhost:5055
 npm run dev       # same, with --watch auto-reload
 npm test          # focused node:test suite for parser/sync/key behavior
+npm run test:multiprocess # real isolated web/worker replica test
 npm run build     # syntax check + npm test + server boot gate
 npm run seed:demo # insert fictional demo movies/shows with generated posters
 ```
@@ -84,11 +85,14 @@ on GitHub — see the changelog section of [architecture.md](architecture.md).
   started as root.
 - **`docker-compose.yml`** — base setup: port 5055, `./data:/data`, admin env vars,
   `no-new-privileges`, cpu/memory limits.
+- **`docker-compose.split.yml`** — optional same-host overlay that runs one
+  `ROLE=web` service and one HTTP-less `ROLE=worker` service on the same local data
+  volume: `docker compose -f docker-compose.yml -f docker-compose.split.yml up -d`.
 - **`docker-compose.secure.yml`** — hardened overlay (read-only rootfs, tmpfs `/tmp`,
   required secrets, forced `COOKIE_SECURE`); usage in
   [hardening.md](hardening.md).
 - **`.dockerignore`** — keeps `data/`, `docs/`, markdown, and scratch files out of the
-  image; whitelists only the two scripts the image needs.
+  image; whitelists only the install, entrypoint, and worker-health scripts the image needs.
 
 ## One-shot operational scripts
 

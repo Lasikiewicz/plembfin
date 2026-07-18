@@ -241,3 +241,79 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   id INTEGER PRIMARY KEY,
   applied_at INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS cache_versions (
+  id TEXT PRIMARY KEY,
+  version INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('history', 1, 0);
+
+-- Keep cache invalidation in the same transaction as canonical state writes.
+-- Explicit bumpDataVersion() calls remain useful for file-backed derived data;
+-- duplicate bumps are harmless and force the conservative full-rebuild path.
+CREATE TRIGGER IF NOT EXISTS trg_watch_history_cache_insert AFTER INSERT ON watch_history BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_watch_history_cache_update AFTER UPDATE ON watch_history BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_watch_history_cache_delete AFTER DELETE ON watch_history BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_playstate_cache_insert AFTER INSERT ON playstate BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_playstate_cache_update AFTER UPDATE ON playstate BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_playstate_cache_delete AFTER DELETE ON playstate BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_playback_progress_cache_insert AFTER INSERT ON playback_progress BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_playback_progress_cache_update AFTER UPDATE ON playback_progress BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_playback_progress_cache_delete AFTER DELETE ON playback_progress BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
+
+CREATE TABLE IF NOT EXISTS scheduler_lease (
+  id TEXT PRIMARY KEY,
+  holder_id TEXT,
+  holder_role TEXT,
+  generation INTEGER NOT NULL DEFAULT 0,
+  acquired_at INTEGER,
+  heartbeat_at INTEGER,
+  expires_at INTEGER,
+  last_tick_at INTEGER
+);
+INSERT OR IGNORE INTO scheduler_lease (id, generation) VALUES ('scheduler', 0);
+
+CREATE TABLE IF NOT EXISTS background_jobs (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  requested_at INTEGER NOT NULL,
+  started_at INTEGER,
+  heartbeat_at INTEGER,
+  finished_at INTEGER,
+  claimed_by TEXT,
+  claim_generation INTEGER,
+  cancel_requested INTEGER NOT NULL DEFAULT 0,
+  payload TEXT,
+  result TEXT,
+  error TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_background_jobs_claim ON background_jobs(status, requested_at);
+CREATE INDEX IF NOT EXISTS idx_background_jobs_type ON background_jobs(type, requested_at DESC);
+
+CREATE TABLE IF NOT EXISTS background_job_logs (
+  job_id TEXT NOT NULL REFERENCES background_jobs(id) ON DELETE CASCADE,
+  seq INTEGER NOT NULL,
+  timestamp INTEGER NOT NULL,
+  message TEXT NOT NULL,
+  PRIMARY KEY(job_id, seq)
+);

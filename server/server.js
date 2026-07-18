@@ -10,16 +10,23 @@ import { loadLocalEnv } from "./src/env.js";
 
 loadLocalEnv();
 
+const { createInstanceId, resolveProcessRole, roleHasWeb, roleHasWorker } = await import("./src/utils/processRole.js");
+const ROLE = resolveProcessRole();
+const INSTANCE_ID = createInstanceId(ROLE);
+process.env.PLEMBFIN_INSTANCE_ID = INSTANCE_ID;
+process.env.ROLE = ROLE;
+
 const { DATA_DIR, PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
-const { dispatch, runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener, backfillUnknownShowTitles } = await import("./src/index.js");
+const { dispatch } = await import("./src/index.js");
 const { db } = await import("./src/db.js");
-const { appendRuntimeLog, loadMediaConfig, loadRuntimeState, setRuntimeState } = await import("./src/utils/configStore.js");
-const { forceSyncStopAction } = await import("./src/utils/forceSyncControl.js");
+const { loadMediaConfig } = await import("./src/utils/configStore.js");
+const { schedulerLeaseStatus } = await import("./src/utils/schedulerLease.js");
+const { createWorkerCoordinator } = await import("./src/workerCoordinator.js");
 
 ensureDataDirs();
 const LOGS_DIR = path.join(DATA_DIR, "logs");
 fs.mkdirSync(LOGS_DIR, { recursive: true });
-const accessLogStream = createStream("access.log", {
+const accessLogStream = createStream(ROLE === "all" ? "access.log" : `access-${ROLE}-${process.pid}.log`, {
   interval: "1d",
   path: LOGS_DIR,
   maxFiles: 14,
@@ -168,7 +175,20 @@ app.all(["/health", "/health/"], (req, res) => {
   if (req.method !== "GET" && req.method !== "HEAD") {
     return res.status(405).set("Allow", "GET, HEAD").json({ error: "Method not allowed" });
   }
-  res.json({ ok: true, ts: Date.now() });
+  const now = Date.now();
+  const lease = schedulerLeaseStatus(now);
+  res.json({
+    ok: true,
+    ts: now,
+    role: ROLE,
+    database: { ok: true },
+    worker: {
+      available: lease.available,
+      leader: lease.available && lease.holderId === INSTANCE_ID,
+      heartbeatAgeMs: lease.heartbeatAt ? Math.max(0, now - lease.heartbeatAt) : null,
+      lastTickAgeMs: lease.lastTickAt ? Math.max(0, now - lease.lastTickAt) : null,
+    },
+  });
 });
 
 // Static SPA assets, then SPA fallback to index.html for client-side routes.
@@ -177,37 +197,11 @@ app.get("/*name", (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, "index.html"));
 });
 
-// In-process scheduler — runs the per-minute background sync tick.
-let tickRunning = false;
-async function tick() {
-  if (tickRunning) return;
-  tickRunning = true;
-  try {
-    await runScheduledTick();
-  } catch (error) {
-    console.error("Scheduled tick failed", error);
-  } finally {
-    tickRunning = false;
-  }
-}
+// ROLE=web omits this coordinator; ROLE=all preserves the default combined process.
+const coordinator = roleHasWorker(ROLE) ? createWorkerCoordinator({ holderId: INSTANCE_ID, role: ROLE }) : null;
+const server = roleHasWeb(ROLE) ? app.listen(PORT) : null;
 
-const server = app.listen(PORT);
-
-async function clearOrphanedForceSyncLockAtBoot() {
-  const runtime = await loadRuntimeState();
-  if (forceSyncStopAction({ runtimeActive: runtime.forceSyncActive === true, cancelRequested: runtime.forceSyncCancelRequested === true }) !== "reset") return;
-  const message = "Orphaned force-sync lock cleared automatically after server restart.";
-  await appendRuntimeLog("forceSyncLog", [`RESET: ${message}`]).catch(() => null);
-  await setRuntimeState({
-    forceSyncActive: false,
-    forceSyncCancelRequested: false,
-    forceSyncHeartbeat: Date.now(),
-    forceSyncResult: { success: true, aborted: true, reset: true, reason: message },
-  });
-  console.warn(message);
-}
-
-server.on("listening", async () => {
+server?.on("listening", async () => {
   const address = server.address();
   const listeningPort = typeof address === "object" && address ? address.port : PORT;
   console.log(`plembfin listening on http://localhost:${listeningPort}`);
@@ -220,17 +214,10 @@ server.on("listening", async () => {
     });
     return;
   }
-  await clearOrphanedForceSyncLockAtBoot().catch((error) => console.error("Failed to clear orphaned force-sync lock", error));
-  // Fix any episodes stored with "Unknown Show" title when a better title is now known.
-  backfillUnknownShowTitles().catch((err) => console.error("backfillUnknownShowTitles failed", err));
-  // Kick once shortly after boot, then every minute.
-  setTimeout(tick, 10_000);
-  setInterval(tick, 60_000);
-  // Connect the Plex real-time notification listener for event-driven unwatch detection.
-  startPlexNotificationListener();
+  await coordinator?.start().catch((error) => console.error("Failed to start worker coordinator", error));
 });
 
-server.on("error", (error) => {
+server?.on("error", (error) => {
   if (error?.code === "EADDRINUSE") {
     console.error(`Port ${PORT} is already in use. Stop the existing Plembfin process or set PORT to another value.`);
     process.exitCode = 1;
@@ -239,19 +226,29 @@ server.on("error", (error) => {
   throw error;
 });
 
-function shutdown(signal) {
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`${signal} received — shutting down gracefully`);
   const timer = setTimeout(() => {
     console.error("Graceful shutdown timed out — forcing exit");
     process.exit(1);
   }, 5000);
   timer.unref();
-  stopPlexNotificationListener();
-  server.close(() => {
+  await coordinator?.stop().catch((error) => console.error("Worker shutdown failed", error));
+  const finish = () => {
     try { db.close(); } catch { /* ignore */ }
     process.exit(0);
-  });
+  };
+  if (server) server.close(finish);
+  else finish();
 }
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
+
+if (!server) {
+  console.log(`plembfin worker started (role=${ROLE})`);
+  await coordinator.start();
+}

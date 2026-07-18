@@ -107,22 +107,29 @@ async function runWithTimeBudget(label, task, timeoutMs) {
   }
 }
 
-// Invoked once per minute by the in-process scheduler in server.js.
-export async function runScheduledTick() {
+// Invoked once per minute by the elected worker coordinator.
+export async function runScheduledTick({ isLeader = () => true } = {}) {
+  if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   await runWithTimeBudget("Scheduled sync", () => runScheduledSync(), 50_000);
+  if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   await runWithTimeBudget("Scheduled watch-history backup", () => runScheduledWatchBackup(), 30_000);
+  if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   await runWithTimeBudget("Scheduled Plembfin backup", () => runScheduledPlembfinBackup(), 30_000);
+  if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   await runWithTimeBudget("TMDB prewarm", () => prewarmTmdbLibrary({ limit: 4 }), 30_000);
   if (Date.now() - lastNextAiringRefreshAt > NEXT_AIRING_REFRESH_INTERVAL_MS) {
+    if (!isLeader()) return { skipped: true, reason: "lease-lost" };
     lastNextAiringRefreshAt = Date.now();
     const forceAll = nextAiringInitialBuildPending;
     nextAiringInitialBuildPending = false;
     await runWithTimeBudget("Next airing cache refresh", () => refreshNextAiringCache({ forceAll }), 45_000);
   }
   if (Date.now() - lastUpcomingCalendarRefreshAt > UPCOMING_CALENDAR_REFRESH_INTERVAL_MS) {
+    if (!isLeader()) return { skipped: true, reason: "lease-lost" };
     lastUpcomingCalendarRefreshAt = Date.now();
     await runWithTimeBudget("Upcoming calendar cache refresh", () => refreshUpcomingCalendarCache(), 50_000);
   }
+  return { skipped: false };
 }
 
 // ---------------------------------------------------------------------------

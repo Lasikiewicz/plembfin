@@ -1,16 +1,27 @@
 # Scheduled Sync
 
-The in-process scheduler runs `runScheduledTick()` **every minute** via
-`setInterval` in `server/server.js`. It is guarded against overlap: if a tick is
-still running when the next fires, the new tick is skipped.
+The elected background worker runs `runScheduledTick()` **every minute**. In the
+default `ROLE=all` deployment this is the same server process as the UI. A SQLite
+lease ensures only one `all` or `worker` process runs scheduler work and the Plex
+notification listener. The lease is renewed every 10 seconds and expires after 60.
+The existing per-process overlap guard remains in place.
+
+The lease prevents concurrent scheduler ownership. A process crash during an
+already-issued media-server API call cannot make that remote call exactly-once;
+Plembfin's persisted loop detection and idempotent watched/unwatched writes provide
+recovery protection.
 
 The same logic runs on demand via:
 - `GET /api/cron-sync/status` - returns the last cron trigger/result as JSON for
   automation that needs a reliable success/failure signal after a streamed run.
 - `POST /api/cron-sync` — `handleCronSync` (streams a text log back, auth by API key
   or session cookie).
-- `POST /api/force-sync` — runs it and stores progress in `runtime_state` for the
-  dashboard to poll; `POST /api/stop-force-sync` cancels.
+- `POST /api/force-sync` — queues durable worker work for the dashboard to poll;
+  `POST /api/stop-force-sync` cancels queued or running work.
+
+Manual cron and force-sync requests are stored in `background_jobs`; their ordered
+logs live in `background_job_logs`. The web process relays logs while the leaseholder
+executes the job, so disconnecting a browser does not stop it.
 
 Implementation lives in `server/src/scheduled.js`.
 

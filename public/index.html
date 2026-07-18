@@ -1390,7 +1390,7 @@
                         <p>Understanding Logs</p>
                         <span>What you might see</span>
                       </div>
-                      <p class="tool-accordion-desc">Logs are captured in memory from the moment the server starts. They reset on restart and hold up to 1,000 entries. The panel refreshes every 3 seconds automatically.</p>
+                      <p class="tool-accordion-desc">Recent backend logs are merged from bounded per-process files, so web and worker activity remains visible across restarts. Frontend diagnostics stay browser-local. The panel refreshes every 3 seconds automatically.</p>
 
                       <details style="margin-top: var(--space-3);" open>
                         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Normal activity</summary>

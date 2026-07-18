@@ -83,7 +83,6 @@ import {
   clearWatchArtworkUrls,
 } from "../utils/dataRepo.js";
 
-import { restartPlexNotificationListener } from "../scheduler.js";
 
 function imagePath(path, params = {}) {
   const cleanPath = String(path || "").trim();
@@ -221,9 +220,6 @@ export async function handleConfig(req, res) {
     await saveMediaConfig(config);
     writeAuditLog("settings.saved", { ip: req.ip || req.socket?.remoteAddress });
     const storedConfig = await loadMediaConfig();
-    // Reconnect the Plex notification listener so a newly added/changed server or token
-    // takes effect immediately (event-driven unwatch detection).
-    restartPlexNotificationListener();
     return sendJson(res, { ok: true, config: publicMediaConfig(storedConfig) });
   }
 

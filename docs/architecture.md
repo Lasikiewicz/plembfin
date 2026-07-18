@@ -74,7 +74,7 @@ Every tracked file in the repository, by directory.
 | `Dockerfile` | `node:22-slim` image: installs prod deps, copies `server/`, `public/`, `changelog.json`, creates the non-root `plembfin` user, healthcheck against `/api/ping`, entrypoint drops privileges. |
 | `docker-compose.yml` | Base compose file: port 5055, `./data:/data` volume, admin env vars, `no-new-privileges`, resource limits. |
 | `docker-compose.secure.yml` | Hardened overlay: read-only rootfs, tmpfs `/tmp`, required env vars (`ADMIN_PASSWORD`, `SESSION_SECRET`, `API_KEY`, `WEBHOOK_SECRET`), forces `COOKIE_SECURE=true`. |
-| `.dockerignore` | Excludes `node_modules`, `data`, `docs`, `scratch`, markdown, and secrets from the Docker build context (whitelists the two scripts the image needs). |
+| `.dockerignore` | Excludes `node_modules`, `data`, `docs`, `scratch`, markdown, and secrets from the Docker build context while whitelisting the required runtime scripts. |
 | `.env.example` | Commented template of every supported environment variable — copy to `.env` (loaded by `server/src/env.js`). The variables are documented under [Environment variables](#environment-variables) below. |
 | `.editorconfig` | Editor whitespace/indent conventions. |
 | `.gitattributes` | Normalizes line endings to LF; marks image formats binary. |
@@ -112,7 +112,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | --- | --- |
 | `server.js` | **Process entrypoint.** Express app: access logging (rotating `data/logs/access.log`, secrets redacted), security headers + dynamic CSP, rate limiters, raw-body capture for `/api/*` → `dispatch()`, static mounts for `/media` and `public/`, `/health`, `/changelog.json`, SPA fallback, the per-minute scheduler tick, the Plex notification listener startup, and graceful shutdown. |
 | `src/index.js` | **The API router.** `dispatch()` strips `/api/` and routes paths to `handleX` functions exported by `src/routes/*.js`. The full route table is the body of `dispatch()`; feature behavior belongs in the owning route module. |
-| `src/db.js` | Opens `data/plembfin.db` via better-sqlite3 (WAL), applies `schema.sql`, runs column migrations, exposes `parseJson`/`toJson`/`transaction`/`writeAuditLog` and the in-process `dataVersion` counter that invalidates derived caches. |
+| `src/db.js` | Opens `data/plembfin.db` via better-sqlite3 (WAL), applies concurrency-safe migrations, and exposes helpers plus the SQLite-backed cache version observed by every process. |
 | `src/schema.sql` | Authoritative table definitions. See [sqlite-schema.md](sqlite-schema.md). |
 | `src/appConfig.js` | Resolves admin credentials + secrets from env / `data/config.json` (scrypt password hash, generated API key / webhook secret / session secret), warns about insecure config at startup, exports `AUTH`, `verifyWebhookToken`, `rotateWebhookSecret`, `updateAdminCredentials`. |
 | `src/env.js` | Minimal `.env` loader (`loadLocalEnv`) — parses `<repo>/.env` without a dotenv dependency; env vars already set take precedence. |
@@ -381,8 +381,10 @@ current version, an update banner, and the full release list with newer versions
 `better-sqlite3` opens `data/plembfin.db` in WAL mode and applies `schema.sql` on
 boot. All database access uses prepared statements.
 
-**In-process memoization:** derived caches are keyed by a monotone `dataVersion` integer.
-`bumpDataVersion()` invalidates them; the next read reloads from SQLite. This works
+**Cross-process memoization:** derived caches are keyed by a monotone version in
+`cache_versions`, polled at most every 500 ms. SQLite triggers advance it in the same
+transaction as canonical watch-state writes; `bumpDataVersion()` also supports
+file-backed derived changes. The next read reloads from SQLite. This works
 because Plembfin is a single long-lived process — never assume a second process can
 share these caches.
 
@@ -475,6 +477,7 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 
 - `PORT` — HTTP port (default `5055`)
 - `DATA_DIR` — data directory (default `<repo>/data`; Docker sets `/data`)
+- `ROLE` — `all` (default), `web`, or `worker`; worker mode does not bind HTTP
 - `ADMIN_USERNAME` (default `admin`) / `ADMIN_PASSWORD` — admin login. If `ADMIN_PASSWORD` is unset on a brand-new install, a random password is generated and printed once to the server console.
 - `API_KEY` — pin the webhook/integration key
 - `WEBHOOK_SECRET` — pin the webhook secret used by header/Bearer auth and the compatibility `?token=` URL

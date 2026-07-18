@@ -1,0 +1,32 @@
+# Optional same-host web/worker split:
+# docker compose -f docker-compose.yml -f docker-compose.split.yml up -d
+services:
+  plembfin:
+    environment:
+      - ROLE=web
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set for split mode}
+      - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET must be set for split mode}
+      - API_KEY=${API_KEY:?API_KEY must be set for split mode}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:?WEBHOOK_SECRET must be set for split mode}
+
+  worker:
+    build: .
+    image: plembfin:latest
+    environment:
+      - ROLE=worker
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set for split mode}
+      - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET must be set for split mode}
+      - API_KEY=${API_KEY:?API_KEY must be set for split mode}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:?WEBHOOK_SECRET must be set for split mode}
+    volumes:
+      - ./data:/data
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "scripts/check-worker-health.js"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped

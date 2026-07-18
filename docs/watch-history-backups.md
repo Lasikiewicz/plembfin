@@ -34,7 +34,7 @@ Restores should support:
 
 ## Local Scheduling
 
-Add a backup worker to the existing in-process scheduler rather than creating a
+Add backup work to the elected scheduler rather than creating a
 second timer. Store its configuration and last-run state in `settings` and
 `runtime_state`.
 

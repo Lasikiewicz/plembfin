@@ -8,6 +8,7 @@ ensureDataDirs();
 
 export const db = new Database(DB_PATH);
 try { fs.chmodSync(DB_PATH, 0o600); } catch { /* non-POSIX FS (Windows, some Docker volumes) */ }
+db.pragma("busy_timeout = 5000");
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
@@ -45,11 +46,13 @@ function runSchemaMigrations() {
   const appliedStmt = db.prepare("SELECT id FROM schema_migrations WHERE id = ?");
   const insertStmt = db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)");
   for (const migration of migrations) {
-    if (appliedStmt.get(migration.id)) continue;
     db.transaction(() => {
+      // Recheck under an IMMEDIATE transaction. Two Plembfin processes may
+      // start against the same database at exactly the same time.
+      if (appliedStmt.get(migration.id)) return;
       migration.up(db);
       insertStmt.run(migration.id, Date.now());
-    })();
+    }).immediate();
   }
 }
 
@@ -68,16 +71,43 @@ try {
 } catch { /* column already exists */ }
 
 // ---------------------------------------------------------------------------
-// In-process derived-cache version. A monotone integer invalidates in-memory
-// caches; bump it on every write that changes history-derived results.
+// Shared derived-cache version. Each process keeps a fast local copy and polls
+// SQLite at a bounded cadence so writes by another process invalidate caches.
 // ---------------------------------------------------------------------------
-let dataVersion = 1;
+const CACHE_VERSION_POLL_MS = 500;
+const selectHistoryVersion = db.prepare("SELECT version FROM cache_versions WHERE id = 'history'");
+const bumpHistoryVersion = db.prepare("UPDATE cache_versions SET version = version + 1, updated_at = ? WHERE id = 'history' RETURNING version");
+let dataVersion = Number(selectHistoryVersion.get()?.version || 1);
+let lastDataVersionCheckAt = 0;
 export function getDataVersion() {
+  const checkedAt = Date.now();
+  if (checkedAt - lastDataVersionCheckAt >= CACHE_VERSION_POLL_MS) {
+    lastDataVersionCheckAt = checkedAt;
+    const shared = Number(selectHistoryVersion.get()?.version || 1);
+    if (shared > dataVersion) dataVersion = shared;
+  }
   return dataVersion;
 }
 export function bumpDataVersion() {
-  dataVersion += 1;
+  const sharedBeforeBump = Number(selectHistoryVersion.get()?.version || 1);
+  // Canonical SQLite writes advance the version atomically via triggers. Adopt
+  // that generation instead of double-bumping, which preserves the safe
+  // one-row cache carry-forward optimization. File-only changes still need an
+  // explicit increment below.
+  if (sharedBeforeBump > dataVersion) {
+    dataVersion = sharedBeforeBump;
+    lastDataVersionCheckAt = Date.now();
+    return dataVersion;
+  }
+  const row = bumpHistoryVersion.get(Date.now());
+  dataVersion = Math.max(dataVersion + 1, Number(row?.version || 1));
+  lastDataVersionCheckAt = Date.now();
   return dataVersion;
+}
+
+export function refreshDataVersion() {
+  lastDataVersionCheckAt = 0;
+  return getDataVersion();
 }
 
 // JSON column helpers -------------------------------------------------------

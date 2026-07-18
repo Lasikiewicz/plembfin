@@ -8,12 +8,15 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | Table | Purpose | Written by | Read by |
 | --- | --- | --- | --- |
 | `watch_history` | Canonical watch records (one row per unique watched item) | webhook `completed`/`unplayed`, scheduled catch-up, import | history endpoints, dashboard |
-| `live_tracking_cache` | Snapshot of currently-playing sessions from the scheduler | in-process scheduler only | `handleNowPlaying` |
+| `live_tracking_cache` | Snapshot of currently-playing sessions from the scheduler | elected worker only | `handleNowPlaying` |
 | `active_sessions` | Live sessions from webhook `active` events (5-min TTL) | webhook `active` phase | `handleNowPlaying`, `active-sessions` |
 | `playback_progress` | Resume position records | webhook `ended`, sync orchestrator | resume propagation |
 | `playstate` | Per-item watched/unwatched state for sync targets | sync orchestrator | sync orchestrator |
 | `sync_history` | Log of sync dispatch results (90-day / 10,000-row retention, pruned hourly on write) | sync outcome changes | sync-history endpoint |
 | `runtime_state` | Single-row JSON blob — last cron time, force-sync state/log, `nowPlayingRefresh` signal | scheduler, force-sync, webhooks | dashboard polling |
+| `cache_versions` | Monotone cross-process cache generations | SQLite triggers and explicit invalidation | every web/worker process |
+| `scheduler_lease` | Current worker leader, fencing generation, heartbeat and tick time | worker coordinator | health and worker coordination |
+| `background_jobs` / `background_job_logs` | Durable cron/force-sync queue, state, results and ordered logs | web enqueues; leader claims | sync APIs and worker |
 | `settings` | Single-row JSON blob — Plex/Emby/Jellyfin/TMDB/TVDB connection settings | config endpoint | everything that talks to servers |
 | `loop_keys` | Loop-detection KV with TTL | sync orchestrator | sync orchestrator |
 | `poster_cache` | Cached artwork metadata (binaries in `data/media/`) | poster handler | poster resolution |
