@@ -1,7 +1,21 @@
 {
-  "version": "0.4.61",
-  "updatedAt": "2026-07-17T21:03:25+01:00",
+  "version": "0.4.62",
+  "updatedAt": "2026-07-18T16:30:03+01:00",
   "entries": [
+    {
+      "version": "0.4.62",
+      "date": "2026-07-18T16:30:03+01:00",
+      "commit": "76f2b56523b9ac324e7f37473d90cdc2ad2c8393",
+      "message": "Feature - Harden cross-platform sync diagnostics and tuning",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add a Cross-Platform Match Report that highlights unmatched media by Plex, Emby, and Jellyfin.",
+        "Add configurable watched, resume, active-session, and outbound timeout tuning while preserving existing defaults.",
+        "Reduce unnecessary history-derived cache rebuilds while keeping dashboard refresh versions accurate.",
+        "Expand backend and frontend coverage for sync parsing, tuning validation, timeout behavior, and cache correctness.",
+        "Align setup guidance, inline help, and troubleshooting documentation with the configurable behavior."
+      ]
+    },
     {
       "version": "0.4.61",
       "date": "2026-07-17T21:03:25+01:00",
