@@ -3,7 +3,7 @@ import { escapeHtml, escapeAttribute, slug, movieHref, showTitleFrom, showEpisod
 import { tmdbProfile, tmdbPoster, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260710";
-import { movieBySlugOrId, clearMediaDetailState, mediaDetailRoot } from "./media-detail.js?v=20260701";
+import { movieBySlugOrId, clearMediaDetailState, mediaDetailRoot, mediaDetailLoaderHtml } from "./media-detail.js?v=20260701";
 import { FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver, resolvedTmdbCache } from "./explorer.js";
 
 let _cb = {};
@@ -131,11 +131,7 @@ export async function loadCastMemberDetails(personId, personName = null) {
   }
   syncPageTopbar();
 
-  root.innerHTML = `
-    <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
-      <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading profile...</span>
-    </div>
-  `;
+  root.innerHTML = mediaDetailLoaderHtml("Loading profile");
 
   try {
     // Fetch person data and all watched movies/shows in parallel so filmography

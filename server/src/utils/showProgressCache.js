@@ -130,7 +130,7 @@ async function calculateAndSetShowProgress(showTitle) {
   
   // Get all episode rows for this show from SQLite
   const rows = db.prepare(`
-    SELECT season, episode, tmdb_id, sync_action, sync_dispatch_telemetry
+    SELECT season, episode, tmdb_id, tvdb_id, sync_action, sync_dispatch_telemetry
     FROM watch_history
     WHERE media_type = 'episode' AND show_title_lower = ?
   `).all(showTitle.toLowerCase());
@@ -146,6 +146,7 @@ async function calculateAndSetShowProgress(showTitle) {
   // Deduplicate watched episodes by season and episode number
   const uniqueEpisodes = new Set();
   let tmdbId = "";
+  let tvdbId = "";
   
   for (const row of trackedRows) {
     if (row.season != null && row.episode != null) {
@@ -153,6 +154,9 @@ async function calculateAndSetShowProgress(showTitle) {
     }
     if (!tmdbId && row.tmdb_id) {
       tmdbId = row.tmdb_id;
+    }
+    if (!tvdbId && row.tvdb_id) {
+      tvdbId = row.tvdb_id;
     }
   }
   
@@ -162,7 +166,7 @@ async function calculateAndSetShowProgress(showTitle) {
   let totalEpisodes = 0;
   if (tmdbId || showTitle) {
     try {
-      const tmdbShow = await getTmdbDetails({ mediaType: "tv", tmdbId, title: showTitle });
+      const tmdbShow = await getTmdbDetails({ mediaType: "tv", tmdbId, title: showTitle, ids: { tvdbId } });
       totalEpisodes = tmdbShow?.number_of_episodes || 0;
     } catch (e) {
       console.error(`[ShowProgressCache] Failed fetching TMDB total episodes for ${showTitle}:`, e.message);

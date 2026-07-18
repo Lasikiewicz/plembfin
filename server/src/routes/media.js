@@ -43,6 +43,7 @@ import {
   insertWatchRecord,
   listLibraryItemsForRefresh,
   relatedPosterRows,
+  rematchShowWatchRecords,
   setWatchPosterUrls,
   setWatchBackdropUrl,
   listPlaybackProgressRowsForReplay,
@@ -521,6 +522,27 @@ export async function handleUpdateWatch(req, res) {
   }
 
   return sendJson(res, { ok: true, poster_url: customPosterUrl, backdrop_url: customBackdropUrl, updated_ids: customPosterIds });
+}
+
+export async function handleRematchShow(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const result = await rematchShowWatchRecords({
+    id: String(body.id || "").trim(),
+    showTitle: String(body.show_title || "").trim(),
+    tvdbId: String(body.tvdb_id || "").trim(),
+  });
+  if (!result.ok) return sendJson(res, { error: result.error }, 400);
+  return sendJson(res, {
+    ok: true,
+    updated_rows: result.updatedRows,
+    show_title: result.showTitle,
+    tvdb_id: result.tvdbId,
+    metadata_refresh: "background",
+  }, 202);
 }
 
 export async function handleMergeShows(req, res) {

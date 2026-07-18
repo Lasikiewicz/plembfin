@@ -4,7 +4,7 @@ import { posterUrlFor, tmdbPoster, bestTmdbLogo, hydratePosters } from "./images
 import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260710";
 import { renderWatchDatePrompt } from "./watch-action.js";
-import { authHeaders, mediaDetailRoot, setMediaDetailActions, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
@@ -345,9 +345,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   const root = mediaDetailRoot();
   root.innerHTML = `
     <div class="immersive-container">
-      <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
-        <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading movie details...</span>
-      </div>
+      ${mediaDetailLoaderHtml("Loading movie details")}
     </div>
   `;
   const tmdbData = await fetchTmdbDetails("movie", tmdbId, null);

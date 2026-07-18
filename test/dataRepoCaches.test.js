@@ -115,3 +115,32 @@ test("derived caches stay identical to forced rebuilds across targeted and rando
     await assertMatchesForcedRebuild(`random write ${index}`, version);
   }
 });
+
+test("show rematch stamps every episode in one operation and clears stale artwork", async () => {
+  const secondEpisodeId = await insert({
+    title: "Cache Show - S01E02 - Second",
+    media_type: "episode",
+    watched_at: "2026-01-04T12:00:00.000Z",
+    source: "plex",
+    tmdb_id: "old-tmdb-show",
+    tvdb_id: "old-tvdb-show",
+    season: 1,
+    episode: 2,
+    poster_url: "https://example.test/show-old.jpg",
+    logo_url: "https://example.test/show-old-logo.png",
+    backdrop_url: "https://example.test/show-old-backdrop.jpg",
+  });
+
+  const result = await repo.rematchShowWatchRecords({ id: episodeId, tvdbId: "correct-tvdb-show" });
+  assert.equal(result.ok, true);
+  assert.equal(result.updatedRows, 2);
+
+  for (const id of [episodeId, secondEpisodeId]) {
+    const row = await repo.getWatchRecordByIdLight(id);
+    assert.equal(row.tvdb_id, "correct-tvdb-show");
+    assert.equal(row.tmdb_id, null);
+    assert.equal(row.poster_url, null);
+    assert.equal(row.logo_url, null);
+    assert.equal(row.backdrop_url, null);
+  }
+});

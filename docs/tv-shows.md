@@ -32,7 +32,8 @@ API is hit during page loads).
 ### Watch progress
 
 `showProgressCache.js` maintains watched-vs-total episode counts per show. Totals come
-from TVDB/TMDB details (specials/season 0 excluded — `PROGRESS_CACHE_SCHEMA_VERSION` is
+from TVDB/TMDB details using the record's authoritative TVDB identity when present
+(specials/season 0 excluded — `PROGRESS_CACHE_SCHEMA_VERSION` is
 bumped when the calculation changes shape so stale entries refetch). Only genuine
 Plembfin-tracked watches count; rows back-filled from library history scans are
 distinguishable by their telemetry (`isScheduledLibraryHistoryRow`). Updates are queued
@@ -71,6 +72,9 @@ Two admin tools deal with mis-grouped shows under Settings → Advanced:
   dialog in `edit-dialogs.js`) — folds one show title's episode rows into another.
 - **Re-match TV shows** (`POST /api/rematch-tv-shows`) — re-resolves shows against
   TMDB/TVDB when the automatic match picked the wrong series.
+- **Fix Match on a show page** (`POST /api/rematch-show`) — stamps the selected TVDB
+  identity across every episode in one transaction and refreshes remote-derived
+  metadata in the background.
 - `backfillUnknownShowTitles` (run at boot from `server.js`) fixes episodes stored
   with an "Unknown Show" title once a better title is known.
 
@@ -81,4 +85,4 @@ Two admin tools deal with mis-grouped shows under Settings → Advanced:
 | `GET /api/shows?search=&sort=&limit=&offset=&hideWatched=&hideEnded=` | Paged show summaries |
 | `GET /api/show?id=` / `?title=` | One show's full detail (seasons, episodes, watch rows) |
 | `GET /api/tmdb-details` / `GET /api/tmdb-season` | Metadata + episode lists for the detail page |
-| `POST /api/merge-shows`, `POST /api/rematch-tv-shows` | Identity fixes |
+| `POST /api/merge-shows`, `POST /api/rematch-show`, `POST /api/rematch-tv-shows` | Identity fixes |

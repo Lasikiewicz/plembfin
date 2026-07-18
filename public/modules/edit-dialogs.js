@@ -37,6 +37,17 @@ export async function apiUpdateWatch(id, fields) {
   return body;
 }
 
+async function apiRematchShow(id, showTitle, tvdbId) {
+  const res = await fetch("/api/rematch-show", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ id, show_title: showTitle, tvdb_id: tvdbId }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body;
+}
+
 export function watchedAtToInputValue(watchedAt) {
   if (!watchedAt) return "";
   try {
@@ -889,32 +900,17 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
     `;
   };
 
-  const setEpisodeProgress = (button, saved, total) => {
-    setResultBusy(button, `Rematching ${saved}/${total} episodes`);
-    const percent = total > 0 ? Math.round((saved / total) * 100) : 100;
-    const fill = button.querySelector(".fix-match-result-progress-track span");
-    if (fill) fill.style.width = `${percent}%`;
-  };
-
   const doTvRematch = async (tvdbId, title, resultButton) => {
     const rows = fullShowWatchedRows(currentTitle);
-    if (rows.length) {
-      status.textContent = "";
-      if (resultButton) setEpisodeProgress(resultButton, 0, rows.length);
-      let saved = 0;
-      for (const row of rows) {
-        await apiUpdateWatch(row.id, { tvdb_id: tvdbId, tmdb_id: "" });
-        row.tvdb_id = tvdbId;
-        row.tmdb_id = "";
-        row.poster_url = "";
-        row.logo_url = "";
-        row.backdrop_url = "";
-        saved += 1;
-        if (resultButton) setEpisodeProgress(resultButton, saved, rows.length);
-      }
-    } else if (id) {
-      if (resultButton) setResultBusy(resultButton, "Saving match...");
-      await apiUpdateWatch(id, { tvdb_id: tvdbId, tmdb_id: "" });
+    status.textContent = "";
+    if (resultButton) setResultBusy(resultButton, "Updating show match...");
+    const result = await apiRematchShow(id, currentTitle, tvdbId);
+    for (const row of rows) {
+      row.tvdb_id = tvdbId;
+      row.tmdb_id = "";
+      row.poster_url = "";
+      row.logo_url = "";
+      row.backdrop_url = "";
     }
     const showKey = slug(currentTitle);
     const show = state.showsRaw.find((item) => slug(item.title) === showKey);
@@ -928,9 +924,13 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
     state.tmdbDetailsCache.clear();
     state.tmdbSeasonCache.clear();
     _clearDerivedUiCaches({ resetExplorer: true });
-    if (resultButton) setResultBusy(resultButton, "Refreshing artwork and metadata...");
-    await onSaved?.({ tmdb_id: "", tvdb_id: tvdbId, title, refreshed: true });
     overlay.remove();
+    const updatedRows = Number(result.updated_rows || rows.length || 1);
+    _setMessage(`Match updated for ${updatedRows} episode${updatedRows === 1 ? "" : "s"}. Refreshing metadata in the background.`, "success");
+    Promise.resolve(onSaved?.({ tmdb_id: "", tvdb_id: tvdbId, title, refreshed: true })).catch((error) => {
+      console.error("Failed refreshing show after Fix Match", error);
+      _setMessage("Match saved. Reload the show to see refreshed metadata.", "warning");
+    });
   };
 
   const doSearch = async () => {

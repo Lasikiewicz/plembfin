@@ -59,6 +59,14 @@ const getTmdbShowDetailsStmt = db.prepare("SELECT details FROM tmdb_metadata_cac
 const recoverShowTitleByTmdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tmdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
 const recoverShowTitleByTvdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tvdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
 const selectUnknownShowRowsStmt = db.prepare("SELECT id, title, tmdb_id, tvdb_id, sync_dispatch_telemetry FROM watch_history WHERE media_type = 'episode' AND show_title_lower = 'unknown show'");
+const rematchShowEpisodeStmt = db.prepare(`
+  UPDATE watch_history
+  SET tvdb_id = ?, tmdb_id = '', poster_url = NULL, logo_url = NULL,
+      backdrop_url = NULL, updated_at = ?
+  WHERE id = ?
+`);
+const deleteTmdbMetadataStmt = db.prepare("DELETE FROM tmdb_metadata_cache WHERE id = ?");
+const deleteTvdbMetadataStmt = db.prepare("DELETE FROM tvdb_metadata_cache WHERE id = ?");
 
 function cachedTmdbShowDetails(tmdbId) {
   const id = cleanString(tmdbId);
@@ -411,7 +419,9 @@ export function normalizeWatchRecordForInsert(record, fallbackSource = record?.s
 function rowToWatch(row) {
   if (!row) return null;
   let tmdbId = row.tmdb_id || null;
-  if (row.media_type === "episode" && !tmdbId) {
+  // An explicit TVDB match is authoritative. Do not resurrect an old TMDB id
+  // from the progress cache while the new match is refreshing in background.
+  if (row.media_type === "episode" && !tmdbId && !row.tvdb_id) {
     const showTitle = row.show_title || showTitleFrom(row.title);
     if (showTitle) {
       const showKey = canonicalTitleKey(showTitle) || normalizeKeyPart(showTitle);
@@ -1780,6 +1790,53 @@ export async function updateWatchRecord(id, fields = {}) {
   }
   await invalidateHistoryDerivedCaches();
   return { ok: true };
+}
+
+// Fix Match operates at show scope. Performing one update-watch request per
+// episode is especially expensive over a deployed connection because each
+// request also invalidates derived caches. Stamp every episode in one SQLite
+// transaction, invalidate once, then rebuild remote-derived progress metadata
+// after the response path has completed.
+export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId = "" } = {}) {
+  const cleanTvdbId = cleanString(tvdbId);
+  if (!cleanTvdbId) return { ok: false, error: "tvdb_id is required" };
+
+  const anchor = id ? selectByIdStmt.get(String(id)) : null;
+  if (id && !anchor) return { ok: false, error: "Watch record not found" };
+  if (anchor && anchor.media_type !== "episode") return { ok: false, error: "Watch record is not a TV episode" };
+
+  const resolvedTitle = cleanString(anchor?.show_title || (anchor?.title ? showTitleFrom(anchor.title) : showTitle));
+  if (!resolvedTitle) return { ok: false, error: "show_title is required" };
+
+  let rows = selectEpisodesByShowLowerStmt.all(resolvedTitle.toLowerCase());
+  if (!rows.length) {
+    const showKey = canonicalTitleKey(resolvedTitle);
+    rows = selectAllEpisodesStmt.all().filter((row) => (
+      canonicalTitleKey(row.show_title || showTitleFrom(row.title)) === showKey
+    ));
+  }
+  if (!rows.length) return { ok: false, error: "No episodes found for show" };
+
+  const oldTmdbIds = new Set(rows.map((row) => cleanString(row.tmdb_id)).filter(Boolean));
+  const mediaKeys = new Set(rows.map((row) => cleanString(row.media_key)).filter(Boolean));
+  const updatedAt = Date.now();
+
+  transaction(() => {
+    for (const row of rows) rematchShowEpisodeStmt.run(cleanTvdbId, updatedAt, row.id);
+    for (const mediaKey of mediaKeys) deletePosterByMediaKeyStmt.run(mediaKey);
+    for (const tmdbId of oldTmdbIds) deleteTmdbMetadataStmt.run(`tv_${tmdbId}`);
+    deleteTvdbMetadataStmt.run(`series_${cleanTvdbId}`);
+  });
+
+  queueShowProgressUpdate(resolvedTitle);
+  bumpDataVersion();
+  setImmediate(() => {
+    flushShowProgressUpdates().catch((error) => {
+      console.error("[dataRepo] Background show progress refresh failed after Fix Match", error);
+    });
+  });
+
+  return { ok: true, updatedRows: rows.length, showTitle: resolvedTitle, tvdbId: cleanTvdbId };
 }
 
 const updateShowTitleStmt = db.prepare("UPDATE watch_history SET title = ?, title_lower = ?, show_title = ?, show_title_lower = ?, updated_at = ? WHERE id = ?");

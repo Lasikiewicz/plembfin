@@ -5,7 +5,7 @@ import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260710";
 import { renderWatchDatePrompt } from "./watch-action.js";
-import { authHeaders, setMessage, mediaDetailRoot, setMediaDetailActions, prepareInlineMediaDetail, bumpMediaRenderToken } from "./media-detail-context.js";
+import { authHeaders, setMessage, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, prepareInlineMediaDetail, bumpMediaRenderToken } from "./media-detail-context.js";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
@@ -58,9 +58,7 @@ export async function openShowImmersiveModalByTitle(showTitle, seedEpisode = nul
   root.innerHTML = `
     <div class="immersive-container">
       ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">&larr; Back</button>' : ''}
-      <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
-        <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading show details...</span>
-      </div>
+      ${mediaDetailLoaderHtml("Loading show details")}
     </div>
   `;
 
@@ -142,9 +140,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
   const root = mediaDetailRoot();
   root.innerHTML = `
     <div class="immersive-container">
-      <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
-        <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading TV show details...</span>
-      </div>
+      ${mediaDetailLoaderHtml("Loading TV show details")}
     </div>
   `;
 
@@ -974,10 +970,7 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     root.innerHTML = `
       <div class="modal-backdrop-image"></div>
       <div class="immersive-container media-detail-page">
-        <div class="empty-log">
-          <b>Loading show details...</b>
-          <span>Loading TV series history.</span>
-        </div>
+        ${mediaDetailLoaderHtml("Loading show details")}
       </div>
     `;
     try {

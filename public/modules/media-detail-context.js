@@ -105,6 +105,15 @@ export function mediaDetailRoot() {
   if (state.activeView === "dashboard") return document.body;
   return elements.modalBody;
 }
+export function mediaDetailLoaderHtml(label = "Loading details") {
+  const safeLabel = escapeHtml(label);
+  return `
+    <div class="media-detail-loader" role="status" aria-live="polite" aria-label="${safeLabel}">
+      <span class="media-detail-loader-spinner" aria-hidden="true"></span>
+      <span class="media-detail-loader-label">${safeLabel}&hellip;</span>
+    </div>
+  `;
+}
 export function prepareInlineMediaDetail(mode = state.explorerMode || "movies") {
   setMediaDetailActions("");
   if (!state.mediaDetailInline) {

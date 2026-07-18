@@ -13,7 +13,7 @@ The detail system is split across eight modules; respect this split when adding 
 | Module | Owns |
 | --- | --- |
 | `media-detail.js` | Entry points: `openMovieInlineDetail`, `openShowInlineDetail`, `openMovieImmersiveModalByTmdbId`, `openShowImmersiveModalByTmdbId`, slug/id lookups, `nowPlayingHref`, history debug modal opener |
-| `media-detail-context.js` | Shell/context: init callbacks into `app.js`, `authHeaders()`, the modal DOM root (`mediaDetailRoot`), render token (stale-render guard), actions-menu state, `closeMediaDetail` / `clearMediaDetailState` |
+| `media-detail-context.js` | Shell/context: init callbacks into `app.js`, `authHeaders()`, the modal DOM root (`mediaDetailRoot`), shared detail loading indicator, render token (stale-render guard), actions-menu state, `closeMediaDetail` / `clearMediaDetailState` |
 | `media-detail-shared.js` | Rendering fragments shared by movie + show pages: rating pills, external ratings (IMDb via OMDb), Seerr availability labels and request pills, app deep-links (`hydrateMediaAppLinks`) |
 | `media-detail-movie.js` | Movie page rendering (`renderMovieImmersiveModalContent`), watched-state patching, TMDB-id open path |
 | `media-detail-show.js` | Show page rendering: header, season accordion, episode rows with watch state, season/episode deep-linking (`renderImmersiveShowModal`, `renderShowModalContent`) |
@@ -76,7 +76,10 @@ in-app navigation state. TV URLs support deep links:
 - **Edit tools** — edit watched date (single, per-season, per-show), edit artwork
   (poster/logo/backdrop picker fed by `GET /api/tmdb-images`, `/api/tvdb-images`,
   `/api/fanart-images`; saves via `POST /api/update-watch`), fix match
-  (`GET /api/media-search` + re-link), merge show. All in `edit-dialogs.js`.
+  (TMDB search for movies; TheTVDB search for shows), merge show. All in
+  `edit-dialogs.js`. TV Fix Match sends one `POST /api/rematch-show` request that
+  updates every episode record in a transaction; the dialog closes after that local
+  update while progress, artwork, and metadata refresh in the background.
   The artwork dialog has a match search box at the top (`GET /api/tmdb-search`):
   when a title has no automatic TMDB/TVDB match, searching and picking a result
   swaps the identifiers the picker browses with — the record itself is not

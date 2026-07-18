@@ -380,6 +380,46 @@ h2 {
   position: relative;
 }
 
+.media-detail-loader {
+  display: flex;
+  min-height: clamp(15rem, 42vh, 28rem);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-3);
+  color: var(--muted);
+  text-align: center;
+}
+
+.media-detail-loader-spinner {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  border: 3px solid color-mix(in srgb, var(--line-strong), transparent 18%);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: media-detail-loader-spin 0.72s linear infinite;
+}
+
+.media-detail-loader-label {
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+@keyframes media-detail-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .media-detail-loader-spinner {
+    animation: none;
+    border-right-color: var(--accent);
+  }
+}
+
 .modal-backdrop-image {
   position: fixed;
   top: 0;

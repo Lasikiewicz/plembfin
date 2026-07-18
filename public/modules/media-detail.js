@@ -3,7 +3,7 @@ import { slug, movieSlug, movieHref, showName, showTitleFrom } from "./utils.js"
 import { dedupeMediaRecords } from "./dashboard.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import {
-  initMediaDetail, authHeaders, mediaDetailRoot, setMediaDetailActions,
+  initMediaDetail, authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions,
   prepareInlineMediaDetail, syncMediaActionsMenuState, syncTopbarControlsMenuState,
   openDebugModal, closeDebugModal, clearMediaDetailState, closeMediaDetail,
 } from "./media-detail-context.js";
@@ -19,6 +19,7 @@ import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from 
 export {
   initMediaDetail,
   mediaDetailRoot,
+  mediaDetailLoaderHtml,
   syncMediaActionsMenuState,
   syncTopbarControlsMenuState,
   closeDebugModal,
@@ -113,9 +114,7 @@ export async function openImmersiveModal(id) {
   root.innerHTML = `
     <div class="immersive-container media-detail-page">
       ${!state.mediaDetailInline ? '<button class="immersive-back-button" type="button">← Back</button>' : ''}
-      <div style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
-        <span class="status-pill status-ready" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Loading details...</span>
-      </div>
+      ${mediaDetailLoaderHtml()}
     </div>
   `;
   let entry = movieById(id);

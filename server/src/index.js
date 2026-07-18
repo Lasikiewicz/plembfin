@@ -4,7 +4,7 @@ import { backfillUnknownShowTitles } from "./utils/dataRepo.js";
 import { runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener } from "./scheduler.js";
 import { handleBackupExport, handleBackupImport, handleImport, handlePlembfinBackups, handleWatchBackups } from "./routes/backups.js";
 import { handleAppearance, handleConfig, handleMediaAppLinks, handleSeerrMediaStatus, handleSeerrRequest, handleSeerrStatus, handleTestConnection, handleTestPlexNotifications } from "./routes/admin.js";
-import { handleClearMissingTelemetry, handleDeleteMedia, handleFullSyncWatchstates, handleHistory, handleMergeShows, handleMovies, handleShow, handleShows, handleUpdateWatch } from "./routes/media.js";
+import { handleClearMissingTelemetry, handleDeleteMedia, handleFullSyncWatchstates, handleHistory, handleMergeShows, handleMovies, handleRematchShow, handleShow, handleShows, handleUpdateWatch } from "./routes/media.js";
 import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleManualUnwatch, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleRetrySync, handleStopForceSync, handleSyncHistory, handleSyncJobs, handleWebhook } from "./routes/sync.js";
 import { handleFanartImages, handleMediaSearch, handleOmdbRating, handlePoster, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleYoutubeMeta } from "./routes/metadata.js";
 import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDedupHistory, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRematchTvShows, handleSyncMatchReport } from "./routes/maintenance.js";
@@ -52,6 +52,7 @@ async function dispatch(req, res) {
     if (path === "playback-progress/unwatch") return handlePlaybackProgressUnwatch(req, res);
     if (path === "retry-sync") return handleRetrySync(req, res);
     if (path === "update-watch") return handleUpdateWatch(req, res);
+    if (path === "rematch-show") return handleRematchShow(req, res);
     if (path === "merge-shows") return handleMergeShows(req, res);
     if (path === "now-playing") return handleNowPlaying(req, res);
     if (path === "active-sessions") return handleActiveSessions(req, res);

@@ -86,7 +86,7 @@ so detail pages open hot. Settings → Storage & Cache (`GET /api/cache-stats`,
 | `GET /api/omdb-rating` | IMDb rating pill |
 | `GET /api/youtube-meta` | Trailer metadata |
 | `GET /api/upcoming?month=YYYY-MM` | Future TV episodes for the Upcoming calendar |
-| `POST /api/refresh-tmdb-metadata`, `POST /api/rematch-tv-shows` | Cache refresh / identity fixes |
+| `POST /api/refresh-tmdb-metadata`, `POST /api/rematch-show`, `POST /api/rematch-tv-shows` | Cache refresh / identity fixes |
 
 ## Frontend
 
