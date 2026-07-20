@@ -20,13 +20,7 @@ Desktop renders the grouped sidebar; mobile uses the **Settings section** select
 | Logs | Logs | `/settings/logs` |
 | About | About | `/settings/about` |
 
-Every child section is display-only: its sidebar button navigates to the parent
-group's own path (e.g. `/settings/advanced-group`) with the section id appended as a
-URL hash (`#health`), then scrolls that specific section into view. The parent's page
-always renders every child's content stacked together — clicking a child is a same-page
-jump, not a different screen. Logs is a single-child group of its own (it used to sit
-inside Advanced; it renders and behaves identically, just promoted to a top-level
-sidebar entry, since its content shares no panel with Health or Storage & Cache).
+The left sidebar navigation displays parent menu groups by default, collapsing child sections and sub-sections until that parent section page is active. Every child section is display-only: its sidebar button navigates to the parent group's path with the section id appended as a URL hash (`#health`), then scrolls that specific section into view. The parent's page always renders every child's content stacked together — clicking a child is a same-page jump, not a different screen. Logs is a single-child group of its own (promoted to a top-level sidebar entry, since its content shares no panel with Health or Storage & Cache).
 
 ## Multi-view aggregation
 

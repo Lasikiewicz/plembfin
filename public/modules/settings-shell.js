@@ -425,7 +425,7 @@ function renderSettingsSidebar() {
       const definition = SECTIONS[sectionId];
       const childButton = document.createElement("button");
       childButton.type = "button";
-      childButton.className = "settings-tab settings-group-child";
+      childButton.className = "settings-tab settings-group-child hidden";
       childButton.dataset.settingsGroup = sectionId;
 
       // If this is a display-only child or marked as such, it navigates to the
@@ -590,23 +590,28 @@ export function applySettingsRoute(route) {
     }
   }
 
-  document.querySelectorAll("[data-settings-subsection]").forEach((button) => {
-    const parentSection = button.dataset.settingsParentSection;
-    const isVisible = route.kind === "task" && (route.section === parentSection || route.group === SECTIONS[parentSection]?.panel || route.group === "metadata");
-    button.classList.toggle("hidden", !isVisible);
-  });
-
-  // Handle parent/child active states
+  // Handle parent/child active and visibility states
   document.querySelectorAll("[data-settings-group-parent]").forEach((button) => {
     const active = route.group === button.dataset.settingsGroupParent;
     button.classList.toggle("active", active);
   });
 
   document.querySelectorAll("[data-settings-group]").forEach((button) => {
+    const parentGroupId = button.dataset.settingsGroupParent;
+    const isParentActive = route.kind === "task" && route.group === parentGroupId;
+    button.classList.toggle("hidden", !isParentActive);
+
     const active = route.section === button.dataset.settingsGroup;
     button.classList.toggle("active", active);
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
+  });
+
+  document.querySelectorAll("[data-settings-subsection]").forEach((button) => {
+    const parentSection = button.dataset.settingsParentSection;
+    const parentGroup = SECTION_GROUPS.find((g) => g.sections.includes(parentSection));
+    const isParentActive = route.kind === "task" && (route.group === parentGroup?.id || (parentSection && SECTIONS[parentSection]?.panel === route.panel));
+    button.classList.toggle("hidden", !isParentActive);
   });
 
   const select = document.querySelector("#settingsSectionSelect");
