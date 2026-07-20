@@ -9,6 +9,14 @@
       "message": "Fix - Retry startup SQLite pragmas on a transient busy lock",
       "author": "Lasikiewicz",
       "details": [
+        "Fixed parent group pages (Media Servers, Backup/Restore, Advanced) that only showed one of their child sections instead of all of them, and Tools accordions that stayed collapsed with no content visible",
+        "Fixed Storage & Cache usage numbers and other data (sync jobs, backups, logs) not loading when shown on an aggregated parent settings page",
+        "Clicking a sub-section in the settings sidebar now scrolls straight to that section on the page instead of just landing at the top, and no longer leaves it hidden under the sticky header",
+        "Switching between settings pages no longer keeps the previous page's scroll position",
+        "Renamed Admin Login to Account, API Endpoints to Webhooks (now shown under Media Servers), and the Metadata submenu item to Metadata Providers",
+        "Sync Tuning now edits directly on the page instead of opening a popup",
+        "Moved Logs out of the Advanced group into its own top-level settings entry",
+        "Fixed a stray CSS rule that rotated the Tools page's accordion sections 45 degrees",
         "Two Plembfin processes starting against the same brand-new database at the same instant could crash on boot because switching journal mode to WAL can throw a busy-database error immediately instead of waiting, even with a busy timeout configured",
         "Startup now retries that pragma briefly before giving up, fixing an intermittent CI failure in the concurrent-migration test"
       ]
