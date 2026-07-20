@@ -17,7 +17,7 @@
       "version": "0.5.2",
       "date": "2026-07-20T12:56:20+01:00",
       "commit": "701eda68758834b0232ee143d3ca3bb11a607db7",
-      "message": "Fix - Retry startup SQLite pragmas on a transient busy lock",
+      "message": "Fix - Repair the settings sidebar's hierarchical menu and aggregated pages",
       "author": "Lasikiewicz",
       "details": [
         "Fixed parent group pages (Media Servers, Backup/Restore, Advanced) that only showed one of their child sections instead of all of them, and Tools accordions that stayed collapsed with no content visible",
