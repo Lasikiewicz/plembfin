@@ -287,7 +287,7 @@ export async function hydratePosterFallbacks(container = document.body) {
     const image = document.createElement("img");
     image.className = fallback.className.replace(/\bposter-fallback\b/g, "").trim() || fallback.className;
     bindPosterImageErrorHandler(image);
-    image.src = safeUrl;
+    image.src = encodeURI(safeUrl);
     image.alt = `${fallback.getAttribute("aria-label") || "Media poster"}`;
     image.loading = "lazy";
     image.decoding = "async";
@@ -321,7 +321,7 @@ export function bindPosterImageErrorHandler(image) {
     const fallbackUrl = await lookupPosterUrl(posterId, { fallback: true });
     const safeFallbackUrl = safePosterElementUrl(fallbackUrl);
     if (safeFallbackUrl && safeFallbackUrl !== brokenUrl && image.isConnected) {
-      image.src = safeFallbackUrl;
+      image.src = encodeURI(safeFallbackUrl);
       return;
     }
 
