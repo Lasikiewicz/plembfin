@@ -1,7 +1,20 @@
 {
-  "version": "0.5.8",
-  "updatedAt": "2026-07-20T16:43:31+01:00",
+  "version": "0.5.9",
+  "updatedAt": "2026-07-20T16:59:22+01:00",
   "entries": [
+    {
+      "version": "0.5.9",
+      "date": "2026-07-20T16:59:22+01:00",
+      "commit": "e01b456272b62b0cc0ace315316510c3ac33cabb",
+      "message": "Feature - Refine backup and restore layout hierarchy and smooth scroll behavior",
+      "author": "Lasikiewicz",
+      "details": [
+        "Align Backup Settings and Restore panel layout hierarchy into main section card boxes with nested Local and Remote sub-card sections",
+        "Remove extra outer pane border box and redundant padding from Backup/Restore settings pane in CSS",
+        "Fix target section element resolution and add topbar scroll-margin-top offset for smooth section scrolling",
+        "Ensure links and same-page navigation re-parse target section and smoothly scroll to the exact target element"
+      ]
+    },
     {
       "version": "0.5.8",
       "date": "2026-07-20T16:43:31+01:00",
