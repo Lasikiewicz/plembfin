@@ -1,7 +1,17 @@
 {
-  "version": "0.5.5",
-  "updatedAt": "2026-07-20T14:05:38+01:00",
+  "version": "0.5.6",
+  "updatedAt": "2026-07-20T15:33:38+01:00",
   "entries": [
+    {
+      "version": "0.5.6",
+      "date": "2026-07-20T15:33:38+01:00",
+      "commit": "91659036f7cc6d7c9efe6c2cfc628097d3d84448",
+      "message": "Feature - Complete force sync planning",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add Force Sync planning, preview, execution safeguards, health tools, and Sync settings navigation."
+      ]
+    },
     {
       "version": "0.5.5",
       "date": "2026-07-20T14:05:38+01:00",
