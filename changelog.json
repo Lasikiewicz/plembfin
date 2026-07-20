@@ -1,7 +1,17 @@
 {
-  "version": "0.5.11",
-  "updatedAt": "2026-07-20T17:59:18+01:00",
+  "version": "0.5.12",
+  "updatedAt": "2026-07-20T18:17:46+01:00",
   "entries": [
+    {
+      "version": "0.5.12",
+      "date": "2026-07-20T18:17:46+01:00",
+      "commit": "be05dcce98d501946a680886d102043e4b89a989",
+      "message": "Fix - Resolve open code scanning alerts",
+      "author": "Lasikiewicz",
+      "details": [
+        "Harden poster URL hydration against untrusted sources.\\n- Remove secret-bearing startup diagnostics.\\n- Apply reviewed dependency and workflow updates."
+      ]
+    },
     {
       "version": "0.5.11",
       "date": "2026-07-20T17:59:18+01:00",
