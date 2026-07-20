@@ -251,9 +251,11 @@ function connectionTouched(config) {
 }
 
 function connectionBadges(config = {}) {
-  if (config.disabled) return [{ label: "Disabled", tone: "muted" }];
-  if (config.configured) return [{ label: "Enabled", tone: "ready" }];
-  return [{ label: "Not configured", tone: "warning" }];
+  const badges = config.disabled ? [{ label: "Disabled", tone: "muted" }] : config.configured ? [{ label: "Enabled", tone: "ready" }] : [{ label: "Not configured", tone: "warning" }];
+  const roleLabels = { bidirectional: "Source + Destination", source_only: "Source only", destination_only: "Destination only", monitor: "Monitor only" };
+  const role = roleLabels[config.sync?.preset];
+  if (role) badges.push({ label: role, tone: role === "Monitor only" ? "muted" : "ready" });
+  return badges;
 }
 
 function metadataVisible(id, config) {

@@ -32,10 +32,10 @@ export function workerAvailable(now = Date.now()) {
 }
 
 export function enqueueBackgroundJob(type, payload = {}, now = Date.now()) {
-  if (!["cron_sync", "force_sync"].includes(type)) throw new Error(`Unsupported background job type: ${type}`);
+  if (!["cron_sync", "force_sync", "force_sync_plan"].includes(type)) throw new Error(`Unsupported background job type: ${type}`);
   const job = { id: crypto.randomUUID(), type, requestedAt: now, payload: toJson(payload || {}) };
   return db.transaction(() => {
-    if (type === "force_sync") {
+    if (type === "force_sync" || type === "force_sync_plan") {
       const active = db.prepare("SELECT id FROM background_jobs WHERE type=? AND status IN ('queued','running') LIMIT 1").get(type);
       if (active) {
         const error = new Error("Another force sync job is already running.");

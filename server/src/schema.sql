@@ -317,3 +317,22 @@ CREATE TABLE IF NOT EXISTS background_job_logs (
   message TEXT NOT NULL,
   PRIMARY KEY(job_id, seq)
 );
+
+-- Force Sync plans: the read-only preview produced before an execution run.
+-- actions_json can be large for big libraries; the API pages it server-side
+-- and the summary is stored separately so list views never load actions.
+CREATE TABLE IF NOT EXISTS sync_plans (
+  id TEXT PRIMARY KEY,
+  created_at INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  scope_json TEXT,
+  summary_json TEXT,
+  actions_json TEXT,
+  skipped_json TEXT,
+  fingerprint_json TEXT,
+  config_revision TEXT,
+  snapshot_file TEXT,
+  result_json TEXT,
+  updated_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_sync_plans_created ON sync_plans(created_at DESC);

@@ -21,7 +21,7 @@ const SECTIONS = {
     label: "Sync",
     description: "Sync issues and history",
     panel: "sync",
-    subPanels: ["sync-issues", "sync-history"],
+    subPanels: ["sync-issues", "sync-history", "sync-tools"],
   },
   "backup-restore-group": {
     label: "Backup / restore",
@@ -159,6 +159,13 @@ const SECTIONS = {
     subPanels: ["tools-sync"],
     isDisplayOnly: true,
   },
+  "force-sync": {
+    label: "Force Sync",
+    description: "Preview, confirm, and run a safe synchronization plan",
+    panel: "sync",
+    subPanels: ["sync-tools"],
+    isDisplayOnly: false,
+  },
   about: {
     label: "About",
     description: "Version and changelog",
@@ -191,7 +198,7 @@ const SECTION_GROUPS = [
   {
     id: "sync-group",
     label: "Sync",
-    sections: ["sync-issues", "sync-history"],
+    sections: ["sync-issues", "sync-history", "force-sync"],
     displayOnly: ["sync-issues", "sync-history"],
   },
   {

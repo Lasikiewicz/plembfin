@@ -504,3 +504,11 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 Environment variables act as **defaults** for connection and sync-tuning settings:
 values saved in Settings (stored in the `settings` SQLite row) take precedence over
 env values (`mergeEnvDefaults` in `configStore.js`).
+
+## Synchronization safety modules
+
+- `server/src/utils/forceSyncPlanner.js` collects read-only server state and builds typed, scoped Force Sync actions.
+- `server/src/utils/forceSyncExecutor.js` validates plan freshness, creates verified destructive-run snapshots, and executes confirmed actions.
+- `server/src/utils/syncPlans.js` stores plan summaries/actions, confirmation state, snapshots, and retention.
+- `server/src/utils/outboundGovernor.js` coordinates per-host pacing, lanes, cooldowns, and safe telemetry.
+- `server/src/routes/maintenance.js` exposes `/api/health/sync`; `scripts/benchmark-sync.js` provides the repeatable planner benchmark.

@@ -524,25 +524,46 @@ export async function fetchPlexMetadataItem(config, ratingKey) {
   return body?.MediaContainer?.Metadata?.[0] || null;
 }
 
-export async function fetchPlexWatchedItems(config) {
-  requirePlexConfig(config);
+async function fetchPlexLibraryDirectories(config) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
-  const accountId = await resolvePlexAccountId(config);
-
   const sectionsUrl = new URL(`${baseUrl}/library/sections`);
   const sectionsRes = await fetchWithTimeout(sectionsUrl, { headers: plexAuthHeaders(config.token) });
   if (!sectionsRes.ok) {
     throw new Error(`Plex failed to fetch library sections: ${sectionsRes.status}`);
   }
   const sectionsData = await sectionsRes.json();
-  const directories = sectionsData?.MediaContainer?.Directory || [];
+  return sectionsData?.MediaContainer?.Directory || [];
+}
+
+// Movie/show library sections with their stable section keys, for sync scope
+// selection. The section key is Plex's stable library identity.
+export async function listPlexLibraries(config) {
+  requirePlexConfig(config);
+  const directories = await fetchPlexLibraryDirectories(config);
+  return directories
+    .filter((dir) => dir.type === "movie" || dir.type === "show")
+    .map((dir) => ({ id: String(dir.key), name: String(dir.title || dir.key), type: dir.type === "movie" ? "movie" : "show" }));
+}
+
+function selectPlexSections(directories, libraryIds) {
+  const wanted = Array.isArray(libraryIds) && libraryIds.length ? new Set(libraryIds.map(String)) : null;
+  return directories.filter((dir) => {
+    if (dir.type !== "movie" && dir.type !== "show") return false;
+    return !wanted || wanted.has(String(dir.key));
+  });
+}
+
+export async function fetchPlexWatchedItems(config, { libraryIds } = {}) {
+  requirePlexConfig(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const accountId = await resolvePlexAccountId(config);
+  const directories = await fetchPlexLibraryDirectories(config);
 
   const watchedItems = [];
 
-  for (const dir of directories) {
+  for (const dir of selectPlexSections(directories, libraryIds)) {
     const sectionId = dir.key;
     const type = dir.type;
-    if (type !== "movie" && type !== "show") continue;
 
     const allUrl = new URL(`${baseUrl}/library/sections/${sectionId}/all`);
     allUrl.searchParams.set("unwatched", "0");
@@ -569,6 +590,32 @@ export async function fetchPlexWatchedItems(config) {
   }
 
   return watchedItems;
+}
+
+// Cheap watched-item count (no metadata payload): asks each section for a
+// zero-size container and reads totalSize. Used for plan staleness checks.
+export async function countPlexWatchedItems(config, { libraryIds } = {}) {
+  requirePlexConfig(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const accountId = await resolvePlexAccountId(config);
+  const directories = await fetchPlexLibraryDirectories(config);
+
+  let total = 0;
+  for (const dir of selectPlexSections(directories, libraryIds)) {
+    const allUrl = new URL(`${baseUrl}/library/sections/${dir.key}/all`);
+    allUrl.searchParams.set("unwatched", "0");
+    allUrl.searchParams.set("type", dir.type === "movie" ? "1" : "4");
+    if (accountId != null) allUrl.searchParams.set("accountID", String(accountId));
+    allUrl.searchParams.set("X-Plex-Container-Start", "0");
+    allUrl.searchParams.set("X-Plex-Container-Size", "0");
+
+    const allRes = await fetchWithTimeout(allUrl, { headers: plexAuthHeaders(config.token) });
+    if (!allRes.ok) throw new Error(`Plex watched count failed with status ${allRes.status} for section ${dir.key}`);
+    const allData = await allRes.json();
+    const container = allData?.MediaContainer || {};
+    total += Number(container.totalSize ?? container.size ?? 0);
+  }
+  return total;
 }
 
 export async function fetchPlexResumableItems(config, { limit = 0 } = {}) {

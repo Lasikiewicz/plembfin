@@ -165,7 +165,7 @@ When adding frontend code, place it in the most specific existing module that ow
 | Formatting, string escaping, date helpers | `modules/utils.js` |
 | Poster URLs, image caching, `posterMarkup` | `modules/images.js` |
 | Static help/guide HTML | `modules/help-content.js` |
-| Sync status, sync history, now-playing polling | `modules/sync.js` |
+| Sync status, sync history, now-playing polling | `modules/sync.js`, `modules/sync-preview.js` |
 | Dashboard rendering | `modules/dashboard.js` |
 | Stats rendering | `modules/stats.js` |
 | Explorer grid, history page, search page | `modules/explorer.js` |
@@ -182,7 +182,7 @@ When adding frontend code, place it in the most specific existing module that ow
 | Trailer playback and photo lightbox | `modules/media-lightbox.js` |
 | Trakt/CSV import and settings tools bridge | `modules/tools.js` |
 | Backup and appearance tools | `modules/tools-backups.js` |
-| Maintenance diagnostics, cache tools, and sync repair tools | `modules/tools-maintenance.js` |
+| Maintenance diagnostics, cache tools, sync repair tools, and sync health | `modules/tools-maintenance.js`, `modules/tools-health.js` |
 | Auth, session, tokens | `modules/auth.js` |
 | Debug/diagnostic logs | `modules/logs.js` |
 | Connection label formatting | `modules/settings.js` |
@@ -227,7 +227,7 @@ If a new feature area doesn't fit any existing module and would exceed 150 lines
 | Portable, watch-history, and encrypted backup APIs | `server/src/routes/backups.js` |
 | History, library, and watch-record edits | `server/src/routes/media.js` |
 | TMDB/TVDB/Fanart/OMDb/YouTube metadata and image APIs | `server/src/routes/metadata.js` |
-| Webhooks, manual watch/unwatch, playback progress, sync job/history listing, cron/force sync, now playing | `server/src/routes/sync.js` |
+| Webhooks, manual watch/unwatch, playback progress, sync job/history listing, cron/force sync, preview plans, now playing | `server/src/routes/sync.js` |
 | Backfill, repair, dedup, rematch, cache, logs, changelog, ping | `server/src/routes/maintenance.js` |
 | Scheduler tick and Plex notification listener lifecycle | `server/src/scheduler.js` |
 

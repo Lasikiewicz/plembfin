@@ -372,8 +372,7 @@ export async function markEmbyUnplayedById(config, itemId) {
   return { platform: "emby", status: "fulfilled", itemId, httpStatus: response.status };
 }
 
-export async function fetchEmbyWatchedItems(config, { limit = 0 } = {}) {
-  requireEmbyConfig(config);
+function buildEmbyWatchedItemsUrl(config, { limit = 0, parentId = "" } = {}) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
   url.searchParams.set("Recursive", "true");
@@ -382,11 +381,50 @@ export async function fetchEmbyWatchedItems(config, { limit = 0 } = {}) {
   url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear");
   url.searchParams.set("SortBy", "DatePlayed");
   url.searchParams.set("SortOrder", "Descending");
+  if (parentId) url.searchParams.set("ParentId", String(parentId));
   if (Number(limit) > 0) url.searchParams.set("Limit", String(Math.max(1, Math.round(Number(limit)))));
   url.searchParams.set("api_key", config.apiKey);
+  return url;
+}
 
+export async function fetchEmbyWatchedItems(config, { limit = 0, libraryIds } = {}) {
+  requireEmbyConfig(config);
+  const parents = Array.isArray(libraryIds) && libraryIds.length ? libraryIds : [""];
+  const items = [];
+  for (const parentId of parents) {
+    const data = await fetchJson(buildEmbyWatchedItemsUrl(config, { limit, parentId }), config);
+    items.push(...(data?.Items || []));
+  }
+  return items;
+}
+
+// User-visible libraries (views) with their stable ids, for sync scope selection.
+export async function listEmbyLibraries(config) {
+  requireEmbyConfig(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const url = new URL(`${baseUrl}/Users/${config.userId}/Views`);
+  url.searchParams.set("api_key", config.apiKey);
   const data = await fetchJson(url, config);
-  return data?.Items || [];
+  return (data?.Items || [])
+    .filter((item) => ["movies", "tvshows"].includes(String(item.CollectionType || "").toLowerCase()))
+    .map((item) => ({
+      id: String(item.Id),
+      name: String(item.Name || item.Id),
+      type: String(item.CollectionType || "").toLowerCase() === "movies" ? "movie" : "show",
+    }));
+}
+
+// Cheap watched-item count via TotalRecordCount, for plan staleness checks.
+export async function countEmbyWatchedItems(config, { libraryIds } = {}) {
+  requireEmbyConfig(config);
+  const parents = Array.isArray(libraryIds) && libraryIds.length ? libraryIds : [""];
+  let total = 0;
+  for (const parentId of parents) {
+    const url = buildEmbyWatchedItemsUrl(config, { limit: 1, parentId });
+    const data = await fetchJson(url, config);
+    total += Number(data?.TotalRecordCount ?? (data?.Items || []).length);
+  }
+  return total;
 }
 
 export async function fetchEmbyResumableItems(config, { limit = 0 } = {}) {

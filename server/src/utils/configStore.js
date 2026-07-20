@@ -1,6 +1,7 @@
 import { db, parseJson, toJson } from "../db.js";
-import { assertSafeOutboundUrl, normalizeHttpUrl } from "./outbound.js";
+import { assertSafeOutboundUrl, normalizeHttpUrl, configureOutboundGovernor } from "./outbound.js";
 import { applyTuningConfig, normalizeTuningSection, tuningClamps, tuningEnvDefaults } from "./tuning.js";
+import { normalizeSyncRoles, validateSyncRolesSection, normalizeAuthority } from "./syncRoles.js";
 
 const SETTINGS_ID = "mediaConfig";
 const RUNTIME_ID = "main";
@@ -21,6 +22,19 @@ function envEnabled(name) {
   const value = process.env[name];
   if (value === undefined || String(value).trim() === "") return undefined;
   return ["1", "true", "yes", "on"].includes(String(value).trim().toLowerCase());
+}
+
+export function normalizeSyncScope(scope = {}) {
+  const allowedServers = ["plex", "emby", "jellyfin"];
+  const servers = Array.isArray(scope.servers) ? scope.servers.map((value) => String(value).toLowerCase()).filter((value) => allowedServers.includes(value)) : [];
+  const libraries = Array.isArray(scope.libraries) ? scope.libraries.filter((value) => value && allowedServers.includes(String(value.server).toLowerCase()) && String(value.id || "").trim()).map((value) => ({ server: String(value.server).toLowerCase(), id: String(value.id).trim(), name: String(value.name || "").trim() })) : [];
+  const mediaTypes = Array.isArray(scope.mediaTypes) ? scope.mediaTypes.map((value) => String(value).toLowerCase()).filter((value) => ["movie", "episode"].includes(value)) : [];
+  return { servers, libraries, mediaTypes, watchedAfter: String(scope.watchedAfter || ""), watchedBefore: String(scope.watchedBefore || ""), maxChanges: Math.max(0, Math.round(Number(scope.maxChanges) || 0)) };
+}
+
+export function normalizePacing(section = {}) {
+  const profile = ["gentle", "standard", "fast"].includes(String(section.profile || "")) ? String(section.profile) : "standard";
+  return { profile };
 }
 
 function envMediaConfig() {
@@ -63,11 +77,14 @@ function envMediaConfig() {
       apiKey: envValue("OMDB_API_KEY"),
     },
     tuning: tuningEnvDefaults(),
+    syncScope: normalizeSyncScope({}),
+    authority: normalizeAuthority({}),
+    pacing: normalizePacing({ profile: envValue("OUTBOUND_PACING_PROFILE") }),
   });
 }
 
 function hasConfiguredFields(section = {}) {
-  return Object.entries(section).some(([key, value]) => key !== "disabled" && String(value || "").trim() !== "");
+  return Object.entries(section).some(([key, value]) => !["disabled", "sync"].includes(key) && String(value || "").trim() !== "");
 }
 
 function mergeEnvDefaults(stored = {}) {
@@ -111,18 +128,21 @@ export function normalizeStoredConfig(stored = {}) {
       token: String(stored.plex?.token || stored.plex?.apiKey || "").trim(),
       username: String(stored.plex?.username || "").trim(),
       disabled: Boolean(stored.plex?.disabled),
+      sync: normalizeSyncRoles(stored.plex?.sync || {}),
     },
     emby: {
       baseUrl: trimTrailingSlash(stored.emby?.baseUrl || stored.emby?.url || ""),
       apiKey: String(stored.emby?.apiKey || stored.emby?.api_key || "").trim(),
       userId: String(stored.emby?.userId || "").trim(),
       disabled: Boolean(stored.emby?.disabled),
+      sync: normalizeSyncRoles(stored.emby?.sync || {}),
     },
     jellyfin: {
       baseUrl: trimTrailingSlash(stored.jellyfin?.baseUrl || stored.jellyfin?.url || ""),
       apiKey: String(stored.jellyfin?.apiKey || stored.jellyfin?.api_key || "").trim(),
       userId: String(stored.jellyfin?.userId || "").trim(),
       disabled: Boolean(stored.jellyfin?.disabled),
+      sync: normalizeSyncRoles(stored.jellyfin?.sync || {}),
     },
     seerr: {
       baseUrl: trimTrailingSlash(stored.seerr?.baseUrl || ""),
@@ -147,6 +167,9 @@ export function normalizeStoredConfig(stored = {}) {
     // Numbers-or-null (null = not overridden, fall back to env/default) rather
     // than the string-based normalization the other sections use above.
     tuning: normalizeTuningSection(stored.tuning || {}),
+    syncScope: normalizeSyncScope(stored.syncScope || {}),
+    authority: normalizeAuthority(stored.authority || {}),
+    pacing: normalizePacing(stored.pacing || {}),
   };
 }
 
@@ -160,6 +183,7 @@ export async function loadMediaConfig() {
   const row = selectSettingsStmt.get(SETTINGS_ID);
   const merged = mergeEnvDefaults(parseJson(row?.data, {}) || {});
   applyTuningConfig(merged.tuning);
+  configureOutboundGovernor(merged.pacing.profile);
   return merged;
 }
 
@@ -174,18 +198,21 @@ export function publicMediaConfig(config = {}) {
       baseUrl: normalized.plex.baseUrl,
       username: normalized.plex.username,
       disabled: normalized.plex.disabled,
+      sync: normalized.plex.sync,
     },
     emby: {
       configured: Boolean(normalized.emby.apiKey),
       baseUrl: normalized.emby.baseUrl,
       userId: normalized.emby.userId,
       disabled: normalized.emby.disabled,
+      sync: normalized.emby.sync,
     },
     jellyfin: {
       configured: Boolean(normalized.jellyfin.apiKey),
       baseUrl: normalized.jellyfin.baseUrl,
       userId: normalized.jellyfin.userId,
       disabled: normalized.jellyfin.disabled,
+      sync: normalized.jellyfin.sync,
     },
     seerr: {
       configured: Boolean(normalized.seerr.apiKey && normalized.seerr.baseUrl && !normalized.seerr.disabled),
@@ -198,6 +225,9 @@ export function publicMediaConfig(config = {}) {
     youtube: { configured: Boolean(normalized.youtube.apiKey) },
     omdb: { configured: Boolean(normalized.omdb.apiKey) },
     tuning: publicTuningConfig(normalized.tuning),
+    syncScope: normalized.syncScope,
+    authority: normalized.authority,
+    pacing: normalized.pacing,
   };
 }
 
@@ -251,6 +281,9 @@ export async function mergeIncomingConfig(config = {}) {
     youtube: mergeSection(existing.youtube, config.youtube, ["apiKey"]),
     omdb: mergeSection(existing.omdb, config.omdb, ["apiKey"]),
     tuning: mergeSection(existing.tuning, config.tuning, []),
+    syncScope: mergeSection(existing.syncScope, config.syncScope, []),
+    authority: mergeSection(existing.authority, config.authority, []),
+    pacing: mergeSection(existing.pacing, config.pacing, []),
   });
 }
 
@@ -315,6 +348,16 @@ export function validateConfig(config = {}) {
       const [min, max] = clamps[key];
       if (value < min || value > max) errors.push(`tuning.${key} must be between ${min} and ${max}`);
     }
+  }
+
+  for (const section of ["plex", "emby", "jellyfin"]) {
+    errors.push(...validateSyncRolesSection(config[section]?.sync || {}, `${section}.sync`));
+  }
+  if (config.authority?.conflictPolicy === "server" && !["plex", "emby", "jellyfin"].includes(config.authority.server)) {
+    errors.push("authority.server is required when conflictPolicy is server");
+  }
+  if (config.pacing && !["gentle", "standard", "fast"].includes(config.pacing.profile)) {
+    errors.push("pacing.profile must be gentle, standard, or fast");
   }
 
   return errors;

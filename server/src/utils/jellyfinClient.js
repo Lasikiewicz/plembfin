@@ -392,8 +392,7 @@ export async function markJellyfinUnplayedById(config, itemId) {
   return { platform: "jellyfin", status: "fulfilled", itemId, httpStatus: response.status };
 }
 
-export async function fetchJellyfinWatchedItems(config, { limit = 0 } = {}) {
-  requireJellyfinConfig(config);
+function buildJellyfinWatchedItemsUrl(config, { limit = 0, parentId = "" } = {}) {
   const apiKey = jellyfinApiKey(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
@@ -403,11 +402,51 @@ export async function fetchJellyfinWatchedItems(config, { limit = 0 } = {}) {
   url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear");
   url.searchParams.set("SortBy", "DatePlayed");
   url.searchParams.set("SortOrder", "Descending");
+  if (parentId) url.searchParams.set("ParentId", String(parentId));
   if (Number(limit) > 0) url.searchParams.set("Limit", String(Math.max(1, Math.round(Number(limit)))));
   url.searchParams.set("api_key", apiKey);
+  return url;
+}
 
+export async function fetchJellyfinWatchedItems(config, { limit = 0, libraryIds } = {}) {
+  requireJellyfinConfig(config);
+  const parents = Array.isArray(libraryIds) && libraryIds.length ? libraryIds : [""];
+  const items = [];
+  for (const parentId of parents) {
+    const data = await fetchJson(buildJellyfinWatchedItemsUrl(config, { limit, parentId }), config);
+    items.push(...(data?.Items || []));
+  }
+  return items;
+}
+
+// User-visible libraries (views) with their stable ids, for sync scope selection.
+export async function listJellyfinLibraries(config) {
+  requireJellyfinConfig(config);
+  const apiKey = jellyfinApiKey(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const url = new URL(`${baseUrl}/Users/${config.userId}/Views`);
+  url.searchParams.set("api_key", apiKey);
   const data = await fetchJson(url, config);
-  return data?.Items || [];
+  return (data?.Items || [])
+    .filter((item) => ["movies", "tvshows"].includes(String(item.CollectionType || "").toLowerCase()))
+    .map((item) => ({
+      id: String(item.Id),
+      name: String(item.Name || item.Id),
+      type: String(item.CollectionType || "").toLowerCase() === "movies" ? "movie" : "show",
+    }));
+}
+
+// Cheap watched-item count via TotalRecordCount, for plan staleness checks.
+export async function countJellyfinWatchedItems(config, { libraryIds } = {}) {
+  requireJellyfinConfig(config);
+  const parents = Array.isArray(libraryIds) && libraryIds.length ? libraryIds : [""];
+  let total = 0;
+  for (const parentId of parents) {
+    const url = buildJellyfinWatchedItemsUrl(config, { limit: 1, parentId });
+    const data = await fetchJson(url, config);
+    total += Number(data?.TotalRecordCount ?? (data?.Items || []).length);
+  }
+  return total;
 }
 
 export async function fetchJellyfinResumableItems(config, { limit = 0 } = {}) {

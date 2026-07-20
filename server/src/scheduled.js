@@ -8,6 +8,8 @@ import { appendSyncHistory, loadMediaConfig, loadRuntimeState, setRuntimeState }
 import { createLoopStore } from "./utils/loopStore.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { isCronSyncPaused, loadWatchBackupRuntime } from "./utils/watchHistoryBackups.js";
+import { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
+export { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
 import {
   deleteLiveTrackingCacheRows,
   deletePlaybackProgress,
@@ -38,6 +40,16 @@ import {
 
 const SCHEDULED_RECENT_WATCH_LIMIT = 50;
 const SCHEDULED_RESUME_LIMIT = 50;
+
+function scheduledMediaInScope(config, media) {
+  const scope = config?.syncScope || {};
+  if (Array.isArray(scope.servers) && scope.servers.length && !scope.servers.includes(String(media.source || "").replace(/_initial_sync$/, ""))) return false;
+  if (Array.isArray(scope.mediaTypes) && scope.mediaTypes.length && !scope.mediaTypes.includes(media.type)) return false;
+  const watchedAt = new Date(media.watched_at || media.timestamp || 0).getTime();
+  if (scope.watchedAfter && (!watchedAt || watchedAt < new Date(scope.watchedAfter).getTime())) return false;
+  if (scope.watchedBefore && (!watchedAt || watchedAt > new Date(scope.watchedBefore).getTime())) return false;
+  return true;
+}
 
 // Fallback cadence for the legacy Plex unwatch poll. Primary detection is the realtime
 // notification listener; this poll only backstops events missed while the socket was down.
@@ -797,6 +809,9 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
         media.episodeTitle = item.title;
       }
 
+      media.watched_at = watchedAt;
+      if (!scheduledMediaInScope(config, media)) continue;
+
       const existing = await findWatchedByAnyMediaKey(media);
 
       if (!existing) {
@@ -882,6 +897,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
         source: "emby",
         isValid: true,
       };
+      if (!scheduledMediaInScope(config, media)) continue;
 
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item, pollTimestamp);
 
@@ -974,6 +990,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
         source: "jellyfin",
         isValid: true,
       };
+      if (!scheduledMediaInScope(config, media)) continue;
 
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item, pollTimestamp);
 
@@ -1386,7 +1403,7 @@ async function runWithConcurrency(items, concurrency, handler) {
   await Promise.all(workers);
 }
 
-export async function runForceSync(logger = console.log, { lockAlreadyClaimed = false, concurrency = 1 } = {}) {
+export async function runForceSync(logger = console.log, { lockAlreadyClaimed = false, concurrency = 1, planId = "" } = {}) {
   if (!watchedPlayedSyncEnabled()) {
     logger("Force Sync skipped because watched/played syncing is disabled.");
     return {
@@ -1421,6 +1438,9 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
   try {
     logger("Force Sync: loading media configuration...");
     const config = await loadMediaConfig();
+    if (planId) {
+      return await executeForceSyncPlan(planId, config, logger);
+    }
     const loopStore = createLoopStore();
 
   const hasPlex = !config.plex?.disabled && Boolean(config.plex?.baseUrl && config.plex?.token);

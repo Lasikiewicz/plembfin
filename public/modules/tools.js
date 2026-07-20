@@ -3,6 +3,7 @@ import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normalizeHeader, episodeCode } from "./utils.js";
 import { initBackupTools } from "./tools-backups.js";
 import { initMaintenanceTools } from "./tools-maintenance.js";
+import { initHealthTools } from "./tools-health.js";
 // Callbacks injected by app.js at startup to avoid circular imports.
 let _setMessage = () => {};
 let _openConfirmDialog = async () => false;
@@ -27,6 +28,7 @@ export function initTools(callbacks) {
   if (callbacks.loadSyncHistory) _loadSyncHistory = callbacks.loadSyncHistory;
   initBackupTools(callbacks);
   initMaintenanceTools(callbacks);
+  initHealthTools();
 }
 function authHeaders() {
   return buildAuthHeaders(state.token);
@@ -66,6 +68,7 @@ export {
   uploadWatchBackupFile,
 } from "./tools-backups.js";
 export { loadCacheStats, renderCachePanel } from "./tools-maintenance.js";
+export { loadSyncHealth } from "./tools-health.js";
 // ── Trakt / CSV import ─────────────────────────────────────────────────────
 export async function parseSelectedFiles(files) {
   const selectedFiles = [...files];

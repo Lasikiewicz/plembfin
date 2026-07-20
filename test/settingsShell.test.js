@@ -12,6 +12,8 @@ test("settings routes resolve flat sections and panels", () => {
   assert.equal(parseSettingsRoute("/settings/restore").backupTab, "restore");
   assert.deepEqual(parseSettingsRoute("/settings/account").subPanels, ["general-login"]);
   assert.equal(parseSettingsRoute("/settings/sync-issues").path, "/settings/sync-issues");
+  assert.equal(parseSettingsRoute("/settings/force-sync").panel, "sync");
+  assert.deepEqual(parseSettingsRoute("/settings/force-sync").subPanels, ["sync-tools"]);
 });
 
 test("every section produces a routable canonical path with visible content", () => {
@@ -54,6 +56,14 @@ test("parent group routes aggregate every child's panel into one view list", () 
     advanced.views.map((v) => v.panel),
     ["tools", "cache"],
   );
+
+  const tools = parseSettingsRoute("/settings/tools-group");
+  assert.deepEqual(
+    tools.views.map((v) => v.panel),
+    ["tools"],
+  );
+  const sync = parseSettingsRoute("/settings/sync-group");
+  assert.deepEqual(sync.subPanels, ["sync-issues", "sync-history", "sync-tools"]);
 });
 
 test("legacy and invalid settings routes normalize safely", () => {

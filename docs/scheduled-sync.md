@@ -23,6 +23,19 @@ Manual cron and force-sync requests are stored in `background_jobs`; their order
 logs live in `background_job_logs`. The web process relays logs while the leaseholder
 executes the job, so disconnecting a browser does not stop it.
 
+Force Sync also supports an opt-in read-only preview. `POST /api/force-sync/plan` queues
+the preview and returns a job id. Once the job result contains a `planId`,
+`GET /api/force-sync/plan/:id` returns the summary and paged action details, while
+`POST /api/force-sync/plan/:id` confirms a draft. Plans expire after 15 minutes and a
+plan over its configured maximum-change limit cannot be confirmed. The existing
+`POST /api/force-sync` path retains its current behavior for unplanned runs.
+
+After confirmation, `POST /api/force-sync` with `{ "planId": "..." }` rechecks the
+server fingerprints and configuration revision. Any drift expires the plan before writes.
+Destructive plans create and checksum-verify a local Plembfin watch-history snapshot first;
+snapshot failure blocks execution. This snapshot covers Plembfin watch history, playstate,
+and resume progress, not the databases owned by Plex, Emby, or Jellyfin.
+
 Implementation lives in `server/src/scheduled.js`.
 
 ## What it does each run

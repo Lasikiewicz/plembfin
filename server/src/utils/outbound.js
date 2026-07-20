@@ -1,4 +1,5 @@
 import { outboundTimeoutMs } from "./tuning.js";
+import { acquireOutboundSlot, noteOutboundResponse, configureOutboundGovernor } from "./outboundGovernor.js";
 
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
 const MAX_OUTBOUND_REDIRECTS = 5;
@@ -140,6 +141,10 @@ function trackOutbound(url) {
 export async function fetchWithTimeout(url, options = {}, timeoutMs = undefined) {
   const resolvedTimeoutMs = timeoutMs ?? outboundTimeoutMs();
   const safeUrl = assertSafeOutboundUrl(url, { label: "Outbound URL" });
+  const host = safeUrl.hostname.toLowerCase();
+  const metadataHost = /themoviedb|thetvdb|fanart|omdbapi|youtube|googlevideo/i.test(host);
+  const lane = options.lane || (metadataHost ? "enrichment" : "sync");
+  const releaseSlot = await acquireOutboundSlot(safeUrl.hostname, { lane, signal: options.signal });
   trackOutbound(safeUrl);
   const controller = new AbortController();
   const upstreamSignal = options.signal;
@@ -152,12 +157,18 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = undefined)
   }
 
   try {
-    return await fetchFollowingSafeRedirects(safeUrl, { ...options, signal: controller.signal });
+    const { lane: _lane, ...fetchOptions } = options;
+    const response = await fetchFollowingSafeRedirects(safeUrl, { ...fetchOptions, signal: controller.signal });
+    noteOutboundResponse(safeUrl.hostname, response.status, response.headers.get("retry-after") || "");
+    return response;
   } catch (error) {
     if (controller.signal.aborted && controller.signal.reason === timeoutError) throw timeoutError;
     throw error;
   } finally {
     clearTimeout(timeout);
     if (upstreamSignal) upstreamSignal.removeEventListener("abort", abortFromUpstream);
+    releaseSlot();
   }
 }
+
+export { configureOutboundGovernor };

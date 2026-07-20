@@ -1,4 +1,8 @@
 import { runForceSync, runScheduledSync } from "./scheduled.js";
+import { collectServerWatchedItems, buildForceSyncPlan } from "./utils/forceSyncPlanner.js";
+import { createSyncPlanRecord } from "./utils/syncPlans.js";
+import { getCachedHistory } from "./utils/dataRepo.js";
+import { loadMediaConfig } from "./utils/configStore.js";
 import { runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener, restartPlexNotificationListener } from "./scheduler.js";
 import { backfillUnknownShowTitles } from "./utils/dataRepo.js";
 import { db } from "./db.js";
@@ -122,6 +126,14 @@ export function createWorkerCoordinator({ holderId, role }) {
       if (job.type === "cron_sync") {
         log("Cron Sync started...");
         result = await runScheduledSync(log, { forceCatchup: true });
+      } else if (job.type === "force_sync_plan") {
+        log("Force Sync preview started...");
+        const config = await loadMediaConfig();
+        const collected = await collectServerWatchedItems(config, { scope: job.payload?.scope, logger: log });
+        const plan = buildForceSyncPlan({ ...collected, historyRows: await getCachedHistory(), config });
+        const record = createSyncPlanRecord(plan);
+        result = { success: true, planId: record.id, summary: record.summary, status: record.status };
+        log(`Force Sync preview complete: ${record.id}`);
       } else {
         await setRuntimeState({
           forceSyncActive: true,
@@ -130,7 +142,7 @@ export function createWorkerCoordinator({ holderId, role }) {
           forceSyncCancelRequested: false,
         });
         log("Force Sync started...");
-        result = await runForceSync(log, { lockAlreadyClaimed: true });
+        result = await runForceSync(log, { lockAlreadyClaimed: true, planId: job.payload?.planId || "" });
       }
       const current = getBackgroundJob(job.id);
       const cancelled = current?.cancelRequested || result?.aborted;

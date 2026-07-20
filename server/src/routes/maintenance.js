@@ -26,6 +26,8 @@ import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb
 import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from "../utils/tvdbGateway.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
+import { outboundGovernorTelemetry } from "../utils/outboundGovernor.js";
+import capacityRanges from "../capacityRanges.json" with { type: "json" };
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
 import {
   countPlaybackProgressRows,
@@ -431,6 +433,36 @@ export async function handleSyncMatchReport(req, res) {
   if (!(await requireAdmin(req, res))) return;
   const rows = await getCachedHistory();
   return sendJson(res, { report: buildSyncMatchReport(rows) }, 200, { "Cache-Control": "no-store" });
+}
+
+function healthBand(value, range = {}) {
+  if (range.degraded != null && value > range.degraded) return "degraded";
+  if (range.outside != null && value > range.outside) return "outside tested range";
+  if (range.elevated != null && value > range.elevated) return "elevated";
+  return "normal";
+}
+
+export async function handleSyncHealth(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const history = await getCachedHistory();
+  const progressRows = await countPlaybackProgressRows();
+  const playstateRows = await countWatchedPlaystateRows();
+  const report = buildSyncMatchReport(history);
+  const health = {
+    generatedAt: new Date().toISOString(),
+    counts: {
+      watchHistoryRows: { value: history.length, status: healthBand(history.length, capacityRanges.watchHistoryRows) },
+      playstateRows,
+      playbackProgressRows,
+      databaseBytes: db.pragma("page_count", { simple: true }) * db.pragma("page_size", { simple: true }),
+    },
+    matchFailures: report.platforms,
+    outbound: outboundGovernorTelemetry(),
+    recommendations: history.length > 250000 ? ["Use a smaller Force Sync scope and review a preview before large runs."] : [],
+  };
+  return sendJson(res, { health }, 200, { "Cache-Control": "no-store" });
 }
 
 export async function handleDiagnosticLogs(req, res) {

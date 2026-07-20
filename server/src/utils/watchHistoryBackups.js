@@ -5,6 +5,7 @@ import zlib from "node:zlib";
 import { bumpDataVersion, db, parseJson, toJson } from "../db.js";
 import { WATCH_HISTORY_BACKUPS_DIR } from "../paths.js";
 import { createAdapter, DESTINATION_TYPES } from "./backupDestinations/index.js";
+import { protectedSnapshotFiles } from "./syncPlans.js";
 
 const FORMAT = "plembfin-watch-history-backup";
 const VERSION = 1;
@@ -444,8 +445,17 @@ export function listWatchBackups() {
 }
 
 function applyRetention(retention) {
+  // Pre-force-sync recovery snapshots referenced by recent sync plans must
+  // survive normal retention while their run is still recent (M2).
+  let protectedFiles = new Set();
+  try {
+    protectedFiles = protectedSnapshotFiles();
+  } catch {
+    protectedFiles = new Set();
+  }
   const files = listWatchBackups();
   for (const file of files.slice(Math.max(1, retention))) {
+    if (protectedFiles.has(file.name)) continue;
     fs.unlinkSync(backupPath(file.name));
   }
 }
@@ -507,6 +517,11 @@ function parseBackup(filename) {
     throw new Error("Backup data checksum verification failed");
   }
   return document;
+}
+
+export function verifyWatchBackup(filename) {
+  const document = parseBackup(filename);
+  return { name: filename, checksum: readWatchBackupFile(filename).checksum, counts: document.counts, createdAt: document.createdAt };
 }
 
 function restoreSummary(document, mode) {

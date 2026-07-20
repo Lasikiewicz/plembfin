@@ -11,6 +11,7 @@ import { cachedNextAiringFor, mergeNextAiringCacheEntries, nextAiringCacheEntryS
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
 import { runScheduledWatchBackup } from "./utils/watchHistoryBackups.js";
 import { runScheduledPlembfinBackup } from "./utils/plembfinBackups.js";
+import { pruneSyncPlans } from "./utils/syncPlans.js";
 import {
   deletePlaybackProgress,
   findWatchedByAnyMediaKey,
@@ -110,6 +111,7 @@ async function runWithTimeBudget(label, task, timeoutMs) {
 // Invoked once per minute by the elected worker coordinator.
 export async function runScheduledTick({ isLeader = () => true } = {}) {
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  pruneSyncPlans();
   await runWithTimeBudget("Scheduled sync", () => runScheduledSync(), 50_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   await runWithTimeBudget("Scheduled watch-history backup", () => runScheduledWatchBackup(), 30_000);

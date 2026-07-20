@@ -89,6 +89,18 @@
 
 ---
 
+## Sync safety and operations
+
+Force Sync can be previewed before writes, with scoped libraries/media types, typed
+additive or destructive actions, stale-plan protection, and verified pre-run watch-history
+snapshots. Server roles can be bidirectional, source-only, destination-only, or monitor-only.
+Outbound requests use shared per-destination pacing and cooldown telemetry, while Settings
+â†’ Health reports current history scale, matching failures, and upstream pressure. See
+[`docs/scheduled-sync.md`](docs/scheduled-sync.md) and [`docs/capacity.md`](docs/capacity.md)
+for operating guidance.
+
+---
+
 ## Getting Started
 
 ### Method A: Docker Compose (Recommended)

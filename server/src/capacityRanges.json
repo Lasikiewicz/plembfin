@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "watchHistoryRows": { "elevated": 50000, "outside": 250000, "degraded": 1000000 },
+  "planningDurationMs": { "elevated": 15000, "outside": 60000, "degraded": 300000 },
+  "executionDurationMs": { "elevated": 30000, "outside": 120000, "degraded": 600000 }
+}

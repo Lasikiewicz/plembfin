@@ -8,6 +8,7 @@ import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-conten
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile } from "./modules/images.js";
 import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runDedupHistory, runTraktBackfill, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups } from "./modules/tools.js";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync } from "./modules/sync.js";
+import { initSyncPreview } from "./modules/sync-preview.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
 import { initUpcoming, renderUpcoming, loadUpcoming } from "./modules/upcoming.js";
@@ -294,6 +295,8 @@ function bindElements() {
     webhookUrl: document.querySelector("#webhookUrl"),
     rotateWebhookButton: document.querySelector("#rotateWebhookButton"),
     runCompleteCheckButton: document.querySelector("#runCompleteCheckButton"),
+    previewForceSyncButton: document.querySelector("#previewForceSyncButton"),
+    forceSyncPreviewPanel: document.querySelector("#forceSyncPreviewPanel"),
     refreshCacheStatsButton: document.querySelector("#refreshCacheStatsButton"),
     completeCheckResults: document.querySelector("#completeCheckResults"),
     syncHistoryPanel: document.querySelector("#syncHistoryPanel"),
@@ -1951,6 +1954,7 @@ function initialize() {
     showToast,
     showConfirmModal,
   });
+  initSyncPreview({ button: elements.previewForceSyncButton, panel: elements.forceSyncPreviewPanel, token: () => state.token, onToast: showToast });
   initDashboard({
     setMessage,
     fetchTmdbDetails,

@@ -3,6 +3,7 @@ import { markEmbyPlayed, markEmbyUnplayed, setEmbyProgress } from "./embyClient.
 import { markJellyfinPlayed, markJellyfinUnplayed, setJellyfinProgress } from "./jellyfinClient.js";
 import { watchedPlayedSyncEnabled } from "./syncFlags.js";
 import { minResumePositionMs, watchedThresholdPercent } from "./tuning.js";
+import { canReceiveState, canSendState } from "./syncRoles.js";
 
 const LOOP_CACHE_TTL_SECONDS = 60;
 const LOOP_WINDOW_MS = 15_000;
@@ -20,14 +21,14 @@ const TARGETS_BY_SOURCE = {
   trakt_current: ["plex", "emby", "jellyfin"],
 };
 
-export function getTargetsForSource(source = "manual", config = {}) {
+export function getTargetsForSource(source = "manual", config = {}, stateType = "watched") {
   const baseSource = String(source).trim().toLowerCase();
   let targets = TARGETS_BY_SOURCE[baseSource];
   if (!targets) {
     // Fallback: target all platforms except the source itself
     targets = ["plex", "emby", "jellyfin"].filter((platform) => !baseSource.startsWith(platform));
   }
-  return targets.filter((t) => !config[t]?.disabled);
+  return targets.filter((t) => !config[t]?.disabled && canReceiveState(config, t, stateType));
 }
 
 function clientFor(target, config, media) {
@@ -239,7 +240,11 @@ export async function syncMediaPlaystate(media, config, kv) {
     return { skipped: true, status: "skipped", details: "Invalid normalized media payload", results: [] };
   }
 
-  const targets = getTargetsForSource(media.source, config);
+  if (!["manual", "force_sync", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "watched")) {
+    return { skipped: true, status: "skipped", details: "Source is not allowed to send watched state", targetStates: [], results: [] };
+  }
+
+  const targets = getTargetsForSource(media.source, config, "watched");
   if (checkAndClaimLoop(media, media.source, targets, kv)) {
     console.log("Sync playstate skipped: echo loop detected", { source: media.source, title: media.title });
     return {
@@ -290,7 +295,10 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
     return { skipped: true, status: "skipped", details: "Invalid normalized media payload", results: [] };
   }
 
-  const targets = getTargetsForSource(media.source, config);
+  if (!["manual", "force_sync", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "unwatched")) {
+    return { skipped: true, status: "skipped", details: "Source is not allowed to send unwatched state", targetStates: [], results: [] };
+  }
+  const targets = getTargetsForSource(media.source, config, "unwatched");
   if (checkAndClaimLoop(media, media.source, targets, kv, "unplayed_loop")) {
     return {
       skipped: true,
@@ -340,7 +348,10 @@ export async function syncMediaProgress(media, config, kv) {
     return { skipped: true, status: "skipped", details: "Resume progress is not actionable", results: [] };
   }
 
-  const targets = getTargetsForSource(media.source, config);
+  if (!["manual", "force_sync", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "progress")) {
+    return { skipped: true, status: "skipped", details: "Source is not allowed to send progress", targetStates: [], results: [] };
+  }
+  const targets = getTargetsForSource(media.source, config, "progress");
   if (checkAndClaimLoop(media, media.source, targets, kv, "progress_loop")) {
     console.log("Sync progress skipped: echo loop detected", { source: media.source, title: media.title });
     return {

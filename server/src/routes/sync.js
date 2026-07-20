@@ -12,6 +12,7 @@ import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessio
 import { getLogs as getDiagnosticLogs, clearLogs as clearDiagnosticLogs } from "../utils/diagnosticLogger.js";
 import { appendSyncHistory, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "../utils/configStore.js";
 import { forceSyncStopAction } from "../utils/forceSyncControl.js";
+import { getSyncPlanActionsPage, getSyncPlanSummary, confirmSyncPlan } from "../utils/syncPlans.js";
 import {
   enqueueBackgroundJob,
   getBackgroundJob,
@@ -20,10 +21,10 @@ import {
   requestBackgroundJobCancellation,
   workerAvailable,
 } from "../utils/backgroundJobs.js";
-import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes } from "../utils/plexClient.js";
+import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes, listPlexLibraries } from "../utils/plexClient.js";
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
-import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "../utils/embyClient.js";
-import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes } from "../utils/jellyfinClient.js";
+import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
+import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
 import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
@@ -393,6 +394,21 @@ export async function handleSyncJobs(req, res) {
     status: req.query.status || "outstanding",
   });
   return sendJson(res, { jobs }, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
+}
+
+export async function handleSyncLibraries(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const config = await loadMediaConfig();
+  const libraries = [];
+  const failures = [];
+  const jobs = [["plex", config.plex, listPlexLibraries], ["emby", config.emby, listEmbyLibraries], ["jellyfin", config.jellyfin, listJellyfinLibraries]].filter(([, section]) => section && !section.disabled);
+  await Promise.all(jobs.map(async ([server, section, list]) => {
+    try { libraries.push(...(await list(section)).map((library) => ({ ...library, server }))); }
+    catch (error) { failures.push({ server, error: error.message }); }
+  }));
+  return sendJson(res, { libraries, errors: failures }, 200, { "Cache-Control": "no-store" });
 }
 
 export async function handleSyncHistory(req, res) {
@@ -836,13 +852,20 @@ export async function handleForceSync(req, res) {
   if (!(await requireAdmin(req, res))) return;
 
   if (!workerAvailable()) return sendJson(res, { ok: false, error: "No background worker is available." }, 503);
+  const body = await readJson(req).catch(() => ({}));
+  const planId = String(body.planId || "").trim();
+  if (planId) {
+    const plan = getSyncPlanSummary(planId);
+    if (!plan) return sendJson(res, { ok: false, error: "Plan not found." }, 404);
+    if (plan.status !== "confirmed") return sendJson(res, { ok: false, error: `Plan is ${plan.status}; confirm it before execution.` }, 409);
+  }
   const existingJob = getLatestBackgroundJob("force_sync");
   if (["queued", "running"].includes(existingJob?.status)) {
     return sendJson(res, { ok: false, error: "Another force sync job is already running." }, 409);
   }
   let queuedJob;
   try {
-    queuedJob = enqueueBackgroundJob("force_sync");
+    queuedJob = enqueueBackgroundJob("force_sync", planId ? { planId } : {});
   } catch (error) {
     if (error?.code === "JOB_ACTIVE") return sendJson(res, { ok: false, error: error.message }, 409);
     throw error;
@@ -855,6 +878,45 @@ export async function handleForceSync(req, res) {
     message: "Force Sync queued. Poll GET /api/force-sync for status.",
   }, 202);
 
+}
+
+// Force Sync preview lifecycle. Planning is a read-only background job; the
+// durable plan record is intentionally separate from the ordinary force-sync
+// job so polling a preview never exposes or mutates the execution lock.
+export async function handleForceSyncPlan(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const path = String(req.path || "");
+  const match = path.match(/\/force-sync\/plan\/([^/]+)$/);
+  const id = decodeURIComponent(match?.[1] || "");
+
+  if (req.method === "GET" && id) {
+    const plan = getSyncPlanSummary(id);
+    if (!plan) return sendJson(res, { error: "Plan not found." }, 404);
+    const page = getSyncPlanActionsPage(id, {
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+      risk: req.query.risk,
+    });
+    return sendJson(res, { plan, actions: page }, 200, { "Cache-Control": "no-store" });
+  }
+
+  if (req.method === "POST" && id) {
+    const result = confirmSyncPlan(id);
+    return sendJson(res, result, result.ok ? 200 : 409);
+  }
+
+  if (req.method !== "POST" || id) return methodNotAllowed(res);
+  if (!workerAvailable()) return sendJson(res, { ok: false, error: "No background worker is available." }, 503);
+  const body = await readJson(req).catch(() => ({}));
+  try {
+    const job = enqueueBackgroundJob("force_sync_plan", { scope: body.scope || {} });
+    return sendJson(res, { ok: true, jobId: job.id, status: job.status, message: "Force Sync preview queued." }, 202);
+  } catch (error) {
+    if (error?.code === "JOB_ACTIVE") return sendJson(res, { ok: false, error: error.message }, 409);
+    return sendJson(res, { ok: false, error: error.message }, 500);
+  }
 }
 
 

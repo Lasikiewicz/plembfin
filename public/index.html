@@ -20,7 +20,9 @@
     <link rel="modulepreload" href="/modules/tools.js" />
     <link rel="modulepreload" href="/modules/tools-backups.js" />
     <link rel="modulepreload" href="/modules/tools-maintenance.js" />
+    <link rel="modulepreload" href="/modules/tools-health.js" />
     <link rel="modulepreload" href="/modules/sync.js" />
+    <link rel="modulepreload" href="/modules/sync-preview.js" />
     <link rel="modulepreload" href="/modules/dashboard.js" />
     <link rel="modulepreload" href="/modules/stats.js" />
     <link rel="modulepreload" href="/modules/upcoming.js" />
@@ -714,7 +716,9 @@
                           </div>
                         </div>
                         <button id="runCompleteCheckButton" class="button-primary" style="align-self: flex-start;" type="button">Run System Diagnostic</button>
+                        <button id="refreshSyncHealthButton" class="button-ghost" style="align-self: flex-start;" type="button">Refresh Sync Health</button>
                         <div id="completeCheckResults" class="complete-check-results hidden" style="display: grid; gap: var(--space-2); margin-top: var(--space-3);"></div>
+                        <div id="syncHealthPanel" class="sync-health-panel" aria-live="polite"></div>
                       </div>
                     </article>
                   </div>
@@ -1381,9 +1385,11 @@
                         <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
                           <button id="runCronSyncButton" class="button-primary sync-action-btn" type="button" title="Check recent watched and part-watched items for missing Plembfin records">Repair Recent Items</button>
                           <button id="forceSyncButton" class="button-primary sync-action-btn" type="button" title="Force an immediate sync of all pending watched states">Force Sync</button>
+                          <button id="previewForceSyncButton" class="button-ghost sync-action-btn" type="button" title="Inspect planned Force Sync changes before writing">Preview Force Sync</button>
                           <button id="stopSyncButton" class="button-danger" type="button" title="Cancel a running force sync or clear a sync lock left behind by a server restart">Stop / Reset Sync</button>
                           <button id="refreshSyncButton" class="button-ghost sync-btn" type="button" title="Refresh the sync issues list">Refresh</button>
                         </div>
+                        <div id="forceSyncPreviewPanel" class="sync-preview-panel hidden" aria-live="polite"></div>
                         <div class="activity-log">
                           <div class="activity-log-header">
                             <div class="activity-log-heading">

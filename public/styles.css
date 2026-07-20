@@ -435,6 +435,27 @@ h2 {
   }
 }
 
+.sync-preview-panel { display: grid; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--border-color); border-radius: var(--radius-md); background: color-mix(in srgb, var(--panel-bg) 88%, var(--accent) 12%); }
+.sync-preview-heading, .sync-preview-footer, .sync-preview-metrics { display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.sync-preview-heading span { display: block; color: var(--text-muted); font-size: .82rem; margin-top: 2px; }
+.sync-preview-metrics { justify-content: flex-start; }
+.sync-preview-metrics span { padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: .82rem; }
+.sync-preview-actions { display: grid; gap: 6px; margin-top: var(--space-2); }
+.sync-preview-action { display: grid; grid-template-columns: 82px minmax(120px, 1fr) minmax(120px, 1.4fr) minmax(100px, .8fr); gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent); font-size: .82rem; }
+.sync-preview-action small { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync-preview-risk { border-radius: 999px; padding: 3px 7px; text-align: center; text-transform: uppercase; letter-spacing: .04em; font-size: .68rem; }
+.sync-preview-risk.additive { background: color-mix(in srgb, var(--success) 16%, transparent); color: var(--success); }
+.sync-preview-risk.destructive { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+.sync-preview-warning { color: var(--warning); margin: 0; }
+.sync-preview-state.error { color: var(--danger); }
+.sync-health-panel { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
+.sync-health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-2); }
+.sync-health-metric { display: grid; gap: 3px; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
+.sync-health-metric span, .sync-health-metric small, .sync-health-destinations span { color: var(--text-muted); font-size: .78rem; }
+.sync-health-destinations { display: grid; gap: 6px; }
+.sync-health-destinations div { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent); }
+@media (max-width: 760px) { .sync-preview-action { grid-template-columns: 76px 1fr; } .sync-preview-action small { grid-column: 2; } .sync-preview-panel { padding: var(--space-2); } }
+
 .modal-backdrop-image {
   position: fixed;
   top: 0;
