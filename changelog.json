@@ -1,7 +1,21 @@
 {
-  "version": "0.5.9",
-  "updatedAt": "2026-07-20T16:59:22+01:00",
+  "version": "0.5.10",
+  "updatedAt": "2026-07-20T17:36:49+01:00",
   "entries": [
+    {
+      "version": "0.5.10",
+      "date": "2026-07-20T17:36:49+01:00",
+      "commit": "270e92ccc8165eea19b277c9517d680a03e1958d",
+      "message": "Feature - Remote backups get their own schedules and on-demand upload buttons",
+      "author": "Lasikiewicz",
+      "details": [
+        "Remote Watch History Backups card added with its own daily schedule time, retention count, per-destination sync status, and a Back Up Now button",
+        "Remote Plembfin Backups card gains a Back Up Now button that creates an encrypted backup and uploads it to remote storage immediately",
+        "Remote retention no longer deletes the other backup type's files on the destination - watch-history and Plembfin backups are pruned independently",
+        "Remote Plembfin sync status now reports real per-destination upload results instead of always showing Never / Not connected",
+        "Backup cards redesigned: enable toggles sit in the card header, passphrase fields have their own row, and Save / Back Up Now buttons sit at the bottom right of each card"
+      ]
+    },
     {
       "version": "0.5.9",
       "date": "2026-07-20T16:59:22+01:00",
