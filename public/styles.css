@@ -3305,6 +3305,56 @@ details[open] .tool-accordion-chevron::before {
   flex-shrink: 0;
 }
 
+/* Indeterminate progress bar shown while a Back Up Now request runs. */
+.backup-progress {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.backup-progress-bar {
+  display: block;
+  height: 100%;
+  width: 38%;
+  border-radius: inherit;
+  background: #2563eb;
+  animation: backup-progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes backup-progress-slide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(290%); }
+}
+
+/* Momentary green "Saved!" state applied to the clicked button. */
+.button-flash-success,
+.settings-pane .button-primary.button-flash-success,
+.settings-pane .button-ghost.button-flash-success {
+  border-color: rgba(16, 185, 129, 0.6) !important;
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: #72e3b8 !important;
+}
+
+/* Disclosure hiding all but the two newest backups in restore lists. */
+.backup-collapse > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: var(--space-1) 0;
+  user-select: none;
+}
+
+.backup-collapse[open] > summary {
+  margin-bottom: var(--space-2);
+}
+
+.backup-collapse .watch-backup-row + .watch-backup-row {
+  margin-top: var(--space-2);
+}
+
 .backup-type-note {
   max-width: 72ch;
   margin: 0;
@@ -3469,6 +3519,30 @@ details[open] .tool-accordion-chevron::before {
   color: var(--red);
 }
 
+.backup-runtime-remote-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.backup-runtime-remote {
+  display: block;
+  width: 100%;
+}
+
+.backup-runtime-remote-grid > div {
+  box-sizing: border-box;
+  width: 100%;
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-3);
+}
+
 /* Restore clear-mode selector: stacked rows, normal case (NOT the 3-column uppercase
    .backup-runtime grid). */
 .restore-clear-mode {
@@ -3621,7 +3695,8 @@ details[open] .tool-accordion-chevron::before {
 
 @media (max-width: 860px) {
   .backup-settings-grid,
-  .backup-runtime {
+  .backup-runtime,
+  .backup-runtime-remote-grid {
     grid-template-columns: 1fr;
   }
 
@@ -4690,6 +4765,17 @@ details[open] .tool-accordion-chevron::before {
   color: #bbf7d0;
   padding: 0.5rem 0.7rem;
   font-weight: 900;
+  max-width: min(28rem, calc(100vw - 2 * var(--space-4)));
+}
+
+.copy-toast[data-tone="error"] {
+  border-color: rgba(244, 63, 94, 0.48);
+  color: #fda4af;
+}
+
+.copy-toast[data-tone="muted"] {
+  border-color: var(--line-strong);
+  color: var(--text);
 }
 
 /* ── Edit dialogs (date / image / fix-match) ─────────────────────────── */

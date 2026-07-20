@@ -328,6 +328,12 @@ function formatBytes(bytes) {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
+// Restore lists show only the two newest backups; the rest live inside a
+// collapsed disclosure so long histories don't dominate the page.
+function collapseOlderRows(rows) {
+  if (!rows.length) return "";
+  return `<details class="backup-collapse"><summary>Show ${formatNumber(rows.length)} older backup${rows.length === 1 ? "" : "s"}</summary>${rows.join("")}</details>`;
+}
 export function renderWatchBackups() {
   if (!elements.watchBackupList) return;
   const data = state.watchBackups;
@@ -342,8 +348,9 @@ export function renderWatchBackups() {
   const config = data.config || {};
   const runtime = data.runtime || {};
   const files = Array.isArray(data.files) ? data.files : [];
-  const isRestoreTab = state.activeBackupsTab === "restore";
-  if (!isRestoreTab) {
+  // Settings-side cards and restore-side lists both render every time: panels that are
+  // not part of the current route stay hidden, and aggregated group routes show both.
+  {
     elements.watchBackupEnabled && (elements.watchBackupEnabled.checked = Boolean(config.enabled));
     elements.watchBackupTime && (elements.watchBackupTime.value = config.time || "03:00");
     elements.watchBackupRetention && (elements.watchBackupRetention.value = String(config.retention || 14));
@@ -366,21 +373,8 @@ export function renderWatchBackups() {
         ${runtime.lastError ? `<p class="backup-runtime-error">${escapeHtml(runtime.lastError)}</p>` : ""}
       `;
     }
-    elements.watchBackupList.innerHTML = files.length ? files.map((file) => `
-      <article class="watch-backup-row">
-        <div class="watch-backup-copy">
-          <b>${escapeHtml(file.name)}</b>
-          <span>${escapeHtml(watchBackupDate(file.createdAt))} · ${escapeHtml(formatBytes(file.sizeBytes))}</span>
-        </div>
-        <div class="watch-backup-actions">
-          <button class="button-ghost" type="button" data-watch-backup-download="${escapeAttribute(file.name)}">Download</button>
-          <button class="button-ghost" type="button" data-watch-backup-dry-run="${escapeAttribute(file.name)}">Validate</button>
-        </div>
-      </article>
-    `).join("") : `<div class="empty-log"><b>No local backups yet</b><span>Use Back Up Now or enable the daily schedule.</span></div>`;
     renderBackupDestinationCards();
     renderRemoteWatchBackupRuntime(data);
-    return;
   }
   const localEntries = files.map((f) => ({ ...f, source: "local", destId: null, destLabel: "Local" }));
   const remoteEntries = (state.remoteBackupFiles || []);
@@ -414,9 +408,7 @@ export function renderWatchBackups() {
         <span><b>Full wipe then push</b> — first mark every watched item in each app as unwatched, then re-apply only this backup's watched set. Slower, but the apps end up matching the backup.</span>
       </label>
     </div>`;
-  const renderEntries = (entries, emptyCopy) => {
-    const sorted = sortNewest(entries);
-    return sorted.length ? sorted.map((entry) => `
+  const entryRow = (entry) => `
     <article class="watch-backup-row">
       <div class="watch-backup-copy">
         <b>${escapeHtml(entry.name)}</b>
@@ -426,6 +418,9 @@ export function renderWatchBackups() {
         </span>
       </div>
       <div class="watch-backup-actions">
+        ${entry.source === "local" ? `
+          <button class="button-ghost" type="button" data-watch-backup-download="${escapeAttribute(entry.name)}">Download</button>
+          <button class="button-ghost" type="button" data-watch-backup-dry-run="${escapeAttribute(entry.name)}">Validate</button>` : ""}
         <button class="button-primary" type="button"
           data-watch-backup-restore="${escapeAttribute(entry.name)}"
           ${entry.destId ? `data-restore-dest-id="${escapeAttribute(entry.destId)}"` : ""}>
@@ -433,7 +428,12 @@ export function renderWatchBackups() {
         </button>
       </div>
     </article>
-  `).join("") : emptyCopy;
+  `;
+  const renderEntries = (entries, emptyCopy) => {
+    const sorted = sortNewest(entries);
+    if (!sorted.length) return emptyCopy;
+    const rows = sorted.map(entryRow);
+    return rows.slice(0, 2).join("") + collapseOlderRows(rows.slice(2));
   };
   const localEmpty = `<div class="empty-log"><b>No local watch-history backups</b><span>Use Back Up Now on the Backups tab or add a .json.gz file from your computer.</span></div>`;
   const remoteEmpty = state.remoteBackupFilesLoading
@@ -444,7 +444,8 @@ export function renderWatchBackups() {
     elements.remoteWatchBackupList.innerHTML = remoteLoading + (remoteEntries.length ? clearModeSelector : "") + renderEntries(remoteEntries, remoteEmpty);
   }
 }
-// Per-destination mirror status for the Remote Watch History Backups card on the Backups tab.
+// Runtime readout for the Remote Watch History Backups card on the Backups tab:
+// the same sections as the local card, plus a per-destination status row each.
 function renderRemoteWatchBackupRuntime(data) {
   if (!elements.watchBackupRemoteRuntime) return;
   const destinations = Array.isArray(data.destinations) ? data.destinations : [];
@@ -453,7 +454,12 @@ function renderRemoteWatchBackupRuntime(data) {
     return;
   }
   const statusMap = data.runtime?.destinations || {};
-  elements.watchBackupRemoteRuntime.innerHTML = destinations.map((destination) => {
+  const lastSuccessAt = Math.max(0, ...destinations.map((destination) => Number(statusMap[destination.id]?.lastSuccessAt || 0)));
+  const remoteFiles = Array.isArray(state.remoteBackupFiles) ? state.remoteBackupFiles : [];
+  const storage = state.remoteBackupFilesLoading
+    ? "Checking destinations..."
+    : `${formatNumber(remoteFiles.length)} file${remoteFiles.length === 1 ? "" : "s"}`;
+  const destinationRows = destinations.map((destination) => {
     const status = statusMap[destination.id] || {};
     const label = destination.label || destination.type || "Remote";
     if (!destination.enabled) {
@@ -470,6 +476,14 @@ function renderRemoteWatchBackupRuntime(data) {
     }
     return `<div><span>${escapeHtml(label)}</span><b>Last mirrored ${escapeHtml(watchBackupDate(status.lastSuccessAt))}</b></div>`;
   }).join("");
+  elements.watchBackupRemoteRuntime.innerHTML = `
+    <div class="backup-runtime-remote-grid">
+    <div><span>Last successful backup</span><b>${escapeHtml(watchBackupDate(lastSuccessAt || 0))}</b></div>
+    <div><span>Last restore</span><b>${escapeHtml(watchBackupDate(data.runtime?.lastRestoreAt))}</b></div>
+    <div><span>Storage</span><b>${escapeHtml(storage)}</b></div>
+    ${destinationRows}
+    </div>
+  `;
 }
 export async function loadRemoteBackupsForRestoreTab() {
   const data = state.watchBackups;
@@ -792,7 +806,7 @@ export function renderPlembfinBackups() {
     elements.plembfinBackupRemoteRuntime.innerHTML = remoteHtml;
   }
   
-  elements.plembfinBackupList.innerHTML = files.length ? files.map((file) => `
+  const plembfinRows = files.map((file) => `
     <article class="watch-backup-row">
       <div class="watch-backup-copy">
         <b>${escapeHtml(file.name)}</b>
@@ -804,7 +818,10 @@ export function renderPlembfinBackups() {
         <button class="button-ghost" type="button" data-plembfin-backup-delete="${escapeAttribute(file.name)}">Delete</button>
       </div>
     </article>
-  `).join("") : `<div class="empty-log"><b>No scheduled Plembfin backups yet</b><span>Use Back Up Now or enable the daily schedule.</span></div>`;
+  `);
+  elements.plembfinBackupList.innerHTML = plembfinRows.length
+    ? plembfinRows.slice(0, 2).join("") + collapseOlderRows(plembfinRows.slice(2))
+    : `<div class="empty-log"><b>No scheduled Plembfin backups yet</b><span>Use Back Up Now or enable the daily schedule.</span></div>`;
 
   updatePlembfinButtonsState();
 }
@@ -821,7 +838,7 @@ export async function savePlembfinBackupSettings() {
   await postPlembfinBackupAction({ action: "configure", config });
   state.plembfinBackups = null;
   await loadPlembfinBackups({ force: true });
-  _setMessage("Plembfin backup schedule saved.", "success");
+  flashButtonSuccess(elements.savePlembfinBackupConfigButton);
 }
 export async function savePlembfinBackupRemoteSettings() {
   const remoteRememberPassphrase = Boolean(elements.plembfinBackupRemoteRememberPassphrase?.checked);
@@ -834,12 +851,13 @@ export async function savePlembfinBackupRemoteSettings() {
   await postPlembfinBackupAction({ action: "configure", config });
   state.plembfinBackups = null;
   await loadPlembfinBackups({ force: true });
-  _setMessage("Remote Plembfin backup settings saved.", "success");
+  flashButtonSuccess(elements.savePlembfinBackupRemoteButton);
 }
 export async function createPlembfinBackupNow() {
   const button = elements.createPlembfinBackupButton;
   button.disabled = true;
   button.textContent = "Backing up...";
+  toggleBackupProgress(elements.plembfinBackupProgress, true);
   try {
     const result = await postPlembfinBackupAction({
       action: "create",
@@ -849,6 +867,7 @@ export async function createPlembfinBackupNow() {
     await loadPlembfinBackups({ force: true });
     _setMessage(`Created ${result.backup?.name || "Plembfin backup"}.`, "success");
   } finally {
+    toggleBackupProgress(elements.plembfinBackupProgress, false);
     button.disabled = false;
     button.textContent = "Back Up Now";
     updatePlembfinButtonsState();
@@ -859,6 +878,7 @@ export async function createPlembfinBackupRemoteNow() {
   if (!button) return;
   button.disabled = true;
   button.textContent = "Backing up...";
+  toggleBackupProgress(elements.plembfinBackupRemoteProgress, true);
   try {
     const result = await postPlembfinBackupAction({
       action: "create",
@@ -877,6 +897,7 @@ export async function createPlembfinBackupRemoteNow() {
       _setMessage(`Created ${result.backup?.name || "Plembfin backup"} and uploaded it to ${remotes.length} remote destination${remotes.length === 1 ? "" : "s"}.`, "success");
     }
   } finally {
+    toggleBackupProgress(elements.plembfinBackupRemoteProgress, false);
     button.disabled = false;
     button.textContent = "Back Up Now";
     updatePlembfinButtonsState();
@@ -995,7 +1016,7 @@ export async function saveWatchBackupSettings() {
   await postWatchBackupAction({ action: "configure", config });
   state.watchBackups = null;
   await loadWatchBackups({ force: true });
-  _setMessage("Watch-history backup schedule saved.", "success");
+  flashButtonSuccess(elements.saveWatchBackupConfigButton);
 }
 export async function saveRemoteWatchBackupSettings() {
   const config = {
@@ -1007,18 +1028,39 @@ export async function saveRemoteWatchBackupSettings() {
   await postWatchBackupAction({ action: "configure", config });
   state.watchBackups = null;
   await loadWatchBackups({ force: true });
-  _setMessage("Remote watch-history backup schedule saved.", "success");
+  flashButtonSuccess(elements.saveRemoteWatchBackupConfigButton);
+}
+function toggleBackupProgress(element, active) {
+  element?.classList.toggle("hidden", !active);
+}
+// Inline success feedback on the button that was clicked: swap its label for
+// "Saved!" (green) for a moment, then restore the original label.
+const buttonFlashTimers = new WeakMap();
+export function flashButtonSuccess(button, label = "Saved!") {
+  if (!button) return;
+  if (!buttonFlashTimers.has(button)) button.dataset.flashOriginal = button.textContent;
+  window.clearTimeout(buttonFlashTimers.get(button));
+  button.textContent = label;
+  button.classList.add("button-flash-success");
+  buttonFlashTimers.set(button, window.setTimeout(() => {
+    button.textContent = button.dataset.flashOriginal || label;
+    button.classList.remove("button-flash-success");
+    delete button.dataset.flashOriginal;
+    buttonFlashTimers.delete(button);
+  }, 2000));
 }
 export async function createWatchBackupNow() {
   const button = elements.createWatchBackupButton;
   button.disabled = true;
   button.textContent = "Backing up...";
+  toggleBackupProgress(elements.watchBackupProgress, true);
   try {
     const result = await postWatchBackupAction({ action: "create" });
     state.watchBackups = null;
     await loadWatchBackups({ force: true });
     _setMessage(`Created ${result.backup?.name || "watch-history backup"}.`, "success");
   } finally {
+    toggleBackupProgress(elements.watchBackupProgress, false);
     button.disabled = false;
     button.textContent = "Back Up Now";
   }
@@ -1028,6 +1070,7 @@ export async function createRemoteWatchBackupNow() {
   if (!button) return;
   button.disabled = true;
   button.textContent = "Backing up...";
+  toggleBackupProgress(elements.remoteWatchBackupProgress, true);
   try {
     const result = await postWatchBackupAction({ action: "create", remote: true });
     state.watchBackups = null;
@@ -1042,6 +1085,7 @@ export async function createRemoteWatchBackupNow() {
       _setMessage(`Created ${result.backup?.name || "watch-history backup"} and mirrored it to ${remotes.length} remote destination${remotes.length === 1 ? "" : "s"}.`, "success");
     }
   } finally {
+    toggleBackupProgress(elements.remoteWatchBackupProgress, false);
     button.disabled = false;
     button.textContent = "Back Up Now";
   }

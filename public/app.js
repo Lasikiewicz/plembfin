@@ -203,6 +203,10 @@ function bindElements() {
     plembfinBackupRemoteRuntime: document.querySelector("#plembfinBackupRemoteRuntime"),
     createRemoteWatchBackupButton: document.querySelector("#createRemoteWatchBackupButton"),
     watchBackupRemoteRuntime: document.querySelector("#watchBackupRemoteRuntime"),
+    watchBackupProgress: document.querySelector("#watchBackupProgress"),
+    plembfinBackupProgress: document.querySelector("#plembfinBackupProgress"),
+    remoteWatchBackupProgress: document.querySelector("#remoteWatchBackupProgress"),
+    plembfinBackupRemoteProgress: document.querySelector("#plembfinBackupRemoteProgress"),
     remoteWatchBackupEnabled: document.querySelector("#remoteWatchBackupEnabled"),
     remoteWatchBackupTime: document.querySelector("#remoteWatchBackupTime"),
     remoteWatchBackupRetention: document.querySelector("#remoteWatchBackupRetention"),
@@ -879,6 +883,11 @@ function rememberExplorerPage(key, body) {
 function setMessage(text, tone = "muted") {
   elements.message.textContent = text;
   elements.message.dataset.tone = tone;
+  // #message lives inside the auth panel, which is hidden once signed in — surface
+  // feedback as a toast whenever the app shell is the visible surface.
+  if (text && elements.appShell && !elements.appShell.classList.contains("hidden")) {
+    showToast(text, tone);
+  }
 }
 
 function setUnlocked(isUnlocked) {
@@ -1451,12 +1460,20 @@ function applyActiveView() {
     if (routePanels.has("backups")) {
       state.activeBackupsTab = route.backupTab || "settings";
       renderWatchBackups();
-      loadWatchBackups().catch((error) => setMessage(error.message, "error"));
       renderPlembfinBackups();
+      // The remote listing feeds both the Remote Watch History card's storage count
+      // and the Remote Restore list, and it needs the backup status (destinations)
+      // first — chain it behind loadWatchBackups so a cold direct link to any
+      // backups route (including the aggregated group page) still populates it.
+      loadWatchBackups()
+        .then(() => {
+          if (!state.remoteBackupFilesLoading && !state.remoteBackupFiles.length) {
+            return loadRemoteBackupsForRestoreTab();
+          }
+          return null;
+        })
+        .catch((error) => setMessage(error.message, "error"));
       loadPlembfinBackups().catch((error) => setMessage(error.message, "error"));
-      if (state.activeBackupsTab === "restore" && !state.remoteBackupFilesLoading && !state.remoteBackupFiles.length) {
-        loadRemoteBackupsForRestoreTab().catch((error) => setMessage(error.message, "error"));
-      }
     }
     if (routePanels.has("logs")) renderLogs().catch(() => { });
     if (routePanels.has("changelog")) renderChangelog().catch(() => { });
@@ -2148,23 +2165,21 @@ async function copyToClipboard(value) {
   }
 }
 
-function showToast(text) {
+function showToast(text, tone = "success") {
   if (!elements.copyToast) return;
   elements.copyToast.textContent = text;
+  elements.copyToast.dataset.tone = tone;
   elements.copyToast.classList.remove("hidden");
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => {
     elements.copyToast.classList.add("hidden");
     elements.copyToast.textContent = "Copied!";
-  }, 3500);
+    delete elements.copyToast.dataset.tone;
+  }, tone === "error" ? 6000 : 3500);
 }
 
 function showCopyToast() {
-  elements.copyToast.classList.remove("hidden");
-  window.clearTimeout(showCopyToast.timer);
-  showCopyToast.timer = window.setTimeout(() => {
-    elements.copyToast.classList.add("hidden");
-  }, 1300);
+  showToast("Copied!");
 }
 
 async function runRefreshMetadataWorkflow() {

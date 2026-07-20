@@ -958,6 +958,7 @@
                                 </div>
                               </div>
                               <div id="watchBackupRuntime" class="backup-runtime" aria-live="polite"></div>
+                              <div id="watchBackupProgress" class="backup-progress hidden" role="progressbar" aria-label="Backup in progress"><span class="backup-progress-bar"></span></div>
                               <div class="backup-settings-grid backup-settings-inline">
                                 <div class="backup-settings-right">
                                   <button id="saveWatchBackupConfigButton" class="button-primary" type="button">Save Schedule</button>
@@ -1004,6 +1005,7 @@
                               </form>
 
                               <div id="plembfinBackupRuntime" class="backup-runtime" aria-live="polite"></div>
+                              <div id="plembfinBackupProgress" class="backup-progress hidden" role="progressbar" aria-label="Backup in progress"><span class="backup-progress-bar"></span></div>
                               <div class="backup-settings-grid backup-settings-inline">
                                 <div class="backup-settings-right">
                                   <button id="savePlembfinBackupConfigButton" class="button-primary" type="button" disabled>Save Schedule</button>
@@ -1051,7 +1053,8 @@
                                   </label>
                                 </div>
                               </div>
-                              <div id="watchBackupRemoteRuntime" class="backup-runtime" aria-live="polite"></div>
+                              <div id="watchBackupRemoteRuntime" class="backup-runtime backup-runtime-remote" aria-live="polite"></div>
+                              <div id="remoteWatchBackupProgress" class="backup-progress hidden" role="progressbar" aria-label="Backup in progress"><span class="backup-progress-bar"></span></div>
                               <div class="backup-settings-grid backup-settings-inline">
                                 <div class="backup-settings-right">
                                   <button id="saveRemoteWatchBackupConfigButton" class="button-primary" type="button">Save Schedule</button>
@@ -1086,6 +1089,7 @@
                               </form>
 
                               <div id="plembfinBackupRemoteRuntime" class="backup-runtime" aria-live="polite"></div>
+                              <div id="plembfinBackupRemoteProgress" class="backup-progress hidden" role="progressbar" aria-label="Backup in progress"><span class="backup-progress-bar"></span></div>
                               <div class="backup-settings-grid backup-settings-inline">
                                 <div class="backup-settings-right">
                                   <button id="savePlembfinBackupRemoteButton" class="button-primary" type="button" disabled>Save Settings</button>
