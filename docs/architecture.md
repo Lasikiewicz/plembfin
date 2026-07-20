@@ -192,8 +192,8 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `auth.js` | Login/logout/status against `/api/auth/*`, `onAuthChange`, credential updates, webhook-secret rotation, auth header building. See [auth.md](auth.md). |
 | `settings.js` | Shared connection-label formatting. |
 | `settings-ui.js` | Reusable settings edit dialog, provider picker, and status-card grid primitives. |
-| `settings-services.js` | Media-server and metadata-provider card grids, edit dialogs, config saves, and connection tests. |
-| `settings-shell.js` | Owns flat settings routes, legacy aliases, the landing list, sidebar/mobile navigation, focused panels, and advanced disclosures. |
+| `settings-services.js` | Media-server and metadata-provider card grids, edit dialogs, config saves, connection tests, and the inline Sync Tuning form. |
+| `settings-shell.js` | Owns hierarchical settings routes (parent groups + child sections), multi-view panel aggregation, legacy aliases, the landing list, sidebar/mobile navigation, section-scoped scrolling, and tools disclosures. |
 | `logs.js` | Frontend debug-log store (localStorage ring buffer) + fetching backend diagnostic logs. |
 | `images.js` | Poster/artwork frontend: `posterMarkup`, `hydratePosterFallbacks`, `/api/poster` lookups with a persistent cache, TMDB image URL builders, `isCachedStorageImageUrl`. See [posters-artwork.md](posters-artwork.md). |
 | `sync.js` | Now Playing polling + rendering, sync-status pills/telemetry parsing, sync jobs + sync history panels, cron/force-sync triggers. |

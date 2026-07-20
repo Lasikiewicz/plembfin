@@ -19,7 +19,7 @@ function fieldPlaceholder(field) {
   return field.placeholder || "";
 }
 
-function renderFieldRow(field) {
+export function renderFieldRow(field) {
   const help = field.help ? `<small class="settings-field-help">${field.helpIsHtml ? field.help : escapeHtml(field.help)}</small>` : "";
   if (field.type === "checkbox") {
     return `
@@ -47,13 +47,16 @@ function renderFieldRow(field) {
   `;
 }
 
-function collectValues(dialog) {
+// Reads every [data-modal-field] input under container (dialog or a plain
+// inline form) into a plain {key: value} object.
+export function collectFieldValues(container) {
   const values = {};
-  dialog.querySelectorAll("[data-modal-field]").forEach((input) => {
+  container.querySelectorAll("[data-modal-field]").forEach((input) => {
     values[input.dataset.modalField] = input.type === "checkbox" ? input.checked : input.value.trim();
   });
   return values;
 }
+const collectValues = collectFieldValues;
 
 // Opens a centered edit modal. Options:
 //   title, fields          — dialog heading and field specs (see renderFieldRow)

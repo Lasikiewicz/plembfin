@@ -480,13 +480,13 @@
               </section>
 
               <section class="settings-pane" data-settings-panel="general">
-                <!-- Admin Login Tab -->
+                <!-- Account Tab -->
                 <div class="settings-row" data-sub-panel="general-login">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
                         <div>
-                          <p>Admin Login</p>
+                          <p>Account</p>
                           <span>Local username and password session</span>
                         </div>
                       </div>
@@ -520,7 +520,7 @@
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Admin Login Guide</p>
+                        <p>Account Guide</p>
                         <span>Portal Security</span>
                       </div>
                       <div id="adminLoginHelp"></div>
@@ -528,12 +528,77 @@
                   </div>
                 </div>
 
-                <!-- API Endpoints Tab -->
-                <div class="settings-row hidden" data-sub-panel="general-endpoints">
+                <!-- Sync Tuning Tab -->
+                <div class="settings-row hidden" data-sub-panel="sync-tuning">
+                  <div class="settings-row-main">
+                    <section class="glass-panel p-section sync-panel">
+                      <div class="section-heading">
+                        <div>
+                          <p>Sync Tuning</p>
+                          <span>Watched threshold, resume position, session TTL, and outbound timeout. Leave a field blank to use its default.</span>
+                        </div>
+                      </div>
+                      <form id="syncTuningForm" class="admin-credentials-form">
+                        <div id="syncTuningFields" class="sync-tuning-fields"></div>
+                        <p id="syncTuningStatus" class="message" role="status" aria-live="polite"></p>
+                        <div class="settings-actions">
+                          <button id="saveSyncTuningButton" class="button-primary" type="submit">Save Sync Tuning</button>
+                        </div>
+                      </form>
+                    </section>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Sync Tuning Help</p>
+                        <span>Understanding the Defaults</span>
+                      </div>
+
+                      <div style="margin-bottom: var(--space-3);">
+                        <b style="display: block; margin-bottom: var(--space-1);">What This Controls</b>
+                        <p class="tool-accordion-desc" style="margin: 0;">
+                          These four values drive the heuristics behind watched-state detection and outbound sync. Every field is optional — leaving a field blank keeps the built-in default (or a matching environment variable, if one is set on the server).
+                        </p>
+                      </div>
+
+                      <div>
+                        <b style="display: block; margin-bottom: var(--space-1);">Fields</b>
+                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
+                          <b>Watched Threshold:</b> playback progress percentage at which a play counts as watched. Default 90%.
+                        </p>
+                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
+                          <b>Minimum Resume Position:</b> playback position, in seconds, below which a stopped play is too short to save as a resume point. Default 60s.
+                        </p>
+                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
+                          <b>Active Session TTL:</b> how long a "now playing" session is kept without an update before it's considered stale. Default 5 minutes.
+                        </p>
+                        <p class="tool-accordion-desc" style="margin: 0;">
+                          <b>Outbound Request Timeout:</b> how long Plembfin waits for a response from Plex, Emby, or Jellyfin before giving up. Default 10 seconds.
+                        </p>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-pane hidden" data-settings-panel="apps">
+                <div class="section-heading">
+                  <div>
+                    <p>Media Servers</p>
+                    <span>Connected media servers and request services. Select a card to edit it, or use + to add one.</span>
+                  </div>
+                </div>
+                <div id="mediaServerCards" class="settings-card-grid"></div>
+              </section>
+
+              <section class="settings-pane hidden" data-settings-panel="general">
+                <!-- Webhooks Tab -->
+                <div class="settings-row" data-sub-panel="general-endpoints">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>API Endpoints</p>
+                        <p>Webhooks</p>
                         <span>Webhook listener and background worker</span>
                       </div>
                       <div class="endpoint-box">
@@ -551,7 +616,7 @@
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Endpoints Guide</p>
+                        <p>Webhooks Guide</p>
                         <span>Integration Webhooks</span>
                       </div>
                       <p class="tool-accordion-desc">Webhooks allow Plex, Emby, and Jellyfin to push play states immediately to Plembfin as they happen.</p>
@@ -559,16 +624,6 @@
                     </article>
                   </div>
                 </div>
-              </section>
-
-              <section class="settings-pane hidden" data-settings-panel="apps">
-                <div class="section-heading">
-                  <div>
-                    <p>Media Servers</p>
-                    <span>Connected media servers and request services. Select a card to edit it, or use + to add one.</span>
-                  </div>
-                </div>
-                <div id="mediaServerCards" class="settings-card-grid"></div>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="api-keys">
@@ -1184,53 +1239,6 @@
                         <b style="display: block; margin-bottom: var(--space-1);">How to Fix</b>
                         <p class="tool-accordion-desc" style="margin: 0;">
                           Click "Retry" on an issue to re-attempt the sync and see detailed error messages. Click "Fix" to manually adjust the match if the item wasn't found.
-                        </p>
-                      </div>
-                    </article>
-                  </div>
-                </div>
-
-                <!-- Sync Tuning Row -->
-                <div class="settings-row hidden" data-sub-panel="sync-tuning">
-                  <div class="settings-row-main">
-                    <section class="glass-panel p-section sync-panel">
-                      <div class="section-heading">
-                        <div>
-                          <p>Sync Tuning</p>
-                          <span>Watched threshold, resume position, session TTL, and outbound timeout. Select the card to edit.</span>
-                        </div>
-                      </div>
-                      <div id="syncTuningCard" class="settings-card-grid"></div>
-                    </section>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Sync Tuning Help</p>
-                        <span>Understanding the Defaults</span>
-                      </div>
-
-                      <div style="margin-bottom: var(--space-3);">
-                        <b style="display: block; margin-bottom: var(--space-1);">What This Controls</b>
-                        <p class="tool-accordion-desc" style="margin: 0;">
-                          These four values drive the heuristics behind watched-state detection and outbound sync. Every field is optional — leaving a field blank keeps the built-in default (or a matching environment variable, if one is set on the server).
-                        </p>
-                      </div>
-
-                      <div>
-                        <b style="display: block; margin-bottom: var(--space-1);">Fields</b>
-                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
-                          <b>Watched Threshold:</b> playback progress percentage at which a play counts as watched. Default 90%.
-                        </p>
-                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
-                          <b>Minimum Resume Position:</b> playback position, in seconds, below which a stopped play is too short to save as a resume point. Default 60s.
-                        </p>
-                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
-                          <b>Active Session TTL:</b> how long a "now playing" session is kept without an update before it's considered stale. Default 5 minutes.
-                        </p>
-                        <p class="tool-accordion-desc" style="margin: 0;">
-                          <b>Outbound Request Timeout:</b> how long Plembfin waits for a response from Plex, Emby, or Jellyfin before giving up. Default 10 seconds.
                         </p>
                       </div>
                     </article>

@@ -1,90 +1,228 @@
-// Settings navigation shell: the flat section list, route parsing with legacy
-// redirects, the Sonarr-style landing page, the settings sidebar, and the
+// Settings navigation shell: hierarchical section groups and route parsing with
+// legacy redirects, the Sonarr-style landing page, the settings sidebar, and the
 // panel show/hide engine. Pure route logic lives at the top so it stays
 // testable under Node without a DOM.
+
+// Flat section definitions (each maps to a route + panel/subPanel combo)
 const SECTIONS = {
+  // Parent groups show all their child sections on one page
+  general: {
+    label: "General",
+    description: "Account and sync tuning configuration",
+    panel: "general",
+    subPanels: ["general-login", "sync-tuning"],
+  },
+  "media-servers-group": {
+    label: "Media Servers",
+    description: "Media servers and webhook configuration",
+    views: [{ panel: "apps" }, { panel: "general", subPanels: ["general-endpoints"] }],
+  },
+  "sync-group": {
+    label: "Sync",
+    description: "Sync issues and history",
+    panel: "sync",
+    subPanels: ["sync-issues", "sync-history"],
+  },
+  "backup-restore-group": {
+    label: "Backup / Restore",
+    description: "Backup and restore configuration",
+    views: [
+      { panel: "backups", backupTab: "settings" },
+      { panel: "backups", backupTab: "restore" },
+    ],
+  },
+  "tools-group": {
+    label: "Tools",
+    description: "Database repairs and library rebuilds",
+    panel: "tools",
+    subPanels: ["tools-repairs", "tools-sync"],
+  },
+  "advanced-group": {
+    label: "Advanced",
+    description: "Advanced settings",
+    views: [{ panel: "tools", subPanels: ["tools-diagnostics"] }, { panel: "cache" }],
+  },
+  // Account and Sync Tuning are NOT separate routes - only sections on the General page
+  account: {
+    label: "Account",
+    description: "Administrator username, password, and sessions",
+    panel: "general",
+    subPanels: ["general-login"],
+    isDisplayOnly: true, // Not a navigable route
+  },
+  "sync-tuning": {
+    label: "Sync Tuning",
+    description: "Configure watched threshold, resume position, and timeouts",
+    panel: "general",
+    subPanels: ["sync-tuning"],
+    isDisplayOnly: true, // Not a navigable route
+  },
   "media-servers": {
     label: "Media Servers",
     description: "Plex, Emby, Jellyfin, and Seerr connections",
     panel: "apps",
-  },
-  metadata: {
-    label: "Metadata",
-    description: "TMDB, TVDB, Fanart.tv, OMDb, and YouTube providers",
-    panel: "api-keys",
+    isDisplayOnly: true,
   },
   webhooks: {
     label: "Webhooks",
     description: "Webhook listener and background scheduler endpoints",
     panel: "general",
     subPanels: ["general-endpoints"],
+    isDisplayOnly: true,
   },
-  account: {
-    label: "Account & Security",
-    description: "Administrator username, password, and sessions",
-    panel: "general",
-    subPanels: ["general-login"],
+  metadata: {
+    label: "Metadata Providers",
+    description: "TMDB, TVDB, Fanart.tv, OMDb, and YouTube providers",
+    panel: "api-keys",
+    isDisplayOnly: true,
+  },
+  "sync-issues": {
+    label: "Sync Issues",
+    description: "Unresolved sync issues between your media servers",
+    panel: "sync",
+    subPanels: ["sync-issues"],
+    isDisplayOnly: true,
+  },
+  "sync-history": {
+    label: "Sync History",
+    description: "View the history of sync operations",
+    panel: "sync",
+    subPanels: ["sync-history"],
+    isDisplayOnly: true,
   },
   backups: {
-    label: "Backups",
+    label: "Backup",
     description: "Backup schedules and remote destinations",
     panel: "backups",
     backupTab: "settings",
+    isDisplayOnly: true,
   },
   restore: {
     label: "Restore",
     description: "Recover watch history or a full encrypted backup",
     panel: "backups",
     backupTab: "restore",
+    isDisplayOnly: true,
   },
   import: {
-    label: "Import",
+    label: "Trakt",
     description: "Bring watch history in from Trakt or CSV exports",
     panel: "tools",
     subPanels: ["tools-migration"],
-  },
-  sync: {
-    label: "Sync",
-    description: "Unresolved sync issues, history, and repair tools",
-    panel: "sync",
-    subPanels: ["sync-issues", "sync-tuning", "sync-history", "sync-tools"],
+    isDisplayOnly: true,
   },
   health: {
     label: "Health",
     description: "Connection diagnostics and system checks",
     panel: "tools",
     subPanels: ["tools-diagnostics"],
+    isDisplayOnly: true,
   },
   logs: {
     label: "Logs",
     description: "Live server and browser diagnostic output",
     panel: "logs",
+    isDisplayOnly: true,
   },
   storage: {
     label: "Storage & Cache",
     description: "Artwork and metadata cache usage",
     panel: "cache",
+    isDisplayOnly: true,
   },
-  advanced: {
-    label: "Advanced",
-    description: "Database repairs, rebuilds, and backfills",
+  "database-repairs": {
+    label: "Database Repairs",
+    description: "Correct damaged or duplicated local history records",
     panel: "tools",
-    subPanels: ["tools-repairs", "tools-sync"],
+    subPanels: ["tools-repairs"],
+    isDisplayOnly: true,
+  },
+  "library-rebuilds": {
+    label: "Library Rebuilds and Backfills",
+    description: "Reprocess local metadata or push the complete archive to connected services",
+    panel: "tools",
+    subPanels: ["tools-sync"],
+    isDisplayOnly: true,
   },
   about: {
     label: "About",
     description: "Version and changelog",
     panel: "changelog",
+    isDisplayOnly: true,
   },
 };
 
+// Hierarchical grouping: parent menu item with child sections
+// ALL children are display-only (navigate to parent, not separate pages)
+const SECTION_GROUPS = [
+  {
+    id: "general",
+    label: "General",
+    sections: ["account", "sync-tuning"],
+    displayOnly: ["account", "sync-tuning"],
+  },
+  {
+    id: "media-servers-group",
+    label: "Media Servers",
+    sections: ["media-servers", "webhooks"],
+    displayOnly: ["media-servers", "webhooks"],
+  },
+  {
+    id: "metadata",
+    label: "Metadata",
+    sections: ["metadata"],
+    displayOnly: ["metadata"],
+  },
+  {
+    id: "sync-group",
+    label: "Sync",
+    sections: ["sync-issues", "sync-history"],
+    displayOnly: ["sync-issues", "sync-history"],
+  },
+  {
+    id: "backup-restore-group",
+    label: "Backup / Restore",
+    sections: ["backups", "restore"],
+    displayOnly: ["backups", "restore"],
+  },
+  {
+    id: "import",
+    label: "Import",
+    sections: ["import"],
+    displayOnly: ["import"],
+  },
+  {
+    id: "tools-group",
+    label: "Tools",
+    sections: ["database-repairs", "library-rebuilds"],
+    displayOnly: ["database-repairs", "library-rebuilds"],
+  },
+  {
+    id: "advanced-group",
+    label: "Advanced",
+    sections: ["health", "storage"],
+    displayOnly: ["health", "storage"],
+  },
+  {
+    id: "logs",
+    label: "Logs",
+    sections: ["logs"],
+    displayOnly: ["logs"],
+  },
+  {
+    id: "about",
+    label: "About",
+    sections: ["about"],
+    displayOnly: ["about"],
+  },
+];
+
 const LEGACY_PATHS = {
-  "/sync": "/settings/sync",
+  "/sync": "/settings/sync-issues",
   "/logs": "/settings/logs",
-  "/settings/general": "/settings/account",
   "/settings/apps": "/settings/media-servers",
   "/settings/api-keys": "/settings/metadata",
-  "/settings/tools": "/settings/advanced",
+  "/settings/tools": "/settings/database-repairs",
   "/settings/cache": "/settings/storage",
   "/settings/changelog": "/settings/about",
   "/settings/account/login": "/settings/account",
@@ -105,20 +243,24 @@ const LEGACY_PATHS = {
   "/settings/data/import": "/settings/import",
   "/settings/system": "/settings/health",
   "/settings/system/health": "/settings/health",
-  "/settings/system/sync": "/settings/sync",
+  "/settings/system/sync": "/settings/sync-issues",
   "/settings/system/logs": "/settings/logs",
   "/settings/system/storage": "/settings/storage",
   "/settings/system/about": "/settings/about",
-  "/settings/system/advanced": "/settings/advanced",
+  "/settings/system/advanced": "/settings/database-repairs",
+  "/settings/sync": "/settings/sync-issues",
+  "/settings/sync/issues": "/settings/sync-issues",
+  "/settings/sync/history": "/settings/sync-history",
+  "/settings/sync/tuning": "/settings/sync-tuning",
+  "/settings/advanced": "/settings/database-repairs",
 };
 
 const LEGACY_TABS = {
-  general: "/settings/account",
   apps: "/settings/media-servers",
   "api-keys": "/settings/metadata",
   backups: "/settings/backups",
-  tools: "/settings/advanced",
-  sync: "/settings/sync",
+  tools: "/settings/database-repairs",
+  sync: "/settings/sync-issues",
   logs: "/settings/logs",
   cache: "/settings/storage",
   changelog: "/settings/about",
@@ -139,16 +281,24 @@ export function settingsPathForLegacy(value = "") {
 
 function sectionRoute(section, requestedPath) {
   const definition = SECTIONS[section];
+  const group = SECTION_GROUPS.find((g) => g.sections.includes(section))?.id || section;
+  // A route can aggregate several underlying panels (a parent group's page
+  // shows all of its children's content). Single-panel sections synthesize a
+  // one-item views array from their flat panel/subPanels/backupTab fields.
+  const views = definition.views || [{ panel: definition.panel, subPanels: definition.subPanels, backupTab: definition.backupTab }];
+  const primary = views[0] || {};
   return {
     kind: "task",
-    group: section,
+    group,
+    section,
     task: "",
     path: `/settings/${section}`,
     requestedPath,
     title: definition.label,
-    panel: definition.panel,
-    subPanels: definition.subPanels,
-    backupTab: definition.backupTab,
+    panel: primary.panel,
+    subPanels: primary.subPanels,
+    backupTab: primary.backupTab,
+    views,
   };
 }
 
@@ -171,17 +321,42 @@ export function parseSettingsRoute(value = "/settings", { mustChangePassword = f
 function renderSettingsSidebar() {
   const menu = document.querySelector("#sidebarSettingsMenu");
   if (!menu) return;
-  menu.querySelectorAll("[data-settings-group]").forEach((el) => el.remove());
+  menu.querySelectorAll("[data-settings-group], [data-settings-group-parent]").forEach((el) => el.remove());
   const lockButton = menu.querySelector("#lockButton");
   const fragment = document.createDocumentFragment();
-  for (const [id, definition] of Object.entries(SECTIONS)) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "settings-tab";
-    button.dataset.settingsGroup = id;
-    button.dataset.settingsPath = `/settings/${id}`;
-    button.textContent = definition.label;
-    fragment.append(button);
+
+  for (const group of SECTION_GROUPS) {
+    // Parent button for the group (navigates to parent group section if it exists, otherwise first child)
+    const parentPath = SECTIONS[group.id] ? `/settings/${group.id}` : `/settings/${group.sections[0]}`;
+    const parentButton = document.createElement("button");
+    parentButton.type = "button";
+    parentButton.className = "settings-tab settings-group-parent";
+    parentButton.dataset.settingsGroupParent = group.id;
+    parentButton.dataset.settingsPath = parentPath;
+    parentButton.textContent = group.label;
+    fragment.append(parentButton);
+
+    // Child buttons for each section in the group
+    for (const sectionId of group.sections) {
+      const definition = SECTIONS[sectionId];
+      const childButton = document.createElement("button");
+      childButton.type = "button";
+      childButton.className = "settings-tab settings-group-child";
+      childButton.dataset.settingsGroup = sectionId;
+
+      // If this is a display-only child or marked as such, it navigates to the
+      // parent's aggregated page but scrolls straight to its own section there.
+      const isDisplayOnly = definition.isDisplayOnly || (group.displayOnly && group.displayOnly.includes(sectionId));
+      if (isDisplayOnly) {
+        childButton.dataset.settingsPath = `${parentPath}#${sectionId}`;
+      } else {
+        childButton.dataset.settingsPath = `/settings/${sectionId}`;
+      }
+
+      childButton.dataset.settingsGroupParent = group.id;
+      childButton.textContent = definition.label;
+      fragment.append(childButton);
+    }
   }
   menu.insertBefore(fragment, lockButton || null);
 }
@@ -194,11 +369,18 @@ function renderSettingsSectionSelect() {
   overview.value = "/settings";
   overview.textContent = "Overview";
   select.append(overview);
-  for (const [id, definition] of Object.entries(SECTIONS)) {
-    const option = document.createElement("option");
-    option.value = `/settings/${id}`;
-    option.textContent = definition.label;
-    select.append(option);
+
+  for (const group of SECTION_GROUPS) {
+    const groupOptgroup = document.createElement("optgroup");
+    groupOptgroup.label = group.label;
+    for (const sectionId of group.sections) {
+      const definition = SECTIONS[sectionId];
+      const option = document.createElement("option");
+      option.value = `/settings/${sectionId}`;
+      option.textContent = definition.label;
+      groupOptgroup.append(option);
+    }
+    select.append(groupOptgroup);
   }
 }
 
@@ -206,31 +388,46 @@ function renderSettingsOverview() {
   const list = document.querySelector("#settingsOverviewList");
   if (!list) return;
   list.replaceChildren();
-  for (const [id, definition] of Object.entries(SECTIONS)) {
-    const row = document.createElement("button");
-    row.type = "button";
-    row.className = "settings-link-row";
-    row.dataset.settingsPath = `/settings/${id}`;
-    const title = document.createElement("strong");
-    title.textContent = definition.label;
-    const description = document.createElement("span");
-    description.textContent = definition.description;
-    row.append(title, description);
-    list.append(row);
+
+  for (const group of SECTION_GROUPS) {
+    const groupContainer = document.createElement("div");
+    groupContainer.className = "settings-group-section";
+    const groupHeading = document.createElement("h3");
+    groupHeading.className = "settings-group-heading";
+    groupHeading.textContent = group.label;
+    groupContainer.append(groupHeading);
+
+    const itemsContainer = document.createElement("div");
+    itemsContainer.className = "settings-group-items";
+    for (const sectionId of group.sections) {
+      const definition = SECTIONS[sectionId];
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "settings-link-row";
+      row.dataset.settingsPath = `/settings/${sectionId}`;
+      const title = document.createElement("strong");
+      title.textContent = definition.label;
+      const description = document.createElement("span");
+      description.textContent = definition.description;
+      row.append(title, description);
+      itemsContainer.append(row);
+    }
+    groupContainer.append(itemsContainer);
+    list.append(groupContainer);
   }
 }
 
-function prepareAdvancedDisclosures() {
+function prepareToolsDisclosures() {
   const labels = {
-    "tools-repairs": ["Database repairs", "Correct damaged or duplicated local history records."],
-    "tools-sync": ["Library rebuilds and backfills", "Reprocess local metadata or push the complete archive to connected services."],
+    "tools-repairs": ["Database Repairs", "Correct damaged or duplicated local history records."],
+    "tools-sync": ["Library Rebuilds and Backfills", "Reprocess local metadata or push the complete archive to connected services."],
   };
   for (const [name, copy] of Object.entries(labels)) {
     const row = document.querySelector(`[data-sub-panel="${name}"]`);
-    if (!row || row.closest(".settings-advanced-disclosure")) continue;
+    if (!row || row.closest(".settings-disclosure")) continue;
     const details = document.createElement("details");
-    details.className = "settings-advanced-disclosure";
-    details.dataset.settingsAdvanced = name;
+    details.className = "settings-disclosure";
+    details.dataset.settingsDisclosure = name;
     const summary = document.createElement("summary");
     summary.innerHTML = `<span><strong>${copy[0]}</strong><small>${copy[1]}</small></span><span aria-hidden="true">+</span>`;
     row.before(details);
@@ -242,35 +439,57 @@ export function prepareSettingsShell() {
   renderSettingsSidebar();
   renderSettingsSectionSelect();
   renderSettingsOverview();
-  prepareAdvancedDisclosures();
+  prepareToolsDisclosures();
 }
 
 export function applySettingsRoute(route) {
   document.querySelector("#settingsOverview")?.classList.toggle("hidden", route.kind !== "overview");
   document.querySelectorAll("[data-settings-panel]").forEach((panel) => panel.classList.add("hidden"));
   document.querySelectorAll("[data-sub-panel]").forEach((panel) => panel.classList.add("hidden"));
-  document.querySelectorAll("[data-settings-advanced]").forEach((panel) => panel.classList.add("hidden"));
+  document.querySelectorAll("[data-settings-disclosure]").forEach((panel) => {
+    panel.classList.add("hidden");
+    panel.open = false;
+  });
 
   if (route.kind === "task") {
-    const panels = [...document.querySelectorAll(`[data-settings-panel="${route.panel}"]`)];
-    for (const panel of panels) panel.classList.remove("hidden");
-    if (route.subPanels?.length) {
-      for (const name of route.subPanels) {
+    // A route may aggregate multiple views (a parent group's page shows every
+    // child section's panel together), so reveal each one in turn.
+    const views = route.views?.length ? route.views : [{ panel: route.panel, subPanels: route.subPanels, backupTab: route.backupTab }];
+    const requestedBackupTabs = new Set();
+    for (const view of views) {
+      if (!view.panel) continue;
+      const panels = [...document.querySelectorAll(`[data-settings-panel="${view.panel}"]`)];
+      for (const panel of panels) panel.classList.remove("hidden");
+      for (const name of view.subPanels || []) {
         document.querySelector(`[data-sub-panel="${name}"]`)?.classList.remove("hidden");
-        document.querySelector(`[data-settings-advanced="${name}"]`)?.classList.remove("hidden");
+        const disclosure = document.querySelector(`[data-settings-disclosure="${name}"]`);
+        if (disclosure) {
+          disclosure.classList.remove("hidden");
+          disclosure.open = true;
+        }
       }
+      if (view.panel === "backups" && view.backupTab) requestedBackupTabs.add(view.backupTab);
     }
-    if (route.panel === "backups") {
-      for (const panel of panels) panel.classList.toggle("hidden", panel.dataset.backupsPanel !== route.backupTab);
+    if (requestedBackupTabs.size) {
+      document.querySelectorAll('[data-settings-panel="backups"]').forEach((panel) => {
+        panel.classList.toggle("hidden", !requestedBackupTabs.has(panel.dataset.backupsPanel));
+      });
     }
   }
 
+  // Handle parent/child active states
+  document.querySelectorAll("[data-settings-group-parent]").forEach((button) => {
+    const active = route.group === button.dataset.settingsGroupParent;
+    button.classList.toggle("active", active);
+  });
+
   document.querySelectorAll("[data-settings-group]").forEach((button) => {
-    const active = route.group === button.dataset.settingsGroup;
+    const active = route.section === button.dataset.settingsGroup;
     button.classList.toggle("active", active);
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
   });
+
   const select = document.querySelector("#settingsSectionSelect");
   if (select) select.value = route.kind === "overview" ? "/settings" : route.path;
   return route;
@@ -284,4 +503,27 @@ export function focusSettingsRoute(route) {
   if (!target) return;
   if (!target.matches("button, a, input, select, textarea")) target.setAttribute("tabindex", "-1");
   target.focus({ preventScroll: true });
+}
+
+// Resolves a section id to the DOM element that represents it on an
+// aggregated parent page, so the sidebar can scroll a specific child section
+// into view instead of only landing at the top of the group's page.
+function settingsSectionElement(sectionId) {
+  const definition = SECTIONS[sectionId];
+  if (!definition) return null;
+  const view = definition.views?.[0] || { panel: definition.panel, subPanels: definition.subPanels, backupTab: definition.backupTab };
+  if (!view.panel) return null;
+  if (view.subPanels?.length) {
+    const name = view.subPanels[0];
+    // Prefer the <details> disclosure wrapper (it includes the section's own
+    // heading) over the bare row it wraps, so scrolling doesn't crop the title.
+    return document.querySelector(`[data-settings-disclosure="${name}"]`) || document.querySelector(`[data-sub-panel="${name}"]`);
+  }
+  if (view.backupTab) return document.querySelector(`[data-settings-panel="${view.panel}"][data-backups-panel="${view.backupTab}"]`);
+  return document.querySelector(`[data-settings-panel="${view.panel}"]`);
+}
+
+export function scrollToSettingsSection(sectionId) {
+  const target = settingsSectionElement(sectionId);
+  target?.scrollIntoView({ behavior: "smooth", block: "start" });
 }

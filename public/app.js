@@ -1,6 +1,6 @@
 import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./modules/logs.js";
-import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, settingsPathForLegacy } from "./modules/settings-shell.js";
+import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, scrollToSettingsSection, settingsPathForLegacy } from "./modules/settings-shell.js";
 import { initSettingsServices, applyConfigToSettingsUi, refreshSeerrCapabilities, renderMediaServerCards, renderMetadataCards } from "./modules/settings-services.js";
 import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS } from "./modules/state.js";
 import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSlug, movieHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./modules/utils.js";
@@ -1124,19 +1124,23 @@ function clearSearchInputs() {
 function navigateTo(url) {
   const currentUrl = window.location.pathname + window.location.hash;
   const settingsRouteChanged = url.startsWith("/settings") && currentUrl.split("#")[0] !== url.split("#")[0];
+  const settingsScrollTarget = url.startsWith("/settings") ? (url.split("#")[1] || "") : "";
   if (currentUrl !== url) {
     const nextIndex = (history.state?.index || 0) + 1;
     history.pushState({ index: nextIndex }, "", url);
     state.internalHistoryCount = nextIndex;
     const pathnameBefore = currentUrl.split('#')[0];
     const pathnameAfter = url.split('#')[0];
-    if (pathnameBefore !== pathnameAfter) {
-      window.scrollTo({ top: 0, behavior: "instant" });
+    // The app's real scroll viewport is .page-shell (overflow-y: auto), not
+    // the window/body, so resetting scroll on navigation has to target it.
+    if (pathnameBefore !== pathnameAfter && !settingsScrollTarget) {
+      document.querySelector(".page-shell")?.scrollTo({ top: 0, behavior: "instant" });
     }
   }
   handleRouting(url);
   applyActiveView();
   if (settingsRouteChanged) requestAnimationFrame(() => focusSettingsRoute(state.activeSettingsRoute));
+  if (settingsScrollTarget) requestAnimationFrame(() => scrollToSettingsSection(settingsScrollTarget));
 }
 
 function selectView(view) {
@@ -1416,15 +1420,19 @@ function applyActiveView() {
     state.activeSettingsTab = route.group;
     localStorage.setItem(ACTIVE_SETTINGS_TAB_KEY, route.group);
     applySettingsRoute(route);
-    if (route.panel === "apps") renderMediaServerCards();
-    if (route.panel === "api-keys") renderMetadataCards();
-    if (route.panel === "sync") {
+    // A route can aggregate several panels at once (a parent group's page),
+    // so gate each panel's loader on whether it appears anywhere in the
+    // route's views, not just the primary/first one.
+    const routePanels = new Set((route.views?.length ? route.views : [{ panel: route.panel }]).map((view) => view.panel));
+    if (routePanels.has("apps")) renderMediaServerCards();
+    if (routePanels.has("api-keys")) renderMetadataCards();
+    if (routePanels.has("sync")) {
       renderSyncJobs();
       renderSyncHistory();
       loadSyncJobs().catch((error) => setMessage(error.message, "error"));
       loadSyncHistory().catch((error) => setMessage(error.message, "error"));
     }
-    if (route.panel === "backups") {
+    if (routePanels.has("backups")) {
       state.activeBackupsTab = route.backupTab || "settings";
       renderWatchBackups();
       loadWatchBackups().catch((error) => setMessage(error.message, "error"));
@@ -1434,9 +1442,9 @@ function applyActiveView() {
         loadRemoteBackupsForRestoreTab().catch((error) => setMessage(error.message, "error"));
       }
     }
-    if (route.panel === "logs") renderLogs().catch(() => { });
-    if (route.panel === "changelog") renderChangelog().catch(() => { });
-    if (route.panel === "cache") {
+    if (routePanels.has("logs")) renderLogs().catch(() => { });
+    if (routePanels.has("changelog")) renderChangelog().catch(() => { });
+    if (routePanels.has("cache")) {
       renderCachePanel();
       if (!state.cacheStats && !state.cacheStatsLoading) loadCacheStats().catch((error) => setMessage(error.message, "error"));
     }

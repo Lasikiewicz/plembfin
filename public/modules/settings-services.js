@@ -6,7 +6,7 @@
 // sent when non-empty).
 import { state } from "./state.js";
 import { buildAuthHeaders } from "./auth.js";
-import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid } from "./settings-ui.js";
+import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues } from "./settings-ui.js";
 import {
   plexCredentialGuide,
   embyCredentialGuide,
@@ -216,28 +216,36 @@ function syncTuningPayload(values = {}) {
   return payload;
 }
 
-export function openSyncTuningEditModal() {
-  const tuning = state.savedConfig?.tuning || {};
-  openSettingsEditModal({
-    title: "Sync Tuning",
-    fields: syncTuningFieldSpecs(tuning),
-    onSave: (values) => saveServiceConfig("tuning", syncTuningPayload(values)),
-    helpHtml: `<p class="tool-accordion-desc">Leave any field blank to use its default (or the matching environment variable, if the server has one set).</p>`,
-  });
-}
-
+// Renders the sync tuning fields directly into the page (no edit modal) and
+// wires the form's submit handler to save them in place.
 export function renderSyncTuningCard() {
-  const container = document.querySelector("#syncTuningCard");
-  if (!container) return;
+  const fieldsContainer = document.querySelector("#syncTuningFields");
+  const form = document.querySelector("#syncTuningForm");
+  if (!fieldsContainer || !form) return;
   const tuning = state.savedConfig?.tuning || {};
-  renderServiceCardGrid(container, {
-    items: [{
-      id: "tuning",
-      name: "Sync Tuning",
-      description: "Watched threshold, resume position, session TTL, and outbound timeout",
-      badges: tuningBadges(tuning),
-    }],
-    onSelect: () => openSyncTuningEditModal(),
+  fieldsContainer.innerHTML = syncTuningFieldSpecs(tuning).map(renderFieldRow).join("");
+
+  if (form.dataset.bound) return;
+  form.dataset.bound = "true";
+  const statusEl = document.querySelector("#syncTuningStatus");
+  const setStatus = (text, tone = "muted") => {
+    if (!statusEl) return;
+    statusEl.textContent = text || "";
+    statusEl.className = `message ${tone}`;
+  };
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const saveButton = document.querySelector("#saveSyncTuningButton");
+    if (saveButton) saveButton.disabled = true;
+    setStatus("Saving...", "muted");
+    try {
+      await saveServiceConfig("tuning", syncTuningPayload(collectFieldValues(fieldsContainer)));
+      setStatus("Saved.", "success");
+    } catch (error) {
+      setStatus(error?.message || "Save failed.", "error");
+    } finally {
+      if (saveButton) saveButton.disabled = false;
+    }
   });
 }
 

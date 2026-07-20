@@ -90,7 +90,7 @@
 }
 
 .settings-help-disclosure > summary:focus-visible,
-.settings-advanced-disclosure > summary:focus-visible {
+.settings-disclosure > summary:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
@@ -149,13 +149,13 @@
 }
 
 .settings-help-disclosure,
-.settings-advanced-disclosure {
+.settings-disclosure {
   border-block: 1px solid var(--line);
   background: transparent;
 }
 
 .settings-help-disclosure > summary,
-.settings-advanced-disclosure > summary {
+.settings-disclosure > summary {
   min-height: 2.75rem;
   padding: var(--space-3) 0;
   color: var(--soft);
@@ -183,14 +183,15 @@
   display: none;
 }
 
-.settings-advanced-disclosure {
+.settings-disclosure {
   margin-bottom: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel-2);
+  scroll-margin-top: calc(var(--right-topbar-height) + var(--space-3));
 }
 
-.settings-advanced-disclosure > summary {
+.settings-disclosure > summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -199,32 +200,32 @@
   list-style: none;
 }
 
-.settings-advanced-disclosure > summary::-webkit-details-marker {
+.settings-disclosure > summary::-webkit-details-marker {
   display: none;
 }
 
-.settings-advanced-disclosure > summary > span:first-child {
+.settings-disclosure > summary > span:first-child {
   display: grid;
   gap: var(--space-1);
 }
 
-.settings-advanced-disclosure > summary strong {
+.settings-disclosure > summary strong {
   color: var(--text);
   font-size: 0.88rem;
 }
 
-.settings-advanced-disclosure > summary small {
+.settings-disclosure > summary small {
   color: var(--muted);
   font-size: 0.76rem;
   font-weight: 500;
   line-height: 1.45;
 }
 
-.settings-advanced-disclosure[open] > summary > span:last-child {
+.settings-disclosure[open] > summary > span:last-child {
   transform: rotate(45deg);
 }
 
-.settings-advanced-disclosure .settings-row {
+.settings-disclosure .settings-row {
   padding: 0 var(--space-4) var(--space-4);
 }
 
@@ -236,7 +237,7 @@ html.light-mode .settings-pane .settings-card,
 html.light-mode .settings-pane .sync-panel,
 html.light-mode .settings-pane .logs-panel,
 html.light-mode .settings-pane .backup-settings-panel,
-html.light-mode .settings-advanced-disclosure {
+html.light-mode .settings-disclosure {
   background: var(--panel);
 }
 
@@ -280,7 +281,7 @@ html.light-mode .settings-advanced-disclosure {
 
 @media (pointer: coarse) {
   .settings-help-disclosure > summary,
-  .settings-advanced-disclosure > summary {
+  .settings-disclosure > summary {
     min-height: 2.75rem;
   }
 }
@@ -3841,6 +3842,18 @@ details[open] .tool-accordion-chevron::before {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
+}
+
+.sync-tuning-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+  .sync-tuning-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 .endpoint-box,
@@ -8345,6 +8358,36 @@ h1 {
     font-size: 0.7rem;
   }
 
+  /* Hierarchical settings menu */
+  .sidebar-sub-menu .settings-group-parent {
+    padding-left: 0.75rem;
+    font-weight: 700;
+    opacity: 0.9;
+    min-height: auto;
+    padding-top: 0.3rem;
+    padding-bottom: 0.3rem;
+    margin-top: 0.3rem;
+  }
+
+  .sidebar-sub-menu .settings-group-parent.active {
+    border-left-color: #e5a00d;
+  }
+
+  .sidebar-sub-menu .settings-group-child {
+    padding-left: 2.5rem !important;
+    font-weight: 500;
+    opacity: 0.8;
+    font-size: 0.8rem;
+    min-height: auto;
+    padding-top: 0.28rem;
+    padding-bottom: 0.28rem;
+  }
+
+  .sidebar-sub-menu .settings-group-child.active {
+    border-left-color: #e5a00d;
+    opacity: 1;
+  }
+
   .page-shell {
     grid-column: 1;
     grid-row: 2;
@@ -9282,7 +9325,7 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
 /* Sidebar Hierarchical Navigation */
 .sidebar-sub-menu {
   display: grid;
-  gap: 0.15rem;
+  gap: 0.08rem;
   padding-left: var(--space-3);
   margin-top: 0.15rem;
   margin-bottom: 0.35rem;
@@ -9292,9 +9335,9 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
 .sidebar-sub-menu .backups-sub-tab,
 .sidebar-sub-menu .help-menu-item {
   width: 100%;
-  min-height: 1.85rem;
-  font-size: 0.74rem;
-  padding: 0.35rem 0.6rem;
+  min-height: 1.4rem;
+  font-size: 0.72rem;
+  padding: 0.22rem 0.6rem;
   color: var(--muted);
   border: 1px solid transparent;
   border-radius: 4px;
@@ -9320,6 +9363,49 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
 .sidebar-sub-menu .backups-sub-tab.active,
 .sidebar-sub-menu .help-menu-item.active {
   border-color: var(--nav-active-border);
+  background: var(--nav-active-bg);
+  color: var(--nav-active-text);
+}
+
+/* Hierarchical settings menu: parent group headers vs their child sections */
+.sidebar-sub-menu .settings-group-parent {
+  font-weight: 700;
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text);
+  min-height: 1.15rem;
+  padding-top: 0.15rem;
+  padding-bottom: 0.15rem;
+  margin-top: 0.3rem;
+}
+
+.sidebar-sub-menu .settings-group-parent:first-child {
+  margin-top: 0;
+}
+
+.sidebar-sub-menu .settings-group-parent.active {
+  border-color: var(--nav-active-border);
+  background: var(--nav-active-bg);
+  color: var(--nav-active-text);
+}
+
+.sidebar-sub-menu .settings-group-child {
+  margin-left: 0.55rem;
+  padding-left: 0.65rem;
+  font-weight: 500;
+  font-size: 0.72rem;
+  color: var(--muted);
+  border-left: 2px solid var(--line);
+  border-radius: 0;
+}
+
+.sidebar-sub-menu .settings-group-child:hover {
+  border-left-color: var(--line-strong);
+}
+
+.sidebar-sub-menu .settings-group-child.active {
+  border-left-color: var(--nav-active-border);
   background: var(--nav-active-bg);
   color: var(--nav-active-text);
 }
@@ -12924,6 +13010,8 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   min-width: 0;
   max-width: 100%;
   padding-top: 0.5rem;
+  /* Keeps scrollIntoView from tucking a section under the sticky .page-topbar. */
+  scroll-margin-top: calc(var(--right-topbar-height) + var(--space-3));
 }
 
 .settings-content {
@@ -12938,6 +13026,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   width: 100%;
   min-width: 0;
   max-width: 100%;
+  scroll-margin-top: calc(var(--right-topbar-height) + var(--space-3));
 }
 
 .settings-row-main {
@@ -14201,6 +14290,35 @@ html.light-mode .upcoming-entry:hover {
   color: var(--muted);
   font-size: 0.78rem;
   line-height: 1.45;
+}
+
+/* ── Grouped settings overview ─────────────────────────────────────────── */
+.settings-group-section {
+  margin-bottom: var(--space-4);
+}
+
+.settings-group-heading {
+  margin: 0 0 var(--space-2) 0;
+  padding: var(--space-2) 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.settings-group-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-group-items .settings-link-row {
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.settings-group-items .settings-link-row:last-child {
+  border-bottom: none;
 }
 
 /* ── Sonarr-style settings: service card grid ─────────────────────────── */

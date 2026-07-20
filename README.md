@@ -159,7 +159,7 @@
 ## Full Setup & Integration Guide
 
 ### 1. Sign In & Set Admin Credentials
-Sign in with `admin` and the password you set via `ADMIN_PASSWORD`, or the random password Plembfin generated and printed to the console on first boot. If the configured admin password is the insecure default `admin`, Plembfin redirects to **Settings → Account & Security** with a security banner until the password is changed.
+Sign in with `admin` and the password you set via `ADMIN_PASSWORD`, or the random password Plembfin generated and printed to the console on first boot. If the configured admin password is the insecure default `admin`, Plembfin redirects to **Settings → Account** with a security banner until the password is changed.
 
 ### 2. Connect Your Media Apps
 Go to **Settings → Media Servers**. Select an existing card to edit it, or use the
@@ -189,14 +189,14 @@ Save and Test actions:
 
 #### TheTVDB (TV Show Episode Data)
 *   Plembfin includes a built-in project key for [TheTVDB](https://thetvdb.com) — no setup is required. TV show names, seasons, episode numbering, titles, and air dates are sourced from TheTVDB, since it is often more accurate for TV episode ordering. Cast, trailers, reviews, and recommendations are sourced from TMDB.
-*   **Personal API Key (optional)**: Register at thetvdb.com (Dashboard → API Keys) and enter your personal key under **Settings → Metadata → TheTVDB** for your own request quota.
+*   **Personal API Key (optional)**: Register at thetvdb.com (Dashboard → API Keys) and enter your personal key under **Settings → Metadata Providers → TheTVDB** for your own request quota.
 
 #### Fanart.tv (Artwork Fallback)
 *   Plembfin includes a built-in project key for [Fanart.tv](https://fanart.tv) — no setup is required. Fanart.tv is queried after TMDB as a fallback/additional source for posters, backdrops, and transparent logo art.
-*   **Personal API Key (optional)**: Register at fanart.tv and enter your personal key under **Settings → Metadata → Fanart.tv** to get higher rate limits and access to your own uploaded artwork.
+*   **Personal API Key (optional)**: Register at fanart.tv and enter your personal key under **Settings → Metadata Providers → Fanart.tv** to get higher rate limits and access to your own uploaded artwork.
 
 #### OMDb (IMDb Ratings)
-*   **Optional**: Register for a free API key at [omdbapi.com](https://www.omdbapi.com/apikey.aspx) (1,000 req/day free tier) and paste it under **Settings → Metadata → OMDb**.
+*   **Optional**: Register for a free API key at [omdbapi.com](https://www.omdbapi.com/apikey.aspx) (1,000 req/day free tier) and paste it under **Settings → Metadata Providers → OMDb**.
 *   When configured, IMDb ratings appear as a rating badge (e.g. **IMDb 85%**) next to the TMDB score on media detail pages. If no OMDb key is configured, IMDb rating badges are hidden. Ratings are cached locally for 7 days. Can also be set via the `OMDB_API_KEY` environment variable.
 
 #### Seerr (Request Manager)
@@ -209,7 +209,7 @@ Save and Test actions:
 *   The browser also remembers the last known availability and open-in-app links for each title, so detail pages show availability badges and app buttons instantly on open and refresh them silently in the background when anything changed.
 
 #### Sync Tuning and Match Diagnostics
-*   **Settings → Sync → Sync Tuning** controls the watched threshold, minimum resume position, active-session TTL, and default outbound timeout. Blank fields inherit their environment variable or built-in default.
+*   **Settings → General → Sync Tuning** controls the watched threshold, minimum resume position, active-session TTL, and default outbound timeout. Blank fields inherit their environment variable or built-in default.
 *   **Settings → Sync → Sync Issues** includes a Cross-Platform Match Report showing which media each target library could not match, with unique-media counts and representative samples for Plex, Emby, and Jellyfin.
 
 ---
@@ -261,7 +261,7 @@ Plembfin runs automated daily backups at a customizable time.
 
 *   **Local Watch History Backups**: Capture watch history snapshots, playstates, and resume markers. Saved to `data/backups/watch-history`.
 *   **Local Plembfin Backups**: Create full, AES-256-GCM encrypted database backups (including settings, API keys, credentials, and play history, excluding cache). Manual backups can use a one-time passphrase; scheduled backups require a remembered passphrase. Saved to `data/backups/plembfin`.
-*   **Remote Backups**: Mirror local watch-history and full encrypted Plembfin backups to one or more private Backblaze B2 destinations under **Settings → Backups**. Select a destination card to edit/test it, or use **+** to add one.
+*   **Remote Backups**: Mirror local watch-history and full encrypted Plembfin backups to one or more private Backblaze B2 destinations under **Settings → Backup**. Select a destination card to edit/test it, or use **+** to add one.
 
 ---
 
@@ -270,7 +270,7 @@ Plembfin runs automated daily backups at a customizable time.
 ### Trakt Watch History Import
 1. Download a JSON watch history export of your Trakt profile.
 2. Go to **Settings → Import**, upload the JSON, and start the import.
-3. Once completed, use **Settings → Advanced → Library rebuilds and backfills → Full Sync Watchstates** to propagate the Trakt watch history to all connected Plex, Emby, and Jellyfin servers.
+3. Once completed, use **Settings → Tools → Library Rebuilds and Backfills → Full Sync Watchstates** to propagate the Trakt watch history to all connected Plex, Emby, and Jellyfin servers.
 
 ---
 
@@ -292,7 +292,7 @@ The following environment variables can be set in your system or defined in `doc
 | `TVDB_API_KEY` | _none_ | Optional personal TheTVDB API key for a higher personal rate limit. A built-in project key is used when this is unset. |
 | `TVDB_PROJECT_KEY` | _built-in_ | Advanced: replaces the built-in shared TheTVDB project key. Only needed if the built-in key is revoked or exhausted. |
 | `FANART_PROJECT_KEY` | _built-in_ | Advanced: replaces the built-in shared Fanart.tv project key. Only needed if the built-in key is revoked or exhausted. |
-| `TMDB_API_KEY` | _none_ | Default TMDB API key (Settings → Metadata takes precedence). |
+| `TMDB_API_KEY` | _none_ | Default TMDB API key (Settings → Metadata Providers takes precedence). |
 | `YOUTUBE_API_KEY` | _none_ | Optional YouTube Data API key for trailer metadata (Settings takes precedence). |
 | `OMDB_API_KEY` | _none_ | Optional OMDb API key. When set, IMDb ratings are fetched and displayed as a rating badge on media detail pages. Free tier: 1,000 req/day. |
 | `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` / `PLEX_ENABLED` | _none_ | Default Plex connection values. Anything saved in Settings → Media Servers takes precedence. |
@@ -300,7 +300,7 @@ The following environment variables can be set in your system or defined in `doc
 | `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` | _none_ | Default Jellyfin connection values (Settings takes precedence). |
 | `WATCHED_PLAYED_SYNC_ENABLED` | `true` | Set to `false` to disable all watched/played propagation between platforms (watch recording still happens). |
 | `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | The frequency (in milliseconds) of database-heavy catch-up library scans on Plex/Emby/Jellyfin. |
-| `WATCHED_THRESHOLD_PERCENT` | `90` | Playback percentage that counts as watched (50–100). Settings → Sync → Sync Tuning takes precedence. |
+| `WATCHED_THRESHOLD_PERCENT` | `90` | Playback percentage that counts as watched (50–100). Settings → General → Sync Tuning takes precedence. |
 | `MIN_RESUME_POSITION_SEC` | `60` | Minimum stopped-play position saved and propagated as resume progress (0–3600 seconds). Settings takes precedence. |
 | `ACTIVE_SESSION_TTL_MIN` | `5` | Time without a webhook update before an active session is stale (1–120 minutes). Settings takes precedence. |
 | `OUTBOUND_TIMEOUT_SEC` | `10` | Default timeout for media-server outbound requests (2–120 seconds). Explicit per-call timeouts still take precedence. |
