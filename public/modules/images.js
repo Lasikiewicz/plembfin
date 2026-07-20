@@ -23,7 +23,22 @@ export function compactPosterUrl(value) {
   if (isCachedStorageImageUrl(raw)) return raw;
   const url = safeImageUrl(raw);
   if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" || parsed.hostname.toLowerCase() !== "image.tmdb.org") return "";
+  } catch (error) {
+    return "";
+  }
   return url.replace(/(https:\/\/image\.tmdb\.org\/t\/p\/)original\//i, `$1${TMDB_POSTER_SIZE}/`);
+}
+
+// Poster responses are untrusted data. Keep the DOM image sink limited to
+// local cached media and TMDB artwork, which are the only sources this module
+// is expected to hydrate.
+export function safePosterElementUrl(value) {
+  const raw = String(value || "").trim();
+  if (isCachedStorageImageUrl(raw)) return raw;
+  return compactPosterUrl(raw);
 }
 
 function persistentPosterCacheKey() {
@@ -266,12 +281,13 @@ export async function hydratePosterFallbacks(container = document.body) {
     if (!posterId || state.posterLookupCache.has(posterId)) return;
 
     const posterUrl = await lookupPosterUrl(posterId);
-    if (!posterUrl || !fallback.isConnected || !fallback.classList.contains("poster-fallback")) return;
+    const safeUrl = safePosterElementUrl(posterUrl);
+    if (!safeUrl || !fallback.isConnected || !fallback.classList.contains("poster-fallback")) return;
 
     const image = document.createElement("img");
     image.className = fallback.className.replace(/\bposter-fallback\b/g, "").trim() || fallback.className;
     bindPosterImageErrorHandler(image);
-    image.src = posterUrl;
+    image.src = safeUrl;
     image.alt = `${fallback.getAttribute("aria-label") || "Media poster"}`;
     image.loading = "lazy";
     image.decoding = "async";
@@ -303,8 +319,9 @@ export function bindPosterImageErrorHandler(image) {
     image.dataset.posterFallbackAttempted = "1";
     const brokenUrl = image.currentSrc || image.src;
     const fallbackUrl = await lookupPosterUrl(posterId, { fallback: true });
-    if (fallbackUrl && fallbackUrl !== brokenUrl && image.isConnected) {
-      image.src = fallbackUrl;
+    const safeFallbackUrl = safePosterElementUrl(fallbackUrl);
+    if (safeFallbackUrl && safeFallbackUrl !== brokenUrl && image.isConnected) {
+      image.src = safeFallbackUrl;
       return;
     }
 

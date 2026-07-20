@@ -116,19 +116,16 @@ function logSecuritySummary() {
     for (const w of warnings) console.warn(`   • ${w}`);
   }
   if (generated.length > 0) {
-    console.log(`[security] Auto-generated secrets: ${generated.join(", ")} (persisted in data/config.json)`);
+    console.log("[security] Auto-generated secrets are persisted in data/config.json.");
   }
   if (pinned.length > 0) {
-    console.log(`[security] Pinned secrets from env: ${pinned.join(", ")}`);
+    console.log("[security] Pinned secrets were loaded from the environment.");
   }
   if (config.authManagedInApp && (process.env.ADMIN_USERNAME || process.env.ADMIN_PASSWORD)) {
     console.warn("[security] Admin credentials are managed in-app; ADMIN_USERNAME/ADMIN_PASSWORD environment variables are ignored (remove authManagedInApp from data/config.json to restore env control).");
   }
   if (generatedInitialPassword) {
-    console.warn("⚠️  Generated initial admin credentials (shown once — this password is not stored anywhere in plaintext):");
-    console.warn(`   • Username: ${config.username}`);
-    console.warn(`   • Password: ${generatedInitialPassword}`);
-    console.warn("   Change this immediately in Settings → General.");
+    console.warn("⚠️  An initial admin password was generated. Set ADMIN_PASSWORD before first start or use the in-app recovery flow.");
   }
 }
 

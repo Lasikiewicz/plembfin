@@ -1,7 +1,7 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconUrl, computeProgress } from "./utils.js";
-import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, tmdbPoster } from "./images.js";
+import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, tmdbPoster } from "./images.js";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
 const EXPLORER_PAGE_SIZE = 240;
@@ -279,12 +279,13 @@ export function observeDashboardPosters() {
         if (!posterId || state.posterLookupCache.has(posterId)) return;
 
         const posterUrl = await lookupPosterUrl(posterId);
-        if (!posterUrl || !fallback.isConnected || !fallback.classList.contains("poster-fallback")) return;
+        const safeUrl = safePosterElementUrl(posterUrl);
+        if (!safeUrl || !fallback.isConnected || !fallback.classList.contains("poster-fallback")) return;
 
         const image = document.createElement("img");
         image.className = fallback.className.replace(/\bposter-fallback\b/g, "").trim() || fallback.className;
         bindPosterImageErrorHandler(image);
-        image.src = posterUrl;
+        image.src = safeUrl;
         image.alt = `${fallback.getAttribute("aria-label") || "Media poster"}`;
         image.loading = "lazy";
         image.decoding = "async";
