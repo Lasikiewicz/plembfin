@@ -1,7 +1,17 @@
 {
-  "version": "0.5.6",
-  "updatedAt": "2026-07-20T15:33:38+01:00",
+  "version": "0.5.7",
+  "updatedAt": "2026-07-20T16:39:46+01:00",
   "entries": [
+    {
+      "version": "0.5.7",
+      "date": "2026-07-20T16:39:46+01:00",
+      "commit": "491dfa72d60e148db577752de368fc84a3b3de7f",
+      "message": "Refactor Settings UI: unify section sub-card styling, update Metadata and Tools hierarchy, and enhance page scroll behavior",
+      "author": "Lasikiewicz",
+      "details": [
+        "Refactor Settings UI: unify section sub-card styling, update Metadata and Tools hierarchy, and enhance page scroll behavior"
+      ]
+    },
     {
       "version": "0.5.6",
       "date": "2026-07-20T15:33:38+01:00",
