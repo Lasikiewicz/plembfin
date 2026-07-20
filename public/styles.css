@@ -14308,16 +14308,96 @@ html.light-mode .upcoming-entry:hover {
     white-space: normal !important;
   }
 
-  /* Align settings action buttons (Save / Test buttons) with the input fields on the right side */
+  /* Anchor settings action buttons (Save / Test buttons) to the bottom-right of the box */
   .settings-pane .settings-actions {
-    padding-left: 240px !important;
-    margin-left: 1.5rem !important;
-    justify-content: flex-start !important;
     display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
     gap: var(--space-2) !important;
     width: 100% !important;
+    margin-top: var(--space-4) !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
   }
 }
+
+/* ── Accordion toggle & chevron styling ────────────────────────────── */
+summary::-webkit-details-marker {
+  display: none !important;
+}
+summary {
+  list-style: none !important;
+}
+
+.accordion-header {
+  user-select: none;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.accordion-header:hover {
+  opacity: 0.9;
+}
+
+.accordion-chevron {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  color: var(--muted);
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.accordion-header:hover .accordion-chevron,
+details summary:hover .accordion-chevron {
+  color: var(--text);
+}
+
+details[open] > summary .accordion-chevron,
+.accordion-header.open .accordion-chevron,
+button[aria-expanded="true"] .accordion-chevron {
+  transform: rotate(90deg);
+}
+
+/* Sub-card styling for accordions inside settings sections (Sync Issues, Match Report) */
+details.issue-category,
+details.sync-match-report {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: var(--radius) !important;
+  padding: 0 !important;
+  margin-bottom: var(--space-3) !important;
+  overflow: hidden !important;
+}
+
+details.issue-category > summary,
+details.sync-match-report > summary {
+  padding: var(--space-3) var(--space-4) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+details.issue-category > summary:hover,
+details.sync-match-report > summary:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+
+/* Ensure details cards (issue-category, sync-match-report) match main glass-panel card styling without bloated container padding */
+details.settings-card,
+details.tool-section-card,
+details.issue-category,
+details.sync-match-report {
+  padding: 0 !important;
+}
+
+details.settings-card > summary,
+details.tool-section-card > summary,
+details.issue-category > summary,
+details.sync-match-report > summary {
+  padding: var(--space-3) !important;
+}
+
+
 
 /* ── Sonarr-style settings: landing link list ─────────────────────────── */
 .settings-link-list {

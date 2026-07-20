@@ -63,7 +63,7 @@ test("parent group routes aggregate every child's panel into one view list", () 
     ["tools"],
   );
   const sync = parseSettingsRoute("/settings/sync-group");
-  assert.deepEqual(sync.subPanels, ["sync-issues", "sync-history", "sync-tools"]);
+  assert.deepEqual(sync.subPanels, ["sync-tuning", "sync-tools", "sync-issues", "sync-history"]);
 });
 
 test("legacy and invalid settings routes normalize safely", () => {

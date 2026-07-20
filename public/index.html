@@ -530,59 +530,6 @@
                   </div>
                 </div>
 
-                <!-- Sync Tuning Tab -->
-                <div class="settings-row hidden" data-sub-panel="sync-tuning">
-                  <div class="settings-row-main">
-                    <section class="glass-panel p-section sync-panel">
-                      <div class="section-heading">
-                        <div>
-                          <p>Sync Tuning</p>
-                          <span>Watched threshold, resume position, session TTL, and outbound timeout. Leave a field blank to use its default.</span>
-                        </div>
-                      </div>
-                      <form id="syncTuningForm" class="admin-credentials-form">
-                        <div id="syncTuningFields" class="sync-tuning-fields"></div>
-                        <p id="syncTuningStatus" class="message" role="status" aria-live="polite"></p>
-                        <div class="settings-actions">
-                          <button id="saveSyncTuningButton" class="button-primary" type="submit">Save Sync Tuning</button>
-                        </div>
-                      </form>
-                    </section>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Sync Tuning Help</p>
-                        <span>Understanding the Defaults</span>
-                      </div>
-
-                      <div style="margin-bottom: var(--space-3);">
-                        <b style="display: block; margin-bottom: var(--space-1);">What This Controls</b>
-                        <p class="tool-accordion-desc" style="margin: 0;">
-                          These four values drive the heuristics behind watched-state detection and outbound sync. Every field is optional — leaving a field blank keeps the built-in default (or a matching environment variable, if one is set on the server).
-                        </p>
-                      </div>
-
-                      <div>
-                        <b style="display: block; margin-bottom: var(--space-1);">Fields</b>
-                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
-                          <b>Watched Threshold:</b> playback progress percentage at which a play counts as watched. Default 90%.
-                        </p>
-                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
-                          <b>Minimum Resume Position:</b> playback position, in seconds, below which a stopped play is too short to save as a resume point. Default 60s.
-                        </p>
-                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
-                          <b>Active Session TTL:</b> how long a "now playing" session is kept without an update before it's considered stale. Default 5 minutes.
-                        </p>
-                        <p class="tool-accordion-desc" style="margin: 0;">
-                          <b>Outbound Request Timeout:</b> how long Plembfin waits for a response from Plex, Emby, or Jellyfin before giving up. Default 10 seconds.
-                        </p>
-                      </div>
-                    </article>
-                  </div>
-                </div>
-
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="apps">
@@ -679,9 +626,10 @@
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="api-keys">
-                <div class="settings-row">
+                <!-- Sub-panel 1: Metadata Providers -->
+                <div class="settings-row hidden" data-sub-panel="metadata-providers">
                   <div class="settings-row-main">
-                    <section class="glass-panel p-section settings-card">
+                    <section id="metadata-providers" class="glass-panel p-section settings-card">
                       <div class="section-heading">
                         <div>
                           <p>Metadata Providers</p>
@@ -698,6 +646,66 @@
                         <span>Artwork and enrichment</span>
                       </div>
                       <p class="tool-accordion-desc">TMDB powers artwork, search, cast, trailers, and detail pages. The optional providers add TV episode data, fallback artwork, IMDb ratings, or trailer details.</p>
+                    </article>
+                  </div>
+                </div>
+
+                <!-- Sub-panel 2: Refresh Metadata -->
+                <div class="settings-row hidden" data-sub-panel="refresh-metadata">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading">
+                        <p style="margin: 0;">Refresh Metadata</p>
+                      </div>
+
+                      <div id="refreshMetadataContent" style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
+                        <!-- Inner Box 1: TMDB -->
+                        <div id="refresh-tmdb-metadata" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
+                          <div class="tool-item-row">
+                            <div class="tool-item-meta">
+                              <div class="tool-item-title-desc">
+                                <b>Refresh All TMDB Metadata</b>
+                                <span>Pre-cache trailers, posters, cast, and summaries locally</span>
+                              </div>
+                              <span id="refreshMetadataStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <button id="refreshMetadataButton" class="button-primary" style="align-self: flex-start;" type="button">Refresh Metadata Now</button>
+                            <div id="refreshMetadataLog" class="import-terminal compact-terminal hidden">Refresh log will appear here.</div>
+                          </div>
+                        </div>
+
+                        <!-- Inner Box 2: TVDB -->
+                        <div id="refresh-tvdb-metadata" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
+                          <div class="tool-item-row">
+                            <div class="tool-item-meta">
+                              <div class="tool-item-title-desc">
+                                <b>Refresh All TVDB Metadata</b>
+                                <span>Fetch season episode schedules, series details, and artwork from TVDB</span>
+                              </div>
+                              <span id="refreshTvdbStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <button id="refreshTvdbButton" class="button-primary" style="align-self: flex-start;" type="button">Refresh TVDB Metadata Now</button>
+                            <div id="refreshTvdbLog" class="import-terminal compact-terminal hidden">Refresh log will appear here.</div>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading" style="margin-bottom: var(--space-2);">
+                        <p>Refresh Metadata Help</p>
+                        <span>Cache Enrichment</span>
+                      </div>
+                      <div style="margin-bottom: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Refresh All TMDB Metadata</b>
+                        <p style="margin: 0; line-height: 1.4;">Scans local history items and fetches missing trailers, posters, overview descriptions, and cast info from TMDB to keep local metadata cache up to date.</p>
+                      </div>
+                      <div>
+                        <b style="display: block; margin-bottom: 2px;">Refresh All TVDB Metadata</b>
+                        <p style="margin: 0; line-height: 1.4;">Scans local TV shows in your library, resolves TVDB series IDs, and pre-caches extended series metadata, season episode lists, and artwork from TVDB.</p>
+                      </div>
                     </article>
                   </div>
                 </div>
@@ -785,46 +793,58 @@
                 <div class="settings-row hidden" data-sub-panel="tools-repairs">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card tool-section-card">
-                      <!-- Repair Rows -->
-                      <div class="tool-item-row">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Repair History Rows</b>
-                            <span>Correct mislabelled media types and fetch missing posters</span>
-                          </div>
-                          <span id="repairStatus" class="status-pill status-muted">Idle</span>
-                        </div>
-                        <button id="runRepairButton" class="button-primary" style="align-self: flex-start;" type="button">Repair History Now</button>
-                        <div id="repairLog" class="import-terminal compact-terminal">Repair log will appear here.</div>
+                      <div class="section-heading">
+                        <p style="margin: 0;">Database Repairs</p>
                       </div>
 
-                      <!-- Clean Duplicates -->
-                      <div class="tool-item-row" style="margin-top: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-4);">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Clean Duplicate History Rows</b>
-                            <span>Safely remove redundant scrobble events</span>
+                      <div style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
+                        <!-- Inner Box 1: Repair Rows -->
+                        <div id="repair-history-rows" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
+                          <div class="tool-item-row">
+                            <div class="tool-item-meta">
+                              <div class="tool-item-title-desc">
+                                <b>Repair History Rows</b>
+                                <span>Correct mislabelled media types and fetch missing posters</span>
+                              </div>
+                              <span id="repairStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <button id="runRepairButton" class="button-primary" style="align-self: flex-start;" type="button">Repair History Now</button>
+                            <div id="repairLog" class="import-terminal compact-terminal hidden">Repair log will appear here.</div>
                           </div>
-                          <span id="dedupHistoryStatus" class="status-pill status-muted">Idle</span>
                         </div>
-                        <button id="dedupHistoryButton" class="button-ghost" style="align-self: flex-start;" type="button">Clean Duplicates</button>
-                        <div id="dedupHistoryLog" class="import-terminal compact-terminal">Dedup log will appear here.</div>
+
+                        <!-- Inner Box 2: Clean Duplicates -->
+                        <div id="clean-duplicate-history" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
+                          <div class="tool-item-row">
+                            <div class="tool-item-meta">
+                              <div class="tool-item-title-desc">
+                                <b>Clean Duplicate History Rows</b>
+                                <span>Safely remove redundant scrobble events</span>
+                              </div>
+                              <span id="dedupHistoryStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <button id="dedupHistoryButton" class="button-ghost" style="align-self: flex-start;" type="button">Clean Duplicates</button>
+                            <div id="dedupHistoryLog" class="import-terminal compact-terminal hidden">Dedup log will appear here.</div>
+                          </div>
+                        </div>
                       </div>
                     </article>
                   </div>
 
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Integrity Help</p>
+                      <div class="section-heading" style="margin-bottom: var(--space-2);">
+                        <p>Database Repairs Help</p>
                         <span>Database Care</span>
                       </div>
-                      <p class="tool-accordion-desc">
-                        <b>Repair History Rows:</b> Fixes rows containing wrong media types (TV vs Movie) and pulls missing posters.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Clean Duplicates:</b> Runs a deduplication routine over watch entries to keep the history database clean and fast.
-                      </p>
+                      <div style="margin-bottom: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Repair History Rows</b>
+                        <p style="margin: 0; line-height: 1.4;">Corrects rows containing wrong media types (TV vs Movie) and pulls missing posters into local storage.</p>
+                      </div>
+                      <div>
+                        <b style="display: block; margin-bottom: 2px;">Clean Duplicate History Rows</b>
+                        <p style="margin: 0; line-height: 1.4;">Runs a deduplication routine over watch entries to keep the history database clean and fast.</p>
+                      </div>
                     </article>
                   </div>
                 </div>
@@ -833,85 +853,68 @@
                 <div class="settings-row hidden" data-sub-panel="tools-sync">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card tool-section-card">
-                      <!-- Full Sync -->
-                      <div class="tool-item-row">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Full Sync Watchstates</b>
-                            <span>Push your entire watched archive back to media server lists</span>
-                          </div>
-                          <span id="fullSyncStatus" class="status-pill status-muted">Idle</span>
-                        </div>
-                        <button id="fullSyncButton" class="button-ghost" style="align-self: flex-start;" type="button">Full Sync Watchstates</button>
-                        <pre id="fullSyncLog" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for restore request.</pre>
+                      <div class="section-heading">
+                        <p style="margin: 0;">Library Rebuilds and Backfills</p>
                       </div>
 
-                      <!-- Refresh TMDB -->
-                      <div class="tool-item-row" style="margin-top: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-4);">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Refresh All TMDB Metadata</b>
-                            <span>Pre-cache trailers, posters, cast, and summaries locally</span>
+                      <div style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
+                        <!-- Inner Box 1: Rematch TV Shows -->
+                        <div id="rematch-tv-shows" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
+                          <div class="tool-item-row">
+                            <div class="tool-item-meta">
+                              <div class="tool-item-title-desc">
+                                <b>Rematch All TV Shows</b>
+                                <span>Resolve each show title against TMDB and update episode IDs</span>
+                              </div>
+                              <span id="rematchTvStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <button id="rematchTvButton" class="button-ghost" style="align-self: flex-start;" type="button">Rematch TV Shows</button>
+                            <div id="rematchTvLog" class="import-terminal compact-terminal hidden">Rematch log will appear here.</div>
                           </div>
-                          <span id="refreshMetadataStatus" class="status-pill status-muted">Idle</span>
                         </div>
-                        <button id="refreshMetadataButton" class="button-primary" style="align-self: flex-start;" type="button">Refresh Metadata Now</button>
-                        <div id="refreshMetadataLog" class="import-terminal compact-terminal">Refresh log will appear here.</div>
-                      </div>
 
-                      <!-- Rematch TV Shows -->
-                      <div class="tool-item-row" style="margin-top: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-4);">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Rematch All TV Shows</b>
-                            <span>Resolve each show title against TMDB and update episode IDs</span>
+                        <!-- Inner Box 2: Backfill Trakt Imports -->
+                        <div id="backfill-trakt-imports" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
+                          <div class="tool-item-row">
+                            <div class="tool-item-meta">
+                              <div class="tool-item-title-desc">
+                                <b>Backfill Trakt Imports</b>
+                                <span>Fetch missing posters for imported Trakt events</span>
+                              </div>
+                              <span id="traktBackfillStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); max-width: 400px; margin-bottom: var(--space-3); margin-top: var(--space-2);">
+                              <label class="field-label" style="margin:0;">
+                                Batch size
+                                <input id="traktBackfillLimit" class="field" type="number" min="1" max="2000" value="500" />
+                              </label>
+                              <label class="field-label" style="margin:0;">
+                                Rate limit delay (ms)
+                                <input id="traktBackfillRate" class="field" type="number" min="50" max="5000" value="300" />
+                              </label>
+                            </div>
+                            <button id="traktBackfillButton" class="button-primary" style="align-self: flex-start;" type="button">Backfill Trakt Imports</button>
+                            <div id="traktBackfillLog" class="import-terminal compact-terminal hidden">Trakt backfill log will appear here.</div>
                           </div>
-                          <span id="rematchTvStatus" class="status-pill status-muted">Idle</span>
                         </div>
-                        <button id="rematchTvButton" class="button-ghost" style="align-self: flex-start;" type="button">Rematch TV Shows</button>
-                        <div id="rematchTvLog" class="import-terminal compact-terminal">Rematch log will appear here.</div>
-                      </div>
-
-                      <!-- Backfill Trakt -->
-                      <div class="tool-item-row" style="margin-top: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-4);">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Backfill Trakt Imports</b>
-                            <span>Fetch missing posters for imported Trakt events</span>
-                          </div>
-                          <span id="traktBackfillStatus" class="status-pill status-muted">Idle</span>
-                        </div>
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); max-width: 400px; margin-bottom: var(--space-3);">
-                          <label class="field-label" style="margin:0;">
-                            Batch size
-                            <input id="traktBackfillLimit" class="field" type="number" min="1" max="2000" value="500" />
-                          </label>
-                          <label class="field-label" style="margin:0;">
-                            Rate limit delay (ms)
-                            <input id="traktBackfillRate" class="field" type="number" min="50" max="5000" value="300" />
-                          </label>
-                        </div>
-                        <button id="traktBackfillButton" class="button-primary" style="align-self: flex-start;" type="button">Backfill Trakt Imports</button>
-                        <div id="traktBackfillLog" class="import-terminal compact-terminal">Trakt backfill log will appear here.</div>
                       </div>
                     </article>
                   </div>
 
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Sync Help</p>
-                        <span>Caching &amp; Backfills</span>
+                      <div class="section-heading" style="margin-bottom: var(--space-2);">
+                        <p>Rebuilds & Backfills Help</p>
+                        <span>Library Care</span>
                       </div>
-                      <p class="tool-accordion-desc">
-                        <b>Full Sync Watchstates:</b> Synchronizes all locally recorded watched status events back into Plex/Emby/Jellyfin active watchlists.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Refresh TMDB Metadata:</b> Forces an API fetch from TMDB to rebuild local descriptions, recommendations, and local image caches.
-                      </p>
-                      <p class="tool-accordion-desc">
-                        <b>Rematch TV Shows:</b> Re-resolves show-level TMDB and TVDB IDs from each series title, then stamps the corrected IDs onto local episode rows.
-                      </p>
+                      <div style="margin-bottom: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Rematch All TV Shows</b>
+                        <p style="margin: 0; line-height: 1.4;">Re-resolves show-level TMDB and TVDB IDs from each series title, then stamps the corrected IDs onto local episode rows.</p>
+                      </div>
+                      <div>
+                        <b style="display: block; margin-bottom: 2px;">Backfill Trakt Imports</b>
+                        <p style="margin: 0; line-height: 1.4;">Fetches missing posters and metadata for imported Trakt watch history events.</p>
+                      </div>
                     </article>
                   </div>
                 </div>
@@ -1257,114 +1260,53 @@
 
               <section class="settings-pane hidden" data-settings-panel="sync">
 
-                <!-- Sync Issues Row -->
-                <div class="settings-row" data-sub-panel="sync-issues">
+                <!-- Sync Tuning Tab -->
+                <div class="settings-row hidden" data-sub-panel="sync-tuning">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section sync-panel">
-                      <button id="syncIssuesToggle" class="section-heading sync-heading" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                          <div style="display: flex; align-items: center; gap: var(--space-2);">
-                            <p style="margin: 0;">Sync Issues</p>
-                            <span id="syncSummary" class="status-pill status-muted">Loading...</span>
-                          </div>
-                          <span id="syncIssuesToggleIcon" style="font-size: 1.2rem;">▼</span>
+                      <div class="section-heading">
+                        <div>
+                          <p>Sync Tuning</p>
+                          <span>Watched threshold, resume position, session TTL, and outbound timeout. Leave a field blank to use its default.</span>
                         </div>
-                      </button>
-                      <div id="syncIssuesContent" style="margin-top: var(--space-3);">
-                        <div id="syncIssuesContainer" aria-live="polite"></div>
-                        <details id="syncMatchReport" class="sync-match-report" style="margin-top: var(--space-3);">
-                          <summary style="cursor: pointer; padding: var(--space-2); background: rgba(0,0,0,0.1); border-radius: var(--radius-sm);">
-                            <b>Cross-Platform Match Report</b>
-                            <span style="margin-left: var(--space-2); opacity: 0.7;">Media each platform could not find during sync</span>
-                          </summary>
-                          <div id="syncMatchReportContainer" style="padding: var(--space-2); display: grid; gap: var(--space-2); overflow-x: auto;"></div>
-                        </details>
                       </div>
+                      <form id="syncTuningForm" class="admin-credentials-form">
+                        <div id="syncTuningFields" class="sync-tuning-fields"></div>
+                        <p id="syncTuningStatus" class="message" role="status" aria-live="polite"></p>
+                        <div class="settings-actions">
+                          <button id="saveSyncTuningButton" class="button-primary" type="submit">Save Sync Tuning</button>
+                        </div>
+                      </form>
                     </section>
                   </div>
 
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Sync Issues Help</p>
-                        <span>Understanding Issues</span>
+                      <div class="section-heading" style="margin-bottom: var(--space-2);">
+                        <p>Sync Tuning Help</p>
+                        <span>Understanding the Defaults</span>
                       </div>
 
-                      <div style="margin-bottom: var(--space-3);">
-                        <b style="display: block; margin-bottom: var(--space-1);">What are Sync Issues?</b>
-                        <p class="tool-accordion-desc" style="margin: 0;">
-                          This section shows any problems with propagating watched states between your media servers. Click on any issue to view detailed telemetry about what went wrong.
-                        </p>
-                      </div>
-
-                      <div style="margin-bottom: var(--space-3);">
-                        <b style="display: block; margin-bottom: var(--space-1);">Issue Categories</b>
-                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
-                          <b>Missing Dispatch Telemetry:</b> No logging data recorded. These likely synced successfully but the logs are missing. Safe to clear.
-                        </p>
-                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
-                          <b>Plex Match Issues:</b> Plex couldn't find the media item. Check Plex metadata and external IDs.
-                        </p>
-                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
-                          <b>Emby/Jellyfin Match Issues:</b> Plex found it but Emby/Jellyfin couldn't. Check their metadata and IDs.
-                        </p>
-                        <p class="tool-accordion-desc" style="margin: 0;">
-                          <b>Unresolved Sync Issues:</b> Other sync problems detected. Click to view telemetry for error details.
-                        </p>
-                      </div>
-
-                      <div id="syncIssuesHelp" style="margin-bottom: var(--space-3);"></div>
-
-                      <div>
-                        <b style="display: block; margin-bottom: var(--space-1);">How to Fix</b>
-                        <p class="tool-accordion-desc" style="margin: 0;">
-                          Click "Retry" on an issue to re-attempt the sync and see detailed error messages. Click "Fix" to manually adjust the match if the item wasn't found.
-                        </p>
-                      </div>
-                    </article>
-                  </div>
-                </div>
-
-                <!-- Sync History Row -->
-                <div class="settings-row hidden" data-sub-panel="sync-history">
-                  <div class="settings-row-main">
-                    <section class="glass-panel p-section sync-panel">
-                      <button id="syncHistoryToggle" class="section-heading sync-heading" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                          <div style="display: flex; align-items: center; gap: var(--space-2);">
-                            <p style="margin: 0;">Sync History</p>
-                            <span id="syncHistorySummary" class="status-pill status-muted">Loading...</span>
-                          </div>
-                          <span id="syncHistoryToggleIcon" style="font-size: 1.2rem;">▼</span>
-                        </div>
-                      </button>
-                      <div id="syncHistoryContent" style="margin-top: var(--space-3);">
-                        <div id="syncHistoryPanel" class="sync-history-panel" aria-live="polite"></div>
-                      </div>
-                    </section>
-                  </div>
-
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Sync History Help</p>
-                        <span>Recent Propagations</span>
-                      </div>
-
-                      <div style="margin-bottom: var(--space-3);">
-                        <b style="display: block; margin-bottom: var(--space-1);">What is Sync History?</b>
-                        <p class="tool-accordion-desc" style="margin: 0;">
-                          Recent watched-state propagation attempts. Shows source, action, timestamp, and target sync results for every automatic and manual sync.
+                      <div style="margin-bottom: var(--space-1);">
+                        <b style="display: block; margin-bottom: 2px;">What This Controls</b>
+                        <p style="margin: 0; line-height: 1.4;">
+                          These four values drive the heuristics behind watched-state detection and outbound sync. Every field is optional — leaving a field blank keeps the built-in default (or a matching environment variable, if one is set on the server).
                         </p>
                       </div>
 
                       <div>
-                        <b style="display: block; margin-bottom: var(--space-1);">How Sync Works</b>
-                        <p class="tool-accordion-desc" style="margin-bottom: var(--space-1);">
-                          When you mark something as watched (on any platform), Plembfin automatically propagates that state to your other configured servers every 60 seconds.
+                        <b style="display: block; margin-bottom: 2px;">Fields</b>
+                        <p style="margin-bottom: 4px; line-height: 1.4;">
+                          <b>Watched Threshold:</b> playback progress percentage at which a play counts as watched. Default 90%.
                         </p>
-                        <p class="tool-accordion-desc" style="margin: 0;">
-                          Resume positions sync similarly. Use "Force Sync" to immediately push any pending updates without waiting.
+                        <p style="margin-bottom: 4px; line-height: 1.4;">
+                          <b>Minimum Resume Position:</b> playback position, in seconds, below which a stopped play is too short to save as a resume point. Default 60s.
+                        </p>
+                        <p style="margin-bottom: 4px; line-height: 1.4;">
+                          <b>Active Session TTL:</b> how long a "now playing" session is kept without an update before it's considered stale. Default 5 minutes.
+                        </p>
+                        <p style="margin: 0; line-height: 1.4;">
+                          <b>Outbound Request Timeout:</b> how long Plembfin waits for a response from Plex, Emby, or Jellyfin before giving up. Default 10 seconds.
                         </p>
                       </div>
                     </article>
@@ -1374,69 +1316,239 @@
                 <!-- Sync Tools Row -->
                 <div class="settings-row hidden" data-sub-panel="sync-tools">
                   <div class="settings-row-main">
-                    <section class="glass-panel p-section sync-panel">
-                      <button id="syncToolsToggle" class="section-heading sync-heading" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <!-- Sync Tools Accordion Header -->
+                      <button id="syncToolsToggle" class="section-heading sync-heading accordion-header open" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
                         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                          <p style="margin: 0;">Sync Tools</p>
-                          <span id="syncToolsToggleIcon" style="font-size: 1.2rem;">▼</span>
+                          <div style="display: flex; align-items: center; gap: var(--space-2);">
+                            <svg id="syncToolsToggleIcon" class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(90deg);" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                            <p style="margin: 0;">Sync Tools</p>
+                          </div>
                         </div>
                       </button>
+
                       <div id="syncToolsContent" style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
-                        <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
-                          <button id="runCronSyncButton" class="button-primary sync-action-btn" type="button" title="Check recent watched and part-watched items for missing Plembfin records">Repair Recent Items</button>
-                          <button id="forceSyncButton" class="button-primary sync-action-btn" type="button" title="Force an immediate sync of all pending watched states">Force Sync</button>
-                          <button id="previewForceSyncButton" class="button-ghost sync-action-btn" type="button" title="Inspect planned Force Sync changes before writing">Preview Force Sync</button>
-                          <button id="stopSyncButton" class="button-danger" type="button" title="Cancel a running force sync or clear a sync lock left behind by a server restart">Stop / Reset Sync</button>
-                          <button id="refreshSyncButton" class="button-ghost sync-btn" type="button" title="Refresh the sync issues list">Refresh</button>
-                        </div>
-                        <div id="forceSyncPreviewPanel" class="sync-preview-panel hidden" aria-live="polite"></div>
-                        <div class="activity-log">
-                          <div class="activity-log-header">
-                            <div class="activity-log-heading">
-                              <svg class="activity-log-icon" viewBox="0 0 20 20" aria-hidden="true">
-                                <path d="M4 5.5h12M4 10h12M4 14.5h8" />
-                              </svg>
-                              <span class="activity-log-copy">
-                                <strong>Activity log</strong>
-                                <small>Latest sync output</small>
-                              </span>
+                        <!-- Inner Box 1: Repair Recent Items -->
+                        <div id="sync-tools-repair" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
+                          <div class="tool-item-row">
+                            <div class="tool-item-meta">
+                              <div class="tool-item-title-desc">
+                                <b>Repair Recent Items</b>
+                                <span>Check recent watched and part-watched items on each server for missing Plembfin records</span>
+                              </div>
                             </div>
-                            <span class="activity-log-state">Live output</span>
+                            <button id="runCronSyncButton" class="button-primary sync-action-btn" style="align-self: flex-start;" type="button" title="Check recent watched and part-watched items for missing Plembfin records">Repair Recent Items</button>
                           </div>
-                          <div id="syncProgress" class="sync-progress hidden" role="group" aria-label="Sync progress">
-                            <div class="sync-progress-summary">
-                              <strong id="syncProgressLabel" aria-live="polite">Preparing sync</strong>
-                              <span id="syncProgressMeta">0% · Estimating remaining</span>
+                        </div>
+
+                        <!-- Inner Box 2: Full Sync Watchstates -->
+                        <div id="full-sync-watchstates" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
+                          <div class="tool-item-row">
+                            <div class="tool-item-meta">
+                              <div class="tool-item-title-desc">
+                                <b>Full Sync Watchstates</b>
+                                <span>Push your entire watched archive back to media server lists</span>
+                              </div>
+                              <span id="fullSyncStatus" class="status-pill status-muted">Idle</span>
                             </div>
-                            <div id="syncProgressTrack" class="sync-progress-track" role="progressbar" aria-label="Sync progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                              <span id="syncProgressFill" class="sync-progress-fill"></span>
+                            <button id="fullSyncButton" class="button-ghost" style="align-self: flex-start;" type="button">Full Sync Watchstates</button>
+                            <pre id="fullSyncLog" class="import-terminal compact-terminal hidden" aria-live="polite">[idle] Waiting for restore request.</pre>
+                          </div>
+                        </div>
+
+                        <!-- Inner Box 3: Force Full Sync -->
+                        <div id="sync-tools-force" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
+                          <div class="tool-item-row">
+                            <div class="tool-item-meta">
+                              <div class="tool-item-title-desc">
+                                <b>Force Full Sync</b>
+                                <span>Forcefully propagate all pending watched-state changes immediately</span>
+                              </div>
+                            </div>
+                            <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+                              <button id="forceSyncButton" class="button-primary sync-action-btn" type="button" title="Force an immediate sync of all pending watched states">Force Full Sync</button>
+                              <button id="previewForceSyncButton" class="button-ghost sync-action-btn" type="button" title="Inspect planned Force Sync changes before writing">Preview Force Sync</button>
+                              <button id="stopSyncButton" class="button-danger" type="button" title="Cancel a running force sync or clear a sync lock left behind by a server restart">Stop / Reset Sync</button>
+                            </div>
+                            <div id="forceSyncPreviewPanel" class="sync-preview-panel hidden" aria-live="polite"></div>
+                            <div class="activity-log" style="margin-top: var(--space-3);">
+                              <div class="activity-log-header">
+                                <div class="activity-log-heading">
+                                  <svg class="activity-log-icon" viewBox="0 0 20 20" aria-hidden="true">
+                                    <path d="M4 5.5h12M4 10h12M4 14.5h8" />
+                                  </svg>
+                                  <span class="activity-log-copy">
+                                    <strong>Activity log</strong>
+                                    <small>Latest sync output</small>
+                                  </span>
+                                </div>
+                                <span class="activity-log-state">Live output</span>
+                              </div>
+                              <div id="syncProgress" class="sync-progress hidden" role="group" aria-label="Sync progress">
+                                <div class="sync-progress-summary">
+                                  <strong id="syncProgressLabel" aria-live="polite">Preparing sync</strong>
+                                  <span id="syncProgressMeta">0% · Estimating remaining</span>
+                                </div>
+                                <div id="syncProgressTrack" class="sync-progress-track" role="progressbar" aria-label="Sync progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                                  <span id="syncProgressFill" class="sync-progress-fill"></span>
+                                </div>
+                              </div>
+                              <pre id="forceSyncTerminal" class="import-terminal compact-terminal hidden" aria-live="polite">[idle] Waiting for force sync.</pre>
                             </div>
                           </div>
-                          <pre id="forceSyncTerminal" class="import-terminal compact-terminal hidden" aria-live="polite">[idle] Waiting for force sync.</pre>
                         </div>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading" style="margin-bottom: var(--space-2);">
+                        <p>Sync Tools Guide</p>
+                        <span>Detailed Tool Information</span>
+                      </div>
+
+                      <div style="margin-bottom: var(--space-1);">
+                        <b style="display: block; margin-bottom: 2px;">Repair Recent Items</b>
+                        <p style="margin: 0; line-height: 1.4;">Performs a rapid incremental scan of recent watch activity and active sessions across Plex, Emby, and Jellyfin.<br><b>When to use:</b> If a recent watch wasn't automatically picked up, run this for a quick fix without waiting or scanning full libraries.</p>
+                      </div>
+
+                      <div style="margin-bottom: var(--space-1);">
+                        <b style="display: block; margin-bottom: 2px;">Full Sync Watchstates</b>
+                        <p style="margin: 0; line-height: 1.4;">Scans the complete recorded Plembfin watch archive and pushes all historical watched events back into configured Plex, Emby, and Jellyfin watchlists.<br><b>When to use:</b> Essential after connecting a new server, rebuilding a library, or restoring watch history from a backup.</p>
+                      </div>
+
+                      <div style="margin-bottom: var(--space-1);">
+                        <b style="display: block; margin-bottom: 2px;">Force Full Sync</b>
+                        <p style="margin: 0; line-height: 1.4;">Immediately triggers an end-to-end watch state reconciliation across all connected media servers, evaluating watch timestamps and play states.<br><b>When to use:</b> Use "Preview Force Sync" to simulate and inspect planned actions before writing.</p>
+                      </div>
+
+                      <div>
+                        <b style="display: block; margin-bottom: 2px;">Stop / Reset Sync</b>
+                        <p style="margin: 0; line-height: 1.4;">Cancels an in-progress Force Full Sync background job or clears an orphaned sync lock file if the server restarted mid-sync.</p>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+
+                <!-- Sync Issues Row -->
+                <div class="settings-row hidden" data-sub-panel="sync-issues">
+                  <div class="settings-row-main">
+                    <section class="glass-panel p-section sync-panel">
+                      <div class="section-heading sync-heading" style="display: flex !important; justify-content: space-between !important; align-items: center !important; flex-direction: row !important; width: 100%;">
+                        <div style="display: flex; align-items: center; gap: var(--space-2);">
+                          <p style="margin: 0;">Sync Issues</p>
+                          <span id="syncSummary" class="status-pill status-muted">Loading...</span>
+                        </div>
+                        <button id="refreshSyncButton" class="button-ghost sync-btn" type="button" title="Refresh the sync issues list">Refresh</button>
+                      </div>
+                      <div id="syncIssuesContent" style="margin-top: var(--space-3);">
+                        <div id="syncIssuesContainer" aria-live="polite"></div>
+                        <details id="syncMatchReport" class="sync-match-report">
+                          <summary class="accordion-header" style="cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: var(--space-2);">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Cross-Platform Match Report</b>
+                            </div>
+                            <span style="opacity: 0.7; font-size: 0.8rem;">Media each platform could not find during sync</span>
+                          </summary>
+                          <div id="syncMatchReportContainer" style="padding: var(--space-3); border-top: 1px solid var(--line); display: grid; gap: var(--space-2); overflow-x: auto;"></div>
+                        </details>
                       </div>
                     </section>
                   </div>
 
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Sync Tools Help</p>
-                        <span>Manual Control</span>
+                      <div class="section-heading" style="margin-bottom: var(--space-2);">
+                        <p>Sync Issues Help</p>
+                        <span>Understanding Issues</span>
                       </div>
 
-                      <p class="tool-accordion-desc" style="margin-bottom: var(--space-3);">
-                        <b>Repair Recent Items:</b> Quickly checks the latest watched and part-watched items on each server, adds anything Plembfin missed, and syncs those changes. It does not scan your full libraries.
-                      </p>
-                      <p class="tool-accordion-desc" style="margin-bottom: var(--space-3);">
-                        <b>Force Sync:</b> Forcefully propagates all pending watched-state changes to your other platforms right away, bypassing the 60-second scheduled interval. Use this to immediately sync a watch or unwatched state.
-                      </p>
-                      <p class="tool-accordion-desc" style="margin-bottom: var(--space-3);">
-                        <b>Stop / Reset Sync:</b> Cancels a running force sync. If the server restarted mid-sync, it immediately clears the orphaned lock so recent-item repair can run again.
-                      </p>
-                      <p class="tool-accordion-desc" style="margin: 0;">
-                        <b>Refresh:</b> Reloads the sync issues list to check for any new or resolved issues without waiting for the next scheduled check.
-                      </p>
+                      <div style="margin-bottom: var(--space-1);">
+                        <b style="display: block; margin-bottom: 2px;">What are Sync Issues?</b>
+                        <p style="margin: 0; line-height: 1.4;">
+                          This section shows any problems with propagating watched states between your media servers. Click on any issue to view detailed telemetry about what went wrong.
+                        </p>
+                      </div>
+
+                      <div style="margin-bottom: var(--space-1);">
+                        <b style="display: block; margin-bottom: 2px;">Issue Categories</b>
+                        <p style="margin-bottom: 4px; line-height: 1.4;">
+                          <b>Missing Dispatch Telemetry:</b> No logging data recorded. These likely synced successfully but the logs are missing. Safe to clear.
+                        </p>
+                        <p style="margin-bottom: 4px; line-height: 1.4;">
+                          <b>Plex Match Issues:</b> Plex couldn't find the media item. Check Plex metadata and external IDs.
+                        </p>
+                        <p style="margin-bottom: 4px; line-height: 1.4;">
+                          <b>Emby/Jellyfin Match Issues:</b> Plex found it but Emby/Jellyfin couldn't. Check their metadata and IDs.
+                        </p>
+                        <p style="margin: 0; line-height: 1.4;">
+                          <b>Unresolved Sync Issues:</b> Other sync problems detected. Click to view telemetry for error details.
+                        </p>
+                      </div>
+
+                      <div id="syncIssuesHelp" style="margin-bottom: var(--space-1);"></div>
+
+                      <div style="margin-bottom: var(--space-1);">
+                        <b style="display: block; margin-bottom: 2px;">How to Fix</b>
+                        <p style="margin: 0; line-height: 1.4;">
+                          Click "Retry" on an issue to re-attempt the sync and see detailed error messages. Click "Fix" to manually adjust the match if the item wasn't found.
+                        </p>
+                      </div>
+
+                      <div>
+                        <b style="display: block; margin-bottom: 2px;">Refresh Issues</b>
+                        <p style="margin: 0; line-height: 1.4;">
+                          Click "Refresh" in the Sync Issues header to immediately reload unresolved sync issues and match reports.
+                        </p>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+
+                <!-- Sync History Row (collapsed by default) -->
+                <div class="settings-row hidden" data-sub-panel="sync-history">
+                  <div class="settings-row-main">
+                    <section class="glass-panel p-section sync-panel">
+                      <button id="syncHistoryToggle" class="section-heading sync-heading accordion-header" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                          <div style="display: flex; align-items: center; gap: var(--space-2);">
+                            <svg id="syncHistoryToggleIcon" class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(0deg);" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                            <p style="margin: 0;">Sync History</p>
+                            <span id="syncHistorySummary" class="status-pill status-muted">Loading...</span>
+                          </div>
+                        </div>
+                      </button>
+                      <div id="syncHistoryContent" class="hidden" style="margin-top: var(--space-3);">
+                        <div id="syncHistoryPanel" class="sync-history-panel" aria-live="polite"></div>
+                      </div>
+                    </section>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading" style="margin-bottom: var(--space-2);">
+                        <p>Sync History Help</p>
+                        <span>Recent Propagations</span>
+                      </div>
+
+                      <div style="margin-bottom: var(--space-1);">
+                        <b style="display: block; margin-bottom: 2px;">What is Sync History?</b>
+                        <p style="margin: 0; line-height: 1.4;">
+                          Recent watched-state propagation attempts. Shows source, action, timestamp, and target sync results for every automatic and manual sync.
+                        </p>
+                      </div>
+
+                      <div>
+                        <b style="display: block; margin-bottom: 2px;">How Sync Works</b>
+                        <p style="margin-bottom: 4px; line-height: 1.4;">
+                          When you mark something as watched (on any platform), Plembfin automatically propagates that state to your other configured servers every 60 seconds.
+                        </p>
+                        <p style="margin: 0; line-height: 1.4;">
+                          Resume positions sync similarly. Use "Force Full Sync" to immediately push any pending updates without waiting.
+                        </p>
+                      </div>
                     </article>
                   </div>
                 </div>

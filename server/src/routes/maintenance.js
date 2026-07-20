@@ -23,7 +23,7 @@ import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, getCachedTvdbId } from "../utils/tmdbGateway.js";
-import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from "../utils/tvdbGateway.js";
+import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork, getTvdbSeriesExtended } from "../utils/tvdbGateway.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
 import { outboundGovernorTelemetry } from "../utils/outboundGovernor.js";
@@ -550,6 +550,65 @@ export async function handleRefreshTmdbMetadata(req, res) {
     success,
     failed,
     postersWritten,
+    log,
+  });
+}
+
+export async function handleRefreshTvdbMetadata(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req).catch(() => ({}));
+  const offset = Math.max(Number(body.offset || 0), 0);
+  const limit = Math.min(Math.max(Number(body.limit || 8), 1), 20);
+
+  const items = (await listLibraryItemsForRefresh()).filter((item) => item.mediaType === "tv");
+  const total = items.length;
+  const PAGE_BUDGET_MS = 25000;
+  const startedAt = Date.now();
+
+  let success = 0;
+  let failed = 0;
+  let processed = 0;
+  const log = [];
+
+  for (let i = offset; i < items.length && processed < limit; i++) {
+    if (processed > 0 && Date.now() - startedAt > PAGE_BUDGET_MS) break;
+    const item = items[i];
+    const label = `Show: ${item.title}`;
+    try {
+      let tvdbId = item.tvdbId || "";
+      if (!tvdbId) {
+        tvdbId = await resolveTvdbSeriesId({ tvdbId: item.tvdbId, title: item.title });
+      }
+      if (tvdbId) {
+        await getTvdbSeriesExtended(tvdbId, { force: true });
+        await getTvdbSeriesArtwork(tvdbId).catch(() => null);
+        success += 1;
+        log.push(`OK - ${label} (TVDB #${tvdbId})`);
+      } else {
+        failed += 1;
+        log.push(`SKIP - ${label} (No TVDB match found)`);
+      }
+    } catch (error) {
+      failed += 1;
+      log.push(`FAILED - ${label} (${error.message || "error"})`);
+    }
+    processed += 1;
+  }
+
+  const nextOffset = offset + processed;
+  const hasMore = nextOffset < total;
+
+  return sendJson(res, {
+    ok: true,
+    total,
+    processed,
+    nextOffset,
+    hasMore,
+    success,
+    failed,
     log,
   });
 }

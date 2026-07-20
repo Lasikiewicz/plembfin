@@ -495,13 +495,14 @@ export function renderIssueCategory(categoryName, jobs = [], helpText = "") {
 
   return `
     <details class="issue-category">
-      <summary style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: var(--space-2); background: rgba(0,0,0,0.1); border-radius: var(--radius-sm); margin-bottom: var(--space-2);">
-        <div>
+      <summary class="accordion-header" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; list-style: none;">
+        <div style="display: flex; align-items: center; gap: var(--space-2);">
+          <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
           <b>${titles[categoryName] || categoryName}</b>
-          <span style="margin-left: var(--space-2); opacity: 0.7;">${jobs.length} issue${jobs.length !== 1 ? "s" : ""}</span>
+          <span class="status-pill status-muted">${jobs.length} issue${jobs.length !== 1 ? "s" : ""}</span>
         </div>
       </summary>
-      <div style="padding: var(--space-2);">
+      <div style="padding: var(--space-3); border-top: 1px solid var(--line);">
         <div style="background: rgba(0,0,0,0.05); padding: var(--space-2); border-radius: var(--radius-sm); margin-bottom: var(--space-3); font-size: 0.9rem;">
           ${helpText}
         </div>
@@ -513,7 +514,8 @@ export function renderIssueCategory(categoryName, jobs = [], helpText = "") {
             const telemetry = String(job.sync_dispatch_telemetry || "");
             return `
             <details class="sync-issue-card" style="background: rgba(0,0,0,0.02); border-left: 3px solid var(--color-warning); border-radius: var(--radius-sm); overflow: hidden;">
-              <summary style="display: flex; gap: var(--space-2); align-items: flex-start; padding: var(--space-2); cursor: pointer;">
+              <summary class="accordion-header" style="display: flex; gap: var(--space-2); align-items: center; padding: var(--space-2); cursor: pointer; list-style: none;">
+                <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
                 <div style="flex: 1; min-width: 0;">
                   <div style="font-weight: 500; word-break: break-word;">${escapeHtml(job.title || "Unknown")}</div>
                   <div style="font-size: 0.85rem; opacity: 0.7; margin-top: 0.25rem;">

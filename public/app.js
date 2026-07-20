@@ -257,6 +257,9 @@ function bindElements() {
     refreshMetadataButton: document.querySelector("#refreshMetadataButton"),
     refreshMetadataStatus: document.querySelector("#refreshMetadataStatus"),
     refreshMetadataLog: document.querySelector("#refreshMetadataLog"),
+    refreshTvdbButton: document.querySelector("#refreshTvdbButton"),
+    refreshTvdbStatus: document.querySelector("#refreshTvdbStatus"),
+    refreshTvdbLog: document.querySelector("#refreshTvdbLog"),
     rematchTvButton: document.querySelector("#rematchTvButton"),
     rematchTvStatus: document.querySelector("#rematchTvStatus"),
     rematchTvLog: document.querySelector("#rematchTvLog"),
@@ -2242,6 +2245,95 @@ async function runRefreshMetadataWorkflow() {
   } finally {
     button.disabled = false;
     button.textContent = "Refresh Metadata Now";
+  }
+}
+
+async function runRefreshTvdbMetadataWorkflow() {
+  const button = elements.refreshTvdbButton;
+  const status = elements.refreshTvdbStatus;
+  const logEl = elements.refreshTvdbLog;
+  if (!button) return;
+
+  button.disabled = true;
+  button.textContent = "Refreshing TVDB Metadata...";
+  if (status) status.textContent = "Starting...";
+  if (status) status.className = "status-pill status-warning";
+  if (logEl) {
+    logEl.classList.remove("hidden");
+    logEl.textContent = "Fetching series details, episode lists, and artwork from TVDB for TV shows...\n";
+  }
+
+  try {
+    let offset = 0;
+    let total = 0;
+    let success = 0;
+    let failed = 0;
+    let hasMore = true;
+
+    const fetchPage = async () => {
+      let lastErr;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          const res = await fetch("/api/refresh-tvdb-metadata", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ offset, limit: 6 }),
+          });
+          if (res.ok) return await res.json();
+          if (res.status === 503 || res.status === 504 || res.status === 429) {
+            lastErr = new Error(`HTTP ${res.status}`);
+            if (logEl) { logEl.textContent += `(server busy, retrying...)\n`; logEl.scrollTop = logEl.scrollHeight; }
+            await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+            continue;
+          }
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP ${res.status}`);
+        } catch (err) {
+          lastErr = err;
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        }
+      }
+      throw lastErr || new Error("Refresh page failed");
+    };
+
+    while (hasMore) {
+      const data = await fetchPage();
+      total = data.total || total;
+      success += data.success || 0;
+      failed += data.failed || 0;
+      offset = data.nextOffset || (offset + (data.processed || 1));
+      hasMore = Boolean(data.hasMore);
+
+      if (Array.isArray(data.log) && data.log.length) {
+        if (logEl) {
+          logEl.textContent += data.log.join("\n") + "\n";
+          logEl.scrollTop = logEl.scrollHeight;
+        }
+      }
+
+      if (status) {
+        status.textContent = `Progress: ${offset}/${total} (${success} ok, ${failed} failed)`;
+      }
+    }
+
+    const summaryMsg = `Done! Refreshed TVDB metadata for ${success} shows (failed: ${failed}).`;
+    if (status) status.textContent = summaryMsg;
+    if (status) status.className = "status-pill status-ready";
+    if (logEl) {
+      logEl.textContent += summaryMsg + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  } catch (err) {
+    const msg = `Error: ${err.message}`;
+    if (status) status.textContent = msg;
+    if (status) status.className = "status-pill status-error";
+    if (logEl) {
+      logEl.textContent += msg + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  } finally {
+    button.disabled = false;
+    button.textContent = "Refresh TVDB Metadata Now";
   }
 }
 

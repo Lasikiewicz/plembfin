@@ -9,10 +9,10 @@ Desktop renders the grouped sidebar; mobile uses the **Settings section** select
 
 | Group (parent) | Child sections | Canonical child route(s) |
 | --- | --- | --- |
-| General | Account, Sync Tuning | `/settings/account`, `/settings/sync-tuning` |
+| General | Account | `/settings/account` |
 | Media Servers | Media Servers, Seerr, Webhooks | `/settings/media-servers`, `/settings/seerr`, `/settings/webhooks` |
-| Metadata | Metadata Providers | `/settings/metadata` |
-| Sync | Sync Issues, Sync History | `/settings/sync-issues`, `/settings/sync-history` |
+| Metadata | Metadata Providers, Refresh Metadata (TMDB, TVDB) | `/settings/metadata-providers`, `/settings/refresh-metadata` |
+| Sync | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Full Sync), Sync Issues, Sync History | `/settings/sync-tuning`, `/settings/sync-tools`, `/settings/sync-issues`, `/settings/sync-history` |
 | Backup / Restore | Backup Settings (Local, Remote), Restore (Local, Remote) | `/settings/backups`, `/settings/restore` |
 | Import | Trakt | `/settings/import` |
 | Tools | Database Repairs, Library Rebuilds and Backfills | `/settings/database-repairs`, `/settings/library-rebuilds` |
@@ -37,7 +37,7 @@ wraps into a one-item `views` array automatically):
 
 | Group | Views |
 | --- | --- |
-| General | `general` panel's Account and Sync Tuning rows |
+| General | `general` panel's Account row |
 | Media Servers | `apps` panel's Media Servers and Seerr sections, then the `general` panel's `general-endpoints` row (Webhooks) |
 | Backup / Restore | `backups` panel's `settings` tab, then its `restore` tab |
 | Advanced | `tools` panel's `tools-diagnostics` row (System Integrity Check), then the `cache` panel (Storage & Cache) |
@@ -85,7 +85,7 @@ credential-clear operation.
 
 **Sync Tuning is the one exception**: its four numeric fields (watched threshold,
 minimum resume position, active-session TTL, outbound timeout) render directly inline
-on the General page in a plain form with its own Save button — not behind a card + edit
+on the Sync page in a plain form with its own Save button — not behind a card + edit
 modal — since there's only ever one instance to edit and no add/remove/test workflow.
 
 Media Servers is rendered as a boxed settings section with a separate boxed Seerr
@@ -153,7 +153,7 @@ URLs are restricted to HTTP/HTTPS, embedded credentials and cloud-metadata hosts
 rejected, and saved values take precedence over environment defaults. Connection tests
 fall back to stored credentials when the modal secret field is blank.
 
-The **Sync Tuning** form (on the General page) exposes four optional numeric settings:
+The **Sync Tuning** form (on the Sync page) exposes four optional numeric settings:
 watched threshold, minimum resume position, active-session TTL, and outbound request
 timeout. Blank fields inherit the matching environment variable or built-in default;
 saved values take precedence. The defaults remain 90%, 60 seconds, 5 minutes, and 10

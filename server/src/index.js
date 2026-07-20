@@ -7,7 +7,7 @@ import { handleAppearance, handleConfig, handleMediaAppLinks, handleSeerrMediaSt
 import { handleClearMissingTelemetry, handleDeleteMedia, handleFullSyncWatchstates, handleHistory, handleMergeShows, handleMovies, handleRematchShow, handleShow, handleShows, handleUpdateWatch } from "./routes/media.js";
 import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleForceSyncPlan, handleManualUnwatch, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleRetrySync, handleStopForceSync, handleSyncHistory, handleSyncJobs, handleSyncLibraries, handleWebhook } from "./routes/sync.js";
 import { handleFanartImages, handleMediaSearch, handleOmdbRating, handlePoster, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleYoutubeMeta } from "./routes/metadata.js";
-import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDedupHistory, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRematchTvShows, handleSyncHealth, handleSyncMatchReport } from "./routes/maintenance.js";
+import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDedupHistory, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRefreshTvdbMetadata, handleRematchTvShows, handleSyncHealth, handleSyncMatchReport } from "./routes/maintenance.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -67,6 +67,7 @@ async function dispatch(req, res) {
     if (path === "tmdb-details") return handleTmdbDetails(req, res);
     if (path === "tmdb-details-batch") return handleTmdbDetailsBatch(req, res);
     if (path === "refresh-tmdb-metadata") return handleRefreshTmdbMetadata(req, res);
+    if (path === "refresh-tvdb-metadata") return handleRefreshTvdbMetadata(req, res);
     if (path === "rematch-tv-shows") return handleRematchTvShows(req, res);
     if (path === "media-details") return handleTmdbDetails(req, res);
     if (path === "tmdb-search") return handleTmdbSearch(req, res);

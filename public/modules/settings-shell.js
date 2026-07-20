@@ -8,9 +8,9 @@ const SECTIONS = {
   // Parent groups show all their child sections on one page
   general: {
     label: "General",
-    description: "Account and sync tuning configuration",
+    description: "Account configuration",
     panel: "general",
-    subPanels: ["general-login", "sync-tuning"],
+    subPanels: ["general-login"],
   },
   "media-servers-group": {
     label: "Media servers",
@@ -19,9 +19,9 @@ const SECTIONS = {
   },
   "sync-group": {
     label: "Sync",
-    description: "Sync issues and history",
+    description: "Sync tuning, sync tools, sync issues, and history",
     panel: "sync",
-    subPanels: ["sync-issues", "sync-history", "sync-tools"],
+    subPanels: ["sync-tuning", "sync-tools", "sync-issues", "sync-history"],
   },
   "backup-restore-group": {
     label: "Backup / restore",
@@ -42,7 +42,7 @@ const SECTIONS = {
     description: "Advanced settings",
     views: [{ panel: "tools", subPanels: ["tools-diagnostics"] }, { panel: "cache" }],
   },
-  // Account and Sync Tuning are sections on the General page
+  // Account section on the General page
   account: {
     label: "Account",
     description: "Administrator username, password, and sessions",
@@ -53,9 +53,28 @@ const SECTIONS = {
   "sync-tuning": {
     label: "Sync tuning",
     description: "Configure watched threshold, resume position, and timeouts",
-    panel: "general",
+    panel: "sync",
     subPanels: ["sync-tuning"],
     isDisplayOnly: true, // Not a navigable route
+  },
+  "sync-tools": {
+    label: "Sync Tools",
+    description: "Repair recent items, full sync watchstates, and force full sync",
+    panel: "sync",
+    subPanels: ["sync-tools"],
+    subSections: [
+      { id: "sync-tools-repair", label: "Repair Recent Items", description: "Check recent watched items for missing records" },
+      { id: "full-sync-watchstates", label: "Full Sync Watchstates", description: "Push your entire watched archive back to media server lists" },
+      { id: "sync-tools-force", label: "Force Full Sync", description: "Force an immediate sync of pending watched states" },
+    ],
+    isDisplayOnly: true,
+  },
+  "full-sync-watchstates": {
+    label: "Full Sync Watchstates",
+    description: "Push your entire watched archive back to media server lists",
+    panel: "sync",
+    subPanels: ["sync-tools"],
+    isDisplayOnly: true,
   },
   seerr: {
     label: "Seerr",
@@ -78,9 +97,41 @@ const SECTIONS = {
     isDisplayOnly: true,
   },
   metadata: {
-    label: "Metadata providers",
+    label: "Metadata",
+    description: "TMDB, TVDB, Fanart.tv, OMDb, YouTube providers, and TMDB/TVDB refresh",
+    panel: "api-keys",
+    subPanels: ["metadata-providers", "refresh-metadata"],
+  },
+  "refresh-metadata": {
+    label: "Refresh Metadata",
+    description: "Pre-cache metadata from TMDB and TVDB",
+    panel: "api-keys",
+    subPanels: ["refresh-metadata"],
+    subSections: [
+      { id: "refresh-tmdb-metadata", label: "TMDB", description: "Pre-cache trailers, posters, cast, and summaries locally" },
+      { id: "refresh-tvdb-metadata", label: "TVDB", description: "Fetch season episode schedules, series details, and artwork from TVDB" },
+    ],
+    isDisplayOnly: true,
+  },
+  "metadata-providers": {
+    label: "Metadata Providers",
     description: "TMDB, TVDB, Fanart.tv, OMDb, and YouTube providers",
     panel: "api-keys",
+    subPanels: ["metadata-providers"],
+    isDisplayOnly: true,
+  },
+  "refresh-tmdb-metadata": {
+    label: "TMDB",
+    description: "Pre-cache trailers, posters, cast, and summaries locally",
+    panel: "api-keys",
+    subPanels: ["refresh-metadata"],
+    isDisplayOnly: true,
+  },
+  "refresh-tvdb-metadata": {
+    label: "TVDB",
+    description: "Fetch season episode schedules, series details, and artwork from TVDB",
+    panel: "api-keys",
+    subPanels: ["refresh-metadata"],
     isDisplayOnly: true,
   },
   "sync-issues": {
@@ -164,7 +215,7 @@ const SECTIONS = {
     description: "Preview, confirm, and run a safe synchronization plan",
     panel: "sync",
     subPanels: ["sync-tools"],
-    isDisplayOnly: false,
+    isDisplayOnly: true,
   },
   about: {
     label: "About",
@@ -180,8 +231,8 @@ const SECTION_GROUPS = [
   {
     id: "general",
     label: "General",
-    sections: ["account", "sync-tuning"],
-    displayOnly: ["account", "sync-tuning"],
+    sections: ["account"],
+    displayOnly: ["account"],
   },
   {
     id: "media-servers-group",
@@ -192,14 +243,14 @@ const SECTION_GROUPS = [
   {
     id: "metadata",
     label: "Metadata",
-    sections: ["metadata"],
-    displayOnly: ["metadata"],
+    sections: ["metadata-providers", "refresh-metadata"],
+    displayOnly: ["metadata-providers", "refresh-metadata"],
   },
   {
     id: "sync-group",
     label: "Sync",
-    sections: ["sync-issues", "sync-history", "force-sync"],
-    displayOnly: ["sync-issues", "sync-history"],
+    sections: ["sync-tuning", "sync-tools", "sync-issues", "sync-history"],
+    displayOnly: ["sync-tuning", "sync-tools", "sync-issues", "sync-history"],
   },
   {
     id: "backup-restore-group",
@@ -303,11 +354,16 @@ export function settingsPathForLegacy(value = "") {
 
 function sectionRoute(section, requestedPath) {
   const definition = SECTIONS[section];
-  const group = SECTION_GROUPS.find((g) => g.sections.includes(section))?.id || section;
-  // A route can aggregate several underlying panels (a parent group's page
-  // shows all of its children's content). Single-panel sections synthesize a
-  // one-item views array from their flat panel/subPanels/backupTab fields.
-  const views = definition.views || [{ panel: definition.panel, subPanels: definition.subPanels, backupTab: definition.backupTab }];
+  const groupObj = SECTION_GROUPS.find((g) => g.sections.includes(section));
+  const group = groupObj?.id || section;
+
+  let subPanels = definition.subPanels;
+  if (groupObj && groupObj.displayOnly) {
+    const allGroupSubPanels = groupObj.sections.flatMap((s) => SECTIONS[s]?.subPanels || []);
+    if (allGroupSubPanels.length) subPanels = [...new Set(allGroupSubPanels)];
+  }
+
+  const views = definition.views || [{ panel: definition.panel, subPanels, backupTab: definition.backupTab }];
   const primary = views[0] || {};
   return {
     kind: "task",
@@ -535,7 +591,9 @@ export function applySettingsRoute(route) {
   }
 
   document.querySelectorAll("[data-settings-subsection]").forEach((button) => {
-    button.classList.toggle("hidden", route.kind !== "task" || route.section !== button.dataset.settingsParentSection);
+    const parentSection = button.dataset.settingsParentSection;
+    const isVisible = route.kind === "task" && (route.section === parentSection || route.group === SECTIONS[parentSection]?.panel || route.group === "metadata");
+    button.classList.toggle("hidden", !isVisible);
   });
 
   // Handle parent/child active states
@@ -557,11 +615,15 @@ export function applySettingsRoute(route) {
 }
 
 export function focusSettingsRoute(route) {
-  const target = route?.kind === "overview"
-    ? document.querySelector("#settingsOverviewTitle")
-    : document.querySelector(`[data-settings-panel="${route?.panel}"]:not(.hidden) .section-heading p`)
-      || document.querySelector(`[data-settings-panel="${route?.panel}"]:not(.hidden)`);
+  const hash = String(window.location.hash || "").replace(/^#/, "");
+  const targetId = hash || route?.section;
+  const target = (targetId && document.getElementById(targetId))
+    || (targetId && document.querySelector(`[data-sub-panel="${targetId}"]:not(.hidden)`))
+    || (route?.panel && document.querySelector(`[data-settings-panel="${route.panel}"]:not(.hidden) .section-heading p`))
+    || (route?.panel && document.querySelector(`[data-settings-panel="${route.panel}"]:not(.hidden)`));
   if (!target) return;
+
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
   if (!target.matches("button, a, input, select, textarea")) target.setAttribute("tabindex", "-1");
   target.focus({ preventScroll: true });
 }

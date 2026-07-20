@@ -461,6 +461,7 @@ export async function runRepairWorkflow() {
   const appendLog = (text) => {
     const now = new Date().toISOString();
     if (elements.repairLog) {
+      elements.repairLog.classList.remove("hidden");
       elements.repairLog.textContent = `${now} - ${text}\n` + elements.repairLog.textContent;
       elements.repairLog.scrollTop = 0;
     } else {
@@ -507,7 +508,10 @@ export async function runDedupHistory() {
   button.disabled = true;
   button.textContent = "Running...";
   setStatusPill(status, "Running deduplication...", "warning");
-  if (logEl) logEl.textContent = "";
+  if (logEl) {
+    logEl.classList.remove("hidden");
+    logEl.textContent = "";
+  }
   try {
     const response = await fetch("/api/dedup-history", {
       method: "POST",
@@ -562,7 +566,10 @@ export async function runTraktBackfill() {
   button.disabled = true;
   button.textContent = "Backfilling Trakt Imports...";
   setStatusPill(status, `Starting Trakt import backfill (limit=${limit}, rate=${rate}ms)`, "warning");
-  if (logEl) logEl.textContent = `Starting Trakt import backfill at ${new Date().toISOString()}\n`;
+  if (logEl) {
+    logEl.classList.remove("hidden");
+    logEl.textContent = `Starting Trakt import backfill at ${new Date().toISOString()}\n`;
+  }
   try {
     const maxBatches = 2000;
     let batch = 0;
@@ -627,7 +634,10 @@ export async function runRematchTvShows() {
   button.textContent = "Rematching...";
   status.textContent = "Running";
   status.className = "status-pill status-warning";
-  if (logEl) logEl.textContent = `Starting TV show rematch at ${new Date().toISOString()}\n`;
+  if (logEl) {
+    logEl.classList.remove("hidden");
+    logEl.textContent = `Starting TV show rematch at ${new Date().toISOString()}\n`;
+  }
 
   const limit = 8;
   let offset = 0;
@@ -681,6 +691,7 @@ export async function runRematchTvShows() {
 
 function appendFullSyncLog(message) {
   if (!elements.fullSyncLog) return;
+  elements.fullSyncLog.classList.remove("hidden");
   const timestamp = new Intl.DateTimeFormat(undefined, {
     hour: "2-digit",
     minute: "2-digit",
