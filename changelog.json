@@ -1,7 +1,17 @@
 {
-  "version": "0.5.3",
-  "updatedAt": "2026-07-20T13:06:49+01:00",
+  "version": "0.5.4",
+  "updatedAt": "2026-07-20T13:11:48+01:00",
   "entries": [
+    {
+      "version": "0.5.4",
+      "date": "2026-07-20T13:11:48+01:00",
+      "commit": "381247e5115d85a02c433dc2e9ce152569b9d8db",
+      "message": "Chore - Retitle the 0.5.2 changelog entry to lead with its main change",
+      "author": "Lasikiewicz",
+      "details": [
+        "The 0.5.2 release headline said Retry startup SQLite pragmas even though its details were mostly the settings-sidebar overhaul; retitled it to lead with the settings fix, which was the substantively larger and more user-visible change in that release"
+      ]
+    },
     {
       "version": "0.5.3",
       "date": "2026-07-20T13:06:49+01:00",
