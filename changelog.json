@@ -1,7 +1,17 @@
 {
-  "version": "0.5.12",
-  "updatedAt": "2026-07-20T18:17:46+01:00",
+  "version": "0.5.13",
+  "updatedAt": "2026-07-20T18:21:35+01:00",
   "entries": [
+    {
+      "version": "0.5.13",
+      "date": "2026-07-20T18:21:35+01:00",
+      "commit": "156bc1bde6d6d572d20b6a673dd59159f3eb3a93",
+      "message": "Fix - Satisfy CodeQL poster URL sinks",
+      "author": "Lasikiewicz",
+      "details": [
+        "Encode allowlisted poster URLs at image DOM sinks."
+      ]
+    },
     {
       "version": "0.5.12",
       "date": "2026-07-20T18:17:46+01:00",
