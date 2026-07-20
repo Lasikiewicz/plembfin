@@ -1,7 +1,17 @@
 {
-  "version": "0.5.10",
-  "updatedAt": "2026-07-20T17:36:49+01:00",
+  "version": "0.5.11",
+  "updatedAt": "2026-07-20T17:59:18+01:00",
   "entries": [
+    {
+      "version": "0.5.11",
+      "date": "2026-07-20T17:59:18+01:00",
+      "commit": "01c500ad692de098f616dec60d88f6a915abd4af",
+      "message": "Fix - Align backup runtime summaries",
+      "author": "Lasikiewicz",
+      "details": [
+        "Show backup runtime metrics in an equal-width row spanning the full card."
+      ]
+    },
     {
       "version": "0.5.10",
       "date": "2026-07-20T17:36:49+01:00",
