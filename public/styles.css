@@ -59,6 +59,24 @@
 }
 
 /* Settings task shell ----------------------------------------------------- */
+.settings-pane,
+.settings-row,
+.settings-card,
+.tool-section-card,
+[data-sub-panel],
+#refresh-metadata,
+#refresh-tmdb-metadata,
+#refresh-tvdb-metadata,
+#metadata-providers,
+#database-repairs,
+#repair-history-rows,
+#clean-duplicate-history,
+#library-rebuilds,
+#rematch-tv-shows,
+#backfill-trakt-imports {
+  scroll-margin-top: calc(var(--right-topbar-height) + var(--space-4));
+}
+
 .settings-hub {
   width: 100%;
   min-width: 0;
@@ -139,15 +157,6 @@
 .settings-pane {
   width: 100%;
   padding-top: 0;
-}
-
-.settings-pane[data-settings-panel="backups"][data-backups-panel] {
-  display: grid;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel-2);
 }
 
 .settings-pane .settings-card,

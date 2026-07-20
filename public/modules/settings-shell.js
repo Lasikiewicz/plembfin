@@ -623,8 +623,7 @@ export function focusSettingsRoute(route) {
   const hash = String(window.location.hash || "").replace(/^#/, "");
   const targetId = hash || route?.section;
   const target = (targetId && document.getElementById(targetId))
-    || (targetId && document.querySelector(`[data-sub-panel="${targetId}"]:not(.hidden)`))
-    || (route?.panel && document.querySelector(`[data-settings-panel="${route.panel}"]:not(.hidden) .section-heading p`))
+    || (targetId && settingsSectionElement(targetId))
     || (route?.panel && document.querySelector(`[data-settings-panel="${route.panel}"]:not(.hidden)`));
   if (!target) return;
 
@@ -637,14 +636,20 @@ export function focusSettingsRoute(route) {
 // aggregated parent page, so the sidebar can scroll a specific child section
 // into view instead of only landing at the top of the group's page.
 function settingsSectionElement(sectionId) {
-  const definition = SECTIONS[sectionId];
-  if (!definition) return document.getElementById(sectionId);
+  if (!sectionId) return null;
+  const exact = document.getElementById(sectionId);
+  if (exact) return exact;
+
+  const group = SECTION_GROUPS.find((g) => g.id === sectionId);
+  const effectiveSection = group ? group.sections[0] : sectionId;
+
+  const definition = SECTIONS[effectiveSection];
+  if (!definition) return document.querySelector(`[data-sub-panel="${effectiveSection}"]`) || document.querySelector(`[data-settings-panel="${effectiveSection}"]`);
+
   const view = definition.views?.[0] || { panel: definition.panel, subPanels: definition.subPanels, backupTab: definition.backupTab };
   if (!view.panel) return null;
   if (view.subPanels?.length) {
     const name = view.subPanels[0];
-    // Prefer the <details> disclosure wrapper (it includes the section's own
-    // heading) over the bare row it wraps, so scrolling doesn't crop the title.
     return document.querySelector(`[data-settings-disclosure="${name}"]`) || document.querySelector(`[data-sub-panel="${name}"]`);
   }
   if (view.backupTab) return document.querySelector(`[data-settings-panel="${view.panel}"][data-backups-panel="${view.backupTab}"]`);
@@ -653,5 +658,8 @@ function settingsSectionElement(sectionId) {
 
 export function scrollToSettingsSection(sectionId) {
   const target = settingsSectionElement(sectionId);
-  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!target) return;
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!target.matches("button, a, input, select, textarea")) target.setAttribute("tabindex", "-1");
+  target.focus({ preventScroll: true });
 }

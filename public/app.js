@@ -1128,9 +1128,7 @@ function clearSearchInputs() {
 }
 
 function navigateTo(url) {
-  const currentUrl = window.location.pathname + window.location.hash;
-  const settingsRouteChanged = url.startsWith("/settings") && currentUrl.split("#")[0] !== url.split("#")[0];
-  const settingsScrollTarget = url.startsWith("/settings") ? (url.split("#")[1] || "") : "";
+  const currentUrl = window.location.pathname + window.location.search + window.location.hash;
   if (currentUrl !== url) {
     const nextIndex = (history.state?.index || 0) + 1;
     history.pushState({ index: nextIndex }, "", url);
@@ -1139,14 +1137,18 @@ function navigateTo(url) {
     const pathnameAfter = url.split('#')[0];
     // The app's real scroll viewport is .page-shell (overflow-y: auto), not
     // the window/body, so resetting scroll on navigation has to target it.
-    if (pathnameBefore !== pathnameAfter && !settingsScrollTarget) {
+    if (pathnameBefore !== pathnameAfter && !url.includes("#")) {
       document.querySelector(".page-shell")?.scrollTo({ top: 0, behavior: "instant" });
     }
   }
   handleRouting(url);
   applyActiveView();
-  if (settingsRouteChanged) requestAnimationFrame(() => focusSettingsRoute(state.activeSettingsRoute));
-  if (settingsScrollTarget) requestAnimationFrame(() => scrollToSettingsSection(settingsScrollTarget));
+  if (url.startsWith("/settings")) {
+    const targetSection = url.split("#")[1] || url.split("/")[2] || state.activeSettingsRoute?.section;
+    if (targetSection) {
+      requestAnimationFrame(() => scrollToSettingsSection(targetSection));
+    }
+  }
 }
 
 function selectView(view) {
@@ -1421,7 +1423,8 @@ function applyActiveView() {
 
   if (state.activeView === "settings") {
     renderSettingsInlineHelp();
-    const route = state.activeSettingsRoute || parseSettingsRoute(window.location.pathname, { mustChangePassword: state.mustChangePassword });
+    const rawPath = typeof url === "string" ? url : (window.location.pathname + window.location.hash);
+    const route = parseSettingsRoute(rawPath, { mustChangePassword: state.mustChangePassword });
     state.activeSettingsRoute = route;
     state.activeSettingsTab = route.group;
     localStorage.setItem(ACTIVE_SETTINGS_TAB_KEY, route.group);
