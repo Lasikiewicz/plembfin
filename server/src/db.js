@@ -8,9 +8,29 @@ ensureDataDirs();
 
 export const db = new Database(DB_PATH);
 try { fs.chmodSync(DB_PATH, 0o600); } catch { /* non-POSIX FS (Windows, some Docker volumes) */ }
-db.pragma("busy_timeout = 5000");
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
+
+// A journal_mode switch needs a momentary exclusive lock and can throw
+// SQLITE_BUSY immediately rather than honoring busy_timeout, if another
+// process opens the same brand-new database at the same instant (e.g. two
+// Plembfin processes starting together for the first time). Retry those
+// startup pragmas ourselves so a transient race doesn't crash boot.
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+function pragmaWithRetry(statement, { attempts = 20, delayMs = 50 } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return db.pragma(statement);
+    } catch (error) {
+      if (error?.code !== "SQLITE_BUSY" || attempt >= attempts - 1) throw error;
+      sleepSync(delayMs);
+    }
+  }
+}
+
+pragmaWithRetry("busy_timeout = 5000");
+pragmaWithRetry("journal_mode = WAL");
+pragmaWithRetry("foreign_keys = ON");
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const schema = fs.readFileSync(path.join(here, "schema.sql"), "utf8");
