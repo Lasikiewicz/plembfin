@@ -1,7 +1,18 @@
 {
-  "version": "0.5.2",
-  "updatedAt": "2026-07-20T12:56:20+01:00",
+  "version": "0.5.3",
+  "updatedAt": "2026-07-20T13:06:49+01:00",
   "entries": [
+    {
+      "version": "0.5.3",
+      "date": "2026-07-20T13:06:49+01:00",
+      "commit": "345a272c3fd609a0cfd0f72ffa3f56648b39b71d",
+      "message": "Fix - Recover a changelog entry lost to a prior CI failure and harden the generator",
+      "author": "Lasikiewicz",
+      "details": [
+        "Backfilled the 0.5.2 changelog entry with the settings-sidebar fix details that were silently dropped when an earlier push's CI build check failed before the changelog step ran",
+        "The changelog generator now walks actual git history since the last recorded entry instead of trusting only the current push's commit list, so a future CI failure on one push can no longer cause the next successful push to skip that commit's release notes"
+      ]
+    },
     {
       "version": "0.5.2",
       "date": "2026-07-20T12:56:20+01:00",
