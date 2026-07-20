@@ -11,9 +11,6 @@ import {
   plexCredentialGuide,
   embyCredentialGuide,
   jellyfinCredentialGuide,
-  plexWebhookSetup,
-  embyWebhookSetup,
-  jellyfinWebhookSetup,
   savedCredentialNote,
 } from "./help-content.js";
 
@@ -63,7 +60,7 @@ const CONNECTION_SERVICES = {
     ],
     payload: (v) => ({ baseUrl: v.baseUrl, token: v.token, username: v.username, disabled: !v.enabled }),
     testPayload: (v) => ({ type: "plex", url: v.baseUrl, token: v.token }),
-    help: () => plexCredentialGuide() + savedCredentialNote() + plexWebhookSetup(),
+    help: () => plexCredentialGuide() + savedCredentialNote(),
   },
   emby: {
     name: "Emby",
@@ -76,7 +73,7 @@ const CONNECTION_SERVICES = {
     ],
     payload: (v) => ({ baseUrl: v.baseUrl, apiKey: v.apiKey, userId: v.userId, disabled: !v.enabled }),
     testPayload: (v) => ({ type: "emby", url: v.baseUrl, token: v.apiKey }),
-    help: () => embyCredentialGuide() + savedCredentialNote() + embyWebhookSetup(),
+    help: () => embyCredentialGuide() + savedCredentialNote(),
   },
   jellyfin: {
     name: "Jellyfin",
@@ -89,7 +86,7 @@ const CONNECTION_SERVICES = {
     ],
     payload: (v) => ({ baseUrl: v.baseUrl, apiKey: v.apiKey, userId: v.userId, disabled: !v.enabled }),
     testPayload: (v) => ({ type: "jellyfin", url: v.baseUrl, token: v.apiKey }),
-    help: () => jellyfinCredentialGuide() + savedCredentialNote() + jellyfinWebhookSetup(),
+    help: () => jellyfinCredentialGuide() + savedCredentialNote(),
   },
   seerr: {
     name: "Seerr",
@@ -388,7 +385,7 @@ function openServicePicker(area) {
   const defs = area === "connection" ? CONNECTION_SERVICES : METADATA_SERVICES;
   const config = state.savedConfig || {};
   const items = Object.entries(defs)
-    .filter(([id]) => (area === "connection" ? !connectionTouched(config[id]) : !metadataVisible(id, config[id])))
+    .filter(([id]) => (area === "connection" ? id !== "seerr" && !connectionTouched(config[id]) : !metadataVisible(id, config[id])))
     .map(([id, def]) => ({ id, name: def.name, description: def.description }));
   openSettingsPickerModal({
     title: area === "connection" ? "Add Media Server" : "Add Metadata Provider",
@@ -402,22 +399,38 @@ function openServicePicker(area) {
 
 export function renderMediaServerCards() {
   const container = document.querySelector("#mediaServerCards");
-  if (!container) return;
+  const seerrContainer = document.querySelector("#seerrCards");
   const config = state.savedConfig || {};
-  const ids = Object.keys(CONNECTION_SERVICES);
-  const visible = ids.filter((id) => connectionTouched(config[id]));
-  const remaining = ids.filter((id) => !connectionTouched(config[id]));
-  renderServiceCardGrid(container, {
-    items: visible.map((id) => ({
-      id,
-      name: CONNECTION_SERVICES[id].name,
-      description: CONNECTION_SERVICES[id].description,
-      badges: connectionBadges(config[id]),
-    })),
-    onSelect: openServiceEditModal,
-    onAdd: remaining.length ? () => openServicePicker("connection") : null,
-    addLabel: "Add media server",
-  });
+  const serverIds = Object.keys(CONNECTION_SERVICES).filter((id) => id !== "seerr");
+  const visible = serverIds.filter((id) => connectionTouched(config[id]));
+  const remaining = serverIds.filter((id) => !connectionTouched(config[id]));
+  if (container) {
+    renderServiceCardGrid(container, {
+      items: visible.map((id) => ({
+        id,
+        name: CONNECTION_SERVICES[id].name,
+        description: CONNECTION_SERVICES[id].description,
+        badges: connectionBadges(config[id]),
+      })),
+      onSelect: openServiceEditModal,
+      onAdd: remaining.length ? () => openServicePicker("connection") : null,
+      addLabel: "Add media server",
+    });
+  }
+  if (seerrContainer) {
+    const seerrConfigured = connectionTouched(config.seerr);
+    renderServiceCardGrid(seerrContainer, {
+      items: seerrConfigured ? [{
+        id: "seerr",
+        name: CONNECTION_SERVICES.seerr.name,
+        description: CONNECTION_SERVICES.seerr.description,
+        badges: connectionBadges(config.seerr),
+      }] : [],
+      onSelect: openServiceEditModal,
+      onAdd: seerrConfigured ? null : () => openServiceEditModal("seerr"),
+      addLabel: "Add Seerr",
+    });
+  }
 }
 
 export function renderMetadataCards() {

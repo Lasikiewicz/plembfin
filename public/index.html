@@ -580,16 +580,61 @@
                     </article>
                   </div>
                 </div>
+
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="apps">
-                <div class="section-heading">
-                  <div>
-                    <p>Media Servers</p>
-                    <span>Connected media servers and request services. Select a card to edit it, or use + to add one.</span>
+                <div class="settings-row">
+                  <div class="settings-row-main">
+                    <section class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Media Servers</p>
+                          <span>Connected servers used for watch-state synchronization.</span>
+                        </div>
+                      </div>
+                      <div class="settings-service-subsection">
+                        <h3>Media servers</h3>
+                        <p>Select a card to edit it, or use + to add a server.</p>
+                        <div id="mediaServerCards" class="settings-card-grid"></div>
+                      </div>
+                    </section>
+                  </div>
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Media Server Setup</p>
+                        <span>Connections and requests</span>
+                      </div>
+                      <p class="tool-accordion-desc">Configure each media server with the URL and credentials Plembfin uses to read playback state and send synchronized changes. Seerr is configured separately for request actions.</p>
+                      <p class="tool-accordion-desc" style="margin: 0;">Open a card to find the provider-specific setup guide, test the connection, and save changes.</p>
+                    </article>
                   </div>
                 </div>
-                <div id="mediaServerCards" class="settings-card-grid"></div>
+
+                <div class="settings-row" data-sub-panel="seerr">
+                  <div class="settings-row-main">
+                    <section class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Seerr</p>
+                          <span>Optional request integration for movie and TV detail pages.</span>
+                        </div>
+                      </div>
+                      <div id="seerrCards" class="settings-card-grid"></div>
+                    </section>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Seerr Setup</p>
+                        <span>Request integration</span>
+                      </div>
+                      <p class="tool-accordion-desc">Connect Overseerr or Jellyseerr to add request actions to movie and TV show detail pages. Open the Seerr card for the URL, API key, connection test, and provider-specific setup help.</p>
+                    </article>
+                  </div>
+                </div>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="general">
@@ -606,10 +651,15 @@
                           <code id="webhookUrl">/api/webhook</code>
                           <button id="rotateWebhookButton" class="button-ghost" type="button" title="Generate a new webhook secret — update the URL in all media servers after rotating">Rotate Secret</button>
                         </div>
+                        <div class="webhook-secret-line">
+                          <span>Webhook secret</span>
+                          <code id="webhookSecret">Not available</code>
+                        </div>
                         <p>Point Plex, Emby, and Jellyfin webhooks here. The URL contains the compatibility secret token. Automation can also send the secret with a webhook header. After rotating, update every sender.</p>
                         <code id="cronSyncUrl">/api/cron-sync</code>
                         <p>Background scheduler URL for syncing states between platforms.</p>
                       </div>
+                      <div id="webhookSetupGuides" class="webhook-setup-guides"></div>
                     </article>
                   </div>
 
@@ -627,13 +677,28 @@
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="api-keys">
-                <div class="section-heading">
-                  <div>
-                    <p>Metadata Providers</p>
-                    <span>TMDB is required for artwork and detail pages; the other providers are optional enhancements.</span>
+                <div class="settings-row">
+                  <div class="settings-row-main">
+                    <section class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <div>
+                          <p>Metadata Providers</p>
+                          <span>TMDB is required for artwork and detail pages; the other providers are optional enhancements.</span>
+                        </div>
+                      </div>
+                      <div id="metadataProviderCards" class="settings-card-grid"></div>
+                    </section>
+                  </div>
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Metadata Setup</p>
+                        <span>Artwork and enrichment</span>
+                      </div>
+                      <p class="tool-accordion-desc">TMDB powers artwork, search, cast, trailers, and detail pages. The optional providers add TV episode data, fallback artwork, IMDb ratings, or trailer details.</p>
+                    </article>
                   </div>
                 </div>
-                <div id="metadataProviderCards" class="settings-card-grid"></div>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="tools">
@@ -851,9 +916,15 @@
               <!-- Backups Settings Panel -->
               <section class="settings-pane hidden" data-settings-panel="backups" data-backups-panel="settings">
                 <!-- Local Backups row -->
-                <div class="settings-row">
+                <div id="backup-settings-local" class="settings-row">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section settings-card backup-settings-panel">
+                      <div class="section-heading">
+                        <div>
+                          <p>Backup Settings</p>
+                          <span>Configure local schedules and remote destinations.</span>
+                        </div>
+                      </div>
                       <div class="section-heading sync-heading backup-section-heading">
                         <div>
                           <p>Local Backups</p>
@@ -955,7 +1026,7 @@
                 </div>
 
                 <!-- Remote Backups row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+                <div id="backup-settings-remote" class="settings-row" style="margin-top: var(--space-4);">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section settings-card backup-settings-panel">
                       <div class="section-heading">
@@ -1025,11 +1096,16 @@
 
               <!-- Backups Restore Panel -->
               <section class="settings-pane hidden" data-settings-panel="backups" data-backups-panel="restore">
-
                 <!-- Local Restore row -->
-                <div class="settings-row">
+                <div id="restore-local" class="settings-row">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section settings-card backup-settings-panel backup-restore-section">
+                      <div class="section-heading">
+                        <div>
+                          <p>Restore</p>
+                          <span>Recover from local files or configured remote storage.</span>
+                        </div>
+                      </div>
                       <div class="section-heading sync-heading backup-section-heading">
                         <div>
                           <p>Local Backups</p>
@@ -1128,7 +1204,7 @@
                 </div>
 
                 <!-- Remote Restore row -->
-                <div class="settings-row" style="margin-top: var(--space-4);">
+                <div id="restore-remote" class="settings-row" style="margin-top: var(--space-4);">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section settings-card backup-settings-panel">
                       <div class="section-heading sync-heading backup-section-heading">

@@ -10,13 +10,13 @@ Desktop renders the grouped sidebar; mobile uses the **Settings section** select
 | Group (parent) | Child sections | Canonical child route(s) |
 | --- | --- | --- |
 | General | Account, Sync Tuning | `/settings/account`, `/settings/sync-tuning` |
-| Media Servers | Media Servers, Webhooks | `/settings/media-servers`, `/settings/webhooks` |
+| Media Servers | Media Servers, Seerr, Webhooks | `/settings/media-servers`, `/settings/seerr`, `/settings/webhooks` |
 | Metadata | Metadata Providers | `/settings/metadata` |
 | Sync | Sync Issues, Sync History | `/settings/sync-issues`, `/settings/sync-history` |
-| Backup / Restore | Backup, Restore | `/settings/backups`, `/settings/restore` |
+| Backup / Restore | Backup Settings (Local, Remote), Restore (Local, Remote) | `/settings/backups`, `/settings/restore` |
 | Import | Trakt | `/settings/import` |
 | Tools | Database Repairs, Library Rebuilds and Backfills | `/settings/database-repairs`, `/settings/library-rebuilds` |
-| Advanced | Health, Storage & Cache | `/settings/health`, `/settings/storage` |
+| Advanced | System Integrity Check, Storage & Cache | `/settings/health`, `/settings/storage` |
 | Logs | Logs | `/settings/logs` |
 | About | About | `/settings/about` |
 
@@ -37,9 +37,10 @@ wraps into a one-item `views` array automatically):
 
 | Group | Views |
 | --- | --- |
-| Media Servers | `apps` panel, then the `general` panel's `general-endpoints` row (Webhooks) |
+| General | `general` panel's Account and Sync Tuning rows |
+| Media Servers | `apps` panel's Media Servers and Seerr sections, then the `general` panel's `general-endpoints` row (Webhooks) |
 | Backup / Restore | `backups` panel's `settings` tab, then its `restore` tab |
-| Advanced | `tools` panel's `tools-diagnostics` row (Health), then the `cache` panel (Storage & Cache) |
+| Advanced | `tools` panel's `tools-diagnostics` row (System Integrity Check), then the `cache` panel (Storage & Cache) |
 
 `applySettingsRoute()` iterates every view in the route and reveals each one's panel,
 sub-panel rows, and (for the backups panel) accumulates every requested `backupTab`
@@ -86,6 +87,12 @@ credential-clear operation.
 minimum resume position, active-session TTL, outbound timeout) render directly inline
 on the General page in a plain form with its own Save button — not behind a card + edit
 modal — since there's only ever one instance to edit and no add/remove/test workflow.
+
+Media Servers is rendered as a boxed settings section with a separate boxed Seerr
+subsection and its own left-menu link; its edit modal keeps provider setup help visible
+beside the fields on wider screens.
+Webhooks shows the current secret, complete webhook URL, and separate Plex, Emby, and
+Jellyfin setup guides.
 
 Remote backup destinations use the same card and modal primitives. The Backblaze B2
 dialog edits its name, enabled state, region/endpoint, bucket, key ID, optional prefix,
@@ -154,7 +161,7 @@ seconds respectively.
 
 ## Maintenance disposition
 
-- Health runs the integrity, database, webhook, scheduler, media-server, and
+- System Integrity Check runs the integrity, database, webhook, scheduler, media-server, and
   cross-platform library matching checks.
 - Sync combines unresolved jobs, history, repair-recent, force, stop/reset, and refresh.
   The Sync Issues panel also contains the Cross-Platform Match Report (backed by the
@@ -165,7 +172,7 @@ seconds respectively.
 - Tools retains history repair, deduplication, full watch-state sync, metadata refresh,
   TV rematching, and Trakt poster backfill with their confirmations and logs, split
   across the Database Repairs and Library Rebuilds and Backfills accordions.
-- Import owns the Trakt/CSV importer; Backups and Restore own their respective workflows.
+- Import owns the Trakt/CSV importer; Backup Settings and Restore own their respective workflows.
 
 No maintenance API or stored media configuration format changes are introduced by the
 settings shell.

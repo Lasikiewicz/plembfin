@@ -13,9 +13,9 @@ const SECTIONS = {
     subPanels: ["general-login", "sync-tuning"],
   },
   "media-servers-group": {
-    label: "Media Servers",
+    label: "Media servers",
     description: "Media servers and webhook configuration",
-    views: [{ panel: "apps" }, { panel: "general", subPanels: ["general-endpoints"] }],
+    views: [{ panel: "apps", subPanels: ["seerr"] }, { panel: "general", subPanels: ["general-endpoints"] }],
   },
   "sync-group": {
     label: "Sync",
@@ -24,7 +24,7 @@ const SECTIONS = {
     subPanels: ["sync-issues", "sync-history"],
   },
   "backup-restore-group": {
-    label: "Backup / Restore",
+    label: "Backup / restore",
     description: "Backup and restore configuration",
     views: [
       { panel: "backups", backupTab: "settings" },
@@ -42,7 +42,7 @@ const SECTIONS = {
     description: "Advanced settings",
     views: [{ panel: "tools", subPanels: ["tools-diagnostics"] }, { panel: "cache" }],
   },
-  // Account and Sync Tuning are NOT separate routes - only sections on the General page
+  // Account and Sync Tuning are sections on the General page
   account: {
     label: "Account",
     description: "Administrator username, password, and sessions",
@@ -51,15 +51,22 @@ const SECTIONS = {
     isDisplayOnly: true, // Not a navigable route
   },
   "sync-tuning": {
-    label: "Sync Tuning",
+    label: "Sync tuning",
     description: "Configure watched threshold, resume position, and timeouts",
     panel: "general",
     subPanels: ["sync-tuning"],
     isDisplayOnly: true, // Not a navigable route
   },
+  seerr: {
+    label: "Seerr",
+    description: "Optional movie and TV request integration",
+    panel: "apps",
+    subPanels: ["seerr"],
+    isDisplayOnly: true,
+  },
   "media-servers": {
-    label: "Media Servers",
-    description: "Plex, Emby, Jellyfin, and Seerr connections",
+    label: "Media servers",
+    description: "Plex, Emby, and Jellyfin connections",
     panel: "apps",
     isDisplayOnly: true,
   },
@@ -71,30 +78,34 @@ const SECTIONS = {
     isDisplayOnly: true,
   },
   metadata: {
-    label: "Metadata Providers",
+    label: "Metadata providers",
     description: "TMDB, TVDB, Fanart.tv, OMDb, and YouTube providers",
     panel: "api-keys",
     isDisplayOnly: true,
   },
   "sync-issues": {
-    label: "Sync Issues",
+    label: "Sync issues",
     description: "Unresolved sync issues between your media servers",
     panel: "sync",
     subPanels: ["sync-issues"],
     isDisplayOnly: true,
   },
   "sync-history": {
-    label: "Sync History",
+    label: "Sync history",
     description: "View the history of sync operations",
     panel: "sync",
     subPanels: ["sync-history"],
     isDisplayOnly: true,
   },
   backups: {
-    label: "Backup",
+    label: "Backup settings",
     description: "Backup schedules and remote destinations",
     panel: "backups",
     backupTab: "settings",
+    subSections: [
+      { id: "backup-settings-local", label: "Local", description: "Local backup schedules and files" },
+      { id: "backup-settings-remote", label: "Remote", description: "Remote backup destinations and mirroring" },
+    ],
     isDisplayOnly: true,
   },
   restore: {
@@ -102,6 +113,10 @@ const SECTIONS = {
     description: "Recover watch history or a full encrypted backup",
     panel: "backups",
     backupTab: "restore",
+    subSections: [
+      { id: "restore-local", label: "Local", description: "Restore from files on this server or your computer" },
+      { id: "restore-remote", label: "Remote", description: "Restore from configured remote storage" },
+    ],
     isDisplayOnly: true,
   },
   import: {
@@ -112,8 +127,8 @@ const SECTIONS = {
     isDisplayOnly: true,
   },
   health: {
-    label: "Health",
-    description: "Connection diagnostics and system checks",
+    label: "System integrity check",
+    description: "Connection diagnostics and system integrity checks",
     panel: "tools",
     subPanels: ["tools-diagnostics"],
     isDisplayOnly: true,
@@ -125,20 +140,20 @@ const SECTIONS = {
     isDisplayOnly: true,
   },
   storage: {
-    label: "Storage & Cache",
+    label: "Storage & cache",
     description: "Artwork and metadata cache usage",
     panel: "cache",
     isDisplayOnly: true,
   },
   "database-repairs": {
-    label: "Database Repairs",
+    label: "Database repairs",
     description: "Correct damaged or duplicated local history records",
     panel: "tools",
     subPanels: ["tools-repairs"],
     isDisplayOnly: true,
   },
   "library-rebuilds": {
-    label: "Library Rebuilds and Backfills",
+    label: "Library rebuilds and backfills",
     description: "Reprocess local metadata or push the complete archive to connected services",
     panel: "tools",
     subPanels: ["tools-sync"],
@@ -163,9 +178,9 @@ const SECTION_GROUPS = [
   },
   {
     id: "media-servers-group",
-    label: "Media Servers",
-    sections: ["media-servers", "webhooks"],
-    displayOnly: ["media-servers", "webhooks"],
+    label: "Media servers",
+    sections: ["media-servers", "seerr", "webhooks"],
+    displayOnly: ["media-servers", "seerr", "webhooks"],
   },
   {
     id: "metadata",
@@ -181,7 +196,7 @@ const SECTION_GROUPS = [
   },
   {
     id: "backup-restore-group",
-    label: "Backup / Restore",
+    label: "Backup / restore",
     sections: ["backups", "restore"],
     displayOnly: ["backups", "restore"],
   },
@@ -230,7 +245,7 @@ const LEGACY_PATHS = {
   "/settings/connections/plex": "/settings/media-servers",
   "/settings/connections/emby": "/settings/media-servers",
   "/settings/connections/jellyfin": "/settings/media-servers",
-  "/settings/connections/seerr": "/settings/media-servers",
+  "/settings/connections/seerr": "/settings/seerr",
   "/settings/connections/webhooks": "/settings/webhooks",
   "/settings/metadata/tmdb": "/settings/metadata",
   "/settings/metadata/youtube": "/settings/metadata",
@@ -315,13 +330,19 @@ export function parseSettingsRoute(value = "/settings", { mustChangePassword = f
   if (parts[0] !== "settings" || !SECTIONS[parts[1]]) {
     return { kind: "overview", group: "overview", task: "", path: "/settings", requestedPath, title: "Settings overview" };
   }
-  return sectionRoute(parts[1], requestedPath);
+  const route = sectionRoute(parts[1], requestedPath);
+  const hash = String(value || "").split("#")[1]?.split(/[?&]/, 1)[0] || "";
+  if (hash && SECTIONS[hash] && SECTION_GROUPS.find((group) => group.id === route.group)?.sections.includes(hash)) {
+    route.section = hash;
+    route.title = SECTIONS[hash].label;
+  }
+  return route;
 }
 
 function renderSettingsSidebar() {
   const menu = document.querySelector("#sidebarSettingsMenu");
   if (!menu) return;
-  menu.querySelectorAll("[data-settings-group], [data-settings-group-parent]").forEach((el) => el.remove());
+  menu.querySelectorAll("[data-settings-group], [data-settings-group-parent], [data-settings-subsection]").forEach((el) => el.remove());
   const lockButton = menu.querySelector("#lockButton");
   const fragment = document.createDocumentFragment();
 
@@ -356,6 +377,17 @@ function renderSettingsSidebar() {
       childButton.dataset.settingsGroupParent = group.id;
       childButton.textContent = definition.label;
       fragment.append(childButton);
+
+      for (const subSection of definition.subSections || []) {
+        const subButton = document.createElement("button");
+        subButton.type = "button";
+        subButton.className = "settings-tab settings-group-grandchild hidden";
+        subButton.dataset.settingsSubsection = subSection.id;
+        subButton.dataset.settingsParentSection = sectionId;
+        subButton.dataset.settingsPath = `/settings/${sectionId}#${subSection.id}`;
+        subButton.textContent = subSection.label;
+        fragment.append(subButton);
+      }
     }
   }
   menu.insertBefore(fragment, lockButton || null);
@@ -379,6 +411,12 @@ function renderSettingsSectionSelect() {
       option.value = `/settings/${sectionId}`;
       option.textContent = definition.label;
       groupOptgroup.append(option);
+      for (const subSection of definition.subSections || []) {
+        const subOption = document.createElement("option");
+        subOption.value = `/settings/${sectionId}#${subSection.id}`;
+        subOption.textContent = `— ${definition.label}: ${subSection.label}`;
+        groupOptgroup.append(subOption);
+      }
     }
     select.append(groupOptgroup);
   }
@@ -411,6 +449,18 @@ function renderSettingsOverview() {
       description.textContent = definition.description;
       row.append(title, description);
       itemsContainer.append(row);
+      for (const subSection of definition.subSections || []) {
+        const subRow = document.createElement("button");
+        subRow.type = "button";
+        subRow.className = "settings-link-row settings-link-row--nested";
+        subRow.dataset.settingsPath = `/settings/${sectionId}#${subSection.id}`;
+        const subTitle = document.createElement("strong");
+        subTitle.textContent = subSection.label;
+        const subDescription = document.createElement("span");
+        subDescription.textContent = subSection.description;
+        subRow.append(subTitle, subDescription);
+        itemsContainer.append(subRow);
+      }
     }
     groupContainer.append(itemsContainer);
     list.append(groupContainer);
@@ -477,6 +527,10 @@ export function applySettingsRoute(route) {
     }
   }
 
+  document.querySelectorAll("[data-settings-subsection]").forEach((button) => {
+    button.classList.toggle("hidden", route.kind !== "task" || route.section !== button.dataset.settingsParentSection);
+  });
+
   // Handle parent/child active states
   document.querySelectorAll("[data-settings-group-parent]").forEach((button) => {
     const active = route.group === button.dataset.settingsGroupParent;
@@ -510,7 +564,7 @@ export function focusSettingsRoute(route) {
 // into view instead of only landing at the top of the group's page.
 function settingsSectionElement(sectionId) {
   const definition = SECTIONS[sectionId];
-  if (!definition) return null;
+  if (!definition) return document.getElementById(sectionId);
   const view = definition.views?.[0] || { panel: definition.panel, subPanels: definition.subPanels, backupTab: definition.backupTab };
   if (!view.panel) return null;
   if (view.subPanels?.length) {

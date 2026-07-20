@@ -84,14 +84,14 @@ export function openSettingsEditModal({
   const overlay = document.createElement("div");
   overlay.className = "edit-dialog-overlay settings-modal-overlay";
   overlay.innerHTML = `
-    <div class="edit-dialog settings-modal" role="dialog" aria-modal="true" aria-label="${escapeAttribute(title)}">
+    <div class="edit-dialog settings-modal${helpHtml ? " settings-modal--with-help" : ""}" role="dialog" aria-modal="true" aria-label="${escapeAttribute(title)}">
       <header class="settings-modal-head">
         <h3>${escapeHtml(title)}</h3>
         <button class="settings-modal-close" type="button" aria-label="Close">&times;</button>
       </header>
       <div class="settings-modal-body">
         ${fields.map(renderFieldRow).join("")}
-        ${helpHtml ? `<details class="settings-help-disclosure settings-modal-help"><summary>Setup help</summary><div class="settings-help-body">${helpHtml}</div></details>` : ""}
+        ${helpHtml ? `<details open class="settings-help-disclosure settings-modal-help"><summary>Setup help</summary><div class="settings-help-body">${helpHtml}</div></details>` : ""}
       </div>
       <p class="settings-modal-status message" role="status" aria-live="polite" data-tone="muted"></p>
       <footer class="settings-modal-foot">

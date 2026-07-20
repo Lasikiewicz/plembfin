@@ -97,21 +97,21 @@
 
 .settings-overview {
   display: grid;
-  gap: var(--space-6);
+  gap: var(--space-4);
   width: 100%;
 }
 
 .settings-overview-header {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   align-items: end;
-  padding: var(--space-2) 0 var(--space-5);
+  padding: 0 0 var(--space-3);
   border-bottom: 1px solid var(--line);
 }
 
 .settings-overview-header > div {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .settings-overview-header h2 {
@@ -126,14 +126,28 @@
   max-width: 58ch;
   margin: 0;
   color: var(--soft);
-  font-size: 0.92rem;
-  line-height: 1.6;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.settings-overview .settings-eyebrow {
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 
 .settings-pane {
   width: 100%;
   padding-top: 0;
+}
+
+.settings-pane[data-settings-panel="backups"][data-backups-panel] {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
 }
 
 .settings-pane .settings-card,
@@ -3846,7 +3860,7 @@ details[open] .tool-accordion-chevron::before {
 
 .sync-tuning-fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
 }
 
@@ -3875,6 +3889,25 @@ details[open] .tool-accordion-chevron::before {
   border-radius: 3px;
   background: var(--panel-3);
   padding: 0.1rem 0.3rem;
+}
+
+.webhook-secret-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.webhook-secret-line code {
+  color: var(--text);
+  word-break: break-all;
+}
+
+.webhook-setup-guides {
+  display: grid;
+  gap: var(--space-3);
 }
 
 .drop-zone {
@@ -9372,7 +9405,7 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
   font-weight: 700;
   font-size: 0.68rem;
   letter-spacing: 0.03em;
-  text-transform: uppercase;
+  text-transform: none;
   color: var(--text);
   min-height: 1.15rem;
   padding-top: 0.15rem;
@@ -9408,6 +9441,20 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
   border-left-color: var(--nav-active-border);
   background: var(--nav-active-bg);
   color: var(--nav-active-text);
+}
+
+.sidebar-sub-menu .settings-group-grandchild {
+  margin-left: 1.1rem;
+  padding-left: 1.25rem;
+  font-weight: 400;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.sidebar-sub-menu .settings-group-grandchild:hover,
+.sidebar-sub-menu .settings-group-grandchild:focus-visible {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .sidebar-sub-menu .help-menu-group {
@@ -14254,14 +14301,15 @@ html.light-mode .upcoming-entry:hover {
 /* ── Sonarr-style settings: landing link list ─────────────────────────── */
 .settings-link-list {
   display: grid;
-  border-top: 1px solid var(--line);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
 }
 
 .settings-link-row {
   display: grid;
   gap: var(--space-1);
-  min-height: 4.25rem;
-  padding: var(--space-3) 0;
+  min-height: 3.25rem;
+  padding: var(--space-2) 0;
   border: 0;
   border-bottom: 1px solid var(--line);
   background: transparent;
@@ -14283,28 +14331,38 @@ html.light-mode .upcoming-entry:hover {
 }
 
 .settings-link-row strong {
-  font-size: 0.95rem;
+  font-size: 0.88rem;
 }
 
 .settings-link-row span {
   color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.45;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.settings-link-row--nested {
+  min-height: 2.7rem;
+  padding-left: var(--space-3);
+  background: color-mix(in srgb, var(--panel-2), transparent 35%);
 }
 
 /* ── Grouped settings overview ─────────────────────────────────────────── */
 .settings-group-section {
-  margin-bottom: var(--space-4);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel), transparent 12%);
 }
 
 .settings-group-heading {
-  margin: 0 0 var(--space-2) 0;
-  padding: var(--space-2) 0;
-  font-size: 0.88rem;
+  margin: 0;
+  padding: var(--space-1) 0;
+  font-size: 0.76rem;
   font-weight: 600;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
+  letter-spacing: 0;
   border-bottom: 1px solid var(--line-subtle);
 }
 
@@ -14321,12 +14379,40 @@ html.light-mode .upcoming-entry:hover {
   border-bottom: none;
 }
 
+@media (max-width: 48rem) {
+  .settings-link-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ── Sonarr-style settings: service card grid ─────────────────────────── */
 .settings-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: var(--space-3);
   width: 100%;
+}
+
+.settings-service-subsection {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.settings-service-subsection + .settings-service-subsection {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-subtle);
+}
+
+.settings-service-subsection > h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.settings-service-subsection > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .service-card {
@@ -14397,7 +14483,7 @@ html.light-mode .upcoming-entry:hover {
 
 /* ── Sonarr-style settings: edit / picker modals ──────────────────────── */
 .settings-modal {
-  width: min(640px, 94vw);
+  width: min(1280px, 98vw);
   gap: 0;
   padding: 0;
   overflow: hidden;
@@ -14447,6 +14533,16 @@ html.light-mode .upcoming-entry:hover {
   min-height: 0;
   padding: var(--space-4);
   overflow-y: auto;
+}
+
+.settings-modal--with-help .settings-modal-body {
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  align-items: start;
+}
+
+.settings-modal--with-help .settings-modal-help {
+  grid-column: 2;
+  grid-row: 1 / span 20;
 }
 
 .settings-modal-status {
@@ -14555,6 +14651,17 @@ html.light-mode .upcoming-entry:hover {
 
   .settings-modal-field-control .field {
     max-width: 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  .settings-modal--with-help .settings-modal-body {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-modal--with-help .settings-modal-help {
+    grid-column: auto;
+    grid-row: auto;
   }
 }
 

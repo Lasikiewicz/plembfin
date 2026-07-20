@@ -390,6 +390,27 @@ export function renderSettingsInlineHelp() {
   const adminLoginHelp = document.getElementById("adminLoginHelp");
   if (adminLoginHelp) adminLoginHelp.innerHTML = adminTokenGuide();
 
+  const webhookSecret = document.getElementById("webhookSecret");
+  if (webhookSecret) webhookSecret.textContent = getWebhookToken() || "Not available";
+
+  const webhookSetupGuides = document.getElementById("webhookSetupGuides");
+  if (webhookSetupGuides) {
+    webhookSetupGuides.innerHTML = `
+      <details class="settings-help-disclosure" open>
+        <summary>Plex setup</summary>
+        <div class="settings-help-body">${plexWebhookSetup()}</div>
+      </details>
+      <details class="settings-help-disclosure" open>
+        <summary>Emby setup</summary>
+        <div class="settings-help-body">${embyWebhookSetup()}</div>
+      </details>
+      <details class="settings-help-disclosure" open>
+        <summary>Jellyfin setup</summary>
+        <div class="settings-help-body">${jellyfinWebhookSetup()}</div>
+      </details>
+    `;
+  }
+
   const migrationHelp = document.getElementById("migrationHelp");
   if (migrationHelp) {
     migrationHelp.innerHTML = `
