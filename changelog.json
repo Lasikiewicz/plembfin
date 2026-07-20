@@ -1,7 +1,20 @@
 {
-  "version": "0.5.4",
-  "updatedAt": "2026-07-20T13:11:48+01:00",
+  "version": "0.5.5",
+  "updatedAt": "2026-07-20T14:05:38+01:00",
   "entries": [
+    {
+      "version": "0.5.5",
+      "date": "2026-07-20T14:05:38+01:00",
+      "commit": "4b4abd11231dc87d1275b9ed7f5dda016a454e55",
+      "message": "Feature - Reorganize settings navigation and layout",
+      "author": "Lasikiewicz",
+      "details": [
+        "Group settings into compact, sentence-case sections with responsive overview layout",
+        "Separate media servers, Seerr, webhooks, metadata, and backup restore subsections",
+        "Show webhook secrets and platform-specific setup guidance in the settings pages",
+        "Rename Health to System Integrity Check and document the updated settings routes"
+      ]
+    },
     {
       "version": "0.5.4",
       "date": "2026-07-20T13:11:48+01:00",
