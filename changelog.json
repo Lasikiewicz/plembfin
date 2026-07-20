@@ -1,7 +1,18 @@
 {
-  "version": "0.5.1",
-  "updatedAt": "2026-07-18T18:51:54+01:00",
+  "version": "0.5.2",
+  "updatedAt": "2026-07-20T12:56:20+01:00",
   "entries": [
+    {
+      "version": "0.5.2",
+      "date": "2026-07-20T12:56:20+01:00",
+      "commit": "701eda68758834b0232ee143d3ca3bb11a607db7",
+      "message": "Fix - Retry startup SQLite pragmas on a transient busy lock",
+      "author": "Lasikiewicz",
+      "details": [
+        "Two Plembfin processes starting against the same brand-new database at the same instant could crash on boot because switching journal mode to WAL can throw a busy-database error immediately instead of waiting, even with a busy timeout configured",
+        "Startup now retries that pragma briefly before giving up, fixing an intermittent CI failure in the concurrent-migration test"
+      ]
+    },
     {
       "version": "0.5.1",
       "date": "2026-07-18T18:51:54+01:00",
