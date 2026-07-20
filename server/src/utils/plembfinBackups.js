@@ -152,10 +152,12 @@ function encryptPlembfinBackup(backup, passphrase) {
   };
 }
 
-export async function createPlembfinBackup({ reason = "manual", passphrase } = {}) {
+export async function createPlembfinBackup({ reason = "manual", passphrase, forceRemote = false } = {}) {
   fs.mkdirSync(FULL_BACKUPS_DIR, { recursive: true });
   const config = loadPlembfinBackupConfig();
-  const actualPassphrase = passphrase || config.passphrase || config.remotePassphrase;
+  const actualPassphrase = passphrase || (forceRemote
+    ? config.remotePassphrase || config.passphrase
+    : config.passphrase || config.remotePassphrase);
   if (!actualPassphrase || actualPassphrase.length < 12) {
     throw new Error("Enter an encryption passphrase of at least 12 characters.");
   }
@@ -186,25 +188,30 @@ export async function createPlembfinBackup({ reason = "manual", passphrase } = {
   };
 
   let remoteStatus = {};
-  if (config.remoteEnabled) {
-    const remotePass = passphrase || config.remotePassphrase || config.passphrase;
-    if (remotePass && remotePass.length >= 12) {
-      try {
-        const statuses = await pushBackupToRemotes(destination, filename, config.retention);
-        const b2Status = statuses.find(s => s.id === "backblaze");
-        if (b2Status) {
-          remoteStatus = {
-            lastRemoteAttemptAt: b2Status.lastAttemptAt,
-            lastRemoteSuccessAt: b2Status.lastSuccessAt || 0,
-            lastRemoteError: b2Status.lastError || "",
-          };
-        }
-      } catch (e) {
+  if (config.remoteEnabled || forceRemote) {
+    try {
+      const statuses = await pushBackupToRemotes(destination, filename, config.retention);
+      result.remotes = statuses;
+      if (statuses.length) {
+        const succeeded = statuses.filter((s) => s.status === "success");
+        const failed = statuses.filter((s) => s.status === "error");
         remoteStatus = {
           lastRemoteAttemptAt: Date.now(),
-          lastRemoteError: e.message || String(e),
+          ...(succeeded.length ? { lastRemoteSuccessAt: Date.now() } : {}),
+          lastRemoteError: failed.length ? failed[0].lastError || "Remote upload failed" : "",
         };
+      } else {
+        remoteStatus = {
+          lastRemoteAttemptAt: Date.now(),
+          lastRemoteError: "No enabled remote destinations are configured.",
+        };
+        result.remotes = [];
       }
+    } catch (e) {
+      remoteStatus = {
+        lastRemoteAttemptAt: Date.now(),
+        lastRemoteError: e.message || String(e),
+      };
     }
   }
 

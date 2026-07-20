@@ -122,7 +122,8 @@ export async function handlePlembfinBackups(req, res) {
     }
     if (action === "create") {
       const passphrase = String(body.passphrase || "").trim();
-      return sendJson(res, { ok: true, backup: await createPlembfinBackup({ reason: "manual", passphrase }) });
+      const forceRemote = body.remote === true;
+      return sendJson(res, { ok: true, backup: await createPlembfinBackup({ reason: "manual", passphrase, forceRemote }) });
     }
     if (action === "delete") {
       const filename = String(body.filename || "").trim();
@@ -580,7 +581,7 @@ export async function handleWatchBackups(req, res) {
       return sendJson(res, { ok: true, config: saveWatchBackupConfig(body.config || {}) });
     }
     if (action === "create") {
-      return sendJson(res, { ok: true, backup: await createWatchHistoryBackup({ reason: "manual" }) });
+      return sendJson(res, { ok: true, backup: await createWatchHistoryBackup({ reason: "manual", mirrorRemote: body.remote === true }) });
     }
     if (action === "restore") {
       const filename = String(body.filename || "").trim();

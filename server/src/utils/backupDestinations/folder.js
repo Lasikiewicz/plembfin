@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const FILE_PATTERN = /^plembfin-watch-history-\d{8}T\d{6}Z\.json\.gz$/;
+const FILE_PATTERN = /^plembfin-(?:watch-history-\d{8}T\d{6}Z\.json\.gz|backup-\d{8}T\d{6}Z\.encrypted\.json)$/;
 
 function targetDir(destination) {
   const dir = String(destination.settings?.path || "").trim();

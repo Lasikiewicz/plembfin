@@ -3276,6 +3276,35 @@ details[open] .tool-accordion-chevron::before {
   line-height: 1.45;
 }
 
+.backup-type-head .backup-enable-row {
+  flex-shrink: 0;
+}
+
+.backup-type-head .backup-enable-row span {
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+/* Form container for cards whose controls span multiple rows (settings row + passphrase row). */
+.backup-settings-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.backup-settings-inline.backup-passphrase-row {
+  align-items: flex-end;
+}
+
+.backup-passphrase-row .backup-passphrase-label {
+  flex: 1 1 260px;
+}
+
+.backup-passphrase-row .backup-enable-row {
+  flex-shrink: 0;
+}
+
 .backup-type-note {
   max-width: 72ch;
   margin: 0;

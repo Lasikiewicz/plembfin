@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import { fetchWithTimeout } from "../outbound.js";
 
-const FILE_PATTERN = /^plembfin-watch-history-\d{8}T\d{6}Z\.json\.gz$/;
+const FILE_PATTERN = /^plembfin-(?:watch-history-\d{8}T\d{6}Z\.json\.gz|backup-\d{8}T\d{6}Z\.encrypted\.json)$/;
 const EMPTY_SHA256 = crypto.createHash("sha256").update("").digest("hex");
 
 function sha256Hex(data) {

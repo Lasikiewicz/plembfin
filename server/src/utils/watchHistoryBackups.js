@@ -15,6 +15,9 @@ const DESTINATIONS_ID = "watchBackupDestinations";
 // Secret fields that must never be returned to the browser, per destination type.
 const SECRET_FIELDS = ["password", "secretAccessKey", "appSecret", "refreshToken"];
 const FILE_PATTERN = /^plembfin-watch-history-(\d{8}T\d{6}Z)\.json\.gz$/;
+// Encrypted full-backup filenames (see plembfinBackups.js). Remote destinations hold both
+// backup types side by side, so remote listing/retention must be able to tell them apart.
+const FULL_BACKUP_FILE_PATTERN = /^plembfin-backup-\d{8}T\d{6}Z\.encrypted\.json$/;
 
 const selectSetting = db.prepare("SELECT data FROM settings WHERE id = ?");
 const upsertSetting = db.prepare(`
@@ -27,12 +30,18 @@ const upsertRuntime = db.prepare(`
   ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
 `);
 
+function validTime(value, fallback = "03:00") {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || "")) ? String(value) : fallback;
+}
+
 function safeConfig(value = {}) {
-  const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value.time || "")) ? String(value.time) : "03:00";
   return {
     enabled: Boolean(value.enabled),
-    time,
+    time: validTime(value.time),
     retention: Math.max(1, Math.min(Number(value.retention) || 14, 365)),
+    remoteEnabled: Boolean(value.remoteEnabled),
+    remoteTime: validTime(value.remoteTime),
+    remoteRetention: Math.max(1, Math.min(Number(value.remoteRetention) || 14, 365)),
   };
 }
 
@@ -258,7 +267,10 @@ export async function testBackupDestination(destination) {
 export async function listRemoteBackups(id) {
   const destination = getBackupDestination(id);
   if (!destination) throw new Error("Destination not found");
-  return adapterFor(destination).list();
+  // Remote destinations also hold encrypted full Plembfin backups; this listing feeds the
+  // watch-history restore flow, so only watch-history files belong here.
+  const files = await adapterFor(destination).list();
+  return files.filter((file) => FILE_PATTERN.test(file.name));
 }
 
 // Download a backup from a remote destination, verify it is an intact Plembfin
@@ -331,8 +343,10 @@ export function importWatchHistoryBackupFile({ filename = "", buffer }) {
   };
 }
 
-async function applyRemoteRetention(adapter, retention) {
-  const files = await adapter.list();
+async function applyRemoteRetention(adapter, retention, pattern) {
+  // Retention only counts and deletes files of the same backup type as the one just
+  // uploaded — watch-history and full Plembfin backups keep independent retention.
+  const files = (await adapter.list()).filter((file) => pattern.test(file.name));
   // Order by filename, not remote-reported mtimes: our names embed a sortable UTC
   // timestamp, so this is newest-first regardless of how the remote reports dates.
   const newestFirst = [...files].sort((a, b) => b.name.localeCompare(a.name));
@@ -347,13 +361,14 @@ export async function pushBackupToRemotes(localAbsolutePath, filename, retention
   const destinations = loadBackupDestinations().filter((item) => item.enabled);
   if (!destinations.length) return [];
 
+  const retentionPattern = FULL_BACKUP_FILE_PATTERN.test(filename) ? FULL_BACKUP_FILE_PATTERN : FILE_PATTERN;
   const statuses = [];
   for (const destination of destinations) {
     const lastAttemptAt = Date.now();
     try {
       const adapter = adapterFor(destination);
       const { bytes, durationMs } = await adapter.upload(localAbsolutePath, filename);
-      await applyRemoteRetention(adapter, retention).catch(() => null);
+      await applyRemoteRetention(adapter, retention, retentionPattern).catch(() => null);
       statuses.push({ id: destination.id, status: "success", lastAttemptAt, lastSuccessAt: Date.now(), lastError: "", bytes, durationMs });
     } catch (error) {
       statuses.push({ id: destination.id, status: "error", lastAttemptAt, lastError: error.message || String(error) });
@@ -460,7 +475,7 @@ function applyRetention(retention) {
   }
 }
 
-export async function createWatchHistoryBackup({ reason = "manual" } = {}) {
+export async function createWatchHistoryBackup({ reason = "manual", mirrorRemote = false } = {}) {
   fs.mkdirSync(WATCH_HISTORY_BACKUPS_DIR, { recursive: true });
   const document = backupDocument();
   const json = Buffer.from(`${JSON.stringify(document)}\n`, "utf8");
@@ -486,9 +501,12 @@ export async function createWatchHistoryBackup({ reason = "manual" } = {}) {
     reason,
   };
   saveRuntime({ lastSuccessAt: Date.now(), lastError: "", lastBackup: result, lastRunDate: localDateKey() });
-  // Local backup is verified and durable; remote mirroring is best-effort and must
-  // not throw back into the caller.
-  result.remotes = await pushBackupToRemotes(destination, filename, config.retention).catch(() => []);
+  // Mirroring runs on its own schedule (or on-demand via the remote Back Up Now), with its
+  // own retention count on the remote. Local backup is verified and durable; remote
+  // mirroring is best-effort and must not throw back into the caller.
+  if (mirrorRemote) {
+    result.remotes = await pushBackupToRemotes(destination, filename, config.remoteRetention).catch(() => []);
+  }
   return result;
 }
 
@@ -627,6 +645,26 @@ export async function runScheduledWatchBackup() {
     return await createWatchHistoryBackup({ reason: "scheduled" });
   } catch (error) {
     saveRuntime({ lastError: error.message || String(error), lastFailureAt: Date.now(), lastRunDate: today });
+    throw error;
+  }
+}
+
+// Independent daily schedule for remote mirroring: creates a fresh backup and uploads it
+// to every enabled destination, applying the remote retention count on the remote side.
+export async function runScheduledRemoteWatchBackup() {
+  const config = loadWatchBackupConfig();
+  if (!config.remoteEnabled) return null;
+  const now = new Date();
+  const today = localDateKey(now);
+  const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const runtime = loadWatchBackupRuntime();
+  if (runtime.lastRemoteRunDate === today || currentTime < config.remoteTime) return null;
+  try {
+    const result = await createWatchHistoryBackup({ reason: "scheduled-remote", mirrorRemote: true });
+    saveRuntime({ lastRemoteRunDate: today });
+    return result;
+  } catch (error) {
+    saveRuntime({ lastError: error.message || String(error), lastFailureAt: Date.now(), lastRemoteRunDate: today });
     throw error;
   }
 }

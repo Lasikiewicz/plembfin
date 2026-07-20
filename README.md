@@ -32,7 +32,7 @@
 | **Seerr integration** | Request movies and shows from detail pages via Overseerr or Jellyseerr |
 | **Movie collections** | Movie pages show a poster row of other films in the same franchise (sequels, prequels, spin-offs) |
 | **Open-in-app links** | Detail pages and Part Watched cards link straight to the item in Plex, Emby, or Jellyfin when it exists in that server's library |
-| **Automated backups** | Daily local backups with optional mirror to Backblaze B2 |
+| **Automated backups** | Daily local backups plus independently scheduled remote backups to Backblaze B2 |
 | **Self-hosted & private** | SQLite on your own hardware — no cloud accounts required |
 | **Security hardening** | Strict CSP headers, scrypt hashing, rate-limited login, HMAC-signed sessions |
 | **Artwork pipeline** | Posters and logos fetched from TMDB, TheTVDB, and Fanart.tv, resized and cached locally; the per-title artwork picker includes a manual search for titles that fail to match automatically |
@@ -267,13 +267,13 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 
 ## Backup & Restore System
 
-Plembfin runs automated daily backups at a customizable time. 
+Plembfin runs automated daily backups; each backup type has its own schedule time, retention count, and Back Up Now button.
 
 ### Supported Backup Types
 
 *   **Local Watch History Backups**: Capture watch history snapshots, playstates, and resume markers. Saved to `data/backups/watch-history`.
 *   **Local Plembfin Backups**: Create full, AES-256-GCM encrypted database backups (including settings, API keys, credentials, and play history, excluding cache). Manual backups can use a one-time passphrase; scheduled backups require a remembered passphrase. Saved to `data/backups/plembfin`.
-*   **Remote Backups**: Mirror local watch-history and full encrypted Plembfin backups to one or more private Backblaze B2 destinations under **Settings → Backup Settings → Remote**. Select a destination card to edit/test it, or use **+** to add one.
+*   **Remote Backups**: Upload watch-history and full encrypted Plembfin backups to one or more private Backblaze B2 destinations under **Settings → Backups → Remote Backups**. Remote watch-history backups run on their own daily schedule with their own retention count on the remote, independent of the local schedule; remote Plembfin backups run with the daily Plembfin backup when remote mirroring is enabled. Select a destination card to edit/test it, or use **+** to add one.
 
 ---
 

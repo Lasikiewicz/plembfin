@@ -347,6 +347,9 @@ export function renderWatchBackups() {
     elements.watchBackupEnabled && (elements.watchBackupEnabled.checked = Boolean(config.enabled));
     elements.watchBackupTime && (elements.watchBackupTime.value = config.time || "03:00");
     elements.watchBackupRetention && (elements.watchBackupRetention.value = String(config.retention || 14));
+    elements.remoteWatchBackupEnabled && (elements.remoteWatchBackupEnabled.checked = Boolean(config.remoteEnabled));
+    elements.remoteWatchBackupTime && (elements.remoteWatchBackupTime.value = config.remoteTime || "03:00");
+    elements.remoteWatchBackupRetention && (elements.remoteWatchBackupRetention.value = String(config.remoteRetention || 14));
     elements.watchBackupSummary && (elements.watchBackupSummary.textContent = config.enabled ? "Scheduled" : "Disabled");
     elements.watchBackupSummary && (elements.watchBackupSummary.className = `status-pill status-${config.enabled ? "ready" : "muted"}`);
     const localPathEl = document.querySelector("#watchBackupLocalPath");
@@ -376,6 +379,7 @@ export function renderWatchBackups() {
       </article>
     `).join("") : `<div class="empty-log"><b>No local backups yet</b><span>Use Back Up Now or enable the daily schedule.</span></div>`;
     renderBackupDestinationCards();
+    renderRemoteWatchBackupRuntime(data);
     return;
   }
   const localEntries = files.map((f) => ({ ...f, source: "local", destId: null, destLabel: "Local" }));
@@ -439,6 +443,33 @@ export function renderWatchBackups() {
   if (elements.remoteWatchBackupList) {
     elements.remoteWatchBackupList.innerHTML = remoteLoading + (remoteEntries.length ? clearModeSelector : "") + renderEntries(remoteEntries, remoteEmpty);
   }
+}
+// Per-destination mirror status for the Remote Watch History Backups card on the Backups tab.
+function renderRemoteWatchBackupRuntime(data) {
+  if (!elements.watchBackupRemoteRuntime) return;
+  const destinations = Array.isArray(data.destinations) ? data.destinations : [];
+  if (!destinations.length) {
+    elements.watchBackupRemoteRuntime.innerHTML = `<div><span>Status</span><b>No remote destinations configured</b></div>`;
+    return;
+  }
+  const statusMap = data.runtime?.destinations || {};
+  elements.watchBackupRemoteRuntime.innerHTML = destinations.map((destination) => {
+    const status = statusMap[destination.id] || {};
+    const label = destination.label || destination.type || "Remote";
+    if (!destination.enabled) {
+      return `<div><span>${escapeHtml(label)}</span><b>Disabled</b></div>`;
+    }
+    if (!status.lastAttemptAt) {
+      return `<div><span>${escapeHtml(label)}</span><b>Never synced</b></div>`;
+    }
+    if (status.status === "error") {
+      return `
+        <div><span>${escapeHtml(label)}</span><b style="color: var(--red);">Last upload failed</b></div>
+        <p class="backup-runtime-error">${escapeHtml(status.lastError || "Unknown error")}</p>
+      `;
+    }
+    return `<div><span>${escapeHtml(label)}</span><b>Last mirrored ${escapeHtml(watchBackupDate(status.lastSuccessAt))}</b></div>`;
+  }).join("");
 }
 export async function loadRemoteBackupsForRestoreTab() {
   const data = state.watchBackups;
@@ -682,6 +713,10 @@ export function updatePlembfinButtonsState() {
   if (elements.savePlembfinBackupRemoteButton) {
     elements.savePlembfinBackupRemoteButton.disabled = remoteScheduleEnabled && !hasLocalPassphrase && (!remoteRemember || !hasRemotePassphrase);
   }
+  if (elements.createPlembfinBackupRemoteButton) {
+    const canBackUpRemoteNow = remotePassphrase.length >= 12 || hasStoredRemotePassphrase || hasStoredPassphrase || hasLocalPassphrase;
+    elements.createPlembfinBackupRemoteButton.disabled = !canBackUpRemoteNow;
+  }
 }
 export function renderPlembfinBackups() {
   if (!elements.plembfinBackupList) return;
@@ -819,6 +854,34 @@ export async function createPlembfinBackupNow() {
     updatePlembfinButtonsState();
   }
 }
+export async function createPlembfinBackupRemoteNow() {
+  const button = elements.createPlembfinBackupRemoteButton;
+  if (!button) return;
+  button.disabled = true;
+  button.textContent = "Backing up...";
+  try {
+    const result = await postPlembfinBackupAction({
+      action: "create",
+      remote: true,
+      passphrase: elements.plembfinBackupRemotePassphrase?.value.trim() || "",
+    });
+    state.plembfinBackups = null;
+    await loadPlembfinBackups({ force: true });
+    const remotes = Array.isArray(result.backup?.remotes) ? result.backup.remotes : [];
+    const failed = remotes.filter((remote) => remote.status === "error");
+    if (!remotes.length) {
+      _setMessage("Backup created, but there are no enabled remote destinations to upload it to.", "error");
+    } else if (failed.length) {
+      _setMessage(`Backup created, but ${failed.length} remote upload${failed.length === 1 ? "" : "s"} failed: ${failed[0].lastError || "unknown error"}`, "error");
+    } else {
+      _setMessage(`Created ${result.backup?.name || "Plembfin backup"} and uploaded it to ${remotes.length} remote destination${remotes.length === 1 ? "" : "s"}.`, "success");
+    }
+  } finally {
+    button.disabled = false;
+    button.textContent = "Back Up Now";
+    updatePlembfinButtonsState();
+  }
+}
 export async function downloadPlembfinBackup(filename) {
   const response = await fetch(`/api/plembfin-backups?download=${encodeURIComponent(filename)}`, { headers: authHeaders() });
   if (!response.ok) {
@@ -924,6 +987,7 @@ export async function saveAppearanceSettings() {
 }
 export async function saveWatchBackupSettings() {
   const config = {
+    ...state.watchBackups?.config,
     enabled: elements.watchBackupEnabled.checked,
     time: elements.watchBackupTime.value || "03:00",
     retention: Number(elements.watchBackupRetention.value) || 14,
@@ -932,6 +996,18 @@ export async function saveWatchBackupSettings() {
   state.watchBackups = null;
   await loadWatchBackups({ force: true });
   _setMessage("Watch-history backup schedule saved.", "success");
+}
+export async function saveRemoteWatchBackupSettings() {
+  const config = {
+    ...state.watchBackups?.config,
+    remoteEnabled: elements.remoteWatchBackupEnabled.checked,
+    remoteTime: elements.remoteWatchBackupTime.value || "03:00",
+    remoteRetention: Number(elements.remoteWatchBackupRetention.value) || 14,
+  };
+  await postWatchBackupAction({ action: "configure", config });
+  state.watchBackups = null;
+  await loadWatchBackups({ force: true });
+  _setMessage("Remote watch-history backup schedule saved.", "success");
 }
 export async function createWatchBackupNow() {
   const button = elements.createWatchBackupButton;
@@ -942,6 +1018,29 @@ export async function createWatchBackupNow() {
     state.watchBackups = null;
     await loadWatchBackups({ force: true });
     _setMessage(`Created ${result.backup?.name || "watch-history backup"}.`, "success");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Back Up Now";
+  }
+}
+export async function createRemoteWatchBackupNow() {
+  const button = elements.createRemoteWatchBackupButton;
+  if (!button) return;
+  button.disabled = true;
+  button.textContent = "Backing up...";
+  try {
+    const result = await postWatchBackupAction({ action: "create", remote: true });
+    state.watchBackups = null;
+    await loadWatchBackups({ force: true });
+    const remotes = Array.isArray(result.backup?.remotes) ? result.backup.remotes : [];
+    const failed = remotes.filter((remote) => remote.status === "error");
+    if (!remotes.length) {
+      _setMessage("Backup created, but there are no enabled remote destinations to mirror it to.", "error");
+    } else if (failed.length) {
+      _setMessage(`Backup created, but ${failed.length} remote upload${failed.length === 1 ? "" : "s"} failed: ${failed[0].lastError || "unknown error"}`, "error");
+    } else {
+      _setMessage(`Created ${result.backup?.name || "watch-history backup"} and mirrored it to ${remotes.length} remote destination${remotes.length === 1 ? "" : "s"}.`, "success");
+    }
   } finally {
     button.disabled = false;
     button.textContent = "Back Up Now";

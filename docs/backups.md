@@ -24,11 +24,13 @@ Small, automatic backups of just the data needed to restore watch state.
 - **Contents** — the three watch-state tables plus a manifest (format/version, app
   version, creation time, row counts, checksum). Poster URLs are excluded (derived
   data, may embed expired tokens).
-- **Scheduling** — the elected background worker runs `runScheduledWatchBackup()` once per
-  tick; it fires daily at the configured time (default 03:00), catching up if the
-  scheduled time was missed. Config (`enabled`, `time`, `retention`) lives in the
-  `settings` row `watchHistoryBackups`; run state in `runtime_state`
-  (`watchHistoryBackups`).
+- **Scheduling** — the elected background worker runs `runScheduledWatchBackup()` and
+  `runScheduledRemoteWatchBackup()` once per tick. Each fires daily at its own
+  configured time (default 03:00), catching up if the scheduled time was missed: the
+  local schedule writes a local backup, and the remote schedule creates a fresh backup
+  and uploads it to every enabled destination. Config (`enabled`, `time`, `retention`,
+  `remoteEnabled`, `remoteTime`, `remoteRetention`) lives in the `settings` row
+  `watchHistoryBackups`; run state in `runtime_state` (`watchHistoryBackups`).
 - **Storage** — always written to `data/backups/watch-history/` first: temp file →
   checksum verify → atomic rename. Retention (default 14, max 365) prunes oldest.
 - **Restore** — `restoreWatchHistoryBackup(filename, { mode, dryRun })` supports
@@ -43,10 +45,16 @@ Small, automatic backups of just the data needed to restore watch state.
 
 ### Remote destinations (`backupDestinations/`)
 
-Each enabled destination mirrors the verified local backup best-effort — a remote
-failure never invalidates or deletes the local file. Per-destination status (last
-attempt/success, bytes, duration, error) is recorded in the backup runtime; remote
-retention is ordered by the sortable filename.
+Watch-history backups upload to destinations on their own daily schedule (the Remote
+Watch History Backups card) or on demand via that card's Back Up Now button; encrypted
+full backups upload on their schedule or Back Up Now in the same way. Every upload is
+best-effort — a remote failure never invalidates or deletes the local file.
+Per-destination status (last attempt/success, bytes, duration, error) is recorded in
+the backup runtime and shown on the Remote Watch History Backups card. Remote retention
+is ordered by the sortable filename and scoped per backup type: pruning after a
+watch-history upload only counts watch-history files (remote retention setting), and
+pruning after a full-backup upload only counts encrypted full backups (Plembfin
+retention setting), so the two types never delete each other's files.
 
 All adapters implement the same contract (`index.js` in the folder):
 `testConnection() / upload(localPath, remoteName) / list() / download(remoteName) /
@@ -87,8 +95,11 @@ Nightly encrypted snapshots of the entire portable backup document.
 - **Scheduling** — `runScheduledPlembfinBackup()` runs from the same scheduler tick,
   daily at the configured time; retention default 7 (max 365). Config lives in the
   settings row `plembfinBackups`.
-- **Remote mirroring** — optional; reuses `pushBackupToRemotes` from the watch-history
-  subsystem, so the same destination list applies.
+- **Remote mirroring** — optional; runs with the daily scheduled backup when remote
+  mirroring is enabled, or immediately via the Remote Plembfin Backups card's Back Up
+  Now button. Reuses `pushBackupToRemotes` from the watch-history subsystem, so the
+  same destination list applies; the aggregated attempt/success/error status across
+  destinations is shown on the card.
 - **Storage** — `data/backups/plembfin/`. **Warning:** these backups contain
   media-server URLs, usernames, tokens, and API keys (that's what the encryption is
   for).
@@ -117,9 +128,12 @@ files in the browser and posts records in batches.
 
 ## Frontend (`public/modules/tools-backups.js`)
 
-Settings → Backups renders schedule/retention settings, Backblaze destination cards and
-edit dialogs, backup-now buttons, and local backup lists. Settings → Restore renders
-local/uploaded/remote backup choices and restore status (`setBackupTransferState`).
+Settings → Backups renders four schedule cards — local and remote, for watch-history
+and encrypted Plembfin backups — each with an enable toggle in the card head, its own
+time/retention (or passphrase) fields, a runtime status readout, and Save/Back Up Now
+actions at the bottom right, plus the Backblaze destination cards and edit dialogs.
+Settings → Restore renders local/uploaded/remote backup choices and restore status
+(`setBackupTransferState`).
 State lives in
 `state.watchBackups`, `state.remoteBackupFiles`, `state.backupImport`,
 `state.activeBackupsTab`.

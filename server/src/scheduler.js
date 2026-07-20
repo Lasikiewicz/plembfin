@@ -9,7 +9,7 @@ import { syncMediaPlaystate } from "./utils/syncOrchestrator.js";
 import { getTmdbDetails, prewarmTmdbLibrary } from "./utils/tmdbGateway.js";
 import { cachedNextAiringFor, mergeNextAiringCacheEntries, nextAiringCacheEntryStale, nextAiringCacheKey, readNextAiringCache } from "./utils/nextAiringCache.js";
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
-import { runScheduledWatchBackup } from "./utils/watchHistoryBackups.js";
+import { runScheduledWatchBackup, runScheduledRemoteWatchBackup } from "./utils/watchHistoryBackups.js";
 import { runScheduledPlembfinBackup } from "./utils/plembfinBackups.js";
 import { pruneSyncPlans } from "./utils/syncPlans.js";
 import {
@@ -115,6 +115,8 @@ export async function runScheduledTick({ isLeader = () => true } = {}) {
   await runWithTimeBudget("Scheduled sync", () => runScheduledSync(), 50_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   await runWithTimeBudget("Scheduled watch-history backup", () => runScheduledWatchBackup(), 30_000);
+  if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  await runWithTimeBudget("Scheduled remote watch-history backup", () => runScheduledRemoteWatchBackup(), 60_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   await runWithTimeBudget("Scheduled Plembfin backup", () => runScheduledPlembfinBackup(), 30_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
