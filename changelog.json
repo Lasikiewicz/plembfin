@@ -1,7 +1,19 @@
 {
-  "version": "0.5.7",
-  "updatedAt": "2026-07-20T16:39:46+01:00",
+  "version": "0.5.8",
+  "updatedAt": "2026-07-20T16:43:31+01:00",
   "entries": [
+    {
+      "version": "0.5.8",
+      "date": "2026-07-20T16:43:31+01:00",
+      "commit": "957a0f6c579bcf11acbc1ddfe62d80ae977d7c68",
+      "message": "Feature - Expand settings sidebar child navigation items under active parent page only",
+      "author": "Lasikiewicz",
+      "details": [
+        "Collapse child sections and sub-sections in the settings sidebar menu by default",
+        "Expand child navigation items only when their parent section page is active",
+        "Update settings documentation to reflect sidebar accordion navigation behavior"
+      ]
+    },
     {
       "version": "0.5.7",
       "date": "2026-07-20T16:39:46+01:00",
