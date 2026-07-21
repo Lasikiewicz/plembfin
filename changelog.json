@@ -1,7 +1,19 @@
 {
-  "version": "0.5.19",
-  "updatedAt": "2026-07-21T15:05:52+01:00",
+  "version": "0.5.20",
+  "updatedAt": "2026-07-21T15:23:03+01:00",
   "entries": [
+    {
+      "version": "0.5.20",
+      "date": "2026-07-21T15:23:03+01:00",
+      "commit": "70daf58a08773160ac9eb0d671e1b9c9b7351787",
+      "message": "Fix - Show Plex watched/unwatched changes instantly instead of requiring a manual refresh",
+      "author": "Lasikiewicz",
+      "details": [
+        "The real-time Plex WebSocket listener now signals the frontend when it detects a watched or unwatched change, so browser tabs refresh automatically instead of only updating on the next unrelated event or manual reload",
+        "Live watch-state polling now runs on every page (Movies, TV Shows, History), not just the Dashboard, so a change made in Plex shows up within about 10 seconds no matter what page is open",
+        "Movies, TV Shows, and History views now refresh in place when a change is detected, instead of requiring the user to navigate away and back"
+      ]
+    },
     {
       "version": "0.5.19",
       "date": "2026-07-21T15:05:52+01:00",
