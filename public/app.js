@@ -11,7 +11,7 @@ import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHi
 import { initSyncPreview } from "./modules/sync-preview.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
-import { initUpcoming, renderUpcoming, loadUpcoming } from "./modules/upcoming.js";
+import { initUpcoming, openUpcomingToToday } from "./modules/upcoming.js";
 import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js";
 import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js";
 import { initWatchAction, rerenderWatchDateCustomPicker, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js";
@@ -285,8 +285,6 @@ function bindElements() {
     upcomingCalendar: document.querySelector("#upcomingCalendar"),
     upcomingTopbarControls: document.querySelector("#upcomingTopbarControls"),
     upcomingMonthTitle: document.querySelector("#upcomingMonthTitle"),
-    upcomingCalendarViewBtn: document.querySelector("#upcomingCalendarViewBtn"),
-    upcomingWeekViewBtn: document.querySelector("#upcomingWeekViewBtn"),
     upcomingPrevButton: document.querySelector("#upcomingPrevButton"),
     upcomingNextButton: document.querySelector("#upcomingNextButton"),
     upcomingTodayButton: document.querySelector("#upcomingTodayButton"),
@@ -1400,8 +1398,7 @@ function applyActiveView() {
     loadStats().catch((error) => setMessage(error.message, "error"));
   }
   if (state.activeView === "upcoming") {
-    renderUpcoming();
-    loadUpcoming({ force: true }).catch((error) => setMessage(error.message, "error"));
+    openUpcomingToToday();
   }
   if (state.activeView === "explorer" && !state.mediaDetailInline) renderExplorer();
   if (state.activeView === "search") renderSearchPage();

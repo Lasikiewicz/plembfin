@@ -1,8 +1,9 @@
 # Upcoming Page
 
-The Upcoming page shows a month calendar of historical and future TV episode air dates
-for tracked shows. It uses the same TV metadata split as detail pages: TheTVDB supplies season,
-episode, title, and air-date structure, while TMDB identity is used for show navigation.
+The Upcoming page shows a continuously scrollable calendar of historical and future TV
+episode air dates for tracked shows. It uses the same TV metadata split as detail pages:
+TheTVDB supplies season, episode, title, and air-date structure, while TMDB identity is
+used for show navigation.
 
 ## Files
 
@@ -45,15 +46,29 @@ cache read when no shows were added.
 
 ## Frontend Behavior
 
-The calendar starts on the current month and can move month-by-month with previous,
-next, and Today controls. Desktop renders a 7-column calendar. At `<=760px`, it becomes
-an agenda list: empty days and outside-month cells are hidden, and days with episodes
-stack full-width for touch use.
+Opening the page (via nav click or direct URL) always scrolls to and highlights today's
+date, regardless of where a previous visit left off. Each visible month renders as a
+7-column grid of day cards — the same card style used across the app for a single day
+(weekday name, date number, episode entries) — stacked one month after another with a
+sticky month heading (e.g. "July 2026") pinned below the topbar while that month is in
+view. Leading/trailing days that fall outside a month are invisible spacers that
+preserve column alignment without drawing a box.
 
-The search box filters the selected month by show title, episode title, and episode code
-such as `S2E4`. When a search is active, the page also checks the next 12 months through
-the same `/api/upcoming` endpoint and lists matching episodes outside the selected month
-below the calendar.
+The calendar loads a small buffer of months around the current one, then extends
+further back or forward automatically as the user scrolls near the top or bottom of the
+loaded range, fetching any missing months from `/api/upcoming` on demand. Scrolling
+upward preserves the user's viewport position as older months are prepended. The
+Previous/Next/Today controls jump the scroll position to a specific month or to today,
+extending the loaded range first if needed.
+
+At `<=760px`, each month's 7-column grid collapses to a single-column agenda list, and
+empty or outside-month day cards are hidden so only days with episodes are shown.
+
+The search box switches the page to a dedicated results view: a flat, month-grouped list
+of every matching episode (filtered by show title, episode title, or an episode code
+such as `S2E4`) across all months currently cached, including a 12-month lookahead that
+prefetches in the background while typing. Clearing the search returns to the normal
+scrollable month grid.
 
 Posters use `posterMarkup()` and `hydratePosters()` from `public/modules/images.js`, so
 the standard local poster cache and fallback pipeline applies.

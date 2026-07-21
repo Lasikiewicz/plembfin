@@ -27,7 +27,7 @@
 | **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |
 | **Now Playing dashboard** | Real-time active sessions, weekly charts, and recent watch history |
 | **Stats** | All-time and per-period reports with top shows, platform breakdowns, and watch trends |
-| **Upcoming episodes** | Month calendar with historical and future TV air dates, mobile agenda layout, and cross-month search |
+| **Upcoming episodes** | Continuously scrollable calendar of historical and future TV air dates, opens on today's date, mobile agenda layout, and a dedicated search results view spanning all cached months |
 | **Trakt import** | Import your full Trakt history and push it out to all connected servers |
 | **Seerr integration** | Request movies and shows from detail pages via Overseerr or Jellyseerr |
 | **Movie collections** | Movie pages show a poster row of other films in the same franchise (sequels, prequels, spin-offs) |
