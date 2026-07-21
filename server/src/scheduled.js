@@ -1,4 +1,4 @@
-﻿import { fetchWithTimeout } from "./utils/outbound.js";
+import { fetchWithTimeout } from "./utils/outbound.js";
 import { watchedThresholdPercent } from "./utils/tuning.js";
 import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { parsePlexGuids } from "./utils/parsers.js";
@@ -737,9 +737,13 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
           sectionsChecked += 1;
 
           const sectionAllUrl = new URL(`${baseUrl}/library/sections/${sectionId}/all`);
-          sectionAllUrl.searchParams.set("sort", "viewedAt:desc");
+          sectionAllUrl.searchParams.set("unwatched", "0");
+          sectionAllUrl.searchParams.set("sort", "lastViewedAt:desc");
           sectionAllUrl.searchParams.set("X-Plex-Container-Start", "0");
-          sectionAllUrl.searchParams.set("X-Plex-Container-Size", "20");
+          sectionAllUrl.searchParams.set("X-Plex-Container-Size", "50");
+          if (targetAccountId != null) {
+            sectionAllUrl.searchParams.set("accountID", String(targetAccountId));
+          }
           if (type === "movie") {
             sectionAllUrl.searchParams.set("type", "1");
           } else {
@@ -812,9 +816,10 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       media.watched_at = watchedAt;
       if (!scheduledMediaInScope(config, media)) continue;
 
+      const playstate = await getPlaystateForMedia(media).catch(() => null);
       const existing = await findWatchedByAnyMediaKey(media);
 
-      if (!existing) {
+      if (!existing || playstate?.state !== "watched") {
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
         if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
           logger(`Plex: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
