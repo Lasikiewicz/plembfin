@@ -1,7 +1,17 @@
 {
-  "version": "0.5.14",
-  "updatedAt": "2026-07-21T09:50:49+01:00",
+  "version": "0.5.15",
+  "updatedAt": "2026-07-21T09:53:25+01:00",
   "entries": [
+    {
+      "version": "0.5.15",
+      "date": "2026-07-21T09:53:25+01:00",
+      "commit": "fe7a15fc95f2155e4a50911c7b6a32bb113f8417",
+      "message": "settings: unify all layout gaps to var(--space-3)",
+      "author": "Lasikiewicz",
+      "details": [
+        "settings: unify all layout gaps to var(--space-3)"
+      ]
+    },
     {
       "version": "0.5.14",
       "date": "2026-07-21T09:50:49+01:00",

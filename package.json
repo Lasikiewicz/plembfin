@@ -1,6 +1,6 @@
 {
   "name": "plembfin",
-  "version": "0.5.14",
+  "version": "0.5.15",
   "private": true,
   "type": "module",
   "main": "server/server.js",
