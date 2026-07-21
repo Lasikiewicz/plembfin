@@ -1,5 +1,5 @@
 import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
-import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./modules/logs.js";
+import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs, formatLogLineToHtml } from "./modules/logs.js";
 import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, scrollToSettingsSection, settingsPathForLegacy } from "./modules/settings-shell.js";
 import { initSettingsServices, applyConfigToSettingsUi, refreshSeerrCapabilities, renderMediaServerCards, renderMetadataCards } from "./modules/settings-services.js";
 import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS } from "./modules/state.js";
@@ -1673,14 +1673,22 @@ async function renderLogs() {
         localLogs || "[no frontend logs]"
       ].join("\n");
       state.renderedLogsText = allLogs;
-      elements.logsTerminal.textContent = allLogs;
+
+      const htmlLines = [
+        `<div class="log-section-header">=== BACKEND DIAGNOSTIC LOGS (${escapeHtml(category.toUpperCase())}) ===</div>`,
+        ...backendLogs.map(formatLogLineToHtml),
+        `<div class="log-section-header" style="margin-top: 1rem;">=== FRONTEND DEBUG LOGS ===</div>`,
+        ...(localLogs ? localLogs.split("\n").map(formatLogLineToHtml) : ['<div class="log-row"><span class="log-msg" style="opacity: 0.6;">[no frontend logs]</span></div>'])
+      ].join("");
+
+      elements.logsTerminal.innerHTML = htmlLines;
     } else {
       state.renderedLogsText = localLogs || `[no diagnostic logs captured yet for category: ${category}]`;
-      elements.logsTerminal.textContent = state.renderedLogsText;
+      elements.logsTerminal.innerHTML = `<div class="log-row"><span class="log-msg" style="opacity: 0.6;">${escapeHtml(state.renderedLogsText)}</span></div>`;
     }
   } catch (error) {
     state.renderedLogsText = localLogs || "[no diagnostic logs captured yet]";
-    elements.logsTerminal.textContent = state.renderedLogsText;
+    elements.logsTerminal.innerHTML = `<div class="log-row"><span class="log-msg" style="opacity: 0.6;">${escapeHtml(state.renderedLogsText)}</span></div>`;
   }
   const el = elements.logsTerminal;
   const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;

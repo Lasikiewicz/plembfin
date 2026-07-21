@@ -170,3 +170,15 @@ seconds respectively.
 
 No maintenance API or stored media configuration format changes are introduced by the
 settings shell.
+
+## Server Logs
+
+The **Server Logs** panel (`/settings/logs`) displays real-time and historical diagnostic logs captured by the server alongside browser output. Logs are automatically categorized and can be filtered using interactive tabs:
+
+- **All Logs**: Complete chronological event stream.
+- **⚡ Plex WebSockets**: WebSocket connection lifecycle, incoming timeline events, ratingKey extraction, and handler triggers.
+- **🔄 Outbound Sync**: Real-time playstate dispatches, watch record insertions, and manual watch/unwatch propagation.
+- **⏱️ Scheduled Polls**: Periodic background catch-up library checks, session tracking, and scheduled sync cycles.
+- **🖥️ System Logs**: General administrative, startup, and system events.
+
+Log entries feature human-readable timestamps (`YYYY-MM-DD HH:MM:SS`), color-coded category badges (`[PLEX]`, `[SYNC]`, `[POLL]`, `[SYSTEM]`, `[ERROR]`), a live pulsing activity indicator, and glassmorphic styling compatible with both Dark and Light appearance modes. Routine keep-alive recycling and 0-item background sync ticks are automatically filtered out to ensure a high-signal log stream.

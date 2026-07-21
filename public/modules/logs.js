@@ -62,3 +62,44 @@ export async function clearDiagnosticLogs(headers = {}) {
   }
   return true;
 }
+
+export function escapeHtml(text = "") {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export function formatLogLineToHtml(rawLine = "") {
+  const line = String(rawLine || "").trim();
+  if (!line) return "";
+  if (line.startsWith("===")) {
+    return `<div class="log-section-header">${escapeHtml(line)}</div>`;
+  }
+
+  const match = line.match(/^\[(.*?)\]\s*\[(.*?)\](?:\s*\[(.*?)\])?\s*(.*)$/);
+  if (!match) {
+    return `<div class="log-row"><span class="log-msg">${escapeHtml(line)}</span></div>`;
+  }
+
+  const [, timestamp, category, instance, message] = match;
+  const catKey = category.toLowerCase();
+  
+  let badgeClass = "badge-system";
+  if (catKey.includes("plex")) badgeClass = "badge-plex";
+  else if (catKey.includes("sync")) badgeClass = "badge-sync";
+  else if (catKey.includes("poll") || catKey.includes("cron")) badgeClass = "badge-poll";
+  
+  const isError = catKey.includes("error") || message.toLowerCase().includes("error") || message.toLowerCase().includes("failed");
+  if (isError) badgeClass = "badge-error";
+
+  return `
+    <div class="log-row ${isError ? "log-row-error" : ""}">
+      <span class="log-time">${escapeHtml(timestamp)}</span>
+      <span class="log-badge ${badgeClass}">${escapeHtml(category)}</span>
+      ${instance ? `<span class="log-instance">[${escapeHtml(instance)}]</span>` : ""}
+      <span class="log-msg">${escapeHtml(message)}</span>
+    </div>
+  `.trim();
+}

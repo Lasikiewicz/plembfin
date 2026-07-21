@@ -106,23 +106,42 @@ export function stopCapturing() {
   console.warn = originalWarn;
 }
 
+export function isSpamLog(message = "") {
+  const msg = String(message || "");
+  if (/no activity for \d+s, recycling the connection/i.test(msg)) return true;
+  if (/Failed fetching TMDB total episodes for .* Could not resolve TVDB ID/i.test(msg)) return true;
+  if (/Scheduled Sync complete! Synced Plex: 0, Emby: 0, Jellyfin: 0, Resume Plex: 0, Resume Emby: 0, Resume Jellyfin: 0, Manual: 0/i.test(msg)) return true;
+  return false;
+}
+
 export function getLogs({ level, category = "all", limit = 500 } = {}) {
   const clearedAt = clearTimestamp();
+  const categoryMap = {
+    "plex-notifications": "PLEX",
+    "sync": "SYNC",
+    "scheduled-poll": "POLL",
+    "system": "SYSTEM"
+  };
+
   const filtered = readSharedLogs()
     .filter((entry) => {
       if (Number(entry.ts) <= clearedAt) return false;
       if (level && entry.level !== level) return false;
+      if (isSpamLog(entry.message)) return false;
       const cat = entry.category || categorizeLog(entry.message);
       if (category && category !== "all" && cat !== category) return false;
       return true;
     })
     .sort((a, b) => Number(a.ts) - Number(b.ts));
+
   const bounded = filtered.slice(-Math.min(Math.max(Number(limit) || 500, 1), MAX_LOGS));
   return {
     total: filtered.length,
     logs: bounded.map((entry) => {
-      const cat = (entry.category || categorizeLog(entry.message)).toUpperCase();
-      return `[${entry.timestamp}] [${cat}] [${entry.instance}] ${entry.message}`;
+      const rawCat = entry.category || categorizeLog(entry.message);
+      const catTag = categoryMap[rawCat] || rawCat.toUpperCase();
+      const cleanTs = (entry.timestamp || "").replace("T", " ").replace(/\.\d+Z$/, "");
+      return `[${cleanTs}] [${catTag}] [${entry.instance}] ${entry.message}`;
     }),
   };
 }

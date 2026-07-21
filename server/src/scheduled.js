@@ -1323,18 +1323,14 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
         logger(`Scheduled Sync ERROR: Jellyfin resume sync failed: ${error.message}`);
       }
     }
-  } else {
-    logger("Scheduled Sync: skipping catch-up library checks (already run recently).");
   }
 
   try {
-    logger("Scheduled Sync: processing pending manual dispatches...");
     manualSynced = await syncPendingManualDispatches(config, loopStore, logger);
   } catch (error) {
     logger(`Scheduled Sync ERROR: Manual queue sync failed: ${error.message}`);
   }
 
-  logger("Scheduled Sync: scanning active sessions for live tracking...");
   const currentSessions = await fetchLiveSessions(config);
   const currentRows = currentSessions.map(buildCacheRow);
   const currentIds = new Set(currentRows.map((row) => row.session_id));
@@ -1344,7 +1340,9 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
   const progressUpdates = [];
   const staleIds = [];
 
-  logger(`Scheduled Sync: live sessions: ${currentRows.length}, cached sessions in tracking: ${cachedRows.length}`);
+  if (currentRows.length || cachedRows.length) {
+    logger(`Scheduled Sync: live sessions: ${currentRows.length}, cached sessions in tracking: ${cachedRows.length}`);
+  }
   await upsertLiveTrackingCache(currentRows);
 
   for (const row of cachedRows) {
@@ -1374,11 +1372,16 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
   await deleteLiveTrackingCacheRows(staleIds);
   await purgeCompletedLiveTrackingCache();
 
-  if (currentRows.length || completions.length || progressUpdates.length || staleIds.length || plexSynced || embySynced || jellyfinSynced || plexResumeSynced || embyResumeSynced || jellyfinResumeSynced || manualSynced) {
+  const totalSynced = plexSynced + embySynced + jellyfinSynced + plexResumeSynced + embyResumeSynced + jellyfinResumeSynced + manualSynced;
+  const hasActivity = totalSynced > 0 || currentRows.length > 0 || completions.length > 0 || progressUpdates.length > 0 || shouldRunCatchup;
+
+  if (currentRows.length || completions.length || progressUpdates.length || staleIds.length || totalSynced > 0) {
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
   }
 
-  logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Resume Plex: ${plexResumeSynced}, Resume Emby: ${embyResumeSynced}, Resume Jellyfin: ${jellyfinResumeSynced}, Manual: ${manualSynced}`);
+  if (hasActivity) {
+    logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Resume Plex: ${plexResumeSynced}, Resume Emby: ${embyResumeSynced}, Resume Jellyfin: ${jellyfinResumeSynced}, Manual: ${manualSynced}`);
+  }
   return {
     sessions: currentRows.length,
     completions: completions.length,
