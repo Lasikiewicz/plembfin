@@ -1,7 +1,18 @@
 {
-  "version": "0.5.22",
-  "updatedAt": "2026-07-21T17:13:23+01:00",
+  "version": "0.5.23",
+  "updatedAt": "2026-07-21T20:17:00+01:00",
   "entries": [
+    {
+      "version": "0.5.23",
+      "date": "2026-07-21T20:17:00+01:00",
+      "commit": "312657c50a8396b6805d4c42e5276e058d78834a",
+      "message": "Fix - Resolve Plex catchup poll HTTP 500 and update playstate cache on catchup sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix Plex library section query by using unwatched=0 and lastViewedAt:desc instead of invalid sort=viewedAt:desc",
+        "Update playstate cache and propagate watched state during catchup sync whenever item state is not currently watched"
+      ]
+    },
     {
       "version": "0.5.22",
       "date": "2026-07-21T17:13:23+01:00",
