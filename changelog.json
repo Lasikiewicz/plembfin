@@ -1,7 +1,27 @@
 {
-  "version": "0.5.13",
-  "updatedAt": "2026-07-20T18:21:35+01:00",
+  "version": "0.5.14",
+  "updatedAt": "2026-07-21T09:50:49+01:00",
   "entries": [
+    {
+      "version": "0.5.14",
+      "date": "2026-07-21T09:50:49+01:00",
+      "commit": "8790973e4fb8e3f887579e7bc8e834d10e3353cc",
+      "message": "settings: standardise layout spacing and navigation routing",
+      "author": "Lasikiewicz",
+      "details": [
+        "Unify all settings gaps to canonical values (AGENTS.md):",
+        ".settings-row gap: var(--space-3) = 12px (matches topbar gap)",
+        ".settings-pane / .settings-content gap: 1.5rem = 24px",
+        ".settings-card padding: 1.5rem all sides",
+        "Fix .app-shell split from .view-panel so topbar gap is preserved",
+        "Remove sync-specific margin-top override causing inconsistent row gaps",
+        "Remove .settings-disclosure margin-bottom inconsistency",
+        "Settings nav: all links go to parent group path, no hash anchors",
+        "focusSettingsRoute now scrolls to top on every navigation",
+        "Remove Administration eyebrow and Settings header from overview",
+        "Add .agents/AGENTS.md with binding spacing and nav rules"
+      ]
+    },
     {
       "version": "0.5.13",
       "date": "2026-07-20T18:21:35+01:00",
