@@ -10,10 +10,19 @@ import { WebSocket } from "undici";
 // This module is pure transport: it connects, reconnects with backoff, filters timeline
 // entries down to movies/episodes, debounces per ratingKey, and hands each changed
 // ratingKey to `onLibraryItemChange`. All DB/config/propagation logic lives in the caller.
+//
+// Reverse proxies in front of Plex (Cloudflare, nginx, Traefik, etc.) commonly drop an
+// idle WebSocket after a timeout without ever sending a close frame — the socket then
+// looks open to us forever but never delivers another message. undici's WebSocket only
+// exposes the plain browser surface (no ping/pong control), so there's no way to probe
+// liveness directly. Instead an idle watchdog forces a reconnect if no frame has arrived
+// within IDLE_WATCHDOG_MS, which self-heals a silently-dead connection.
 
 const RECONNECT_BASE_MS = 3000;
 const RECONNECT_MAX_MS = 60_000;
 const DEBOUNCE_MS = 2500;
+const IDLE_WATCHDOG_MS = 5 * 60 * 1000;
+const WATCHDOG_CHECK_INTERVAL_MS = 30_000;
 
 // Plex TimelineEntry.type: 1 = movie, 2 = show, 3 = season, 4 = episode.
 const WATCHABLE_TIMELINE_TYPES = new Set([1, 4]);
@@ -98,13 +107,35 @@ export function createPlexNotificationListener({ getPlexConfig, onLibraryItemCha
   let socket = null;
   let stopped = true;
   let reconnectTimer = null;
+  let watchdogTimer = null;
   let attempt = 0;
+  let lastActivityAt = 0;
   const pending = new Map(); // ratingKey -> debounce timeout
 
   function clearReconnect() {
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
+    }
+  }
+
+  function startWatchdog() {
+    if (watchdogTimer) return;
+    watchdogTimer = setInterval(() => {
+      if (stopped || !socket) return;
+      if (Date.now() - lastActivityAt > IDLE_WATCHDOG_MS) {
+        logger(`Plex notifications: no activity for ${Math.round(IDLE_WATCHDOG_MS / 1000)}s, recycling the connection (a reverse proxy may have silently dropped it)`);
+        attempt = 0;
+        closeSocket();
+        connect();
+      }
+    }, WATCHDOG_CHECK_INTERVAL_MS);
+  }
+
+  function clearWatchdog() {
+    if (watchdogTimer) {
+      clearInterval(watchdogTimer);
+      watchdogTimer = null;
     }
   }
 
@@ -149,6 +180,7 @@ export function createPlexNotificationListener({ getPlexConfig, onLibraryItemCha
   }
 
   function handleFrame(raw) {
+    lastActivityAt = Date.now();
     let payload;
     try {
       payload = JSON.parse(decodeFrame(raw));
@@ -200,6 +232,7 @@ export function createPlexNotificationListener({ getPlexConfig, onLibraryItemCha
     ws.onopen = () => {
       if (socket !== ws) return;
       attempt = 0;
+      lastActivityAt = Date.now();
       logger("Plex notifications: connected");
     };
     ws.onmessage = (event) => {
@@ -224,11 +257,14 @@ export function createPlexNotificationListener({ getPlexConfig, onLibraryItemCha
       if (!stopped) return;
       stopped = false;
       attempt = 0;
+      lastActivityAt = Date.now();
+      startWatchdog();
       connect();
     },
     stop() {
       stopped = true;
       clearReconnect();
+      clearWatchdog();
       flushPending();
       closeSocket();
     },
@@ -241,6 +277,7 @@ export function createPlexNotificationListener({ getPlexConfig, onLibraryItemCha
       }
       clearReconnect();
       attempt = 0;
+      lastActivityAt = Date.now();
       closeSocket();
       connect();
     },

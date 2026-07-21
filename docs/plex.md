@@ -68,6 +68,14 @@ and watches `timeline` notifications for movies (type 1) and episodes (type 4) f
 library section. It is pure transport: reconnect with backoff (3s → 60s), debounce per
 ratingKey (2.5s), then hand each changed ratingKey to `onLibraryItemChange`.
 
+Reverse proxies in front of Plex (Cloudflare, nginx, Traefik, etc.) commonly drop an idle
+WebSocket after a timeout without ever sending a close frame, leaving a "zombie"
+connection that looks open but never delivers another message — and since undici's
+`WebSocket` only exposes the plain browser surface (no ping/pong control), there's no way
+to probe it directly. An idle watchdog checks every 30s and forces a reconnect if no frame
+has arrived for 5 minutes, self-healing a silently-dead connection instead of leaving it
+stuck indefinitely.
+
 The callback (`handlePlexLibraryItemChange` in `server/src/scheduler.js`) fetches the
 item's metadata and checks its actual view state. A watched transition is recorded in
 Plembfin history and propagated to Emby/Jellyfin; an unwatched transition runs the same
