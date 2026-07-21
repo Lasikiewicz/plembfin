@@ -14113,6 +14113,91 @@ html.light-mode .upcoming-entry:hover {
   background: rgba(59, 130, 246, 0.06);
 }
 
+.upcoming-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-3);
+}
+
+.upcoming-week-day {
+  min-height: 8.5rem;
+  min-width: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.upcoming-week-day.is-past {
+  opacity: 0.55;
+}
+
+.upcoming-week-day.is-today {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.upcoming-week-day-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.35rem;
+}
+
+.upcoming-week-day-weekday {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.upcoming-week-day-number {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.upcoming-week-day.is-today .upcoming-week-day-number {
+  color: var(--accent);
+}
+
+.upcoming-week-day-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.upcoming-view-toggle {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.upcoming-view-btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 4px;
+}
+
+.upcoming-view-btn.active {
+  background: var(--accent);
+  color: var(--panel-1);
+}
+
+html.light-mode .upcoming-week-day {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
 /* Mobile (≤760px): the 7-column grid becomes an agenda list — weekday header
    and empty/outside day cells are hidden, days with episodes stack full-width. */
 @media (max-width: 760px) {
@@ -14251,6 +14336,39 @@ html.light-mode .upcoming-entry:hover {
 
   .upcoming-search-results-list {
     grid-template-columns: 1fr;
+  }
+
+  .upcoming-week {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .upcoming-week-day.is-empty {
+    display: none;
+  }
+
+  .upcoming-week-day {
+    min-height: 0;
+    padding: 0.5rem;
+    gap: 0.35rem;
+  }
+
+  .upcoming-week-day.is-past {
+    opacity: 0.75;
+  }
+
+  .upcoming-week-day-entries {
+    gap: 0.35rem;
+  }
+
+  .upcoming-view-toggle {
+    gap: 0.2rem;
+  }
+
+  .upcoming-view-btn {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.7rem;
   }
 }
 

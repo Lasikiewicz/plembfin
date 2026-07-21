@@ -78,6 +78,7 @@ export const state = {
   upcomingLoadingMonth: "",
   upcomingSearch: "",
   upcomingSearchLoading: false,
+  upcomingViewMode: "calendar",
   explorerMode: "movies",
   explorerSearch: "",
   explorerSearchTimer: undefined,

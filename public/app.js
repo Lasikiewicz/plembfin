@@ -285,6 +285,8 @@ function bindElements() {
     upcomingCalendar: document.querySelector("#upcomingCalendar"),
     upcomingTopbarControls: document.querySelector("#upcomingTopbarControls"),
     upcomingMonthTitle: document.querySelector("#upcomingMonthTitle"),
+    upcomingCalendarViewBtn: document.querySelector("#upcomingCalendarViewBtn"),
+    upcomingWeekViewBtn: document.querySelector("#upcomingWeekViewBtn"),
     upcomingPrevButton: document.querySelector("#upcomingPrevButton"),
     upcomingNextButton: document.querySelector("#upcomingNextButton"),
     upcomingTodayButton: document.querySelector("#upcomingTodayButton"),

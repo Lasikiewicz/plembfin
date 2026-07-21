@@ -16,6 +16,8 @@ const upcomingBackgroundLoads = new Map();
 
 export function initUpcoming(callbacks) {
   _cb = callbacks;
+  elements.upcomingCalendarViewBtn?.addEventListener("click", () => setUpcomingViewMode("calendar"));
+  elements.upcomingWeekViewBtn?.addEventListener("click", () => setUpcomingViewMode("week"));
   elements.upcomingPrevButton?.addEventListener("click", () => shiftUpcomingMonth(-1));
   elements.upcomingNextButton?.addEventListener("click", () => shiftUpcomingMonth(1));
   elements.upcomingTodayButton?.addEventListener("click", () => setUpcomingMonth(currentMonth()));
@@ -66,7 +68,16 @@ function activeMonth() {
 }
 
 function shiftUpcomingMonth(delta) {
-  setUpcomingMonth(addMonths(activeMonth(), delta));
+  if (state.upcomingViewMode === "week") {
+    const current = state.upcomingMonth || currentMonth();
+    const [year, month, day] = current.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + (delta * 7));
+    const newIso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    setUpcomingMonth(newIso);
+  } else {
+    setUpcomingMonth(addMonths(activeMonth(), delta));
+  }
 }
 
 function setUpcomingMonth(month) {
@@ -76,19 +87,47 @@ function setUpcomingMonth(month) {
   scheduleUpcomingSearchWindow();
 }
 
+function setUpcomingViewMode(mode) {
+  state.upcomingViewMode = mode;
+  elements.upcomingCalendarViewBtn?.classList.toggle("active", mode === "calendar");
+  elements.upcomingWeekViewBtn?.classList.toggle("active", mode === "week");
+  renderUpcoming();
+  loadUpcoming({ force: true }).catch((error) => _cb.setMessage?.(error.message, "error"));
+}
+
 export async function loadUpcoming({ force = false } = {}) {
-  const month = activeMonth();
-  if (!force && state.upcomingByMonth.has(month)) return;
-  if (state.upcomingLoadingMonth === month) return;
-  state.upcomingLoadingMonth = month;
+  const monthsToLoad = [];
+  if (state.upcomingViewMode === "week") {
+    const current = state.upcomingMonth || currentMonth();
+    const weekStart = getWeekStart(current);
+    const [weekYear, weekMonth, weekDay] = weekStart.split("-").map(Number);
+    for (let i = 0; i < 7; i += 1) {
+      const dayDate = new Date(weekYear, weekMonth - 1, weekDay + i);
+      const monthKey = `${dayDate.getFullYear()}-${String(dayDate.getMonth() + 1).padStart(2, "0")}`;
+      if (!monthsToLoad.includes(monthKey)) monthsToLoad.push(monthKey);
+    }
+  } else {
+    monthsToLoad.push(activeMonth());
+  }
+
+  const monthsToFetch = monthsToLoad.filter((m) => force || !state.upcomingByMonth.has(m));
+  if (!monthsToFetch.length) {
+    renderUpcoming();
+    return;
+  }
+  if (state.upcomingLoadingMonth) return;
+
+  state.upcomingLoadingMonth = monthsToFetch[0];
   renderUpcoming();
   try {
-    const response = await fetch(`/api/upcoming?month=${encodeURIComponent(month)}`, { headers: authHeaders() });
-    if (!response.ok) throw new Error("Failed to load upcoming episodes");
-    const payload = await response.json();
-    state.upcomingByMonth.set(month, Array.isArray(payload.episodes) ? payload.episodes : []);
+    for (const month of monthsToFetch) {
+      const response = await fetch(`/api/upcoming?month=${encodeURIComponent(month)}`, { headers: authHeaders() });
+      if (!response.ok) throw new Error("Failed to load upcoming episodes");
+      const payload = await response.json();
+      state.upcomingByMonth.set(month, Array.isArray(payload.episodes) ? payload.episodes : []);
+    }
   } finally {
-    if (state.upcomingLoadingMonth === month) state.upcomingLoadingMonth = "";
+    state.upcomingLoadingMonth = "";
     renderUpcoming();
   }
 }
@@ -268,7 +307,91 @@ function searchResultsMarkup(month, query) {
     </section>`;
 }
 
+function getWeekStart(dateIso) {
+  const [year, month, day] = dateIso.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const dayOfWeek = date.getDay();
+  const monday = new Date(date);
+  monday.setDate(date.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  const y = monday.getFullYear();
+  const m = String(monday.getMonth() + 1).padStart(2, "0");
+  const d = String(monday.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function renderWeekView() {
+  const container = elements.upcomingCalendar;
+  if (!container) return;
+
+  const now = new Date();
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const weekStart = getWeekStart(state.upcomingMonth || todayIso);
+  const [weekYear, weekMonth, weekDay] = weekStart.split("-").map(Number);
+
+  const weekDays = [];
+  for (let i = 0; i < 7; i += 1) {
+    const dayDate = new Date(weekYear, weekMonth - 1, weekDay + i);
+    const dayIso = `${dayDate.getFullYear()}-${String(dayDate.getMonth() + 1).padStart(2, "0")}-${String(dayDate.getDate()).padStart(2, "0")}`;
+    weekDays.push(dayIso);
+  }
+
+  const formatWeekDate = (dateIso) => {
+    const date = new Date(`${dateIso}T00:00:00`);
+    return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
+  };
+  const weekTitle = `${formatWeekDate(weekStart)} — ${formatWeekDate(weekDays[6])}`;
+  if (elements.upcomingMonthTitle) elements.upcomingMonthTitle.textContent = weekTitle;
+
+  const searchQuery = state.upcomingSearch || "";
+  const hasSearch = Boolean(normalizeUpcomingSearch(searchQuery));
+
+  const allEpisodesByDay = new Map();
+  for (const dayIso of weekDays) {
+    const [y, m] = dayIso.split("-");
+    const monthKey = `${y}-${m}`;
+    const episodes = state.upcomingByMonth.get(monthKey) || [];
+    const dayEpisodes = filterUpcomingEpisodes(episodes, searchQuery)
+      .filter((e) => String(e.airDate || "").slice(0, 10) === dayIso);
+    if (dayEpisodes.length) allEpisodesByDay.set(dayIso, dayEpisodes);
+  }
+
+  const cells = weekDays.map((dayIso) => {
+    const dayEpisodes = allEpisodesByDay.get(dayIso) || [];
+    const date = new Date(`${dayIso}T00:00:00`);
+    const weekday = new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(date);
+    const dateNum = new Date(`${dayIso}T00:00:00`).getDate();
+    const classes = ["upcoming-week-day"];
+    if (dayIso === todayIso) classes.push("is-today");
+    if (dayIso < todayIso) classes.push("is-past");
+    if (!dayEpisodes.length) classes.push("is-empty");
+
+    return `
+      <div class="${classes.join(" ")}">
+        <div class="upcoming-week-day-head">
+          <span class="upcoming-week-day-weekday">${escapeHtml(weekday)}</span>
+          <span class="upcoming-week-day-number">${dateNum}</span>
+        </div>
+        <div class="upcoming-week-day-entries">${dayEpisodes.map(entryMarkup).join("")}</div>
+      </div>`;
+  });
+
+  const emptyWeek = !allEpisodesByDay.size
+    ? `<p class="upcoming-status">${hasSearch
+      ? `No episodes match "${escapeHtml(searchQuery.trim())}" this week.`
+      : "No episode air dates this week."}</p>`
+    : "";
+
+  container.innerHTML = `
+    <div class="upcoming-week">${cells.join("")}</div>
+    ${emptyWeek}`;
+  hydratePosters(container);
+}
+
 export function renderUpcoming() {
+  if (state.upcomingViewMode === "week") {
+    return renderWeekView();
+  }
+
   const container = elements.upcomingCalendar;
   if (!container) return;
   const month = activeMonth();
