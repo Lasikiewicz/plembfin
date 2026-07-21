@@ -1,7 +1,18 @@
 {
-  "version": "0.5.18",
-  "updatedAt": "2026-07-21T14:44:26+01:00",
+  "version": "0.5.19",
+  "updatedAt": "2026-07-21T15:05:52+01:00",
   "entries": [
+    {
+      "version": "0.5.19",
+      "date": "2026-07-21T15:05:52+01:00",
+      "commit": "0a0de97f4106eba825f5b64a87cb104786441c82",
+      "message": "Chore - Fix changelog entry for Upcoming page rework",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removed stale bullets describing week view and debug-logging work that were superseded within the same push and no longer reflect the shipped feature",
+        "Changelog entry now only lists the final scrolling calendar, today-on-open, and search-results-view behavior"
+      ]
+    },
     {
       "version": "0.5.18",
       "date": "2026-07-21T14:44:26+01:00",
