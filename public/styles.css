@@ -83,6 +83,9 @@
 }
 
 .settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
   width: 100%;
   container-type: inline-size;
 }
@@ -93,8 +96,7 @@
   margin-bottom: var(--space-3);
 }
 
-.settings-mobile-section label,
-.settings-eyebrow {
+.settings-mobile-section label {
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 800;
@@ -123,8 +125,6 @@
   display: grid;
   gap: var(--space-3);
   align-items: end;
-  padding: 0 0 var(--space-3);
-  border-bottom: 1px solid var(--line);
 }
 
 .settings-overview-header > div {
@@ -140,7 +140,7 @@
   letter-spacing: -0.025em;
 }
 
-.settings-overview-header p:not(.settings-eyebrow) {
+.settings-overview-header p {
   max-width: 58ch;
   margin: 0;
   color: var(--soft);
@@ -148,15 +148,14 @@
   line-height: 1.45;
 }
 
-.settings-overview .settings-eyebrow {
-  letter-spacing: 0;
-  text-transform: none;
-}
-
 
 .settings-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
   width: 100%;
   padding-top: 0;
+  margin-top: 0;
 }
 
 .settings-pane .settings-card,
@@ -164,11 +163,15 @@
 .settings-pane .logs-panel,
 .settings-pane .backup-settings-panel {
   width: 100%;
-  padding: var(--space-4) !important;
+  padding: 1.5rem !important;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel-2);
   box-shadow: none;
+}
+
+.settings-card .section-heading {
+  margin-bottom: 0;
 }
 
 .settings-help-disclosure,
@@ -192,7 +195,14 @@
 }
 
 .settings-help-body {
+  display: grid;
+  gap: var(--space-3);
   padding-bottom: var(--space-4);
+}
+
+.settings-help-body > .guide-callout + .guide-callout,
+.webhook-setup-guides > .guide-callout + .guide-callout {
+  margin-top: var(--space-3);
 }
 
 .settings-help-body > .settings-card,
@@ -207,7 +217,6 @@
 }
 
 .settings-disclosure {
-  margin-bottom: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel-2);
@@ -252,9 +261,7 @@
   padding: 0 var(--space-4) var(--space-4);
 }
 
-.settings-pane[data-settings-panel="sync"] > .settings-row + .settings-row {
-  margin-top: var(--space-4);
-}
+/* Removed sync-specific row margin-top override — uniform 1.5rem flex gap handles spacing consistently */
 
 html.light-mode .settings-pane .settings-card,
 html.light-mode .settings-pane .sync-panel,
@@ -1263,7 +1270,11 @@ h2 {
   overflow-y: auto;
 }
 
-.app-shell,
+.app-shell {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .view-panel,
 .auth-form,
 .settings-pane,
@@ -1276,7 +1287,7 @@ h2 {
 .episode-list,
 .insight-list {
   display: grid;
-  gap: var(--space-3);
+  gap: 0;
 }
 
 .page-topbar {
@@ -7584,11 +7595,17 @@ h1 {
   color: #fff;
 }
 
-.app-shell,
-.view-panel {
+.app-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
+  width: 100%;
+}
+
+.view-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
   width: 100%;
 }
 
@@ -13194,6 +13211,23 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 }
 
 /* ── Settings Redesign (Outfit & Glassmorphic Aesthetics) ── */
+.settings-hub {
+  width: 100%;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding-top: 0;
+  margin-top: 0;
+}
+
 .settings-pane {
   display: flex;
   flex-direction: column;
@@ -13201,23 +13235,20 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  padding-top: 0.5rem;
+  padding-top: 0;
+  margin-top: 0;
   /* Keeps scrollIntoView from tucking a section under the sticky .page-topbar. */
   scroll-margin-top: calc(var(--right-topbar-height) + var(--space-3));
 }
 
-.settings-content {
-  min-width: 0;
-  max-width: 100%;
-}
-
 .settings-row {
   display: flex;
-  gap: 2rem;
-  align-items: start;
+  gap: var(--space-3);
+  align-items: stretch;
   width: 100%;
   min-width: 0;
   max-width: 100%;
+  margin-top: 0;
   scroll-margin-top: calc(var(--right-topbar-height) + var(--space-3));
 }
 
@@ -13239,10 +13270,20 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   max-width: 100%;
 }
 
+.settings-row-help > .settings-card,
+.settings-row-help > article,
+.settings-row-help > section {
+  height: 100%;
+}
+
 .settings-card {
   padding: 1.5rem !important;
   gap: 1.5rem !important;
   transition: all 0.3s ease;
+}
+
+.settings-card .section-heading {
+  margin-bottom: 0 !important;
 }
 
 .settings-row-help .settings-card {

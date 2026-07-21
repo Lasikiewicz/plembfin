@@ -410,7 +410,7 @@ function renderSettingsSidebar() {
   const fragment = document.createDocumentFragment();
 
   for (const group of SECTION_GROUPS) {
-    // Parent button for the group (navigates to parent group section if it exists, otherwise first child)
+    // Parent button for the group (navigates to parent group settings page)
     const parentPath = SECTIONS[group.id] ? `/settings/${group.id}` : `/settings/${group.sections[0]}`;
     const parentButton = document.createElement("button");
     parentButton.type = "button";
@@ -427,16 +427,7 @@ function renderSettingsSidebar() {
       childButton.type = "button";
       childButton.className = "settings-tab settings-group-child hidden";
       childButton.dataset.settingsGroup = sectionId;
-
-      // If this is a display-only child or marked as such, it navigates to the
-      // parent's aggregated page but scrolls straight to its own section there.
-      const isDisplayOnly = definition.isDisplayOnly || (group.displayOnly && group.displayOnly.includes(sectionId));
-      if (isDisplayOnly) {
-        childButton.dataset.settingsPath = `${parentPath}#${sectionId}`;
-      } else {
-        childButton.dataset.settingsPath = `/settings/${sectionId}`;
-      }
-
+      childButton.dataset.settingsPath = parentPath;
       childButton.dataset.settingsGroupParent = group.id;
       childButton.textContent = definition.label;
       fragment.append(childButton);
@@ -447,7 +438,7 @@ function renderSettingsSidebar() {
         subButton.className = "settings-tab settings-group-grandchild hidden";
         subButton.dataset.settingsSubsection = subSection.id;
         subButton.dataset.settingsParentSection = sectionId;
-        subButton.dataset.settingsPath = `/settings/${sectionId}#${subSection.id}`;
+        subButton.dataset.settingsPath = parentPath;
         subButton.textContent = subSection.label;
         fragment.append(subButton);
       }
@@ -502,10 +493,11 @@ function renderSettingsOverview() {
     itemsContainer.className = "settings-group-items";
     for (const sectionId of group.sections) {
       const definition = SECTIONS[sectionId];
+      const parentPath = SECTIONS[group.id] ? `/settings/${group.id}` : `/settings/${sectionId}`;
       const row = document.createElement("button");
       row.type = "button";
       row.className = "settings-link-row";
-      row.dataset.settingsPath = `/settings/${sectionId}`;
+      row.dataset.settingsPath = parentPath;
       const title = document.createElement("strong");
       title.textContent = definition.label;
       const description = document.createElement("span");
@@ -516,7 +508,7 @@ function renderSettingsOverview() {
         const subRow = document.createElement("button");
         subRow.type = "button";
         subRow.className = "settings-link-row settings-link-row--nested";
-        subRow.dataset.settingsPath = `/settings/${sectionId}#${subSection.id}`;
+        subRow.dataset.settingsPath = parentPath;
         const subTitle = document.createElement("strong");
         subTitle.textContent = subSection.label;
         const subDescription = document.createElement("span");
@@ -620,16 +612,13 @@ export function applySettingsRoute(route) {
 }
 
 export function focusSettingsRoute(route) {
-  const hash = String(window.location.hash || "").replace(/^#/, "");
-  const targetId = hash || route?.section;
-  const target = (targetId && document.getElementById(targetId))
-    || (targetId && settingsSectionElement(targetId))
-    || (route?.panel && document.querySelector(`[data-settings-panel="${route.panel}"]:not(.hidden)`));
-  if (!target) return;
-
-  target.scrollIntoView({ behavior: "smooth", block: "start" });
-  if (!target.matches("button, a, input, select, textarea")) target.setAttribute("tabindex", "-1");
-  target.focus({ preventScroll: true });
+  const container = document.querySelector("#settings-view") || document.querySelector(".page-shell");
+  if (container) {
+    if (typeof container.scrollTo === "function") {
+      container.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }
+  }
+  window.scrollTo(0, 0);
 }
 
 // Resolves a section id to the DOM element that represents it on an
