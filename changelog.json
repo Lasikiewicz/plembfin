@@ -1,7 +1,17 @@
 {
-  "version": "0.5.15",
-  "updatedAt": "2026-07-21T09:53:25+01:00",
+  "version": "0.5.16",
+  "updatedAt": "2026-07-21T10:01:11+01:00",
   "entries": [
+    {
+      "version": "0.5.16",
+      "date": "2026-07-21T10:01:11+01:00",
+      "commit": "2775671bca6b1707f471cff68a63c5185de32db9",
+      "message": "Fix - Remove settings group top gap",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep aggregated settings routes from rendering empty sibling panes that add extra spacing above the first visible section."
+      ]
+    },
     {
       "version": "0.5.15",
       "date": "2026-07-21T09:53:25+01:00",
