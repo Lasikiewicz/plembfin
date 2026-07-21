@@ -1,7 +1,35 @@
 {
-  "version": "0.5.17",
-  "updatedAt": "2026-07-21T13:22:25+01:00",
+  "version": "0.5.18",
+  "updatedAt": "2026-07-21T14:44:26+01:00",
   "entries": [
+    {
+      "version": "0.5.18",
+      "date": "2026-07-21T14:44:26+01:00",
+      "commit": "526e55fb8c041cb3aeb74554886be73a2b9414fc",
+      "message": "Feature - Rework Upcoming page into a continuously scrollable calendar",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added upcomingViewMode state to track calendar vs week view",
+        "Added view toggle buttons (Calendar/Week) in topbar",
+        "Implemented week view rendering showing 7-day week layout",
+        "Week navigation shifts by weeks instead of months",
+        "Data loading handles both view modes",
+        "Added CSS styling for desktop and mobile week views",
+        "Fixed button element bindings in app.js",
+        "Fixed loadUpcoming to render even when data is cached",
+        "Added console.log statements in initUpcoming to verify button binding",
+        "Added logs in setUpcomingViewMode to trace state changes",
+        "Added logs in renderUpcoming to track view mode",
+        "Confirmed buttons are found and element binding works",
+        "Issue: click handlers not firing despite elements being bound",
+        "Upcoming now scrolls seamlessly between months instead of paging one month at a time, loading further months automatically as you scroll",
+        "Opening the Upcoming page always lands on today's date, centered and highlighted, instead of wherever a previous visit left off",
+        "Each day renders as a card (weekday, date, episode entries) in a 7-column grid per month, with a sticky month heading pinned while that month is in view",
+        "Searching switches to a dedicated results view listing every matching upcoming episode across all loaded months, grouped by month, instead of a small panel below the calendar",
+        "Removed the separate Week and List view toggle in favor of one unified scrollable view",
+        "Updated docs/upcoming.md and the README feature summary to describe the new scrolling and search behavior"
+      ]
+    },
     {
       "version": "0.5.17",
       "date": "2026-07-21T13:22:25+01:00",
