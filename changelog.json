@@ -1,7 +1,18 @@
 {
-  "version": "0.5.26",
-  "updatedAt": "2026-07-21T20:45:48+01:00",
+  "version": "0.5.27",
+  "updatedAt": "2026-07-21T20:49:09+01:00",
   "entries": [
+    {
+      "version": "0.5.27",
+      "date": "2026-07-21T20:49:09+01:00",
+      "commit": "37c5f43017ac5b33df6e5516f52127e66677fd4e",
+      "message": "Feature - Format server logs in local time and expand log terminal to full page height",
+      "author": "Lasikiewicz",
+      "details": [
+        "Display server log timestamps in local server and browser time (YYYY-MM-DD HH:MM:SS) instead of UTC",
+        "Expand the Server Logs panel to fit full page viewport height without outer window scrolling"
+      ]
+    },
     {
       "version": "0.5.26",
       "date": "2026-07-21T20:45:48+01:00",
