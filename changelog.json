@@ -1,7 +1,20 @@
 {
-  "version": "0.5.25",
-  "updatedAt": "2026-07-21T20:30:58+01:00",
+  "version": "0.5.26",
+  "updatedAt": "2026-07-21T20:45:48+01:00",
   "entries": [
+    {
+      "version": "0.5.26",
+      "date": "2026-07-21T20:45:48+01:00",
+      "commit": "6b701f32210ce650ba804473a8ab1eaea5c487c0",
+      "message": "Feature - Add categorized logs filtering and themed diagnostic terminal UI",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add category filter tabs to Server Logs (Plex WebSockets, Outbound Sync, Scheduled Polls, System Logs) to isolate specific function event streams",
+        "Redesign the Server Logs interface to match Plembfin's glassmorphism dark and light theme",
+        "Format log entries with clean human-readable timestamps and color-coded event badges",
+        "Filter out routine connection recycling and 0-item scheduled sync ticks to keep diagnostic logs high-signal"
+      ]
+    },
     {
       "version": "0.5.25",
       "date": "2026-07-21T20:30:58+01:00",
