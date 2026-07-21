@@ -103,6 +103,32 @@ function decodeFrame(data) {
   }
 }
 
+export function parsePlexNotificationRatingKeys(raw) {
+  let payload;
+  try {
+    payload = JSON.parse(decodeFrame(raw));
+  } catch {
+    return [];
+  }
+  const container = payload?.NotificationContainer;
+  if (!container || container.type !== "timeline") return [];
+
+  const rawEntries = container.TimelineEntry;
+  const entries = Array.isArray(rawEntries)
+    ? rawEntries
+    : rawEntries && typeof rawEntries === "object"
+    ? [rawEntries]
+    : [];
+  const keys = [];
+  for (const entry of entries) {
+    if (entry.identifier && entry.identifier !== LIBRARY_IDENTIFIER) continue;
+    if (!WATCHABLE_TIMELINE_TYPES.has(Number(entry.type))) continue;
+    const ratingKey = String(entry.itemID ?? entry.ratingKey ?? "").trim();
+    if (ratingKey) keys.push(ratingKey);
+  }
+  return keys;
+}
+
 export function createPlexNotificationListener({ getPlexConfig, onLibraryItemChange, logger = console.log }) {
   let socket = null;
   let stopped = true;
@@ -179,25 +205,14 @@ export function createPlexNotificationListener({ getPlexConfig, onLibraryItemCha
     );
   }
 
-  function handleFrame(raw) {
-    lastActivityAt = Date.now();
-    let payload;
-    try {
-      payload = JSON.parse(decodeFrame(raw));
-    } catch {
-      return;
-    }
-    const container = payload?.NotificationContainer;
-    if (!container || container.type !== "timeline") return;
 
-    const entries = Array.isArray(container.TimelineEntry) ? container.TimelineEntry : [];
-    for (const entry of entries) {
-      if (entry.identifier && entry.identifier !== LIBRARY_IDENTIFIER) continue;
-      if (!WATCHABLE_TIMELINE_TYPES.has(Number(entry.type))) continue;
-      const ratingKey = String(entry.itemID ?? entry.ratingKey ?? "").trim();
-      if (ratingKey) debounce(ratingKey);
-    }
+
+function handleFrame(raw) {
+  lastActivityAt = Date.now();
+  for (const ratingKey of parsePlexNotificationRatingKeys(raw)) {
+    debounce(ratingKey);
   }
+}
 
   async function connect() {
     if (stopped) return;

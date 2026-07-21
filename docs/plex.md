@@ -65,7 +65,7 @@ Two Plex-specific caveats (also in [webhooks.md](webhooks.md)):
 
 `plexNotificationListener.js` connects to `ws(s)://<plex>/:/websockets/notifications`
 and watches `timeline` notifications for movies (type 1) and episodes (type 4) from the
-library section. It is pure transport: reconnect with backoff (3s → 60s), debounce per
+library section (supporting both array and single-object `TimelineEntry` payloads). It is pure transport: reconnect with backoff (3s → 60s), debounce per
 ratingKey (2.5s), then hand each changed ratingKey to `onLibraryItemChange`.
 
 Reverse proxies in front of Plex (Cloudflare, nginx, Traefik, etc.) commonly drop an idle

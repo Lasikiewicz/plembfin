@@ -173,10 +173,6 @@ async function handlePlexLibraryItemChange(ratingKey) {
       await deletePlaybackProgress(media).catch(() => null);
       return;
     }
-    if (!playstate) {
-      const watched = await findWatchedByAnyMediaKey({ ...media, syncAction: "watched" }).catch(() => null);
-      if (watched) return;
-    }
 
     const watchedAtSeconds = Number(metadata.lastViewedAt || metadata.viewedAt || 0);
     const watchedAt = watchedAtSeconds > 0
