@@ -1,7 +1,23 @@
 {
-  "version": "0.5.27",
-  "updatedAt": "2026-07-21T20:49:09+01:00",
+  "version": "0.5.28",
+  "updatedAt": "2026-07-21T21:18:36+01:00",
   "entries": [
+    {
+      "version": "0.5.28",
+      "date": "2026-07-21T21:18:36+01:00",
+      "commit": "7f286bc548914d2facf326f1f1b15d99a9789c10",
+      "message": "Docs - Fix and expand Settings help sections across the app",
+      "author": "Lasikiewicz",
+      "details": [
+        "Rematch TV Shows help now correctly credits TheTVDB as the primary match source instead of TMDB",
+        "Repair History Rows help no longer claims to fix mislabeled media types; it actually fills in missing types and backfills posters on recent rows",
+        "Clean Duplicate History Rows help now explains it keeps the newest row per media group and deletes the rest",
+        "System Integrity Check help now lists all nine checks it runs and explains the previously-undocumented Refresh Sync Health button",
+        "Backup Settings help expanded to cover encrypted Plembfin backups, the passphrase/remember-passphrase security tradeoff, and Backblaze B2 remote destinations",
+        "Server Logs help now documents the category filter tabs (Plex WebSockets, Outbound Sync, Scheduled Polls, System Logs)",
+        "All in-app help disclosures now expand by default instead of starting collapsed"
+      ]
+    },
     {
       "version": "0.5.27",
       "date": "2026-07-21T20:49:09+01:00",
