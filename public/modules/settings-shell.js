@@ -563,9 +563,17 @@ export function applySettingsRoute(route) {
     const requestedBackupTabs = new Set();
     for (const view of views) {
       if (!view.panel) continue;
-      const panels = [...document.querySelectorAll(`[data-settings-panel="${view.panel}"]`)];
+      const requestedSubPanels = view.subPanels || [];
+      // Some parent routes aggregate multiple panes that share a panel name
+      // (for example Account and Webhooks both use "general"). Reveal only
+      // the pane containing this view's subsection so an empty sibling cannot
+      // add an unexplained gap above the first visible card.
+      const panels = [...document.querySelectorAll(`[data-settings-panel="${view.panel}"]`)].filter((panel) =>
+        !requestedSubPanels.length
+        || requestedSubPanels.some((name) => panel.querySelector(`[data-sub-panel="${name}"]`)),
+      );
       for (const panel of panels) panel.classList.remove("hidden");
-      for (const name of view.subPanels || []) {
+      for (const name of requestedSubPanels) {
         document.querySelector(`[data-sub-panel="${name}"]`)?.classList.remove("hidden");
         const disclosure = document.querySelector(`[data-settings-disclosure="${name}"]`);
         if (disclosure) {
@@ -612,7 +620,10 @@ export function applySettingsRoute(route) {
 }
 
 export function focusSettingsRoute(route) {
-  const container = document.querySelector("#settings-view") || document.querySelector(".page-shell");
+  // The settings section is inside the app's scrolling shell; it is not the
+  // scroll container itself. Reset the shell so repeated clicks on the active
+  // parent route cannot preserve a child-section offset.
+  const container = document.querySelector(".page-shell");
   if (container) {
     if (typeof container.scrollTo === "function") {
       container.scrollTo({ top: 0, left: 0, behavior: "instant" });
