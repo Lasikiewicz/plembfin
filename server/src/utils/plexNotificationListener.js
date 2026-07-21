@@ -111,22 +111,43 @@ export function parsePlexNotificationRatingKeys(raw) {
     return [];
   }
   const container = payload?.NotificationContainer;
-  if (!container || container.type !== "timeline") return [];
+  if (!container) return [];
 
-  const rawEntries = container.TimelineEntry;
-  const entries = Array.isArray(rawEntries)
-    ? rawEntries
-    : rawEntries && typeof rawEntries === "object"
-    ? [rawEntries]
-    : [];
   const keys = [];
-  for (const entry of entries) {
-    if (entry.identifier && entry.identifier !== LIBRARY_IDENTIFIER) continue;
-    if (!WATCHABLE_TIMELINE_TYPES.has(Number(entry.type))) continue;
-    const ratingKey = String(entry.itemID ?? entry.ratingKey ?? "").trim();
-    if (ratingKey) keys.push(ratingKey);
+
+  if (container.type === "timeline") {
+    const rawEntries = container.TimelineEntry;
+    const entries = Array.isArray(rawEntries)
+      ? rawEntries
+      : rawEntries && typeof rawEntries === "object"
+      ? [rawEntries]
+      : [];
+    for (const entry of entries) {
+      if (entry.identifier && entry.identifier !== LIBRARY_IDENTIFIER) continue;
+      if (!WATCHABLE_TIMELINE_TYPES.has(Number(entry.type))) continue;
+      const ratingKey = String(entry.itemID ?? entry.ratingKey ?? "").trim();
+      if (ratingKey) keys.push(ratingKey);
+    }
+  } else if (container.type === "activity") {
+    const rawActivities = container.ActivityNotification;
+    const activities = Array.isArray(rawActivities)
+      ? rawActivities
+      : rawActivities && typeof rawActivities === "object"
+      ? [rawActivities]
+      : [];
+    for (const act of activities) {
+      const activityType = act.Activity?.type;
+      const keyPath = act.Activity?.Context?.key || "";
+      if (activityType === "library.refresh.items" && keyPath.includes("/library/metadata/")) {
+        const ratingKey = keyPath.split("/library/metadata/").pop()?.split("/")[0]?.trim();
+        if (ratingKey && /^\d+$/.test(ratingKey)) {
+          keys.push(ratingKey);
+        }
+      }
+    }
   }
-  return keys;
+
+  return [...new Set(keys)];
 }
 
 export function createPlexNotificationListener({ getPlexConfig, onLibraryItemChange, logger = console.log }) {

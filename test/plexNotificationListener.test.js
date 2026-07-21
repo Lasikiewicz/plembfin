@@ -43,6 +43,34 @@ test("parsePlexNotificationRatingKeys extracts rating keys from array TimelineEn
   assert.deepEqual(keys, ["101", "202"]);
 });
 
+test("parsePlexNotificationRatingKeys extracts rating keys from ActivityNotification payload", () => {
+  const activityPayload = JSON.stringify({
+    NotificationContainer: {
+      type: "activity",
+      size: 1,
+      ActivityNotification: [
+        {
+          event: "updated",
+          uuid: "fb444864-fae6-4de0-b5f0-bc4f072e6df0",
+          Activity: {
+            uuid: "fb444864-fae6-4de0-b5f0-bc4f072e6df0",
+            type: "library.refresh.items",
+            cancellable: false,
+            userID: 1,
+            title: "Refreshing",
+            subtitle: "Checking files",
+            progress: 0,
+            Context: { key: "/library/metadata/38800" },
+          },
+        },
+      ],
+    },
+  });
+
+  const keys = parsePlexNotificationRatingKeys(activityPayload);
+  assert.deepEqual(keys, ["38800"]);
+});
+
 test("parsePlexNotificationRatingKeys ignores non-watchable timeline entries", () => {
   const nonWatchablePayload = JSON.stringify({
     NotificationContainer: {

@@ -169,15 +169,17 @@ async function handlePlexLibraryItemChange(ratingKey) {
   const viewOffset = Number(metadata.viewOffset || 0);
   if (viewCount > 0) {
     const playstate = await getPlaystateForMedia(media).catch(() => null);
-    if (playstate?.state === "watched") {
-      await deletePlaybackProgress(media).catch(() => null);
-      return;
-    }
-
     const watchedAtSeconds = Number(metadata.lastViewedAt || metadata.viewedAt || 0);
     const watchedAt = watchedAtSeconds > 0
       ? new Date(watchedAtSeconds * 1000).toISOString()
       : new Date().toISOString();
+
+    const isNewerWatch = playstate?.watched_at && new Date(watchedAt).getTime() > new Date(playstate.watched_at).getTime() + 10000;
+    if (playstate?.state === "watched" && !isNewerWatch) {
+      await deletePlaybackProgress(media).catch(() => null);
+      return;
+    }
+
     const watchRecord = mediaToWatchRecord(media, "plex");
     watchRecord.watched_at = watchedAt;
     watchRecord.sync_action = "watched";
