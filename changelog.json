@@ -1,7 +1,18 @@
 {
-  "version": "0.5.23",
-  "updatedAt": "2026-07-21T20:17:00+01:00",
+  "version": "0.5.24",
+  "updatedAt": "2026-07-21T20:26:45+01:00",
   "entries": [
+    {
+      "version": "0.5.24",
+      "date": "2026-07-21T20:26:45+01:00",
+      "commit": "96d6aecb65a3d0ef6fd9f052f2fde3a89a17838e",
+      "message": "Fix - Support Plex activity notifications for manual mark watched/unwatched actions",
+      "author": "Lasikiewicz",
+      "details": [
+        "Handle Plex ActivityNotification WebSocket frames (type: activity) emitted when marking items watched or unwatched in Plex UI",
+        "Refine handlePlexLibraryItemChange to process newer watched_at timestamps even if playstate is watched"
+      ]
+    },
     {
       "version": "0.5.23",
       "date": "2026-07-21T20:17:00+01:00",
