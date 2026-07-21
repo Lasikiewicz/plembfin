@@ -1,7 +1,18 @@
 {
-  "version": "0.5.24",
-  "updatedAt": "2026-07-21T20:26:45+01:00",
+  "version": "0.5.25",
+  "updatedAt": "2026-07-21T20:30:58+01:00",
   "entries": [
+    {
+      "version": "0.5.25",
+      "date": "2026-07-21T20:30:58+01:00",
+      "commit": "4811389e483e47b31a5925c24cb09e634815e1a9",
+      "message": "Feature - Add category filter tabs and automatic categorization to Server Logs UI",
+      "author": "Lasikiewicz",
+      "details": [
+        "Automatically classify diagnostic logs into Plex WebSockets, Outbound Sync, Scheduled Polls, or System categories",
+        "Add category filter buttons to Settings > Server Logs UI to easily isolate function-specific event streams"
+      ]
+    },
     {
       "version": "0.5.24",
       "date": "2026-07-21T20:26:45+01:00",
