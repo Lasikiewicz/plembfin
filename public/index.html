@@ -717,7 +717,7 @@
                           </div>
                         </div>
                         <button id="runCompleteCheckButton" class="button-primary" style="align-self: flex-start;" type="button">Run System Diagnostic</button>
-                        <button id="refreshSyncHealthButton" class="button-ghost" style="align-self: flex-start;" type="button">Refresh Sync Health</button>
+                        <button id="refreshSyncHealthButton" class="button-ghost" style="align-self: flex-start;" type="button" title="Load row counts, database size, and outbound sync pressure">Refresh Sync Health</button>
                         <div id="completeCheckResults" class="complete-check-results hidden" style="display: grid; gap: var(--space-2); margin-top: var(--space-3);"></div>
                         <div id="syncHealthPanel" class="sync-health-panel" aria-live="polite"></div>
                       </div>
@@ -730,9 +730,24 @@
                         <p>Integrity Help</p>
                         <span>Database Care</span>
                       </div>
-                      <p class="tool-accordion-desc">
-                        <b>System Integrity Check:</b> Tests end-to-end database connectivity and verifies if configured media servers are accessible.
-                      </p>
+                      <div style="margin-bottom: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Run System Diagnostic</b>
+                        <p style="margin: 0; line-height: 1.4;">Runs nine live checks in sequence and reports each as Online, Warnings Detected, Failed, or Not Configured, with a "Fix" tip and a link to the relevant settings page for anything that isn't healthy:</p>
+                        <ul class="tool-accordion-desc" style="margin: 4px 0 0; padding-left: 1.2rem; line-height: 1.6;">
+                          <li><b>Watch History API</b> — confirms the local SQLite database responds.</li>
+                          <li><b>Server Configuration</b> — confirms saved media-server/config settings can be read back.</li>
+                          <li><b>Webhook Listener Endpoint</b> — pings <code>/api/webhook</code> and shows the last event received, if any.</li>
+                          <li><b>Scheduled Cron Job</b> — checks the per-minute background worker fired recently.</li>
+                          <li><b>Outbound Playstate Sync</b> — scans the 5 most recent history rows' dispatch telemetry for failures.</li>
+                          <li><b>Plex / Emby / Jellyfin Media Server</b> — live connection test against each configured server.</li>
+                          <li><b>Plex Realtime Notifications</b> — confirms the WebSocket notification listener can connect (unwatch sync falls back to the periodic poll if this fails).</li>
+                          <li><b>Cross-Platform Library Matching</b> — summarizes current "no matching item found" sync failures per platform.</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <b style="display: block; margin-bottom: 2px;">Refresh Sync Health</b>
+                        <p style="margin: 0; line-height: 1.4;">Loads a lighter-weight snapshot: watch history/playstate/playback-progress row counts, database size on disk, and outbound request pressure (requests, throttles, and cooldowns) per media-server host — useful for spotting rate-limiting or an oversized database before running a large Force Sync.</p>
+                      </div>
                     </article>
                   </div>
                 </div>
@@ -797,7 +812,7 @@
                             <div class="tool-item-meta">
                               <div class="tool-item-title-desc">
                                 <b>Repair History Rows</b>
-                                <span>Correct mislabelled media types and fetch missing posters</span>
+                                <span>Fill in missing media types and backfill missing posters on recent history rows</span>
                               </div>
                               <span id="repairStatus" class="status-pill status-muted">Idle</span>
                             </div>
@@ -832,11 +847,11 @@
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Repair History Rows</b>
-                        <p style="margin: 0; line-height: 1.4;">Corrects rows containing wrong media types (TV vs Movie) and pulls missing posters into local storage.</p>
+                        <p style="margin: 0; line-height: 1.4;">Scans your 300 most recent history rows for ones missing a media type or an optimized (locally cached) poster. Rows with no type are guessed as an episode or movie from the title pattern (e.g. <code>S01E01</code>), then a poster is resolved from the cache, the configured media server, or TMDB and saved to local storage. Runs in passes of up to 10 rows and stops automatically once a pass makes no changes.</p>
                       </div>
                       <div>
                         <b style="display: block; margin-bottom: 2px;">Clean Duplicate History Rows</b>
-                        <p style="margin: 0; line-height: 1.4;">Runs a deduplication routine over watch entries to keep the history database clean and fast.</p>
+                        <p style="margin: 0; line-height: 1.4;">Groups all watch-history rows by media (title/type/season/episode). Where a group has more than one row, it keeps only the most recently watched row and deletes the rest. Use this if the same play was recorded twice (e.g. by both a webhook and the scheduled poll).</p>
                       </div>
                     </article>
                   </div>
@@ -857,7 +872,7 @@
                             <div class="tool-item-meta">
                               <div class="tool-item-title-desc">
                                 <b>Rematch All TV Shows</b>
-                                <span>Resolve each show title against TMDB and update episode IDs</span>
+                                <span>Resolve each show title against TVDB (primary) and update episode IDs</span>
                               </div>
                               <span id="rematchTvStatus" class="status-pill status-muted">Idle</span>
                             </div>
@@ -902,7 +917,7 @@
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Rematch All TV Shows</b>
-                        <p style="margin: 0; line-height: 1.4;">Re-resolves show-level TMDB and TVDB IDs from each series title, then stamps the corrected IDs onto local episode rows.</p>
+                        <p style="margin: 0; line-height: 1.4;">Looks up each series title on TVDB first (the primary source for TV matching), then derives the TMDB ID from TVDB's own cross-reference — falling back to a TMDB title search only if that mapping is stale. Stamps the corrected TVDB/TMDB IDs onto local episode rows.</p>
                       </div>
                       <div>
                         <b style="display: block; margin-bottom: 2px;">Backfill Trakt Imports</b>
@@ -1103,12 +1118,24 @@
                         <span>Disaster Recovery</span>
                       </div>
                       <div style="margin-bottom: var(--space-2);">
-                        <b style="display: block; margin-bottom: 2px;">Local Backups</b>
-                        <p style="margin: 0; line-height: 1.4;">Watch history snapshots are saved to <code id="watchBackupLocalPath">data/backups/watch-history</code> on the server running Plembfin.</p>
+                        <b style="display: block; margin-bottom: 2px;">Local Watch History Backups</b>
+                        <p style="margin: 0; line-height: 1.4;">Unencrypted daily snapshots of watched state, playstate, and resume progress, saved to <code id="watchBackupLocalPath">data/backups/watch-history</code> on the server running Plembfin. No passphrase needed — "Save Schedule" and "Back Up Now" work as soon as backups are enabled.</p>
+                      </div>
+                      <div style="margin-bottom: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Local Plembfin Backups</b>
+                        <p style="margin: 0; line-height: 1.4;">A full encrypted export of the database and saved settings (including server credentials and API keys), encrypted in your browser with the passphrase you enter — Plembfin never sees or stores the plaintext backup. You need at least 12 characters. Losing the passphrase means the backup cannot be decrypted; there is no recovery.</p>
+                      </div>
+                      <div style="margin-bottom: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Remember passphrase</b>
+                        <p style="margin: 0; line-height: 1.4;">Scheduled Plembfin backups run on the server with no browser open, so they need the passphrase available server-side. Checking "Remember passphrase" stores it in <code>data/config.json</code> so the schedule can run unattended; leaving it unchecked keeps the passphrase browser-only, but then only "Back Up Now" works (the schedule stays disabled) since there's no passphrase for the server to encrypt with.</p>
+                      </div>
+                      <div style="margin-bottom: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Remote Destinations</b>
+                        <p style="margin: 0; line-height: 1.4;">Configure a Backblaze B2 bucket (region/endpoint, bucket name, and an application key scoped to it) as an upload target. Every enabled destination receives a copy of each remote backup run.</p>
                       </div>
                       <div>
-                        <b style="display: block; margin-bottom: 2px;">Remote Backups</b>
-                        <p style="margin: 0; line-height: 1.4;">Remote destinations mirror watch history and encrypted Plembfin backups off-server after each scheduled run.</p>
+                        <b style="display: block; margin-bottom: 2px;">Remote Watch History / Plembfin Backups</b>
+                        <p style="margin: 0; line-height: 1.4;">Mirror the same two backup types to every enabled remote destination on their own schedule and retention. Remote Plembfin backups use the same passphrase and "remember" behavior as the local encrypted backup above.</p>
                       </div>
                     </article>
                   </div>
@@ -1591,6 +1618,17 @@
                       <p class="tool-accordion-desc">Recent backend logs are merged from bounded per-process files, so web and worker activity remains visible across restarts. Frontend diagnostics stay browser-local. The panel refreshes every 3 seconds automatically.</p>
 
                       <details style="margin-top: var(--space-3);" open>
+                        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Category tabs</summary>
+                        <ul class="tool-accordion-desc" style="margin-top: var(--space-2); padding-left: var(--space-4); line-height: 1.7;">
+                          <li><b>⚡ Plex WebSockets</b> — the real-time Plex notification listener: connection lifecycle, incoming timeline events, and unwatch detection.</li>
+                          <li><b>🔄 Outbound Sync</b> — playstate propagation to Plex/Emby/Jellyfin: mark-played/unplayed calls, loop-guard checks, and dispatch results.</li>
+                          <li><b>⏱️ Scheduled Polls</b> — the per-minute background worker's own activity: recent-history polling and cron-sync runs.</li>
+                          <li><b>🖥️ System Logs</b> — everything else: server startup, config, and generic errors that don't match the categories above.</li>
+                        </ul>
+                        <p class="tool-accordion-desc" style="margin-top: var(--space-2);">Categorization is based on the log message text, so a line only ever appears under one tab (plus "All Logs").</p>
+                      </details>
+
+                      <details style="margin-top: var(--space-2);" open>
                         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Normal activity</summary>
                         <ul class="tool-accordion-desc" style="margin-top: var(--space-2); padding-left: var(--space-4); line-height: 1.7;">
                           <li><b>Scheduled Sync: starting background sync workflow</b> — the per-minute background worker has fired. Completely normal; you will see this every 60 seconds.</li>
@@ -1601,12 +1639,12 @@
                         </ul>
                       </details>
 
-                      <details style="margin-top: var(--space-2);">
+                      <details style="margin-top: var(--space-2);" open>
                         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Pre-restore skips</summary>
                         <p class="tool-accordion-desc" style="margin-top: var(--space-2);"><b>skipped pre-restore item</b> — After importing a backup, Plembfin sets a restore timestamp. Any item whose play date falls at or before that timestamp is skipped during scheduled sync to prevent the same history being imported twice. These entries are expected after a restore and will stop appearing once the timestamp clears or the items age out.</p>
                       </details>
 
-                      <details style="margin-top: var(--space-2);">
+                      <details style="margin-top: var(--space-2);" open>
                         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Warnings and errors</summary>
                         <ul class="tool-accordion-desc" style="margin-top: var(--space-2); padding-left: var(--space-4); line-height: 1.7;">
                           <li><b>[WARN]</b> — A non-critical issue, such as a missing metadata field or a server returning unexpected data. Sync continues.</li>
@@ -1616,7 +1654,7 @@
                         </ul>
                       </details>
 
-                      <details style="margin-top: var(--space-2);">
+                      <details style="margin-top: var(--space-2);" open>
                         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Force sync logs</summary>
                         <p class="tool-accordion-desc" style="margin-top: var(--space-2);">When you run a force sync from Settings → Sync, progress is streamed here in real time: how many items were fetched from each server, how many were reconciled, and the result of each mark-played or mark-unplayed call. A <b>Force Sync: process complete</b> line confirms it finished.</p>
                       </details>

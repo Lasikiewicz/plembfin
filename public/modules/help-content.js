@@ -415,15 +415,15 @@ export function renderSettingsInlineHelp() {
   if (migrationHelp) {
     migrationHelp.innerHTML = `
       <p class="tool-accordion-desc"><b>Trakt Importer:</b> Drag and drop CSV or JSON logs exported from Trakt.tv to populate your local database in bulk.</p>
-      <details style="margin-top: var(--space-3);">
+      <details style="margin-top: var(--space-3);" open>
         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Export Plex History Guide</summary>
         <div style="margin-top: var(--space-2);">${exportPlexHistoryGuide()}</div>
       </details>
-      <details style="margin-top: var(--space-2);">
+      <details style="margin-top: var(--space-2);" open>
         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Rebuild Database Guide</summary>
         <div style="margin-top: var(--space-2);">${rebuildPlaystateGuide()}</div>
       </details>
-      <details style="margin-top: var(--space-2);">
+      <details style="margin-top: var(--space-2);" open>
         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Force Push History Guide</summary>
         <div style="margin-top: var(--space-2);">${forcePushHistoryGuide()}</div>
       </details>
