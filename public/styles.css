@@ -5277,7 +5277,11 @@ details[open] .tool-accordion-chevron::before {
 /* ── end edit dialogs ────────────────────────────────────────────────── */
 
 .logs-panel {
-  min-height: calc(100vh - 6rem);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 6.5rem);
+  max-height: calc(100vh - 6.5rem);
+  overflow: hidden;
 }
 
 .logs-actions {
@@ -5286,13 +5290,17 @@ details[open] .tool-accordion-chevron::before {
 }
 
 .activity-log {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg, 12px);
   background: var(--surface-2, rgba(15, 23, 42, 0.6));
   backdrop-filter: blur(16px);
   overflow: hidden;
   box-shadow: var(--shadow-md, 0 8px 30px rgba(0, 0, 0, 0.2));
-  margin-top: var(--space-3);
+  margin-top: var(--space-2);
 }
 
 .activity-log-header {
@@ -5397,8 +5405,9 @@ html.light-mode .logs-category-filter {
 }
 
 .logs-terminal {
-  min-height: calc(100vh - 14rem);
-  max-height: calc(100vh - 14rem);
+  flex: 1;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
   background: rgba(8, 12, 18, 0.92);
   color: var(--text, #e2e8f0);

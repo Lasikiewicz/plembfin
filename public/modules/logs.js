@@ -71,6 +71,30 @@ export function escapeHtml(text = "") {
     .replace(/"/g, "&quot;");
 }
 
+export function formatBrowserLocalTime(rawTs = "") {
+  if (!rawTs) return "";
+  try {
+    let d;
+    if (rawTs.endsWith("Z") || rawTs.includes("T")) {
+      d = new Date(rawTs);
+    } else {
+      d = new Date(rawTs.replace(" ", "T") + "Z");
+    }
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const hours = String(d.getHours()).padStart(2, "0");
+      const minutes = String(d.getMinutes()).padStart(2, "0");
+      const seconds = String(d.getSeconds()).padStart(2, "0");
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+  } catch (e) {
+    /* fallback */
+  }
+  return rawTs;
+}
+
 export function formatLogLineToHtml(rawLine = "") {
   const line = String(rawLine || "").trim();
   if (!line) return "";
@@ -84,6 +108,7 @@ export function formatLogLineToHtml(rawLine = "") {
   }
 
   const [, timestamp, category, instance, message] = match;
+  const localTime = formatBrowserLocalTime(timestamp);
   const catKey = category.toLowerCase();
   
   let badgeClass = "badge-system";
@@ -96,7 +121,7 @@ export function formatLogLineToHtml(rawLine = "") {
 
   return `
     <div class="log-row ${isError ? "log-row-error" : ""}">
-      <span class="log-time">${escapeHtml(timestamp)}</span>
+      <span class="log-time">${escapeHtml(localTime)}</span>
       <span class="log-badge ${badgeClass}">${escapeHtml(category)}</span>
       ${instance ? `<span class="log-instance">[${escapeHtml(instance)}]</span>` : ""}
       <span class="log-msg">${escapeHtml(message)}</span>

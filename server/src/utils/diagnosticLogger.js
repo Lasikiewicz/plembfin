@@ -114,6 +114,24 @@ export function isSpamLog(message = "") {
   return false;
 }
 
+function formatLocalTimestamp(ts, isoString) {
+  try {
+    const d = ts ? new Date(Number(ts)) : new Date(isoString || Date.now());
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const hours = String(d.getHours()).padStart(2, "0");
+      const minutes = String(d.getMinutes()).padStart(2, "0");
+      const seconds = String(d.getSeconds()).padStart(2, "0");
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+  } catch (e) {
+    /* fallback */
+  }
+  return String(isoString || "").replace("T", " ").replace(/\.\d+Z$/, "");
+}
+
 export function getLogs({ level, category = "all", limit = 500 } = {}) {
   const clearedAt = clearTimestamp();
   const categoryMap = {
@@ -140,7 +158,7 @@ export function getLogs({ level, category = "all", limit = 500 } = {}) {
     logs: bounded.map((entry) => {
       const rawCat = entry.category || categorizeLog(entry.message);
       const catTag = categoryMap[rawCat] || rawCat.toUpperCase();
-      const cleanTs = (entry.timestamp || "").replace("T", " ").replace(/\.\d+Z$/, "");
+      const cleanTs = formatLocalTimestamp(entry.ts, entry.timestamp);
       return `[${cleanTs}] [${catTag}] [${entry.instance}] ${entry.message}`;
     }),
   };
