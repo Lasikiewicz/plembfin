@@ -1,7 +1,17 @@
 {
-  "version": "0.5.20",
-  "updatedAt": "2026-07-21T15:23:03+01:00",
+  "version": "0.5.21",
+  "updatedAt": "2026-07-21T15:48:10+01:00",
   "entries": [
+    {
+      "version": "0.5.21",
+      "date": "2026-07-21T15:48:10+01:00",
+      "commit": "e125e7abc1c6af6897a9d167b738b81edf8a3e3f",
+      "message": "Fix - Recycle stale plex websocket connections",
+      "author": "Lasikiewicz",
+      "details": [
+        "Reconnect Plex notifications when a proxy silently drops an idle socket so watched/unwatched changes keep flowing"
+      ]
+    },
     {
       "version": "0.5.20",
       "date": "2026-07-21T15:23:03+01:00",
