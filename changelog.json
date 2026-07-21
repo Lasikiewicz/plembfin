@@ -1,7 +1,20 @@
 {
-  "version": "0.5.16",
-  "updatedAt": "2026-07-21T10:01:11+01:00",
+  "version": "0.5.17",
+  "updatedAt": "2026-07-21T13:22:25+01:00",
   "entries": [
+    {
+      "version": "0.5.17",
+      "date": "2026-07-21T13:22:25+01:00",
+      "commit": "52a7fd3d9e5f406e41677f60f52e6919741131d2",
+      "message": "Chore - Standardize layout gaps to var(--space-3) across all pages",
+      "author": "Lasikiewicz",
+      "details": [
+        "Consolidated spacing standards from .agents/AGENTS.md into docs/frontend.md",
+        "Updated poster grid gaps on Movies, TV Shows, and History pages to match standard",
+        "Applied var(--space-3) spacing consistently across dashboard, explorer, stats, and settings sections",
+        "Removed redundant .agents/AGENTS.md file"
+      ]
+    },
     {
       "version": "0.5.16",
       "date": "2026-07-21T10:01:11+01:00",
