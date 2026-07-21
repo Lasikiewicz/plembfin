@@ -157,6 +157,7 @@ export const state = {
   importProgressValue: 0,
   importActive: false,
   debugLogs: readStoredDebugLogs(),
+  activeLogCategory: "all",
   renderedLogsText: "",
   logsRefreshInterval: undefined,
   nowPlayingInterval: undefined,

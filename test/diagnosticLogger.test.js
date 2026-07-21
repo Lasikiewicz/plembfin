@@ -15,3 +15,10 @@ test("diagnostic logs redact secrets and clear across the shared store", async (
   logger.clearLogs();
   assert.equal(logger.getLogs({ limit: 20 }).logs.length, 0);
 });
+
+test("diagnostic logs classify messages into categories correctly", () => {
+  assert.equal(logger.categorizeLog("Plex notification socket connected"), "plex-notifications");
+  assert.equal(logger.categorizeLog("Sync playstate dispatch completed"), "sync");
+  assert.equal(logger.categorizeLog("syncRecentlyWatchedFromPlex starting"), "scheduled-poll");
+  assert.equal(logger.categorizeLog("Random server startup event"), "system");
+});

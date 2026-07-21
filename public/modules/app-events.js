@@ -215,6 +215,17 @@ function attachEvents() {
     copyToClipboard(state.renderedLogsText || logsText() || "[no diagnostic logs captured yet]");
   });
 
+  document.querySelector("#logsCategoryFilter")?.addEventListener("click", (event) => {
+    const btn = event.target.closest(".logs-cat-btn");
+    if (!btn) return;
+    const category = btn.dataset.category || "all";
+    state.activeLogCategory = category;
+    document.querySelectorAll("#logsCategoryFilter .logs-cat-btn").forEach((b) => {
+      b.classList.toggle("active", b === btn);
+    });
+    renderLogs().catch(() => {});
+  });
+
   document.querySelector("#settingsSectionSelect")?.addEventListener("change", (event) => {
     navigateTo(event.currentTarget.value);
   });

@@ -1660,12 +1660,13 @@ async function renderLogs() {
   if (!elements.logsTerminal) return;
 
   const localLogs = logsText();
+  const category = state.activeLogCategory || "all";
 
   try {
-    const backendLogs = await fetchDiagnosticLogs(authHeaders());
+    const backendLogs = await fetchDiagnosticLogs(authHeaders(), category);
     if (backendLogs.length > 0) {
       const allLogs = [
-        "=== BACKEND DIAGNOSTIC LOGS ===",
+        `=== BACKEND DIAGNOSTIC LOGS (${category.toUpperCase()}) ===`,
         ...backendLogs,
         "",
         "=== FRONTEND DEBUG LOGS ===",
@@ -1674,7 +1675,7 @@ async function renderLogs() {
       state.renderedLogsText = allLogs;
       elements.logsTerminal.textContent = allLogs;
     } else {
-      state.renderedLogsText = localLogs || "[no diagnostic logs captured yet]";
+      state.renderedLogsText = localLogs || `[no diagnostic logs captured yet for category: ${category}]`;
       elements.logsTerminal.textContent = state.renderedLogsText;
     }
   } catch (error) {

@@ -27,10 +27,13 @@ export function logsToText(logs) {
   return logs.join("\n");
 }
 
-export async function fetchDiagnosticLogs(headers = {}) {
+export async function fetchDiagnosticLogs(headers = {}, category = "all") {
   try {
     const url = new URL("/api/diagnostic-logs", window.location.origin);
     url.searchParams.set("limit", "500");
+    if (category && category !== "all") {
+      url.searchParams.set("category", category);
+    }
     const res = await fetch(url, {
       credentials: "same-origin",
       headers: { ...headers, "Cache-Control": "no-store" },

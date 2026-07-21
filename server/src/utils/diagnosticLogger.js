@@ -36,6 +36,20 @@ function rotateIfNeeded() {
   } catch { /* missing/new file */ }
 }
 
+export function categorizeLog(message = "") {
+  const msg = String(message || "");
+  if (/plex notification|websocket|parseplexnotification|activitynotification|timelineentry|probePlexNotificationSocket/i.test(msg)) {
+    return "plex-notifications";
+  }
+  if (/sync playstate|sync unplayed|sync progress|outbound sync|applymanualunwatch|marked played|marked unplayed|loop-check|dispatch status|sync history|manual watch|manual unwatch/i.test(msg)) {
+    return "sync";
+  }
+  if (/scheduled|syncRecently|cron|sections check|history fetch|background refresh|syncRecentlyWatched|syncRecentlyResumable/i.test(msg)) {
+    return "scheduled-poll";
+  }
+  return "system";
+}
+
 function addLog(level, args) {
   if (!isCapturing) return;
   const message = args.map((arg) => {
@@ -43,7 +57,8 @@ function addLog(level, args) {
     if (typeof arg === "object") return redactSecrets(util.inspect(arg, { depth: 6, breakLength: 120, compact: false }));
     return redactSecrets(arg);
   }).join(" ");
-  const entry = { timestamp: new Date().toISOString(), ts: Date.now(), level, role, instance, message };
+  const category = categorizeLog(message);
+  const entry = { timestamp: new Date().toISOString(), ts: Date.now(), level, category, role, instance, message };
   memoryLogs.push(entry);
   if (memoryLogs.length > MAX_LOGS) memoryLogs.shift();
   try {
@@ -91,15 +106,24 @@ export function stopCapturing() {
   console.warn = originalWarn;
 }
 
-export function getLogs({ level, limit = 500 } = {}) {
+export function getLogs({ level, category = "all", limit = 500 } = {}) {
   const clearedAt = clearTimestamp();
   const filtered = readSharedLogs()
-    .filter((entry) => Number(entry.ts) > clearedAt && (!level || entry.level === level))
+    .filter((entry) => {
+      if (Number(entry.ts) <= clearedAt) return false;
+      if (level && entry.level !== level) return false;
+      const cat = entry.category || categorizeLog(entry.message);
+      if (category && category !== "all" && cat !== category) return false;
+      return true;
+    })
     .sort((a, b) => Number(a.ts) - Number(b.ts));
   const bounded = filtered.slice(-Math.min(Math.max(Number(limit) || 500, 1), MAX_LOGS));
   return {
     total: filtered.length,
-    logs: bounded.map((entry) => `[${entry.timestamp}] [${String(entry.level).toUpperCase()}] [${entry.instance}] ${entry.message}`),
+    logs: bounded.map((entry) => {
+      const cat = (entry.category || categorizeLog(entry.message)).toUpperCase();
+      return `[${entry.timestamp}] [${cat}] [${entry.instance}] ${entry.message}`;
+    }),
   };
 }
 

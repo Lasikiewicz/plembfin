@@ -476,7 +476,8 @@ export async function handleDiagnosticLogs(req, res) {
   if (!(await requireAdmin(req, res))) return;
 
   const limit = Math.min(Number(req.query?.limit || 500), 1000);
-  const data = getDiagnosticLogs({ limit });
+  const category = req.query?.category || "all";
+  const data = getDiagnosticLogs({ limit, category });
   return sendJson(res, data, 200, { "Cache-Control": "no-store" });
 }
 

@@ -5285,6 +5285,38 @@ details[open] .tool-accordion-chevron::before {
   justify-content: flex-end;
 }
 
+.logs-category-filter {
+  display: flex;
+  gap: var(--space-2);
+  padding: 0.5rem 0.75rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.logs-cat-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm, 6px);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.logs-cat-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.logs-cat-btn.active {
+  background: var(--accent, #3b82f6);
+  border-color: var(--accent, #3b82f6);
+  color: #ffffff;
+}
+
 .logs-terminal {
   min-height: calc(100vh - 12rem);
   max-height: calc(100vh - 12rem);
