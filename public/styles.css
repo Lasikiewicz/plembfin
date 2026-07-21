@@ -117,7 +117,7 @@
 
 .settings-overview {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   width: 100%;
 }
 
@@ -525,7 +525,7 @@ h2 {
 .media-detail-page .immersive-meta {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-  gap: 0.8rem;
+  gap: var(--space-3);
   align-content: stretch;
   align-self: stretch;
   padding-top: 0.2rem;
@@ -533,7 +533,7 @@ h2 {
 
 .media-detail-page .media-detail-bottom-stack {
   display: grid;
-  gap: 0.8rem;
+  gap: var(--space-3);
   align-self: end;
   min-width: 0;
 }
@@ -553,7 +553,7 @@ h2 {
 .media-facts-rail {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--space-4) calc(var(--space-4) + var(--space-2));
+  gap: var(--space-3) calc(var(--space-3) + var(--space-2));
   margin-top: 1.25rem;
 }
 
@@ -594,7 +594,7 @@ h2 {
   grid-row: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
   align-self: center;
   justify-self: center;
   width: 100%;
@@ -603,7 +603,7 @@ h2 {
 
 .media-detail-page .media-facts-rail--sidebar {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4) var(--space-4);
+  gap: var(--space-3) var(--space-3);
   align-self: center;
   justify-self: center;
   margin-top: 0;
@@ -613,7 +613,7 @@ h2 {
 
 .media-facts-rail--sidebar {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4) var(--space-4);
+  gap: var(--space-3) var(--space-3);
   align-self: center;
   justify-self: center;
   margin-top: 0;
@@ -650,7 +650,7 @@ h2 {
 .media-facts-visible-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4) var(--space-4);
+  gap: var(--space-3) var(--space-3);
   width: 100%;
 }
 
@@ -804,7 +804,7 @@ h2 {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(128px, 158px);
-  gap: 1rem;
+  gap: var(--space-3);
   overflow-x: auto;
   padding: 0.25rem 0 0.8rem;
 }
@@ -2080,7 +2080,7 @@ h2 {
 /* Now-playing large card: poster left, details right — mirrors part-watched layout */
 .now-card-large {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-3);
   padding: 0.85rem;
   background: var(--panel-2);
   border: 1px solid var(--line);
@@ -2531,7 +2531,7 @@ h2 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: stretch;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .stats-toolbar {
@@ -3206,7 +3206,7 @@ details[open] .tool-accordion-chevron::before {
 
 .backup-settings-panel {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   min-width: 0;
   max-width: 100%;
 }
@@ -3917,7 +3917,7 @@ details[open] .tool-accordion-chevron::before {
 .settings-hub {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--space-4);
+  gap: var(--space-3);
   align-items: start;
 }
 
@@ -4261,7 +4261,7 @@ details[open] .tool-accordion-chevron::before {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .explorer-show-grid .explorer-folder-poster {
@@ -4830,7 +4830,7 @@ details[open] .tool-accordion-chevron::before {
 .edit-image-dialog {
   display: grid;
   grid-template-columns: 172px minmax(0, 1fr);
-  gap: 1rem;
+  gap: var(--space-3);
   width: min(1800px, 98vw); /* Expanded from 1600px/95vw to make the main box wider */
   height: min(1100px, 95vh); /* Constant height to keep main box the same size across menus */
   max-height: min(1100px, 95vh);
@@ -4893,7 +4893,7 @@ details[open] .tool-accordion-chevron::before {
 .edit-image-header {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  gap: var(--space-3);
   align-items: flex-start;
 }
 
@@ -6153,7 +6153,7 @@ details[open] .tool-accordion-chevron::before {
 
 .horizontal-scroll-row {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-3);
   overflow-x: auto;
   padding-bottom: 0.75rem;
   scrollbar-width: thin;
@@ -7086,7 +7086,7 @@ h1 {
 /* Search Results Page 3-Column Layout */
 .search-columns {
   display: flex;
-  gap: var(--space-4);
+  gap: var(--space-3);
   align-items: stretch;
   width: 100%;
 }
@@ -7784,7 +7784,7 @@ h1 {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-3);
 }
 
 .page-shell[data-active-view="dashboard"] .dashboard-row-section {
@@ -7885,7 +7885,7 @@ h1 {
   display: flex;
   flex-wrap: nowrap;
   align-items: stretch;
-  gap: 0.45rem;
+  gap: var(--space-3);
   overflow-x: auto;
   overflow-y: hidden;
   padding: 0.2rem 0.2rem 0.45rem 0;
@@ -8083,14 +8083,14 @@ h1 {
 .movie-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--poster-width, 160px), 1fr));
-  gap: 1.7rem 1.15rem;
+  gap: var(--space-3);
   align-items: start;
 }
 
 .dashboard-history-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(8.8rem, 1fr));
-  gap: 1.7rem 1.15rem;
+  gap: var(--space-3);
   align-items: start;
 }
 
@@ -8247,7 +8247,7 @@ h1 {
 
 .immersive-container {
   padding: clamp(2rem, 3vw, 3rem);
-  gap: 1rem;
+  gap: var(--space-3);
 }
 
 .immersive-back-button {
@@ -10062,7 +10062,7 @@ html.light-mode #explorerPanel .media-detail-page {
 .cast-compact-row {
   display: flex;
   flex-wrap: nowrap;
-  gap: 1rem;
+  gap: var(--space-3);
   margin-top: 0.25rem;
   overflow-x: auto;
   padding-bottom: 0.75rem;
@@ -10133,7 +10133,7 @@ html.light-mode #explorerPanel .media-detail-page {
 /* Trailer/Video Styles */
 .media-detail-page .trailer-scroll-row {
   display: flex !important;
-  gap: 1rem;
+  gap: var(--space-3);
   overflow-x: auto;
   padding-bottom: 0.75rem;
 }
@@ -10255,7 +10255,7 @@ html.light-mode #explorerPanel .media-detail-page {
 .review-list {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
+  gap: var(--space-3);
 }
 
 @media (max-width: 900px) {
@@ -10985,7 +10985,7 @@ html.light-mode .pill-toggle.active {
 
 .history-mini-card {
   display: flex;
-  gap: 0.8rem;
+  gap: var(--space-3);
   padding: 0.75rem;
   width: 360px;
   flex: 0 0 360px;
@@ -11535,7 +11535,7 @@ details[open] > .tool-section-summary::before {
 .tool-section-card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .tool-item-row {
@@ -11774,7 +11774,7 @@ details[open] > .tool-section-summary::before {
 .history-grid-view {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--history-poster-width, 86px), 1fr));
-  gap: 0.85rem;
+  gap: var(--space-3);
   width: 100%;
 }
 
@@ -11968,7 +11968,7 @@ details[open] > .tool-section-summary::before {
 
 .history-page-card {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-3);
   padding: 0.6rem;
   background: var(--panel-2);
   border: 1px solid var(--line);
@@ -12857,7 +12857,7 @@ html.light-mode .review-card {
 
 .part-watched-page-card {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-3);
   padding: 0.85rem;
   background: var(--panel-2);
   border: 1px solid var(--line);
@@ -13921,7 +13921,7 @@ html.light-mode .settings-pane .drop-zone:hover {
 .upcoming-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
+  gap: var(--space-3);
 }
 
 .upcoming-day {
