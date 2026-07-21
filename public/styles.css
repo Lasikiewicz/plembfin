@@ -85,7 +85,7 @@
 .settings-content {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--space-3);
   width: 100%;
   container-type: inline-size;
 }
@@ -152,7 +152,7 @@
 .settings-pane {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--space-3);
   width: 100%;
   padding-top: 0;
   margin-top: 0;
@@ -13220,7 +13220,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 .settings-content {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--space-3);
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -13231,7 +13231,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 .settings-pane {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--space-3);
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -13256,7 +13256,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   flex: 60;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--space-3);
   min-width: 0;
   max-width: 100%;
 }
@@ -13265,7 +13265,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   flex: 40;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--space-3);
   min-width: 0;
   max-width: 100%;
 }
