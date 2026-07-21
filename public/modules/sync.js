@@ -842,13 +842,19 @@ export async function loadActiveSessions() {
     _cb.loadHistory?.().catch((error) => _cb.setMessage?.(error.message, "error"));
     _cb.resetPartWatchedView?.("default");
     _cb.renderPartWatched?.();
+    // A remote watched/unwatched change (e.g. from the Plex notification listener) can
+    // land while the user is browsing Movies/TV Shows/History rather than the dashboard —
+    // refresh whatever's currently on screen so it doesn't wait for a manual reload.
+    _cb.clearDerivedUiCaches?.({ resetExplorer: false });
+    if (state.activeView === "explorer" && !state.mediaDetailInline) _cb.renderExplorer?.();
+    if (state.activeView === "history") _cb.renderHistoryView?.();
   }
 
   return sessions;
 }
 
 export function pollNowPlayingOnce() {
-  if (!state.token || state.activeView !== "dashboard" || document.hidden) {
+  if (!state.token || document.hidden) {
     stopHistoryPolling();
     return;
   }
@@ -859,7 +865,7 @@ export function pollNowPlayingOnce() {
 
 export function startHistoryPolling() {
   stopHistoryPolling();
-  if (!state.token || state.activeView !== "dashboard" || document.hidden) return;
+  if (!state.token || document.hidden) return;
 
   _cb.logDebug?.(`Starting Now Playing polling (every ${NOW_PLAYING_POLL_MS / 1000}s).`);
   pollNowPlayingOnce();
@@ -875,12 +881,10 @@ export function stopHistoryPolling() {
 }
 
 export function syncNowPlayingPolling() {
-  if (state.activeView === "dashboard") {
-    startHistoryPolling();
-    return;
-  }
-
-  stopHistoryPolling();
+  // The refresh-token check needs to run on every view, not just the dashboard, so
+  // watched/unwatched changes detected in the background show up immediately no matter
+  // what page is open.
+  startHistoryPolling();
 }
 
 // ── Sync trigger actions ───────────────────────────────────────────────────

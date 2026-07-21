@@ -72,7 +72,10 @@ The callback (`handlePlexLibraryItemChange` in `server/src/scheduler.js`) fetche
 item's metadata and checks its actual view state. A watched transition is recorded in
 Plembfin history and propagated to Emby/Jellyfin; an unwatched transition runs the same
 unwatch propagation as the dashboard action. This channel covers library UI changes
-that Plex webhooks do not reliably report, including unwatching.
+that Plex webhooks do not reliably report, including unwatching. Either transition also
+bumps the `nowPlayingRefresh` runtime-state signal (same as the webhook route), which is
+what tells any open Plembfin browser tab to refresh — see
+[now-playing.md](now-playing.md) for how the frontend consumes that signal.
 
 The listener is started by `server.js` at boot (`startPlexNotificationListener`) and
 stopped during graceful shutdown. `probePlexNotificationSocket` runs the same connection

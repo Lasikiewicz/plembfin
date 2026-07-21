@@ -1982,6 +1982,7 @@ function initialize() {
     loadSyncJobs,
     loadSyncHistory,
     renderExplorer,
+    renderHistoryView,
     renderImmersiveShowModal,
     showToast,
     showConfirmModal,

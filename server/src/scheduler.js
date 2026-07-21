@@ -1,5 +1,5 @@
 import { createLoopStore } from "./utils/loopStore.js";
-import { appendSyncHistory, loadMediaConfig } from "./utils/configStore.js";
+import { appendSyncHistory, loadMediaConfig, setRuntimeState } from "./utils/configStore.js";
 import { createPlexNotificationListener } from "./utils/plexNotificationListener.js";
 import { fetchPlexMetadataItem } from "./utils/plexClient.js";
 import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
@@ -221,6 +221,7 @@ async function handlePlexLibraryItemChange(ratingKey) {
     await deletePlaybackProgress(media).catch(() => null);
     await result.assetPrefetch?.catch(() => null);
     await invalidateHistoryDerivedCaches().catch(() => null);
+    await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
     return;
   }
   if (viewOffset > 0) return;
@@ -249,6 +250,7 @@ async function handlePlexLibraryItemChange(ratingKey) {
     console.error(`Plex notification unwatch propagation failed for "${media.title}"`, error);
   } finally {
     await invalidateHistoryDerivedCaches().catch(() => null);
+    await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
   }
 }
 
