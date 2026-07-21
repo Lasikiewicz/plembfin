@@ -16,6 +16,9 @@ const upcomingBackgroundLoads = new Map();
 
 export function initUpcoming(callbacks) {
   _cb = callbacks;
+  console.log('initUpcoming called, elements:', Object.keys(elements));
+  console.log('upcomingCalendarViewBtn:', elements.upcomingCalendarViewBtn);
+  console.log('upcomingWeekViewBtn:', elements.upcomingWeekViewBtn);
   elements.upcomingCalendarViewBtn?.addEventListener("click", () => setUpcomingViewMode("calendar"));
   elements.upcomingWeekViewBtn?.addEventListener("click", () => setUpcomingViewMode("week"));
   elements.upcomingPrevButton?.addEventListener("click", () => shiftUpcomingMonth(-1));
@@ -88,11 +91,18 @@ function setUpcomingMonth(month) {
 }
 
 function setUpcomingViewMode(mode) {
+  console.log('setUpcomingViewMode called with:', mode);
   state.upcomingViewMode = mode;
+  console.log('state.upcomingViewMode set to:', state.upcomingViewMode);
   elements.upcomingCalendarViewBtn?.classList.toggle("active", mode === "calendar");
   elements.upcomingWeekViewBtn?.classList.toggle("active", mode === "week");
+  console.log('About to call renderUpcoming');
   renderUpcoming();
-  loadUpcoming({ force: true }).catch((error) => _cb.setMessage?.(error.message, "error"));
+  console.log('After renderUpcoming, calling loadUpcoming');
+  loadUpcoming({ force: true }).catch((error) => {
+    console.log('loadUpcoming error:', error);
+    _cb.setMessage?.(error.message, "error");
+  });
 }
 
 export async function loadUpcoming({ force = false } = {}) {
@@ -388,9 +398,12 @@ function renderWeekView() {
 }
 
 export function renderUpcoming() {
+  console.log('renderUpcoming called, viewMode:', state.upcomingViewMode);
   if (state.upcomingViewMode === "week") {
+    console.log('Rendering week view');
     return renderWeekView();
   }
+  console.log('Rendering calendar view');
 
   const container = elements.upcomingCalendar;
   if (!container) return;
