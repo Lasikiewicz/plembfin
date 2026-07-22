@@ -1160,13 +1160,14 @@ function navigateTo(url) {
   handleRouting(url);
   applyActiveView();
   if (url.startsWith("/settings")) {
-    // Settings pages are aggregated parent routes. Do not interpret the route
-    // name as a child section target: `/settings/media-servers-group` would
-    // otherwise scroll straight to the first child panel. Only an explicit
-    // hash requests an in-page section scroll.
-    focusSettingsRoute(state.activeSettingsRoute);
     const targetSection = url.split("#")[1];
-    if (targetSection) requestAnimationFrame(() => scrollToSettingsSection(targetSection));
+    if (targetSection) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => scrollToSettingsSection(targetSection));
+      });
+    } else {
+      focusSettingsRoute(state.activeSettingsRoute);
+    }
   }
 }
 

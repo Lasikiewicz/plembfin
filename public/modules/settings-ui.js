@@ -90,8 +90,18 @@ export function openSettingsEditModal({
         <button class="settings-modal-close" type="button" aria-label="Close">&times;</button>
       </header>
       <div class="settings-modal-body">
-        ${fields.map(renderFieldRow).join("")}
-        ${helpHtml ? `<details open class="settings-help-disclosure settings-modal-help"><summary>Setup help</summary><div class="settings-help-body">${helpHtml}</div></details>` : ""}
+        <div class="settings-modal-fields">
+          ${fields.map(renderFieldRow).join("")}
+        </div>
+        ${helpHtml ? `
+          <aside class="settings-modal-help">
+            <div class="section-heading" style="margin-bottom: var(--space-2);">
+              <p>Setup Guide</p>
+              <span>Configuration Help</span>
+            </div>
+            <div class="settings-help-body">${helpHtml}</div>
+          </aside>
+        ` : ""}
       </div>
       <p class="settings-modal-status message" role="status" aria-live="polite" data-tone="muted"></p>
       <footer class="settings-modal-foot">

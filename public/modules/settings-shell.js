@@ -231,8 +231,8 @@ const SECTION_GROUPS = [
   {
     id: "media-servers",
     label: "Media servers",
-    sections: ["seerr", "webhooks"],
-    displayOnly: ["seerr", "webhooks"],
+    sections: ["media-servers", "seerr", "webhooks"],
+    displayOnly: ["media-servers", "seerr", "webhooks"],
   },
   {
     id: "metadata",
@@ -391,9 +391,20 @@ export function parseSettingsRoute(value = "/settings", { mustChangePassword = f
   }
   const route = sectionRoute(parts[1], requestedPath);
   const hash = String(value || "").split("#")[1]?.split(/[?&]/, 1)[0] || "";
-  if (hash && SECTIONS[hash] && SECTION_GROUPS.find((group) => group.id === route.group)?.sections.includes(hash)) {
-    route.section = hash;
-    route.title = SECTIONS[hash].label;
+  if (hash) {
+    let targetSection = SECTIONS[hash] ? hash : null;
+    if (!targetSection) {
+      for (const [secId, secDef] of Object.entries(SECTIONS)) {
+        if (secDef.subSections?.some((sub) => sub.id === hash)) {
+          targetSection = secId;
+          break;
+        }
+      }
+    }
+    if (targetSection && SECTION_GROUPS.find((group) => group.id === route.group)?.sections.includes(targetSection)) {
+      route.section = targetSection;
+      route.title = SECTIONS[targetSection]?.label || route.title;
+    }
   }
   return route;
 }
@@ -423,7 +434,7 @@ function renderSettingsSidebar() {
       childButton.type = "button";
       childButton.className = "settings-tab settings-group-child hidden";
       childButton.dataset.settingsGroup = sectionId;
-      childButton.dataset.settingsPath = parentPath;
+      childButton.dataset.settingsPath = `${parentPath}#${sectionId}`;
       childButton.dataset.settingsGroupParent = group.id;
       childButton.textContent = definition.label;
       fragment.append(childButton);
@@ -434,7 +445,7 @@ function renderSettingsSidebar() {
         subButton.className = "settings-tab settings-group-grandchild hidden";
         subButton.dataset.settingsSubsection = subSection.id;
         subButton.dataset.settingsParentSection = sectionId;
-        subButton.dataset.settingsPath = parentPath;
+        subButton.dataset.settingsPath = `${parentPath}#${subSection.id}`;
         subButton.textContent = subSection.label;
         fragment.append(subButton);
       }
@@ -493,7 +504,7 @@ function renderSettingsOverview() {
       const row = document.createElement("button");
       row.type = "button";
       row.className = "settings-link-row";
-      row.dataset.settingsPath = parentPath;
+      row.dataset.settingsPath = `${parentPath}#${sectionId}`;
       const title = document.createElement("strong");
       title.textContent = definition.label;
       const description = document.createElement("span");
@@ -504,7 +515,7 @@ function renderSettingsOverview() {
         const subRow = document.createElement("button");
         subRow.type = "button";
         subRow.className = "settings-link-row settings-link-row--nested";
-        subRow.dataset.settingsPath = parentPath;
+        subRow.dataset.settingsPath = `${parentPath}#${subSection.id}`;
         const subTitle = document.createElement("strong");
         subTitle.textContent = subSection.label;
         const subDescription = document.createElement("span");
@@ -608,6 +619,12 @@ export function applySettingsRoute(route) {
     const parentGroup = SECTION_GROUPS.find((g) => g.sections.includes(parentSection));
     const isParentActive = route.kind === "task" && (route.group === parentGroup?.id || (parentSection && SECTIONS[parentSection]?.panel === route.panel));
     button.classList.toggle("hidden", !isParentActive);
+
+    const hash = window.location.hash.slice(1);
+    const active = hash ? button.dataset.settingsSubsection === hash : false;
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "location");
+    else button.removeAttribute("aria-current");
   });
 
   const select = document.querySelector("#settingsSectionSelect");
@@ -652,10 +669,22 @@ function settingsSectionElement(sectionId) {
   return document.querySelector(`[data-settings-panel="${view.panel}"]`);
 }
 
+let _highlightTimer = null;
+
 export function scrollToSettingsSection(sectionId) {
   const target = settingsSectionElement(sectionId);
   if (!target) return;
   target.scrollIntoView({ behavior: "smooth", block: "start" });
   if (!target.matches("button, a, input, select, textarea")) target.setAttribute("tabindex", "-1");
   target.focus({ preventScroll: true });
+
+  document.querySelectorAll(".settings-target-highlight").forEach((el) => {
+    el.classList.remove("settings-target-highlight");
+  });
+  if (_highlightTimer) clearTimeout(_highlightTimer);
+
+  target.classList.add("settings-target-highlight");
+  _highlightTimer = setTimeout(() => {
+    target.classList.remove("settings-target-highlight");
+  }, 2500);
 }

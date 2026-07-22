@@ -25,9 +25,9 @@
   --panel-3: #080b0f;
   --line: rgba(255, 255, 255, 0.05);
   --line-strong: rgba(255, 255, 255, 0.12);
-  --text: #f1f5f9;
-  --soft: #cbd5e1;
-  --muted: #64748b;
+  --text: #f8fafc;
+  --soft: #e2e8f0;
+  --muted: #94a3b8;
   --blue: #3b82f6;
   --green: #10b981;
   --yellow: #eab308;
@@ -4634,6 +4634,27 @@ details[open] .tool-accordion-chevron::before {
 .changelog-panel {
   display: grid;
   gap: var(--space-3);
+}
+
+@keyframes sectionTargetHighlightPulse {
+  0% {
+    box-shadow: 0 0 0 2px var(--blue), 0 0 20px rgba(37, 99, 235, 0.35);
+    border-color: var(--blue) !important;
+  }
+  50% {
+    box-shadow: 0 0 0 3px var(--blue), 0 0 28px rgba(37, 99, 235, 0.5);
+    border-color: var(--blue) !important;
+  }
+  100% {
+    box-shadow: 0 0 0 2px var(--blue), 0 0 20px rgba(37, 99, 235, 0.35);
+    border-color: var(--blue) !important;
+  }
+}
+
+.settings-target-highlight {
+  animation: sectionTargetHighlightPulse 1.2s ease-in-out infinite;
+  transition: box-shadow 0.6s ease, border-color 0.6s ease !important;
+  border-radius: var(--radius);
 }
 
 .changelog-status {
@@ -15099,15 +15120,67 @@ details.sync-match-report > summary {
 }
 
 /* ── Sonarr-style settings: edit / picker modals ──────────────────────── */
+.settings-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: var(--space-4);
+  animation: settingsModalOverlayFade 0.18s ease-out;
+}
+
+html.light-mode .settings-modal-overlay {
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+@keyframes settingsModalOverlayFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes settingsModalPop {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
 .settings-modal {
-  width: min(1280px, 98vw);
+  width: min(720px, 95vw);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
   gap: 0;
   padding: 0;
   overflow: hidden;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  animation: settingsModalPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html.light-mode .settings-modal {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
+}
+
+.settings-modal--with-help {
+  width: min(1440px, 96vw);
 }
 
 .settings-picker-modal {
-  width: min(760px, 94vw);
+  width: min(720px, 95vw);
 }
 
 .settings-modal-head {
@@ -15117,12 +15190,19 @@ details.sync-match-report > summary {
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--line);
+  background: var(--panel-3);
+}
+
+html.light-mode .settings-modal-head {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
 }
 
 .settings-modal-head h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.08rem;
   font-weight: 800;
+  color: var(--text);
 }
 
 .settings-modal-close {
@@ -15135,16 +15215,21 @@ details.sync-match-report > summary {
   font-size: 1.4rem;
   line-height: 1;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
 }
 
 .settings-modal-close:hover,
 .settings-modal-close:focus-visible {
   color: var(--text);
-  background: var(--panel-2);
+  background: var(--surface-hover);
 }
 
 .settings-modal-body {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
   flex: 1 1 auto;
   min-height: 0;
@@ -15153,100 +15238,212 @@ details.sync-match-report > summary {
 }
 
 .settings-modal--with-help .settings-modal-body {
-  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) minmax(480px, 1.2fr);
+  gap: var(--space-5);
   align-items: start;
 }
 
-.settings-modal--with-help .settings-modal-help {
-  grid-column: 2;
-  grid-row: 1 / span 20;
+.settings-modal-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
 .settings-modal-status {
   min-height: 1.2rem;
   margin: 0;
   padding: 0 var(--space-4) var(--space-2);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.settings-modal-status[data-tone="muted"] {
+  color: var(--muted);
+}
+.settings-modal-status.success,
+.settings-modal-status[data-tone="success"] {
+  color: #10b981;
+}
+.settings-modal-status.error,
+.settings-modal-status[data-tone="error"] {
+  color: #f87171;
 }
 
 .settings-modal-foot {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--line);
+  background: var(--panel-3);
+}
+
+html.light-mode .settings-modal-foot {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
 }
 
 .settings-modal-actions {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-left: auto;
 }
 
 .settings-picker-intro {
-  margin: 0;
+  margin: 0 0 var(--space-2);
   color: var(--soft);
   font-size: 0.85rem;
   line-height: 1.5;
 }
 
 .settings-modal-field {
-  display: grid;
-  gap: var(--space-1);
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.settings-modal-field-label {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .settings-modal-field-control {
-  display: grid;
-  gap: var(--space-1);
-  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
 }
 
-.settings-modal-field--checkbox .settings-modal-field-control {
-  justify-items: start;
+.settings-modal-field-control .field {
+  width: 100%;
+  padding: 0.6rem 0.85rem;
+  background: var(--panel-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.88rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.settings-modal-field--checkbox input[type="checkbox"] {
-  width: 1.1rem;
-  height: 1.1rem;
-  accent-color: var(--accent, var(--blue));
+html.light-mode .settings-modal-field-control .field {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
 }
 
-.settings-field-help {
-  color: var(--muted);
-  font-size: 0.74rem;
-  font-weight: 500;
-  line-height: 1.45;
+.settings-modal-field-control .field:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+  outline: none;
 }
 
-.settings-field-optional {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-style: normal;
-  font-weight: 500;
-}
-
-.settings-modal-help {
+.settings-modal-field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--panel-3);
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
 
-.settings-modal-help > summary {
-  padding: var(--space-2) var(--space-3);
-  font-size: 0.8rem;
-  font-weight: 700;
+html.light-mode .settings-modal-field--checkbox {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.settings-modal-field--checkbox .settings-modal-field-label {
+  padding: 0;
+  margin: 0;
+}
+
+.settings-modal-field--checkbox input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--accent, var(--blue));
   cursor: pointer;
 }
 
-.settings-modal-help > .settings-help-body {
-  padding: 0 var(--space-3) var(--space-3);
+.settings-field-help {
+  color: var(--soft);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.settings-field-optional {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.settings-modal-help {
+  background: var(--panel-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+html.light-mode .settings-modal-help {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.settings-modal-help .settings-help-body {
+  font-size: 0.82rem;
+  color: var(--soft);
+  line-height: 1.55;
+}
+
+.settings-modal-help .tool-accordion-desc,
+.settings-help-body p,
+.settings-help-body li {
+  color: var(--soft);
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+}
+
+.settings-modal-help code,
+.settings-help-body code {
+  background: var(--panel-2);
+  color: var(--blue);
+  border: 1px solid var(--line-strong);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+html.light-mode .settings-modal-help code,
+html.light-mode .settings-help-body code {
+  background: #e2e8f0;
+  color: #1d4ed8;
+  border-color: #cbd5e1;
 }
 
 .settings-help-steps {
   padding-left: 1.2rem;
+}
+
+@media (max-width: 980px) {
+  .settings-modal--with-help .settings-modal-body {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Sonarr-style aligned label/control rows inside the modal on desktop. */
