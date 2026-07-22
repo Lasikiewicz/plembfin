@@ -1,7 +1,20 @@
 {
-  "version": "0.5.30",
-  "updatedAt": "2026-07-22T08:52:16+01:00",
+  "version": "0.5.31",
+  "updatedAt": "2026-07-22T09:10:41+01:00",
   "entries": [
+    {
+      "version": "0.5.31",
+      "date": "2026-07-22T09:10:41+01:00",
+      "commit": "574e45044c13dd13f8691ff6d173f5d8954103d3",
+      "message": "Fix - Improve settings modal layout, theme contrast and media servers sidebar navigation",
+      "author": "Lasikiewicz",
+      "details": [
+        "Redesign media server edit modals into wide two-column dialogs with side-by-side setup help guide",
+        "Fix dark and light mode theme variable mapping for modal dialogs, field labels, and code blocks",
+        "Fix settings sub-section deep-linking, smooth scrolling, and section target highlight pulse",
+        "Restore Media Servers sidebar options and card visibility for Plex, Emby, Jellyfin, and Seerr"
+      ]
+    },
     {
       "version": "0.5.30",
       "date": "2026-07-22T08:52:16+01:00",
