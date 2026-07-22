@@ -184,11 +184,11 @@ When adding frontend code, place it in the most specific existing module that ow
 | Backup and appearance tools | `modules/tools-backups.js` |
 | Maintenance diagnostics, cache tools, sync repair tools, and sync health | `modules/tools-maintenance.js`, `modules/tools-health.js` |
 | Auth, session, tokens | `modules/auth.js` |
-| Debug/diagnostic logs | `modules/logs.js` |
+| Debug/diagnostic logs & telemetry export | `modules/logs.js` (categorization, local time formatting, export) |
 | Connection label formatting | `modules/settings.js` |
 | Shared settings modal, picker, and card-grid primitives | `modules/settings-ui.js` |
 | Media-server and metadata-provider settings cards/modals | `modules/settings-services.js` |
-| Flat settings routes, landing list, sidebar, and mobile section selector | `modules/settings-shell.js` |
+| Flat settings routes, landing list, sidebar, help panels, and clean path routing (`/settings/media-servers`, `/settings/sync`, etc.) | `modules/settings-shell.js` |
 | Shared `state` and `elements` objects | `modules/state.js` |
 | App event wiring | `modules/app-events.js` |
 | Media-detail modal click delegation (cast/trailers/poster edit/watch actions/card navigation) | `modules/media-detail-events.js` |

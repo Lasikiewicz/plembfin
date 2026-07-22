@@ -217,16 +217,15 @@ Save and Test actions:
 *   Availability badges are based on Plembfin's configured Plex, Emby, and Jellyfin apps, not Seerr's cached availability state.
 *   Each episode row on a TV show's detail page shows its resolution (e.g. 720p, 1080p, 4K) when the episode is available in one of the configured apps.
 *   Requesting a TV show opens a season picker listing every season (with current availability), so you can choose exactly which seasons to send to Seerr instead of requesting the whole series.
-*   Availability and resolution lookups are cached in memory for 3 minutes per title, so reopening a detail page doesn't re-query Plex/Emby/Jellyfin/Seerr every time; submitting a request clears that title's cache immediately.
 *   The browser also remembers the last known availability and open-in-app links for each title, so detail pages show availability badges and app buttons instantly on open and refresh them silently in the background when anything changed.
 
 #### Sync Tuning and Match Diagnostics
-*   **Settings → General → Sync Tuning** controls the watched threshold, minimum resume position, active-session TTL, and default outbound timeout. Blank fields inherit their environment variable or built-in default.
-*   **Settings → Sync → Sync Issues** includes a Cross-Platform Match Report showing which media each target library could not match, with unique-media counts and representative samples for Plex, Emby, and Jellyfin.
+*   **Settings → Sync** (or `/settings/sync-tuning`) controls the watched threshold, minimum resume position, active-session TTL, and default outbound timeout. Blank fields inherit their environment variable or built-in default.
+*   **Settings → Sync Issues** (or `/settings/sync-issues`) includes a Cross-Platform Match Report showing which media each target library could not match, with unique-media counts and representative samples for Plex, Emby, and Jellyfin.
 
 ---
 
-## Webhook Setup (Critical for Live Sync)
+## Webhook Setup & Real-time Watch Sync
 
 Playback events are sent to Plembfin via webhooks. Plembfin accepts the webhook secret in the `X-Plembfin-Webhook-Secret` header, as `Authorization: Bearer <secret>`, or in the compatibility query-token URL used by Plex/Emby/Jellyfin. Copy the full URL from **Settings → Webhooks** after signing in. It will look like:
 
@@ -246,7 +245,7 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 4.  Enable events: `media.play`, `media.resume`, `media.pause`, `media.stop`, `media.scrobble`.
 5.  Save changes.
 
-> **Plex library watch-state sync:** Plex does not reliably send native webhooks for watch-state changes made from its library UI. Plembfin includes a built-in notification listener that connects automatically via WebSocket using your configured Plex URL and token, records watched changes, and handles unscrobble events without an external script.
+> **Plex library watch-state sync:** Plex does not reliably send native webhooks for watch-state changes made from its library UI. Plembfin includes a built-in notification listener that connects automatically via WebSocket using your configured Plex URL and token, records watched changes, and handles unscrobble events without an external script. In addition, the per-minute background scheduler worker polls connected servers every 60 seconds to catch any missing watched updates or offline changes.
 
 #### 2. Emby Webhook Setup
 1.  Go to Emby Server Settings → **Webhooks** and add a new webhook.
@@ -273,7 +272,7 @@ Plembfin runs automated daily backups; each backup type has its own schedule tim
 
 *   **Local Watch History Backups**: Capture watch history snapshots, playstates, and resume markers. Saved to `data/backups/watch-history`.
 *   **Local Plembfin Backups**: Create full, AES-256-GCM encrypted database backups (including settings, API keys, credentials, and play history, excluding cache). Manual backups can use a one-time passphrase; scheduled backups require a remembered passphrase. Saved to `data/backups/plembfin`.
-*   **Remote Backups**: Upload watch-history and full encrypted Plembfin backups to one or more private Backblaze B2 destinations under **Settings → Backups → Remote Backups**. Remote watch-history backups run on their own daily schedule with their own retention count on the remote, independent of the local schedule; remote Plembfin backups run with the daily Plembfin backup when remote mirroring is enabled. Select a destination card to edit/test it, or use **+** to add one.
+*   **Remote Backups**: Upload watch-history and full encrypted Plembfin backups to one or more private Backblaze B2 destinations under **Settings → Backup / Restore → Remote Backups** (`/settings/backup-restore`). Remote watch-history backups run on their own daily schedule with their own retention count on the remote, independent of the local schedule; remote Plembfin backups run with the daily Plembfin backup when remote mirroring is enabled. Select a destination card to edit/test it, or use **+** to add one.
 
 ---
 
@@ -281,8 +280,17 @@ Plembfin runs automated daily backups; each backup type has its own schedule tim
 
 ### Trakt Watch History Import
 1. Download a JSON watch history export of your Trakt profile.
-2. Go to **Settings → Import**, upload the JSON, and start the import.
-3. Once completed, use **Settings → Tools → Library Rebuilds and Backfills → Full Sync Watchstates** to propagate the Trakt watch history to all connected Plex, Emby, and Jellyfin servers.
+2. Go to **Settings → Import** (`/settings/import`), upload the JSON, and start the import.
+3. Once completed, use **Settings → Tools → Full Sync Watchstates** (`/settings/full-sync-watchstates`) to propagate the Trakt watch history to all connected Plex, Emby, and Jellyfin servers.
+
+---
+
+## System Diagnostics & Logs
+
+Plembfin includes a real-time, screen-filling diagnostic log viewer under **Settings → Server Logs** (`/settings/logs`).
+- **Category Filtering**: Filter the telemetry log stream by **All Logs**, **Plex WebSockets**, **Outbound Sync**, **Scheduled Polls**, or **System Logs**.
+- **Local Timestamp Parsing**: Timestamps are parsed in the client browser to render in your local system timezone.
+- **Download Logs**: Click **Download Logs** to export a complete `.log` file containing full backend and frontend diagnostic history for debugging.
 
 ---
 
@@ -312,7 +320,7 @@ The following environment variables can be set in your system or defined in `doc
 | `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` | _none_ | Default Jellyfin connection values (Settings takes precedence). |
 | `WATCHED_PLAYED_SYNC_ENABLED` | `true` | Set to `false` to disable all watched/played propagation between platforms (watch recording still happens). |
 | `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | The frequency (in milliseconds) of database-heavy catch-up library scans on Plex/Emby/Jellyfin. |
-| `WATCHED_THRESHOLD_PERCENT` | `90` | Playback percentage that counts as watched (50–100). Settings → General → Sync Tuning takes precedence. |
+| `WATCHED_THRESHOLD_PERCENT` | `90` | Playback percentage that counts as watched (50–100). Settings → Sync takes precedence. |
 | `MIN_RESUME_POSITION_SEC` | `60` | Minimum stopped-play position saved and propagated as resume progress (0–3600 seconds). Settings takes precedence. |
 | `ACTIVE_SESSION_TTL_MIN` | `5` | Time without a webhook update before an active session is stale (1–120 minutes). Settings takes precedence. |
 | `OUTBOUND_TIMEOUT_SEC` | `10` | Default timeout for media-server outbound requests (2–120 seconds). Explicit per-call timeouts still take precedence. |
