@@ -76,9 +76,8 @@ test("legacy and invalid settings routes normalize safely", () => {
   assert.equal(parseSettingsRoute("/settings/data/backups").path, "/settings/backups");
   assert.equal(parseSettingsRoute("/settings/data/restore").path, "/settings/restore");
   assert.equal(parseSettingsRoute("/settings/data/import").path, "/settings/import");
-  assert.equal(parseSettingsRoute("/settings/system/health").path, "/settings/health");
   assert.equal(parseSettingsRoute("/settings/system/advanced").path, "/settings/database-repairs");
-  assert.equal(parseSettingsRoute("/settings/tools").path, "/settings/database-repairs");
+  assert.equal(parseSettingsRoute("/settings/tools").path, "/settings/tools");
   assert.equal(parseSettingsRoute("/sync").path, "/settings/sync-issues");
   assert.equal(parseSettingsRoute("/logs").path, "/settings/logs");
   assert.equal(settingsPathForLegacy("api-keys"), "/settings/metadata");

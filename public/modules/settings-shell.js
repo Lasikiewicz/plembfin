@@ -294,7 +294,6 @@ const LEGACY_PATHS = {
   "/logs": "/settings/logs",
   "/settings/apps": "/settings/media-servers",
   "/settings/api-keys": "/settings/metadata",
-  "/settings/tools": "/settings/database-repairs",
   "/settings/cache": "/settings/storage",
   "/settings/changelog": "/settings/about",
   "/settings/account/login": "/settings/account",
@@ -320,11 +319,9 @@ const LEGACY_PATHS = {
   "/settings/system/storage": "/settings/storage",
   "/settings/system/about": "/settings/about",
   "/settings/system/advanced": "/settings/database-repairs",
-  "/settings/sync": "/settings/sync-issues",
   "/settings/sync/issues": "/settings/sync-issues",
   "/settings/sync/history": "/settings/sync-history",
   "/settings/sync/tuning": "/settings/sync-tuning",
-  "/settings/advanced": "/settings/database-repairs",
 };
 
 const LEGACY_TABS = {
