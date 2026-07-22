@@ -116,8 +116,8 @@ function bindElements() {
     approveConfirmButton: document.querySelector("#approveConfirmButton"),
     cancelConfirmButton: document.querySelector("#cancelConfirmButton"),
     closeConfirmModalButton: document.querySelector("#closeConfirmModalButton"),
-    copyToast: document.querySelector("#copyToast"),
     clearLogsButton: document.querySelector("#clearLogsButton"),
+    downloadLogsButton: document.querySelector("#downloadLogsButton"),
     copyLogsButton: document.querySelector("#copyLogsButton"),
     dbStatus: document.querySelector("#dbStatus"),
     debugModal: document.querySelector("#debugModal"),
@@ -1656,8 +1656,11 @@ function renderDbStatus(isOnline) {
 
 
 
-async function renderLogs() {
+async function renderLogs(forceScrollToBottom = false) {
   if (!elements.logsTerminal) return;
+
+  const isInitialLoad = !state.hasLoadedLogsOnce;
+  state.hasLoadedLogsOnce = true;
 
   const localLogs = logsText();
   const category = state.activeLogCategory || "all";
@@ -1690,23 +1693,32 @@ async function renderLogs() {
     state.renderedLogsText = localLogs || "[no diagnostic logs captured yet]";
     elements.logsTerminal.innerHTML = `<div class="log-row"><span class="log-msg" style="opacity: 0.6;">${escapeHtml(state.renderedLogsText)}</span></div>`;
   }
+
   const el = elements.logsTerminal;
-  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
-  if (atBottom) el.scrollTop = el.scrollHeight;
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  if (forceScrollToBottom || isInitialLoad || atBottom) {
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+  }
 }
 
 function syncLogsRefresh() {
   const shouldRefresh = state.activeView === "settings" && state.activeSettingsRoute?.panel === "logs" && state.token;
   if (shouldRefresh && !state.logsRefreshInterval) {
-    renderLogs().catch(() => { });
+    state.hasLoadedLogsOnce = false;
+    renderLogs(true).catch(() => { });
     state.logsRefreshInterval = window.setInterval(() => {
       if (state.activeView === "settings" && state.activeSettingsRoute?.panel === "logs") {
         renderLogs().catch(() => { });
       }
     }, 3000);
-  } else if (!shouldRefresh && state.logsRefreshInterval) {
-    window.clearInterval(state.logsRefreshInterval);
-    state.logsRefreshInterval = undefined;
+  } else if (!shouldRefresh) {
+    if (state.logsRefreshInterval) {
+      window.clearInterval(state.logsRefreshInterval);
+      state.logsRefreshInterval = undefined;
+    }
+    state.hasLoadedLogsOnce = false;
   }
 }
 
@@ -1802,7 +1814,7 @@ function showConfirmModal(message, onApprove, options = {}) {
   const cancelBtn = elements.cancelConfirmButton;
   if (cancelBtn) cancelBtn.style.display = "";
 
-  elements.approveConfirmButton.textContent = "Approve";
+  elements.approveConfirmButton.textContent = options.approveLabel || "Approve";
 
   if (elements.confirmModalMedia) {
     if (options.mediaHtml) {

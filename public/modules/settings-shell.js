@@ -12,18 +12,18 @@ const SECTIONS = {
     panel: "general",
     subPanels: ["general-login"],
   },
-  "media-servers-group": {
+  "media-servers": {
     label: "Media servers",
     description: "Media servers and webhook configuration",
     views: [{ panel: "apps", subPanels: ["seerr"] }, { panel: "general", subPanels: ["general-endpoints"] }],
   },
-  "sync-group": {
+  sync: {
     label: "Sync",
     description: "Sync tuning, sync tools, sync issues, and history",
     panel: "sync",
     subPanels: ["sync-tuning", "sync-tools", "sync-issues", "sync-history"],
   },
-  "backup-restore-group": {
+  "backup-restore": {
     label: "Backup / restore",
     description: "Backup and restore configuration",
     views: [
@@ -31,13 +31,13 @@ const SECTIONS = {
       { panel: "backups", backupTab: "restore" },
     ],
   },
-  "tools-group": {
+  tools: {
     label: "Tools",
     description: "Database repairs and library rebuilds",
     panel: "tools",
     subPanels: ["tools-repairs", "tools-sync"],
   },
-  "advanced-group": {
+  advanced: {
     label: "Advanced",
     description: "Advanced settings",
     views: [{ panel: "tools", subPanels: ["tools-diagnostics"] }, { panel: "cache" }],
@@ -81,12 +81,6 @@ const SECTIONS = {
     description: "Optional movie and TV request integration",
     panel: "apps",
     subPanels: ["seerr"],
-    isDisplayOnly: true,
-  },
-  "media-servers": {
-    label: "Media servers",
-    description: "Plex, Emby, and Jellyfin connections",
-    panel: "apps",
     isDisplayOnly: true,
   },
   webhooks: {
@@ -235,10 +229,10 @@ const SECTION_GROUPS = [
     displayOnly: ["account"],
   },
   {
-    id: "media-servers-group",
+    id: "media-servers",
     label: "Media servers",
-    sections: ["media-servers", "seerr", "webhooks"],
-    displayOnly: ["media-servers", "seerr", "webhooks"],
+    sections: ["seerr", "webhooks"],
+    displayOnly: ["seerr", "webhooks"],
   },
   {
     id: "metadata",
@@ -247,13 +241,13 @@ const SECTION_GROUPS = [
     displayOnly: ["metadata-providers", "refresh-metadata"],
   },
   {
-    id: "sync-group",
+    id: "sync",
     label: "Sync",
     sections: ["sync-tuning", "sync-tools", "sync-issues", "sync-history"],
     displayOnly: ["sync-tuning", "sync-tools", "sync-issues", "sync-history"],
   },
   {
-    id: "backup-restore-group",
+    id: "backup-restore",
     label: "Backup / restore",
     sections: ["backups", "restore"],
     displayOnly: ["backups", "restore"],
@@ -265,13 +259,13 @@ const SECTION_GROUPS = [
     displayOnly: ["import"],
   },
   {
-    id: "tools-group",
+    id: "tools",
     label: "Tools",
     sections: ["database-repairs", "library-rebuilds"],
     displayOnly: ["database-repairs", "library-rebuilds"],
   },
   {
-    id: "advanced-group",
+    id: "advanced",
     label: "Advanced",
     sections: ["health", "storage"],
     displayOnly: ["health", "storage"],
@@ -291,6 +285,11 @@ const SECTION_GROUPS = [
 ];
 
 const LEGACY_PATHS = {
+  "/settings/media-servers-group": "/settings/media-servers",
+  "/settings/sync-group": "/settings/sync",
+  "/settings/backup-restore-group": "/settings/backup-restore",
+  "/settings/tools-group": "/settings/tools",
+  "/settings/advanced-group": "/settings/advanced",
   "/sync": "/settings/sync-issues",
   "/logs": "/settings/logs",
   "/settings/apps": "/settings/media-servers",

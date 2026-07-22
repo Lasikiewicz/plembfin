@@ -78,7 +78,8 @@ export function formatBrowserLocalTime(rawTs = "") {
     if (rawTs.endsWith("Z") || rawTs.includes("T")) {
       d = new Date(rawTs);
     } else {
-      d = new Date(rawTs.replace(" ", "T") + "Z");
+      const normalized = rawTs.replace(" ", "T");
+      d = new Date(normalized.endsWith("Z") ? normalized : normalized + "Z");
     }
     if (!isNaN(d.getTime())) {
       const year = d.getFullYear();
@@ -102,21 +103,40 @@ export function formatLogLineToHtml(rawLine = "") {
     return `<div class="log-section-header">${escapeHtml(line)}</div>`;
   }
 
-  const match = line.match(/^\[(.*?)\]\s*\[(.*?)\](?:\s*\[(.*?)\])?\s*(.*)$/);
-  if (!match) {
+  // Extract leading timestamp [2026-07-22T07:35:05.372Z] or [2026-07-22 07:35:05]
+  const tsMatch = line.match(/^\[(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)\]\s*(.*)$/);
+  if (!tsMatch) {
     return `<div class="log-row"><span class="log-msg">${escapeHtml(line)}</span></div>`;
   }
 
-  const [, timestamp, category, instance, message] = match;
-  const localTime = formatBrowserLocalTime(timestamp);
+  const rawTs = tsMatch[1];
+  let remainder = tsMatch[2];
+  const localTime = formatBrowserLocalTime(rawTs);
+
+  let category = "LOG";
+  let instance = "";
+
+  // Check if remainder has [CATEGORY]
+  const catMatch = remainder.match(/^\[(.*?)\]\s*(.*)$/);
+  if (catMatch) {
+    category = catMatch[1];
+    remainder = catMatch[2];
+
+    // Check if remainder has [INSTANCE]
+    const instMatch = remainder.match(/^\[(.*?)\]\s*(.*)$/);
+    if (instMatch) {
+      instance = instMatch[1];
+      remainder = instMatch[2];
+    }
+  }
+
   const catKey = category.toLowerCase();
-  
   let badgeClass = "badge-system";
   if (catKey.includes("plex")) badgeClass = "badge-plex";
   else if (catKey.includes("sync")) badgeClass = "badge-sync";
   else if (catKey.includes("poll") || catKey.includes("cron")) badgeClass = "badge-poll";
-  
-  const isError = catKey.includes("error") || message.toLowerCase().includes("error") || message.toLowerCase().includes("failed");
+
+  const isError = catKey.includes("error") || remainder.toLowerCase().includes("error") || remainder.toLowerCase().includes("failed");
   if (isError) badgeClass = "badge-error";
 
   return `
@@ -124,7 +144,7 @@ export function formatLogLineToHtml(rawLine = "") {
       <span class="log-time">${escapeHtml(localTime)}</span>
       <span class="log-badge ${badgeClass}">${escapeHtml(category)}</span>
       ${instance ? `<span class="log-instance">[${escapeHtml(instance)}]</span>` : ""}
-      <span class="log-msg">${escapeHtml(message)}</span>
+      <span class="log-msg">${escapeHtml(remainder)}</span>
     </div>
   `.trim();
 }

@@ -140,7 +140,7 @@ All of the following must stay consistent — do not change one without updating
 
 ### Settings Navigation Rules
 
-5. **All settings navigation links** (sidebar buttons, overview link rows, section-select dropdown options) must navigate to the **parent group path** (e.g. `/settings/media-servers-group`), never to a child `#hash` anchor. Hash anchors cause the page to auto-scroll past the top padding.
+5. **All settings navigation links** (sidebar buttons, overview link rows, section-select dropdown options) must navigate to the **parent group path** (e.g. `/settings/media-servers`), never to a child `#hash` anchor. Hash anchors cause the page to auto-scroll past the top padding.
 6. **`focusSettingsRoute`** must scroll the container to the top (`window.scrollTo(0, 0)`) on every navigation, not `scrollIntoView` to a child element.
 
 ## Adding a new module

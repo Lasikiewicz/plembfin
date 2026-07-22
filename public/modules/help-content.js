@@ -17,14 +17,15 @@ function terminalOutput(text) {
 
 export function adminTokenGuide() {
   return `
-    <div class="guide-callout credential-guide">
-      <b>Admin Sign-In</b>
-      <p><b>What it is:</b> The local username and password for this self-hosted instance.</p>
-      <ol>
-        <li>Username defaults to <code>admin</code> on first run. If you didn't set <code>ADMIN_PASSWORD</code>, a random password is generated and printed once to the server console/logs — check there after first start.</li>
-        <li>Override fresh installs by setting <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> environment variables (e.g. in <code>docker-compose.yml</code>).</li>
-        <li>Use that username and password to sign in to this dashboard. After credentials are changed in Settings, Plembfin manages them in-app and ignores <code>ADMIN_USERNAME</code>/<code>ADMIN_PASSWORD</code> until <code>authManagedInApp</code> is removed from <code>data/config.json</code>.</li>
-        <li>Webhooks use a separate secret token. Media servers can use the token in the webhook URL; automation clients can send it with <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code>. You can rotate it independently without affecting your admin password or API key.</li>
+    <div class="credential-guide" style="display: grid; gap: var(--space-3);">
+      <p style="margin: 0; color: var(--muted); font-size: 0.85rem; line-height: 1.5;">
+        The local username and password for this self-hosted instance.
+      </p>
+      <ol style="display: grid; gap: var(--space-2); margin: 0; padding-left: 1.2rem; line-height: 1.5; font-size: 0.82rem; color: var(--text);">
+        <li><b>Default credentials:</b> Username defaults to <code>admin</code> on first run. If <code>ADMIN_PASSWORD</code> isn't set, a random password is generated and printed once to the server console/logs.</li>
+        <li><b>Environment overrides:</b> Override fresh installs by setting <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> environment variables (e.g. in <code>docker-compose.yml</code>).</li>
+        <li><b>In-app management:</b> After credentials are changed in Settings, Plembfin manages them in-app and ignores <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code> until <code>authManagedInApp</code> is removed from <code>data/config.json</code>.</li>
+        <li><b>Webhook secrets:</b> Webhooks use a separate secret token. Media servers can use the token in the webhook URL; automation clients can send it with <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code>. You can rotate it independently without affecting your admin password or API key.</li>
       </ol>
     </div>
   `;
@@ -124,16 +125,17 @@ export function buildWebhookUrl() {
 export function plexWebhookSetup() {
   const url = buildWebhookUrl();
   return `
-    <div class="guide-callout" style="border-color: rgba(234, 179, 8, 0.3); background: rgba(234, 179, 8, 0.06);">
-      <b>Plex Webhook Setup</b>
-      <p style="margin: var(--space-1) 0; font-size: 0.8rem; color: var(--muted);">Webhook URL:</p>
-      <code style="word-break: break-all; font-size: 0.75rem;">${escapeHtml(url)}</code>
-      <p style="margin: var(--space-2) 0 0; font-size: 0.75rem; color: var(--muted);">Automation clients can also call <code>/api/webhook</code> with <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code>.</p>
-      <ul style="padding-left: 1.2rem; margin: var(--space-2) 0 0; display: grid; gap: 4px;">
-        <li>Set up webhooks per the <a href="https://support.plex.tv/articles/115002267687-webhooks/?utm_campaign=Plex%20Apps&utm_medium=Plex%20Web&utm_source=Plex%20Apps" target="_blank" rel="noopener noreferrer" style="color: var(--blue); text-decoration: underline;">Plex Webhook Documentation</a>. Point them to the URL above.</li>
-        <li>Enable events: <code>media.play</code>, <code>media.resume</code>, <code>media.pause</code>, <code>media.stop</code>, <code>media.scrobble</code>.</li>
-        <li><b>Library watch-state sync (built-in):</b> Plembfin connects to your Plex Media Server via its WebSocket notification channel automatically — no external script required. It records watched changes made in the Plex library UI and handles unscrobble events that native webhooks cannot send.</li>
-        <li><b>Fallback:</b> The background cron worker also re-checks recent watch history against Plex every 6 hours, catching unwatched removals missed while the listener was disconnected.</li>
+    <div class="webhook-guide-content" style="display: grid; gap: var(--space-2); padding-top: var(--space-1);">
+      <div class="copy-block">
+        <button class="copy-button" type="button" data-copy="${escapeAttribute(url)}" aria-label="Copy Webhook URL">Copy</button>
+        <pre><code>${escapeHtml(url)}</code></pre>
+      </div>
+      <p style="font-size: 0.78rem; color: var(--muted); margin: 0;">Automation clients can also call <code>/api/webhook</code> with an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.</p>
+      <ul style="padding-left: 1.2rem; margin: var(--space-1) 0 0; display: grid; gap: 4px; font-size: 0.82rem; color: var(--text);">
+        <li>Go to Plex Web ➔ <b>Account Settings ➔ Webhooks</b> and click <b>Add Webhook</b>. Paste the URL above (requires Plex Pass).</li>
+        <li><b>Automatic Event Delivery:</b> Plex automatically sends all playback events (play, pause, resume, stop, scrobble) to the webhook URL — no individual event selection is required.</li>
+        <li><b>Library Watch-State Sync (built-in):</b> Plembfin automatically connects to your Plex Media Server via its WebSocket notification channel to capture watched and unwatched library changes in real time.</li>
+        <li><b>Per-Minute Synchronization:</b> The internal scheduler runs every minute to evaluate playback progress against your watched threshold (90%) and dispatch cross-platform sync.</li>
       </ul>
     </div>
   `;
@@ -142,12 +144,13 @@ export function plexWebhookSetup() {
 export function embyWebhookSetup() {
   const url = buildWebhookUrl();
   return `
-    <div class="guide-callout" style="border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.06);">
-      <b>Emby Webhook Setup</b>
-      <p style="margin: var(--space-1) 0; font-size: 0.8rem; color: var(--muted);">Webhook URL:</p>
-      <code style="word-break: break-all; font-size: 0.75rem;">${escapeHtml(url)}</code>
-      <p style="margin: var(--space-2) 0 0; font-size: 0.75rem; color: var(--muted);">Automation clients can also call <code>/api/webhook</code> with <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code>.</p>
-      <ul style="padding-left: 1.2rem; margin: var(--space-2) 0 0; display: grid; gap: 4px;">
+    <div class="webhook-guide-content" style="display: grid; gap: var(--space-2); padding-top: var(--space-1);">
+      <div class="copy-block">
+        <button class="copy-button" type="button" data-copy="${escapeAttribute(url)}" aria-label="Copy Webhook URL">Copy</button>
+        <pre><code>${escapeHtml(url)}</code></pre>
+      </div>
+      <p style="font-size: 0.78rem; color: var(--muted); margin: 0;">Automation clients can also call <code>/api/webhook</code> with an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.</p>
+      <ul style="padding-left: 1.2rem; margin: var(--space-1) 0 0; display: grid; gap: 4px; font-size: 0.82rem; color: var(--text);">
         <li>Go to Emby Server Settings ➔ <b>Webhooks</b> and add a new webhook pointing to the URL above.</li>
         <li>Under <b>Events → Playback</b>, check: <code>Start</code>, <code>Pause</code>, <code>Unpause</code>, <code>Stop</code>.</li>
         <li>Under <b>Events → Users</b>, check: <code>Mark Played</code>, <code>Mark Unplayed</code>.</li>
@@ -160,15 +163,16 @@ export function embyWebhookSetup() {
 export function jellyfinWebhookSetup() {
   const url = buildWebhookUrl();
   return `
-    <div class="guide-callout" style="border-color: rgba(75, 150, 230, 0.3); background: rgba(75, 150, 230, 0.06);">
-      <b>Jellyfin Webhook Setup</b>
-      <p style="margin: var(--space-1) 0; font-size: 0.8rem; color: var(--muted);">Webhook URL:</p>
-      <code style="word-break: break-all; font-size: 0.75rem;">${escapeHtml(url)}</code>
-      <p style="margin: var(--space-2) 0 0; font-size: 0.75rem; color: var(--muted);">Automation clients can also call <code>/api/webhook</code> with <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code>.</p>
-      <ul style="padding-left: 1.2rem; margin: var(--space-2) 0 0; display: grid; gap: 4px;">
+    <div class="webhook-guide-content" style="display: grid; gap: var(--space-2); padding-top: var(--space-1);">
+      <div class="copy-block">
+        <button class="copy-button" type="button" data-copy="${escapeAttribute(url)}" aria-label="Copy Webhook URL">Copy</button>
+        <pre><code>${escapeHtml(url)}</code></pre>
+      </div>
+      <p style="font-size: 0.78rem; color: var(--muted); margin: 0;">Automation clients can also call <code>/api/webhook</code> with an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.</p>
+      <ul style="padding-left: 1.2rem; margin: var(--space-1) 0 0; display: grid; gap: 4px; font-size: 0.82rem; color: var(--text);">
         <li>Install the <b>Webhooks</b> plugin in the Jellyfin Dashboard (Plugins → Catalog).</li>
         <li>Add a new <b>Generic Webhook</b> named <code>plembfin</code> pointing to the URL above. Check <b>Enable</b>.</li>
-        <li>Under <b>Notification Type</b>, check: <code>Playback Start</code>, <code>Playback Progress</code>, <code>Playback Stop</code>, <code>User Data Saved</code> <i>(required for mark-watched/unwatched events)</i>.</li>
+        <li>Under <b>Notification Type</b>, check: <code>Playback Start</code>, <code>Playback Progress</code>, <code>Playback Stop</code>, <code>User Data Saved</code>.</li>
         <li>Under <b>Item Type</b>, select: <code>Movies</code>, <code>Episodes</code>.</li>
         <li>Check <b>Send All Properties (ignores template)</b> so resume position fields are included.</li>
       </ul>
@@ -191,7 +195,7 @@ export function webhookWarning() {
           <li>Plex does not support sending unwatched (unscrobble) events via native webhooks or Tautulli.</li>
           <li>For resume sync, Plex webhook traffic must include playback lifecycle events such as <code>media.play</code>, <code>media.resume</code>, <code>media.pause</code>, <code>media.stop</code>, and <code>media.scrobble</code>. Plembfin reads <code>viewOffset</code> and <code>duration</code> when Plex provides them.</li>
           <li><b>Real-time Sync (Built-in):</b> Plembfin's server includes a built-in Plex notification listener. It connects to your Plex Media Server via the WebSocket notification channel (configured automatically from your Plex URL and token in Settings → Media Servers), records watched library changes, and forwards unwatched changes directly — no external script or daemon is required.</li>
-          <li><b>Cron Sync (Fallback):</b> Plembfin's background cron worker polls Plex periodically to catch recently watched and unwatched changes missed while the notification listener was disconnected.</li>
+          <li><b>Per-Minute Scheduler:</b> Plembfin's background worker runs every minute to process playback sessions, evaluate watched thresholds, and dispatch sync actions.</li>
           <li>For general playback events, set up webhooks according to the <a href="https://support.plex.tv/articles/115002267687-webhooks/?utm_campaign=Plex%20Apps&utm_medium=Plex%20Web&utm_source=Plex%20Apps" target="_blank" rel="noopener noreferrer" style="color: #4b96e6; text-decoration: underline;">Plex Webhook Documentation</a>.</li>
         </ul>
       </div>

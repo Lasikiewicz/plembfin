@@ -215,6 +215,34 @@ function attachEvents() {
     copyToClipboard(state.renderedLogsText || logsText() || "[no diagnostic logs captured yet]");
   });
 
+  elements.downloadLogsButton?.addEventListener("click", async () => {
+    try {
+      const backendLogs = await fetchDiagnosticLogs(authHeaders(), "all");
+      const localLogs = logsText();
+      const content = [
+        `=== PLEMBFIN DIAGNOSTIC LOGS EXPORT (${new Date().toISOString()}) ===`,
+        ...backendLogs,
+        "",
+        "=== FRONTEND DEBUG LOGS ===",
+        localLogs || "[no frontend logs]"
+      ].join("\n");
+
+      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `plembfin-logs-${dateStr}.log`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setMessage("Logs downloaded successfully", "success");
+    } catch (error) {
+      setMessage(`Download logs failed: ${error.message || String(error)}`, "error");
+    }
+  });
+
   document.querySelector("#logsCategoryFilter")?.addEventListener("click", (event) => {
     const btn = event.target.closest(".logs-cat-btn");
     if (!btn) return;
@@ -223,7 +251,7 @@ function attachEvents() {
     document.querySelectorAll("#logsCategoryFilter .logs-cat-btn").forEach((b) => {
       b.classList.toggle("active", b === btn);
     });
-    renderLogs().catch(() => {});
+    renderLogs(true).catch(() => {});
   });
 
   document.querySelector("#settingsSectionSelect")?.addEventListener("change", (event) => {
@@ -231,6 +259,12 @@ function attachEvents() {
   });
 
   document.addEventListener("click", (event) => {
+    const copyBtn = event.target.closest(".copy-button");
+    if (copyBtn) {
+      const copyText = copyBtn.dataset.copy || copyBtn.closest(".copy-block")?.querySelector("code")?.textContent;
+      if (copyText) copyToClipboard(copyText.trim());
+      return;
+    }
     const target = event.target.closest("[data-settings-path]");
     if (!target) return;
     navigateTo(target.dataset.settingsPath);
@@ -503,15 +537,44 @@ function attachEvents() {
     });
   });
 
-  elements.rotateWebhookButton?.addEventListener("click", async () => {
-    try {
-      await rotateWebhookSecret();
-      elements.webhookUrl.textContent = buildWebhookUrl();
-      renderSettingsInlineHelp();
-      setMessage("Webhook secret rotated. Update the webhook URL in all media servers.", "success");
-    } catch (error) {
-      setMessage(`Failed to rotate webhook secret: ${error.message}`, "error");
-    }
+  elements.rotateWebhookButton?.addEventListener("click", () => {
+    showConfirmModal(
+      "Rotating your webhook secret will immediately invalidate your current webhook token.\n\nAll incoming webhook events sent using the old secret will fail with an HTTP 401 Unauthorized error until you update the URL in every configured service.",
+      () => {
+        showConfirmModal(
+          "Are you 100% sure you want to rotate your webhook secret right now?\n\nRemember: Your media servers (Plex, Emby, Jellyfin) and automation scripts will stop syncing watchstates until you paste the new URL into their settings.",
+          async () => {
+            try {
+              await rotateWebhookSecret();
+              if (elements.webhookUrl) elements.webhookUrl.textContent = buildWebhookUrl();
+              renderSettingsInlineHelp();
+              setMessage("Webhook secret rotated successfully. Remember to update the URL in Plex, Emby, Jellyfin, and your automation clients.", "success");
+            } catch (error) {
+              setMessage(`Failed to rotate webhook secret: ${error.message}`, "error");
+            }
+          },
+          {
+            title: "Final Confirmation: Rotate Webhook Secret",
+            approveLabel: "Yes, Rotate Secret Now",
+          }
+        );
+      },
+      {
+        title: "Rotate Webhook Secret — Step 1 of 2",
+        approveLabel: "Proceed to Final Step",
+        mediaHtml: `
+          <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 0.82rem; line-height: 1.5; color: var(--text);">
+            <b style="color: #ef4444; display: block; margin-bottom: 6px; font-size: 0.88rem;">⚠️ Required Updates After Rotation:</b>
+            <ol style="margin: 0; padding-left: 1.2rem; display: grid; gap: 4px;">
+              <li><b>Plex Media Server:</b> Update the Webhook URL in Plex Web Settings ➔ Webhooks.</li>
+              <li><b>Emby Server:</b> Update the Webhook URL in Emby Server Settings ➔ Webhooks.</li>
+              <li><b>Jellyfin Server:</b> Update the generic webhook URL in Jellyfin Dashboard ➔ Plugins ➔ Webhooks.</li>
+              <li><b>Automation Clients:</b> Update any scripts, daemons, or tools passing <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> headers.</li>
+            </ol>
+          </div>
+        `,
+      }
+    );
   });
 
   elements.explorerSearchInput?.addEventListener("input", () => {

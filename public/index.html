@@ -546,10 +546,22 @@
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
                         <p>Media Server Setup</p>
-                        <span>Connections and requests</span>
+                        <span>Watchstate Sync Engine</span>
                       </div>
-                      <p class="tool-accordion-desc">Configure each media server with the URL and credentials Plembfin uses to read playback state and send synchronized changes. Seerr is configured separately for request actions.</p>
-                      <p class="tool-accordion-desc" style="margin: 0;">Open a card to find the provider-specific setup guide, test the connection, and save changes.</p>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connected Servers</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Plembfin connects to your Plex, Emby, and Jellyfin servers to read library watchstates, verify media item matches, and push synchronized plays across all target endpoints.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Credentials & Tokens</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Each card stores the server URL and API token. Saved credentials are stored securely server-side and hidden from browser display.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connection Testing</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Click any server card and use <b>Test Connection</b> to verify server reachability, API key validity, and user account resolution before saving.</p>
+                        </div>
+                      </div>
                     </article>
                   </div>
                 </div>
@@ -571,9 +583,18 @@
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
                         <p>Seerr Setup</p>
-                        <span>Request integration</span>
+                        <span>Request Integration</span>
                       </div>
-                      <p class="tool-accordion-desc">Connect Overseerr or Jellyseerr to add request actions to movie and TV show detail pages. Open the Seerr card for the URL, API key, connection test, and provider-specific setup help.</p>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Overseerr / Jellyseerr</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Connects your Seerr instance to display live request status pills and <b>"Request on Seerr"</b> action buttons directly on movie and TV show detail pages.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">API Integration</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Requires your Seerr base URL and an API key from Overseerr/Jellyseerr Settings ➔ General. Enables one-click requesting without leaving Plembfin.</p>
+                        </div>
+                      </div>
                     </article>
                   </div>
                 </div>
@@ -588,20 +609,39 @@
                         <p>Webhooks</p>
                         <span>Webhook listener and background worker</span>
                       </div>
-                      <div class="endpoint-box">
-                        <div style="display:flex; align-items:center; gap:var(--space-2); flex-wrap:wrap; margin-bottom:var(--space-1);">
-                          <code id="webhookUrl">/api/webhook</code>
-                          <button id="rotateWebhookButton" class="button-ghost" type="button" title="Generate a new webhook secret — update the URL in all media servers after rotating">Rotate Secret</button>
+
+                      <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+                        <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+                          <span class="field-label" style="margin: 0;">Webhook Listener URL</span>
+                          <div class="copy-block">
+                            <button class="copy-button" type="button" aria-label="Copy Webhook URL">Copy</button>
+                            <pre><code id="webhookUrl">/api/webhook</code></pre>
+                          </div>
+                          <div class="webhook-secret-line" style="margin-top: 2px;">
+                            <span>Secret token:</span>
+                            <code id="webhookSecret">Not available</code>
+                          </div>
+                          <p style="font-size: 0.78rem; color: var(--muted); margin-top: 2px; line-height: 1.45;">
+                            Point Plex, Emby, and Jellyfin webhooks here. The URL contains the secret token. Automation clients can also pass the secret in an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.
+                          </p>
+                          <div class="settings-actions" style="margin-top: var(--space-1);">
+                            <button id="rotateWebhookButton" class="button-ghost" type="button" title="Generate a new webhook secret — update the URL in all media servers after rotating">Rotate Secret</button>
+                          </div>
                         </div>
-                        <div class="webhook-secret-line">
-                          <span>Webhook secret</span>
-                          <code id="webhookSecret">Not available</code>
+
+                        <div style="display: flex; flex-direction: column; gap: var(--space-2); border-top: 1px solid var(--line); padding-top: var(--space-3);">
+                          <span class="field-label" style="margin: 0;">Background Scheduler URL</span>
+                          <div class="copy-block">
+                            <button class="copy-button" type="button" aria-label="Copy Cron Sync URL">Copy</button>
+                            <pre><code id="cronSyncUrl">/api/cron-sync</code></pre>
+                          </div>
+                          <p style="font-size: 0.78rem; color: var(--muted); margin-top: 2px; line-height: 1.45;">
+                            Endpoint polled by the background worker to execute periodic synchronization loops between media servers.
+                          </p>
                         </div>
-                        <p>Point Plex, Emby, and Jellyfin webhooks here. The URL contains the compatibility secret token. Automation can also send the secret with a webhook header. After rotating, update every sender.</p>
-                        <code id="cronSyncUrl">/api/cron-sync</code>
-                        <p>Background scheduler URL for syncing states between platforms.</p>
+
+                        <div id="webhookSetupGuides" class="webhook-setup-guides" style="border-top: 1px solid var(--line); padding-top: var(--space-3);"></div>
                       </div>
-                      <div id="webhookSetupGuides" class="webhook-setup-guides"></div>
                     </article>
                   </div>
 
@@ -609,10 +649,26 @@
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
                         <p>Webhooks Guide</p>
-                        <span>Integration Webhooks</span>
+                        <span>Real-Time Sync Engine</span>
                       </div>
-                      <p class="tool-accordion-desc">Webhooks allow Plex, Emby, and Jellyfin to push play states immediately to Plembfin as they happen.</p>
-                      <p class="tool-accordion-desc">The cron-sync endpoint is polled by a background job to run the periodic synchronization loop between all integrations.</p>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Webhook Listener URL</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Receives instant play, pause, stop, scrobble, and watched events pushed by Plex, Emby, and Jellyfin as media plays. Updates live session tracking instantly.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Secret Token & Rotation</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Authenticates incoming webhooks via <code>?token=</code> or <code>X-Plembfin-Webhook-Secret</code> header. Rotate anytime to invalidate old endpoints without affecting admin login.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Background Scheduler</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Executes every minute to evaluate active playback progress against your watched threshold (90%), write completed watches to history, and dispatch cross-platform sync.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Platform Setup Guides</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Expand the Plex, Emby, or Jellyfin setup dropdowns on the left card to view provider-specific instructions and event settings for each media server.</p>
+                        </div>
+                      </div>
                     </article>
                   </div>
                 </div>
@@ -636,9 +692,22 @@
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
                         <p>Metadata Setup</p>
-                        <span>Artwork and enrichment</span>
+                        <span>Artwork & Enrichment</span>
                       </div>
-                      <p class="tool-accordion-desc">TMDB powers artwork, search, cast, trailers, and detail pages. The optional providers add TV episode data, fallback artwork, IMDb ratings, or trailer details.</p>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">TMDB (Required)</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Powers core movie and TV metadata, posters, backdrops, cast bios, trailers, and release dates across Plembfin.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">TheTVDB (Optional)</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Enriches TV series with episode guides, season ordering, and high-resolution series artwork.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Fanart.tv & OMDB (Optional)</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Fanart.tv supplies clearart, logos, and disc art. OMDB provides IMDb ratings and Rotten Tomatoes score comparisons.</p>
+                        </div>
+                      </div>
                     </article>
                   </div>
                 </div>
@@ -662,8 +731,10 @@
                               </div>
                               <span id="refreshMetadataStatus" class="status-pill status-muted">Idle</span>
                             </div>
-                            <button id="refreshMetadataButton" class="button-primary" style="align-self: flex-start;" type="button">Refresh Metadata Now</button>
-                            <div id="refreshMetadataLog" class="import-terminal compact-terminal hidden">Refresh log will appear here.</div>
+                            <div id="refreshMetadataLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Refresh log will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="refreshMetadataButton" class="button-primary" type="button">Refresh Metadata Now</button>
+                            </div>
                           </div>
                         </div>
 
@@ -677,8 +748,10 @@
                               </div>
                               <span id="refreshTvdbStatus" class="status-pill status-muted">Idle</span>
                             </div>
-                            <button id="refreshTvdbButton" class="button-primary" style="align-self: flex-start;" type="button">Refresh TVDB Metadata Now</button>
-                            <div id="refreshTvdbLog" class="import-terminal compact-terminal hidden">Refresh log will appear here.</div>
+                            <div id="refreshTvdbLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Refresh log will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="refreshTvdbButton" class="button-primary" type="button">Refresh TVDB Metadata Now</button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -716,10 +789,12 @@
                             <span>Verify local database state and media server reachability</span>
                           </div>
                         </div>
-                        <button id="runCompleteCheckButton" class="button-primary" style="align-self: flex-start;" type="button">Run System Diagnostic</button>
-                        <button id="refreshSyncHealthButton" class="button-ghost" style="align-self: flex-start;" type="button" title="Load row counts, database size, and outbound sync pressure">Refresh Sync Health</button>
                         <div id="completeCheckResults" class="complete-check-results hidden" style="display: grid; gap: var(--space-2); margin-top: var(--space-3);"></div>
                         <div id="syncHealthPanel" class="sync-health-panel" aria-live="polite"></div>
+                        <div class="settings-actions" style="margin-top: var(--space-3);">
+                          <button id="refreshSyncHealthButton" class="button-ghost" type="button" title="Load row counts, database size, and outbound sync pressure">Refresh Sync Health</button>
+                          <button id="runCompleteCheckButton" class="button-primary" type="button">Run System Diagnostic</button>
+                        </div>
                       </div>
                     </article>
                   </div>
@@ -770,10 +845,6 @@
                           <b>Choose Trakt export files</b>
                           <span style="font-size: 0.75rem; color: var(--muted);">Drop CSV or JSON files here, or click to browse.</span>
                         </label>
-                        <div style="display: flex; gap: var(--space-2); align-items: center; margin-top: var(--space-2);">
-                          <button id="startImportButton" class="button-primary" type="button" disabled>Start Import</button>
-                          <button id="clearImportButton" class="button-ghost" type="button">Clear</button>
-                        </div>
                         <div class="import-progress-row" style="display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2);">
                           <div class="import-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden;">
                             <span id="importProgressFill" style="display: block; height: 100%; width: 0%; background: var(--blue); transition: width 0.2s;"></span>
@@ -782,6 +853,10 @@
                         </div>
                         <pre id="importTerminal" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for files.</pre>
                         <div id="importPreview" class="import-preview"></div>
+                        <div class="settings-actions" style="margin-top: var(--space-3);">
+                          <button id="clearImportButton" class="button-ghost" type="button">Clear</button>
+                          <button id="startImportButton" class="button-primary" type="button" disabled>Start Import</button>
+                        </div>
                       </div>
                     </article>
                   </div>
@@ -816,8 +891,10 @@
                               </div>
                               <span id="repairStatus" class="status-pill status-muted">Idle</span>
                             </div>
-                            <button id="runRepairButton" class="button-primary" style="align-self: flex-start;" type="button">Repair History Now</button>
-                            <div id="repairLog" class="import-terminal compact-terminal hidden">Repair log will appear here.</div>
+                            <div id="repairLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Repair log will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="runRepairButton" class="button-primary" type="button">Repair History Now</button>
+                            </div>
                           </div>
                         </div>
 
@@ -831,8 +908,10 @@
                               </div>
                               <span id="dedupHistoryStatus" class="status-pill status-muted">Idle</span>
                             </div>
-                            <button id="dedupHistoryButton" class="button-ghost" style="align-self: flex-start;" type="button">Clean Duplicates</button>
-                            <div id="dedupHistoryLog" class="import-terminal compact-terminal hidden">Dedup log will appear here.</div>
+                            <div id="dedupHistoryLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Dedup log will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="dedupHistoryButton" class="button-ghost" type="button">Clean Duplicates</button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -876,8 +955,10 @@
                               </div>
                               <span id="rematchTvStatus" class="status-pill status-muted">Idle</span>
                             </div>
-                            <button id="rematchTvButton" class="button-ghost" style="align-self: flex-start;" type="button">Rematch TV Shows</button>
-                            <div id="rematchTvLog" class="import-terminal compact-terminal hidden">Rematch log will appear here.</div>
+                            <div id="rematchTvLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Rematch log will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="rematchTvButton" class="button-ghost" type="button">Rematch TV Shows</button>
+                            </div>
                           </div>
                         </div>
 
@@ -891,7 +972,7 @@
                               </div>
                               <span id="traktBackfillStatus" class="status-pill status-muted">Idle</span>
                             </div>
-                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); max-width: 400px; margin-bottom: var(--space-3); margin-top: var(--space-2);">
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); max-width: 400px; margin-top: var(--space-2);">
                               <label class="field-label" style="margin:0;">
                                 Batch size
                                 <input id="traktBackfillLimit" class="field" type="number" min="1" max="2000" value="500" />
@@ -901,8 +982,10 @@
                                 <input id="traktBackfillRate" class="field" type="number" min="50" max="5000" value="300" />
                               </label>
                             </div>
-                            <button id="traktBackfillButton" class="button-primary" style="align-self: flex-start;" type="button">Backfill Trakt Imports</button>
-                            <div id="traktBackfillLog" class="import-terminal compact-terminal hidden">Trakt backfill log will appear here.</div>
+                            <div id="traktBackfillLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Trakt backfill log will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="traktBackfillButton" class="button-primary" type="button">Backfill Trakt Imports</button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1353,7 +1436,9 @@
                                 <span>Check recent watched and part-watched items on each server for missing Plembfin records</span>
                               </div>
                             </div>
-                            <button id="runCronSyncButton" class="button-primary sync-action-btn" style="align-self: flex-start;" type="button" title="Check recent watched and part-watched items for missing Plembfin records">Repair Recent Items</button>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="runCronSyncButton" class="button-primary sync-action-btn" type="button" title="Check recent watched and part-watched items for missing Plembfin records">Repair Recent Items</button>
+                            </div>
                           </div>
                         </div>
 
@@ -1367,8 +1452,10 @@
                               </div>
                               <span id="fullSyncStatus" class="status-pill status-muted">Idle</span>
                             </div>
-                            <button id="fullSyncButton" class="button-ghost" style="align-self: flex-start;" type="button">Full Sync Watchstates</button>
-                            <pre id="fullSyncLog" class="import-terminal compact-terminal hidden" aria-live="polite">[idle] Waiting for restore request.</pre>
+                            <pre id="fullSyncLog" class="import-terminal compact-terminal hidden" aria-live="polite" style="margin-top: var(--space-2);">[idle] Waiting for restore request.</pre>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="fullSyncButton" class="button-ghost" type="button">Full Sync Watchstates</button>
+                            </div>
                           </div>
                         </div>
 
@@ -1380,11 +1467,6 @@
                                 <b>Force Full Sync</b>
                                 <span>Forcefully propagate all pending watched-state changes immediately</span>
                               </div>
-                            </div>
-                            <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
-                              <button id="forceSyncButton" class="button-primary sync-action-btn" type="button" title="Force an immediate sync of all pending watched states">Force Full Sync</button>
-                              <button id="previewForceSyncButton" class="button-ghost sync-action-btn" type="button" title="Inspect planned Force Sync changes before writing">Preview Force Sync</button>
-                              <button id="stopSyncButton" class="button-danger" type="button" title="Cancel a running force sync or clear a sync lock left behind by a server restart">Stop / Reset Sync</button>
                             </div>
                             <div id="forceSyncPreviewPanel" class="sync-preview-panel hidden" aria-live="polite"></div>
                             <div class="activity-log" style="margin-top: var(--space-3);">
@@ -1410,6 +1492,11 @@
                                 </div>
                               </div>
                               <pre id="forceSyncTerminal" class="import-terminal compact-terminal hidden" aria-live="polite">[idle] Waiting for force sync.</pre>
+                            </div>
+                            <div class="settings-actions" style="margin-top: var(--space-3);">
+                              <button id="previewForceSyncButton" class="button-ghost sync-action-btn" type="button" title="Inspect planned Force Sync changes before writing">Preview Force Sync</button>
+                              <button id="stopSyncButton" class="button-danger" type="button" title="Cancel a running force sync or clear a sync lock left behind by a server restart">Stop / Reset Sync</button>
+                              <button id="forceSyncButton" class="button-primary sync-action-btn" type="button" title="Force an immediate sync of all pending watched states">Force Full Sync</button>
                             </div>
                           </div>
                         </div>
@@ -1456,7 +1543,6 @@
                           <p style="margin: 0;">Sync Issues</p>
                           <span id="syncSummary" class="status-pill status-muted">Loading...</span>
                         </div>
-                        <button id="refreshSyncButton" class="button-ghost sync-btn" type="button" title="Refresh the sync issues list">Refresh</button>
                       </div>
                       <div id="syncIssuesContent" style="margin-top: var(--space-3);">
                         <div id="syncIssuesContainer" aria-live="polite"></div>
@@ -1470,6 +1556,9 @@
                           </summary>
                           <div id="syncMatchReportContainer" style="padding: var(--space-3); border-top: 1px solid var(--line); display: grid; gap: var(--space-2); overflow-x: auto;"></div>
                         </details>
+                      </div>
+                      <div class="settings-actions" style="margin-top: var(--space-3);">
+                        <button id="refreshSyncButton" class="button-ghost sync-btn" type="button" title="Refresh the sync issues list">Refresh Issues</button>
                       </div>
                     </section>
                   </div>
@@ -1577,34 +1666,25 @@
                       <div class="section-heading">
                         <div>
                           <p>Server Logs</p>
-                          <span>Terminal output from the local server, plus frontend diagnostics</span>
+                          <span>Terminal output from local server and background worker processes</span>
                         </div>
-                        <div class="logs-actions" style="display: flex; gap: var(--space-2);">
-                          <button id="clearLogsButton" class="button-ghost" type="button">Clear Logs</button>
-                          <button id="copyLogsButton" class="button-primary" type="button">Copy Logs</button>
-                        </div>
+                        <span class="activity-log-state" style="font-size: 0.78rem; color: var(--muted);"><span class="pulse-dot"></span> Live Output</span>
                       </div>
-                      <div class="activity-log">
-                        <div class="activity-log-header">
-                          <div class="activity-log-heading">
-                            <svg class="activity-log-icon" viewBox="0 0 20 20" aria-hidden="true">
-                              <path d="M4 5.5h12M4 10h12M4 14.5h8" />
-                            </svg>
-                            <span class="activity-log-copy">
-                              <strong>Activity log</strong>
-                              <small>Backend and browser output</small>
-                            </span>
-                          </div>
-                          <span class="activity-log-state"><span class="pulse-dot"></span> Live output</span>
-                        </div>
-                        <div id="logsCategoryFilter" class="logs-category-filter">
-                          <button type="button" class="logs-cat-btn active" data-category="all">All Logs</button>
-                          <button type="button" class="logs-cat-btn" data-category="plex-notifications">⚡ Plex WebSockets</button>
-                          <button type="button" class="logs-cat-btn" data-category="sync">🔄 Outbound Sync</button>
-                          <button type="button" class="logs-cat-btn" data-category="scheduled-poll">⏱️ Scheduled Polls</button>
-                          <button type="button" class="logs-cat-btn" data-category="system">🖥️ System Logs</button>
-                        </div>
-                        <pre id="logsTerminal" class="logs-terminal" aria-live="polite"></pre>
+
+                      <div id="logsCategoryFilter" class="logs-category-filter">
+                        <button type="button" class="logs-cat-btn active" data-category="all">All Logs</button>
+                        <button type="button" class="logs-cat-btn" data-category="plex-notifications">Plex WebSockets</button>
+                        <button type="button" class="logs-cat-btn" data-category="sync">Outbound Sync</button>
+                        <button type="button" class="logs-cat-btn" data-category="scheduled-poll">Scheduled Polls</button>
+                        <button type="button" class="logs-cat-btn" data-category="system">System Logs</button>
+                      </div>
+
+                      <pre id="logsTerminal" class="logs-terminal" aria-live="polite"></pre>
+
+                      <div class="settings-actions" style="margin-top: var(--space-3);">
+                        <button id="clearLogsButton" class="button-ghost" type="button">Clear Logs</button>
+                        <button id="downloadLogsButton" class="button-ghost" type="button">Download Logs</button>
+                        <button id="copyLogsButton" class="button-primary" type="button">Copy Logs</button>
                       </div>
                     </section>
                   </div>
@@ -1612,54 +1692,41 @@
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Understanding Logs</p>
-                        <span>What you might see</span>
+                        <p>Logs Guide</p>
+                        <span>System Diagnostics & Telemetry</span>
                       </div>
-                      <p class="tool-accordion-desc">Recent backend logs are merged from bounded per-process files, so web and worker activity remains visible across restarts. Frontend diagnostics stay browser-local. The panel refreshes every 3 seconds automatically.</p>
 
-                      <details style="margin-top: var(--space-3);" open>
-                        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Category tabs</summary>
-                        <ul class="tool-accordion-desc" style="margin-top: var(--space-2); padding-left: var(--space-4); line-height: 1.7;">
-                          <li><b>⚡ Plex WebSockets</b> — the real-time Plex notification listener: connection lifecycle, incoming timeline events, and unwatch detection.</li>
-                          <li><b>🔄 Outbound Sync</b> — playstate propagation to Plex/Emby/Jellyfin: mark-played/unplayed calls, loop-guard checks, and dispatch results.</li>
-                          <li><b>⏱️ Scheduled Polls</b> — the per-minute background worker's own activity: recent-history polling and cron-sync runs.</li>
-                          <li><b>🖥️ System Logs</b> — everything else: server startup, config, and generic errors that don't match the categories above.</li>
-                        </ul>
-                        <p class="tool-accordion-desc" style="margin-top: var(--space-2);">Categorization is based on the log message text, so a line only ever appears under one tab (plus "All Logs").</p>
-                      </details>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">All Logs</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Unified stream combining both server-side background process activity and browser-side UI telemetry in chronological order.</p>
+                        </div>
 
-                      <details style="margin-top: var(--space-2);" open>
-                        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Normal activity</summary>
-                        <ul class="tool-accordion-desc" style="margin-top: var(--space-2); padding-left: var(--space-4); line-height: 1.7;">
-                          <li><b>Scheduled Sync: starting background sync workflow</b> — the per-minute background worker has fired. Completely normal; you will see this every 60 seconds.</li>
-                          <li><b>Plex / Emby / Jellyfin: checking recently watched</b> — each server's recent history is being polled for new watches.</li>
-                          <li><b>detected new watched item</b> — an item was found on a server that isn't yet in Plembfin's history. It will be imported and synced.</li>
-                          <li><b>Resume Sync: … skipped (item is watched / unchanged)</b> — a partial-play resume position was checked but not propagated because the item is already fully watched or the position hasn't changed. Normal.</li>
-                          <li><b>Webhook received</b> — a play event arrived from Plex, Emby, or Jellyfin in real time.</li>
-                        </ul>
-                      </details>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Plex WebSockets</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Captures real-time WebSocket events pushed directly from Plex Media Server, including live playback session updates, pause/resume events, and unwatched media detection.</p>
+                        </div>
 
-                      <details style="margin-top: var(--space-2);" open>
-                        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Pre-restore skips</summary>
-                        <p class="tool-accordion-desc" style="margin-top: var(--space-2);"><b>skipped pre-restore item</b> — After importing a backup, Plembfin sets a restore timestamp. Any item whose play date falls at or before that timestamp is skipped during scheduled sync to prevent the same history being imported twice. These entries are expected after a restore and will stop appearing once the timestamp clears or the items age out.</p>
-                      </details>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Outbound Sync</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Logs outbound playstate dispatches to Plex, Emby, and Jellyfin. Records mark-played and mark-unplayed calls, resume position syncs, loop-prevention checks, and target API responses.</p>
+                        </div>
 
-                      <details style="margin-top: var(--space-2);" open>
-                        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Warnings and errors</summary>
-                        <ul class="tool-accordion-desc" style="margin-top: var(--space-2); padding-left: var(--space-4); line-height: 1.7;">
-                          <li><b>[WARN]</b> — A non-critical issue, such as a missing metadata field or a server returning unexpected data. Sync continues.</li>
-                          <li><b>[ERROR]</b> — Something failed, such as a network error reaching Plex, Emby, or Jellyfin, or a failed sync dispatch. Check your server URLs and API keys in Settings → Media Servers if these repeat.</li>
-                          <li><b>Plex / Emby / Jellyfin ERROR: failed to fetch watched items</b> — The scheduled sync could not reach that server. Usually a network or credential issue.</li>
-                          <li><b>loop detected</b> — A sync propagation triggered a webhook back from the target server. The loop guard blocked it. Normal when all three platforms are connected.</li>
-                        </ul>
-                      </details>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Scheduled Polls</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Tracks the per-minute background worker ticks that poll connected servers for recent watch history, evaluate 90% watched thresholds, and process periodic sync queues.</p>
+                        </div>
 
-                      <details style="margin-top: var(--space-2);" open>
-                        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Force sync logs</summary>
-                        <p class="tool-accordion-desc" style="margin-top: var(--space-2);">When you run a force sync from Settings → Sync, progress is streamed here in real time: how many items were fetched from each server, how many were reconciled, and the result of each mark-played or mark-unplayed call. A <b>Force Sync: process complete</b> line confirms it finished.</p>
-                      </details>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">System Logs</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Records core application lifecycle events, database initialization, configuration changes, scheduled task execution, and system errors or warnings.</p>
+                        </div>
 
-                      <p class="tool-accordion-desc" style="margin-top: var(--space-3); font-size: 0.8rem; color: var(--text-muted);">Use <b>Clear Logs</b> to wipe the in-memory buffer, or <b>Copy Logs</b> to paste them when reporting an issue.</p>
+                        <div style="border-top: 1px solid var(--line); padding-top: var(--space-3);">
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Downloading & Exporting</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Use <b>Download Logs</b> to save a full <code>.log</code> file containing complete backend and frontend diagnostic history for bug reporting and troubleshooting.</p>
+                        </div>
+                      </div>
                     </article>
                   </div>
                 </div>
@@ -1673,9 +1740,34 @@
                           <p>Changelog</p>
                           <span>Your version and newer releases from GitHub</span>
                         </div>
-                        <button id="changelogRefreshButton" class="button-ghost" type="button">Check for updates</button>
                       </div>
                       <div id="changelogPanel" class="changelog-panel" aria-live="polite"></div>
+                      <div class="settings-actions" style="margin-top: var(--space-3);">
+                        <button id="changelogRefreshButton" class="button-ghost" type="button">Check for updates</button>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Release Guide</p>
+                        <span>Updates & Maintenance</span>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Automatic Update Checks</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Plembfin queries published releases on GitHub to check for new feature releases, bug fixes, and performance improvements.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Release Tagging</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">The <b>Current</b> badge marks the version running on this instance. Any releases published since your build show a <b>New</b> badge.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Updating Plembfin</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">For Docker deployments, pull the latest image (`docker compose pull`). For Git installs, run `git pull`, `npm install`, and restart the process.</p>
+                        </div>
+                      </div>
                     </article>
                   </div>
                 </div>
@@ -1690,21 +1782,33 @@
                           <p>Image Cache</p>
                           <span>Locally stored artwork from Plex, TMDB, and other sources</span>
                         </div>
-                        <button id="refreshCacheStatsButton" class="button-ghost" type="button">Refresh</button>
                       </div>
                       <div id="cacheStatsPanel" aria-live="polite"></div>
+                      <div class="settings-actions" style="margin-top: var(--space-3);">
+                        <button id="refreshCacheStatsButton" class="button-ghost" type="button">Refresh Cache Stats</button>
+                      </div>
                     </article>
                   </div>
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
                         <p>About the Cache</p>
-                        <span>Storage</span>
+                        <span>Local Asset Storage</span>
                       </div>
-                      <p class="tool-accordion-desc"><b>Posters</b> are the cover art thumbnails for movies and TV shows.</p>
-                      <p class="tool-accordion-desc"><b>Backdrops</b> are the wide banner images used on detail pages.</p>
-                      <p class="tool-accordion-desc"><b>Profiles</b> are person headshots for cast and crew.</p>
-                      <p class="tool-accordion-desc">Clearing the cache removes files from disk. Images will be re-fetched and cached on demand as you browse.</p>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Posters & Backdrops</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Local cover art thumbnails and wide hero banners fetched from Plex, TMDB, and TVDB.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Cast Profiles</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Cached headshot portraits for cast and crew members on movie and show details pages.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Cache Maintenance</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Clearing the cache removes local image files from disk. Images are re-fetched automatically on demand as you browse.</p>
+                        </div>
+                      </div>
                     </article>
                   </div>
                 </div>

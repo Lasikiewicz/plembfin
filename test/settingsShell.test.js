@@ -5,7 +5,7 @@ import { parseSettingsRoute, settingsPathForLegacy, SETTINGS_SECTIONS } from "..
 
 test("settings routes resolve flat sections and panels", () => {
   assert.equal(parseSettingsRoute("/settings").kind, "overview");
-  assert.equal(parseSettingsRoute("/settings/media-servers").group, "media-servers-group");
+  assert.equal(parseSettingsRoute("/settings/media-servers").group, "media-servers");
   assert.equal(parseSettingsRoute("/settings/media-servers").panel, "apps");
   assert.equal(parseSettingsRoute("/settings/metadata").panel, "api-keys");
   assert.equal(parseSettingsRoute("/settings/storage").panel, "cache");
@@ -39,30 +39,30 @@ test("parent group routes aggregate every child's panel into one view list", () 
   // Media Servers, Backup/Restore, and Advanced fan their children out across
   // different underlying panels (or backup tabs) - the parent route must
   // reveal all of them, not just the first.
-  const mediaServers = parseSettingsRoute("/settings/media-servers-group");
+  const mediaServers = parseSettingsRoute("/settings/media-servers");
   assert.deepEqual(
     mediaServers.views.map((v) => v.panel),
     ["apps", "general"],
   );
 
-  const backupRestore = parseSettingsRoute("/settings/backup-restore-group");
+  const backupRestore = parseSettingsRoute("/settings/backup-restore");
   assert.deepEqual(
     backupRestore.views.map((v) => v.backupTab),
     ["settings", "restore"],
   );
 
-  const advanced = parseSettingsRoute("/settings/advanced-group");
+  const advanced = parseSettingsRoute("/settings/advanced");
   assert.deepEqual(
     advanced.views.map((v) => v.panel),
     ["tools", "cache"],
   );
 
-  const tools = parseSettingsRoute("/settings/tools-group");
+  const tools = parseSettingsRoute("/settings/tools");
   assert.deepEqual(
     tools.views.map((v) => v.panel),
     ["tools"],
   );
-  const sync = parseSettingsRoute("/settings/sync-group");
+  const sync = parseSettingsRoute("/settings/sync");
   assert.deepEqual(sync.subPanels, ["sync-tuning", "sync-tools", "sync-issues", "sync-history"]);
 });
 

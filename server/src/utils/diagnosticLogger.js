@@ -158,8 +158,8 @@ export function getLogs({ level, category = "all", limit = 500 } = {}) {
     logs: bounded.map((entry) => {
       const rawCat = entry.category || categorizeLog(entry.message);
       const catTag = categoryMap[rawCat] || rawCat.toUpperCase();
-      const cleanTs = formatLocalTimestamp(entry.ts, entry.timestamp);
-      return `[${cleanTs}] [${catTag}] [${entry.instance}] ${entry.message}`;
+      const isoTs = entry.timestamp || (entry.ts ? new Date(Number(entry.ts)).toISOString() : new Date().toISOString());
+      return `[${isoTs}] [${catTag}] [${entry.instance}] ${entry.message}`;
     }),
   };
 }
