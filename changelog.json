@@ -1,7 +1,20 @@
 {
-  "version": "0.5.29",
-  "updatedAt": "2026-07-22T08:47:42+01:00",
+  "version": "0.5.30",
+  "updatedAt": "2026-07-22T08:52:16+01:00",
   "entries": [
+    {
+      "version": "0.5.30",
+      "date": "2026-07-22T08:52:16+01:00",
+      "commit": "96927bb63427fff6184e7e452721143585e8ba00",
+      "message": "Docs - Update README and CLAUDE guidelines with latest logging and settings features",
+      "author": "Lasikiewicz",
+      "details": [
+        "Correct background scheduler polling description in README (per-minute ticks)",
+        "Add System Diagnostics & Server Logs section documenting category tabs and log export feature",
+        "Update settings route path references across README to clean canonical endpoints",
+        "Sync frontend module discipline mapping table in CLAUDE.md"
+      ]
+    },
     {
       "version": "0.5.29",
       "date": "2026-07-22T08:47:42+01:00",
