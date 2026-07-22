@@ -1,7 +1,18 @@
 {
-  "version": "0.5.28",
-  "updatedAt": "2026-07-21T21:18:36+01:00",
+  "version": "0.5.29",
+  "updatedAt": "2026-07-22T08:47:42+01:00",
   "entries": [
+    {
+      "version": "0.5.29",
+      "date": "2026-07-22T08:47:42+01:00",
+      "commit": "871d2d1df0054977d3ce8aba3b0631e7726559c9",
+      "message": "style(changelog): refine status card borders and update route normalization",
+      "author": "Lasikiewicz",
+      "details": [
+        "style(settings): harmonize settings layouts, help sidebars, log viewer, and button positioning",
+        "style(changelog): refine status card borders and update route normalization"
+      ]
+    },
     {
       "version": "0.5.28",
       "date": "2026-07-21T21:18:36+01:00",
