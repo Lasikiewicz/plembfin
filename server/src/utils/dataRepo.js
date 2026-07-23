@@ -7,6 +7,7 @@ import { cachedNextAiringFor, readNextAiringCache } from "./nextAiringCache.js";
 import {
   initShowProgressCache,
   getCachedShowProgress,
+  clearCachedShowProgress,
   queueShowProgressUpdate,
   flushShowProgressUpdates,
 } from "./showProgressCache.js";
@@ -1917,6 +1918,13 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
   if (!rows.length) return { ok: false, error: "No episodes found for show" };
 
   const oldTmdbIds = new Set(rows.map((row) => cleanString(row.tmdb_id)).filter(Boolean));
+  // The progress cache can hold a resolved tmdb_id that was never written back
+  // onto any row (e.g. resolved from an earlier ambiguous title search), so it
+  // wouldn't be caught by oldTmdbIds above - drop it too or queryShowDetail's
+  // cachedShowTmdbId() keeps serving it as the "cached" candidate.
+  const showKey = canonicalTitleKey(resolvedTitle) || normalizeKeyPart(resolvedTitle);
+  const cachedProgressTmdbId = cleanString(getCachedShowProgress(showKey)?.tmdb_id);
+  if (cachedProgressTmdbId) oldTmdbIds.add(cachedProgressTmdbId);
   const mediaKeys = new Set(rows.map((row) => cleanString(row.media_key)).filter(Boolean));
   const updatedAt = Date.now();
 
@@ -1926,6 +1934,11 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
     for (const tmdbId of oldTmdbIds) deleteTmdbMetadataStmt.run(`tv_${tmdbId}`);
     deleteTvdbMetadataStmt.run(`series_${cleanTvdbId}`);
   });
+
+  // Drop the stale cached progress entry (and its cached tmdb_id) synchronously
+  // so a request for this show between now and the background refresh below
+  // can't have the old show's id served back to it via queryShowDetail().
+  clearCachedShowProgress(resolvedTitle);
 
   queueShowProgressUpdate(resolvedTitle);
   bumpDataVersion();

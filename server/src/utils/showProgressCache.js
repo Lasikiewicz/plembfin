@@ -113,6 +113,16 @@ export function getCachedShowProgress(showKey) {
 }
 
 /**
+ * Drops a show's cached progress entry (including its cached tmdb_id) so a
+ * stale/incorrect id can't be served between a rematch and the next
+ * background recalculation.
+ */
+export function clearCachedShowProgress(showTitle) {
+  const showKey = canonicalTitleKey(showTitle) || normalizeKeyPart(showTitle);
+  delete progressCache[showKey];
+}
+
+/**
  * Queues a show title for progress update.
  */
 export function queueShowProgressUpdate(showTitle) {
