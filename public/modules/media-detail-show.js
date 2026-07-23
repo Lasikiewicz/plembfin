@@ -5,7 +5,7 @@ import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260710";
 import { renderWatchDatePrompt } from "./watch-action.js";
-import { authHeaders, setMessage, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js";
+import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
@@ -177,6 +177,8 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
   if (tmdbData?.id) state.activeShowTmdbId = String(tmdbData.id);
 
   const showTitle = tmdbData.name || "Untitled TV Show";
+  state.activeShowModalTitle = showTitle;
+  syncPageTopbar();
   const seasons = [...(tmdbData.seasons || [])]
     .filter((season) => Number(season.season_number) > 0)
     .sort((a, b) => Number(b.season_number) - Number(a.season_number));
@@ -991,6 +993,7 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
   bumpMediaRenderToken(); // invalidate any in-flight movie render
   syncInlineMediaDetailHeading("shows");
   state.activeShowModalKey = showKey;
+  state.activeShowModalTitle = null;
   state.pendingWatchAction = null;
   state.activeShowModalEpisode = activeEpisodeNum;
   if (!state.mediaDetailInline) {

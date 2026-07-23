@@ -377,6 +377,7 @@ function compareChangelogVersions(a, b) {
 // Pulls the published changelog from GitHub (proxied by the server) so we can show
 // the user's current build version alongside any newer releases.
 async function loadChangelogData(force = false) {
+  if (!force && state.changelog) return state.changelog;
   const response = await fetch(`/api/changelog${force ? "?refresh=1" : ""}`, {
     cache: "no-store",
     headers: authHeaders(),
@@ -388,6 +389,7 @@ async function loadChangelogData(force = false) {
   return data;
 }
 
+let changelogExpanded = false;
 async function renderChangelog(force = false) {
   if (!elements.changelogPanel) return;
   elements.changelogPanel.innerHTML = `<div class="idle-state"><b>Loading changelog...</b></div>`;
@@ -446,7 +448,17 @@ async function renderChangelog(force = false) {
       `;
     };
 
-    elements.changelogPanel.innerHTML = banner + entries.map(renderEntry).join("");
+    const visibleEntries = changelogExpanded ? entries : entries.slice(0, 20);
+    const olderCount = entries.length - visibleEntries.length;
+    elements.changelogPanel.innerHTML = banner + visibleEntries.map(renderEntry).join("") + (
+      olderCount > 0
+        ? `<button id="changelogShowAll" class="button-ghost" type="button">Show ${olderCount} older releases</button>`
+        : ""
+    );
+    elements.changelogPanel.querySelector("#changelogShowAll")?.addEventListener("click", () => {
+      changelogExpanded = true;
+      renderChangelog(false).catch(() => { });
+    });
   } catch (error) {
     elements.changelogPanel.innerHTML = `<div class="idle-state"><b>${escapeHtml(error.message || "Unable to load changelog.")}</b></div>`;
   }
@@ -1282,6 +1294,8 @@ function syncPageTopbar() {
       if (mode === "shows" && state.activeShowModalKey) {
         const activeShow = state.showsRaw?.find(s => slug(s.title) === state.activeShowModalKey);
         if (activeShow?.title) title = `TV Shows — ${activeShow.title}`;
+      } else if (mode === "shows" && state.activeShowModalTitle) {
+        title = `TV Shows — ${state.activeShowModalTitle}`;
       } else if (mode === "movies" && state.activeMovieModalId) {
         const activeMovie =
           state.history?.find(h => h.id === state.activeMovieModalId) ||
@@ -1669,6 +1683,8 @@ async function renderLogs(forceScrollToBottom = false) {
   try {
     const backendLogs = await fetchDiagnosticLogs(authHeaders(), category);
     if (backendLogs.length > 0) {
+      const visibleBackendLogs = backendLogs.slice(-250);
+      const visibleFrontendLogs = localLogs ? localLogs.split("\n").slice(-50) : [];
       const allLogs = [
         `=== BACKEND DIAGNOSTIC LOGS (${category.toUpperCase()}) ===`,
         ...backendLogs,
@@ -1679,10 +1695,10 @@ async function renderLogs(forceScrollToBottom = false) {
       state.renderedLogsText = allLogs;
 
       const htmlLines = [
-        `<div class="log-section-header">=== BACKEND DIAGNOSTIC LOGS (${escapeHtml(category.toUpperCase())}) ===</div>`,
-        ...backendLogs.map(formatLogLineToHtml),
+        `<div class="log-section-header">=== BACKEND DIAGNOSTIC LOGS (${escapeHtml(category.toUpperCase())}) — showing latest ${visibleBackendLogs.length} of ${backendLogs.length} ===</div>`,
+        ...visibleBackendLogs.map(formatLogLineToHtml),
         `<div class="log-section-header" style="margin-top: 1rem;">=== FRONTEND DEBUG LOGS ===</div>`,
-        ...(localLogs ? localLogs.split("\n").map(formatLogLineToHtml) : ['<div class="log-row"><span class="log-msg" style="opacity: 0.6;">[no frontend logs]</span></div>'])
+        ...(visibleFrontendLogs.length ? visibleFrontendLogs.map(formatLogLineToHtml) : ['<div class="log-row"><span class="log-msg" style="opacity: 0.6;">[no frontend logs]</span></div>'])
       ].join("");
 
       elements.logsTerminal.innerHTML = htmlLines;

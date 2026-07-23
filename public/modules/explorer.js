@@ -24,6 +24,8 @@ import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } f
 // Callback injection — functions defined outside the 2636–4016 range in app.js
 // ---------------------------------------------------------------------------
 let _cb = {};
+const searchResultsCache = new Map();
+let searchRequestId = 0;
 export function initExplorer(callbacks) {
   _cb = callbacks;
 }
@@ -100,6 +102,8 @@ export function syncInlineMediaDetailHeading(mode = state.explorerMode || "movie
 // Search page
 // ---------------------------------------------------------------------------
 export function triggerSearchPage(query) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  const requestId = ++searchRequestId;
   state.searchQuery = query;
   state.searchLoading = true;
   state.searchResults = [];
@@ -110,12 +114,20 @@ export function triggerSearchPage(query) {
   loadingEl?.classList.remove("hidden");
   emptyEl?.classList.add("hidden");
   if (resultsEl) resultsEl.innerHTML = "";
+  const cachedResults = searchResultsCache.get(normalizedQuery);
+  if (cachedResults) {
+    state.searchLoading = false;
+    state.searchResults = cachedResults;
+    renderSearchPage();
+    return;
+  }
   fetch(`/api/media-search?q=${encodeURIComponent(query)}&limit=100`, { headers: authHeaders() })
     .then((res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     })
     .then((body) => {
+      if (requestId !== searchRequestId) return;
       state.searchLoading = false;
       const results = [];
       const seenTitles = new Set();
@@ -195,10 +207,12 @@ export function triggerSearchPage(query) {
         if (!aIsPersonPartial && bIsPersonPartial) return 1;
         return 0; // Maintain original order
       });
+      searchResultsCache.set(normalizedQuery, results);
       state.searchResults = results;
       renderSearchPage();
     })
     .catch((error) => {
+      if (requestId !== searchRequestId) return;
       state.searchLoading = false;
       console.error("Search failed", error);
       loadingEl?.classList.add("hidden");

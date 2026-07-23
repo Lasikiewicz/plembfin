@@ -83,6 +83,7 @@ export function closeDebugModal() {
   }
   state.activeShowModalKey = null;
   state.activeShowTmdbId = null;
+  state.activeShowModalTitle = null;
   state.activeShowModalSeason = null;
   state.activeShowModalEpisode = null;
   state.showModalAllSeasonsExpanded = false;
@@ -185,6 +186,7 @@ export function clearMediaDetailState() {
   bumpMediaRenderToken();
   state.activeShowModalKey = null;
   state.activeShowTmdbId = null;
+  state.activeShowModalTitle = null;
   state.activeShowModalSeason = null;
   state.activeShowModalEpisode = null;
   state.showModalAllSeasonsExpanded = false;

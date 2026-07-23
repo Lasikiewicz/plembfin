@@ -8,8 +8,11 @@ let _cb = {};
 const UPCOMING_SEARCH_MIN_CHARS = 1;
 const UPCOMING_SEARCH_WINDOW_MONTHS = 12;
 const UPCOMING_SEARCH_DEBOUNCE_MS = 220;
-const UPCOMING_RANGE_PAST_MONTHS = 1;
-const UPCOMING_RANGE_FUTURE_MONTHS = 1;
+// Start with the month the user can see. Scroll sentinels extend the range on
+// demand, avoiding three sequential API requests and hundreds of DOM nodes on
+// every first visit.
+const UPCOMING_RANGE_PAST_MONTHS = 0;
+const UPCOMING_RANGE_FUTURE_MONTHS = 0;
 
 let upcomingSearchTimer = undefined;
 let upcomingSearchRequestId = 0;

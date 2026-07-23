@@ -24,6 +24,16 @@ a dashboard (Now Playing + recent history), Movies/TV Shows library browsers, a 
 page, an upcoming-episodes calendar, rich media detail pages (TMDB/TVDB metadata,
 cast, trailers, artwork), Jellyseerr/Overseerr requesting, and a backup system.
 
+### Performance-sensitive page loading
+
+The SPA keeps secondary data out of the first paint. Upcoming starts with the
+active month and extends the calendar through scroll sentinels; search results
+are cached in the session and stale searches cannot replace newer ones; person
+filmography watch-state data loads after the profile shell. Logs and changelog
+history retain complete source data for export and refresh, but render a bounded
+initial view. Preserve these loading, stale-request, and retry guards when adding
+new metadata requests.
+
 ## Task router — "I need to change X, where do I go?"
 
 | Task | Files | Doc |

@@ -5646,6 +5646,7 @@ html.light-mode .logs-cat-btn.active {
   white-space: normal;
   word-break: break-word;
   margin-top: var(--space-3);
+  contain: content;
 }
 
 html.light-mode .logs-terminal {
@@ -11143,6 +11144,7 @@ html.light-mode #explorerPanel .media-detail-page {
   width: 96vw;
   height: calc(96vh - 60px);
   cursor: pointer;
+  content-visibility: auto;
 }
 
 .photo-lightbox-img-wrap.grabbing {
@@ -11381,6 +11383,8 @@ html.light-mode .pill-toggle.active {
 .person-credit-card {
   display: block;
   min-width: 0;
+  content-visibility: auto;
+  contain-intrinsic-size: 220px;
   cursor: pointer;
   text-decoration: none;
   color: inherit;
@@ -14527,6 +14531,8 @@ html.light-mode .settings-pane .drop-zone:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  content-visibility: auto;
+  contain-intrinsic-size: 720px;
 }
 
 .upcoming-month-block + .upcoming-month-block {

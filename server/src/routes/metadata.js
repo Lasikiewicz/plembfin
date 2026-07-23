@@ -560,7 +560,10 @@ export async function handleMediaSearch(req, res) {
       queryShows({ search: query, limit: localLimit }),
       searchTmdb({ query, page: req.query.page, mediaType: req.query.mediaType || "multi" }),
     ]);
-    return sendJson(res, { local: { movies, shows }, discovery });
+    return sendJson(res, { local: { movies, shows }, discovery }, 200, {
+      "Cache-Control": "private, max-age=60, stale-while-revalidate=900",
+      Vary: "Authorization",
+    });
   } catch (error) {
     return sendJson(res, { error: error.message }, error.status || 500);
   }
