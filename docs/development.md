@@ -57,9 +57,10 @@ build-checked.
    headline comes from the head commit's subject line (conventional-commit prefixes
    become labels: `feat:` → "Feature - …"), and its `details` are backfilled from the
    bullet points of **every** commit in the push. User-visible `feat`, `fix`,
-   `security`, `enhance`, and `docs` commits are rejected unless they contain at
-   least one meaningful body bullet; maintenance commits can fall back to their
-   subject, so multi-commit pushes lose nothing
+   `security`, `enhance`, `perf`, and `docs` commits are rejected unless they
+   contain at least one meaningful body bullet. If a maintenance or legacy commit
+   has no body, the generator derives a user-facing summary from its changed file
+   areas instead of publishing only a vague subject line
 3. commits `changelog.json` + `package.json` + `package-lock.json` back to `main` as
    `chore: update changelog for <sha>` — this is why `origin/main` is usually one
    commit ahead right after a push (expected; see the "Push to git" section of

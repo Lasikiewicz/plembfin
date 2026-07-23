@@ -19,7 +19,9 @@
       "message": "perf: speed up media detail loading",
       "author": "Lasikiewicz",
       "details": [
-        "perf: speed up media detail loading"
+        "Media detail pages now show available local content before slower metadata enrichment completes.",
+        "Person profiles load the biography and filmography before fetching large watched-state library snapshots.",
+        "Repeated media metadata lookups now reuse resolved TMDB details instead of requesting the same title again."
       ]
     },
     {
@@ -83,7 +85,8 @@
       "message": "perf: render show details before hydration",
       "author": "Lasikiewicz",
       "details": [
-        "perf: render show details before hydration"
+        "TV show detail pages now render the local show shell before playback progress and episode metadata finish loading.",
+        "Slow secondary requests no longer block the first useful show-detail view."
       ]
     },
     {

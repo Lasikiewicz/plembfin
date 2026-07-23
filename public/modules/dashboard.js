@@ -561,7 +561,14 @@ export function renderPartWatched() {
 
   if (elements.partWatchedSection) elements.partWatchedSection.classList.remove("hidden");
   const items = state.partWatchedRaw.slice(0, PART_WATCHED_DASHBOARD_LIMIT);
-  elements.partWatchedPanel.innerHTML = items.map(renderPartWatchedCard).join("");
+  elements.partWatchedPanel.innerHTML = items.map((entry, index) => renderPartWatchedCard({
+    ...entry,
+    // The first cards are visible in the dashboard's Part Watched strip. Ask
+    // the browser to start those images immediately; the remaining cards keep
+    // native lazy loading so the dashboard does not become image-heavy.
+    eager_poster: index < 6,
+    prefer_raw_poster: true,
+  })).join("");
   bindPartWatchedAppBadges(elements.partWatchedPanel);
   hydratePosters(elements.partWatchedPanel);
   _cb.observeExplorerTmdbPrefetch?.(elements.partWatchedPanel);

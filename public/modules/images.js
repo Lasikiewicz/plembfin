@@ -200,7 +200,8 @@ export function posterMarkup(item = {}, className = "media-poster") {
   const idValue = item.id != null ? item.id : item.media_key;
   const posterId = idValue != null ? ` data-poster-id="${escapeAttribute(String(idValue))}"` : "";
   if (!url) return `<span class="${className} poster-fallback"${posterId} aria-hidden="true"></span>`;
-  return `<img class="${className}"${posterId} src="${escapeAttribute(url)}" alt="${escapeAttribute(label)} poster" loading="lazy" decoding="async" referrerpolicy="no-referrer" />`;
+  const loading = item.eager_poster ? "eager" : "lazy";
+  return `<img class="${className}"${posterId} src="${escapeAttribute(url)}" alt="${escapeAttribute(label)} poster" loading="${loading}" decoding="async" fetchpriority="${item.eager_poster ? "high" : "auto"}" referrerpolicy="no-referrer" />`;
 }
 
 export function posterFallbackElement(className = "media-poster", posterId = "") {

@@ -72,6 +72,27 @@ function commitsSinceLastEntry(lastCommit, headCommit) {
   }
 }
 
+function changedFilesForCommit(commitId) {
+  if (!commitId) return [];
+  try {
+    return execFileSync("git", ["diff-tree", "--no-commit-id", "--name-only", "-r", commitId], { cwd: root, encoding: "utf8" })
+      .split(/\r?\n/).map((file) => file.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function changeAreaDetails(files) {
+  const areas = new Set();
+  for (const file of files) {
+    if (/^(public\/|server\/)/.test(file)) areas.add("Updated application behavior and the web interface.");
+    if (/^docs\//.test(file) || /\.md$/.test(file)) areas.add("Updated user and developer documentation.");
+    if (/^(scripts\/|\.github\/)/.test(file)) areas.add("Updated build, release, or repository automation.");
+    if (/^(test\/|tests\/)/.test(file)) areas.add("Updated automated regression coverage.");
+  }
+  return [...areas];
+}
+
 const lastRecordedCommit = changelog.entries[0]?.commit || "";
 const gitHistoryCommits = commitsSinceLastEntry(lastRecordedCommit, sourceCommit);
 
@@ -100,7 +121,12 @@ let backfilledDetails = [];
 for (const commit of otherCommits) {
   const bullets = bulletPointsFrom(commit.message);
   if (bullets.length) backfilledDetails.push(...bullets);
-  else backfilledDetails.push(String(commit.message || "").split(/\r?\n/, 1)[0].trim());
+  else {
+    const generatedDetails = changeAreaDetails(changedFilesForCommit(commit.id));
+    backfilledDetails.push(...(generatedDetails.length
+      ? generatedDetails
+      : [String(commit.message || "").split(/\r?\n/, 1)[0].trim()]));
+  }
 }
 
 // Do not allow a subject-only head commit to create a release with no details.
@@ -113,9 +139,9 @@ if (sourceDetails.length === 0) {
     ...(Array.isArray(source?.modified) ? source.modified : []),
     ...(Array.isArray(source?.removed) ? source.removed : []),
   ].filter(Boolean);
-  sourceDetails.push(sourceFiles.length
-    ? `Changed files: ${sourceFiles.slice(0, 8).join(", ")}${sourceFiles.length > 8 ? " (and more)" : ""}`
-    : sourceMessage);
+  const effectiveSourceFiles = sourceFiles.length ? sourceFiles : changedFilesForCommit(sourceCommit);
+  const generatedDetails = changeAreaDetails(effectiveSourceFiles);
+  sourceDetails.push(...(generatedDetails.length ? generatedDetails : [sourceMessage]));
 }
 
 const allDetails = [...backfilledDetails, ...sourceDetails].filter((v, i, arr) => v && arr.indexOf(v) === i);

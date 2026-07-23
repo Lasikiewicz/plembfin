@@ -1,4 +1,4 @@
-const RELEASE_TYPES = new Set(["feat", "fix", "security", "enhance", "docs"]);
+const RELEASE_TYPES = new Set(["feat", "fix", "security", "enhance", "perf", "docs"]);
 
 export function formatChangelogMessage(message) {
   const m = String(message || "").match(/^([a-zA-Z]+)(?:\([^)]*\))?:\s*(.*)$/);
@@ -11,6 +11,7 @@ export function formatChangelogMessage(message) {
     docs: "Docs",
     ci: "CI",
     enhance: "Enhancement",
+    perf: "Performance",
   };
   const label = labels[m[1].toLowerCase()];
   if (!label) return message;
