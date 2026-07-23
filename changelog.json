@@ -1,7 +1,18 @@
 {
-  "version": "0.5.37",
-  "updatedAt": "2026-07-23T10:59:44+01:00",
+  "version": "0.5.38",
+  "updatedAt": "2026-07-23T11:03:25+01:00",
   "entries": [
+    {
+      "version": "0.5.38",
+      "date": "2026-07-23T11:03:25+01:00",
+      "commit": "77d666a4990b74d8351868eb192aa3df7be556a3",
+      "message": "Fix - Await detail refresh after watch date save",
+      "author": "Lasikiewicz",
+      "details": [
+        "Refresh the open movie or show detail immediately after saving edited watch dates.",
+        "Keep the edit flow asynchronous until the visible movie or show details have been refreshed."
+      ]
+    },
     {
       "version": "0.5.37",
       "date": "2026-07-23T10:59:44+01:00",
