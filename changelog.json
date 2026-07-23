@@ -1,7 +1,17 @@
 {
-  "version": "0.5.35",
-  "updatedAt": "2026-07-23T10:07:29+01:00",
+  "version": "0.5.36",
+  "updatedAt": "2026-07-23T10:13:15+01:00",
   "entries": [
+    {
+      "version": "0.5.36",
+      "date": "2026-07-23T10:13:15+01:00",
+      "commit": "a45dd4f08970528cc0978b78b64114a97247d8c9",
+      "message": "perf: render show details before hydration",
+      "author": "Lasikiewicz",
+      "details": [
+        "perf: render show details before hydration"
+      ]
+    },
     {
       "version": "0.5.35",
       "date": "2026-07-23T10:07:29+01:00",
