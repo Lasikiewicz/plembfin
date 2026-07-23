@@ -1,7 +1,17 @@
 {
-  "version": "0.6.5",
-  "updatedAt": "2026-07-23T16:26:45+01:00",
+  "version": "0.6.6",
+  "updatedAt": "2026-07-23T16:44:03+01:00",
   "entries": [
+    {
+      "version": "0.6.6",
+      "date": "2026-07-23T16:44:03+01:00",
+      "commit": "f46ea3125639ba477cec61ade1711a40ee1201ed",
+      "message": "Fix - Stop Upcoming auto-scrolling months",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep the current month visible until the user selects another month."
+      ]
+    },
     {
       "version": "0.6.5",
       "date": "2026-07-23T16:26:45+01:00",
