@@ -9,7 +9,7 @@ import { resolveTvdbSeriesId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, shap
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DETAILS_SCHEMA_VERSION = 12; // bumped: TV show details now retain TMDB's IMDb external id when TVDB remote ids omit it
+const DETAILS_SCHEMA_VERSION = 13; // bumped: TV show cast now comes from aggregate_credits (whole-series regulars) instead of the sparse single-season /credits list
 const PERSON_SCHEMA_VERSION = 5;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const MISSING_TTL_MS = DAY_MS;
@@ -123,15 +123,40 @@ function hasImageCandidates(images = {}) {
   return Boolean(images.backdrops?.length || images.posters?.length || images.logos?.length);
 }
 
+// TMDB's plain `/credits` endpoint for a TV show only reflects one season's
+// top billing and can be missing long-running regular cast entirely (e.g. it
+// omits The Office US's Michael Scott/Steve Carell). `aggregate_credits`
+// covers the whole series but returns every guest/one-episode actor too
+// (hundreds of rows) — shape it down to the regularly-billed cast TMDB orders
+// first (guest appearances are ordered far afterward) so the show page shows
+// the real main cast instead of whichever handful `/credits` happened to have.
+function mainCastFromAggregate(aggregateCredits) {
+  const cast = Array.isArray(aggregateCredits?.cast) ? aggregateCredits.cast : [];
+  return [...cast]
+    .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
+    .slice(0, 30)
+    .map((actor) => ({
+      id: actor.id,
+      name: actor.name,
+      profile_path: actor.profile_path,
+      character: actor.roles?.[0]?.character || "",
+      order: actor.order,
+    }));
+}
+
 function compactDetails(details = {}) {
   const compact = { ...details };
-  if (details.credits) {
+  const aggregateCast = mainCastFromAggregate(details.aggregate_credits);
+  if (details.credits || aggregateCast.length) {
     compact.credits = {
       ...details.credits,
-      cast: (details.credits.cast || []).slice(0, 60),
-      crew: (details.credits.crew || []).slice(0, 60),
+      cast: aggregateCast.length ? aggregateCast : (details.credits?.cast || []).slice(0, 60),
+      crew: (details.credits?.crew || []).slice(0, 60),
     };
   }
+  // Only the shaped main-cast list above is kept — the raw aggregate payload
+  // (hundreds of guest-actor rows) isn't worth persisting.
+  delete compact.aggregate_credits;
   if (details.videos) compact.videos = boundedResults(details.videos, 30);
   if (details.reviews) compact.reviews = boundedResults(details.reviews, 10);
   if (details.similar) compact.similar = boundedResults(details.similar, 24);
@@ -201,8 +226,9 @@ async function upstream(path, params = {}, attempt = 0) {
 }
 
 async function fetchTmdbRaw(type, id) {
+  const appends = "credits,videos,reviews,similar,recommendations,watch/providers,keywords,external_ids,release_dates,content_ratings,images";
   return compactDetails(await upstream(`${type}/${id}`, {
-    append_to_response: "credits,videos,reviews,similar,recommendations,watch/providers,keywords,external_ids,release_dates,content_ratings,images",
+    append_to_response: type === "tv" ? `${appends},aggregate_credits` : appends,
   }));
 }
 

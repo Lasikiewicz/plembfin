@@ -82,7 +82,7 @@ export function renderCastSection(tmdbData) {
     <section class="seasons-section cast-section">
       <div class="show-section-title"><h3>Cast</h3></div>
       <div class="cast-compact-row cast-scroll-row">
-        ${cast.slice(0, 20).map((actor) => {
+        ${cast.slice(0, 30).map((actor) => {
     const avatarUrl = tmdbProfile(actor.profile_path) || "/favicon.svg";
     return `
             <div class="cast-member-card" style="cursor: pointer;" data-person-id="${actor.id}" data-person-name="${escapeAttribute(actor.name)}">
