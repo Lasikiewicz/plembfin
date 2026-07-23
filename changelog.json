@@ -1,7 +1,22 @@
 {
-  "version": "0.5.33",
-  "updatedAt": "2026-07-23T09:30:01+01:00",
+  "version": "0.5.34",
+  "updatedAt": "2026-07-23T09:58:31+01:00",
   "entries": [
+    {
+      "version": "0.5.34",
+      "date": "2026-07-23T09:58:31+01:00",
+      "commit": "34d75fd4b8f1df71e649a68981b9f917ff98d103",
+      "message": "Fix - TV Fix Match no longer reuses a mismatched cached TMDB doc",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix Match on a TV show now clears the cached progress-tracker entry for that show as part of the rematch, instead of only clearing cache rows tied to the ids already stored on episode records",
+        "Prevents a stale TMDB id (left over from an earlier automatic match) from being served back by the show detail API in the moment between saving a new match and the background metadata refresh finishing",
+        "Fixes the TV show page briefly showing the new match then reverting to the previous show's title/details while keeping the newly chosen artwork",
+        "getTvShowDetails() no longer returns a cached tmdb_id document when it belongs to a different TVDB series than the one being resolved",
+        "Fixes the real cause of Fix Match appearing to revert: an earlier ambiguous match had cached the wrong show's data under a TMDB id that a later, correct TVDB-based match also resolves to, so the stale cache kept winning",
+        "The stale cache entry self-heals automatically the next time that show is viewed, no manual cache clearing needed"
+      ]
+    },
     {
       "version": "0.5.33",
       "date": "2026-07-23T09:30:01+01:00",
