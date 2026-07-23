@@ -1,7 +1,17 @@
 {
-  "version": "0.6.0",
-  "updatedAt": "2026-07-23T11:47:07+01:00",
+  "version": "0.6.1",
+  "updatedAt": "2026-07-23T12:30:44+01:00",
   "entries": [
+    {
+      "version": "0.6.1",
+      "date": "2026-07-23T12:30:44+01:00",
+      "commit": "ed98052784a99fe376145818923319b874e9dad5",
+      "message": "Fix - Stabilize mobile control layouts",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep mobile action labels readable and stack Upcoming controls cleanly on narrow screens."
+      ]
+    },
     {
       "version": "0.6.0",
       "date": "2026-07-23T11:47:07+01:00",
