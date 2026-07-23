@@ -1,7 +1,17 @@
 {
-  "version": "0.5.36",
-  "updatedAt": "2026-07-23T10:13:15+01:00",
+  "version": "0.5.37",
+  "updatedAt": "2026-07-23T10:59:44+01:00",
   "entries": [
+    {
+      "version": "0.5.37",
+      "date": "2026-07-23T10:59:44+01:00",
+      "commit": "82d6a31ac3b3c753362e30691b79a46c8d912da0",
+      "message": "Fix - Refine movie watch history layout",
+      "author": "Lasikiewicz",
+      "details": [
+        "Show watch dates in a compact row with dash separators and an end-positioned Show more control."
+      ]
+    },
     {
       "version": "0.5.36",
       "date": "2026-07-23T10:13:15+01:00",
