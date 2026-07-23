@@ -1,7 +1,19 @@
 {
-  "version": "0.5.34",
-  "updatedAt": "2026-07-23T09:58:31+01:00",
+  "version": "0.5.35",
+  "updatedAt": "2026-07-23T10:07:29+01:00",
   "entries": [
+    {
+      "version": "0.5.35",
+      "date": "2026-07-23T10:07:29+01:00",
+      "commit": "d10cb692417ad25386c4c15d6e118e135e7d2760",
+      "message": "Fix - TV show cast now shows the full main ensemble instead of 4 actors",
+      "author": "Lasikiewicz",
+      "details": [
+        "TV show details now pull TMDB's aggregate_credits (whole-series regular cast) instead of the plain credits endpoint, which only reflects one season's top billing and can omit long-running leads entirely",
+        "The show detail page's cast row now displays up to 30 main cast members instead of 20",
+        "Verified against The Office (US): previously showed 4 actors and was missing Michael Scott; now shows the full ~22-person regular cast"
+      ]
+    },
     {
       "version": "0.5.34",
       "date": "2026-07-23T09:58:31+01:00",
