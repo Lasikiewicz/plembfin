@@ -5,7 +5,7 @@ import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260710";
 import { renderWatchDatePrompt } from "./watch-action.js";
-import { authHeaders, setMessage, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, prepareInlineMediaDetail, bumpMediaRenderToken } from "./media-detail-context.js";
+import { authHeaders, setMessage, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
@@ -126,6 +126,8 @@ async function fetchShowImdbPillHtml(show = {}, tmdbData = null, requestStillCur
 }
 
 export async function openShowImmersiveModalByTmdbId(tmdbId) {
+  const renderToken = bumpMediaRenderToken();
+  state.showModalRequestToken += 1;
   setMediaDetailActions("");
   state.activeShowTmdbId = String(tmdbId);
   syncInlineMediaDetailHeading("shows");
@@ -145,6 +147,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
   `;
 
   let tmdbData = await fetchTmdbDetails("tv", tmdbId, null);
+  if (currentMediaRenderToken() !== renderToken) return;
   if (!tmdbData) {
     // The stored TMDB ID may not map to a valid show (e.g. episode-level ID from
     // Plex, or a show not yet indexed). Fall back to a title search using the
@@ -157,6 +160,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
         matchingSession.showTitle || matchingSession.show_title || matchingSession.title || ""
       );
       if (fallbackTitle) tmdbData = await fetchTmdbDetails("tv", null, fallbackTitle);
+      if (currentMediaRenderToken() !== renderToken) return;
     }
   }
   if (!tmdbData) {
@@ -190,6 +194,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
       if (details) seasonDetailsByNumber.set(seasonNumber, details);
     }),
   ]);
+  if (currentMediaRenderToken() !== renderToken) return;
 
   const existingShow = state.showsRaw.find((show) => (
     String(show.tmdb_id || "") === String(tmdbData.id) || slug(show.title) === slug(showTitle)
@@ -202,6 +207,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     season_count: seasons.length,
   });
   const imdbPillHtml = await fetchShowImdbPillHtml(show, tmdbData, () => String(state.activeShowTmdbId || "") === String(tmdbData.id));
+  if (currentMediaRenderToken() !== renderToken) return;
 
   renderShowModalContent(show, {
     activeSeasonNum: state.activeShowModalSeason,

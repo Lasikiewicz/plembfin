@@ -108,6 +108,7 @@ export const state = {
   posterLookupInflight: new Map(),
   tmdbDetailsCache: new Map(),
   tmdbSeasonCache: new Map(),
+  tmdbPersonCache: new Map(),
   globalDiscoveryResults: new Map(),
   globalSearchRequestToken: 0,
   searchQuery: "",

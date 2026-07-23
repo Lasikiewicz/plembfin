@@ -7,6 +7,10 @@ import { movieBySlugOrId, clearMediaDetailState, mediaDetailRoot, mediaDetailLoa
 import { FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver, resolvedTmdbCache } from "./explorer.js";
 
 let _cb = {};
+const PERSON_LIBRARY_CACHE_TTL_MS = 5 * 60 * 1000;
+let personLibrarySnapshot = null;
+let personLibrarySnapshotPromise = null;
+let personRenderToken = 0;
 export function initMediaPerson(callbacks = {}) { _cb = callbacks; }
 function navigateTo(...args) { return _cb.navigateTo?.(...args); }
 function setMessage(...args) { return _cb.setMessage?.(...args); }
@@ -98,6 +102,7 @@ export function closePersonProfile() {
 }
 
 export async function loadCastMemberDetails(personId, personName = null) {
+  const renderToken = ++personRenderToken;
   state.personProfileName = personName || "";
   if (elements.personModal) {
     elements.personModal.classList.add("hidden");
@@ -134,23 +139,24 @@ export async function loadCastMemberDetails(personId, personName = null) {
   root.innerHTML = mediaDetailLoaderHtml("Loading profile");
 
   try {
-    // Fetch person data and all watched movies/shows in parallel so filmography
-    // watched-status is accurate regardless of which explorer tabs have been visited.
-    const [res, moviesRes, showsRes] = await Promise.all([
-      fetch(`/api/tmdb-person?id=${personId}`, { headers: authHeaders() }),
-      fetch(`/api/movies?limit=5000&sort=title_asc`, { headers: authHeaders(), cache: "no-store" }),
-      fetch(`/api/shows?limit=5000&sort=title_asc`, { headers: authHeaders(), cache: "no-store" }),
-    ]);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const moviesBody = await moviesRes.json().catch(() => ({}));
-    const showsBody = await showsRes.json().catch(() => ({}));
+    const personCacheKey = String(personId);
+    let res = state.tmdbPersonCache.get(personCacheKey);
+    if (!res) {
+      res = fetch(`/api/tmdb-person?id=${encodeURIComponent(personId)}`, { headers: authHeaders() })
+        .then(async (response) => {
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(body?.error || `HTTP ${response.status}`);
+          return body;
+        });
+      state.tmdbPersonCache.set(personCacheKey, res);
+      res.catch(() => state.tmdbPersonCache.delete(personCacheKey));
+    }
+    const data = await res;
+    if (renderToken !== personRenderToken) return;
 
     // Build filmography-local lookups by tmdb_id and slug so findLibraryItem can
     // match even when the explorer hasn't been opened yet.
-    const allWatchedMovies = Array.isArray(moviesBody.movies) ? moviesBody.movies : [];
-    const allWatchedShows = Array.isArray(showsBody.shows) ? showsBody.shows : [];
-    const filmographyLookup = { allWatchedMovies, allWatchedShows };
+    let filmographyLookup = { allWatchedMovies: [], allWatchedShows: [] };
 
     if (elements.explorerTitle) {
       elements.explorerTitle.textContent = data.name || "Cast Member Profile";
@@ -553,7 +559,36 @@ export async function loadCastMemberDetails(personId, personName = null) {
     // Initial render of the grid
     updateGrid();
 
+    // Watched-state decoration is useful, but it is not required for the profile
+    // shell or filmography to become usable. Load the large local snapshots after
+    // the first paint and reuse them briefly while navigating between profiles.
+    const loadLibrarySnapshot = async () => {
+      if (personLibrarySnapshot && Date.now() - personLibrarySnapshot.updatedAt < PERSON_LIBRARY_CACHE_TTL_MS) {
+        return personLibrarySnapshot;
+      }
+      if (!personLibrarySnapshotPromise) {
+        personLibrarySnapshotPromise = Promise.all([
+          fetch(`/api/movies?limit=5000&sort=title_asc`, { headers: authHeaders(), cache: "no-store" }).then((response) => response.json().catch(() => ({}))),
+          fetch(`/api/shows?limit=5000&sort=title_asc`, { headers: authHeaders(), cache: "no-store" }).then((response) => response.json().catch(() => ({}))),
+        ]).then(([moviesBody, showsBody]) => {
+          personLibrarySnapshot = {
+            allWatchedMovies: Array.isArray(moviesBody.movies) ? moviesBody.movies : [],
+            allWatchedShows: Array.isArray(showsBody.shows) ? showsBody.shows : [],
+            updatedAt: Date.now(),
+          };
+          return personLibrarySnapshot;
+        }).finally(() => { personLibrarySnapshotPromise = null; });
+      }
+      return personLibrarySnapshotPromise;
+    };
+    loadLibrarySnapshot().then((snapshot) => {
+      if (renderToken !== personRenderToken) return;
+      filmographyLookup = snapshot;
+      updateGrid(false);
+    }).catch(() => {});
+
   } catch (err) {
+    if (renderToken !== personRenderToken) return;
     root.innerHTML = `
       <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 200px; gap: 1rem;">
         <span class="status-pill status-error" style="font-size: 1rem; padding: var(--space-2) var(--space-4);">Failed to load profile</span>

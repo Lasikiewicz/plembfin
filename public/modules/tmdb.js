@@ -42,6 +42,15 @@ export function normalizeTmdbLookupIds(ids = {}) {
   };
 }
 
+function cacheResolvedDetails(mediaType, requestedKey, details) {
+  if (!details || typeof details !== "object") return;
+  const aliases = new Set([requestedKey]);
+  if (details.id != null) aliases.add(`${mediaType}|${details.id}||||`);
+  const title = details.title || details.name;
+  if (title) aliases.add(`${mediaType}||${String(title).toLowerCase()}|||`);
+  for (const key of aliases) state.tmdbDetailsCache.set(key, details);
+}
+
 // `light: true` is used by grid prefetch: the server skips next-airing and
 // artwork enrichment on cold items. Light results are cached under their own
 // key so a later full request (detail pages) still fetches complete data;
@@ -83,6 +92,7 @@ export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}, { lig
         return;
       }
       state.tmdbDetailsCache.set(cacheKey, val);
+      if (!light) cacheResolvedDetails(mediaType, baseKey, val);
     })
     .catch(() => state.tmdbDetailsCache.delete(cacheKey));
   return promise;

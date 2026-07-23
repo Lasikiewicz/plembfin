@@ -407,6 +407,8 @@ export function patchMovieWatchedState(movie) {
 }
 
 export async function openMovieImmersiveModalByTmdbId(tmdbId) {
+  const renderToken = bumpMediaRenderToken();
+  state.showModalRequestToken += 1;
   state.activeMovieTmdbId = String(tmdbId);
   // Fast path: if it's in the loaded preview, show its watched detail immediately.
   const existingWatched = state.history.find(
@@ -440,6 +442,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
     </div>
   `;
   const tmdbData = await fetchTmdbDetails("movie", tmdbId, null);
+  if (currentMediaRenderToken() !== renderToken) return;
   if (!tmdbData) {
     root.innerHTML = `
       <div class="immersive-container">
@@ -455,6 +458,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   // state.history is only the dashboard preview; confirm against the server so a
   // movie marked watched (especially with an old release date) still shows watched.
   const persistedWatched = await fetchWatchedMovieByTmdb(tmdbId, movieTitle);
+  if (currentMediaRenderToken() !== renderToken) return;
   if (persistedWatched) return renderMovieImmersiveModalContent(persistedWatched);
   const isSaving = state.savingWatchAction;
   const isSavingThisMovie = isSaving && isSaving.scope === "movie" && String(isSaving.movie?.tmdbId || "") === String(tmdbId);
