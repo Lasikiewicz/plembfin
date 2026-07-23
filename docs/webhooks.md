@@ -76,6 +76,27 @@ before it can trigger another round.
 Results are written back as `sync_dispatch_telemetry` on the watch record and into
 the `sync_history` SQLite table.
 
+## Rewatch detection
+
+A `completed` event for an item whose `playstate` is already `watched` is not
+always a duplicate: media servers can echo a "played" event without an actual
+new play, but a real rewatch produces the same signal. `handleWebhook`
+(`server/src/routes/sync.js`) tells them apart by comparing the UTC calendar
+day of the last recorded watch against today:
+
+- **Same UTC day** — treated as a duplicate echo and dropped (no new
+  `watch_history` row, no re-propagation).
+- **A later day** — treated as a genuine rewatch: a new `watch_history` row is
+  inserted and `playstate.watched_at` advances, using the normal insert/
+  propagation path. Pause/resume webhook events never reach this check at all —
+  they're routed through the separate `active`/`ended` phases above.
+
+Every watch of the same movie/episode collapses into one card everywhere the UI
+lists history (`dedupeHistory` / `collapseMovieCluster` in
+`server/src/utils/dataRepo.js`), carrying a `playHistory` array of
+`{ id, watched_at, source }` for each individual play — this is what powers the
+"Watch History" list and rewatch counts described in [media-detail.md](media-detail.md).
+
 ## Resume / playback progress
 
 On `ended` (and via the scheduled poller), if resume is actionable

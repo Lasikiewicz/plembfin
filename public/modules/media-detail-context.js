@@ -66,7 +66,7 @@ export function openDebugModal(entry) {
       <div><span>Season</span><b>${escapeHtml(entry.season ?? "None")}</b></div>
       <div><span>Episode</span><b>${escapeHtml(entry.episode ?? "None")}</b></div>
       <div><span>Watched at (oldest)</span><b>${escapeHtml(formatDate(entry.watched_at))}</b></div>
-      ${entry.playHistory && entry.playHistory.length > 1 ? `<div><span>Play history</span><b>${entry.playHistory.map(d => escapeHtml(formatDate(d))).join("<br>")}</b></div>` : ""}
+      ${entry.playHistory && entry.playHistory.length > 1 ? `<div><span>Play history</span><b>${entry.playHistory.map(p => escapeHtml(`${formatDate(p.watched_at)} (${platformName(p.source)})`)).join("<br>")}</b></div>` : ""}
     </section>
     <section class="telemetry-block">
       <p>Sync dispatch telemetry</p>

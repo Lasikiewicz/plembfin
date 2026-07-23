@@ -33,6 +33,9 @@ import {
   deleteWatchRecord,
   deleteWatchRecordById,
   updateWatchRecord,
+  getWatchDatesForRecord,
+  addWatchDate,
+  deleteWatchDate,
   mergeShows,
   getWatchRecordById,
   getWatchRecordByIdLight,
@@ -400,6 +403,57 @@ function resolveCustomPosterFetchUrl(rawUrl) {
     }
   }
   return value;
+}
+
+// Lists every watch date recorded for the same movie/episode as `id`, for the
+// "Edit Watch Date" dialog's per-date list.
+export async function handleWatchDates(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const id = String(req.query.id || "").trim();
+  if (!id) return sendJson(res, { error: "id is required" }, 400);
+
+  const result = await getWatchDatesForRecord(id);
+  if (!result) return sendJson(res, { error: "Watch record not found" }, 404);
+  return sendJson(res, result);
+}
+
+// Adds another watch date for the same movie/episode as `id` (the "Add another
+// watch date" control in the edit-date dialog) — a local-only record, not
+// propagated to Plex/Emby/Jellyfin, matching how manual date edits behave.
+export async function handleAddWatchDate(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const id = String(body.id || "").trim();
+  const watchedAt = body.watched_at;
+  if (!id) return sendJson(res, { error: "id is required" }, 400);
+  if (!watchedAt) return sendJson(res, { error: "watched_at is required" }, 400);
+
+  const result = await addWatchDate(id, watchedAt);
+  if (!result.ok) return sendJson(res, { error: result.error }, 400);
+  return sendJson(res, { ok: true, id: result.id });
+}
+
+// Removes a single watch date (the "Remove this watch date" control in the
+// edit-date dialog) without affecting any other watch of the same item.
+export async function handleDeleteWatchDate(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST" && req.method !== "DELETE") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const id = String(body.id || "").trim();
+  if (!id) return sendJson(res, { error: "id is required" }, 400);
+
+  const result = await deleteWatchDate(id);
+  if (!result.ok) return sendJson(res, { error: result.error }, 400);
+  writeAuditLog("media.watch_date_deleted", { ip: req.ip || req.socket?.remoteAddress, detail: { id } });
+  return sendJson(res, { ok: true });
 }
 
 export async function handleUpdateWatch(req, res) {

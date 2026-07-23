@@ -4,6 +4,7 @@ import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { tmdbPoster, tmdbImage } from "./images.js";
 import { dateAtMiddayIso, refreshShowAfterManualWatch } from "./watch-action.js";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js";
 
 // Callbacks injected by app.js at startup.
 let _setMessage = () => {};
@@ -11,6 +12,7 @@ let _clearDerivedUiCaches = () => {};
 let _renderImmersiveShowModal = async () => {};
 let _openShowImmersiveModalByTmdbId = async () => {};
 let _navigateTo = () => {};
+let _openConfirmDialog = async () => false;
 
 export function initEditDialogs(callbacks) {
   if (callbacks.setMessage) _setMessage = callbacks.setMessage;
@@ -18,6 +20,7 @@ export function initEditDialogs(callbacks) {
   if (callbacks.renderImmersiveShowModal) _renderImmersiveShowModal = callbacks.renderImmersiveShowModal;
   if (callbacks.openShowImmersiveModalByTmdbId) _openShowImmersiveModalByTmdbId = callbacks.openShowImmersiveModalByTmdbId;
   if (callbacks.navigateTo) _navigateTo = callbacks.navigateTo;
+  if (callbacks.openConfirmDialog) _openConfirmDialog = callbacks.openConfirmDialog;
 }
 
 function authHeaders() {
@@ -37,6 +40,40 @@ export async function apiUpdateWatch(id, fields) {
   return body;
 }
 
+// Every watch date recorded for the same movie/episode as `id`, oldest first.
+async function apiWatchDates(id) {
+  try {
+    const res = await fetch(`/api/watch-dates?id=${encodeURIComponent(id)}`, { headers: authHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !Array.isArray(body.rows) || !body.rows.length) return null;
+    return body.rows;
+  } catch {
+    return null;
+  }
+}
+
+async function apiAddWatchDate(anchorId, watchedAtIso) {
+  const res = await fetch("/api/add-watch-date", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ id: anchorId, watched_at: watchedAtIso }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body;
+}
+
+async function apiDeleteWatchDate(id) {
+  const res = await fetch("/api/delete-watch-date", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ id }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body;
+}
+
 async function apiRematchShow(id, showTitle, tvdbId) {
   const res = await fetch("/api/rematch-show", {
     method: "POST",
@@ -46,16 +83,6 @@ async function apiRematchShow(id, showTitle, tvdbId) {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
   return body;
-}
-
-export function watchedAtToInputValue(watchedAt) {
-  if (!watchedAt) return "";
-  try {
-    const d = new Date(watchedAt);
-    if (Number.isNaN(d.getTime())) return "";
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  } catch { return ""; }
 }
 
 // ── Apply a watched_at update to in-memory state ──────────────────────────
@@ -125,13 +152,49 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
   const releaseLabel = releaseDate
     ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(`${releaseDate}T12:00:00`))
     : "Release date unavailable";
+
   const overlay = document.createElement("div");
   overlay.className = "edit-dialog-overlay";
   overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
   overlay.innerHTML = `
-    <div class="edit-dialog glass-panel">
+    <div class="edit-dialog glass-panel edit-dialog--watch-date">
       <h3>Edit Watch Date</h3>
-      <div class="watch-date-section-label">Quick choices</div>
+      <p class="edit-dialog-status is-muted">Loading watch dates…</p>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const rowLabel = (index) => `Watch ${index + 1}`;
+  const toIso = (value) => {
+    const date = new Date(value || Date.now());
+    return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+  };
+  const renderRow = (index, watchedAt, rowId) => `
+    <div class="watch-date-list-row" data-row-id="${escapeAttribute(rowId || "")}" data-row-new="${rowId ? "" : "1"}">
+      <div class="watch-date-row-main">
+        <span class="watch-date-row-label">${rowLabel(index)}</span>
+        <button type="button" class="watch-date-value-btn" data-watched-iso="${escapeAttribute(toIso(watchedAt))}">
+          ${escapeHtml(formatDate(toIso(watchedAt)))}
+        </button>
+        <button class="watch-date-remove-btn" type="button" title="Remove this watch date" aria-label="Remove this watch date">&times;</button>
+      </div>
+      <div class="watch-date-calendar-slot"></div>
+    </div>
+  `;
+
+  (async () => {
+    const fetchedRows = await apiWatchDates(id);
+    if (!overlay.isConnected) return;
+    const rows = fetchedRows && fetchedRows.length ? fetchedRows : [{ id, watched_at: currentWatchedAt }];
+
+    const panel = overlay.querySelector(".edit-dialog");
+    panel.innerHTML = `
+      <h3>Edit Watch Date</h3>
+      <div class="watch-date-list">
+        ${rows.map((row, index) => renderRow(index, row.watched_at, row.id)).join("")}
+      </div>
+      <button class="button-ghost watch-date-add-btn" type="button">+ Add another watch date</button>
+      <div class="watch-date-section-label">Quick choices <span class="muted-copy">(applies to the last row)</span></div>
       <div class="watch-date-options">
         <button class="watch-date-pick edit-date-choice" type="button" data-edit-date-choice="release"${releaseDate ? "" : " disabled"}>
           <span class="watch-date-pick-title">On release date</span>
@@ -142,45 +205,144 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
           <span class="watch-date-pick-sub">Today, ${escapeHtml(new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date()))}</span>
         </button>
       </div>
-      <label class="field-label">
-        Or pick a specific time
-        <input type="datetime-local" class="field edit-date-input" value="${escapeAttribute(watchedAtToInputValue(currentWatchedAt))}" />
-      </label>
       <div class="edit-dialog-actions">
         <button class="button-primary edit-dialog-save" type="button">Save</button>
         <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
       </div>
       <p class="edit-dialog-status"></p>
-    </div>
-  `;
+    `;
 
-  overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
-  overlay.querySelectorAll("[data-edit-date-choice]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const input = overlay.querySelector(".edit-date-input");
-      if (!input) return;
-      const choice = button.dataset.editDateChoice;
-      if (choice === "release" && releaseDate) input.value = watchedAtToInputValue(dateAtMiddayIso(releaseDate));
-      if (choice === "now") input.value = watchedAtToInputValue(new Date().toISOString());
+    const listEl = panel.querySelector(".watch-date-list");
+    const lastValueBtn = () => {
+      const buttons = listEl.querySelectorAll(".watch-date-value-btn");
+      return buttons[buttons.length - 1] || null;
+    };
+    const setRowValue = (rowEl, iso) => {
+      const btn = rowEl.querySelector(".watch-date-value-btn");
+      if (!btn) return;
+      btn.dataset.watchedIso = iso;
+      btn.textContent = formatDate(iso);
+    };
+    const closeAnyOpenCalendar = () => {
+      listEl.querySelectorAll(".watch-date-calendar-slot").forEach((slot) => { slot.innerHTML = ""; });
+    };
+    const updateRemoveButtonsState = () => {
+      const rowEls = [...listEl.querySelectorAll(".watch-date-list-row")];
+      const onlyOne = rowEls.length <= 1;
+      rowEls.forEach((rowEl) => {
+        const btn = rowEl.querySelector(".watch-date-remove-btn");
+        if (btn) btn.disabled = onlyOne;
+        if (btn) btn.title = onlyOne ? "Use “Mark unwatched” to remove the only watch date" : "Remove this watch date";
+      });
+    };
+    updateRemoveButtonsState();
+
+    panel.querySelector(".watch-date-add-btn").addEventListener("click", () => {
+      closeAnyOpenCalendar();
+      const index = listEl.children.length;
+      const rowEl = document.createElement("div");
+      rowEl.innerHTML = renderRow(index, new Date().toISOString(), "").trim();
+      listEl.appendChild(rowEl.firstElementChild);
+      updateRemoveButtonsState();
     });
-  });
-  overlay.querySelector(".edit-dialog-save").addEventListener("click", async () => {
-    const input = overlay.querySelector(".edit-date-input");
-    const status = overlay.querySelector(".edit-dialog-status");
-    const value = input.value;
-    if (!value) { status.textContent = "Please enter a date."; return; }
-    const iso = new Date(value).toISOString();
-    status.textContent = "Saving…";
-    try {
-      await apiUpdateWatch(id, { watched_at: iso });
-      overlay.remove();
-      onSaved?.({ watched_at: iso });
-    } catch (err) {
-      status.textContent = `Error: ${err.message}`;
-    }
-  });
 
-  document.body.appendChild(overlay);
+    listEl.addEventListener("click", async (event) => {
+      const valueBtn = event.target.closest(".watch-date-value-btn");
+      if (valueBtn) {
+        const rowEl = valueBtn.closest(".watch-date-list-row");
+        const slot = rowEl.querySelector(".watch-date-calendar-slot");
+        const alreadyOpen = slot.childElementCount > 0;
+        closeAnyOpenCalendar();
+        if (alreadyOpen) return;
+        const pickerState = calendarStateFromIso(valueBtn.dataset.watchedIso);
+        mountCalendarPicker(slot, pickerState, {
+          onConfirm: (selectedDate) => {
+            setRowValue(rowEl, selectedDate.toISOString());
+            slot.innerHTML = "";
+          },
+          onCancel: () => { slot.innerHTML = ""; },
+        });
+        return;
+      }
+
+      const removeBtn = event.target.closest(".watch-date-remove-btn");
+      if (!removeBtn || removeBtn.disabled) return;
+      const rowEl = removeBtn.closest(".watch-date-list-row");
+      const rowId = rowEl.dataset.rowId;
+      const isNew = rowEl.dataset.rowNew === "1";
+      const status = panel.querySelector(".edit-dialog-status");
+
+      if (isNew) {
+        rowEl.remove();
+        updateRemoveButtonsState();
+        return;
+      }
+
+      const confirmed = await _openConfirmDialog({
+        title: "Remove watch date",
+        body: "Permanently remove this watch date? This cannot be undone.",
+        confirmLabel: "Remove watch date",
+        danger: true,
+      });
+      if (!confirmed) return;
+
+      removeBtn.disabled = true;
+      try {
+        await apiDeleteWatchDate(rowId);
+        rowEl.remove();
+        updateRemoveButtonsState();
+        const remainingDates = [...listEl.querySelectorAll(".watch-date-value-btn")]
+          .map((btn) => btn.dataset.watchedIso)
+          .filter(Boolean)
+          .sort();
+        if (remainingDates.length) onSaved?.({ watched_at: remainingDates.at(-1) });
+      } catch (err) {
+        if (status) status.textContent = `Error: ${err.message}`;
+        removeBtn.disabled = false;
+      }
+    });
+
+    panel.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
+    panel.querySelectorAll("[data-edit-date-choice]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const btn = lastValueBtn();
+        if (!btn) return;
+        const rowEl = btn.closest(".watch-date-list-row");
+        closeAnyOpenCalendar();
+        const choice = button.dataset.editDateChoice;
+        if (choice === "release" && releaseDate) setRowValue(rowEl, dateAtMiddayIso(releaseDate));
+        if (choice === "now") setRowValue(rowEl, new Date().toISOString());
+      });
+    });
+
+    panel.querySelector(".edit-dialog-save").addEventListener("click", async () => {
+      const status = panel.querySelector(".edit-dialog-status");
+      const rowEls = [...listEl.querySelectorAll(".watch-date-list-row")];
+      const entries = rowEls.map((rowEl) => ({
+        rowId: rowEl.dataset.rowId || "",
+        isNew: rowEl.dataset.rowNew === "1",
+        iso: rowEl.querySelector(".watch-date-value-btn")?.dataset.watchedIso || "",
+      }));
+      if (entries.some((entry) => !entry.iso)) { status.textContent = "Please pick a date for every row."; return; }
+
+      status.textContent = "Saving…";
+      try {
+        let latestIso = "";
+        for (const entry of entries) {
+          if (entry.isNew) {
+            await apiAddWatchDate(id, entry.iso);
+          } else if (entry.rowId) {
+            await apiUpdateWatch(entry.rowId, { watched_at: entry.iso });
+          }
+          if (!latestIso || entry.iso > latestIso) latestIso = entry.iso;
+        }
+        overlay.remove();
+        onSaved?.({ watched_at: latestIso });
+      } catch (err) {
+        status.textContent = `Error: ${err.message}`;
+      }
+    });
+  })();
 }
 
 // ── Full-show watched rows helper ──────────────────────────────────────────
@@ -224,13 +386,10 @@ export function openEditShowDateDialog(showTitle, watchedRows = []) {
   overlay.className = "edit-dialog-overlay";
   overlay.addEventListener("click", (event) => { if (event.target === overlay) overlay.remove(); });
   overlay.innerHTML = `
-    <div class="edit-dialog glass-panel">
+    <div class="edit-dialog glass-panel edit-dialog--watch-date">
       <h3>Edit Show Watch Date</h3>
       <p class="muted-copy">Updates ${rows.length} watched episode date${rows.length === 1 ? "" : "s"} for ${escapeHtml(showTitle || "this show")}.</p>
-      <label class="field-label">
-        Watched at
-        <input type="datetime-local" class="field edit-date-input" value="${escapeAttribute(watchedAtToInputValue(latest))}" />
-      </label>
+      <div class="watch-date-calendar-slot"></div>
       <div class="edit-dialog-actions">
         <button class="button-primary edit-dialog-save" type="button">Save</button>
         <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
@@ -239,15 +398,15 @@ export function openEditShowDateDialog(showTitle, watchedRows = []) {
     </div>
   `;
 
+  const pickerState = calendarStateFromIso(latest);
+  mountCalendarPicker(overlay.querySelector(".watch-date-calendar-slot"), pickerState, { showConfirm: false });
+
   overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
   overlay.querySelector(".edit-dialog-save").addEventListener("click", async () => {
-    const input = overlay.querySelector(".edit-date-input");
     const status = overlay.querySelector(".edit-dialog-status");
     const saveButton = overlay.querySelector(".edit-dialog-save");
-    const value = input.value;
-    if (!value) { status.textContent = "Please enter a date."; return; }
 
-    const watched_at = new Date(value).toISOString();
+    const watched_at = pickerState.selected.toISOString();
     saveButton.disabled = true;
     status.textContent = `Saving 0/${rows.length}...`;
     try {
@@ -304,13 +463,10 @@ export function openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes =
   overlay.className = "edit-dialog-overlay";
   overlay.addEventListener("click", (event) => { if (event.target === overlay) overlay.remove(); });
   overlay.innerHTML = `
-    <div class="edit-dialog glass-panel">
+    <div class="edit-dialog glass-panel edit-dialog--watch-date">
       <h3>Edit Season Watch Date</h3>
       <p class="muted-copy">Updates ${watchedEpisodes.length} watched episode date${watchedEpisodes.length === 1 ? "" : "s"} for Season ${seasonNum} of ${escapeHtml(showTitle || "this show")}.</p>
-      <label class="field-label">
-        Watched at
-        <input type="datetime-local" class="field edit-date-input" value="${escapeAttribute(watchedAtToInputValue(latest))}" />
-      </label>
+      <div class="watch-date-calendar-slot"></div>
       <div class="edit-dialog-actions">
         <button class="button-primary edit-dialog-save" type="button">Save</button>
         <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
@@ -319,15 +475,15 @@ export function openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes =
     </div>
   `;
 
+  const pickerState = calendarStateFromIso(latest);
+  mountCalendarPicker(overlay.querySelector(".watch-date-calendar-slot"), pickerState, { showConfirm: false });
+
   overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
   overlay.querySelector(".edit-dialog-save").addEventListener("click", async () => {
-    const input = overlay.querySelector(".edit-date-input");
     const status = overlay.querySelector(".edit-dialog-status");
     const saveButton = overlay.querySelector(".edit-dialog-save");
-    const value = input.value;
-    if (!value) { status.textContent = "Please enter a date."; return; }
 
-    const watched_at = new Date(value).toISOString();
+    const watched_at = pickerState.selected.toISOString();
     saveButton.disabled = true;
     status.textContent = `Saving 0/${watchedEpisodes.length}...`;
     try {

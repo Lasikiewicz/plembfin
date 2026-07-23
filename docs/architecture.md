@@ -209,8 +209,9 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `media-detail-events.js` | Click delegation inside the detail modal (cast, trailers, poster edit, watch actions, card navigation). |
 | `media-person.js` | Person profile pages: bio, filmography with watch badges. |
 | `media-lightbox.js` | Trailer playback (YouTube embed) and photo lightbox. |
-| `edit-dialogs.js` | Edit watched-date, edit images (poster/logo/backdrop picker), fix-match, and merge-show dialogs. |
-| `watch-action.js` | Manual mark watched/unwatched flows: date prompt, batched `/api/manual-watch` posts, delete-media, Seerr request submission. |
+| `calendar-picker.js` | Shared calendar + time picker (month/year quick-select, fixed-height day grid) used by every date/time picker in the app — the edit-date dialogs and the mark-watched date prompts — so they all look and behave identically. No global state; each mount owns its own picker instance. |
+| `edit-dialogs.js` | Edit watched-date (including multiple watch dates per item: add/edit/delete), edit images (poster/logo/backdrop picker), fix-match, and merge-show dialogs. |
+| `watch-action.js` | Manual mark watched/unwatched flows: date prompt (built on `calendar-picker.js`), batched `/api/manual-watch` posts, delete-media, Seerr request submission. |
 | `tmdb.js` | Frontend TMDB enrichment helpers (`fetchTmdbDetails`, season details, episode-title resolution) with in-memory caches. |
 | `tools.js` | Settings tools bridge: Trakt/CSV import flows, `initTools()`, and compatibility re-exports for backup/appearance and maintenance tools. |
 | `tools-backups.js` | Settings backup and appearance UI: full export/import, watch-history backups, encrypted backups, Backblaze destination cards/dialogs, backup passphrase controls, and appearance settings. See [backups.md](backups.md). |

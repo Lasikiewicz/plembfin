@@ -23,6 +23,13 @@ history changes. `queryMovies({ search, sort, limit, offset })` filters/sorts/pa
 cache. Sort modes: `title_asc`, `title_desc`, `watched_asc`, and watched-date descending
 (default order for recency), plus release/year ordering applied client-side.
 
+Rewatches are collapsed into the same card, not split across multiple cards:
+`dedupeMovies`/`collapseMovieCluster` link every `watch_history` row for the same
+film into a `playHistory` array of `{ id, watched_at, source }`, one per play. A
+movie card shows a "↻ ×N" badge once it has more than one recorded watch (see
+[webhooks.md#rewatch-detection](webhooks.md#rewatch-detection) for how a genuine
+rewatch gets recorded instead of dropped as a duplicate webhook echo).
+
 ## Frontend behavior
 
 - **Route** — `/movies` sets `state.activeView = "explorer"`, `state.explorerMode =
@@ -54,6 +61,7 @@ cache. Sort modes: `title_asc`, `title_desc`, `watched_asc`, and watched-date de
 | `GET /api/movies?search=&sort=&limit=&offset=` | Paged movie list |
 | `POST /api/delete-media` | Delete a movie (and its watch rows) from history |
 | `POST /api/manual-watch` / `POST /api/manual-unwatch` | Manual watch-state changes (see [media-detail.md](media-detail.md)) |
+| `GET /api/watch-dates?id=` / `POST /api/add-watch-date` / `POST /api/delete-watch-date` | List/add/remove individual watch dates for one movie (see [media-detail.md](media-detail.md)) |
 | `GET /api/poster?id=` | Poster hydration (see [posters-artwork.md](posters-artwork.md)) |
 
 ## Gotchas

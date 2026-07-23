@@ -29,6 +29,13 @@ pages that cache. Sort modes include `title_asc`, `title_desc`, `watched_asc`, r
 and `next_air_asc` (next airing date, powered by the next-airing cache so no metadata
 API is hit during page loads).
 
+Rewatched episodes work the same way as movies: `dedupeHistory` (`dataRepo.js`)
+collapses every watch of the same episode into one row with a `playHistory` array
+of `{ id, watched_at, source }`. The show detail page shows a "Watch History" list
+(date + source app per play) on any episode with more than one recorded watch,
+in place of the single watched-date line — see [media-detail.md](media-detail.md)
+and [webhooks.md#rewatch-detection](webhooks.md#rewatch-detection).
+
 ### Watch progress
 
 `showProgressCache.js` maintains watched-vs-total episode counts per show. Totals come
@@ -86,3 +93,4 @@ Two admin tools deal with mis-grouped shows under Settings → Advanced:
 | `GET /api/show?id=` / `?title=` | One show's full detail (seasons, episodes, watch rows) |
 | `GET /api/tmdb-details` / `GET /api/tmdb-season` | Metadata + episode lists for the detail page |
 | `POST /api/merge-shows`, `POST /api/rematch-show`, `POST /api/rematch-tv-shows` | Identity fixes |
+| `GET /api/watch-dates?id=` / `POST /api/add-watch-date` / `POST /api/delete-watch-date` | List/add/remove individual watch dates for one episode (see [media-detail.md](media-detail.md)) |

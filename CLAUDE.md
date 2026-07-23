@@ -178,6 +178,7 @@ When adding frontend code, place it in the most specific existing module that ow
 | Person profiles and filmography | `modules/media-person.js` |
 | Edit dialogs and watched-date/image/match tools | `modules/edit-dialogs.js` |
 | Manual watched/unwatched actions | `modules/watch-action.js` |
+| Shared calendar/time picker (used by edit dialogs and mark-watched prompts) | `modules/calendar-picker.js` |
 | TMDB detail/season/person enrichment helpers | `modules/tmdb.js` |
 | Trailer playback and photo lightbox | `modules/media-lightbox.js` |
 | Trakt/CSV import and settings tools bridge | `modules/tools.js` |

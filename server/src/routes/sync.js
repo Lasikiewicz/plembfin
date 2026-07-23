@@ -1300,14 +1300,28 @@ export async function handleWebhook(req, res) {
 
     const existingPlaystate = await getPlaystateForMedia(media).catch(() => null);
     if (existingPlaystate?.state === "watched") {
-      console.log("Webhook: skipped watched echo because playstate is already watched", {
+      // A same-UTC-day repeat is treated as a duplicate echo (e.g. the server
+      // re-firing a "played" event without an actual new play). A repeat on a
+      // later day is a genuine rewatch, so let it fall through and record a new
+      // watch_history row instead of silently dropping it.
+      const lastWatchedDay = String(existingPlaystate.watched_at || "").slice(0, 10);
+      const today = new Date().toISOString().slice(0, 10);
+      if (!lastWatchedDay || lastWatchedDay === today) {
+        console.log("Webhook: skipped watched echo because playstate is already watched today", {
+          source: media.source,
+          title: media.title,
+          playstateUpdatedAt: existingPlaystate.updated_at,
+        });
+        await deletePlaybackProgress(media).catch(() => null);
+        await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+        return sendJson(res, { ok: true, inserted: false, id: existingPlaystate.id, reason: "Already marked watched today" });
+      }
+      console.log("Webhook: recording rewatch on a new day", {
         source: media.source,
         title: media.title,
-        playstateUpdatedAt: existingPlaystate.updated_at,
+        lastWatchedDay,
+        today,
       });
-      await deletePlaybackProgress(media).catch(() => null);
-      await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
-      return sendJson(res, { ok: true, inserted: false, id: existingPlaystate.id, reason: "Already marked watched" });
     }
 
     if (await shouldSkipPostRestoreCompletedWebhook(media)) {

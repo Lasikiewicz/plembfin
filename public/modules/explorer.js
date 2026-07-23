@@ -703,6 +703,15 @@ export function resolvedTmdbCache(mediaType, tmdbId, title) {
   return null;
 }
 // ---------------------------------------------------------------------------
+// Rewatch badge — shown wherever a card/row has a playHistory of more than
+// one watched_at entry (see collapseMovieCluster / dedupeHistory server-side).
+// ---------------------------------------------------------------------------
+function rewatchBadge(entry) {
+  const count = Array.isArray(entry?.playHistory) ? entry.playHistory.length : 0;
+  if (count < 2) return "";
+  return `<span class="rewatch-badge" title="Watched ${count} times">&#8635; &times;${count}</span>`;
+}
+// ---------------------------------------------------------------------------
 // Movie cards
 // ---------------------------------------------------------------------------
 export function renderMovieCard(movie) {
@@ -716,7 +725,7 @@ export function renderMovieCard(movie) {
           <b style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeAttribute(movie.title)}">${escapeHtml(movie.title)}</b>
           ${renderSyncStatusDot(movie, "margin-left: 0.25rem;")}
         </div>
-        <span>${formatDate(movie.watched_at)}</span>
+        <span>${formatDate(movie.watched_at)} ${rewatchBadge(movie)}</span>
       </div>
     </div>
   `;
@@ -760,7 +769,7 @@ function renderMovieListCard(movie) {
       <span class="list-card-title" title="${escapeAttribute(movie.title)}">${escapeHtml(movie.title)}</span>
       <div class="list-card-col list-card-platform">${sourceBadge}</div>
       <span class="list-card-col list-card-release" data-list-release>${escapeHtml(releaseDate)}</span>
-      <span class="list-card-col">${escapeHtml(formatDate(movie.watched_at))}</span>
+      <span class="list-card-col">${escapeHtml(formatDate(movie.watched_at))} ${rewatchBadge(movie)}</span>
       <span class="list-card-col list-card-year" data-list-year>${escapeHtml(year)}</span>
       <span class="list-card-col" data-list-runtime>${escapeHtml(runtime)}</span>
       <div class="list-card-col list-card-sync">${renderSyncStatusDot(movie)}</div>
@@ -783,7 +792,7 @@ function renderMovieOverviewCard(movie) {
         </div>
         <div class="overview-card-attrs" data-overview-attrs>${[year, genres].filter(Boolean).join(" &middot; ")}</div>
         <div class="overview-card-text-wrap"><p class="overview-card-text" data-overview-text>${escapeHtml(overview)}</p></div>
-        <span class="overview-card-date">${formatDate(movie.watched_at)}</span>
+        <span class="overview-card-date">${formatDate(movie.watched_at)} ${rewatchBadge(movie)}</span>
       </div>
     </div>
   `;
@@ -1361,6 +1370,7 @@ export function renderSeasonFolder(showKey, season, episodes) {
                     ${renderSyncStatusDot(episode)}
                   </b>
                   <button class="debug-badge" type="button" data-history-id="${episode.id}">${formatDate(episode.watched_at)}</button>
+                  ${rewatchBadge(episode)}
                 </div>
               </article>
             `;

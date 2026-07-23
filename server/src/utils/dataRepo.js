@@ -973,7 +973,11 @@ const updateTelemetryStmt = db.prepare("UPDATE watch_history SET sync_dispatch_t
 const updatePlaystateWatchedAtStmt = db.prepare("UPDATE playstate SET watched_at = ?, updated_at = ? WHERE media_key = ?");
 const updateWatchRowWatchedAtStmt = db.prepare("UPDATE watch_history SET watched_at = ?, updated_at = ? WHERE id = ?");
 
-function relatedTrackedWatchRowsForDateEdit(existing = {}) {
+// All other tracked watch_history rows describing the same movie (by media_key)
+// or the same episode (by show+season+episode), regardless of date. Used both
+// to list every watch date for the edit-date dialog and, filtered further by
+// relatedTrackedWatchRowsForDateEdit, to keep same-day duplicate rows in sync.
+function siblingWatchRowsFor(existing = {}) {
   if (!existing.id) return [];
   if (existing.media_type !== "episode") {
     return existing.media_key
@@ -991,6 +995,97 @@ function relatedTrackedWatchRowsForDateEdit(existing = {}) {
     if (Number(row.season) !== season || Number(row.episode) !== episode) return false;
     return canonicalTitleKey(row.show_title || showTitleFrom(row.title)) === showKey;
   });
+}
+
+// Same-UTC-day siblings are treated as duplicate rows describing the *same*
+// watch event (e.g. echoed across sources) and are kept in sync when the date
+// is edited. Siblings on a different day are independent rewatches and are
+// left alone, so editing one watch date can't silently overwrite another.
+function relatedTrackedWatchRowsForDateEdit(existing = {}) {
+  const day = String(existing.watched_at || "").slice(0, 10);
+  if (!day) return [];
+  return siblingWatchRowsFor(existing).filter((row) => String(row.watched_at || "").slice(0, 10) === day);
+}
+
+// Every watch date recorded for the same movie/episode as `id`, oldest first —
+// powers the "Edit Watch Date" dialog's per-date list.
+export async function getWatchDatesForRecord(id) {
+  const existing = selectByIdStmt.get(String(id));
+  if (!existing) return null;
+  const rows = [existing, ...siblingWatchRowsFor(existing)]
+    .map((row) => ({ id: row.id, watched_at: row.watched_at }))
+    .sort((a, b) => String(a.watched_at || "").localeCompare(String(b.watched_at || "")));
+  return {
+    title: existing.title,
+    media_type: existing.media_type,
+    show_title: existing.show_title || null,
+    season: existing.season,
+    episode: existing.episode,
+    rows,
+  };
+}
+
+// Records an additional watch of the same movie/episode as `id` on a new date
+// (e.g. from the "Add another watch date" control), cloning that row's
+// identity fields rather than requiring the caller to resupply them.
+export async function addWatchDate(id, watchedAtInput) {
+  const existing = selectByIdStmt.get(String(id));
+  if (!existing) return { ok: false, error: "Watch record not found" };
+  const watchedAt = normalizeWatchedAt(watchedAtInput);
+  if (!watchedAt) return { ok: false, error: "Invalid watched_at value" };
+
+  const mediaKey = existing.media_key;
+  const siblings = mediaKey ? selectByMediaKeyStmt.all(mediaKey) : [existing];
+  if (siblings.some((row) => row.watched_at === watchedAt)) {
+    return { ok: false, error: "A watch on that date already exists" };
+  }
+
+  const newId = crypto.randomUUID();
+  const params = {};
+  for (const column of WATCH_COLUMNS) {
+    if (column === "id" || column === "watched_at" || column === "sync_dispatch_telemetry") continue;
+    params[column] = existing[column];
+  }
+  params.watched_at = watchedAt;
+  params.sync_dispatch_telemetry = "Origin: manual\nLoop-check: Skipped propagation\nDispatch status: skipped\nDetails: Additional watch date added manually.";
+  insertWatchStmt.run({ id: newId, ...params, created_at: Date.now(), updated_at: Date.now() });
+
+  if (mediaKey) {
+    const currentPlaystate = selectPlaystateStmt.get(mediaKey);
+    if (!currentPlaystate || String(watchedAt) > String(currentPlaystate.watched_at || "")) {
+      updatePlaystateWatchedAtStmt.run(watchedAt, Date.now(), mediaKey);
+    }
+  }
+
+  await invalidateHistoryDerivedCaches();
+  return { ok: true, id: newId };
+}
+
+// Removes a single watch date (one row) added via addWatchDate/the edit-date
+// dialog, without touching any other watch of the same movie/episode. If the
+// deleted row was the current playstate pointer, playstate is rolled back to
+// whichever recorded watch is now the most recent one; if none remain, the
+// item goes back to unwatched.
+export async function deleteWatchDate(id) {
+  const existing = selectByIdStmt.get(String(id));
+  if (!existing) return { ok: false, error: "Watch record not found" };
+
+  queueProgressUpdateForRecord(existing);
+  deleteByIdStmt.run(String(id));
+
+  const mediaKey = existing.media_key;
+  if (mediaKey) {
+    const remaining = selectByMediaKeyStmt.all(mediaKey).filter(isPlembfinTrackedWatchRow);
+    if (remaining.length) {
+      const latest = remaining.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
+      updatePlaystateWatchedAtStmt.run(latest.watched_at, Date.now(), mediaKey);
+    } else {
+      deletePlaystateByKeyStmt.run(mediaKey);
+    }
+  }
+
+  await invalidateHistoryDerivedCaches();
+  return { ok: true };
 }
 
 export async function updateWatchTelemetry(id, telemetry, { skipInvalidate = false } = {}) {
@@ -1304,26 +1399,30 @@ function titleContainsSearch(title, search) {
   return normalizeForSearch(title).includes(needle);
 }
 
+function playHistoryEntry(row = {}) {
+  return { id: row.id, watched_at: row.watched_at, source: row.source };
+}
+
 function dedupeHistory(rows) {
   const map = new Map();
   for (const row of rows) {
     const key = historyDedupeKey(row);
     if (map.has(key)) {
       const existing = map.get(key);
-      if (!existing.playHistory) existing.playHistory = [existing.watched_at];
-      existing.playHistory.push(row.watched_at);
+      if (!existing.playHistory) existing.playHistory = [playHistoryEntry(existing)];
+      existing.playHistory.push(playHistoryEntry(row));
       if (!existing.poster_url && row.poster_url) existing.poster_url = row.poster_url;
       if (row.watched_at > existing.watched_at) {
         const playHistory = existing.playHistory;
         map.set(key, { ...row, playHistory });
       }
     } else {
-      map.set(key, { ...row, playHistory: [row.watched_at] });
+      map.set(key, { ...row, playHistory: [playHistoryEntry(row)] });
     }
   }
   const result = [...map.values()];
   for (const row of result) {
-    if (row.playHistory) row.playHistory.sort((a, b) => a.localeCompare(b));
+    if (row.playHistory) row.playHistory.sort((a, b) => String(a.watched_at).localeCompare(String(b.watched_at)));
   }
   return result;
 }
@@ -2116,8 +2215,13 @@ export async function queryMovies({ search = "", sort = "title_asc", limit = 100
 // newest watched record as the base, every play date gathered into playHistory,
 // and any missing id/poster backfilled from a sibling row.
 function collapseMovieCluster(clusterRows = []) {
-  const playHistory = [...new Set(clusterRows.map((r) => r.watched_at).filter(Boolean))]
-    .sort((a, b) => String(a).localeCompare(String(b)));
+  const playHistoryByDate = new Map();
+  for (const row of clusterRows) {
+    if (row.watched_at && !playHistoryByDate.has(row.watched_at)) {
+      playHistoryByDate.set(row.watched_at, playHistoryEntry(row));
+    }
+  }
+  const playHistory = [...playHistoryByDate.values()].sort((a, b) => String(a.watched_at).localeCompare(String(b.watched_at)));
   const newest = clusterRows
     .slice()
     .sort((a, b) => String(a.watched_at || "").localeCompare(String(b.watched_at || "")))

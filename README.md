@@ -25,6 +25,7 @@
 |---|---|
 | **Bi-directional sync** | Watched/unwatched states stay in sync across Plex, Emby, and Jellyfin automatically |
 | **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |
+| **Rewatch tracking** | Watching a movie or episode again logs a new watch instead of overwriting the old one; detail pages show a full watch history with the date and app for every play |
 | **Now Playing dashboard** | Real-time active sessions, weekly charts, and recent watch history |
 | **Stats** | All-time and per-period reports with top shows, platform breakdowns, and watch trends |
 | **Upcoming episodes** | Continuously scrollable calendar of historical and future TV air dates, opens on today's date, mobile agenda layout, and a dedicated search results view spanning all cached months |

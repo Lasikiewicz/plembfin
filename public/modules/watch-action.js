@@ -1,10 +1,11 @@
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, formatDate, toDateInputValue, toDateTimeInputValue, episodeCode, seasonLabel, formatTmdbDate, showEpisodeKey } from "./utils.js";
+import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatTmdbDate, showEpisodeKey } from "./utils.js";
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { mergeShowDetail } from "./explorer.js";
 import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js";
 import { tvSeasonAvailability } from "./media-detail-shared.js";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js";
 
 // Callbacks injected by app.js at startup to break circular-import chains.
 let _setMessage = () => {};
@@ -93,151 +94,38 @@ function renderMovieWatchDatePrompt(action, customValue) {
 }
 
 // ── Custom date+time picker ────────────────────────────────────────────────
-
-const WD_WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-
-function initWatchDateCustomState() {
-  const now = new Date();
-  now.setSeconds(0, 0);
-  state.watchDateCustom = { year: now.getFullYear(), month: now.getMonth(), selected: now };
-  return state.watchDateCustom;
-}
-
-function formatCustomDisplay(date) {
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: "short", day: "numeric", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  }).format(date);
-}
-
-// Pull the hour/minute <select> values back into the selected Date before
-// re-rendering or reading the final value.
-function syncCustomTimeFromSelects() {
-  const wd = state.watchDateCustom;
-  if (!wd?.selected) return;
-  // The overlay is a singleton — query document directly so it's found
-  // regardless of which element it was appended to.
-  const hourEl = document.querySelector("[data-wd-hour]");
-  const minuteEl = document.querySelector("[data-wd-minute]");
-  if (hourEl) wd.selected.setHours(Number(hourEl.value));
-  if (minuteEl) wd.selected.setMinutes(Number(minuteEl.value));
-  wd.selected.setSeconds(0, 0);
-}
+// Uses the shared calendar-picker.js component (see edit-dialogs.js for the
+// other pickers built on it) so every date/time picker in the app looks and
+// behaves identically. state.watchDateCustom holds the one pickerState for
+// whichever "mark watched" prompt is currently open — only one can be open
+// at a time, so a single shared instance is intentional here (unlike the
+// edit-date dialog's per-row instances).
 
 function getCustomWatchDateValue() {
   if (!state.watchDateCustom?.selected) return toDateTimeInputValue(new Date());
-  syncCustomTimeFromSelects();
   return toDateTimeInputValue(state.watchDateCustom.selected);
-}
-
-export function renderWatchDateCustomPicker() {
-  const wd = state.watchDateCustom || initWatchDateCustomState();
-  const sel = wd.selected;
-  const now = new Date();
-  const todayStr = toDateInputValue(now);
-  const selStr = toDateInputValue(sel);
-
-  const viewDate = new Date(wd.year, wd.month, 1);
-  const monthLabel = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(viewDate);
-  const firstDow = (viewDate.getDay() + 6) % 7;
-  const daysInMonth = new Date(wd.year, wd.month + 1, 0).getDate();
-
-  const cells = [];
-  for (let i = 0; i < firstDow; i += 1) cells.push(`<span class="wd-cell wd-empty"></span>`);
-  for (let d = 1; d <= daysInMonth; d += 1) {
-    const dateStr = `${wd.year}-${String(wd.month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    const classes = ["wd-cell", "wd-day"];
-    if (dateStr === selStr) classes.push("is-selected");
-    if (dateStr === todayStr) classes.push("is-today");
-    const future = dateStr > todayStr;
-    cells.push(`<button type="button" class="${classes.join(" ")}" data-wd-day="${dateStr}"${future ? " disabled" : ""}>${d}</button>`);
-  }
-
-  const atCurrentMonth = wd.year > now.getFullYear() || (wd.year === now.getFullYear() && wd.month >= now.getMonth());
-  const dowHtml = WD_WEEKDAYS.map((d) => `<span class="wd-dow">${d}</span>`).join("");
-  const hoursHtml = Array.from({ length: 24 }, (_, h) =>
-    `<option value="${h}"${h === sel.getHours() ? " selected" : ""}>${String(h).padStart(2, "0")}</option>`).join("");
-  const minutesHtml = Array.from({ length: 60 }, (_, m) =>
-    `<option value="${m}"${m === sel.getMinutes() ? " selected" : ""}>${String(m).padStart(2, "0")}</option>`).join("");
-
-  return `
-    <div class="wd-display">${escapeHtml(formatCustomDisplay(sel))}</div>
-    <div class="wd-body">
-      <div class="wd-calendar">
-        <div class="wd-cal-head">
-          <button type="button" class="wd-nav" data-wd-nav="prev" aria-label="Previous month">&#8249;</button>
-          <span class="wd-month">${escapeHtml(monthLabel)}</span>
-          <button type="button" class="wd-nav" data-wd-nav="next" aria-label="Next month"${atCurrentMonth ? " disabled" : ""}>&#8250;</button>
-        </div>
-        <div class="wd-grid wd-dow-row">${dowHtml}</div>
-        <div class="wd-grid wd-day-grid">${cells.join("")}</div>
-      </div>
-      <div class="wd-time">
-        <span class="wd-time-label">Time</span>
-        <div class="wd-time-selects">
-          <select class="wd-select" data-wd-hour aria-label="Hour">${hoursHtml}</select>
-          <span class="wd-colon">:</span>
-          <select class="wd-select" data-wd-minute aria-label="Minute">${minutesHtml}</select>
-        </div>
-      </div>
-    </div>
-    <button class="button-primary wd-use" type="button" data-watch-date-choice="custom">Use this date &amp; time</button>
-  `;
 }
 
 export function watchDateCustomCardHtml() {
   return `
     <div class="watch-date-custom">
       <div class="watch-date-section-label">Or pick a specific date &amp; time</div>
-      <div class="watch-date-picker" data-watch-date-picker>${renderWatchDateCustomPicker()}</div>
+      <div class="watch-date-picker" data-watch-date-picker></div>
     </div>
   `;
 }
 
-export function rerenderWatchDateCustomPicker() {
-  // The overlay is a singleton — query document directly so it's found
-  // regardless of which element it was appended to (explorerPanel, modalBody,
-  // document.body, etc.).
+// Mounts the shared calendar picker into the card rendered by
+// watchDateCustomCardHtml(). Must be called after that HTML is in the DOM.
+export function mountWatchDateCustomPicker() {
   const host = document.querySelector("[data-watch-date-picker]");
-  if (host) host.innerHTML = renderWatchDateCustomPicker();
-}
-
-// Keeps the human-readable display line in sync when selects change.
-export function wireWatchDateCustomPicker(root) {
-  const host = root.querySelector("[data-watch-date-picker]");
   if (!host) return;
-  host.addEventListener("change", (event) => {
-    if (!event.target.matches("[data-wd-hour], [data-wd-minute]")) return;
-    syncCustomTimeFromSelects();
-    const display = host.querySelector(".wd-display");
-    if (display && state.watchDateCustom?.selected) {
-      display.textContent = formatCustomDisplay(state.watchDateCustom.selected);
-    }
-  });
-  host.addEventListener("click", (event) => {
-    const navBtn = event.target.closest("[data-wd-nav]");
-    if (navBtn && state.watchDateCustom) {
-      syncCustomTimeFromSelects();
-      const dir = navBtn.dataset.wdNav === "next" ? 1 : -1;
-      let month = state.watchDateCustom.month + dir;
-      let year = state.watchDateCustom.year;
-      if (month < 0) { month = 11; year -= 1; }
-      if (month > 11) { month = 0; year += 1; }
-      state.watchDateCustom.year = year;
-      state.watchDateCustom.month = month;
-      rerenderWatchDateCustomPicker();
-      return;
-    }
-    const dayBtn = event.target.closest("[data-wd-day]");
-    if (dayBtn && state.watchDateCustom) {
-      syncCustomTimeFromSelects();
-      const [year, month, day] = dayBtn.dataset.wdDay.split("-").map(Number);
-      state.watchDateCustom.selected.setFullYear(year, month - 1, day);
-      state.watchDateCustom.year = year;
-      state.watchDateCustom.month = month - 1;
-      rerenderWatchDateCustomPicker();
-      return;
-    }
+  state.watchDateCustom = calendarStateFromIso(new Date().toISOString());
+  mountCalendarPicker(host, state.watchDateCustom, {
+    showCancel: false,
+    onConfirm: () => {
+      applyWatchDateChoice("custom").catch((error) => _setMessage(error.message, "error"));
+    },
   });
 }
 
@@ -346,7 +234,6 @@ export function openWatchDatePrompt(action) {
     return;
   }
   state.pendingWatchAction = action;
-  initWatchDateCustomState();
   // Always mount on document.body so that position:fixed inset:0 covers the
   // full viewport. Mounting inside mediaDetailRoot() would place the overlay
   // inside an ancestor that has backdrop-filter, which — per the CSS spec —
@@ -354,7 +241,7 @@ export function openWatchDatePrompt(action) {
   // the fullscreen overlay and misaligning click targets.
   document.querySelector(".watch-date-overlay")?.remove();
   document.body.insertAdjacentHTML("beforeend", renderWatchDatePrompt(action));
-  wireWatchDateCustomPicker(document.body);
+  mountWatchDateCustomPicker();
 }
 
 export function closeWatchDatePrompt() {

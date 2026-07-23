@@ -12,7 +12,6 @@ import {
   editDateOptionsFromButton,
 } from "./edit-dialogs.js";
 import {
-  rerenderWatchDateCustomPicker,
   openWatchDatePrompt,
   closeWatchDatePrompt,
   watchActionFromButton,
@@ -35,6 +34,7 @@ import {
   renderMovieImmersiveModalContent,
   openHistoryDebugModal,
 } from "./media-detail.js?v=20260701";
+import { fetchWatchedMovieByTmdb } from "./media-detail-movie.js";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};
@@ -110,13 +110,13 @@ export function attachMediaDetailEvents() {
               });
             }
           } else if (entry.media_type === "movie" && state.activeMovieModalId && String(entry.id) === String(state.activeMovieModalId)) {
-            fetch(`/api/history?id=${encodeURIComponent(entry.id)}`, { headers: authHeaders() })
-              .then(res => res.json())
-              .then(body => {
-                if (body.row) {
-                  renderMovieImmersiveModalContent(body.row).catch(() => {});
-                }
-              });
+            // Re-fetch from /api/movies (not /api/history?id=) so the refreshed
+            // modal gets the deduped movie record with its playHistory array —
+            // a raw watch_history row doesn't carry other watch dates for the
+            // rewatch summary.
+            fetchWatchedMovieByTmdb(state.activeMovieTmdbId || entry.tmdb_id, entry.title).then((movie) => {
+              if (movie) renderMovieImmersiveModalContent(movie).catch(() => {});
+            });
           }
         }
         if (state.activeView === "history") {
@@ -324,13 +324,13 @@ export function attachMediaDetailEvents() {
               });
             }
           } else if (entry.media_type === "movie" && state.activeMovieModalId && String(entry.id) === String(state.activeMovieModalId)) {
-            fetch(`/api/history?id=${encodeURIComponent(entry.id)}`, { headers: authHeaders() })
-              .then(res => res.json())
-              .then(body => {
-                if (body.row) {
-                  renderMovieImmersiveModalContent(body.row).catch(() => {});
-                }
-              });
+            // Re-fetch from /api/movies (not /api/history?id=) so the refreshed
+            // modal gets the deduped movie record with its playHistory array —
+            // a raw watch_history row doesn't carry other watch dates for the
+            // rewatch summary.
+            fetchWatchedMovieByTmdb(state.activeMovieTmdbId || entry.tmdb_id, entry.title).then((movie) => {
+              if (movie) renderMovieImmersiveModalContent(movie).catch(() => {});
+            });
           }
         }
         if (state.activeView === "history") {
@@ -371,31 +371,6 @@ export function attachMediaDetailEvents() {
     if (watchDateChoice) {
       event.preventDefault();
       applyWatchDateChoice(watchDateChoice.dataset.watchDateChoice).catch((error) => setMessage(error.message, "error"));
-      return;
-    }
-
-    const wdNav = event.target.closest("[data-wd-nav]");
-    if (wdNav && state.watchDateCustom) {
-      syncCustomTimeFromSelects();
-      const dir = wdNav.dataset.wdNav === "next" ? 1 : -1;
-      let month = state.watchDateCustom.month + dir;
-      let year = state.watchDateCustom.year;
-      if (month < 0) { month = 11; year -= 1; }
-      if (month > 11) { month = 0; year += 1; }
-      state.watchDateCustom.year = year;
-      state.watchDateCustom.month = month;
-      rerenderWatchDateCustomPicker();
-      return;
-    }
-
-    const wdDay = event.target.closest("[data-wd-day]");
-    if (wdDay && state.watchDateCustom) {
-      syncCustomTimeFromSelects();
-      const [year, month, day] = wdDay.dataset.wdDay.split("-").map(Number);
-      state.watchDateCustom.selected.setFullYear(year, month - 1, day);
-      state.watchDateCustom.year = year;
-      state.watchDateCustom.month = month - 1;
-      rerenderWatchDateCustomPicker();
       return;
     }
 

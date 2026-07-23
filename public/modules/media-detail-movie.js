@@ -1,5 +1,5 @@
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils.js";
+import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate, sourceBadgeHtml } from "./utils.js";
 import { posterUrlFor, tmdbPoster, bestTmdbLogo, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260710";
@@ -11,6 +11,31 @@ import {
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
   renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection,
 } from "./media-detail-shared.js";
+
+// Watch history list — playHistory (every { id, watched_at, source } entry for
+// this movie, collapsed server-side in dedupeMovies/collapseMovieCluster) has
+// more than one entry once a genuine rewatch has been recorded.
+function rewatchSummaryHtml(movie) {
+  const history = Array.isArray(movie?.playHistory) ? movie.playHistory : [];
+  if (history.length < 2) return "";
+  const rows = [...history]
+    .sort((a, b) => String(b.watched_at).localeCompare(String(a.watched_at)))
+    .map((entry) => `
+      <li class="episode-watch-history-row">
+        <span class="episode-watch-history-date">${escapeHtml(formatDate(entry.watched_at))}</span>
+        ${sourceBadgeHtml(entry.source)}
+      </li>
+    `)
+    .join("");
+  return `
+    <div class="episode-watch-history">
+      <div class="episode-watch-history-head">
+        <span class="rewatch-badge" title="Watched ${history.length} times">&#8635; Watch History &times;${history.length}</span>
+      </div>
+      <ul class="episode-watch-history-list">${rows}</ul>
+    </div>
+  `;
+}
 
 // Authoritatively check whether a movie is already in watch history. state.history
 // is only the dashboard preview, so fall back to the server (which holds the full
@@ -225,6 +250,7 @@ function _renderWatchedMovieContent(root, movie, {
               <div class="progress-bar-track">
                 <div class="progress-bar-fill" style="width: 100%;"></div>
               </div>
+              ${rewatchSummaryHtml(movie)}
             </section>
           </div>
         </div>
@@ -320,6 +346,7 @@ export function patchMovieWatchedState(movie) {
             <div class="progress-bar-track">
               <div class="progress-bar-fill" style="width: 100%;"></div>
             </div>
+            ${rewatchSummaryHtml(movie)}
     `;
   }
 

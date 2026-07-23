@@ -1,5 +1,5 @@
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, sourceBadgeHtml } from "./utils.js";
 import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
@@ -516,6 +516,33 @@ function episodeReleaseLabel(airDate) {
   return airDate ? `Released ${formatTmdbDate(airDate)}` : "Release date unknown";
 }
 
+// Full watch history list (each play's date + source app) shown in place of
+// the single "Watched on ..." line once an episode has more than one
+// recorded watch — see playHistory ({ id, watched_at, source }[]) built
+// server-side in dedupeHistory (server/src/utils/dataRepo.js).
+function episodeWatchHistoryHtml(watched) {
+  const history = Array.isArray(watched?.playHistory) ? watched.playHistory : [];
+  if (history.length < 2) return "";
+  const rows = [...history]
+    .sort((a, b) => String(b.watched_at).localeCompare(String(a.watched_at)))
+    .map((entry) => `
+      <li class="episode-watch-history-row">
+        <span class="episode-watch-history-date">${escapeHtml(formatDate(entry.watched_at))}</span>
+        ${sourceBadgeHtml(entry.source)}
+      </li>
+    `)
+    .join("");
+  return `
+    <div class="episode-watch-history">
+      <div class="episode-watch-history-head">
+        <span class="rewatch-badge" title="Watched ${history.length} times">&#8635; Watch History &times;${history.length}</span>
+        <button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch dates" data-edit-id="${escapeAttribute(watched.id)}" data-watched-at="${escapeAttribute(watched.watched_at || "")}">✎</button>
+      </div>
+      <ul class="episode-watch-history-list">${rows}</ul>
+    </div>
+  `;
+}
+
 function episodeProgressHtml(episode) {
   if (episode.watched || !episode.progress) return "";
   const progressPercent = Math.max(0, Math.min(100, Math.round(Number(episode.progress.progress || 0))));
@@ -605,6 +632,8 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
     const isHighlighted = (Number(episode.seasonNumber) === Number(seasonNumber)) && (Number(episode.episodeNumber) === Number(state.activeShowModalEpisode));
     const syncStatusDotHtml = episode.watched ? renderSyncStatusDot(episode.watched) : "";
     const episodeIsUnreleased = isUnreleased(episode);
+    const playHistory = Array.isArray(episode.watched?.playHistory) ? episode.watched.playHistory : [];
+    const hasWatchHistory = playHistory.length > 1;
     return `
             <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
               ${episodeThumbMarkup(episode)}
@@ -622,7 +651,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
                 <div class="immersive-episode-meta-row">
                   <span class="immersive-episode-dates">
                     <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
-                    ${episode.watched ? `<time>Watched ${formatDate(episode.watched.watched_at)} <button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(episode.watched.id)}" data-watched-at="${escapeAttribute(episode.watched.watched_at || "")}">✎</button></time>` : ""}
+                    ${episode.watched && !hasWatchHistory ? `<time>Watched ${formatDate(episode.watched.watched_at)} <button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(episode.watched.id)}" data-watched-at="${escapeAttribute(episode.watched.watched_at || "")}">✎</button></time>` : ""}
                   </span>
                   <span class="immersive-episode-actions">
                     ${episodeIsUnreleased
@@ -634,6 +663,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
           : `<button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
                   </span>
                 </div>
+                ${hasWatchHistory ? episodeWatchHistoryHtml(episode.watched) : ""}
               </div>
             </article>
           `;

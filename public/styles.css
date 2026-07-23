@@ -1637,6 +1637,44 @@ h2 {
   font: inherit;
 }
 
+.rewatch-badge {
+  border-color: var(--line-strong);
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--green);
+  gap: 0.25rem;
+}
+
+.episode-watch-history {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.episode-watch-history-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.episode-watch-history-list {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.episode-watch-history-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.episode-watch-history-date {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--soft);
+}
+
 .part-watched-app-badge:hover,
 .part-watched-app-badge:focus-visible {
   border-color: var(--accent);
@@ -4929,6 +4967,10 @@ html.light-mode .copy-button:hover {
   width: min(980px, 96vw);
 }
 
+.edit-dialog--watch-date {
+  width: min(640px, 96vw);
+}
+
 .edit-image-dialog {
   display: grid;
   grid-template-columns: 172px minmax(0, 1fr);
@@ -6756,6 +6798,100 @@ html.light-mode .log-msg {
   gap: var(--space-2);
 }
 
+.watch-date-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.watch-date-list-row {
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0.7rem 0.9rem;
+}
+
+.watch-date-row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.watch-date-row-label {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.watch-date-value-btn {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--field);
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 650;
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.watch-date-value-btn:hover {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+}
+
+.watch-date-calendar-slot:not(:empty) {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.7rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.7rem;
+}
+
+.watch-date-calendar-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.watch-date-remove-btn {
+  flex: 0 0 auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.watch-date-remove-btn:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: #f87171;
+  color: #f87171;
+}
+
+.watch-date-remove-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.watch-date-add-btn {
+  width: max-content;
+  font-size: 0.8rem;
+}
+
 .watch-date-pick {
   display: grid;
   gap: 0.3rem;
@@ -6848,6 +6984,30 @@ html.light-mode .log-msg {
   font-size: 0.82rem;
   font-weight: 800;
   color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 0.15rem 0.4rem;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.wd-month:hover {
+  background: var(--field);
+  border-color: var(--line);
+}
+
+.wd-month-select-group {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: 1;
+  justify-content: center;
+}
+
+.wd-month-select {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.35rem;
 }
 
 .wd-nav {
