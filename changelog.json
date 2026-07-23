@@ -1,7 +1,24 @@
 {
-  "version": "0.5.31",
-  "updatedAt": "2026-07-22T09:10:41+01:00",
+  "version": "0.5.32",
+  "updatedAt": "2026-07-23T09:40:25+01:00",
   "entries": [
+    {
+      "version": "0.5.32",
+      "date": "2026-07-23T09:40:25+01:00",
+      "commit": "4975efbc7f4ccd3a106e8922570d18393d1a45f2",
+      "message": "Fix - TV show Fix Match no longer reverts to the old match after saving",
+      "author": "Lasikiewicz",
+      "details": [
+        "Watching a movie or episode again now logs a new watch instead of being silently dropped as a duplicate; a same-day repeat is still ignored as an echo, but a repeat on a later day counts as a genuine rewatch",
+        "Movie cards, episode rows, and detail pages show a rewatch badge and a full Watch History list (date + source app for every play) once an item has more than one recorded watch",
+        "The Edit Watch Date dialog now lists every watch date for an item, letting you edit any of them, add another watch date, or remove one (with confirmation) instead of only editing a single date",
+        "Every date/time picker in the app (edit dialogs and the mark-watched prompts) now shares one calendar component: consistent size across months, click-to-jump month/year selects, and clearer spacing",
+        "Added a TODO.md tracking near-term feature ideas (multi-source import, onboarding)",
+        "Fix Match on a TV show now clears the cached progress-tracker entry for that show as part of the rematch, instead of only clearing cache rows tied to the ids already stored on episode records",
+        "Prevents a stale TMDB id (left over from an earlier automatic match) from being served back by the show detail API in the moment between saving a new match and the background metadata refresh finishing",
+        "Fixes the TV show page briefly showing the new match then reverting to the previous show's title/details while keeping the newly chosen artwork"
+      ]
+    },
     {
       "version": "0.5.31",
       "date": "2026-07-22T09:10:41+01:00",
