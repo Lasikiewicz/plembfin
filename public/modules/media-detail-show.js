@@ -1,6 +1,6 @@
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, sourceBadgeHtml } from "./utils.js";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, hydratePosters } from "./images.js";
+import { posterUrlFor, isCachedStorageImageUrl, tmdbImage, tmdbPoster, bestTmdbLogo, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260710";
@@ -703,7 +703,10 @@ export function renderShowModalContent(show, {
   const progressPercent = Math.max(0, Math.min(100, Math.round((watchedCount / totalCount) * 100)));
   const representative = representativeEpisode(seasonsMap);
   const backdropUrl = show.backdrop_url || tmdbData?.cached_backdrop_url || tmdbImage(tmdbData?.backdrop_path, "original");
-  const posterUrl = posterUrlFor(representative) || tmdbData?.cached_poster_url || tmdbPoster(tmdbData?.poster_path, tmdbData?.id, "tv");
+  const posterUrl = posterUrlFor(representative)
+    || (isCachedStorageImageUrl(show.poster_url) ? show.poster_url : "")
+    || tmdbData?.cached_poster_url
+    || tmdbPoster(tmdbData?.poster_path, tmdbData?.id, "tv");
   const logoUrl = show.logo_url || bestTmdbLogo(tmdbData);
   const overview = tmdbData?.overview || "No synopsis available.";
   const premiered = tmdbData?.first_air_date ? `Premiered ${formatTmdbDate(tmdbData.first_air_date)}` : "Release date unknown";
@@ -850,7 +853,7 @@ export function renderShowModalContent(show, {
     <div class="immersive-container media-detail-page">
 
       <header class="immersive-header">
-        <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" data-err="fav" />
+        <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" data-err="fav" loading="eager" fetchpriority="high" decoding="async" />
         <div class="immersive-meta">
           ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(showTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(showTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(showTitle)}</h2>`}
           <div class="media-detail-bottom-stack">
@@ -967,7 +970,6 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
   const imdbPillHtml = await fetchShowImdbPillHtml(show, tmdbData, () => requestToken === state.showModalRequestToken && state.activeShowModalKey === showKey);
   if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
   const currentSeasonNum = state.activeShowModalSeason;
-  renderShowModalContent(show, { activeSeasonNum: currentSeasonNum, tmdbData, seasonDetailsByNumber: new Map(), loading: true, imdbPillHtml });
   const seasonDetailsByNumber = new Map();
   if (tmdbData?.id && currentSeasonNum != null) {
     const seasonDetails = await fetchTmdbSeasonDetails(tmdbData.id, currentSeasonNum);
@@ -1084,15 +1086,22 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
 
   state.activeShowModalSeason = activeSeasonNum;
   const requestToken = ++state.showModalRequestToken;
-  await ensurePlaybackProgressLoaded();
-  if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
-
+  const playbackProgressPromise = ensurePlaybackProgressLoaded();
   renderShowModalContent(show, {
     activeSeasonNum,
     tmdbData: null,
     seasonDetailsByNumber: new Map(),
     loading: Boolean(state.savedConfig.tmdb?.configured),
   });
+  // Progress is secondary to the first paint. Refresh it after the shell is
+  // visible so a slow/no-store progress request cannot block artwork and
+  // episode history from appearing.
+  playbackProgressPromise.then(() => {
+    if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
+    const current = state.activeShowRenderContext;
+    if (!current) return;
+    renderShowModalContent(current.show, { ...current, activeSeasonNum: state.activeShowModalSeason });
+  }).catch(() => { });
   hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken).catch((error) => {
     console.error("Failed to hydrate show modal", error);
     if (requestToken === state.showModalRequestToken && state.activeShowModalKey === showKey) {
