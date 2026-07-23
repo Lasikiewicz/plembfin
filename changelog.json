@@ -1,7 +1,21 @@
 {
-  "version": "0.5.32",
-  "updatedAt": "2026-07-23T09:40:25+01:00",
+  "version": "0.5.33",
+  "updatedAt": "2026-07-23T09:30:01+01:00",
   "entries": [
+    {
+      "version": "0.5.33",
+      "date": "2026-07-23T09:30:01+01:00",
+      "commit": "e6177b35ad9d3bcdb863b7e2b10b34f31990a00c",
+      "message": "Feature - Track and manage rewatches across movies and TV episodes",
+      "author": "Lasikiewicz",
+      "details": [
+        "Watching a movie or episode again now logs a new watch instead of being silently dropped as a duplicate; a same-day repeat is still ignored as an echo, but a repeat on a later day counts as a genuine rewatch",
+        "Movie cards, episode rows, and detail pages show a rewatch badge and a full Watch History list (date + source app for every play) once an item has more than one recorded watch",
+        "The Edit Watch Date dialog now lists every watch date for an item, letting you edit any of them, add another watch date, or remove one (with confirmation) instead of only editing a single date",
+        "Every date/time picker in the app (edit dialogs and the mark-watched prompts) now shares one calendar component: consistent size across months, click-to-jump month/year selects, and clearer spacing",
+        "Added a TODO.md tracking near-term feature ideas (multi-source import, onboarding)"
+      ]
+    },
     {
       "version": "0.5.32",
       "date": "2026-07-23T09:40:25+01:00",
