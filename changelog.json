@@ -1,7 +1,19 @@
 {
-  "version": "0.6.1",
-  "updatedAt": "2026-07-23T12:30:44+01:00",
+  "version": "0.6.2",
+  "updatedAt": "2026-07-23T15:46:56+01:00",
   "entries": [
+    {
+      "version": "0.6.2",
+      "date": "2026-07-23T15:46:56+01:00",
+      "commit": "a739d024697d77b8317d28a4cdd1091284df9dce",
+      "message": "Docs - Sync backlog completion workflow",
+      "author": "Lasikiewicz",
+      "details": [
+        "Remove completed backlog items from TODO.md after implementation.",
+        "Require matching documentation updates for completed backlog work.",
+        "Add TODO review to the pull request checklist."
+      ]
+    },
     {
       "version": "0.6.1",
       "date": "2026-07-23T12:30:44+01:00",
