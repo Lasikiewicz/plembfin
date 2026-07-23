@@ -460,7 +460,14 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
       const cacheId = resolvedTmdbId ? `tv_${resolvedTmdbId}` : `tv_tvdb_${tvdbId}`;
       if (!force && cacheId !== initialCacheId) {
         const resolvedCached = metaGet(cacheId);
-        if (cacheSatisfies(resolvedCached, { light })) return resolvedCached.details;
+        // A tmdb_id cache slot can hold a doc for a *different* show than the one
+        // we're resolving now (e.g. an older Fix Match hit a stale TVDB→TMDB
+        // remoteIds mapping and cached its title-search fallback under this same
+        // tmdb id). Only reuse it when it actually corresponds to this tvdbId,
+        // or a show rematched away from that tmdb id would keep serving forever.
+        if (cacheSatisfies(resolvedCached, { light }) && String(resolvedCached.details?.external_ids?.tvdb_id || "") === tvdbId) {
+          return resolvedCached.details;
+        }
       }
 
       const extras = raw ? {
