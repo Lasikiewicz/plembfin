@@ -15725,3 +15725,119 @@ html.light-mode .settings-help-body code {
     transition: none;
   }
 }
+
+/* Phone layout guardrails -------------------------------------------------
+   Keep shared mobile control tabs readable at narrow widths. The previous
+   rules allowed labels to break at every character, which made the control
+   strip grow vertically and pushed page content below the fold. */
+@media (max-width: 640px) {
+  body .mobile-controls-row {
+    align-items: stretch !important;
+    min-height: 3.5rem !important;
+    overflow: hidden !important;
+  }
+
+  body .mobile-controls-row .mobile-control-tab {
+    min-height: 3rem !important;
+    padding: 0.35rem 0.15rem !important;
+    gap: 0.2rem !important;
+  }
+
+  body .mobile-controls-row .mobile-control-tab span {
+    min-height: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    line-height: 1.15 !important;
+  }
+
+  body .mobile-controls-row .mobile-control-tab svg {
+    width: 1.15rem !important;
+    height: 1.15rem !important;
+  }
+
+  /* Upcoming is a two-part control group: search first, calendar second. */
+  body #upcomingTopbarControls {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    gap: 0.5rem !important;
+    align-items: stretch !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-search-field {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-search-field input {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-month-controls {
+    display: grid !important;
+    grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem !important;
+    width: 100% !important;
+    gap: 0.5rem !important;
+    align-items: center !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-month-title {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+  }
+
+  body #upcomingTopbarControls #upcomingTodayButton {
+    grid-column: 1 / -1 !important;
+    justify-self: center !important;
+    min-width: 7rem !important;
+  }
+
+  /* Detail actions remain a single compact, horizontally scrollable row. */
+  body #mediaDetailActions {
+    min-height: 3.5rem !important;
+    align-items: stretch !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+
+  body #mediaDetailActions > * {
+    flex: 0 0 auto !important;
+  }
+
+  body #mediaDetailActions > *:not(.media-toggle-all-seasons-btn) {
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+    width: auto !important;
+  }
+
+  body #mediaDetailActions .media-toggle-all-seasons-btn {
+    flex: 0 0 4.25rem !important;
+    width: 4.25rem !important;
+    min-width: 4.25rem !important;
+    max-width: 4.25rem !important;
+    margin-left: 0 !important;
+  }
+
+  body #mediaDetailActions .action-pill span,
+  body #mediaDetailActions .seerr-request-btn span,
+  body #mediaDetailActions .rating-pill span {
+    min-height: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    line-height: 1.15 !important;
+  }
+}
