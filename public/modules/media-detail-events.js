@@ -49,27 +49,24 @@ const selectSettingsTab = (...args) => _cb.selectSettingsTab?.(...args);
 const copyToClipboard = (...args) => _cb.copyToClipboard?.(...args);
 const toggleSet = (...args) => _cb.toggleSet?.(...args);
 
-function refreshActiveMovieAfterDateEdit(entry = null) {
+async function refreshActiveMovieAfterDateEdit(entry = null) {
   if (!state.activeMovieModalId) return;
   if (entry?.media_type && entry.media_type !== "movie") return;
-  if (entry?.id && String(entry.id) !== String(state.activeMovieModalId)) return;
   const title = entry?.title || document.querySelector(".immersive-title")?.textContent || "";
-  fetchWatchedMovieByTmdb(state.activeMovieTmdbId || entry?.tmdb_id || "", title).then((movie) => {
-    if (movie) renderMovieImmersiveModalContent(movie).catch(() => {});
-  });
+  const movie = await fetchWatchedMovieByTmdb(state.activeMovieTmdbId || entry?.tmdb_id || "", title);
+  if (movie && state.activeMovieModalId) await renderMovieImmersiveModalContent(movie);
 }
 
-function refreshActiveShowAfterDateEdit(entry = null) {
+async function refreshActiveShowAfterDateEdit(entry = null) {
   if (!state.activeShowModalKey) return;
   if (entry?.media_type && entry.media_type !== "episode") return;
   const activeShow = state.showsRaw.find((show) => slug(show.title) === state.activeShowModalKey);
   const showTitle = entry?.show_title || (entry?.title ? showTitleFrom(entry.title) : "") || activeShow?.title || "";
   if (!showTitle) return;
-  refreshShowAfterManualWatch(showTitle).then(() => {
-    if (state.activeShowModalKey) {
-      renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-    }
-  });
+  await refreshShowAfterManualWatch(showTitle);
+  if (state.activeShowModalKey) {
+    await renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+  }
 }
 
 // Click delegation for the media-detail modal / immersive views: cast,
@@ -141,11 +138,10 @@ export function attachMediaDetailEvents() {
           if (entry.media_type === "episode") {
             const showTitle = entry.show_title || showTitleFrom(entry.title);
             if (showTitle) {
-              refreshShowAfterManualWatch(showTitle).then(() => {
-                if (state.activeShowModalKey) {
-                  renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-                }
-              });
+              await refreshShowAfterManualWatch(showTitle);
+              if (state.activeShowModalKey) {
+                await renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+              }
             }
           } else if (entry.media_type === "movie") {
             // Re-fetch from /api/movies (not /api/history?id=) so the refreshed
@@ -342,7 +338,7 @@ export function attachMediaDetailEvents() {
     if (editDateIconBtn) {
       const id = editDateIconBtn.dataset.editId;
       const currentEntry = state.history.find((h) => h.id === id);
-      openEditDateDialog(null, id, editDateIconBtn.dataset.watchedAt, ({ watched_at }) => {
+      openEditDateDialog(null, id, editDateIconBtn.dataset.watchedAt, async ({ watched_at }) => {
         editDateIconBtn.dataset.watchedAt = watched_at;
         // Update the time element this icon is inside
         const timeEl = editDateIconBtn.closest("time");
@@ -367,11 +363,11 @@ export function attachMediaDetailEvents() {
             // modal gets the deduped movie record with its playHistory array —
             // a raw watch_history row doesn't carry other watch dates for the
             // rewatch summary.
-            refreshActiveMovieAfterDateEdit(entry);
+            await refreshActiveMovieAfterDateEdit(entry);
           }
         } else {
-          refreshActiveMovieAfterDateEdit();
-          refreshActiveShowAfterDateEdit();
+          await refreshActiveMovieAfterDateEdit();
+          await refreshActiveShowAfterDateEdit();
         }
         if (state.activeView === "history") {
           renderHistoryView();

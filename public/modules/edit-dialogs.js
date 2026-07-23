@@ -295,7 +295,7 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
           .map((btn) => btn.dataset.watchedIso)
           .filter(Boolean)
           .sort();
-        if (remainingDates.length) onSaved?.({ watched_at: remainingDates.at(-1) });
+        if (remainingDates.length) await onSaved?.({ watched_at: remainingDates.at(-1) });
       } catch (err) {
         if (status) status.textContent = `Error: ${err.message}`;
         removeBtn.disabled = false;
@@ -337,7 +337,7 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
           if (!latestIso || entry.iso > latestIso) latestIso = entry.iso;
         }
         overlay.remove();
-        onSaved?.({ watched_at: latestIso });
+        await onSaved?.({ watched_at: latestIso });
       } catch (err) {
         status.textContent = `Error: ${err.message}`;
       }
