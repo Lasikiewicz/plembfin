@@ -1,7 +1,17 @@
 {
-  "version": "0.6.2",
-  "updatedAt": "2026-07-23T15:46:56+01:00",
+  "version": "0.6.3",
+  "updatedAt": "2026-07-23T16:02:18+01:00",
   "entries": [
+    {
+      "version": "0.6.3",
+      "date": "2026-07-23T16:02:18+01:00",
+      "commit": "27b72c06f864938dab1d810214058ec0819d292c",
+      "message": "perf: speed up media detail loading",
+      "author": "Lasikiewicz",
+      "details": [
+        "perf: speed up media detail loading"
+      ]
+    },
     {
       "version": "0.6.2",
       "date": "2026-07-23T15:46:56+01:00",
