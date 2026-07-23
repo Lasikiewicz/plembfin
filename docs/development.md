@@ -19,6 +19,10 @@ There is no separate linter configured. A local `.env` at the repo root is loade
 `server/src/env.js` (existing env vars win). Data lands in `<repo>/data/` (override
 with `DATA_DIR`).
 
+When implementation work completes an item in [`TODO.md`](../TODO.md), remove it in
+the same change and refresh the relevant documentation and README section if the
+completed work changes user-visible behavior.
+
 ## The build check (`scripts/build-check.js`)
 
 `npm run build` is the gate used by the pre-push hook and every CI job. It:

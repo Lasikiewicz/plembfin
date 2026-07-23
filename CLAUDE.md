@@ -64,6 +64,13 @@ Update any doc **and** the matching README section that is out of date before pr
 
 Documentation and README copy must stand on its own for a first-time reader. State the current behavior as a fact; avoid historical or relative wording such as "still", "previously", "formerly", "same as before", "no longer", or "new" unless the sentence is explicitly about an upgrade, migration, or changelog entry. For metadata source descriptions, say which source provides which data instead of referencing what another source used to provide.
 
+### Backlog and documentation sync
+
+When implementing or finishing work described in `TODO.md`, remove the completed
+item from the TODO file in the same change. If the completed work changes user-visible
+behavior, also update the relevant `docs/` page and README section. Before removing
+an item, verify that the code and documentation both describe the current behavior.
+
 ### 3 — Sync in-app help
 For every changed feature or setting, check the relevant frontend module in `public/modules/` or `public/app.js`:
 - **Feature-owned help renderers and modal `helpHtml`** — update any setup copy if flows changed

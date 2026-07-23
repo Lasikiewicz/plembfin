@@ -358,6 +358,9 @@ The installed commit hook and CI changelog generator both reject title-only rele
 messages, preventing sparse entries in **Settings → About**. See
 [`docs/development.md`](docs/development.md) for the full release workflow.
 
+When a change completes an item in [`TODO.md`](TODO.md), remove that item and update
+the corresponding documentation in the same change.
+
 ---
 
 ## License
