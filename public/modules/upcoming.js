@@ -17,7 +17,6 @@ const UPCOMING_RANGE_FUTURE_MONTHS = 0;
 let upcomingSearchTimer = undefined;
 let upcomingSearchRequestId = 0;
 const upcomingBackgroundLoads = new Map();
-let rangeScrollObserver = null;
 
 export function initUpcoming(callbacks) {
   _cb = callbacks;
@@ -110,16 +109,17 @@ function ensureUpcomingRange() {
   state.upcomingRangeEnd = endOfMonthIso(addMonths(anchor, UPCOMING_RANGE_FUTURE_MONTHS));
 }
 
+function resetUpcomingRange(monthKey) {
+  state.upcomingRangeStart = startOfMonthIso(addMonths(monthKey, -UPCOMING_RANGE_PAST_MONTHS));
+  state.upcomingRangeEnd = endOfMonthIso(addMonths(monthKey, UPCOMING_RANGE_FUTURE_MONTHS));
+}
+
 function extendRangePast() {
   state.upcomingRangeStart = startOfMonthIso(addMonths(state.upcomingRangeStart.slice(0, 7), -1));
 }
 
 function extendRangeFuture() {
   state.upcomingRangeEnd = endOfMonthIso(addMonths(state.upcomingRangeEnd.slice(0, 7), 1));
-}
-
-function scrollContainerEl() {
-  return document.querySelector(".page-shell");
 }
 
 async function scrollRangeToMonth(monthKey) {
@@ -145,44 +145,6 @@ async function scrollRangeToDay(dayIso, { force = false, behavior = "smooth" } =
   if (elements.upcomingMonthTitle) elements.upcomingMonthTitle.textContent = monthTitle(monthKey);
 }
 
-function observeRangeScrollSentinels() {
-  rangeScrollObserver?.disconnect();
-  const container = elements.upcomingCalendar;
-  if (!container) return;
-  const topSentinel = container.querySelector('[data-sentinel="top"]');
-  const bottomSentinel = container.querySelector('[data-sentinel="bottom"]');
-  if (!topSentinel && !bottomSentinel) return;
-
-  rangeScrollObserver = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      if (entry.target.dataset.sentinel === "top") handleTopSentinel();
-      else if (entry.target.dataset.sentinel === "bottom") handleBottomSentinel();
-    }
-  }, { root: scrollContainerEl(), rootMargin: "600px 0px 600px 0px" });
-
-  if (topSentinel) rangeScrollObserver.observe(topSentinel);
-  if (bottomSentinel) rangeScrollObserver.observe(bottomSentinel);
-}
-
-async function handleTopSentinel() {
-  if (state.upcomingLoadingMonth) return;
-  const root = scrollContainerEl();
-  const prevScrollHeight = root ? root.scrollHeight : 0;
-  const prevScrollTop = root ? root.scrollTop : 0;
-  extendRangePast();
-  renderUpcoming();
-  if (root) root.scrollTop = prevScrollTop + (root.scrollHeight - prevScrollHeight);
-  await loadUpcoming({ force: false }).catch((error) => _cb.setMessage?.(error.message, "error"));
-}
-
-async function handleBottomSentinel() {
-  if (state.upcomingLoadingMonth) return;
-  extendRangeFuture();
-  renderUpcoming();
-  await loadUpcoming({ force: false }).catch((error) => _cb.setMessage?.(error.message, "error"));
-}
-
 function shiftUpcomingMonth(delta) {
   scrollRangeToMonth(addMonths(activeMonth(), delta));
 }
@@ -194,7 +156,12 @@ function goToToday() {
 // Called whenever the Upcoming page is navigated to, so it always opens on
 // today's date rather than wherever a prior visit's scroll position landed.
 export function openUpcomingToToday() {
-  return scrollRangeToDay(todayIsoDate(), { force: true, behavior: "auto" });
+  const dayIso = todayIsoDate();
+  // Returning to Upcoming should not retain months that were added while
+  // browsing in the previous visit. Reset the visible range so the month
+  // title and the first rendered calendar block always describe the same day.
+  resetUpcomingRange(dayIso.slice(0, 7));
+  return scrollRangeToDay(dayIso, { force: true, behavior: "auto" });
 }
 
 export async function loadUpcoming({ force = false } = {}) {
@@ -394,13 +361,9 @@ function renderMonthGridView() {
       </div>`;
   });
 
-  container.innerHTML = `
-    <div class="upcoming-scroll-sentinel" data-sentinel="top"></div>
-    ${blocks.join("")}
-    <div class="upcoming-scroll-sentinel" data-sentinel="bottom"></div>`;
+  container.innerHTML = blocks.join("");
 
   hydratePosters(container);
-  observeRangeScrollSentinels();
 }
 
 function renderSearchResultsView(searchQuery) {
