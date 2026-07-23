@@ -82,7 +82,13 @@ async function fetchMovieBySlugOrId(value) {
   }
 }
 export async function resolveMovieBySlugOrId(value) {
-  return movieBySlugOrId(value) || fetchMovieBySlugOrId(value);
+  const key = decodeURIComponent(String(value || ""));
+  // Preserve direct watch-history URLs, including legacy stats links. Slug
+  // routes must resolve through /api/movies so the page receives the server's
+  // deduplicated record with the complete playHistory array.
+  const directRecord = movieById(key);
+  if (directRecord) return directRecord;
+  return await fetchMovieBySlugOrId(value) || movieBySlugOrId(value);
 }
 export function nowPlayingHref(session = {}) {
   const mediaType = session.mediaType || (session.season != null || session.episode != null ? "tv" : "movie");

@@ -493,7 +493,7 @@ function createStatsPeriod(period, label) {
 }
 
 function statsMovieKey(row = {}) {
-  return row.imdb_id || row.tmdb_id || row.tvdb_id || canonicalTitleKey(row.title) || row.title || "unknown-movie";
+  return row._statsMovieKey || row.imdb_id || row.tmdb_id || row.tvdb_id || canonicalTitleKey(row.title) || row.title || "unknown-movie";
 }
 
 function statsShowKey(row = {}) {
@@ -569,6 +569,64 @@ function addRowToStatsPeriod(period, row = {}) {
     bumpStatsMedia(period.showMap, key, item);
     bumpStatsMedia(period.mediaMap, key, item);
   }
+}
+
+// Stats must use the same identity rule as the movie list: rows with any shared
+// provider ID belong to one film, and title-only rows join that film only when
+// the title has exactly one provider-ID cluster. This prevents imported plays
+// and initial-sync plays for the same film from becoming separate leaderboard
+// entries, while keeping same-title remakes separate when their IDs differ.
+function buildStatsMovieKeys(rows = []) {
+  const movieRows = rows.filter((row) => row.media_type === "movie");
+  const parent = new Map();
+  const find = (value) => {
+    while (parent.get(value) !== value) {
+      parent.set(value, parent.get(parent.get(value)));
+      value = parent.get(value);
+    }
+    return value;
+  };
+  const ensure = (value) => { if (!parent.has(value)) parent.set(value, value); };
+  const union = (a, b) => {
+    const left = find(a);
+    const right = find(b);
+    if (left !== right) parent.set(left, right);
+  };
+  const idNodesFor = (row) => [
+    cleanString(row.imdb_id) ? `imdb:${cleanString(row.imdb_id)}` : "",
+    cleanString(row.tmdb_id) ? `tmdb:${cleanString(row.tmdb_id)}` : "",
+    cleanString(row.tvdb_id) ? `tvdb:${cleanString(row.tvdb_id)}` : "",
+  ].filter(Boolean);
+
+  for (const row of movieRows) {
+    const nodes = idNodesFor(row);
+    nodes.forEach(ensure);
+    for (let index = 1; index < nodes.length; index += 1) union(nodes[0], nodes[index]);
+  }
+
+  const titleClusters = new Map();
+  for (const row of movieRows) {
+    const nodes = idNodesFor(row);
+    if (!nodes.length) continue;
+    const clusterKey = find(nodes[0]);
+    const titleKey = canonicalTitleKey(row.title);
+    if (!titleClusters.has(titleKey)) titleClusters.set(titleKey, new Set());
+    titleClusters.get(titleKey).add(clusterKey);
+  }
+
+  const keys = new Map();
+  for (const row of movieRows) {
+    const nodes = idNodesFor(row);
+    if (nodes.length) {
+      keys.set(row, find(nodes[0]));
+      continue;
+    }
+    const titleKey = canonicalTitleKey(row.title);
+    const matches = titleClusters.get(titleKey);
+    const clusterKey = matches?.size === 1 ? [...matches][0] : `title:${titleKey || "unknown-movie"}`;
+    keys.set(row, clusterKey);
+  }
+  return keys;
 }
 
 function rankStatsItems(map, limit = 10) {
@@ -981,9 +1039,39 @@ const updateWatchRowWatchedAtStmt = db.prepare("UPDATE watch_history SET watched
 function siblingWatchRowsFor(existing = {}) {
   if (!existing.id) return [];
   if (existing.media_type !== "episode") {
-    return existing.media_key
-      ? selectByMediaKeyStmt.all(existing.media_key).filter((row) => row.id !== existing.id && isPlembfinTrackedWatchRow(row))
-      : [];
+    const allMovies = selectMoviesStmt.all().filter(isPlembfinTrackedWatchRow);
+    const ids = [existing.imdb_id, existing.tmdb_id, existing.tvdb_id]
+      .map(cleanString)
+      .filter(Boolean);
+    const titleKey = canonicalTitleKey(existing.title);
+    const sameTitle = allMovies.filter((row) => canonicalTitleKey(row.title) === titleKey);
+    const parent = new Map();
+    const find = (key) => {
+      while (parent.get(key) !== key) {
+        parent.set(key, parent.get(parent.get(key)));
+        key = parent.get(key);
+      }
+      return key;
+    };
+    const union = (left, right) => {
+      if (left && right) parent.set(find(left), find(right));
+    };
+    for (const row of sameTitle) {
+      const rowIds = [row.imdb_id, row.tmdb_id, row.tvdb_id]
+        .map(cleanString)
+        .filter(Boolean);
+      rowIds.forEach((key) => { if (!parent.has(key)) parent.set(key, key); });
+      for (let index = 1; index < rowIds.length; index += 1) union(rowIds[0], rowIds[index]);
+    }
+    const providerClusters = new Set([...parent.keys()].map(find));
+    return allMovies.filter((row) => {
+      if (row.id === existing.id) return false;
+      const sharesProviderId = ids.some((id) => [row.imdb_id, row.tmdb_id, row.tvdb_id]
+        .map(cleanString)
+        .includes(id));
+      const isUnambiguousTitleMatch = titleKey && canonicalTitleKey(row.title) === titleKey && providerClusters.size === 1;
+      return sharesProviderId || isUnambiguousTitleMatch;
+    });
   }
 
   const showKey = canonicalTitleKey(existing.show_title || showTitleFrom(existing.title));
@@ -1647,6 +1735,7 @@ export async function getWatchStats() {
   if (statsCache.version === version && statsCache.stats) return statsCache.stats;
 
   const rows = (await loadHistoryRows({ limit: MAX_HISTORY_LIMIT, offset: 0 })).filter(isPlembfinTrackedWatchRow);
+  const statsMovieKeys = buildStatsMovieKeys(rows);
   const movieKeys = new Set();
   let episodes = 0;
   const bySource = new Map();
@@ -1656,7 +1745,10 @@ export async function getWatchStats() {
   const statsMonthPeriods = new Map();
   const allPeriod = createStatsPeriod("all", "All time");
 
-  for (const row of rows) {
+  for (const sourceRow of rows) {
+    const row = sourceRow.media_type === "movie"
+      ? { ...sourceRow, _statsMovieKey: statsMovieKeys.get(sourceRow) }
+      : sourceRow;
     const source = normalizePlatformSource(row.source);
     bySource.set(source, (bySource.get(source) || 0) + 1);
     const month = String(row.watched_at || "").slice(0, 7) || "unknown";
