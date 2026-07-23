@@ -128,7 +128,7 @@ export function attachMediaDetailEvents() {
     if (editDateBtn) {
       const container = editDateBtn.closest(".immersive-container, .modal-body") || document.body;
       const currentEntry = state.history.find((h) => h.id === editDateBtn.dataset.editId);
-      openEditDateDialog(container, editDateBtn.dataset.editId, editDateBtn.dataset.watchedAt, ({ watched_at }) => {
+      openEditDateDialog(container, editDateBtn.dataset.editId, editDateBtn.dataset.watchedAt, async ({ watched_at }) => {
         editDateBtn.dataset.watchedAt = watched_at;
         const span = container.querySelector(".progress-label-row span");
         if (span) span.textContent = `Watched on ${formatDate(watched_at)}`;
@@ -148,11 +148,11 @@ export function attachMediaDetailEvents() {
             // modal gets the deduped movie record with its playHistory array —
             // a raw watch_history row doesn't carry other watch dates for the
             // rewatch summary.
-            refreshActiveMovieAfterDateEdit(entry);
+            await refreshActiveMovieAfterDateEdit(entry);
           }
         } else {
-          refreshActiveMovieAfterDateEdit();
-          refreshActiveShowAfterDateEdit();
+          await refreshActiveMovieAfterDateEdit();
+          await refreshActiveShowAfterDateEdit();
         }
         if (state.activeView === "history") {
           renderHistoryView();
