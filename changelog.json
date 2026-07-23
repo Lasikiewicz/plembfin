@@ -1,7 +1,18 @@
 {
-  "version": "0.5.38",
-  "updatedAt": "2026-07-23T11:03:25+01:00",
+  "version": "0.6.0",
+  "updatedAt": "2026-07-23T11:47:07+01:00",
   "entries": [
+    {
+      "version": "0.6.0",
+      "date": "2026-07-23T11:47:07+01:00",
+      "commit": "c31f0ede88607f600851c6bc1347b437d1b640e8",
+      "message": "Fix - Complete movie watch history editing",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keeps movie watch-history identities consistent across stats, detail pages, and edit-date dialogs.",
+        "Updates the release version to 0.6.0."
+      ]
+    },
     {
       "version": "0.5.38",
       "date": "2026-07-23T11:03:25+01:00",
