@@ -34,7 +34,7 @@ import {
   renderMovieImmersiveModalContent,
   openHistoryDebugModal,
 } from "./media-detail.js?v=20260701";
-import { fetchWatchedMovieByTmdb } from "./media-detail-movie.js";
+import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};
@@ -48,6 +48,29 @@ const authHeaders = (...args) => _cb.authHeaders?.(...args);
 const selectSettingsTab = (...args) => _cb.selectSettingsTab?.(...args);
 const copyToClipboard = (...args) => _cb.copyToClipboard?.(...args);
 const toggleSet = (...args) => _cb.toggleSet?.(...args);
+
+function refreshActiveMovieAfterDateEdit(entry = null) {
+  if (!state.activeMovieModalId) return;
+  if (entry?.media_type && entry.media_type !== "movie") return;
+  if (entry?.id && String(entry.id) !== String(state.activeMovieModalId)) return;
+  const title = entry?.title || document.querySelector(".immersive-title")?.textContent || "";
+  fetchWatchedMovieByTmdb(state.activeMovieTmdbId || entry?.tmdb_id || "", title).then((movie) => {
+    if (movie) renderMovieImmersiveModalContent(movie).catch(() => {});
+  });
+}
+
+function refreshActiveShowAfterDateEdit(entry = null) {
+  if (!state.activeShowModalKey) return;
+  if (entry?.media_type && entry.media_type !== "episode") return;
+  const activeShow = state.showsRaw.find((show) => slug(show.title) === state.activeShowModalKey);
+  const showTitle = entry?.show_title || (entry?.title ? showTitleFrom(entry.title) : "") || activeShow?.title || "";
+  if (!showTitle) return;
+  refreshShowAfterManualWatch(showTitle).then(() => {
+    if (state.activeShowModalKey) {
+      renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+    }
+  });
+}
 
 // Click delegation for the media-detail modal / immersive views: cast,
 // trailers, poster/date/match editing, watch actions, and card navigation.
@@ -89,6 +112,21 @@ export function attachMediaDetailEvents() {
       return;
     }
 
+    const watchHistoryToggle = event.target.closest("[data-watch-history-toggle]");
+    if (watchHistoryToggle) {
+      const history = watchHistoryToggle.closest(".movie-rewatch-history");
+      if (history) {
+        const expanded = history.classList.toggle("is-expanded");
+        watchHistoryToggle.setAttribute("aria-expanded", String(expanded));
+        watchHistoryToggle.querySelector(".watch-history-toggle-icon").textContent = expanded ? "▲" : "▼";
+        watchHistoryToggle.querySelector(".watch-history-toggle-label").textContent = expanded ? "Show less" : "Show more";
+        const toggleItem = watchHistoryToggle.closest(".watch-history-toggle-item");
+        if (toggleItem) toggleItem.hidden = false;
+        if (!expanded) syncRewatchHistoryToggle(history);
+      }
+      return;
+    }
+
     const editDateBtn = event.target.closest(".media-edit-date-btn");
     if (editDateBtn) {
       const container = editDateBtn.closest(".immersive-container, .modal-body") || document.body;
@@ -109,15 +147,16 @@ export function attachMediaDetailEvents() {
                 }
               });
             }
-          } else if (entry.media_type === "movie" && state.activeMovieModalId && String(entry.id) === String(state.activeMovieModalId)) {
+          } else if (entry.media_type === "movie") {
             // Re-fetch from /api/movies (not /api/history?id=) so the refreshed
             // modal gets the deduped movie record with its playHistory array —
             // a raw watch_history row doesn't carry other watch dates for the
             // rewatch summary.
-            fetchWatchedMovieByTmdb(state.activeMovieTmdbId || entry.tmdb_id, entry.title).then((movie) => {
-              if (movie) renderMovieImmersiveModalContent(movie).catch(() => {});
-            });
+            refreshActiveMovieAfterDateEdit(entry);
           }
+        } else {
+          refreshActiveMovieAfterDateEdit();
+          refreshActiveShowAfterDateEdit();
         }
         if (state.activeView === "history") {
           renderHistoryView();
@@ -323,15 +362,16 @@ export function attachMediaDetailEvents() {
                 }
               });
             }
-          } else if (entry.media_type === "movie" && state.activeMovieModalId && String(entry.id) === String(state.activeMovieModalId)) {
+          } else if (entry.media_type === "movie") {
             // Re-fetch from /api/movies (not /api/history?id=) so the refreshed
             // modal gets the deduped movie record with its playHistory array —
             // a raw watch_history row doesn't carry other watch dates for the
             // rewatch summary.
-            fetchWatchedMovieByTmdb(state.activeMovieTmdbId || entry.tmdb_id, entry.title).then((movie) => {
-              if (movie) renderMovieImmersiveModalContent(movie).catch(() => {});
-            });
+            refreshActiveMovieAfterDateEdit(entry);
           }
+        } else {
+          refreshActiveMovieAfterDateEdit();
+          refreshActiveShowAfterDateEdit();
         }
         if (state.activeView === "history") {
           renderHistoryView();

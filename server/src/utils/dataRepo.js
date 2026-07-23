@@ -1003,6 +1003,10 @@ function siblingWatchRowsFor(existing = {}) {
 // is edited. Siblings on a different day are independent rewatches and are
 // left alone, so editing one watch date can't silently overwrite another.
 function relatedTrackedWatchRowsForDateEdit(existing = {}) {
+  // Movie history rows are independent rewatches. Updating one movie row
+  // must not stamp every same-day sibling with the same time, otherwise the
+  // per-watch editor can never preserve distinct watch times.
+  if (existing.media_type !== "episode") return [];
   const day = String(existing.watched_at || "").slice(0, 10);
   if (!day) return [];
   return siblingWatchRowsFor(existing).filter((row) => String(row.watched_at || "").slice(0, 10) === day);

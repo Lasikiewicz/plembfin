@@ -506,6 +506,8 @@ h2 {
 .media-detail-page .immersive-poster-img {
   grid-column: 1;
   grid-row: 1 / -1;
+  align-self: start;
+  height: auto;
 }
 
 .media-detail-page .immersive-meta {
@@ -1656,11 +1658,66 @@ h2 {
 }
 
 .episode-watch-history-list {
-  display: grid;
-  gap: 0.3rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.65rem;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.movie-watch-history-list {
+  max-height: 1.7rem;
+  overflow: hidden;
+  transition: max-height 180ms ease-out;
+}
+
+.movie-watch-history-list > .episode-watch-history-row {
+  flex: 0 0 auto;
+}
+
+.movie-watch-history-list > [hidden] {
+  display: none !important;
+}
+
+.movie-rewatch-history.is-expanded .movie-watch-history-list {
+  max-height: 20rem;
+}
+
+.watch-history-toggle-item {
+  list-style: none;
+  flex: 0 0 auto;
+}
+
+.movie-watch-history-list > .episode-watch-history-row + .episode-watch-history-row::before {
+  content: "-";
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.watch-history-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.35rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.watch-history-toggle:hover,
+.watch-history-toggle:focus-visible {
+  color: var(--accent);
+}
+
+.watch-history-toggle-icon {
+  font-size: 0.65rem;
 }
 
 .episode-watch-history-row {

@@ -1,5 +1,5 @@
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate, sourceBadgeHtml } from "./utils.js";
+import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils.js";
 import { posterUrlFor, tmdbPoster, bestTmdbLogo, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260710";
@@ -23,18 +23,53 @@ function rewatchSummaryHtml(movie) {
     .map((entry) => `
       <li class="episode-watch-history-row">
         <span class="episode-watch-history-date">${escapeHtml(formatDate(entry.watched_at))}</span>
-        ${sourceBadgeHtml(entry.source)}
       </li>
     `)
     .join("");
   return `
-    <div class="episode-watch-history">
+    <div class="episode-watch-history movie-rewatch-history">
       <div class="episode-watch-history-head">
         <span class="rewatch-badge" title="Watched ${history.length} times">&#8635; Watch History &times;${history.length}</span>
       </div>
-      <ul class="episode-watch-history-list">${rows}</ul>
+      <ul class="episode-watch-history-list movie-watch-history-list">
+        ${rows}
+        <li class="watch-history-toggle-item" hidden>
+          <button class="watch-history-toggle" type="button" data-watch-history-toggle aria-expanded="false">
+            <span class="watch-history-toggle-icon" aria-hidden="true">&#9662;</span>
+            <span class="watch-history-toggle-label">Show more</span>
+          </button>
+        </li>
+      </ul>
     </div>
   `;
+}
+
+export function syncRewatchHistoryToggle(root) {
+  for (const history of root.querySelectorAll(".movie-rewatch-history")) {
+    const list = history.querySelector(".movie-watch-history-list");
+    const toggle = history.querySelector("[data-watch-history-toggle]");
+    const toggleItem = toggle?.closest(".watch-history-toggle-item") || toggle;
+    if (!list || !toggle) continue;
+    if (history.classList.contains("is-expanded")) {
+      for (const row of list.querySelectorAll(".episode-watch-history-row")) row.hidden = false;
+      toggleItem.hidden = false;
+      continue;
+    }
+    const rows = [...list.querySelectorAll(".episode-watch-history-row")];
+    for (const row of rows) row.hidden = false;
+    toggleItem.hidden = true;
+    if (list.scrollHeight > list.clientHeight + 1) {
+      toggleItem.hidden = false;
+      for (let index = rows.length - 1; index >= 0 && list.scrollHeight > list.clientHeight + 1; index -= 1) {
+        rows[index].hidden = true;
+      }
+    }
+    if (!list.dataset.watchHistoryObserved && typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(() => syncRewatchHistoryToggle(root));
+      observer.observe(list);
+      list.dataset.watchHistoryObserved = "true";
+    }
+  }
 }
 
 // Authoritatively check whether a movie is already in watch history. state.history
@@ -48,7 +83,14 @@ export async function fetchWatchedMovieByTmdb(tmdbId, title) {
     const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
     const body = await response.json().catch(() => ({}));
     const movies = Array.isArray(body.movies) ? body.movies : [];
-    return movies.find((movie) => String(movie.tmdb_id || "") === String(tmdbId)) || null;
+    const byTmdbId = tmdbId
+      ? movies.find((movie) => String(movie.tmdb_id || "") === String(tmdbId))
+      : null;
+    if (byTmdbId) return byTmdbId;
+    const normalizedTitle = String(title || "").trim().toLowerCase();
+    return normalizedTitle
+      ? movies.find((movie) => String(movie.title || "").trim().toLowerCase() === normalizedTitle) || null
+      : null;
   } catch {
     return null;
   }
@@ -268,6 +310,7 @@ function _renderWatchedMovieContent(root, movie, {
   `;
   hydratePosters(root);
   hydrateMediaAppLinks(root);
+  syncRewatchHistoryToggle(root);
 }
 
 export function patchMovieWatchedState(movie) {
@@ -348,6 +391,7 @@ export function patchMovieWatchedState(movie) {
             </div>
             ${rewatchSummaryHtml(movie)}
     `;
+    syncRewatchHistoryToggle(page);
   }
 
   return true;
@@ -359,7 +403,18 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   const existingWatched = state.history.find(
     (entry) => entry.media_type === "movie" && isWatchedHistoryAction(entry) && String(entry.tmdb_id || "") === String(tmdbId),
   );
-  if (existingWatched) return renderMovieImmersiveModalContent(existingWatched);
+  if (existingWatched) {
+    // The history preview is intentionally lightweight and does not include
+    // the deduped playHistory array. Paint it immediately, then replace it
+    // with the authoritative movie record so rewatches are visible on first
+    // open instead of only after editing/saving a watch date.
+    await renderMovieImmersiveModalContent(existingWatched);
+    const fullMovie = await fetchWatchedMovieByTmdb(tmdbId, existingWatched.title);
+    if (fullMovie && state.activeMovieTmdbId === String(tmdbId)) {
+      await renderMovieImmersiveModalContent(fullMovie);
+    }
+    return;
+  }
   setMediaDetailActions("");
   if (!state.mediaDetailInline) {
     elements.debugModal.classList.remove("hidden");
