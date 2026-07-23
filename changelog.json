@@ -1,7 +1,17 @@
 {
-  "version": "0.6.4",
-  "updatedAt": "2026-07-23T16:16:53+01:00",
+  "version": "0.6.5",
+  "updatedAt": "2026-07-23T16:26:45+01:00",
   "entries": [
+    {
+      "version": "0.6.5",
+      "date": "2026-07-23T16:26:45+01:00",
+      "commit": "7c33653dc57aa6e1e0cb6b7bc60cb2345c99aa17",
+      "message": "Performance - Improve poster loading and changelog detail",
+      "author": "Lasikiewicz",
+      "details": [
+        "Prioritize visible Part Watched posters and generate specific user-facing release details from changed areas."
+      ]
+    },
     {
       "version": "0.6.4",
       "date": "2026-07-23T16:16:53+01:00",
