@@ -144,3 +144,38 @@ test("show rematch stamps every episode in one operation and clears stale artwor
     assert.equal(row.backdrop_url, null);
   }
 });
+
+test("stats merge title-only movie plays into one provider identity", async () => {
+  const firstPlayId = await insert({
+    title: "Merged Identity Movie",
+    media_type: "movie",
+    watched_at: "2026-02-01T12:00:00.000Z",
+    source: "plex",
+    tmdb_id: "merged-tmdb",
+  });
+  await insert({
+    title: "Merged Identity Movie",
+    media_type: "movie",
+    watched_at: "2026-02-02T12:00:00.000Z",
+    source: "plex",
+    tmdb_id: "merged-tmdb",
+  });
+  await insert({
+    title: "Merged Identity Movie",
+    media_type: "movie",
+    watched_at: "2026-02-03T12:00:00.000Z",
+    source: "plex_initial_sync",
+  });
+
+  const stats = await repo.getWatchStats();
+  const matches = stats.reports.all.topMovies.filter((movie) => movie.title === "Merged Identity Movie");
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].count, 3);
+
+  const movies = await repo.queryMovies({ search: "Merged Identity Movie" });
+  assert.equal(movies.length, 1);
+  assert.equal(movies[0].playHistory.length, 3);
+
+  const dateEditorRows = await repo.getWatchDatesForRecord(firstPlayId);
+  assert.equal(dateEditorRows.rows.length, 3);
+});

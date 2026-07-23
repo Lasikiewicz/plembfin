@@ -97,6 +97,15 @@ export async function fetchWatchedMovieByTmdb(tmdbId, title) {
 }
 
 export async function renderMovieImmersiveModalContent(movie) {
+  // Route state can contain the lightweight latest-play record rather than the
+  // server's collapsed movie record. Rehydrate before the first paint so every
+  // detail entry point shows the same complete watch history.
+  if (movie && (!Array.isArray(movie.playHistory) || movie.playHistory.length < 2)) {
+    const fullMovie = await fetchWatchedMovieByTmdb(movie.tmdb_id, movie.title);
+    if (fullMovie && Array.isArray(fullMovie.playHistory) && fullMovie.playHistory.length > (movie.playHistory?.length || 0)) {
+      movie = fullMovie;
+    }
+  }
   // Half of a two-token handshake with media-detail-show.js — see the
   // bumpMediaRenderToken doc comment in media-detail-context.js before changing this.
   const renderToken = bumpMediaRenderToken();

@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, platformName, formatNumber, formatDate, shortMonthLabel } from "./utils.js";
+import { escapeHtml, escapeAttribute, platformName, formatNumber, formatDate, shortMonthLabel, movieHref } from "./utils.js";
 import { posterMarkup, hydratePosterFallbacks } from "./images.js";
 
 let _cb = {};
@@ -179,7 +179,7 @@ export function statsIntroCards(report = selectedStatsReport(), periodLabel = "A
 
 function statsMediaHref(item = {}) {
   const title = item.title || "unknown";
-  if (item.type === "movie") return `/movie/${encodeURIComponent(item.id || _cb.slug?.(title) || title)}`;
+  if (item.type === "movie") return movieHref({ title });
   return `/tvshow/${encodeURIComponent(_cb.slug?.(title) || title)}`;
 }
 
