@@ -1,7 +1,23 @@
 {
-  "version": "0.6.7",
-  "updatedAt": "2026-07-24T20:02:14+01:00",
+  "version": "0.6.8",
+  "updatedAt": "2026-07-24T20:40:26+01:00",
   "entries": [
+    {
+      "version": "0.6.8",
+      "date": "2026-07-24T20:40:26+01:00",
+      "commit": "c27fbd7825ed6ae50683889a7dab978d3bdcf880",
+      "message": "Fix - Open Upcoming on the current week and fix month navigation",
+      "author": "Lasikiewicz",
+      "details": [
+        "Upcoming now opens with the current week as the top row and scrolls freely back into the past or forward into the future, loading months as you go",
+        "The Previous/Next arrows move exactly one month per click and land that month at the top of the page, directly under the topbar",
+        "Month headings no longer stack on top of each other into an unreadable smear when several months are on screen",
+        "Days belonging to a neighbouring month now appear only under their own month heading, leaving the spaces above it blank",
+        "The month bar is opaque and sits slightly below the topbar instead of colliding with it",
+        "Background month loads no longer throw away your scroll position mid-browse",
+        "Emby and Jellyfin sync logs now say a skipped item had no played date, rather than referring to a release date that is no longer used"
+      ]
+    },
     {
       "version": "0.6.7",
       "date": "2026-07-24T20:02:14+01:00",
