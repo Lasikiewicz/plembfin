@@ -1,7 +1,17 @@
 {
-  "version": "0.6.6",
-  "updatedAt": "2026-07-23T16:44:03+01:00",
+  "version": "0.6.7",
+  "updatedAt": "2026-07-24T20:02:14+01:00",
   "entries": [
+    {
+      "version": "0.6.7",
+      "date": "2026-07-24T20:02:14+01:00",
+      "commit": "445aa275aa14684995cc11cc942c552c127c1e16",
+      "message": "Fix - Prevent false overnight watch history",
+      "author": "Lasikiewicz",
+      "details": [
+        "Ignore timestamp-less Emby/Jellyfin played flags instead of creating current-time watch rows, and add regression coverage."
+      ]
+    },
     {
       "version": "0.6.6",
       "date": "2026-07-23T16:44:03+01:00",
