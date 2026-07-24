@@ -9,10 +9,10 @@ used for show navigation.
 
 | File | Role |
 | --- | --- |
-| `public/modules/upcoming.js` | Month navigation, client-side search, calendar rendering, poster hydration, show navigation |
+| `public/modules/upcoming.js` | Week-range scrolling, month navigation, client-side search, calendar rendering, poster hydration, show navigation |
 | `public/app.js` | Route binding for `/upcoming`, element binding, module initialization |
 | `public/index.html` | Upcoming nav item, page shell, month controls, search field, calendar container |
-| `public/styles.css` | Calendar grid, mobile agenda layout, search results, poster sizing |
+| `public/styles.css` | Week-row grid, mobile agenda layout, search results, poster sizing |
 | `server/src/routes/metadata.js` | Authenticated `handleUpcoming` API response |
 | `server/src/utils/upcomingCalendarCache.js` | Persistent month results, historical backfill, future checks, and new-show merging |
 | `server/src/index.js` | Dispatches `GET /api/upcoming` |
@@ -40,29 +40,45 @@ restarts, so revisiting a month does not repeat metadata pulls.
 
 Each month records the tracked shows included in its result. Opening a cached calendar
 after another show enters the library fetches only that missing show and merges its
-episodes immediately. The browser revalidates the selected month whenever the Upcoming
-page opens or month navigation returns to it, while the response remains a fast local
-cache read when no shows were added.
+episodes immediately. The browser revalidates the current month every time the Upcoming
+page opens, while the response remains a fast local cache read when no shows were added.
+Other months are fetched once as the visible week range reaches them and then reused for
+the rest of the session.
 
 ## Frontend Behavior
 
-Opening the page (via nav click or direct URL) always scrolls to and highlights today's
-date, regardless of where a previous visit left off. Each visible month renders as a
-7-column grid of day cards — the same card style used across the app for a single day
-(weekday name, date number, episode entries) — stacked one month after another with a
-sticky month heading (e.g. "July 2026") pinned below the topbar while that month is in
-view. Leading/trailing days that fall outside a month are invisible spacers that
-preserve column alignment without drawing a box.
+The calendar renders one block per month, stacked in date order. A block is a sticky
+month heading (e.g. "July 2026") pinned below the topbar while that month is in view,
+followed by that month's Monday-start week rows. Each row is a 7-column grid of day
+cards — the same card style used across the app for a single day (weekday name, date
+number, episode entries). A week that straddles a month boundary appears in both blocks,
+and the days belonging to the other month render as invisible spacers, so every date is
+drawn once, under its own heading, with the columns still aligned. Confining each heading
+to its own block is what stops the headings stacking on top of one another at the top of
+the scroller.
 
-The calendar loads a small buffer of months around the current one, then extends
-further back or forward automatically as the user scrolls near the top or bottom of the
-loaded range, fetching any missing months from `/api/upcoming` on demand. Scrolling
-upward preserves the user's viewport position as older months are prepended. The
-Previous/Next/Today controls jump the scroll position to a specific month or to today,
-extending the loaded range first if needed.
+Opening the page (via nav click or direct URL) always puts the current week in the top
+row, regardless of where a previous visit left off. The month either side is already
+rendered, so the user can scroll up into the past or down into the future straight away.
+Scrolling near either end extends the loaded range automatically — one month at a time,
+up to 24 months either side of the current month — and fetches the newly visible months
+from `/api/upcoming` on demand. Scrolling upward preserves the user's viewport position
+as older months are prepended.
 
-At `<=760px`, each month's 7-column grid collapses to a single-column agenda list, and
-empty or outside-month day cards are hidden so only days with episodes are shown.
+The topbar title tracks whichever month's heading is currently pinned below the topbar.
+The Previous/Next arrows step one month back or forward from that month and land it as
+the topmost month, with its heading pinned directly under the topbar; Today returns to
+the current week the same way. All three extend the loaded range first if needed, and a
+jump to the last loaded month appends further months below it — otherwise there would be
+nothing under the target to scroll against and it would come to rest partway down the
+page rather than at the top. The jump is instant rather than animated, and scroll events
+are ignored briefly afterwards, so the month the arrows step from is always the month
+that was just selected.
+
+At `<=760px`, week rows collapse to a single-column agenda list and empty or
+outside-month day cards are hidden so only days with episodes are shown. Weeks with no
+visible days take up no space but still hold their place, so Today and the month controls
+stay accurate.
 
 The search box switches the page to a dedicated results view: a flat, month-grouped list
 of every matching episode (filtered by show title, episode title, or an episode code

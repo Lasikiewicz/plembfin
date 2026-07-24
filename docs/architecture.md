@@ -27,7 +27,8 @@ cast, trailers, artwork), Jellyseerr/Overseerr requesting, and a backup system.
 ### Performance-sensitive page loading
 
 The SPA keeps secondary data out of the first paint. Upcoming starts with the
-active month and extends the calendar through scroll sentinels; search results
+current month and one either side, then extends the calendar a month at a time
+as the user scrolls toward either end of the loaded range; search results
 are cached in the session and stale searches cannot replace newer ones; person
 filmography watch-state data loads after the profile shell. Logs and changelog
 history retain complete source data for export and refresh, but render a bounded
@@ -210,7 +211,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `dashboard.js` | Dashboard rendering: Now Playing grid, recent-history rows, part-watched (continue watching) rail. See [dashboard.md](dashboard.md). |
 | `stats.js` | Stats page: KPI cards, leaderboards, platform split, month chart, yearly/monthly review reports. See [stats.md](stats.md). |
 | `explorer.js` | Movies grid, TV Shows grid, History page, Search page: paging, sorting, filters, IntersectionObserver infinite scroll, TMDB prefetch. See [movies.md](movies.md), [tv-shows.md](tv-shows.md), [history-search.md](history-search.md). |
-| `upcoming.js` | Upcoming page: month calendar of historical and future TV episode air dates, search, outside-month matches, poster hydration, and show navigation. See [upcoming.md](upcoming.md). |
+| `upcoming.js` | Upcoming page: scrolling month calendar of historical and future TV episode air dates that opens on the current week, search, outside-month matches, poster hydration, and show navigation. See [upcoming.md](upcoming.md). |
 | `media-detail.js` | Detail-page entry points: open movie/show detail by id/slug/TMDB id, lookups, modal-close routing. |
 | `media-detail-context.js` | Detail-modal shell/context: init callbacks, `authHeaders`, modal DOM root, render token, debug modal, actions-menu state. |
 | `media-detail-shared.js` | Shared TMDB/Seerr rendering fragments: rating pills, availability labels, Seerr request pills/controls, external ratings, app links. |

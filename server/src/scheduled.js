@@ -848,7 +848,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
 
       if (!watchedAt) {
-        logger(`Emby: skipped watched item without played or release date: ${media.title}`);
+        logger(`Emby: skipped watched item without a played date: ${media.title}`);
         continue;
       }
 
@@ -939,7 +939,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
 
       if (!watchedAt) {
-        logger(`Jellyfin: skipped watched item without played or release date: ${media.title}`);
+        logger(`Jellyfin: skipped watched item without a played date: ${media.title}`);
         continue;
       }
 

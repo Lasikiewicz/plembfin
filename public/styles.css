@@ -14527,12 +14527,12 @@ html.light-mode .settings-pane .drop-zone:hover {
   gap: var(--space-3);
 }
 
+/* One block per month. The block is what confines its sticky heading — without
+   it every heading in the range would pile up at the top of the scroller. */
 .upcoming-month-block {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  content-visibility: auto;
-  contain-intrinsic-size: 720px;
 }
 
 .upcoming-month-block + .upcoming-month-block {
@@ -14540,9 +14540,19 @@ html.light-mode .settings-pane .drop-zone:hover {
 }
 
 .upcoming-month-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Monday-start week row. Days belonging to the neighbouring month render as
+   invisible spacers so the columns stay aligned. */
+.upcoming-week-row {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: var(--space-3);
+  /* Clears the sticky topbar and month heading when a row is scrolled to. */
+  scroll-margin-top: calc(var(--right-topbar-height) + 3.75rem);
 }
 
 .upcoming-week-day.is-outside {
@@ -14551,20 +14561,18 @@ html.light-mode .settings-pane .drop-zone:hover {
 
 .upcoming-month-heading {
   position: sticky;
-  top: var(--right-topbar-height);
+  /* Parks a little below the topbar rather than flush against it. */
+  top: calc(var(--right-topbar-height) + 0.5rem);
   z-index: 5;
   padding: 0.5rem 0.75rem;
-  background: var(--panel-2);
+  /* Opaque so week rows scrolling underneath never show through. */
+  background: var(--panel-3);
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--text);
   font-size: 1rem;
   font-weight: 800;
-}
-
-.upcoming-scroll-sentinel {
-  height: 1px;
-  pointer-events: none;
+  scroll-margin-top: calc(var(--right-topbar-height) + var(--space-3) + 0.5rem);
 }
 
 .upcoming-entry {
@@ -14642,7 +14650,6 @@ html.light-mode .settings-pane .drop-zone:hover {
 }
 
 html.light-mode .upcoming-month-heading {
-  background: rgba(0, 0, 0, 0.03);
   border-color: rgba(0, 0, 0, 0.08);
 }
 
@@ -14819,10 +14826,18 @@ html.light-mode .upcoming-week-day {
     gap: 0.4rem;
   }
 
-  .upcoming-month-grid {
+  /* Agenda list: week rows stack their days, and spacing comes from the day
+     cells themselves so a week with no visible days collapses to nothing while
+     still holding its place as a scroll anchor. */
+  .upcoming-month-grid,
+  .upcoming-week-row {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 0;
+  }
+
+  .upcoming-week-row .upcoming-week-day {
+    margin-bottom: 0.4rem;
   }
 
   .upcoming-month-heading {

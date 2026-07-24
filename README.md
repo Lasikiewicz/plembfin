@@ -28,7 +28,7 @@
 | **Rewatch tracking** | Watching a movie or episode again logs a new watch instead of overwriting the old one; detail pages show a full watch history with the date and app for every play |
 | **Now Playing dashboard** | Real-time active sessions, weekly charts, and recent watch history |
 | **Stats** | All-time and per-period reports with top shows, platform breakdowns, and watch trends |
-| **Upcoming episodes** | Continuously scrollable calendar of historical and future TV air dates, opens on today's date, mobile agenda layout, and a dedicated search results view spanning all cached months |
+| **Upcoming episodes** | Scrolling month calendar of historical and future TV air dates that opens with the current week on top and scrolls freely into the past or future, plus a mobile agenda layout and a dedicated search results view spanning all cached months |
 | **Trakt import** | Import your full Trakt history and push it out to all connected servers |
 | **Seerr integration** | Request movies and shows from detail pages via Overseerr or Jellyseerr |
 | **Movie collections** | Movie pages show a poster row of other films in the same franchise (sequels, prequels, spin-offs) |

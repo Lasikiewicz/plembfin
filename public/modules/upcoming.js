@@ -8,15 +8,35 @@ let _cb = {};
 const UPCOMING_SEARCH_MIN_CHARS = 1;
 const UPCOMING_SEARCH_WINDOW_MONTHS = 12;
 const UPCOMING_SEARCH_DEBOUNCE_MS = 220;
-// Start with the month the user can see. Scroll sentinels extend the range on
-// demand, avoiding three sequential API requests and hundreds of DOM nodes on
-// every first visit.
-const UPCOMING_RANGE_PAST_MONTHS = 0;
-const UPCOMING_RANGE_FUTURE_MONTHS = 0;
+// The calendar renders one block per month. A small buffer either side of the
+// current month is loaded up front so the page opens with somewhere to scroll
+// in both directions; scrolling near either end grows the range further.
+const UPCOMING_INITIAL_PAST_MONTHS = 1;
+const UPCOMING_INITIAL_FUTURE_MONTHS = 1;
+// Bounds on how far the range can grow, measured in months either side of the
+// current month.
+const UPCOMING_MAX_PAST_MONTHS = 24;
+const UPCOMING_MAX_FUTURE_MONTHS = 24;
+// How close to either end of the scroll container the user must get before the
+// next month is appended/prepended.
+const UPCOMING_EXTEND_THRESHOLD_PX = 400;
+// How long after a programmatic jump to keep ignoring scroll events, so the
+// jump's own scrolling is never mistaken for the user browsing.
+const UPCOMING_ANCHOR_HOLD_MS = 250;
+// Most months a jump may append below its target to make room to raise it to
+// the top of the page.
+const UPCOMING_ANCHOR_FILL_PASSES = 6;
 
 let upcomingSearchTimer = undefined;
 let upcomingSearchRequestId = 0;
 const upcomingBackgroundLoads = new Map();
+// Selector of the element that must stay pinned to the top of the viewport
+// across re-renders. Set while opening the page or jumping to a month, so the
+// anchor survives the re-render that lands when episode data arrives.
+let pendingAnchorSelector = "";
+// Timestamp until which scroll events belong to a jump rather than the user.
+let anchorHoldUntil = 0;
+let upcomingScrollScheduled = false;
 
 export function initUpcoming(callbacks) {
   _cb = callbacks;
@@ -36,48 +56,54 @@ export function initUpcoming(callbacks) {
     if (tmdbId) _cb.navigateTo?.(`/tvshow/tmdb/${tmdbId}`);
     else if (showId) _cb.navigateTo?.(`/tvshow/${encodeURIComponent(showId)}`);
   });
-  // Poster hydration only touches near-viewport fallbacks, so entries scrolled
-  // into view later (mobile agenda list) need a rehydrate pass. The page-shell
-  // is the app's scroll container — body itself never scrolls.
-  document.querySelector(".page-shell")?.addEventListener("scroll", () => {
-    if (state.activeView !== "upcoming" || state.posterHydrateScrollScheduled) return;
-    state.posterHydrateScrollScheduled = true;
-    window.requestAnimationFrame(() => {
-      state.posterHydrateScrollScheduled = false;
-      hydratePosters(elements.upcomingCalendar);
-    });
-  }, { passive: true });
+  // The page-shell is the app's scroll container — body itself never scrolls.
+  // One handler drives poster hydration, the visible-month title, and the
+  // range growth in both directions.
+  scrollContainerEl()?.addEventListener("scroll", handleUpcomingScroll, { passive: true });
 }
 
 function authHeaders() {
   return buildAuthHeaders(state.token);
 }
 
-function currentMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+function scrollContainerEl() {
+  return document.querySelector(".page-shell");
+}
+
+function isoFromDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function dateFromIso(dayIso) {
+  const [year, month, day] = dayIso.split("-").map(Number);
+  return new Date(year, month - 1, day);
 }
 
 function todayIsoDate() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return isoFromDate(new Date());
+}
+
+function currentMonth() {
+  return todayIsoDate().slice(0, 7);
+}
+
+function addDays(dayIso, delta) {
+  const date = dateFromIso(dayIso);
+  date.setDate(date.getDate() + delta);
+  return isoFromDate(date);
+}
+
+// Monday of the week containing the given day.
+function weekStartOf(dayIso) {
+  const date = dateFromIso(dayIso);
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return isoFromDate(date);
 }
 
 function addMonths(month, delta) {
   const [year, monthNumber] = month.split("-").map(Number);
   const shifted = new Date(year, monthNumber - 1 + delta, 1);
   return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function activeMonth() {
-  if (!/^\d{4}-\d{2}$/.test(state.upcomingMonth || "")) state.upcomingMonth = currentMonth();
-  return state.upcomingMonth;
-}
-
-function refreshUpcoming() {
-  renderUpcoming();
-  loadUpcoming({ force: true }).catch((error) => _cb.setMessage?.(error.message, "error"));
-  scheduleUpcomingSearchWindow();
 }
 
 function startOfMonthIso(monthKey) {
@@ -88,6 +114,11 @@ function endOfMonthIso(monthKey) {
   const [year, monthNumber] = monthKey.split("-").map(Number);
   const lastDay = new Date(year, monthNumber, 0).getDate();
   return `${monthKey}-${String(lastDay).padStart(2, "0")}`;
+}
+
+function activeMonth() {
+  if (!/^\d{4}-\d{2}$/.test(state.upcomingMonth || "")) state.upcomingMonth = currentMonth();
+  return state.upcomingMonth;
 }
 
 function monthKeysInRange(startIso, endIso) {
@@ -102,91 +133,239 @@ function monthKeysInRange(startIso, endIso) {
   return keys;
 }
 
-function ensureUpcomingRange() {
-  if (state.upcomingRangeStart && state.upcomingRangeEnd) return;
-  const anchor = activeMonth();
-  state.upcomingRangeStart = startOfMonthIso(addMonths(anchor, -UPCOMING_RANGE_PAST_MONTHS));
-  state.upcomingRangeEnd = endOfMonthIso(addMonths(anchor, UPCOMING_RANGE_FUTURE_MONTHS));
-}
-
 function resetUpcomingRange(monthKey) {
-  state.upcomingRangeStart = startOfMonthIso(addMonths(monthKey, -UPCOMING_RANGE_PAST_MONTHS));
-  state.upcomingRangeEnd = endOfMonthIso(addMonths(monthKey, UPCOMING_RANGE_FUTURE_MONTHS));
+  state.upcomingRangeStart = startOfMonthIso(addMonths(monthKey, -UPCOMING_INITIAL_PAST_MONTHS));
+  state.upcomingRangeEnd = endOfMonthIso(addMonths(monthKey, UPCOMING_INITIAL_FUTURE_MONTHS));
 }
 
-function extendRangePast() {
-  state.upcomingRangeStart = startOfMonthIso(addMonths(state.upcomingRangeStart.slice(0, 7), -1));
+function ensureUpcomingRange() {
+  const start = state.upcomingRangeStart;
+  const end = state.upcomingRangeEnd;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(start || "") && /^\d{4}-\d{2}-\d{2}$/.test(end || "") && start < end) return;
+  resetUpcomingRange(currentMonth());
 }
 
-function extendRangeFuture() {
-  state.upcomingRangeEnd = endOfMonthIso(addMonths(state.upcomingRangeEnd.slice(0, 7), 1));
+function extendRangePast({ bounded = true } = {}) {
+  const nextMonth = addMonths(state.upcomingRangeStart.slice(0, 7), -1);
+  if (bounded && nextMonth < addMonths(currentMonth(), -UPCOMING_MAX_PAST_MONTHS)) return false;
+  state.upcomingRangeStart = startOfMonthIso(nextMonth);
+  return true;
 }
 
-async function scrollRangeToMonth(monthKey) {
-  state.upcomingMonth = monthKey;
+function extendRangeFuture({ bounded = true } = {}) {
+  const nextMonth = addMonths(state.upcomingRangeEnd.slice(0, 7), 1);
+  if (bounded && nextMonth > addMonths(currentMonth(), UPCOMING_MAX_FUTURE_MONTHS)) return false;
+  state.upcomingRangeEnd = endOfMonthIso(nextMonth);
+  return true;
+}
+
+function ensureRangeCoversMonth(monthKey) {
   ensureUpcomingRange();
-  while (monthKey < state.upcomingRangeStart.slice(0, 7)) extendRangePast();
-  while (monthKey > state.upcomingRangeEnd.slice(0, 7)) extendRangeFuture();
-  renderUpcoming();
-  await loadUpcoming({ force: false }).catch((error) => _cb.setMessage?.(error.message, "error"));
-  elements.upcomingCalendar?.querySelector(`[data-month-heading="${monthKey}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  if (elements.upcomingMonthTitle) elements.upcomingMonthTitle.textContent = monthTitle(monthKey);
+  while (monthKey < state.upcomingRangeStart.slice(0, 7)) extendRangePast({ bounded: false });
+  while (monthKey > state.upcomingRangeEnd.slice(0, 7)) extendRangeFuture({ bounded: false });
 }
 
-async function scrollRangeToDay(dayIso, { force = false, behavior = "smooth" } = {}) {
-  const monthKey = dayIso.slice(0, 7);
-  state.upcomingMonth = monthKey;
-  ensureUpcomingRange();
-  while (monthKey < state.upcomingRangeStart.slice(0, 7)) extendRangePast();
-  while (monthKey > state.upcomingRangeEnd.slice(0, 7)) extendRangeFuture();
+// The Monday of every week a month's grid needs, including the partial weeks at
+// each end that carry blank cells for the neighbouring months.
+function weekStartsInMonth(monthKey) {
+  const starts = [];
+  let cursor = weekStartOf(startOfMonthIso(monthKey));
+  const lastWeek = weekStartOf(endOfMonthIso(monthKey));
+  while (cursor <= lastWeek) {
+    starts.push(cursor);
+    cursor = addDays(cursor, 7);
+  }
+  return starts;
+}
+
+// A straddling week appears in both months' grids, so the week alone does not
+// identify a row — the owning month is part of the key.
+function weekRowSelector(dayIso) {
+  return `[data-month="${dayIso.slice(0, 7)}"][data-week="${weekStartOf(dayIso)}"]`;
+}
+
+// Re-applies the pending scroll anchor after a render. Episode data arrives
+// after the first paint, so without this the row the user asked for would
+// drift as empty day cells fill in.
+function applyPendingAnchor() {
+  if (!pendingAnchorSelector) return;
+  elements.upcomingCalendar?.querySelector(pendingAnchorSelector)
+    ?.scrollIntoView({ block: "start", behavior: "auto" });
+}
+
+// `scrollIntoView` can only lift the anchor as far as the bottom of the scroll
+// range allows. When the target is the last month loaded there is nothing below
+// it to scroll against, so it comes to rest partway down the page instead of at
+// the top. Add months underneath until the page is tall enough to raise it.
+function fillBelowAnchor() {
+  const root = scrollContainerEl();
+  if (!root || !pendingAnchorSelector) return;
+  // The search view has no calendar to anchor against, so there is nothing to
+  // make room for — growing the range would just fetch months for nothing.
+  if (normalizeUpcomingSearch(state.upcomingSearch)) return;
+  for (let pass = 0; pass < UPCOMING_ANCHOR_FILL_PASSES; pass += 1) {
+    if (root.scrollTop < root.scrollHeight - root.clientHeight - 1) return;
+    if (!extendRangeFuture()) return;
+    renderUpcoming();
+  }
+}
+
+async function anchorTo(selector, { revalidateMonth = "" } = {}) {
+  pendingAnchorSelector = selector;
   renderUpcoming();
-  await loadUpcoming({ force }).catch((error) => _cb.setMessage?.(error.message, "error"));
-  elements.upcomingCalendar?.querySelector(`[data-day="${dayIso}"]`)?.scrollIntoView({ behavior, block: "center" });
-  if (elements.upcomingMonthTitle) elements.upcomingMonthTitle.textContent = monthTitle(monthKey);
+  // The title normally tracks scrolling, but nothing has scrolled yet — name
+  // the target month up front so it is correct while episode data loads.
+  if (elements.upcomingMonthTitle) elements.upcomingMonthTitle.textContent = monthTitle(activeMonth());
+  applyPendingAnchor();
+  // Runs before loading so the months it adds are fetched by the same pass.
+  fillBelowAnchor();
+  try {
+    await loadUpcoming({ revalidateMonth });
+  } catch (error) {
+    _cb.setMessage?.(error.message, "error");
+  }
+  applyPendingAnchor();
+  pendingAnchorSelector = "";
+  // Scroll events are delivered asynchronously, so the ones this jump just
+  // generated are still queued. Ignore them for a beat, otherwise the first one
+  // reads the month straight back off the viewport and undoes the step.
+  anchorHoldUntil = Date.now() + UPCOMING_ANCHOR_HOLD_MS;
+}
+
+// Month stepping jumps straight to the target heading rather than animating —
+// an animated scroll keeps firing scroll events after the jump is considered
+// finished, and those would reset the active month to whatever it passed over.
+function scrollToMonth(monthKey) {
+  state.upcomingMonth = monthKey;
+  ensureRangeCoversMonth(monthKey);
+  return anchorTo(`[data-month-heading="${monthKey}"]`);
+}
+
+function scrollToWeekOf(dayIso, options = {}) {
+  state.upcomingMonth = dayIso.slice(0, 7);
+  ensureRangeCoversMonth(state.upcomingMonth);
+  return anchorTo(weekRowSelector(dayIso), options);
 }
 
 function shiftUpcomingMonth(delta) {
-  scrollRangeToMonth(addMonths(activeMonth(), delta));
+  scrollToMonth(addMonths(activeMonth(), delta));
 }
 
 function goToToday() {
-  scrollRangeToDay(todayIsoDate());
+  scrollToWeekOf(todayIsoDate());
 }
 
-// Called whenever the Upcoming page is navigated to, so it always opens on
-// today's date rather than wherever a prior visit's scroll position landed.
+// Called whenever the Upcoming page is navigated to, so it always opens with
+// the current week as the top row rather than wherever a prior visit's scroll
+// position landed. Months either side are already rendered, so the user can
+// scroll straight up into the past or down into the future.
 export function openUpcomingToToday() {
-  const dayIso = todayIsoDate();
-  // Returning to Upcoming should not retain months that were added while
-  // browsing in the previous visit. Reset the visible range so the month
-  // title and the first rendered calendar block always describe the same day.
-  resetUpcomingRange(dayIso.slice(0, 7));
-  return scrollRangeToDay(dayIso, { force: true, behavior: "auto" });
+  const month = currentMonth();
+  state.upcomingMonth = month;
+  resetUpcomingRange(month);
+  return scrollToWeekOf(todayIsoDate(), { revalidateMonth: month });
 }
 
-export async function loadUpcoming({ force = false } = {}) {
-  ensureUpcomingRange();
-  const monthsToLoad = monthKeysInRange(state.upcomingRangeStart, state.upcomingRangeEnd);
+function handleUpcomingScroll() {
+  if (state.activeView !== "upcoming" || upcomingScrollScheduled) return;
+  upcomingScrollScheduled = true;
+  window.requestAnimationFrame(() => {
+    upcomingScrollScheduled = false;
+    hydratePosters(elements.upcomingCalendar);
+    if (normalizeUpcomingSearch(state.upcomingSearch)) return;
+    // This scroll came from a jump, not the user: either one is still mid-flight
+    // or its queued scroll events are only now being delivered. The target month
+    // is already in `state.upcomingMonth` — reading it back off the viewport here
+    // would replace it with wherever the scroll sits and leave the arrows
+    // stepping from that month instead of the one just selected.
+    if (pendingAnchorSelector || Date.now() < anchorHoldUntil) return;
+    syncVisibleMonthTitle();
+    extendRangeForScrollPosition();
+  });
+}
 
-  const monthsToFetch = monthsToLoad.filter((m) => force || !state.upcomingByMonth.has(m));
-  if (!monthsToFetch.length) {
+function extendRangeForScrollPosition() {
+  const root = scrollContainerEl();
+  if (!root) return;
+  const distanceFromBottom = root.scrollHeight - root.scrollTop - root.clientHeight;
+
+  if (root.scrollTop < UPCOMING_EXTEND_THRESHOLD_PX) {
+    const previousHeight = root.scrollHeight;
+    const previousTop = root.scrollTop;
+    if (!extendRangePast()) return;
     renderUpcoming();
+    // Prepending a month pushes everything down; offset the scroll position by
+    // the height that was inserted so the view stays where the user left it.
+    root.scrollTop = previousTop + (root.scrollHeight - previousHeight);
+    syncVisibleMonthTitle();
+  } else if (distanceFromBottom < UPCOMING_EXTEND_THRESHOLD_PX) {
+    if (!extendRangeFuture()) return;
+    renderUpcoming();
+  } else {
     return;
   }
+  loadUpcoming().catch((error) => _cb.setMessage?.(error.message, "error"));
+}
+
+// Keeps the topbar title describing whichever month the user has scrolled to.
+// The active month is the one whose heading is currently pinned, not the first
+// row that still pokes above the fold: after jumping to a heading, the previous
+// month's last row is left overlapping the top edge by the heading's offset, and
+// treating that as the active month made the arrows step from the month behind
+// the one on screen.
+function syncVisibleMonthTitle() {
+  const container = elements.upcomingCalendar;
+  if (!container || !elements.upcomingMonthTitle) return;
+  const topbar = document.querySelector(".page-topbar");
+  const contentTop = topbar ? topbar.getBoundingClientRect().bottom : 0;
+
+  const headings = container.querySelectorAll("[data-month-heading]");
+  let visibleMonth = "";
+  for (const heading of headings) {
+    const rect = heading.getBoundingClientRect();
+    // Headings run top to bottom, so the last one still pinned near the topbar
+    // owns the viewport. Once a heading sits a full heading-height lower it
+    // belongs to a month further down the page.
+    if (rect.top > contentTop + rect.height) break;
+    visibleMonth = heading.dataset.monthHeading || visibleMonth;
+  }
+  // Scrolled above the first heading — that month is the one on screen.
+  if (!visibleMonth) visibleMonth = headings[0]?.dataset.monthHeading || "";
+  if (!visibleMonth) return;
+
+  state.upcomingMonth = visibleMonth;
+  elements.upcomingMonthTitle.textContent = monthTitle(visibleMonth);
+}
+
+// `revalidateMonth` refetches a single month even when it is already cached.
+// Only the current month is worth revalidating on open — refetching the whole
+// range would turn every page visit into a burst of requests.
+export async function loadUpcoming({ revalidateMonth = "" } = {}) {
+  ensureUpcomingRange();
   if (state.upcomingLoadingMonth) return;
 
-  state.upcomingLoadingMonth = monthsToFetch[0];
-  renderUpcoming();
-  try {
-    for (const month of monthsToFetch) {
-      const response = await fetch(`/api/upcoming?month=${encodeURIComponent(month)}`, { headers: authHeaders() });
-      if (!response.ok) throw new Error("Failed to load upcoming episodes");
-      const payload = await response.json();
-      state.upcomingByMonth.set(month, Array.isArray(payload.episodes) ? payload.episodes : []);
-    }
-  } finally {
-    state.upcomingLoadingMonth = "";
+  let staleMonth = revalidateMonth;
+  // The range can grow while a fetch is in flight, so keep going until every
+  // month currently on screen has data.
+  for (;;) {
+    const monthsToFetch = monthKeysInRange(state.upcomingRangeStart, state.upcomingRangeEnd)
+      .filter((m) => m === staleMonth || !state.upcomingByMonth.has(m));
+    if (!monthsToFetch.length) break;
+
+    state.upcomingLoadingMonth = monthsToFetch[0];
     renderUpcoming();
+    try {
+      for (const month of monthsToFetch) {
+        const response = await fetch(`/api/upcoming?month=${encodeURIComponent(month)}`, { headers: authHeaders() });
+        if (!response.ok) throw new Error("Failed to load upcoming episodes");
+        const payload = await response.json();
+        state.upcomingByMonth.set(month, Array.isArray(payload.episodes) ? payload.episodes : []);
+      }
+    } finally {
+      state.upcomingLoadingMonth = "";
+      renderUpcoming();
+    }
+    staleMonth = "";
   }
 }
 
@@ -310,66 +489,91 @@ function entryMarkup(episode) {
     </button>`;
 }
 
+// Episodes are indexed by day once per render instead of re-scanning each
+// month's list for every cell.
+function episodesByDayInRange() {
+  const byDay = new Map();
+  for (const monthKey of monthKeysInRange(state.upcomingRangeStart, state.upcomingRangeEnd)) {
+    for (const episode of state.upcomingByMonth.get(monthKey) || []) {
+      const dayIso = String(episode.airDate || "").slice(0, 10);
+      if (!dayIso) continue;
+      if (!byDay.has(dayIso)) byDay.set(dayIso, []);
+      byDay.get(dayIso).push(episode);
+    }
+  }
+  return byDay;
+}
+
+function dayCellMarkup(dayIso, episodes, todayIso) {
+  const date = dateFromIso(dayIso);
+  const weekday = new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(date);
+
+  const classes = ["upcoming-week-day"];
+  if (dayIso === todayIso) classes.push("is-today");
+  if (dayIso < todayIso) classes.push("is-past");
+  if (!episodes.length) classes.push("is-empty");
+
+  return `
+    <div class="${classes.join(" ")}" data-day="${dayIso}">
+      <div class="upcoming-week-day-head">
+        <span class="upcoming-week-day-weekday">${escapeHtml(weekday)}</span>
+        <span class="upcoming-week-day-number">${date.getDate()}</span>
+      </div>
+      <div class="upcoming-week-day-entries">${episodes.map(entryMarkup).join("")}</div>
+    </div>`;
+}
+
 function renderMonthGridView() {
   const container = elements.upcomingCalendar;
   if (!container) return;
 
   ensureUpcomingRange();
-  if (elements.upcomingMonthTitle) elements.upcomingMonthTitle.textContent = monthTitle(activeMonth());
 
   const todayIso = todayIsoDate();
-  const monthKeys = monthKeysInRange(state.upcomingRangeStart, state.upcomingRangeEnd);
+  const byDay = episodesByDayInRange();
 
-  const blocks = monthKeys.map((monthKey) => {
-    const [year, monthNumber] = monthKey.split("-").map(Number);
-    const daysInMonth = new Date(year, monthNumber, 0).getDate();
-    const leadingBlanks = (new Date(year, monthNumber - 1, 1).getDay() + 6) % 7; // Monday-start week
-    const trailingBlanks = (7 - ((leadingBlanks + daysInMonth) % 7)) % 7;
-    const monthEpisodes = state.upcomingByMonth.get(monthKey) || [];
-
-    const cells = [];
-    for (let i = 0; i < leadingBlanks; i += 1) {
-      cells.push(`<div class="upcoming-week-day is-outside" aria-hidden="true"></div>`);
-    }
-    for (let day = 1; day <= daysInMonth; day += 1) {
-      const dayIso = `${monthKey}-${String(day).padStart(2, "0")}`;
-      const dayEpisodes = monthEpisodes.filter((e) => String(e.airDate || "").slice(0, 10) === dayIso);
-
-      const weekday = new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(new Date(year, monthNumber - 1, day));
-      const classes = ["upcoming-week-day"];
-      if (dayIso === todayIso) classes.push("is-today");
-      if (dayIso < todayIso) classes.push("is-past");
-      if (!dayEpisodes.length) classes.push("is-empty");
-
-      cells.push(`
-        <div class="${classes.join(" ")}" data-day="${dayIso}">
-          <div class="upcoming-week-day-head">
-            <span class="upcoming-week-day-weekday">${escapeHtml(weekday)}</span>
-            <span class="upcoming-week-day-number">${day}</span>
-          </div>
-          <div class="upcoming-week-day-entries">${dayEpisodes.map(entryMarkup).join("")}</div>
-        </div>`);
-    }
-    for (let i = 0; i < trailingBlanks; i += 1) {
-      cells.push(`<div class="upcoming-week-day is-outside" aria-hidden="true"></div>`);
-    }
+  const blocks = monthKeysInRange(state.upcomingRangeStart, state.upcomingRangeEnd).map((monthKey) => {
+    const rows = weekStartsInMonth(monthKey).map((weekStart) => {
+      const cells = [];
+      for (let offset = 0; offset < 7; offset += 1) {
+        const dayIso = addDays(weekStart, offset);
+        // Days belonging to a neighbouring month stay blank here so they only
+        // ever appear under their own month heading.
+        if (dayIso.slice(0, 7) !== monthKey) {
+          cells.push(`<div class="upcoming-week-day is-outside" aria-hidden="true"></div>`);
+          continue;
+        }
+        cells.push(dayCellMarkup(dayIso, byDay.get(dayIso) || [], todayIso));
+      }
+      return `<div class="upcoming-week-row" data-week="${weekStart}" data-month="${monthKey}">${cells.join("")}</div>`;
+    });
 
     return `
       <div class="upcoming-month-block">
         <div class="upcoming-month-heading" data-month-heading="${monthKey}">${escapeHtml(monthTitle(monthKey))}</div>
-        <div class="upcoming-month-grid">${cells.join("")}</div>
+        <div class="upcoming-month-grid">${rows.join("")}</div>
       </div>`;
   });
 
+  const root = scrollContainerEl();
+  const previousTop = root ? root.scrollTop : 0;
+
   container.innerHTML = blocks.join("");
 
+  // Replacing the calendar's markup empties the scroller for an instant, which
+  // collapses its scroll position. Every render that is not about to reposition
+  // deliberately has to put it back, or a background month load drops the user
+  // back at the top of the range.
+  if (root && !pendingAnchorSelector && root.scrollTop !== previousTop) root.scrollTop = previousTop;
+
   hydratePosters(container);
+  applyPendingAnchor();
+  if (!pendingAnchorSelector) syncVisibleMonthTitle();
 }
 
 function renderSearchResultsView(searchQuery) {
   const container = elements.upcomingCalendar;
   if (!container) return;
-  rangeScrollObserver?.disconnect();
 
   if (elements.upcomingMonthTitle) elements.upcomingMonthTitle.textContent = "Search results";
 
@@ -402,21 +606,7 @@ function renderSearchResultsView(searchQuery) {
     for (const dayIso of dayIsos) {
       const dayEpisodes = byDay.get(dayIso);
       totalMatches += dayEpisodes.length;
-      const date = new Date(`${dayIso}T00:00:00`);
-      const weekday = new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(date);
-      const dateNum = date.getDate();
-      const classes = ["upcoming-week-day"];
-      if (dayIso === todayIso) classes.push("is-today");
-      if (dayIso < todayIso) classes.push("is-past");
-
-      parts.push(`
-        <div class="${classes.join(" ")}">
-          <div class="upcoming-week-day-head">
-            <span class="upcoming-week-day-weekday">${escapeHtml(weekday)}</span>
-            <span class="upcoming-week-day-number">${dateNum}</span>
-          </div>
-          <div class="upcoming-week-day-entries">${dayEpisodes.map(entryMarkup).join("")}</div>
-        </div>`);
+      parts.push(dayCellMarkup(dayIso, dayEpisodes, todayIso));
     }
   }
 
