@@ -128,23 +128,6 @@ export function parsePlexNotificationRatingKeys(raw) {
       const ratingKey = String(entry.itemID ?? entry.ratingKey ?? "").trim();
       if (ratingKey) keys.push(ratingKey);
     }
-  } else if (container.type === "activity") {
-    const rawActivities = container.ActivityNotification;
-    const activities = Array.isArray(rawActivities)
-      ? rawActivities
-      : rawActivities && typeof rawActivities === "object"
-      ? [rawActivities]
-      : [];
-    for (const act of activities) {
-      const activityType = act.Activity?.type;
-      const keyPath = act.Activity?.Context?.key || "";
-      if (activityType === "library.refresh.items" && keyPath.includes("/library/metadata/")) {
-        const ratingKey = keyPath.split("/library/metadata/").pop()?.split("/")[0]?.trim();
-        if (ratingKey && /^\d+$/.test(ratingKey)) {
-          keys.push(ratingKey);
-        }
-      }
-    }
   }
 
   return [...new Set(keys)];

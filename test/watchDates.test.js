@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { watchedAtForEmbyLikeItem } from "../server/src/utils/watchDates.js";
+import { watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "../server/src/utils/watchDates.js";
 
 test("uses Emby's real played timestamp when present", () => {
   assert.deepEqual(
@@ -20,5 +20,19 @@ test("does not report an unplayed item as watched", () => {
   assert.deepEqual(
     watchedAtForEmbyLikeItem({ UserData: { Played: false } }),
     { watchedAt: "", reason: "" },
+  );
+});
+
+test("uses Plex's real viewed timestamp when present", () => {
+  assert.deepEqual(
+    watchedAtForPlexItem({ lastViewedAt: 1783379340 }),
+    { watchedAt: "2026-07-06T23:09:00.000Z", reason: "viewed" },
+  );
+});
+
+test("does not turn a timestamp-less Plex refresh item into a new watch", () => {
+  assert.deepEqual(
+    watchedAtForPlexItem({ viewCount: 3 }),
+    { watchedAt: "", reason: "missing viewed date" },
   );
 });

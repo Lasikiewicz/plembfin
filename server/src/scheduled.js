@@ -9,7 +9,7 @@ import { createLoopStore } from "./utils/loopStore.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { isCronSyncPaused, loadWatchBackupRuntime } from "./utils/watchHistoryBackups.js";
 import { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
-import { releaseDateForPlexItem, watchedAtForEmbyLikeItem } from "./utils/watchDates.js";
+import { watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./utils/watchDates.js";
 export { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
 import {
   deleteLiveTrackingCacheRows,
@@ -716,11 +716,9 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       if (!plexHistoryItemMatchesConfiguredUser(item, { username, accountId: targetAccountId })) continue;
       if (item.type !== "movie" && item.type !== "episode") continue;
 
-      const watchedAt = item.viewedAt || item.lastViewedAt
-        ? new Date(Number(item.viewedAt || item.lastViewedAt) * 1000).toISOString()
-        : releaseDateForPlexItem(item);
+      const { watchedAt } = watchedAtForPlexItem(item);
       if (!watchedAt) {
-        logger(`Plex: skipped watched item without played or release date: ${item.title || item.grandparentTitle || "unknown"}`);
+        logger(`Plex: skipped watched item without a source view timestamp: ${item.title || item.grandparentTitle || "unknown"}`);
         continue;
       }
 
@@ -1417,6 +1415,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
         const raw = await fetchPlexWatchedItems(config.plex);
         logger(`Plex: fetched ${raw.length} watched library items.`);
         return raw.map((item) => {
+          const { watchedAt } = watchedAtForPlexItem(item);
           const media = {
             title: item.title,
             type: item.type,
@@ -1426,9 +1425,9 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
             tmdb: null,
             tvdb: null,
             source: "plex",
-            timestamp: item.lastViewedAt
-              ? new Date(Number(item.lastViewedAt) * 1000)
-              : releaseDateForPlexItem(item) ? new Date(releaseDateForPlexItem(item)) : null,
+            timestamp: watchedAt
+              ? new Date(watchedAt)
+              : null,
           };
           const guids = [item.guid, ...(item.Guid || []).map((g) => g.id || g)].filter(Boolean);
           for (const guid of guids) {

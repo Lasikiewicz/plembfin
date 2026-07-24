@@ -46,6 +46,25 @@ export function watchedAtForEmbyLikeItem(item = {}) {
   return { watchedAt: "", reason: "" };
 }
 
+// Plex's viewed flag is historical state unless Plex supplies the actual view
+// timestamp. A library refresh must never become a new watch at poll time.
+export function watchedAtForPlexItem(item = {}) {
+  const raw = item.lastViewedAt ?? item.viewedAt;
+  if (raw === undefined || raw === null || raw === "") {
+    return { watchedAt: "", reason: "missing viewed date" };
+  }
+
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return { watchedAt: new Date(seconds * 1000).toISOString(), reason: "viewed" };
+  }
+
+  const viewedAt = isoDateTime(raw);
+  return viewedAt
+    ? { watchedAt: viewedAt, reason: "viewed" }
+    : { watchedAt: "", reason: "invalid viewed date" };
+}
+
 export function releaseDateForItem(item = {}) {
   return dateOnlyIso(
     item.PremiereDate ||

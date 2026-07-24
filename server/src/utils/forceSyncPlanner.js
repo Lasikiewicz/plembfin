@@ -12,7 +12,7 @@
 
 import { mediaKeyFor } from "./dataRepo.js";
 import { normalizeProviderIds } from "./parsers.js";
-import { releaseDateForPlexItem, watchedAtForEmbyLikeItem } from "./watchDates.js";
+import { watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./watchDates.js";
 import {
   countPlexWatchedItems,
   fetchPlexWatchedItems,
@@ -137,6 +137,7 @@ function historyRowInScope(scope, row) {
 // ---------------------------------------------------------------------------
 
 export function mapPlexWatchedItem(item = {}) {
+  const { watchedAt } = watchedAtForPlexItem(item);
   const media = {
     title: item.title,
     type: item.type,
@@ -146,11 +147,9 @@ export function mapPlexWatchedItem(item = {}) {
     tmdb: null,
     tvdb: null,
     source: "plex",
-    timestamp: item.lastViewedAt
-      ? new Date(Number(item.lastViewedAt) * 1000)
-      : releaseDateForPlexItem(item)
-        ? new Date(releaseDateForPlexItem(item))
-        : null,
+    timestamp: watchedAt
+      ? new Date(watchedAt)
+      : null,
   };
   const guids = [item.guid, ...(item.Guid || []).map((g) => g.id || g)].filter(Boolean);
   for (const guid of guids) {

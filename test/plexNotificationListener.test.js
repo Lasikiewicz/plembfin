@@ -43,7 +43,7 @@ test("parsePlexNotificationRatingKeys extracts rating keys from array TimelineEn
   assert.deepEqual(keys, ["101", "202"]);
 });
 
-test("parsePlexNotificationRatingKeys extracts rating keys from ActivityNotification payload", () => {
+test("parsePlexNotificationRatingKeys ignores bulk library refresh activity", () => {
   const activityPayload = JSON.stringify({
     NotificationContainer: {
       type: "activity",
@@ -68,7 +68,7 @@ test("parsePlexNotificationRatingKeys extracts rating keys from ActivityNotifica
   });
 
   const keys = parsePlexNotificationRatingKeys(activityPayload);
-  assert.deepEqual(keys, ["38800"]);
+  assert.deepEqual(keys, []);
 });
 
 test("parsePlexNotificationRatingKeys ignores non-watchable timeline entries", () => {

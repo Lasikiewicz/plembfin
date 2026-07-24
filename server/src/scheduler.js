@@ -23,6 +23,7 @@ import {
   updateWatchTelemetry,
   upsertPlaystateForMedia,
 } from "./utils/dataRepo.js";
+import { watchedAtForPlexItem } from "./utils/watchDates.js";
 import { applyManualUnwatch } from "./routes/sync.js";
 
 const NEXT_AIRING_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
@@ -169,10 +170,15 @@ async function handlePlexLibraryItemChange(ratingKey) {
   const viewOffset = Number(metadata.viewOffset || 0);
   if (viewCount > 0) {
     const playstate = await getPlaystateForMedia(media).catch(() => null);
-    const watchedAtSeconds = Number(metadata.lastViewedAt || metadata.viewedAt || 0);
-    const watchedAt = watchedAtSeconds > 0
-      ? new Date(watchedAtSeconds * 1000).toISOString()
-      : new Date().toISOString();
+    const { watchedAt } = watchedAtForPlexItem(metadata);
+    if (!watchedAt) {
+      console.log("Plex notifications: skipped watched item without a source view timestamp", {
+        title: media.title,
+        ratingKey,
+      });
+      await deletePlaybackProgress(media).catch(() => null);
+      return;
+    }
 
     const isNewerWatch = playstate?.watched_at && new Date(watchedAt).getTime() > new Date(playstate.watched_at).getTime() + 10000;
     if (playstate?.state === "watched" && !isNewerWatch) {
