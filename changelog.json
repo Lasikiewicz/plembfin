@@ -1,7 +1,17 @@
 {
-  "version": "0.6.8",
-  "updatedAt": "2026-07-24T20:40:26+01:00",
+  "version": "0.6.9",
+  "updatedAt": "2026-07-24T20:53:02+01:00",
   "entries": [
+    {
+      "version": "0.6.9",
+      "date": "2026-07-24T20:53:02+01:00",
+      "commit": "3762665fb93270684bd6e2182e584dbd08e2c664",
+      "message": "Fix - Harden all watch history ingestion",
+      "author": "Lasikiewicz",
+      "details": [
+        "Reject timestamp-less Plex, Emby, and Jellyfin library state as new watches and ignore Plex bulk refresh notifications."
+      ]
+    },
     {
       "version": "0.6.8",
       "date": "2026-07-24T20:40:26+01:00",
