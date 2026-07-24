@@ -167,9 +167,9 @@ export function mapPlexWatchedItem(item = {}) {
   return media;
 }
 
-export function mapEmbyLikeWatchedItem(item = {}, source = "emby", pollTimestamp = Date.now()) {
+export function mapEmbyLikeWatchedItem(item = {}, source = "emby") {
   const ids = normalizeProviderIds(item.ProviderIds);
-  const { watchedAt } = watchedAtForEmbyLikeItem(item, pollTimestamp);
+  const { watchedAt } = watchedAtForEmbyLikeItem(item);
   return {
     title:
       item.Type === "Episode"
@@ -282,9 +282,8 @@ export async function collectServerWatchedItems(config, { scope: rawScope, logge
           logger(`${label}: querying played items...`);
           const fetchFn = server === "emby" ? clients.fetchEmbyWatchedItems : clients.fetchJellyfinWatchedItems;
           rawItems = await fetchFn(config[server], { libraryIds });
-          const pollTimestamp = Date.now();
           logger(`${label}: fetched ${rawItems.length} played library items.`);
-          mapped = rawItems.map((item) => mapEmbyLikeWatchedItem(item, server, pollTimestamp));
+          mapped = rawItems.map((item) => mapEmbyLikeWatchedItem(item, server));
         }
 
         const scoped = mapped.filter((media) => itemInScope(scope, media));

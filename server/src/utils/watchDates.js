@@ -31,12 +31,16 @@ export function isEmbyLikePlayed(item = {}) {
   return value === true || value === "true" || value === 1 || value === "1";
 }
 
-export function watchedAtForEmbyLikeItem(item = {}, fallbackTimestamp = Date.now()) {
+// A played flag without a played timestamp is historical state, not evidence of
+// a watch occurring during the current poll. Never manufacture a current-time
+// watch date here: doing so turns an existing Emby library into a burst of new
+// watch-history rows after a restore, rebuild, or first connection.
+export function watchedAtForEmbyLikeItem(item = {}) {
   const playedAt = embyLikePlayedDate(item);
   if (playedAt) return { watchedAt: playedAt, reason: "played" };
 
   if (isEmbyLikePlayed(item)) {
-    return { watchedAt: new Date(fallbackTimestamp).toISOString(), reason: "poll time" };
+    return { watchedAt: "", reason: "missing played date" };
   }
 
   return { watchedAt: "", reason: "" };

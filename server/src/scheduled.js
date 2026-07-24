@@ -9,6 +9,7 @@ import { createLoopStore } from "./utils/loopStore.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { isCronSyncPaused, loadWatchBackupRuntime } from "./utils/watchHistoryBackups.js";
 import { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
+import { releaseDateForPlexItem, watchedAtForEmbyLikeItem } from "./utils/watchDates.js";
 export { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
 import {
   deleteLiveTrackingCacheRows,
@@ -113,64 +114,6 @@ function cachedRowToMedia(row) {
     source: session.source || row.source_platform,
     isValid: Boolean(session.title && (session.mediaType === "movie" || session.mediaType === "episode") && session.source),
   };
-}
-
-function dateOnlyIso(value = "") {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`).toISOString();
-}
-
-function isoDateTime(value = "") {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
-}
-
-function embyLikePlayedDate(item = {}) {
-  return isoDateTime(
-    item.UserData?.LastPlayedDate ||
-      item.UserData?.PlayedDate ||
-      item.UserData?.DatePlayed ||
-      item.LastPlayedDate ||
-      item.PlayedDate ||
-      item.DatePlayed ||
-      item.LastWatchedDate,
-  );
-}
-
-function isEmbyLikePlayed(item = {}) {
-  const value = item.UserData?.Played ?? item.UserData?.IsPlayed ?? item.Played ?? item.IsPlayed;
-  return value === true || value === "true" || value === 1 || value === "1";
-}
-
-function watchedAtForEmbyLikeItem(item = {}, fallbackTimestamp = Date.now()) {
-  const playedAt = embyLikePlayedDate(item);
-  if (playedAt) return { watchedAt: playedAt, reason: "played" };
-
-  if (isEmbyLikePlayed(item)) {
-    return { watchedAt: new Date(fallbackTimestamp).toISOString(), reason: "poll time" };
-  }
-
-  return { watchedAt: "", reason: "" };
-}
-
-function releaseDateForItem(item = {}) {
-  return dateOnlyIso(
-    item.PremiereDate ||
-      item.OriginalReleaseDate ||
-      item.originallyAvailableAt ||
-      (item.ProductionYear ? `${item.ProductionYear}-01-01T00:00:00.000Z` : ""),
-  );
-}
-
-function releaseDateForPlexItem(item = {}) {
-  return dateOnlyIso(
-    item.originallyAvailableAt ||
-      item.OriginallyAvailableAt ||
-      (item.year ? `${item.year}-01-01T00:00:00.000Z` : ""),
-  );
 }
 
 function ticksToMilliseconds(value) {
@@ -879,8 +822,6 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
     const { fetchEmbyWatchedItems } = await import("./utils/embyClient.js");
     const { normalizeProviderIds } = await import("./utils/parsers.js");
     const raw = await fetchEmbyWatchedItems(config.emby, { limit: SCHEDULED_RECENT_WATCH_LIMIT });
-    const pollTimestamp = Date.now();
-    
     for (const item of raw) {
       // For episodes, prefer series-level provider IDs (SeriesProviderIds) so that Plex and
       // other targets can match by series GUID rather than failing on episode-level IDs.
@@ -904,7 +845,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
       };
       if (!scheduledMediaInScope(config, media)) continue;
 
-      const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item, pollTimestamp);
+      const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
 
       if (!watchedAt) {
         logger(`Emby: skipped watched item without played or release date: ${media.title}`);
@@ -972,8 +913,6 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
     const { fetchJellyfinWatchedItems } = await import("./utils/jellyfinClient.js");
     const { normalizeProviderIds } = await import("./utils/parsers.js");
     const raw = await fetchJellyfinWatchedItems(config.jellyfin, { limit: SCHEDULED_RECENT_WATCH_LIMIT });
-    const pollTimestamp = Date.now();
-    
     for (const item of raw) {
       // For episodes, prefer series-level provider IDs (SeriesProviderIds) so that Plex and
       // other targets can match by series GUID rather than failing on episode-level IDs.
@@ -997,7 +936,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       };
       if (!scheduledMediaInScope(config, media)) continue;
 
-      const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item, pollTimestamp);
+      const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
 
       if (!watchedAt) {
         logger(`Jellyfin: skipped watched item without played or release date: ${media.title}`);
@@ -1521,11 +1460,10 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
         const { fetchEmbyWatchedItems } = await import("./utils/embyClient.js");
         const { normalizeProviderIds } = await import("./utils/parsers.js");
         const raw = await fetchEmbyWatchedItems(config.emby);
-        const pollTimestamp = Date.now();
         logger(`Emby: fetched ${raw.length} played library items.`);
         return raw.map((item) => {
           const ids = normalizeProviderIds(item.ProviderIds);
-          const { watchedAt } = watchedAtForEmbyLikeItem(item, pollTimestamp);
+          const { watchedAt } = watchedAtForEmbyLikeItem(item);
           return {
             title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
             type: item.Type === "Episode" ? "episode" : "movie",
@@ -1555,11 +1493,10 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
         const { fetchJellyfinWatchedItems } = await import("./utils/jellyfinClient.js");
         const { normalizeProviderIds } = await import("./utils/parsers.js");
         const raw = await fetchJellyfinWatchedItems(config.jellyfin);
-        const pollTimestamp = Date.now();
         logger(`Jellyfin: fetched ${raw.length} played library items.`);
         return raw.map((item) => {
           const ids = normalizeProviderIds(item.ProviderIds);
-          const { watchedAt } = watchedAtForEmbyLikeItem(item, pollTimestamp);
+          const { watchedAt } = watchedAtForEmbyLikeItem(item);
           return {
             title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
             type: item.Type === "Episode" ? "episode" : "movie",
