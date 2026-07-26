@@ -1,7 +1,25 @@
 {
-  "version": "0.6.15",
-  "updatedAt": "2026-07-26T20:13:52+01:00",
+  "version": "0.6.16",
+  "updatedAt": "2026-07-26T20:34:27+01:00",
   "entries": [
+    {
+      "version": "0.6.16",
+      "date": "2026-07-26T20:34:27+01:00",
+      "commit": "2023a7338bb3a625d7ffb9d106826218c81be867",
+      "message": "Docs - Mark backlog items complete",
+      "author": "Lasikiewicz",
+      "details": [
+        "Backlog now tracks the unparsed webhook traffic, delayed Emby delivery, cross-platform match failures, missing season numbers and opaque show titles, the Fix Match media_key gap, restore verification, and the imported Trakt watch clusters",
+        "Each entry records the measured counts and where to read them, so it stands on its own when picked up later",
+        "Jellyfin events are no longer ignored: its webhook plugin labels valid JSON as text/plain, so every mark-played and mark-unplayed it sent was being discarded and unwatch never propagated from Jellyfin",
+        "Fix Match now rebuilds a show's media key and moves its watched state across, so a corrected show keeps its watch history instead of stranding it under the old identity",
+        "Fix Match clears the IMDb id from the previous match as well as the TMDB one, since both belong to the show that was wrong",
+        "Episodes stored without a season number now recover it from their title at startup, so season-zero specials match for sync and count toward show progress",
+        "Plex series and episode lookups no longer share a cache slot, which could make an episode stop matching after its first successful sync",
+        "Setup guides no longer ask you to change Jellyfin's content type, which is not something you needed to do",
+        "Record completed sync, metadata, webhook, restore, and import follow-ups in the backlog."
+      ]
+    },
     {
       "version": "0.6.15",
       "date": "2026-07-26T20:13:52+01:00",
