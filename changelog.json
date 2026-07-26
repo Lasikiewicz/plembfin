@@ -1,7 +1,18 @@
 {
-  "version": "0.6.20",
-  "updatedAt": "2026-07-26T22:19:53+01:00",
+  "version": "0.6.21",
+  "updatedAt": "2026-07-26T22:24:41+01:00",
   "entries": [
+    {
+      "version": "0.6.21",
+      "date": "2026-07-26T22:24:41+01:00",
+      "commit": "0fceec9329d177c07edbd5081b4a5e7b40401fd6",
+      "message": "Fix - Normalize escaped changelog bullets",
+      "author": "Lasikiewicz",
+      "details": [
+        "Convert literal newline sequences into separate changelog details",
+        "Correct the affected historical release entry and add regression coverage"
+      ]
+    },
     {
       "version": "0.6.20",
       "date": "2026-07-26T22:19:53+01:00",
