@@ -31,16 +31,23 @@ Behavior:
 ## Clean Duplicate History Rows
 
 Settings → Tools → **Clean Duplicate History Rows** (`POST /api/dedup-history`) permanently
-deletes rows from `watch_history`. It groups rows by `media_key` and then by `watched_at`,
-and removes extra rows only *within* a single timestamp — those are the same watch event
-recorded more than once, typically a webhook echo or the same play arriving from two
-platforms.
+deletes rows from `watch_history`. It groups rows by `media_key` and collapses plays that
+fall within `SAME_EVENT_WINDOW_MS` (10 minutes) of each other into one viewing, keeping the
+earliest row of each chain. Plays chain together while each is inside the window of the one
+before it, so a run of copies arriving over several minutes collapses to a single row.
 
-Rows that share a `media_key` but carry different `watched_at` values are separate viewings.
-The tool counts those items and reports how many it preserved rather than collapsing them,
-so rewatch history survives the clean-up. `GET /api/health/sync` reports the same split up
-front as `dataQuality.sameEventDuplicateRows` and `dataQuality.rewatchedItems`, so the
-number of rows the tool would delete is visible before running it.
+The window matters: a watch propagated between media servers is written down once per
+server, milliseconds to minutes apart and never on the same instant. Requiring an identical
+`watched_at` therefore reports almost none of the duplicates that exist. Ten minutes is
+shorter than any real playthrough, so no genuine rewatch can fall inside it.
+
+Rows further apart than the window are separate viewings. The tool counts those items and
+reports how many it preserved rather than collapsing them, so rewatch history survives the
+clean-up. `GET /api/health/sync` reports the same split up front as
+`dataQuality.sameEventDuplicateRows` and `dataQuality.rewatchedItems`, computed with the same
+rule, so the number of rows the tool would delete is visible before running it. Note that
+`rewatchedItems` is only a true rewatch count once `sameEventDuplicateRows` is zero — a
+duplicate recorded seconds after the original also carries a distinct `watched_at`.
 
 Note that the same episode can hold different `media_key` values across platforms when each
 supplies a different external ID (title vs IMDb vs TMDB vs TVDB). Those copies group

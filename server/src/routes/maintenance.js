@@ -81,6 +81,9 @@ import {
   setWatchMediaType,
   loadWatchKeyGroupsForDedup,
   deleteWatchRecordsByIds,
+  sameEventDuplicateIds,
+  countRewatchedItems,
+  SAME_EVENT_WINDOW_MS,
   deleteMovieByWatchId,
   deletePosterCacheByMediaKey,
   backfillUnknownShowTitles,
@@ -385,46 +388,19 @@ export async function handleDedupHistory(req, res) {
     log(`Loaded ${scanned} total records.`);
     log(`Found ${groups.size} unique media keys.`);
 
-    let deleted = 0;
-    let checked = 0;
-    const removeIds = [];
+    // A watch propagated between media servers is written down once per server,
+    // milliseconds to minutes apart — never on the same instant — so grouping by
+    // an identical timestamp misses nearly all of it. Rows close enough together
+    // to be one viewing are duplicates; anything further apart is a real rewatch
+    // and is left alone.
+    const windowMinutes = Math.round(SAME_EVENT_WINDOW_MS / 60000);
+    log(`Collapsing plays of the same item recorded within ${windowMinutes} minutes of each other...`);
+    const removeIds = sameEventDuplicateIds();
+    const deleted = removeIds.length;
 
-    let rewatchGroups = 0;
-    for (const [, docs] of groups.entries()) {
-      if (docs.length <= 1) continue;
-
-      // Rows sharing a media_key but carrying different watched_at values are
-      // separate viewings of the same episode, not duplicates. Collapsing a
-      // media_key down to its newest row would erase real rewatch history, so
-      // only rows that record the *same watch event* are duplicates here.
-      const byTimestamp = new Map();
-      for (const doc of docs) {
-        const stamp = doc.watchedAt || "";
-        if (!byTimestamp.has(stamp)) byTimestamp.set(stamp, []);
-        byTimestamp.get(stamp).push(doc);
-      }
-      if (byTimestamp.size > 1) rewatchGroups++;
-
-      let removedHere = 0;
-      for (const sameEvent of byTimestamp.values()) {
-        if (sameEvent.length <= 1) continue;
-        // Keep one row per distinct watch event; drop the redundant copies.
-        const [, ...remove] = sameEvent;
-        for (const dup of remove) {
-          removeIds.push(dup.id);
-          deleted++;
-          removedHere++;
-        }
-      }
-      if (!removedHere) continue;
-
-      checked++;
-      if (checked % 50 === 0) {
-        log(`Processed ${checked} duplicate groups, ${deleted} deletions queued so far...`);
-      }
-    }
+    const rewatchGroups = countRewatchedItems();
     if (rewatchGroups) {
-      log(`Preserved ${rewatchGroups} item(s) that have multiple distinct watch dates — those are rewatches, not duplicates.`);
+      log(`Preserved ${rewatchGroups} item(s) whose watches are further apart than ${windowMinutes} minutes — those are rewatches, not duplicates.`);
     }
 
     if (removeIds.length) {

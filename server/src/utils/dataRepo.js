@@ -1397,14 +1397,44 @@ export async function countPlaybackProgressRows() {
 
 // Data-quality counters for the Sync Health panel. These conditions were
 // previously only observable by reading the server log.
-const countSameEventDuplicatesStmt = db.prepare(
-  `SELECT COALESCE(SUM(n - 1), 0) AS c FROM (
-     SELECT COUNT(*) AS n FROM watch_history
-     GROUP BY media_key, watched_at HAVING n > 1
-   )`
+// Two plays of the same item recorded within this window are one viewing written
+// down twice: nobody finishes an episode and starts it again inside ten minutes.
+// Matching on an identical timestamp is not enough — a watch propagated between
+// media servers lands milliseconds to minutes apart, never on the same instant,
+// so an exact-match test reports almost none of the duplicates that exist.
+export const SAME_EVENT_WINDOW_MS = 10 * 60 * 1000;
+
+const selectWatchedStampsStmt = db.prepare(
+  "SELECT id, media_key, watched_at FROM watch_history WHERE sync_action = 'watched' AND media_key IS NOT NULL AND media_key != ''",
 );
+
+// Ids of rows that restate a viewing already recorded by an earlier row. Plays
+// chain into one viewing while each is within the window of the one before it,
+// and the earliest row of each chain is the one kept.
+export function sameEventDuplicateIds(windowMs = SAME_EVENT_WINDOW_MS) {
+  const byKey = new Map();
+  for (const row of selectWatchedStampsStmt.all()) {
+    if (!byKey.has(row.media_key)) byKey.set(row.media_key, []);
+    byKey.get(row.media_key).push(row);
+  }
+
+  const duplicates = [];
+  for (const group of byKey.values()) {
+    if (group.length < 2) continue;
+    group.sort((a, b) => (Date.parse(a.watched_at) || 0) - (Date.parse(b.watched_at) || 0));
+    let previous = Date.parse(group[0].watched_at) || 0;
+    for (let index = 1; index < group.length; index++) {
+      const current = Date.parse(group[index].watched_at) || 0;
+      if (current - previous <= windowMs) duplicates.push(group[index].id);
+      previous = current;
+    }
+  }
+  return duplicates;
+}
 // Rows sharing a media_key but with different watched_at values are separate
-// viewings. Reported so the number is visible and clearly *not* a problem.
+// viewings. Reported so the number is visible; it is only a true rewatch count
+// once sameEventDuplicateRows is zero, because a duplicate that landed a few
+// seconds after the original also counts as a distinct watched_at here.
 const countRewatchedItemsStmt = db.prepare(
   `SELECT COUNT(*) AS c FROM (
      SELECT media_key FROM watch_history
@@ -1418,10 +1448,14 @@ const countOpaqueShowTitlesStmt = db.prepare(
   "SELECT COUNT(*) AS c FROM watch_history WHERE show_title LIKE '%://%'"
 );
 
+export function countRewatchedItems() {
+  return countRewatchedItemsStmt.get().c || 0;
+}
+
 export function watchHistoryQualityCounts() {
   return {
-    sameEventDuplicateRows: countSameEventDuplicatesStmt.get().c || 0,
-    rewatchedItems: countRewatchedItemsStmt.get().c || 0,
+    sameEventDuplicateRows: sameEventDuplicateIds().length,
+    rewatchedItems: countRewatchedItems(),
     nullSeasonEpisodeRows: countNullSeasonEpisodesStmt.get().c || 0,
     opaqueShowTitleRows: countOpaqueShowTitlesStmt.get().c || 0,
   };
