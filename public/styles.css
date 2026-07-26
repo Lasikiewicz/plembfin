@@ -12765,7 +12765,10 @@ details[open] > .tool-section-summary::before {
   }
   .history-card-poster-wrapper {
     width: 64px;
-    flex: 0 0 64px;
+    /* The card stacks at this width, so a flex-basis would pin the poster's
+       height instead of its width and flatten it to a square. Sizing from width
+       alone lets aspect-ratio set the height. */
+    flex: 0 0 auto;
   }
 }
 
