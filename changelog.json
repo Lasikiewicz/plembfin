@@ -1,7 +1,17 @@
 {
-  "version": "0.6.16",
-  "updatedAt": "2026-07-26T20:34:27+01:00",
+  "version": "0.6.17",
+  "updatedAt": "2026-07-26T21:52:36+01:00",
   "entries": [
+    {
+      "version": "0.6.17",
+      "date": "2026-07-26T21:52:36+01:00",
+      "commit": "ef72caa9f5515a440334556beb6e4455c0275d06",
+      "message": "Fix - Handle unmatched media records",
+      "author": "Lasikiewicz",
+      "details": [
+        "Refresh matched artwork and metadata across library views.\\n- Show actionable details and safe removal confirmations for unmatched TV records."
+      ]
+    },
     {
       "version": "0.6.16",
       "date": "2026-07-26T20:34:27+01:00",
