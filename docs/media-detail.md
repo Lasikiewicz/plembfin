@@ -90,8 +90,10 @@ in-app navigation state. TV URLs support deep links:
   anchor row's identity fields onto a new date), or remove one with confirmation
   (`POST /api/delete-watch-date` — rolls `playstate.watched_at` back to whichever
   remaining watch is newest, or clears it if none remain). TV Fix Match sends one `POST /api/rematch-show` request that
-  updates every episode record in a transaction; the dialog closes after that local
-  update while progress, artwork, and metadata refresh in the background.
+  updates every episode record in a transaction, renaming them onto the picked
+  series when that name differs; the dialog closes after that local update while
+  progress, artwork, and metadata refresh in the background. A rename changes the
+  show's route key, so the UI navigates to the new show URL.
   The artwork dialog has a match search box at the top (`GET /api/tmdb-search`):
   when a title has no automatic TMDB/TVDB match, searching and picking a result
   swaps the identifiers the picker browses with — the record itself is not

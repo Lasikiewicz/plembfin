@@ -74,11 +74,11 @@ async function apiDeleteWatchDate(id) {
   return body;
 }
 
-async function apiRematchShow(id, showTitle, tvdbId) {
+async function apiRematchShow(id, showTitle, tvdbId, newShowTitle = "") {
   const res = await fetch("/api/rematch-show", {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ id, show_title: showTitle, tvdb_id: tvdbId }),
+    body: JSON.stringify({ id, show_title: showTitle, tvdb_id: tvdbId, new_show_title: newShowTitle }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
@@ -1060,13 +1060,19 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
     const rows = fullShowWatchedRows(currentTitle);
     status.textContent = "";
     if (resultButton) setResultBusy(resultButton, "Updating show match...");
-    const result = await apiRematchShow(id, currentTitle, tvdbId);
+    const result = await apiRematchShow(id, currentTitle, tvdbId, title);
+    const renamed = Boolean(result.renamed);
+    const nextTitle = String(result.show_title || title || currentTitle);
     for (const row of rows) {
       row.tvdb_id = tvdbId;
       row.tmdb_id = "";
       row.poster_url = "";
       row.logo_url = "";
       row.backdrop_url = "";
+      if (!renamed) continue;
+      // Swap the show name but keep the SxxEyy coordinates and episode name.
+      row.title = String(row.title || "").replace(/^.*?(?=\s+-\s+S\d{1,3}E\d{1,3}\b)/i, () => nextTitle);
+      row.show_title = nextTitle;
     }
     const showKey = slug(currentTitle);
     const show = state.showsRaw.find((item) => slug(item.title) === showKey);
@@ -1076,6 +1082,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
       show.poster_url = "";
       show.logo_url = "";
       show.backdrop_url = "";
+      if (renamed) show.title = nextTitle;
     }
     state.tmdbDetailsCache.clear();
     state.tmdbSeasonCache.clear();
@@ -1083,6 +1090,14 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
     overlay.remove();
     const updatedRows = Number(result.updated_rows || rows.length || 1);
     _setMessage(`Match updated for ${updatedRows} episode${updatedRows === 1 ? "" : "s"}. Refreshing metadata in the background.`, "success");
+
+    // The show's route key is derived from its name, so a rename moves it to a
+    // new URL — stay put and the current page no longer resolves to anything.
+    if (renamed && slug(nextTitle) !== showKey) {
+      _navigateTo(`/tvshow/${slug(nextTitle)}`);
+      return;
+    }
+
     Promise.resolve(onSaved?.({ tmdb_id: "", tvdb_id: tvdbId, title, refreshed: true })).catch((error) => {
       console.error("Failed refreshing show after Fix Match", error);
       _setMessage("Match saved. Reload the show to see refreshed metadata.", "warning");

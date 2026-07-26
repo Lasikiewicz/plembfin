@@ -96,7 +96,11 @@ Two admin tools deal with mis-grouped shows under Settings → Advanced:
   TMDB/TVDB when the automatic match picked the wrong series.
 - **Fix Match on a show page** (`POST /api/rematch-show`) — stamps the selected TVDB
   identity across every episode in one transaction and refreshes remote-derived
-  metadata in the background.
+  metadata in the background. The picked series name is sent as `new_show_title`
+  and, when it differs from the stored name, is written to every episode's
+  `show_title` and title alongside the identity. A show's route key is derived from
+  its name, so renaming moves it to a new URL and the UI navigates there — this is
+  what lifts an "Unknown Show" group onto its real title.
 - `backfillUnknownShowTitles` (run at boot from `server.js`) fixes episodes stored
   with an "Unknown Show" title once a better title is known.
 

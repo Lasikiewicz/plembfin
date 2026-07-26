@@ -2037,7 +2037,20 @@ export async function updateWatchRecord(id, fields = {}) {
 // request also invalidates derived caches. Stamp every episode in one SQLite
 // transaction, invalidate once, then rebuild remote-derived progress metadata
 // after the response path has completed.
-export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId = "" } = {}) {
+// Swaps the show-name segment of an episode title, keeping the SxxEyy
+// coordinates and any episode-name suffix. Replacing everything ahead of the
+// coordinates also drops a stale trailing year from the old name.
+function retitledEpisode(existingTitle = "", newShowTitle = "", season = null, episode = null) {
+  const text = cleanString(decodeBasicHtmlEntities(existingTitle));
+  const coordinateMatch = text.match(/^(.*?)(\s+-\s+S\d{1,3}E\d{1,3}\b.*)$/i);
+  if (coordinateMatch) return `${newShowTitle}${coordinateMatch[2]}`;
+  if (season != null && episode != null) {
+    return `${newShowTitle} - S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")}`;
+  }
+  return newShowTitle;
+}
+
+export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId = "", newShowTitle = "" } = {}) {
   const cleanTvdbId = cleanString(tvdbId);
   if (!cleanTvdbId) return { ok: false, error: "tvdb_id is required" };
 
@@ -2047,6 +2060,16 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
 
   const resolvedTitle = cleanString(anchor?.show_title || (anchor?.title ? showTitleFrom(anchor.title) : showTitle));
   if (!resolvedTitle) return { ok: false, error: "show_title is required" };
+
+  // The show the user picked. Fix Match corrects which series these episodes
+  // belong to, so the stored name has to follow the new match — otherwise a
+  // mismatched or "Unknown Show" group keeps its old name and stays parked on
+  // the old route even though the ids now point somewhere else.
+  const cleanNewShowTitle = cleanString(newShowTitle);
+  const renameTo =
+    cleanNewShowTitle && canonicalTitleKey(cleanNewShowTitle) !== canonicalTitleKey(resolvedTitle)
+      ? cleanNewShowTitle
+      : "";
 
   let rows = selectEpisodesByShowLowerStmt.all(resolvedTitle.toLowerCase());
   if (!rows.length) {
@@ -2069,7 +2092,19 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
   const updatedAt = Date.now();
 
   transaction(() => {
-    for (const row of rows) rematchShowEpisodeStmt.run(cleanTvdbId, updatedAt, row.id);
+    for (const row of rows) {
+      rematchShowEpisodeStmt.run(cleanTvdbId, updatedAt, row.id);
+      if (!renameTo) continue;
+      const nextTitle = retitledEpisode(row.title, renameTo, row.season, row.episode);
+      updateShowTitleStmt.run(
+        nextTitle,
+        nextTitle.toLowerCase(),
+        renameTo,
+        renameTo.toLowerCase(),
+        updatedAt,
+        row.id,
+      );
+    }
     for (const mediaKey of mediaKeys) deletePosterByMediaKeyStmt.run(mediaKey);
     for (const tmdbId of oldTmdbIds) deleteTmdbMetadataStmt.run(`tv_${tmdbId}`);
     deleteTvdbMetadataStmt.run(`series_${cleanTvdbId}`);
@@ -2077,10 +2112,13 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
 
   // Drop the stale cached progress entry (and its cached tmdb_id) synchronously
   // so a request for this show between now and the background refresh below
-  // can't have the old show's id served back to it via queryShowDetail().
+  // can't have the old show's id served back to it via queryShowDetail(). After
+  // a rename both names have to be cleared: the old entry would otherwise leave
+  // a ghost of the previous show behind.
   clearCachedShowProgress(resolvedTitle);
+  if (renameTo) clearCachedShowProgress(renameTo);
 
-  queueShowProgressUpdate(resolvedTitle);
+  queueShowProgressUpdate(renameTo || resolvedTitle);
   bumpDataVersion();
   setImmediate(() => {
     flushShowProgressUpdates().catch((error) => {
@@ -2088,7 +2126,14 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
     });
   });
 
-  return { ok: true, updatedRows: rows.length, showTitle: resolvedTitle, tvdbId: cleanTvdbId };
+  return {
+    ok: true,
+    updatedRows: rows.length,
+    showTitle: renameTo || resolvedTitle,
+    previousShowTitle: resolvedTitle,
+    renamed: Boolean(renameTo),
+    tvdbId: cleanTvdbId,
+  };
 }
 
 const updateShowTitleStmt = db.prepare("UPDATE watch_history SET title = ?, title_lower = ?, show_title = ?, show_title_lower = ?, updated_at = ? WHERE id = ?");

@@ -587,12 +587,15 @@ export async function handleRematchShow(req, res) {
     id: String(body.id || "").trim(),
     showTitle: String(body.show_title || "").trim(),
     tvdbId: String(body.tvdb_id || "").trim(),
+    newShowTitle: String(body.new_show_title || "").trim(),
   });
   if (!result.ok) return sendJson(res, { error: result.error }, 400);
   return sendJson(res, {
     ok: true,
     updated_rows: result.updatedRows,
     show_title: result.showTitle,
+    previous_show_title: result.previousShowTitle,
+    renamed: result.renamed,
     tvdb_id: result.tvdbId,
     metadata_refresh: "background",
   }, 202);
