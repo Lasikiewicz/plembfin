@@ -10,7 +10,7 @@ import {
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent,
-} from "./media-detail-show.js";
+} from "./media-detail-show.js?v=20260732";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
 } from "./media-detail-movie.js";

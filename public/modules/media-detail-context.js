@@ -86,6 +86,8 @@ export function closeDebugModal() {
   state.activeShowModalTitle = null;
   state.activeShowModalSeason = null;
   state.activeShowModalEpisode = null;
+  state.pendingShowHistoryId = "";
+  state.activeShowHistoryId = "";
   state.showModalAllSeasonsExpanded = false;
   state.showModalRequestToken += 1;
   state.showModalEpisodes = [];

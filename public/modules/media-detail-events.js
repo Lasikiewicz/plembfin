@@ -45,9 +45,12 @@ export function initMediaDetailEvents(callbacks = {}) {
 const navigateTo = (...args) => _cb.navigateTo?.(...args);
 const setMessage = (...args) => _cb.setMessage?.(...args);
 const authHeaders = (...args) => _cb.authHeaders?.(...args);
+const clearDerivedUiCaches = (...args) => _cb.clearDerivedUiCaches?.(...args);
+const loadHistory = (...args) => _cb.loadHistory?.(...args);
 const selectSettingsTab = (...args) => _cb.selectSettingsTab?.(...args);
 const copyToClipboard = (...args) => _cb.copyToClipboard?.(...args);
 const toggleSet = (...args) => _cb.toggleSet?.(...args);
+const openConfirmDialog = (...args) => _cb.openConfirmDialog?.(...args);
 
 async function refreshActiveMovieAfterDateEdit(entry = null) {
   if (!state.activeMovieModalId) return;
@@ -75,7 +78,7 @@ async function refreshActiveShowAfterDateEdit(entry = null) {
 // ~520-line addEventListener callback) to keep app-events.js under the
 // module size limit; behavior is unchanged.
 export function attachMediaDetailEvents() {
-  document.addEventListener("click", (event) => {
+  document.addEventListener("click", async (event) => {
     // Only dropdowns inside a "collapsed" actions bar are real popup menus.
     // When the bar isn't collapsed, its dropdown is forced open so its
     // contents render flattened inline (see syncMediaActionsMenuState) and
@@ -324,7 +327,61 @@ export function attachMediaDetailEvents() {
           if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
           await openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason, state.activeShowModalEpisode).catch(() => { });
         }
+
+        // The match response updates the detail view, but the explorer and
+        // dashboard may already contain rendered cards backed by old rows.
+        // Drop those snapshots and immediately repopulate the visible view so
+        // the new poster and metadata are visible without navigation/reload.
+        clearDerivedUiCaches({ resetExplorer: true });
+        if (state.activeView === "explorer" && !state.mediaDetailInline) {
+          renderExplorer();
+        } else if (state.activeView === "dashboard") {
+          loadHistory({ force: true }).catch(() => null);
+        }
       });
+      return;
+    }
+
+    const removeHistoryBtn = event.target.closest(".media-remove-history-btn");
+    if (removeHistoryBtn) {
+      const id = removeHistoryBtn.dataset.deleteHistoryId;
+      if (!id) return;
+      const confirmed = await openConfirmDialog({
+        title: "Remove unmatched entry?",
+        body: "This removes the local Plembfin watch record only. It will not affect Plex, Emby or Jellyfin.",
+        confirmLabel: "Continue",
+        cancelLabel: "Keep entry",
+        danger: true,
+      });
+      if (!confirmed) return;
+      const finalConfirmed = await openConfirmDialog({
+        title: "This cannot be undone",
+        body: "The episode, watch date and local history for this unmatched entry will be permanently deleted. Continue?",
+        confirmLabel: "Remove permanently",
+        cancelLabel: "Cancel",
+        danger: true,
+      });
+      if (!finalConfirmed) return;
+      removeHistoryBtn.disabled = true;
+      try {
+        const response = await fetch("/api/delete-history-record", {
+          method: "POST",
+          headers: { ...authHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ id, confirm: "DELETE" }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || `Remove failed (${response.status})`);
+        state.history = state.history.filter((row) => String(row.id || "") !== String(id));
+        state.showsRaw = state.showsRaw.filter((show) => String(show.unmatched_history_id || "") !== String(id));
+        clearDerivedUiCaches({ resetExplorer: true });
+        setMessage("Unmatched watch entry removed.", "success");
+        closeMediaDetail();
+        if (state.activeView === "explorer" && !state.mediaDetailInline) renderExplorer();
+        else if (state.activeView === "history") renderHistoryView();
+      } catch (error) {
+        removeHistoryBtn.disabled = false;
+        setMessage(`Remove failed: ${error.message}`, "error");
+      }
       return;
     }
 
@@ -650,7 +707,12 @@ export function attachMediaDetailEvents() {
 
     const showTrigger = event.target.closest("[data-show-key]");
     if (showTrigger) {
-      navigateTo(`/tvshow/${showTrigger.dataset.showKey}`);
+      const recordId = showTrigger.dataset.showRecordId;
+      if (recordId) {
+        state.pendingShowHistoryId = recordId;
+        state.activeShowHistoryId = recordId;
+      }
+      navigateTo(`/tvshow/${showTrigger.dataset.showKey}${recordId ? `?historyId=${encodeURIComponent(recordId)}` : ""}`);
       return;
     }
 

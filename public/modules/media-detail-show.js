@@ -19,6 +19,16 @@ let _playbackProgressLoaded = false;
 let _playbackProgressLoadPromise = null;
 const _seasonDetailsInflight = new Set();
 
+function identifiableShowTitleFromRow(row, historyId = "") {
+  const parsed = showTitleFrom(row?.show_title || row?.grandparent_title || row?.series_title || row?.title || "");
+  if (parsed && !/^plex:\/\//i.test(parsed)) return parsed;
+  const raw = String(row?.show_title || row?.title || "").trim();
+  const plexSeason = raw.match(/^plex:\/\/season\/([^/?#]+)/i);
+  if (plexSeason) return `Unmatched Plex show (${plexSeason[1]})`;
+  if (raw && !/^plex:\/\//i.test(raw)) return raw;
+  return historyId ? `Unmatched show (${historyId.slice(0, 8)})` : "Unmatched show";
+}
+
 export async function openShowImmersiveModalByTitle(showTitle, seedEpisode = null, requestedSeason = null) {
   const normalizedTitle = showTitleFrom(showTitle);
   const showKey = slug(normalizedTitle);
@@ -93,9 +103,9 @@ export async function openShowImmersiveModalByTitle(showTitle, seedEpisode = nul
   }
 }
 
-export async function openShowInlineDetail(showKey, activeSeasonNum = null, activeEpisodeNum = null) {
+export async function openShowInlineDetail(showKey, activeSeasonNum = null, activeEpisodeNum = null, historyId = "") {
   prepareInlineMediaDetail("shows");
-  await renderImmersiveShowModal(showKey, activeSeasonNum, activeEpisodeNum);
+  await renderImmersiveShowModal(showKey, activeSeasonNum, activeEpisodeNum, historyId);
 }
 
 async function fetchShowImdbPillHtml(show = {}, tmdbData = null, requestStillCurrent = () => true) {
@@ -164,6 +174,44 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     }
   }
   if (!tmdbData) {
+    // A legacy or incorrect TMDB id should not make a locally watched show
+    // unreachable. Fall back to the local library record so the episode
+    // history remains visible and the user can use Fix Match to repair the
+    // identity that caused the lookup to fail.
+    let fallbackShow = state.showsRaw.find((show) => String(show.tmdb_id || "") === String(tmdbId));
+    if (!fallbackShow) {
+      const matchingRows = (state.history || []).filter((row) => (
+        row.media_type === "episode" && String(row.tmdb_id || "") === String(tmdbId)
+      ));
+      const firstRow = matchingRows[0];
+      if (firstRow) {
+        const title = firstRow.show_title || showTitleFrom(firstRow.title) || "Unknown Show";
+        fallbackShow = {
+          title,
+          tmdb_id: tmdbId,
+          episodes: matchingRows,
+          episode_count: matchingRows.length,
+          season_count: new Set(matchingRows.map((row) => row.season).filter((value) => value != null)).size,
+        };
+      }
+    }
+
+    if (fallbackShow) {
+      const detailedShow = await loadShowDetail(fallbackShow).catch(() => null);
+      const localShow = detailedShow || fallbackShow;
+      const localShowKey = slug(localShow.title);
+      state.activeShowModalKey = localShowKey;
+      state.activeShowModalTitle = localShow.title;
+      state.activeShowTmdbId = String(localShow.tmdb_id || tmdbId);
+      renderShowModalContent(localShow, {
+        activeSeasonNum: state.activeShowModalSeason,
+        tmdbData: null,
+        seasonDetailsByNumber: new Map(),
+        loading: false,
+      });
+      return;
+    }
+
     root.innerHTML = `
       <div class="immersive-container">
         <div style="display: flex; justify-content: center; align-items: center; min-height: 200px; flex-direction: column; gap: var(--space-2);">
@@ -695,6 +743,8 @@ export function renderShowModalContent(show, {
   show = mergeShowWithLoadedHistory(show);
   const seasonsMap = seasonsFromShowRecord(show);
   const showTitle = sanitizeTitle(show.title) || "Unknown Show";
+  const isUnmatchedShow = showTitle === "Unknown Show";
+  const orphanHistoryId = show.unmatched_history_id || "";
   // Specials (season 0) are kept in the list so they're still browsable, but
   // are excluded from the progress totals below — a "100 of 100" show isn't
   // meant to imply specials don't exist, just that they don't count toward it.
@@ -717,6 +767,26 @@ export function renderShowModalContent(show, {
     || tmdbPoster(tmdbData?.poster_path, tmdbData?.id, "tv");
   const logoUrl = show.logo_url || bestTmdbLogo(tmdbData);
   const overview = tmdbData?.overview || "No synopsis available.";
+  const localEvidence = !tmdbData && isUnmatchedShow
+    ? (() => {
+      const records = Array.isArray(show.episodes) && show.episodes.length
+        ? show.episodes
+        : [show.representative_episode || show.representativeEpisode, ...(state.history || [])
+          .filter((record) => record.media_type === "episode" && (!record.show_title || slug(showTitleFrom(record.show_title || record.title)) === "unknown-show"))]
+          .filter(Boolean);
+      if (!records.length) return "";
+      const recordRows = records.slice(0, 6).map((record) => {
+        const episodeLabel = record.season != null && record.episode != null
+          ? `S${String(record.season).padStart(2, "0")}E${String(record.episode).padStart(2, "0")}`
+          : "Episode details unavailable";
+        const recordedTitle = record.title && record.title !== showTitle ? record.title : "Recorded title unavailable";
+        const watchedDate = record.watched_at ? formatDate(record.watched_at) : "Date unavailable";
+        const source = record.source ? ` · ${record.source}` : "";
+        return `<li><b>${escapeHtml(episodeLabel)}</b> ${escapeHtml(recordedTitle)}<span>${escapeHtml(`${watchedDate}${source}`)}</span></li>`;
+      }).join("");
+      return `<section class="unknown-show-evidence"><h3>Available local details</h3><p>This record has no matched metadata yet. These details can help identify it before matching:</p><ul>${recordRows}</ul></section>`;
+    })()
+    : "";
   const premiered = tmdbData?.first_air_date ? `Premiered ${formatTmdbDate(tmdbData.first_air_date)}` : "Release date unknown";
   const rating = tmdbData?.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "";
   const ratingPillsHtml = renderExternalRatingPills("tv", tmdbData, showTitle, rating);
@@ -836,16 +906,26 @@ export function renderShowModalContent(show, {
         ${imageIcon}
         <span>Edit <br>Images</span>
       </button>
+      ${isUnmatchedShow ? `
+        <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">
+          ${searchIcon}
+          <span>Fix Match</span>
+        </button>` : ""}
+      ${orphanHistoryId ? `
+        <button class="action-pill media-remove-history-btn action-pill--danger" type="button" data-delete-history-id="${escapeAttribute(orphanHistoryId)}">
+          <span>Remove entry</span>
+        </button>` : ""}
       <details class="actions-more-dropdown">
         <summary class="action-pill actions-more-trigger">
           <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M3 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg>
           <span>More</span>
         </summary>
         <div class="actions-more-panel">
-          <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">
-            ${searchIcon}
-            <span>Fix Match</span>
-          </button>
+          ${isUnmatchedShow ? "" : `
+            <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-media-type="tv">
+              ${searchIcon}
+              <span>Fix Match</span>
+            </button>`}
           <button class="action-pill media-merge-show-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">
             ${mergeIcon}
             <span>Merge</span>
@@ -874,6 +954,8 @@ export function renderShowModalContent(show, {
             ${renderSeerrRequestPill("tv", tvSeerrTmdbId, showIsNowPlaying)}
 
             <p class="immersive-overview">${escapeHtml(overview)}</p>
+
+            ${localEvidence}
 
             <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
               <div class="progress-label-row">
@@ -987,7 +1069,7 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
   renderShowModalContent(show, { activeSeasonNum: state.activeShowModalSeason, tmdbData, seasonDetailsByNumber, loading: false, imdbPillHtml });
 }
 
-export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, activeEpisodeNum = null) {
+export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, activeEpisodeNum = null, historyId = "") {
   // Half of a two-token handshake with media-detail-movie.js — see the
   // bumpMediaRenderToken doc comment in media-detail-context.js before changing this.
   bumpMediaRenderToken(); // invalidate any in-flight movie render
@@ -1007,6 +1089,51 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
   const root = mediaDetailRoot();
 
   let show = state.showsRaw.find((s) => slug(s.title) === showKey);
+  if (historyId) {
+    try {
+      const response = await fetch(`/api/history?id=${encodeURIComponent(historyId)}`, { headers: authHeaders(), cache: "no-store" });
+      const body = await response.json().catch(() => ({}));
+      const row = response.ok ? body.row : null;
+      if (row) {
+        const title = identifiableShowTitleFromRow(row, historyId);
+        show = {
+          title,
+          id: row.id || historyId,
+          episodes: [{ ...row, show_title: title }],
+          episode_count: 1,
+          season_count: row.season == null ? 0 : 1,
+          latest_watched_at: row.watched_at || "",
+          representative_episode: row,
+          unmatched_history_id: historyId,
+        };
+        mergeShowDetail(show);
+      }
+    } catch (error) {
+      console.error("Failed to load show history record", error);
+    }
+  }
+
+  // A direct detail link can arrive before the history list has finished its
+  // initial load. If the record endpoint was unavailable or returned no row,
+  // still use the matching in-memory history item so the user can identify and
+  // repair the orphaned show instead of seeing an empty placeholder page.
+  if (historyId && (!show || sanitizeTitle(show.title) === "Unknown Show" || !Array.isArray(show.episodes) || !show.episodes.length)) {
+    const localRow = (state.history || []).find((row) => String(row.id || "") === String(historyId));
+    if (localRow) {
+      const title = identifiableShowTitleFromRow(localRow, historyId);
+      show = {
+        title,
+        id: localRow.id || historyId,
+        episodes: [{ ...localRow, show_title: title }],
+        episode_count: 1,
+        season_count: localRow.season == null ? 0 : 1,
+          latest_watched_at: localRow.watched_at || "",
+          representative_episode: localRow,
+          unmatched_history_id: historyId,
+      };
+      mergeShowDetail(show);
+    }
+  }
   if (!show) {
     root.innerHTML = `
       <div class="modal-backdrop-image"></div>
@@ -1024,6 +1151,38 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     } catch (error) {
       console.error("Failed to load show detail on direct link", error);
     }
+  }
+
+  // Explorer routes use a title slug (for example, `unknown-show`), not a
+  // database id. If the summary is not already in memory, resolve that slug
+  // through the title lookup so locally watched episodes can still render
+  // when the show has no valid metadata identity yet.
+  if (!show) {
+    const titleGuess = showKey.replace(/-/g, " ").trim();
+    if (titleGuess) {
+      show = await loadShowDetail({ title: titleGuess }).catch((error) => {
+        console.error("Failed to load show detail by title", error);
+        return null;
+      });
+    }
+  }
+
+  // Never send the placeholder title through a broad TMDB search. It can
+  // resolve to an unrelated result or fail before the user gets any repair
+  // controls. Keep a local shell instead; Fix Match can rematch by show title
+  // even when there is no usable metadata id or episode payload.
+  if (!show && showKey === "unknown-show") {
+    const unknownRows = (state.history || []).filter((row) => (
+      row.media_type === "episode" && slug(showTitleFrom(row.show_title || row.title)) === showKey
+    ));
+    show = {
+      title: "Unknown Show",
+      id: unknownRows[0]?.id || "",
+      episodes: unknownRows,
+      episode_count: unknownRows.length,
+      season_count: new Set(unknownRows.map((row) => row.season).filter((value) => value != null)).size,
+    };
+    mergeShowDetail(show);
   }
 
   if (!show) {
@@ -1080,6 +1239,17 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     });
     if (detailedShow) show = detailedShow;
     if (!Array.isArray(show.episodes) || !show.episodes.length) {
+      if (showKey === "unknown-show" || sanitizeTitle(show.title) === "Unknown Show") {
+        state.activeShowModalSeason = activeSeasonNum;
+        renderShowModalContent(show, {
+          activeSeasonNum,
+          tmdbData: null,
+          seasonDetailsByNumber: new Map(),
+          loading: false,
+        });
+        hydratePosters(root);
+        return;
+      }
       root.innerHTML = `
         <div class="modal-backdrop-image"></div>
         <div class="immersive-container media-detail-page">
@@ -1111,7 +1281,10 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     if (!current) return;
     renderShowModalContent(current.show, { ...current, activeSeasonNum: state.activeShowModalSeason });
   }).catch(() => { });
-  hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken).catch((error) => {
+  // A history-linked orphan has an intentionally identifiable local shell;
+  // do not let the background title lookup replace it with the stale
+  // `unknown-show` placeholder before Fix Match can be used.
+  if (!historyId) hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken).catch((error) => {
     console.error("Failed to hydrate show modal", error);
     if (requestToken === state.showModalRequestToken && state.activeShowModalKey === showKey) {
       renderShowModalContent(show, { activeSeasonNum, tmdbData: null, seasonDetailsByNumber: new Map(), loading: false });

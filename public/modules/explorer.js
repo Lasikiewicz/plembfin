@@ -1333,16 +1333,18 @@ export function renderShowRecord(show = {}) {
   const tmdbShow = resolvedTmdbCache("tv", tmdbId, displayTitle);
   const totalEps = show.total_episodes || tmdbShow?.number_of_episodes || 0;
   const latestWatchedAt = latestEpisode?.watched_at || show.latest_watched_at || "";
+  const historyId = latestEpisode?.id || "";
+  const detailHref = `/tvshow/${showKey}${historyId ? `?historyId=${encodeURIComponent(historyId)}` : ""}`;
   return `
     <article class="folder-card" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
-      <button class="folder-trigger" type="button" data-show-key="${escapeAttribute(showKey)}" style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block;">
+      <a class="folder-trigger" href="${escapeAttribute(detailHref)}" style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block; text-decoration: none; color: inherit;">
         ${posterMarkup(latestEpisode, "explorer-folder-poster")}
         <div class="movie-card-body" style="margin-top: 0.5rem;">
           <b>${escapeHtml(displayTitle)}</b>
           <span>${episodeCount}/${totalEps || "?"} watched</span>
           ${latestWatchedAt ? `<span>${formatDate(latestWatchedAt)}</span>` : ""}
         </div>
-      </button>
+      </a>
     </article>
   `;
 }

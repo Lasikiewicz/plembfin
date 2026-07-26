@@ -14,7 +14,7 @@ import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb }
 import { initMediaDetail, nowPlayingHref, openMovieInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail.js?v=20260701";
 import { closePersonProfile, loadCastMemberDetails } from "./media-person.js";
 import { initMediaLightbox } from "./media-lightbox.js";
-import { initMediaDetailEvents, attachMediaDetailEvents } from "./media-detail-events.js";
+import { initMediaDetailEvents, attachMediaDetailEvents } from "./media-detail-events.js?v=20260734";
 
 let _cb = {};
 export function initAppEvents(callbacks = {}) {

@@ -1009,7 +1009,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   overlay.className = "edit-dialog-overlay";
   overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
   overlay.innerHTML = `
-    <div class="edit-dialog edit-dialog--wide glass-panel">
+    <div class="edit-dialog edit-dialog--wide fix-match-dialog glass-panel">
       <h3>Fix Match</h3>
       <p class="muted-copy" style="margin-bottom: 0.75rem;">Search ${sourceLabel} to link the correct ${isTv ? "TV show" : "movie"}${isTv ? " — this rematches every episode of the show" : ""}, or match to a YouTube video.</p>
       <div style="display: flex; gap: 0.5rem;">
@@ -1118,7 +1118,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
         resultsEl.innerHTML = results.map((item) => `
           <button class="fix-match-result" type="button" data-tvdb-id="${escapeAttribute(item.tvdb_id)}" data-title="${escapeAttribute(item.name)}">
             <img src="${escapeAttribute(item.image_url || "/favicon.svg")}" alt="" data-err="fav" />
-            <span>${escapeHtml(item.name)}${item.year ? ` <small>(${escapeHtml(item.year)})</small>` : ""}</span>
+            <span class="fix-match-result-title">${escapeHtml(item.name)}${item.year ? ` <small>(${escapeHtml(item.year)})</small>` : ""}</span>
           </button>
         `).join("");
 
@@ -1150,7 +1150,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
         return `
           <button class="fix-match-result" type="button" data-tmdb-id="${item.id}" data-title="${escapeAttribute(title)}">
             <img src="${escapeAttribute(poster)}" alt="" data-err="fav" />
-            <span>${escapeHtml(title)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
+            <span class="fix-match-result-title">${escapeHtml(title)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
           </button>
         `;
       }).join("");

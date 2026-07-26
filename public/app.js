@@ -16,10 +16,10 @@ import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, 
 import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js";
 import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=20260710";
-import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260701";
+import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260734";
 import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js";
 import { initMediaLightbox } from "./modules/media-lightbox.js";
-import { initAppEvents } from "./modules/app-events.js";
+import { initAppEvents } from "./modules/app-events.js?v=20260734";
 
 // Ping the backend the moment the app loads (no auth needed), so the server's
 // caches and upstream connections are warm by the time the user clicks into
@@ -1056,6 +1056,14 @@ function handleRouting(path) {
     openMovieInlineDetail(movie?.id || movieKey).catch((error) => setMessage(error.message, "error"));
   } else if (tvshowMatch) {
     const showKey = tvshowMatch[1];
+    const routeQuery = pathPart.includes("?") ? pathPart.slice(pathPart.indexOf("?") + 1) : "";
+    const historyId = new URLSearchParams(routeQuery).get("historyId")
+      || new URLSearchParams(window.location.search).get("historyId")
+      || state.pendingShowHistoryId
+      || state.activeShowHistoryId
+      || "";
+    state.activeShowHistoryId = historyId;
+    state.pendingShowHistoryId = "";
     let seasonNum = null;
     let episodeNum = null;
     if (hashPart) {
@@ -1079,7 +1087,7 @@ function handleRouting(path) {
     state.activeShowModalKey = showKey;
     state.activeShowModalSeason = seasonNum;
     state.activeShowModalEpisode = episodeNum;
-    openShowInlineDetail(showKey, seasonNum, episodeNum).catch((error) => {
+    openShowInlineDetail(showKey, seasonNum, episodeNum, historyId).catch((error) => {
       console.error("Failed to open show detail", error);
       setMessage(error.message, "error");
     });
@@ -1200,6 +1208,13 @@ function selectView(view) {
       url = window.location.pathname + window.location.hash;
     } else if (state.explorerMode === "shows" && state.activeShowModalKey) {
       url = `/tvshow/${state.activeShowModalKey}`;
+      const historyId = state.activeShowHistoryId
+        || state.pendingShowHistoryId
+        || new URLSearchParams(window.location.search).get("historyId")
+        || "";
+      if (historyId) {
+        url += `?historyId=${encodeURIComponent(historyId)}`;
+      }
       if (state.activeShowModalSeason !== null) {
         url += `#season${state.activeShowModalSeason}`;
         if (state.activeShowModalEpisode !== null) {
@@ -2070,6 +2085,7 @@ function initialize() {
     renderChangelog,
     lockDashboard,
     toggleTheme,
+    openConfirmDialog,
     closeDebugModal,
     closePersonProfile,
     showConfirmModal,
@@ -2080,6 +2096,7 @@ function initialize() {
     applyActiveView,
     handleRouting,
     loadHistory,
+    clearDerivedUiCaches,
     loadStats,
     loadSavedConfig,
     renderDbStatus,

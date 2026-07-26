@@ -1908,6 +1908,22 @@ export async function clearWatchArtworkUrls(id) {
   return true;
 }
 
+// A movie can have several watch-history rows for the same media key. A
+// rematch changes the identity used by the library query, so leaving artwork
+// on a sibling row lets the old poster win when the library chooses its
+// representative row.
+export async function clearRelatedWatchArtworkUrls(id) {
+  if (!id) return false;
+  const rows = relatedPosterRows(id);
+  if (!rows.length) return false;
+  const now = Date.now();
+  transaction(() => {
+    for (const row of rows) clearArtworkStmt.run(now, String(row.id));
+  });
+  await invalidateHistoryDerivedCaches();
+  return true;
+}
+
 export async function updateWatchPosterUrl(id, posterUrl) {
   const cleanUrl = cleanString(posterUrl);
   if (!id || !cleanUrl) return false;
@@ -2795,6 +2811,9 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
     }
   }
 
+  // Some legacy episode rows have no usable show_title and therefore cannot
+  // be found by the exact-title index. Fall back to the derived title from
+  // the complete episode history even when the caller supplied a title.
   if (!resolvedTitle && id) resolvedTitle = String(id).replace(/-/g, " ");
   const key = canonicalTitleKey(resolvedTitle);
   const rows = dedupeHistory(await loadHistoryRowsByType({ mediaType: "episode", limit: MAX_HISTORY_LIMIT }))

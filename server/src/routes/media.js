@@ -83,7 +83,7 @@ import {
   deleteMovieByWatchId,
   deletePosterCacheByMediaKey,
   backfillUnknownShowTitles,
-  clearWatchArtworkUrls,
+  clearRelatedWatchArtworkUrls,
 } from "../utils/dataRepo.js";
 
 function imagePath(path, params = {}) {
@@ -196,6 +196,27 @@ export async function handleHistory(req, res) {
   ]);
   const hasMore = historyRows.length > requestedLimit;
   return sendJson(res, { history: historyRows.slice(0, requestedLimit), hasMore, stats, historyVersion });
+}
+
+// Remove one orphaned history row when it cannot be matched to a show.
+export async function handleDeleteHistoryRecord(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST" && req.method !== "DELETE") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const body = await readJson(req).catch(() => ({}));
+  const id = String(body.id || req.query.id || "").trim();
+  if (!id) return sendJson(res, { error: "id is required" }, 400);
+  if (String(body.confirm || "") !== "DELETE") return sendJson(res, { error: "Confirmation required" }, 400);
+  try {
+    const row = await getWatchRecordById(id);
+    if (!row) return sendJson(res, { error: "History entry not found" }, 404);
+    await deleteWatchRecordById(id);
+    writeAuditLog("history.record_deleted", { ip: req.ip || req.socket?.remoteAddress, detail: { id, title: row.title } });
+    return sendJson(res, { ok: true, id }, 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    console.error("Failed to delete history record", error);
+    return sendJson(res, { error: error.message || "Failed to delete history record" }, 500);
+  }
 }
 
 export async function handleClearMissingTelemetry(req, res) {
@@ -553,7 +574,7 @@ export async function handleUpdateWatch(req, res) {
       // (now-cleared) poster cache â€” so the old show/movie's artwork would keep
       // being served forever unless this request is itself uploading new artwork.
       if (body.poster_url === undefined && body.backdrop_url === undefined) {
-        await clearWatchArtworkUrls(id).catch(() => null);
+        await clearRelatedWatchArtworkUrls(id).catch(() => null);
       }
     }
   }
