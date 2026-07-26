@@ -1,7 +1,20 @@
 {
-  "version": "0.6.14",
-  "updatedAt": "2026-07-26T19:54:26+01:00",
+  "version": "0.6.15",
+  "updatedAt": "2026-07-26T20:13:52+01:00",
   "entries": [
+    {
+      "version": "0.6.15",
+      "date": "2026-07-26T20:13:52+01:00",
+      "commit": "937c330111025d9b53d498b70afb3b3aee2940ef",
+      "message": "Fix - Detect watch duplicates that arrive seconds apart, not just on the same instant",
+      "author": "Lasikiewicz",
+      "details": [
+        "Clean Duplicate History Rows now collapses plays of the same item recorded within 10 minutes of each other, catching the copies each media server writes as a watch propagates between them",
+        "Sync Health's duplicate count uses the same rule, so the number it reports is what the cleanup will actually remove instead of a small fraction of it",
+        "Rewatches are still preserved: 10 minutes is shorter than any real playthrough, so watches further apart are always treated as separate viewings",
+        "Sync Health now notes that its rewatch total is only accurate once the duplicate count is zero"
+      ]
+    },
     {
       "version": "0.6.14",
       "date": "2026-07-26T19:54:26+01:00",
