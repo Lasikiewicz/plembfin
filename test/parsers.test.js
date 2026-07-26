@@ -142,3 +142,50 @@ test("phase boundaries fall back to the default 90% threshold once tuning is res
   const stopAt = await parsePlexWebhook(plexForm("media.stop", { duration: 100_000, viewOffset: 90_000 }));
   assert.equal(stopAt.phase, "completed");
 });
+
+test("played-flag events are tagged and dated from the server's own played timestamp", () => {
+  const embyMarkPlayed = parseEmbyWebhook({
+    Event: "item.markplayed",
+    Item: {
+      Type: "Movie",
+      Name: "Arrival",
+      ProviderIds: { Tmdb: "329865" },
+      UserData: { Played: true, LastPlayedDate: "2026-07-25T20:15:47.000Z" },
+    },
+  });
+  assert.equal(embyMarkPlayed.phase, "completed");
+  assert.equal(embyMarkPlayed.playedFlagOnly, true);
+  assert.equal(embyMarkPlayed.playedAt, "2026-07-25T20:15:47.000Z");
+
+  const embyUserData = parseEmbyWebhook({
+    Event: "user.datasaved",
+    Item: { Type: "Movie", Name: "Arrival", ProviderIds: { Tmdb: "329865" }, UserData: { Played: true } },
+  });
+  assert.equal(embyUserData.playedFlagOnly, true);
+
+  const jellyfinMarkPlayed = parseJellyfinWebhook({
+    NotificationType: "ItemMarkPlayed",
+    Item: {
+      Type: "Movie",
+      Name: "Arrival",
+      ProviderIds: { Tmdb: "329865" },
+      UserData: { Played: true, LastPlayedDate: "2026-07-25T20:15:47.000Z" },
+    },
+  });
+  assert.equal(jellyfinMarkPlayed.playedFlagOnly, true);
+  assert.equal(jellyfinMarkPlayed.playedAt, "2026-07-25T20:15:47.000Z");
+});
+
+test("real playback events are not treated as bare played-flag events", async () => {
+  const embyStop = parseEmbyWebhook({
+    Event: "playback.stop",
+    Progress: 95,
+    Item: { Type: "Movie", Name: "Arrival", ProviderIds: { Tmdb: "329865" } },
+  });
+  assert.equal(embyStop.phase, "completed");
+  assert.equal(embyStop.playedFlagOnly, false);
+
+  const scrobble = await parsePlexWebhook(plexForm("media.scrobble", { guid: "tmdb://329865" }));
+  assert.equal(scrobble.phase, "completed");
+  assert.equal(scrobble.playedFlagOnly, false);
+});

@@ -12589,6 +12589,10 @@ details[open] > .tool-section-summary::before {
 .history-card-poster-wrapper {
   flex: 0 0 var(--history-poster-width, 86px);
   width: var(--history-poster-width, 86px);
+  /* The card stretches its items, which hands the poster a definite height and
+     cancels aspect-ratio. Opting out of the stretch keeps posters at 2:3 when
+     wrapped detail text makes the card taller than the poster. */
+  align-self: flex-start;
   aspect-ratio: 2/3;
   border-radius: var(--poster-radius);
   overflow: hidden;

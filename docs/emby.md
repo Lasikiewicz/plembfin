@@ -38,6 +38,12 @@ without enough title/type/progress data to record a watch.
 - `item.markunplayed`, or `Played=false` → `unplayed`
 - `playback.stop` → `completed` at the watched threshold (90% by default), else `ended`
 
+`item.markplayed` and userdata-saved events are also tagged `playedFlagOnly`, because
+Emby fires them whenever anything sets the played flag — including Plembfin's own
+outbound sync — and can deliver them hours late. They are dated from the item's
+`LastPlayedDate` rather than arrival time, and never record a rewatch for an item
+already marked watched. See [webhooks.md](webhooks.md#rewatch-detection).
+
 Unlike Plex, Emby **does** send mark-unplayed events, so unwatch propagation works
 purely through the webhook — no extra listener is needed.
 

@@ -1284,6 +1284,11 @@ export async function handleWebhook(req, res) {
     });
     await deleteActiveSession(media);
 
+    // A played-flag event says nothing about *when* the play happened and can be
+    // delivered hours late, so trust the server's own played timestamp over
+    // arrival time. Playback events arrive live and keep the current time.
+    if (media.playedFlagOnly && media.playedAt) media.watched_at = media.playedAt;
+
     // Check if a recent watch record already exists (e.g., from full sync)
     // to avoid creating duplicates. Look for records watched in the last hour.
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -1299,21 +1304,36 @@ export async function handleWebhook(req, res) {
 
     const existingPlaystate = await getPlaystateForMedia(media).catch(() => null);
     if (existingPlaystate?.state === "watched") {
-      // A same-UTC-day repeat is treated as a duplicate echo (e.g. the server
-      // re-firing a "played" event without an actual new play). A repeat on a
-      // later day is a genuine rewatch, so let it fall through and record a new
-      // watch_history row instead of silently dropping it.
+      // Emby and Jellyfin emit a played-flag event whenever anything sets the
+      // flag, including plembfin's own outbound sync, and they can deliver it
+      // hours after the fact. For an item already held as watched such an event
+      // carries no evidence that a new play happened, so it never opens a
+      // rewatch — the calendar day it happens to land on is meaningless. Real
+      // rewatches arrive as playback events (media.scrobble, playback.stop) and
+      // fall through to be recorded below.
       const lastWatchedDay = String(existingPlaystate.watched_at || "").slice(0, 10);
       const today = new Date().toISOString().slice(0, 10);
-      if (!lastWatchedDay || lastWatchedDay === today) {
-        console.log("Webhook: skipped watched echo because playstate is already watched today", {
+      const isPlayedFlagEcho = Boolean(media.playedFlagOnly);
+      if (isPlayedFlagEcho || !lastWatchedDay || lastWatchedDay === today) {
+        console.log("Webhook: skipped watched echo", {
           source: media.source,
           title: media.title,
+          event: media.event,
+          reason: isPlayedFlagEcho
+            ? "played-flag event for an item already marked watched"
+            : "already marked watched today",
           playstateUpdatedAt: existingPlaystate.updated_at,
         });
         await deletePlaybackProgress(media).catch(() => null);
         await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
-        return sendJson(res, { ok: true, inserted: false, id: existingPlaystate.id, reason: "Already marked watched today" });
+        return sendJson(res, {
+          ok: true,
+          inserted: false,
+          id: existingPlaystate.id,
+          reason: isPlayedFlagEcho
+            ? "Played flag event for an item already marked watched"
+            : "Already marked watched today",
+        });
       }
       console.log("Webhook: recording rewatch on a new day", {
         source: media.source,

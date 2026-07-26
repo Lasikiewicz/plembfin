@@ -113,6 +113,44 @@ function checkAndClaimLoop(media, target, targets, kv, prefix = "loop") {
   }
 }
 
+// Marking an item played on a media server bumps that server's own "last played"
+// timestamp, so our write looks exactly like a user's play the next time we read
+// that server back. Recording every outbound mark — for long enough to outlive
+// delayed webhook delivery and daily poll cycles — is what lets the inbound paths
+// tell the two apart. The 15-second echo window above only breaks immediate
+// ping-pong and expires long before a late echo arrives.
+const OUTBOUND_MARK_TTL_SECONDS = 14 * 24 * 60 * 60;
+const OUTBOUND_MARK_PREFIX = "mark";
+
+export async function recordOutboundPlayedMarks(media, targets = [], kv) {
+  if (!kv || !targets.length) return;
+  const now = Date.now();
+  for (const target of targets) {
+    for (const key of targetCacheKeys(media, target, OUTBOUND_MARK_PREFIX)) {
+      try {
+        await kv.put(key, now, { expirationTtl: OUTBOUND_MARK_TTL_SECONDS });
+      } catch (error) {
+        console.error("Failed to record outbound played mark", { target, error });
+      }
+    }
+  }
+}
+
+// Newest time plembfin itself marked `media` played on `target`, or 0.
+export async function lastOutboundPlayedMarkAt(media, target, kv) {
+  if (!kv) return 0;
+  let newest = 0;
+  for (const key of targetCacheKeys(media, target, OUTBOUND_MARK_PREFIX)) {
+    try {
+      const value = Number(await kv.get(key));
+      if (Number.isFinite(value) && value > newest) newest = value;
+    } catch (error) {
+      console.error("Failed to read outbound played mark", { target, error });
+    }
+  }
+  return newest;
+}
+
 function summarizeResults(targets, results) {
   const successfulTargets = [];
   const failedTargets = [];
@@ -271,6 +309,15 @@ export async function syncMediaPlaystate(media, config, kv) {
 
   const results = await Promise.allSettled(jobs);
   const summary = summarizeResults(targets, results);
+
+  // Remember which servers we just stamped so a played flag read back from them
+  // later is recognised as our own write rather than a fresh play.
+  await recordOutboundPlayedMarks(
+    media,
+    summary.targetStates.filter((state) => state.status === "success").map((state) => state.target),
+    kv,
+  );
+
   console.log("Sync playstate dispatch completed", {
     source: media.source,
     title: media.title,

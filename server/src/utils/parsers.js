@@ -193,6 +193,49 @@ function readPlayedState(...values) {
   return undefined;
 }
 
+// Emby and Jellyfin emit these whenever an item's played *flag* changes, which
+// includes plembfin marking the item played during outbound sync. They carry no
+// playback evidence, so they are never proof on their own that a new play
+// happened — see the same reasoning applied to library polling in watchDates.js.
+const PLAYED_FLAG_ONLY_EVENTS = [
+  "itemmarkplayed",
+  "itemmarkedplayed",
+  "itemmarkedasplayed",
+  "itemplayed",
+  "userdatasaved",
+  "userdatachanged",
+  "itemuserdatachanged",
+];
+
+function compactEventKey(event) {
+  return String(event || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function isPlayedFlagOnlyEvent(event) {
+  return PLAYED_FLAG_ONLY_EVENTS.includes(compactEventKey(event));
+}
+
+// The media server's own record of when the item was last played. Preferred over
+// arrival time because webhook delivery can lag by hours: a late event stamped
+// with Date.now() lands in history as a watch that never happened.
+function playedAtFrom(...values) {
+  for (const value of values) {
+    if (!value || typeof value !== "object") continue;
+    const raw =
+      value.UserData?.LastPlayedDate ||
+      value.UserData?.PlayedDate ||
+      value.UserData?.DatePlayed ||
+      value.LastPlayedDate ||
+      value.PlayedDate ||
+      value.DatePlayed ||
+      value.LastWatchedDate;
+    if (!raw) continue;
+    const date = new Date(raw);
+    if (!Number.isNaN(date.getTime())) return date.toISOString();
+  }
+  return "";
+}
+
 function ticksToMilliseconds(value) {
   const ticks = Number(value || 0);
   return Number.isFinite(ticks) && ticks > 0 ? Math.round(ticks / 10000) : 0;
@@ -286,10 +329,14 @@ function buildPayload({
   poster,
   itemId,
   episodeTitle,
+  playedAt = "",
+  playedFlagOnly = false,
   rawPayloadDebug = {},
 }) {
   const isActionable = ["active", "completed", "ended", "unplayed"].includes(phase);
   return {
+    playedAt,
+    playedFlagOnly: Boolean(playedFlagOnly),
     title: title || "Unknown media",
     type,
     source,
@@ -483,6 +530,8 @@ export function parseJellyfinWebhook(json) {
       itemId: item.Id,
       poster: embyLikePosterInfo(item, type),
       episodeTitle,
+      playedAt: playedAtFrom(item, json),
+      playedFlagOnly: isPlayedFlagOnlyEvent(event),
       rawPayloadDebug: {
         payloadKeys: Object.keys(json || {}),
         itemKeys: Object.keys(item),
@@ -559,6 +608,8 @@ export function parseEmbyWebhook(json) {
       itemId: item.Id,
       poster: embyLikePosterInfo(item, type),
       episodeTitle,
+      playedAt: playedAtFrom(item, json),
+      playedFlagOnly: isPlayedFlagOnlyEvent(event),
       rawPayloadDebug: {
         payloadKeys: Object.keys(json || {}),
         itemKeys: Object.keys(item),

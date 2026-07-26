@@ -61,9 +61,10 @@ in-app navigation state. TV URLs support deep links:
   custom), mark unwatched, delete; episode- season- and show-level for TV
   (`watch-action.js`, `POST /api/manual-watch` in batches of 100,
   `POST /api/manual-unwatch`, `POST /api/delete-media`).
-- **Rewatch tracking** — a genuine rewatch (a webhook `completed` event for an
+- **Rewatch tracking** — a genuine rewatch (a webhook playback event for an
   already-watched item on a later UTC calendar day; see [webhooks.md](webhooks.md#rewatch-detection))
-  adds a new watch record instead of being dropped as a duplicate. Movies and
+  adds a new watch record instead of being dropped as a duplicate. A bare
+  played-flag event never counts as a rewatch. Movies and
   episodes with more than one recorded watch show a "Watch History" list (date +
   source app for every play) in place of the single watched-date line.
 - **Sync status** — per-platform pills from `sync_dispatch_telemetry`

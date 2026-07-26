@@ -5,7 +5,7 @@ import { fetchPlexMetadataItem } from "./utils/plexClient.js";
 import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
 import { runScheduledSync } from "./scheduled.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
-import { syncMediaPlaystate } from "./utils/syncOrchestrator.js";
+import { lastOutboundPlayedMarkAt, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
 import { getTmdbDetails, prewarmTmdbLibrary } from "./utils/tmdbGateway.js";
 import { cachedNextAiringFor, mergeNextAiringCacheEntries, nextAiringCacheEntryStale, nextAiringCacheKey, readNextAiringCache } from "./utils/nextAiringCache.js";
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
@@ -180,8 +180,26 @@ async function handlePlexLibraryItemChange(ratingKey) {
       return;
     }
 
+    const loopStore = createLoopStore();
     const isNewerWatch = playstate?.watched_at && new Date(watchedAt).getTime() > new Date(playstate.watched_at).getTime() + 10000;
-    if (playstate?.state === "watched" && !isNewerWatch) {
+
+    // Plex stamps lastViewedAt when *we* mark an item played, so every outbound
+    // sync makes an already-recorded watch look freshly viewed here. A view time
+    // that lines up with our own write is our echo, not a new play. The window
+    // is wide enough to absorb clock skew between plembfin and the Plex server
+    // while staying shorter than any real playthrough.
+    const ownMarkAt = await lastOutboundPlayedMarkAt(media, "plex", loopStore);
+    const isOwnMarkEcho =
+      ownMarkAt > 0 && Math.abs(new Date(watchedAt).getTime() - ownMarkAt) <= 10 * 60 * 1000;
+
+    if (playstate?.state === "watched" && (!isNewerWatch || isOwnMarkEcho)) {
+      if (isOwnMarkEcho) {
+        console.log("Plex notifications: ignored view timestamp from our own played mark", {
+          title: media.title,
+          ratingKey,
+          watchedAt,
+        });
+      }
       await deletePlaybackProgress(media).catch(() => null);
       return;
     }
@@ -199,7 +217,7 @@ async function handlePlexLibraryItemChange(ratingKey) {
 
     const result = await insertWatchRecord(watchRecord, { skipInvalidate: true });
     await upsertPlaystateForMedia(media, "watched", watchedAt, { skipInvalidate: true });
-    const summary = await syncMediaPlaystate(media, config, createLoopStore()).catch((error) => ({
+    const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
       skipped: false,
       status: "error",
       details: `Plex watch-state propagation failed: ${error.message || String(error)}`,

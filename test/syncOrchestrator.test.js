@@ -67,3 +67,44 @@ test("loop store checkAndClaim detects a recently claimed source echo", async ()
     fs.rmSync(dataDir, { recursive: true, force: true });
   }
 });
+
+test("outbound played marks are keyed per target and per item", async () => {
+  const { recordOutboundPlayedMarks, lastOutboundPlayedMarkAt } = await import(
+    "../server/src/utils/syncOrchestrator.js"
+  );
+
+  // A plain key/value stub: this exercises the ledger's keying, which is what
+  // lets a late echo be matched back to our own write. Persistence and TTL are
+  // loopStore's concern and are covered by the loop-detection test above.
+  const store = new Map();
+  const kv = {
+    async get(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    async put(key, value) {
+      store.set(key, String(value));
+    },
+  };
+
+  const media = {
+    isValid: true,
+    type: "episode",
+    season: 5,
+    episode: 3,
+    source: "plex",
+    title: "Trying - S05E03",
+    ids: { tvdb: "11768064" },
+  };
+
+  assert.equal(await lastOutboundPlayedMarkAt(media, "emby", kv), 0);
+
+  const before = Date.now();
+  await recordOutboundPlayedMarks(media, ["emby", "jellyfin"], kv);
+
+  assert.ok(await lastOutboundPlayedMarkAt(media, "emby", kv) >= before, "records when we marked Emby played");
+  assert.ok(await lastOutboundPlayedMarkAt(media, "jellyfin", kv) >= before);
+
+  // A target we never wrote to, and a different episode, must not match.
+  assert.equal(await lastOutboundPlayedMarkAt(media, "plex", kv), 0);
+  assert.equal(await lastOutboundPlayedMarkAt({ ...media, episode: 4 }, "emby", kv), 0);
+});

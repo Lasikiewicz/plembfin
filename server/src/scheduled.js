@@ -401,6 +401,13 @@ async function processCompletedSession(row, config, loopStore) {
 
   await markLiveTrackingComplete(row.session_id, Date.now());
 
+  // Date the watch from when the session was last seen playing, not from when
+  // this tick noticed it disappeared. For a session completing normally the two
+  // are within a minute of each other; for one that lingered in the cache
+  // (server restart, a tick that could not reach the media server) the last-seen
+  // time is the real watch time and the current time would be wrong.
+  const lastSeenAt = Number(row.updated_at || 0);
+
   const watchRecord = mediaToWatchRecord(
     {
       title: media.title,
@@ -410,6 +417,7 @@ async function processCompletedSession(row, config, loopStore) {
       season: media.season,
       episode: media.episode,
       posterUrl: media.posterUrl,
+      watched_at: lastSeenAt > 0 ? new Date(lastSeenAt).toISOString() : undefined,
     },
     media.source,
   );
@@ -788,7 +796,18 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       const playstate = await getPlaystateForMedia(media).catch(() => null);
       const existing = await findWatchedByAnyMediaKey(media);
 
-      if (!existing || playstate?.state !== "watched") {
+      // Marking an item played on Plex bumps its lastViewedAt, so plembfin's own
+      // outbound sync makes an already-recorded watch look freshly viewed on the
+      // next poll. Only an item with no watch record at all counts as a new watch
+      // here; when the record exists but the playstate has drifted, repair the
+      // playstate rather than filing a second watch for the same play.
+      if (existing && playstate?.state !== "watched") {
+        logger(`Plex: repaired playstate for an already-recorded watch: ${media.title}`);
+        await upsertPlaystateForMedia(media, "watched", existing.watched_at, { skipInvalidate: true });
+        continue;
+      }
+
+      if (!existing) {
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
         if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
           logger(`Plex: skipped pre-restore item (played ${watchedAt}): ${media.title}`);

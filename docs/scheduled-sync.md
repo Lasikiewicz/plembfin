@@ -84,6 +84,33 @@ disappear, and completes it.
    rewrite stored data when episode results changed; historical months are not refreshed.
    Newly tracked shows are merged into cached months on the next calendar request.
 
+## Echo suppression
+
+Marking an item played on a media server bumps that server's own "last played"
+timestamp. That makes Plembfin's own outbound write indistinguishable from a user's
+play the next time the same server is read back — through library polling, the Plex
+notification listener, or a delayed webhook. Left unchecked it records a watch that
+never happened, and each phantom re-propagates and produces another one.
+
+Three mechanisms keep inbound state honest:
+
+- **Outbound mark ledger** — every successful played-mark is recorded per target in
+  `loop_keys` under a `mark:` prefix with a 14-day TTL
+  (`recordOutboundPlayedMarks` / `lastOutboundPlayedMarkAt` in `syncOrchestrator.js`).
+  The Plex notification listener consults it: a view timestamp within 10 minutes of
+  a mark Plembfin wrote is treated as its own echo, not a new play. This outlives the
+  15-second loop-detection window, which only breaks immediate ping-pong.
+- **Existing-record guard** — the Plex, Emby, and Jellyfin library pollers record a
+  watch only for an item with no watch record at all. When a record exists but the
+  playstate has drifted, the poller repairs the playstate instead of filing a second
+  watch for the same play.
+- **Played-flag rule** — a bare "marked played" webhook never opens a rewatch for an
+  item already watched; see [webhooks.md](webhooks.md#rewatch-detection).
+
+Completed sessions flushed from `live_tracking_cache` are dated from when the session
+was last seen playing, not from the tick that noticed it had gone, so a session that
+lingered through a restart is not backdated to the restart time.
+
 ## Why it matters for Now Playing
 
 `live_tracking_cache` is the **primary** source for Now Playing (see

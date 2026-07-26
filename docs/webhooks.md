@@ -79,17 +79,32 @@ the `sync_history` SQLite table.
 ## Rewatch detection
 
 A `completed` event for an item whose `playstate` is already `watched` is not
-always a duplicate: media servers can echo a "played" event without an actual
-new play, but a real rewatch produces the same signal. `handleWebhook`
-(`server/src/routes/sync.js`) tells them apart by comparing the UTC calendar
-day of the last recorded watch against today:
+always a duplicate: media servers can report an item as played without an actual
+new play, but a real rewatch produces a `completed` event too. `handleWebhook`
+(`server/src/routes/sync.js`) tells them apart by what kind of event arrived,
+not by when it arrived.
 
-- **Same UTC day** — treated as a duplicate echo and dropped (no new
-  `watch_history` row, no re-propagation).
-- **A later day** — treated as a genuine rewatch: a new `watch_history` row is
-  inserted and `playstate.watched_at` advances, using the normal insert/
-  propagation path. Pause/resume webhook events never reach this check at all —
-  they're routed through the separate `active`/`ended` phases above.
+Emby and Jellyfin emit a **played-flag event** (`item.markplayed`, or a
+userdata-saved event carrying `Played=true`) whenever anything sets the played
+flag — including Plembfin's own outbound sync — and they can deliver it hours
+after the fact. The parser marks these with `playedFlagOnly` on the normalized
+payload. They carry no playback evidence, so:
+
+- **A played-flag event for an item already marked watched** is dropped: no new
+  `watch_history` row, no re-propagation. The calendar day it lands on is
+  meaningless, because delivery time says nothing about when the play happened.
+- **A played-flag event for an item not yet watched** is recorded, dated from the
+  server's own `LastPlayedDate` rather than the arrival time. This is the path a
+  manual "mark as played" in Emby takes.
+- **A playback event** (`media.scrobble`, `playback.stop` past the watched
+  threshold) is real evidence of a play. For an item already watched, one on a
+  later UTC day is recorded as a genuine rewatch: a new `watch_history` row is
+  inserted and `playstate.watched_at` advances. Pause/resume events never reach
+  this check at all — they're routed through the `active`/`ended` phases above.
+
+The same principle applies to inbound state read from library polling and from
+the Plex notification listener, so a played flag Plembfin itself wrote is never
+read back as a new watch. See [scheduled-sync.md](scheduled-sync.md#echo-suppression).
 
 Every watch of the same movie/episode collapses into one card everywhere the UI
 lists history (`dedupeHistory` / `collapseMovieCluster` in
