@@ -154,6 +154,7 @@ export function embyWebhookSetup() {
         <li>Go to Emby Server Settings ➔ <b>Webhooks</b> and add a new webhook pointing to the URL above.</li>
         <li>Under <b>Events → Playback</b>, check: <code>Start</code>, <code>Pause</code>, <code>Unpause</code>, <code>Stop</code>.</li>
         <li>Under <b>Events → Users</b>, check: <code>Mark Played</code>, <code>Mark Unplayed</code>.</li>
+        <li>Leave every other event category unticked. Plembfin ignores library, system, and activity events, and they only add rejected entries to Sync History.</li>
         <li>Enable <b>Send All Properties</b> so payloads include <code>PlaybackPositionTicks</code> for resume sync.</li>
       </ul>
     </div>
@@ -173,8 +174,9 @@ export function jellyfinWebhookSetup() {
         <li>Install the <b>Webhooks</b> plugin in the Jellyfin Dashboard (Plugins → Catalog).</li>
         <li>Add a new <b>Generic Webhook</b> named <code>plembfin</code> pointing to the URL above. Check <b>Enable</b>.</li>
         <li>Under <b>Notification Type</b>, check: <code>Playback Start</code>, <code>Playback Progress</code>, <code>Playback Stop</code>, <code>User Data Saved</code>.</li>
-        <li>Under <b>Item Type</b>, select: <code>Movies</code>, <code>Episodes</code>.</li>
+        <li>Under <b>Item Type</b>, select: <code>Movies</code>, <code>Episodes</code>. Leave the other notification types and item types unticked — Plembfin ignores them.</li>
         <li>Check <b>Send All Properties (ignores template)</b> so resume position fields are included.</li>
+        <li>The request has to arrive as JSON. If you use a custom template instead of Send All Properties, set the destination's content type to <code>application/json</code> — anything else is rejected and logged in Sync History as <code>Unsupported webhook content type</code>.</li>
       </ul>
     </div>
   `;

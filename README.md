@@ -15,6 +15,19 @@
 
 ---
 
+> ## ⚠️ Alpha software — expect bugs
+>
+> Plembfin is in **alpha testing**. The core features described below work, but
+> this is not yet a finished product: you should expect bugs, rough edges, and
+> occasional changes that require reconfiguration.
+>
+> It writes watched state to your media servers, so treat your watch history as
+> precious. **Take a backup before you start** (Settings → Backups) and keep
+> your own copy of anything you cannot afford to lose. Please report anything
+> you run into on the [issue tracker](https://github.com/Lasikiewicz/plembfin/issues).
+
+---
+
 **Plembfin** is a self-hosted watch history tracker and playstate sync tool for Plex, Emby, and Jellyfin. It records everything you watch in a local SQLite database and keeps your watched/unwatched state in sync across all your media servers automatically.
 
 ---
@@ -253,15 +266,16 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 2.  Set the URL to the full webhook URL (with `?token=`) from **Settings → Webhooks**.
 3.  Under **Events → Playback**, check: `Start`, `Pause`, `Unpause`, `Stop`.
 4.  Under **Events → Users**, check: `Mark Played`, `Mark Unplayed`.
-5.  Enable **Send All Properties** so payloads include position data for resume sync.
+5.  Leave every other event category unticked — Plembfin ignores library, system, and activity events, and they only add rejected entries to Sync History.
+6.  Enable **Send All Properties** so payloads include position data for resume sync.
 
 #### 3. Jellyfin Webhook Setup
 1.  Install the **Webhooks** plugin from the Jellyfin Plugin Catalog.
 2.  Add a new **Generic Webhook** named `plembfin`.
 3.  Set the URL to the full webhook URL (with `?token=`) from **Settings → Webhooks**.
 4.  Under **Notification Type**, check: `Playback Start`, `Playback Progress`, `Playback Stop`, `User Data Saved`.
-5.  Under **Item Type**, select: `Movies`, `Episodes`.
-6.  Check **Send All Properties (ignores template)** and save.
+5.  Under **Item Type**, select: `Movies`, `Episodes`. Leave the other notification and item types unticked.
+6.  Check **Send All Properties (ignores template)** and save. The request must arrive as JSON — if you use a custom template instead, set the destination's content type to `application/json`, or the request is rejected and logged in Sync History as `Unsupported webhook content type`.
 
 ---
 

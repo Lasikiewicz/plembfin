@@ -76,6 +76,13 @@ before it can trigger another round.
 Results are written back as `sync_dispatch_telemetry` on the watch record and into
 the `sync_history` SQLite table.
 
+**Rejected requests:** a request no parser can handle is recorded in `sync_history`
+as `Unsupported webhook content type` with its `contentType`, `userAgent`, and the
+first 300 bytes of its body in `rawPayloadDebug`. That is enough to identify which
+server sent it and why it was refused. The usual cause is a media server configured
+to post events Plembfin does not consume, or a Jellyfin generic destination using a
+custom template without `application/json` as its content type.
+
 ## Rewatch detection
 
 A `completed` event for an item whose `playstate` is already `watched` is not

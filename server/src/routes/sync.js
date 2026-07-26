@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import nodePath from "node:path";
 import { requireAdmin, resolveAdminPrincipal } from "../utils/auth.js";
-import { readFormData, readJson } from "../utils/requestBody.js";
+import { readFormData, readJson, readRawText } from "../utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed } from "../utils/http.js";
 import { fetchWithTimeout, assertSafeOutboundUrl } from "../utils/outbound.js";
 import { AUTH, verifyWebhookToken } from "../appConfig.js";
@@ -176,12 +176,19 @@ async function normalizeWebhook(req) {
     if (embyPayload.isValid || json?.Event) return embyPayload;
     return parseJellyfinWebhook(json);
   }
+  // Nothing here can be parsed, so capture enough to identify the sender. A
+  // rejected webhook is otherwise anonymous, and "some server keeps posting
+  // something" is not a diagnosable report.
   return {
     isValid: false,
     source: "unknown",
     ids: {},
     title: "Unsupported webhook content type",
-    rawPayloadDebug: { contentType },
+    rawPayloadDebug: {
+      contentType: contentType || "(none)",
+      userAgent: req.get("user-agent") || "(none)",
+      bodyPreview: readRawText(req),
+    },
   };
 }
 
@@ -235,6 +242,10 @@ async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
       episode: media.episode ?? null,
       progress: media.progress ?? null,
       offsetMs: media.offsetMs ?? media.positionMs ?? null,
+      // Keep whatever the parser worked out about an unrecognised request. For a
+      // rejected webhook this is the only record of which server sent it and in
+      // what format, and without it the entry is an unattributable dead end.
+      ...(media.isValid ? {} : media.rawPayloadDebug || {}),
     },
   }).catch((error) => console.error("Failed to append sync history", error));
 }

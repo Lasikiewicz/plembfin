@@ -7,6 +7,15 @@ function rawBuffer(req) {
   return Buffer.from("");
 }
 
+// Raw request text, for diagnostics on requests no parser could handle.
+export function readRawText(req, limit = 300) {
+  try {
+    return rawBuffer(req).toString("utf8").slice(0, limit);
+  } catch {
+    return "";
+  }
+}
+
 function formDataLike(entries) {
   return {
     get(name) {
