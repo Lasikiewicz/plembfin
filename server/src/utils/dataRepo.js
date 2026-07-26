@@ -24,6 +24,10 @@ const HISTORY_PREVIEW_SCAN_LIMIT = 600;
 
 let historyCache = { version: null, rows: [] };
 let showCache = { version: null, shows: [] };
+// The includeScheduledLibraryHistory variant returns a different show set, so it
+// needs its own slot. Without one it was recomputed from the full watch history
+// on every call — the Upcoming calendar asks for it once per month requested.
+let scheduledShowCache = { version: null, shows: [] };
 let movieCache = { version: null, rows: null };
 let statsCache = { version: null, stats: null };
 
@@ -679,7 +683,8 @@ export async function getCachedMovies() {
 
 export async function getCachedShows({ includeScheduledLibraryHistory = false } = {}) {
   const version = getDataVersion();
-  if (!includeScheduledLibraryHistory && showCache.version === version && showCache.shows.length > 0) return showCache.shows;
+  const memo = includeScheduledLibraryHistory ? scheduledShowCache : showCache;
+  if (memo.version === version && memo.shows.length > 0) return memo.shows;
   const episodeRows = (await getCachedHistory()).filter((r) => r.media_type === "episode"
     && (includeScheduledLibraryHistory ? isWatchedAction(r) : isPlembfinTrackedWatchRow(r)));
   const groups = groupShowRows(dedupeHistory(episodeRows));
@@ -717,7 +722,8 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
       total_episodes: cachedProgress?.total_episodes || 0,
     };
   });
-  if (!includeScheduledLibraryHistory) showCache = { version, shows };
+  if (includeScheduledLibraryHistory) scheduledShowCache = { version, shows };
+  else showCache = { version, shows };
   return shows;
 }
 
@@ -927,6 +933,11 @@ async function invalidateAfterRowMetaWrite(id, oldRow, changed) {
   const showCacheUnaffected = changed === "retry" || freshRow.media_type === "movie";
   if (showCacheUnaffected && showCache.version === previousVersion) {
     showCache = { version, shows: showCache.shows };
+  }
+  // Same reasoning for the scheduled-history show set: a retry counter or a
+  // movie row cannot change which shows it contains.
+  if (showCacheUnaffected && scheduledShowCache.version === previousVersion) {
+    scheduledShowCache = { version, shows: scheduledShowCache.shows };
   }
 }
 
@@ -1382,6 +1393,38 @@ export async function listPlaybackProgressRowsForReplay({ limit = 25, offset = 0
 
 export async function countPlaybackProgressRows() {
   return countProgressStmt.get().c || 0;
+}
+
+// Data-quality counters for the Sync Health panel. These conditions were
+// previously only observable by reading the server log.
+const countSameEventDuplicatesStmt = db.prepare(
+  `SELECT COALESCE(SUM(n - 1), 0) AS c FROM (
+     SELECT COUNT(*) AS n FROM watch_history
+     GROUP BY media_key, watched_at HAVING n > 1
+   )`
+);
+// Rows sharing a media_key but with different watched_at values are separate
+// viewings. Reported so the number is visible and clearly *not* a problem.
+const countRewatchedItemsStmt = db.prepare(
+  `SELECT COUNT(*) AS c FROM (
+     SELECT media_key FROM watch_history
+     GROUP BY media_key HAVING COUNT(DISTINCT watched_at) > 1
+   )`
+);
+const countNullSeasonEpisodesStmt = db.prepare(
+  "SELECT COUNT(*) AS c FROM watch_history WHERE media_type = 'episode' AND season IS NULL"
+);
+const countOpaqueShowTitlesStmt = db.prepare(
+  "SELECT COUNT(*) AS c FROM watch_history WHERE show_title LIKE '%://%'"
+);
+
+export function watchHistoryQualityCounts() {
+  return {
+    sameEventDuplicateRows: countSameEventDuplicatesStmt.get().c || 0,
+    rewatchedItems: countRewatchedItemsStmt.get().c || 0,
+    nullSeasonEpisodeRows: countNullSeasonEpisodesStmt.get().c || 0,
+    opaqueShowTitleRows: countOpaqueShowTitlesStmt.get().c || 0,
+  };
 }
 
 // --- Live tracking cache ---------------------------------------------------

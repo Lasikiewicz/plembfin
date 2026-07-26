@@ -22,12 +22,17 @@ const { db } = await import("./src/db.js");
 const { loadMediaConfig } = await import("./src/utils/configStore.js");
 const { schedulerLeaseStatus } = await import("./src/utils/schedulerLease.js");
 const { createWorkerCoordinator } = await import("./src/workerCoordinator.js");
+const { flushPending: flushDiagnosticLogs } = await import("./src/utils/diagnosticLogger.js");
 
 ensureDataDirs();
 const LOGS_DIR = path.join(DATA_DIR, "logs");
 fs.mkdirSync(LOGS_DIR, { recursive: true });
+// Interval rotation only fires while a process stays alive across the boundary,
+// so a restart-heavy install never rotated and access.log grew without limit.
+// The size cap makes maxFiles effective regardless of uptime.
 const accessLogStream = createStream(ROLE === "all" ? "access.log" : `access-${ROLE}-${process.pid}.log`, {
   interval: "1d",
+  size: "10M",
   path: LOGS_DIR,
   maxFiles: 14,
 });
@@ -52,7 +57,20 @@ function redactedUrl(req) {
 }
 
 morgan.token("safe-url", redactedUrl);
-app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"', { stream: accessLogStream }));
+// Successful cached-artwork and static-asset hits dominate the access log by an
+// order of magnitude and carry no diagnostic value. Failures still get logged.
+const ACCESS_LOG_SKIP_PATHS = /^\/(?:media\/|modules\/|favicon|.*\.(?:css|js|png|jpe?g|svg|webp|ico|woff2?)$)/i;
+// Front-end pollers that fire on a fixed timer for as long as a tab is open.
+// They were the top three entries in the access log and say nothing useful
+// about what the app did.
+const ACCESS_LOG_SKIP_POLLS = new Set(["/api/ping", "/api/now-playing", "/api/diagnostic-logs"]);
+function skipAccessLog(req, res) {
+  if (res.statusCode >= 400) return false;
+  const requestPath = String(req.path || req.url || "").split("?")[0];
+  if (ACCESS_LOG_SKIP_POLLS.has(requestPath)) return true;
+  return ACCESS_LOG_SKIP_PATHS.test(requestPath);
+}
+app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"', { stream: accessLogStream, skip: skipAccessLog }));
 app.use(cookieParser());
 
 const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
@@ -238,6 +256,8 @@ async function shutdown(signal) {
   timer.unref();
   await coordinator?.stop().catch((error) => console.error("Worker shutdown failed", error));
   const finish = () => {
+    // Persist buffered diagnostics while the database is still open.
+    try { flushDiagnosticLogs(); } catch { /* ignore */ }
     try { db.close(); } catch { /* ignore */ }
     process.exit(0);
   };

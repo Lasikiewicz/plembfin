@@ -31,6 +31,23 @@ export function isEmbyLikePlayed(item = {}) {
   return value === true || value === "true" || value === 1 || value === "1";
 }
 
+// True when an item is flagged played but was never actually played through:
+// marking an item watched over the API (which is what our own playstate sync
+// does) leaves PlayCount at 0 and writes no played date. Emby reports these
+// back to us on the next poll, so recognising them keeps our own writes from
+// looking like watches with broken metadata.
+export function isEmbyLikeApiMarked(item = {}) {
+  if (embyLikePlayedDate(item)) return false;
+  if (!isEmbyLikePlayed(item)) return false;
+  // Require an explicit zero. A missing PlayCount means the server did not tell
+  // us, which is not the same as telling us the item was never played — that
+  // case stays a reportable "missing played date".
+  const raw = item.UserData?.PlayCount ?? item.PlayCount;
+  if (raw === undefined || raw === null || raw === "") return false;
+  const count = Number(raw);
+  return Number.isFinite(count) && count === 0;
+}
+
 // A played flag without a played timestamp is historical state, not evidence of
 // a watch occurring during the current poll. Never manufacture a current-time
 // watch date here: doing so turns an existing Emby library into a burst of new
@@ -40,7 +57,9 @@ export function watchedAtForEmbyLikeItem(item = {}) {
   if (playedAt) return { watchedAt: playedAt, reason: "played" };
 
   if (isEmbyLikePlayed(item)) {
-    return { watchedAt: "", reason: "missing played date" };
+    // Distinguish "we marked this" from "played but the server lost the date",
+    // so only the latter is worth surfacing as a data gap.
+    return { watchedAt: "", reason: isEmbyLikeApiMarked(item) ? "marked without playback" : "missing played date" };
   }
 
   return { watchedAt: "", reason: "" };

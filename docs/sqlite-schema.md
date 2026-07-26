@@ -30,6 +30,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `fanart_cache` | Raw fanart.tv responses including "no artwork" misses, 7-day TTL (1 day for misses), key `movies/<tmdbId>` / `tv/<tvdbId>` | fanartGateway | artwork resolution, edit-image galleries |
 | `youtube_meta_cache` | Trailer metadata per YouTube video ID, 30-day TTL | youtube-meta handler | trailer playback |
 | `audit_log` | Security-relevant event log (login, credential change, rotation) | `writeAuditLog()` in `db.js` | ops/debugging only |
+| `diagnostic_log` | Captured console output, bounded ring buffer of 20,000 rows | `diagnosticLogger.js` | Settings → Logs panel |
 | `schema_migrations` | Ordered migration ledger (`id`, `applied_at`) | `db.js` at startup | startup only |
 
 ## Schema migrations
@@ -115,3 +116,25 @@ Not exposed via API — query the database directly for ops review:
 ```sh
 sqlite3 data/plembfin.db "SELECT ts, action, ip, detail FROM audit_log ORDER BY ts DESC LIMIT 50;"
 ```
+
+## `diagnostic_log`
+
+`diagnosticLogger.js` wraps `console.log` / `console.warn` / `console.error` and writes
+each captured line here. Columns: `ts`, `level`, `category`, `role`, `instance`, `message`.
+Secrets are redacted and known-spam lines are dropped before insert.
+
+Writes are batched — entries buffer for up to a second and flush inside one transaction,
+so a burst of output costs a single disk sync. The table is a ring buffer capped at 20,000
+rows; the oldest rows are trimmed as new batches land, which keeps the Settings → Logs
+query flat regardless of how long the process has been running.
+
+Every process writes to this shared table, so the logs panel shows web and worker output
+merged without reading other processes' files. `GET /api/diagnostic-logs` serves the panel
+from an indexed query; `DELETE` on the same route clears the table.
+
+Indexes: `diagnostic_log_ts`, `diagnostic_log_category_ts`, `diagnostic_log_level_ts` —
+one per filter combination the panel offers.
+
+The JSONL files under `data/logs` are a separate crash-forensics archive written
+asynchronously. Nothing reads them at runtime, and they are pruned on boot to the last
+20 files / 7 days.

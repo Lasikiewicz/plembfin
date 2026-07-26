@@ -32,6 +32,7 @@ import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.j
 import {
   countPlaybackProgressRows,
   countWatchedPlaystateRows,
+  watchHistoryQualityCounts,
   deletePlaybackProgress,
   deleteWatchRecord,
   deleteWatchRecordById,
@@ -388,22 +389,42 @@ export async function handleDedupHistory(req, res) {
     let checked = 0;
     const removeIds = [];
 
-    for (const [key, docs] of groups.entries()) {
+    let rewatchGroups = 0;
+    for (const [, docs] of groups.entries()) {
       if (docs.length <= 1) continue;
 
-      // Sort newest first; keep the first, remove the rest.
-      docs.sort((a, b) => (b.watchedAt > a.watchedAt ? 1 : b.watchedAt < a.watchedAt ? -1 : 0));
-      const [keep, ...remove] = docs;
-
-      for (const dup of remove) {
-        removeIds.push(dup.id);
-        deleted++;
+      // Rows sharing a media_key but carrying different watched_at values are
+      // separate viewings of the same episode, not duplicates. Collapsing a
+      // media_key down to its newest row would erase real rewatch history, so
+      // only rows that record the *same watch event* are duplicates here.
+      const byTimestamp = new Map();
+      for (const doc of docs) {
+        const stamp = doc.watchedAt || "";
+        if (!byTimestamp.has(stamp)) byTimestamp.set(stamp, []);
+        byTimestamp.get(stamp).push(doc);
       }
+      if (byTimestamp.size > 1) rewatchGroups++;
+
+      let removedHere = 0;
+      for (const sameEvent of byTimestamp.values()) {
+        if (sameEvent.length <= 1) continue;
+        // Keep one row per distinct watch event; drop the redundant copies.
+        const [, ...remove] = sameEvent;
+        for (const dup of remove) {
+          removeIds.push(dup.id);
+          deleted++;
+          removedHere++;
+        }
+      }
+      if (!removedHere) continue;
 
       checked++;
       if (checked % 50 === 0) {
         log(`Processed ${checked} duplicate groups, ${deleted} deletions queued so far...`);
       }
+    }
+    if (rewatchGroups) {
+      log(`Preserved ${rewatchGroups} item(s) that have multiple distinct watch dates — those are rewatches, not duplicates.`);
     }
 
     if (removeIds.length) {
@@ -411,8 +432,8 @@ export async function handleDedupHistory(req, res) {
       await invalidateHistoryDerivedCaches().catch(() => null);
     }
 
-    const summary = { scanned, uniqueKeys: groups.size, deleted };
-    log(`Done! Scanned ${summary.scanned} records, found ${summary.uniqueKeys} unique items, deleted ${summary.deleted} duplicates.`);
+    const summary = { scanned, uniqueKeys: groups.size, deleted, rewatchGroups };
+    log(`Done! Scanned ${summary.scanned} records, found ${summary.uniqueKeys} unique items, deleted ${summary.deleted} same-event duplicate${summary.deleted === 1 ? "" : "s"}.`);
     res.write(`RESULT: ${JSON.stringify(summary)}\n`);
     res.end();
   } catch (error) {
@@ -450,17 +471,32 @@ export async function handleSyncHealth(req, res) {
   const progressRows = await countPlaybackProgressRows();
   const playstateRows = await countWatchedPlaystateRows();
   const report = buildSyncMatchReport(history);
+  const quality = watchHistoryQualityCounts();
+  const recommendations = [];
+  if (history.length > 250000) {
+    recommendations.push("Use a smaller Force Sync scope and review a preview before large runs.");
+  }
+  if (quality.sameEventDuplicateRows) {
+    recommendations.push(`${quality.sameEventDuplicateRows} watch row(s) duplicate an existing watch event — run Dedup History to remove them.`);
+  }
+  if (quality.nullSeasonEpisodeRows) {
+    recommendations.push(`${quality.nullSeasonEpisodeRows} episode row(s) have no season number, so they may not match for sync or count toward show progress.`);
+  }
+  if (quality.opaqueShowTitleRows) {
+    recommendations.push(`${quality.opaqueShowTitleRows} row(s) store a provider URI instead of a show title; episode totals cannot be resolved for them.`);
+  }
   const health = {
     generatedAt: new Date().toISOString(),
     counts: {
       watchHistoryRows: { value: history.length, status: healthBand(history.length, capacityRanges.watchHistoryRows) },
       playstateRows,
-      playbackProgressRows,
+      playbackProgressRows: progressRows,
       databaseBytes: db.pragma("page_count", { simple: true }) * db.pragma("page_size", { simple: true }),
     },
+    dataQuality: quality,
     matchFailures: report.platforms,
     outbound: outboundGovernorTelemetry(),
-    recommendations: history.length > 250000 ? ["Use a smaller Force Sync scope and review a preview before large runs."] : [],
+    recommendations,
   };
   return sendJson(res, { health }, 200, { "Cache-Control": "no-store" });
 }
@@ -477,7 +513,11 @@ export async function handleDiagnosticLogs(req, res) {
 
   const limit = Math.min(Number(req.query?.limit || 500), 1000);
   const category = req.query?.category || "all";
-  const data = getDiagnosticLogs({ limit, category });
+  // getLogs() has always accepted a level filter, but the query parameter was
+  // never read, so ?level=error silently returned everything.
+  const requestedLevel = String(req.query?.level || "").toLowerCase();
+  const level = ["info", "warn", "error"].includes(requestedLevel) ? requestedLevel : "";
+  const data = getDiagnosticLogs({ limit, category, level });
   return sendJson(res, data, 200, { "Cache-Control": "no-store" });
 }
 

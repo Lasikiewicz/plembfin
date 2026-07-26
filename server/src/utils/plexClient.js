@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from "./outbound.js";
+import { traceLog } from "./logVerbose.js";
 
 // Plex accepts the token as a header everywhere the query parameter works; the
 // header keeps it out of Plex/reverse-proxy access logs and our own error logs.
@@ -162,7 +163,7 @@ async function searchPlexFallback(config, media, targetType) {
     const url = new URL(`${baseUrl}/search`);
     url.searchParams.set("query", queryTitle);
 
-    console.log("Plex search fallback started", { query: queryTitle, targetType });
+    traceLog("Plex search fallback started", { query: queryTitle, targetType });
     const response = await fetchWithTimeout(url, {
       headers: plexAuthHeaders(config.token),
     });
@@ -187,7 +188,7 @@ async function searchPlexFallback(config, media, targetType) {
     });
 
     if (matched?.ratingKey) {
-      console.log("Plex search fallback matched item", { ratingKey: matched.ratingKey, title: matched.title, year: matched.year, query: queryTitle });
+      traceLog("Plex search fallback matched item", { ratingKey: matched.ratingKey, title: matched.title, year: matched.year, query: queryTitle });
       return matched;
     }
   }
@@ -235,11 +236,13 @@ async function findPlexSeries(config, media) {
   let series;
 
   if (candidates.length > 0) {
+    // One line for the whole fan-out. Logging per candidate meant three or more
+    // near-identical entries for every single lookup.
+    traceLog("Plex series lookup started", { guids: candidates });
     const lookups = await Promise.allSettled(candidates.map(async (guid) => {
       const url = new URL(`${baseUrl}/library/all`);
       url.searchParams.set("guid", guid);
       url.searchParams.set("type", "2"); // 2 is Show/Series in Plex
-      console.log("Plex series lookup started", { guid });
       const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
       if (!response.ok) {
         console.error("Plex series lookup failed", { status: response.status, guid });
@@ -253,7 +256,7 @@ async function findPlexSeries(config, media) {
 
     const match = lookups.find((r) => r.status === "fulfilled" && r.value?.ratingKey);
     if (match) {
-      console.log("Plex series lookup matched item", { ratingKey: match.value.ratingKey });
+      traceLog("Plex series lookup matched item", { ratingKey: match.value.ratingKey });
       series = match.value;
     }
   }
@@ -338,7 +341,7 @@ async function findPlexEpisode(config, media) {
   );
 
   if (episode?.ratingKey) {
-    console.log("Plex episode matched from series leaves", {
+    traceLog("Plex episode matched from series leaves", {
       seriesId: series.ratingKey,
       itemId: episode.ratingKey,
       season,

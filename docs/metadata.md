@@ -67,6 +67,10 @@ Schema-version bumps (`DETAILS_SCHEMA_VERSION`, `PERSON_SCHEMA_VERSION`,
 `PROGRESS_CACHE_SCHEMA_VERSION` in `showProgressCache.js`) force refetches after a
 shape change — never hand-edit cache rows to migrate them.
 
+A show whose episode total cannot be resolved stamps `total_checked_at` in the progress
+cache and waits seven days before trying again, so an unresolvable title does not repeat
+the same failing lookups on every start. See [tv-shows.md](tv-shows.md).
+
 `prewarmTmdbLibrary` (driven by the scheduler) warms details for recently watched items
 so detail pages open hot. Settings → Storage & Cache (`GET /api/cache-stats`,
 `POST /api/clear-cache`, handlers in `index.js`) reports and clears the caches;
@@ -85,7 +89,7 @@ so detail pages open hot. Settings → Storage & Cache (`GET /api/cache-stats`,
 | `GET /api/tmdb-poster`, `GET /api/tmdb-profile` | Image proxies (rate-limited 300/min) |
 | `GET /api/omdb-rating` | IMDb rating pill |
 | `GET /api/youtube-meta` | Trailer metadata |
-| `GET /api/upcoming?month=YYYY-MM` | Future TV episodes for the Upcoming calendar |
+| `GET /api/upcoming?month=YYYY-MM` | Future TV episodes for the Upcoming calendar. `&revalidate=1` answers from the persistent cache and rebuilds the month behind the response; `&refresh=1` rebuilds before responding (see [upcoming.md](upcoming.md)) |
 | `POST /api/refresh-tmdb-metadata`, `POST /api/rematch-show`, `POST /api/rematch-tv-shows` | Cache refresh / identity fixes |
 
 ## Frontend

@@ -99,8 +99,14 @@ addresses.
 
 - Trigger it manually and watch the log: `POST /api/cron-sync` with your API key
   (the response streams a line-by-line log identical to what the scheduler runs).
-- Or watch the server process stdout — tick start/stop and any errors are logged.
-- Key log lines: `"live sessions: N, cached sessions in tracking: M"` tells you
-  whether the poller is seeing anything.
+- Or watch the server process stdout. A background tick that changed nothing logs
+  nothing, so silence between ticks is normal — errors and completed work still log.
+- Set `LOG_VERBOSE=true` to add the per-phase narration, including
+  `"live sessions: N, cached sessions in tracking: M"`, which tells you whether the
+  poller is seeing anything. A user-triggered catch-up run logs those phases to its
+  job log regardless of the flag.
+- Repeated per-item outcomes are condensed: skipped watched items are reported once
+  per run with a count, and a resume-progress item that keeps producing the same
+  outcome is logged only when that outcome changes.
 - Force sync from the dashboard: **Settings → Sync → Force Sync** streams the same
   log in-browser and shows per-platform status.

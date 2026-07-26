@@ -28,6 +28,24 @@ Behavior:
 - **Row actions** — each entry links to its detail page; sync pills, edit-date, and
   debug modal are available per row (see [media-detail.md](media-detail.md)).
 
+## Clean Duplicate History Rows
+
+Settings → Tools → **Clean Duplicate History Rows** (`POST /api/dedup-history`) permanently
+deletes rows from `watch_history`. It groups rows by `media_key` and then by `watched_at`,
+and removes extra rows only *within* a single timestamp — those are the same watch event
+recorded more than once, typically a webhook echo or the same play arriving from two
+platforms.
+
+Rows that share a `media_key` but carry different `watched_at` values are separate viewings.
+The tool counts those items and reports how many it preserved rather than collapsing them,
+so rewatch history survives the clean-up. `GET /api/health/sync` reports the same split up
+front as `dataQuality.sameEventDuplicateRows` and `dataQuality.rewatchedItems`, so the
+number of rows the tool would delete is visible before running it.
+
+Note that the same episode can hold different `media_key` values across platforms when each
+supplies a different external ID (title vs IMDb vs TMDB vs TVDB). Those copies group
+separately and are not merged by this tool.
+
 The dashboard's recent-history rail is a separate, smaller consumer of the same
 endpoint — see [dashboard.md](dashboard.md).
 

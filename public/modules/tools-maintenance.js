@@ -540,7 +540,9 @@ export async function runDedupHistory() {
       if (logEl) logEl.scrollTop = logEl.scrollHeight;
     }
     if (finalResult) {
-      const msg = `Complete — deleted ${finalResult.deleted} duplicate(s) from ${finalResult.scanned} records.`;
+      const kept = Number(finalResult.rewatchGroups || 0);
+      const msg = `Complete — deleted ${finalResult.deleted} same-event duplicate(s) from ${finalResult.scanned} records.`
+        + (kept ? ` Kept ${kept} item(s) with multiple watch dates (rewatches).` : "");
       setStatusPill(status, msg, "ready");
       if (logEl) logEl.textContent += msg + "\n";
     } else {

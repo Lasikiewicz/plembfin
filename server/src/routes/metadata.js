@@ -10,7 +10,6 @@ import { createLoopStore } from "../utils/loopStore.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
 import { runForceSync, runScheduledSync } from "../scheduled.js";
-import { getLogs as getDiagnosticLogs, clearLogs as clearDiagnosticLogs } from "../utils/diagnosticLogger.js";
 import { appendSyncHistory, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "../utils/configStore.js";
 import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes } from "../utils/plexClient.js";
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
@@ -916,7 +915,10 @@ export async function handleUpcoming(req, res) {
     const requested = String(req.query.month || "").trim();
     const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : new Date().toISOString().slice(0, 7);
     const refresh = ["1", "true", "yes"].includes(String(req.query.refresh || "").toLowerCase());
-    const payload = await getUpcomingCalendarMonth(month, { refresh });
+    // `revalidate` serves the cached month immediately and rebuilds behind the
+    // response; `refresh` is the blocking rebuild, kept for explicit re-syncs.
+    const revalidate = ["1", "true", "yes"].includes(String(req.query.revalidate || "").toLowerCase());
+    const payload = await getUpcomingCalendarMonth(month, { refresh, revalidate });
     return sendJson(res, payload);
   } catch (error) {
     return sendJson(res, { error: error.message }, error.status || 500);

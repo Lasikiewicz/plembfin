@@ -57,6 +57,27 @@ Every minute `fetchLiveSessions` polls `/Sessions` for Now Playing. The catch-up
 Playback positions use Emby's tick units (1 tick = 100 ns); `scheduled.js` converts
 with `ticksToMilliseconds`.
 
+### Items flagged played without a play date
+
+Marking an item watched over the Emby API — which is exactly what outbound playstate sync
+does — sets `UserData.Played` to `true` but leaves `PlayCount` at `0` and writes no
+`LastPlayedDate`. Emby returns those items in the recently-watched list, so a propagated
+watch comes back on the next catch-up poll looking like a watch with missing metadata.
+
+`watchedAtForEmbyLikeItem` never invents a timestamp for a dateless item, because doing so
+would turn an existing library into a burst of new watch rows after a restore or first
+connection. It separates the two cases:
+
+- **`Played: true` with an explicit `PlayCount: 0`** — marked over the API, nothing to
+  ingest. Ignored silently; counted only when `LOG_VERBOSE` is set.
+- **`Played: true` with a real play count but no date** — a genuine data gap. Reported as
+  one aggregated line naming the affected titles.
+
+An install whose Emby library was populated entirely by outbound sync will therefore have
+every played item fall into the first case, and the recently-watched poll will record
+nothing from Emby. That is expected: those watches are already in history under the source
+platform that reported them.
+
 ## Outbound operations (`embyClient.js`)
 
 | Function | What it does |

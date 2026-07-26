@@ -46,6 +46,21 @@ Plembfin-tracked watches count; rows back-filled from library history scans are
 distinguishable by their telemetry (`isScheduledLibraryHistoryRow`). Updates are queued
 (`queueShowProgressUpdate`) and flushed by the scheduler.
 
+On startup `initShowProgressCache` queues a background refresh for shows that are missing
+an episode total, carry a stale `schema_version`, or are absent from the cache entirely.
+
+Show titles are matched by canonical key rather than by an exact `show_title_lower`
+comparison. Queued titles have already passed through `showTitleFrom()`, which strips a
+trailing `(year)`, so an exact match would miss rows stored as `Robin Hood (2025)`: the
+show would never be cached, would be rediscovered as uncached on the next start, and would
+be recalculated on every boot without ever succeeding.
+
+A show whose total cannot be resolved — for example a record holding a provider URI where
+the title should be — records `total_checked_at` and is not retried for seven days
+(`MISSING_TOTAL_RETRY_MS`), instead of re-spending the same failing lookups on every start.
+`GET /api/health/sync` reports how many rows hold such a URI as
+`dataQuality.opaqueShowTitleRows`.
+
 ### Next airing
 
 `nextAiringCache.js` stores `{ nextAiringDate, status }` per show in

@@ -237,6 +237,23 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS audit_log_ts ON audit_log (ts);
 
+-- Captured console output for the Settings -> Logs panel. Bounded to
+-- DIAGNOSTIC_LOG_MAX_ROWS by diagnosticLogger.js, which prunes the oldest rows
+-- on flush, so this table is a ring buffer rather than an unbounded archive.
+-- Every process writes here, which is how the panel merges web and worker logs.
+CREATE TABLE IF NOT EXISTS diagnostic_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL,
+  level TEXT,
+  category TEXT,
+  role TEXT,
+  instance TEXT,
+  message TEXT
+);
+CREATE INDEX IF NOT EXISTS diagnostic_log_ts ON diagnostic_log (ts);
+CREATE INDEX IF NOT EXISTS diagnostic_log_category_ts ON diagnostic_log (category, ts);
+CREATE INDEX IF NOT EXISTS diagnostic_log_level_ts ON diagnostic_log (level, ts);
+
 CREATE TABLE IF NOT EXISTS schema_migrations (
   id INTEGER PRIMARY KEY,
   applied_at INTEGER

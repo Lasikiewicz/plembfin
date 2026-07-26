@@ -25,10 +25,10 @@
 |---|---|
 | **Bi-directional sync** | Watched/unwatched states stay in sync across Plex, Emby, and Jellyfin automatically |
 | **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |
-| **Rewatch tracking** | Watching a movie or episode again logs a new watch instead of overwriting the old one; detail pages show a full watch history with the date and app for every play |
+| **Rewatch tracking** | Watching a movie or episode again logs a new watch instead of overwriting the old one; detail pages show a full watch history with the date and app for every play. The duplicate-cleanup tool only removes rows recording the same watch event, so rewatches are never collapsed |
 | **Now Playing dashboard** | Real-time active sessions, weekly charts, and recent watch history |
 | **Stats** | All-time and per-period reports with top shows, platform breakdowns, and watch trends |
-| **Upcoming episodes** | Scrolling month calendar of historical and future TV air dates that opens with the current week on top and scrolls freely into the past or future, plus a mobile agenda layout and a dedicated search results view spanning all cached months |
+| **Upcoming episodes** | Scrolling month calendar of historical and future TV air dates that opens with the current week on top and scrolls freely into the past or future, plus a mobile agenda layout and a dedicated search results view spanning all cached months. The calendar is served from a persistent server-side cache and refreshed in the background, so it renders immediately on every visit |
 | **Trakt import** | Import your full Trakt history and push it out to all connected servers |
 | **Seerr integration** | Request movies and shows from detail pages via Overseerr or Jellyseerr |
 | **Movie collections** | Movie pages show a poster row of other films in the same franchise (sequels, prequels, spin-offs) |
@@ -292,6 +292,10 @@ Plembfin includes a real-time, screen-filling diagnostic log viewer under **Sett
 - **Category Filtering**: Filter the telemetry log stream by **All Logs**, **Plex WebSockets**, **Outbound Sync**, **Scheduled Polls**, or **System Logs**.
 - **Local Timestamp Parsing**: Timestamps are parsed in the client browser to render in your local system timezone.
 - **Download Logs**: Click **Download Logs** to export a complete `.log` file containing full backend and frontend diagnostic history for debugging.
+- **Merged across processes**: Log entries are stored in the database, so the viewer shows web and worker output together and stays fast however long the server has been running.
+- **High signal by default**: A background sync tick that changed nothing writes nothing, and repeated per-item outcomes are condensed into a single line with a count. Set `LOG_VERBOSE=true` when you need the full per-request trace.
+
+**Sync Health** (**Settings → Sync → Sync Issues**) reports watch-history data quality alongside the match report: rows that duplicate an existing watch event, items with several distinct watch dates (rewatches, which are kept as-is), episode rows missing a season number, and rows storing a provider URI instead of a show title. Each one comes with a plain-language recommendation.
 
 ---
 
@@ -309,6 +313,7 @@ The following environment variables can be set in your system or defined in `doc
 | `WEBHOOK_SECRET` | _generated_ | Secret used by webhook header/Bearer auth and the compatibility `?token=` URL. Rotatable independently of the API key. |
 | `SESSION_SECRET` | _generated_ | Signing secret for the dashboard session cookie. |
 | `COOKIE_SECURE` | `false` | Set to `true` when the app is served behind an HTTPS reverse proxy — enables `Secure` cookie flag and `Strict-Transport-Security` header. |
+| `LOG_VERBOSE` | `false` | Set to `true` to add per-request tracing (Plex ID lookups, search fallbacks, per-phase scheduled-sync steps) to Settings → Logs. Useful when diagnosing a specific match failure. Errors and warnings are logged either way. |
 | `FANART_API_KEY` | _none_ | Optional personal Fanart.tv API key for higher rate limits. A built-in project key is used when this is unset. |
 | `TVDB_API_KEY` | _none_ | Optional personal TheTVDB API key for a higher personal rate limit. A built-in project key is used when this is unset. |
 | `TVDB_PROJECT_KEY` | _built-in_ | Advanced: replaces the built-in shared TheTVDB project key. Only needed if the built-in key is revoked or exhausted. |

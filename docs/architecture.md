@@ -164,7 +164,8 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `outbound.js` | `fetchWithTimeout` (configurable 10s default — **all** server-side outbound HTTP must use it; enforced by the build check), `normalizeHttpUrl`, and `assertSafeOutboundUrl`. The shared boundary permits configured LAN media servers while rejecting unsafe schemes, embedded credentials, cloud-metadata targets, and unsafe redirect targets; credentials are removed from cross-origin redirects. |
 | `http.js` | `sendJson` / `sendOptions` / `methodNotAllowed` / `notFound` response helpers. Same-origin only — no CORS headers are ever sent. |
 | `requestBody.js` | `readJson` and `readFormData` (urlencoded + multipart via busboy) over the raw body captured by `server.js`. |
-| `diagnosticLogger.js` | Wraps `console.log/warn/error` to keep the last 1,000 log lines in memory (secrets redacted) for Settings → Logs (`/api/diagnostic-logs`). |
+| `diagnosticLogger.js` | Wraps `console.log/warn/error` and writes captured lines (secrets redacted) to the `diagnostic_log` table for Settings → Logs (`/api/diagnostic-logs`). Batches writes, caps the table at 20,000 rows, and prunes the `data/logs` JSONL archive on boot. |
+| `logVerbose.js` | `LOG_VERBOSE` flag plus `traceLog()`, used to keep per-request tracing (Plex GUID lookups, search fallbacks) out of the log unless explicitly enabled. |
 | `posterCache.js` | Artwork fetch-resize-store pipeline: downloads a remote image (Plex token moved to a header), resizes with sharp to webp (poster 340w / backdrop 1600w / profile 780w / logo 800w), writes to `data/media/<variant>s/`, records metadata in `poster_cache` with negative caching for missing/failed. See [posters-artwork.md](posters-artwork.md). |
 | `tmdbGateway.js` | TMDB API gateway + SQLite caches (`tmdb_metadata_cache`, `tmdb_search_cache`, `tmdb_person_cache`): details, search, seasons, people, images, library prewarm, request throttling and in-flight dedupe. For TV it merges TVDB structural data — see [metadata.md](metadata.md). |
 | `tvdbGateway.js` | TheTVDB v4 gateway (built-in shared project key, optional personal key): series/season/episode data, title search, artwork; raw responses cached in `tvdb_metadata_cache` / `tvdb_season_cache`; `shapeTvdbSeriesAsTmdb` adapts TVDB shapes to TMDB-style fields. |
@@ -495,6 +496,7 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `WEBHOOK_SECRET` — pin the webhook secret used by header/Bearer auth and the compatibility `?token=` URL
 - `SESSION_SECRET` — pin the session signing secret
 - `COOKIE_SECURE` — set to `true` when behind an HTTPS reverse proxy
+- `LOG_VERBOSE` — set to `true` to include per-request tracing (Plex GUID lookups, search fallbacks, per-phase scheduled-sync narration) in the logs. Off by default; errors and warnings are always logged.
 - `WATCHED_PLAYED_SYNC_ENABLED` — set to `false`/`0`/`off` to disable all watched/played propagation (recording still happens)
 - `CATCHUP_SYNC_INTERVAL_MS` — how often the catch-up library sync runs inside the scheduler (default 15 minutes)
 - `WATCHED_THRESHOLD_PERCENT` — playback percentage that counts as watched (default `90`, range 50–100)
@@ -524,3 +526,17 @@ env values (`mergeEnvDefaults` in `configStore.js`).
 - `server/src/utils/syncPlans.js` stores plan summaries/actions, confirmation state, snapshots, and retention.
 - `server/src/utils/outboundGovernor.js` coordinates per-host pacing, lanes, cooldowns, and safe telemetry.
 - `server/src/routes/maintenance.js` exposes `/api/health/sync`; `scripts/benchmark-sync.js` provides the repeatable planner benchmark.
+
+`GET /api/health/sync` returns row counts, per-platform `matchFailures` with samples,
+outbound governor telemetry, and a `dataQuality` block from `watchHistoryQualityCounts()`
+in `dataRepo.js`:
+
+| Field | Meaning |
+| --- | --- |
+| `sameEventDuplicateRows` | Rows duplicating an existing `media_key` + `watched_at` pair — what Clean Duplicate History Rows would delete |
+| `rewatchedItems` | Items with one `media_key` and several distinct watch dates; separate viewings, deliberately kept |
+| `nullSeasonEpisodeRows` | Episode rows with no season number, which cannot match reliably for sync or count toward show progress |
+| `opaqueShowTitleRows` | Rows storing a provider URI (`plex://…`) in `show_title`, so episode totals cannot be resolved |
+
+Each non-zero count adds a plain-language entry to `recommendations`. These conditions were
+previously visible only by reading the server log.

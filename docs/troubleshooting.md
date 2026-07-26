@@ -99,12 +99,43 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
 - In Docker, confirm the volume is mounted: `docker exec plembfin ls /data`.
 - `data/config.json` must be writable for credential/secret persistence.
 
+## "The Logs panel doesn't show enough detail"
+
+Per-request tracing — Plex ID lookups, search fallbacks, and the per-phase narration of
+each scheduled-sync run — is suppressed by default, because on a per-minute scheduler it
+produces hundreds of lines an hour that describe routine no-op work. Errors and warnings
+are always recorded.
+
+Set `LOG_VERBOSE=true` and restart to include it while diagnosing a specific problem, then
+turn it back off. A user-triggered catch-up run logs its per-phase steps to the job log
+regardless of this flag.
+
+Two related behaviours are worth knowing when reading a log:
+- Repeated per-item skips are aggregated into one line with a count
+  (`Emby: skipped 50 watched item(s) without a played date (…)`) rather than one line each.
+- A scheduled run that changed nothing logs nothing. Silence between ticks is normal.
+
+## "The data/logs directory is large"
+
+`data/logs` holds two separate things:
+- `access.log` — Morgan HTTP access log, rotated daily **and** at 10 MB, keeping 14 files.
+  Successful static-asset, cached-artwork, and front-end poller requests are excluded, so
+  it records meaningful traffic and errors rather than every poster fetch.
+- `diagnostic-*.jsonl` — crash-forensics archive of captured console output, pruned on boot
+  to the newest 20 files / last 7 days. Nothing reads these at runtime; the Logs panel is
+  served from the `diagnostic_log` table.
+
+Clearing the logs from Settings → Logs empties the table. The JSONL archive is managed only
+by the boot-time prune, so deleting those files by hand is safe while the app is stopped.
+
 ## General: where do I look?
 
 | Need | Place |
 | --- | --- |
 | What route handles X | `dispatch()` in `server/src/index.js` |
 | Live server logs | stdout of `node server/server.js` (or `docker logs plembfin`) |
+| Captured log history | `diagnostic_log` table, or Settings → Logs |
+| HTTP access log | `data/logs/access.log` |
 | Database inspection | `sqlite3 data/plembfin.db` |
 | Run the background worker on demand | `POST /api/cron-sync` (streams a log) |
 | Frontend debug logs | `logDebug(...)` calls throughout `public/app.js` (and the in-app Logs panel) |

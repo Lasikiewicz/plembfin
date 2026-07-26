@@ -10,6 +10,9 @@ const CACHE_VERSION = 1;
 const CACHE_FILE = path.join(DATA_DIR, "upcoming-calendar-cache.json");
 const TEMP_FILE = `${CACHE_FILE}.tmp`;
 const FUTURE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+// Floor between background rebuilds triggered by opening the page, so repeatedly
+// refreshing the browser cannot queue a rebuild storm against TMDB/TVDB.
+const REVALIDATE_MIN_INTERVAL_MS = 10 * 60 * 1000;
 const CACHE_MAX_MONTHS = 60;
 const BACKGROUND_HISTORY_MONTHS = 24;
 const BACKGROUND_FUTURE_MONTHS = 12;
@@ -191,12 +194,36 @@ async function buildAndStoreMonth(month) {
   return promise;
 }
 
-export async function getUpcomingCalendarMonth(month, { refresh = false } = {}) {
+// Rebuild without making the caller wait. Builds are deduped by month via
+// buildsInFlight, and throttled so a burst of page opens triggers at most one.
+function queueBackgroundRebuild(month, builtAt) {
+  const lastBuild = Number(checkedAtByMonth.get(month) || builtAt || 0);
+  if (Date.now() - lastBuild < REVALIDATE_MIN_INTERVAL_MS) return false;
+  checkedAtByMonth.set(month, Date.now());
+  console.log(`Upcoming calendar: serving ${month} from cache, rebuilding in the background...`);
+  buildAndStoreMonth(month)
+    .then((result) => {
+      console.log(`Upcoming calendar background rebuild complete: ${month}, ${result.payload.episodes.length} episode${result.payload.episodes.length === 1 ? "" : "s"}${result.changed ? ", cache updated" : ", unchanged"}.`);
+    })
+    .catch((error) => {
+      console.warn(`Upcoming calendar background rebuild failed for ${month}: ${error.message}`);
+    });
+  return true;
+}
+
+export async function getUpcomingCalendarMonth(month, { refresh = false, revalidate = false } = {}) {
   if (refresh) return (await buildAndStoreMonth(month)).payload;
 
   const cache = await readCache();
   const entry = cache.months[month];
   if (!entry?.payload) return (await buildAndStoreMonth(month)).payload;
+
+  // Opening the page refreshes the month behind the request rather than in
+  // front of it. Rebuilding takes several seconds, so doing it inline left the
+  // calendar blank on every visit even though usable data was already on disk.
+  // The cheap newly-tracked-show merge below still runs, so a show added a
+  // moment ago appears immediately instead of waiting for the rebuild.
+  if (revalidate) queueBackgroundRebuild(month, entry.builtAt);
 
   // Library-derived shows can change at any time. Add only newly tracked shows
   // to an existing month so the calendar updates immediately without rebuilding

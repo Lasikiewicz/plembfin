@@ -40,10 +40,27 @@ restarts, so revisiting a month does not repeat metadata pulls.
 
 Each month records the tracked shows included in its result. Opening a cached calendar
 after another show enters the library fetches only that missing show and merges its
-episodes immediately. The browser revalidates the current month every time the Upcoming
-page opens, while the response remains a fast local cache read when no shows were added.
+episodes immediately.
+
+Opening the Upcoming page revalidates the current month with
+`GET /api/upcoming?month=YYYY-MM&revalidate=1`. That request answers from the persistent
+cache straight away and rebuilds the month behind the response, so the calendar paints
+from cached data while the refresh happens out of band. Background rebuilds are deduped
+per month and throttled to one per ten minutes, so repeatedly reloading the browser
+cannot queue a burst of metadata pulls. A rebuild only rewrites the cache file when the
+episode data actually changed.
+
+`&refresh=1` is the blocking variant: it rebuilds the month before responding and is
+reserved for explicit re-syncs. It takes several seconds on a normal library.
+
 Other months are fetched once as the visible week range reaches them and then reused for
-the rest of the session.
+the rest of the session. The months needed for the visible range are requested in
+parallel and each renders as it arrives.
+
+Every month request checks the tracked-show list via
+`getCachedShows({ includeScheduledLibraryHistory: true })`, which is memoized on the
+in-memory `dataVersion`. A warm month therefore answers in single-digit milliseconds; the
+first request after a restart or a library change pays for rebuilding that list once.
 
 ## Frontend Behavior
 

@@ -16,6 +16,20 @@ test("does not turn a timestamp-less played item into a new watch", () => {
   );
 });
 
+test("treats an explicit zero play count as marked over the API, not a data gap", () => {
+  assert.deepEqual(
+    watchedAtForEmbyLikeItem({ UserData: { Played: true, PlayCount: 0 } }),
+    { watchedAt: "", reason: "marked without playback" },
+  );
+});
+
+test("a real play count with a lost date stays a reportable data gap", () => {
+  assert.deepEqual(
+    watchedAtForEmbyLikeItem({ UserData: { Played: true, PlayCount: 3 } }),
+    { watchedAt: "", reason: "missing played date" },
+  );
+});
+
 test("does not report an unplayed item as watched", () => {
   assert.deepEqual(
     watchedAtForEmbyLikeItem({ UserData: { Played: false } }),

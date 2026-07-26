@@ -10,6 +10,7 @@ import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { isCronSyncPaused, loadWatchBackupRuntime } from "./utils/watchHistoryBackups.js";
 import { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
 import { watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./utils/watchDates.js";
+import { isVerboseLogging } from "./utils/logVerbose.js";
 export { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
 import {
   deleteLiveTrackingCacheRows,
@@ -264,6 +265,14 @@ function plexUsernamesFromItem(item = {}) {
     .filter(Boolean);
 }
 
+// Condenses a repeated-skip list into one readable clause, so a run reports
+// "skipped 14 item(s) (A, B, C and 11 more)" instead of 14 separate lines.
+function summariseTitles(titles, max = 3) {
+  const unique = [...new Set(titles.filter(Boolean))];
+  if (unique.length <= max) return unique.join(", ");
+  return `${unique.slice(0, max).join(", ")} and ${unique.length - max} more`;
+}
+
 // Delegates to the memoized resolver in plexClient.js so the per-minute
 // scheduled sync and playstate operations share one cached /accounts lookup.
 async function resolvePlexTargetAccountId(baseUrl, token, username, logger = console.log) {
@@ -482,9 +491,27 @@ async function processStoppedSessionProgress(row, config, loopStore) {
   return { media, telemetry, status: syncSummary.status };
 }
 
+// Resume progress is re-evaluated on every tick, so an item that is correctly
+// skipped repeats the same line every minute indefinitely. Remember the last
+// outcome per item and only log when it actually changes.
+const lastResumeOutcome = new Map();
+const LAST_RESUME_OUTCOME_MAX = 500;
+
+function logResumeSkip(logger, media, outcome) {
+  const key = `${media.source}|${media.title}|${media.season ?? ""}|${media.episode ?? ""}`;
+  if (lastResumeOutcome.get(key) === outcome) return;
+  if (lastResumeOutcome.size >= LAST_RESUME_OUTCOME_MAX) lastResumeOutcome.clear();
+  lastResumeOutcome.set(key, outcome);
+  logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (${outcome})`);
+}
+
+function clearResumeOutcome(media) {
+  lastResumeOutcome.delete(`${media.source}|${media.title}|${media.season ?? ""}|${media.episode ?? ""}`);
+}
+
 async function syncResumableMedia(media, config, loopStore, logger = console.log) {
   if (!shouldSyncResumeProgress(media)) {
-    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (not actionable)`);
+    logResumeSkip(logger, media, "not actionable");
     return false;
   }
 
@@ -496,20 +523,20 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
   // the restore â€” they are pre-restore state the backup has already superseded.
   const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
   if (lastRestoreAt && resumeUpdatedAt > 0 && resumeUpdatedAt <= lastRestoreAt) {
-    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (pre-restore resume position)`);
+    logResumeSkip(logger, media, "pre-restore resume position");
     return false;
   }
 
 
   if (existingPlaystate?.state === "unwatched" && (resumeUpdatedAt <= 0 || playstateUpdatedAt >= resumeUpdatedAt)) {
     await deletePlaybackProgress(media).catch(() => null);
-    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (item is unwatched)`);
+    logResumeSkip(logger, media, "item is unwatched");
     return false;
   }
 
   if (existingPlaystate && (existingPlaystate.state === "watched" || (resumeUpdatedAt > 0 && playstateUpdatedAt >= resumeUpdatedAt))) {
     await deletePlaybackProgress(media).catch(() => null);
-    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (${existingPlaystate.state === "watched" ? "item is watched" : "newer playstate"})`);
+    logResumeSkip(logger, media, existingPlaystate.state === "watched" ? "item is watched" : "newer playstate");
     return false;
   }
 
@@ -518,12 +545,12 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
 
 
   if (existingProgress && resumeUpdatedAt <= 0 && resumePositionUnchanged(existingProgress, media)) {
-    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (unchanged resume progress without timestamp)`);
+    logResumeSkip(logger, media, "unchanged resume progress without timestamp");
     return false;
   }
 
   if (existingProgress && resumeUpdatedAt > 0 && progressUpdatedAt >= resumeUpdatedAt) {
-    logger(`Resume Sync: ${media.title} from ${media.source} -> skipped (stale resume progress)`);
+    logResumeSkip(logger, media, "stale resume progress");
     return false;
   }
 
@@ -554,6 +581,7 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
 
   await updatePlaybackProgressTelemetry(progressRecord, buildProgressTelemetry(media, summary)).catch(() => null);
   await recordSyncHistory(media, summary, "progress");
+  clearResumeOutcome(media);
   logger(`Resume Sync: ${media.title} from ${media.source} -> ${summary.status}`);
   return summary.status === "success" || summary.status === "partial";
 }
@@ -816,6 +844,8 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
   }
   if (!config.emby?.baseUrl || !config.emby?.apiKey || !config.emby?.userId) return 0;
   let syncedCount = 0;
+  const skippedNoPlayedDate = [];
+  let skippedApiMarked = 0;
   try {
     const { fetchEmbyWatchedItems } = await import("./utils/embyClient.js");
     const { normalizeProviderIds } = await import("./utils/parsers.js");
@@ -846,7 +876,11 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
 
       if (!watchedAt) {
-        logger(`Emby: skipped watched item without a played date: ${media.title}`);
+        // "marked without playback" means we (or another tool) set the played
+        // flag over the API, so there is nothing to ingest and nothing wrong.
+        // Only a genuinely missing date is worth naming.
+        if (watchedAtReason === "marked without playback") skippedApiMarked++;
+        else skippedNoPlayedDate.push(media.title);
         continue;
       }
 
@@ -896,6 +930,12 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
   } catch (error) {
     logger(`Emby sync recently watched failed: ${error.message}`);
   }
+  if (skippedNoPlayedDate.length) {
+    logger(`Emby: skipped ${skippedNoPlayedDate.length} watched item(s) without a played date (${summariseTitles(skippedNoPlayedDate)}).`);
+  }
+  if (skippedApiMarked && isVerboseLogging()) {
+    logger(`Emby: ignored ${skippedApiMarked} item(s) flagged played without playback (marked over the API, nothing to ingest).`);
+  }
   if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
   return syncedCount;
 }
@@ -907,6 +947,8 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
   }
   if (!config.jellyfin?.baseUrl || !config.jellyfin?.apiKey || !config.jellyfin?.userId) return 0;
   let syncedCount = 0;
+  const skippedNoPlayedDate = [];
+  let skippedApiMarked = 0;
   try {
     const { fetchJellyfinWatchedItems } = await import("./utils/jellyfinClient.js");
     const { normalizeProviderIds } = await import("./utils/parsers.js");
@@ -937,7 +979,8 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
 
       if (!watchedAt) {
-        logger(`Jellyfin: skipped watched item without a played date: ${media.title}`);
+        if (watchedAtReason === "marked without playback") skippedApiMarked++;
+        else skippedNoPlayedDate.push(media.title);
         continue;
       }
 
@@ -986,6 +1029,12 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
     }
   } catch (error) {
     logger(`Jellyfin sync recently watched failed: ${error.message}`);
+  }
+  if (skippedNoPlayedDate.length) {
+    logger(`Jellyfin: skipped ${skippedNoPlayedDate.length} watched item(s) without a played date (${summariseTitles(skippedNoPlayedDate)}).`);
+  }
+  if (skippedApiMarked && isVerboseLogging()) {
+    logger(`Jellyfin: ignored ${skippedApiMarked} item(s) flagged played without playback (marked over the API, nothing to ingest).`);
   }
   if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
   return syncedCount;
@@ -1134,7 +1183,14 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
     return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true };
   }
 
-  logger("Scheduled Sync: starting background sync workflow...");
+  // Per-phase narration is worth showing when a user explicitly triggered a
+  // catch-up run (workerCoordinator passes forceCatchup and surfaces the job
+  // log), but on the per-minute background tick it was ~9 lines every minute
+  // whether or not anything happened. The end-of-run summary still logs, and
+  // is itself suppressed when the run was a complete no-op.
+  const trace = forceCatchup || isVerboseLogging() ? logger : () => {};
+
+  trace("Scheduled Sync: starting background sync workflow...");
   const runtime = await loadRuntimeState();
   
   const FORCE_SYNC_HEARTBEAT_STALE_MS = 3 * 60 * 1000;
@@ -1186,7 +1242,7 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
   // (PLEX_UNWATCHED_POLL_INTERVAL_MS) so it never drives detection or re-scans every tick.
   if (plexActive && Date.now() - lastPlexUnwatchedPollAt >= PLEX_UNWATCHED_POLL_INTERVAL_MS) {
     lastPlexUnwatchedPollAt = Date.now();
-    logger("Scheduled Sync: checking Plex unwatched status (fallback poll)...");
+    trace("Scheduled Sync: checking Plex unwatched status (fallback poll)...");
     await checkPlexUnwatchedStatus(config, loopStore).catch((error) => {
       logger(`Scheduled Sync ERROR: checkPlexUnwatchedStatus failed: ${error.message}`);
     });
@@ -1203,13 +1259,12 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
   const shouldRunCatchup = forceCatchup || !lastCatchupSyncAt || (Date.now() - lastCatchupSyncAt >= CATCHUP_SYNC_INTERVAL_MS);
   if (shouldRunCatchup) {
     lastCatchupSyncAt = Date.now();
-    logger(forceCatchup
-      ? "Scheduled Sync: running requested recent-item repair..."
-      : `Scheduled Sync: running catch-up library checks (interval: ${CATCHUP_SYNC_INTERVAL_MS / 60000}m)...`);
+    if (forceCatchup) logger("Scheduled Sync: running requested recent-item repair...");
+    else trace(`Scheduled Sync: running catch-up library checks (interval: ${CATCHUP_SYNC_INTERVAL_MS / 60000}m)...`);
 
     if (plexActive) {
       try {
-        logger("Scheduled Sync: checking Plex recently watched...");
+        trace("Scheduled Sync: checking Plex recently watched...");
         plexSynced = await syncRecentlyWatchedFromPlex(config, loopStore, logger);
       } catch (error) {
         logger(`Scheduled Sync ERROR: Plex sync failed: ${error.message}`);
@@ -1218,7 +1273,7 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
 
     if (embyActive) {
       try {
-        logger("Scheduled Sync: checking Emby recently watched...");
+        trace("Scheduled Sync: checking Emby recently watched...");
         embySynced = await syncRecentlyWatchedFromEmby(config, loopStore, logger);
       } catch (error) {
         logger(`Scheduled Sync ERROR: Emby sync failed: ${error.message}`);
@@ -1227,7 +1282,7 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
 
     if (jellyfinActive) {
       try {
-        logger("Scheduled Sync: checking Jellyfin recently watched...");
+        trace("Scheduled Sync: checking Jellyfin recently watched...");
         jellyfinSynced = await syncRecentlyWatchedFromJellyfin(config, loopStore, logger);
       } catch (error) {
         logger(`Scheduled Sync ERROR: Jellyfin sync failed: ${error.message}`);
@@ -1236,7 +1291,7 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
 
     if (plexActive) {
       try {
-        logger("Scheduled Sync: checking Plex continue watching...");
+        trace("Scheduled Sync: checking Plex continue watching...");
         plexResumeSynced = await syncRecentlyResumableFromPlex(config, loopStore, logger);
       } catch (error) {
         logger(`Scheduled Sync ERROR: Plex resume sync failed: ${error.message}`);
@@ -1245,7 +1300,7 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
 
     if (embyActive) {
       try {
-        logger("Scheduled Sync: checking Emby continue watching...");
+        trace("Scheduled Sync: checking Emby continue watching...");
         embyResumeSynced = await syncRecentlyResumableFromEmby(config, loopStore, logger);
       } catch (error) {
         logger(`Scheduled Sync ERROR: Emby resume sync failed: ${error.message}`);
@@ -1254,7 +1309,7 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
 
     if (jellyfinActive) {
       try {
-        logger("Scheduled Sync: checking Jellyfin continue watching...");
+        trace("Scheduled Sync: checking Jellyfin continue watching...");
         jellyfinResumeSynced = await syncRecentlyResumableFromJellyfin(config, loopStore, logger);
       } catch (error) {
         logger(`Scheduled Sync ERROR: Jellyfin resume sync failed: ${error.message}`);
@@ -1278,7 +1333,7 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
   const staleIds = [];
 
   if (currentRows.length || cachedRows.length) {
-    logger(`Scheduled Sync: live sessions: ${currentRows.length}, cached sessions in tracking: ${cachedRows.length}`);
+    trace(`Scheduled Sync: live sessions: ${currentRows.length}, cached sessions in tracking: ${cachedRows.length}`);
   }
   await upsertLiveTrackingCache(currentRows);
 

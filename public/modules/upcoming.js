@@ -337,8 +337,9 @@ function syncVisibleMonthTitle() {
   elements.upcomingMonthTitle.textContent = monthTitle(visibleMonth);
 }
 
-// `revalidateMonth` refetches a single month even when it is already cached.
-// Only the current month is worth revalidating on open — refetching the whole
+// `revalidateMonth` refetches a single month even when it is already held in
+// client state, and asks the server to refresh that month in the background.
+// Only the current month is worth revalidating on open — doing it for the whole
 // range would turn every page visit into a burst of requests.
 export async function loadUpcoming({ revalidateMonth = "" } = {}) {
   ensureUpcomingRange();
@@ -355,13 +356,19 @@ export async function loadUpcoming({ revalidateMonth = "" } = {}) {
     state.upcomingLoadingMonth = monthsToFetch[0];
     renderUpcoming();
     try {
-      for (const month of monthsToFetch) {
-        const refresh = month === staleMonth ? "&refresh=1" : "";
-        const response = await fetch(`/api/upcoming?month=${encodeURIComponent(month)}${refresh}`, { headers: authHeaders() });
+      // Fetched in parallel and rendered as each month lands, so the calendar
+      // fills in as soon as the server answers instead of after the slowest
+      // month in the batch.
+      await Promise.all(monthsToFetch.map(async (month) => {
+        // The current month is revalidated server-side in the background: the
+        // response is the cached month, and the rebuild happens behind it.
+        const query = month === staleMonth ? "&revalidate=1" : "";
+        const response = await fetch(`/api/upcoming?month=${encodeURIComponent(month)}${query}`, { headers: authHeaders() });
         if (!response.ok) throw new Error("Failed to load upcoming episodes");
         const payload = await response.json();
         state.upcomingByMonth.set(month, Array.isArray(payload.episodes) ? payload.episodes : []);
-      }
+        renderUpcoming();
+      }));
     } finally {
       state.upcomingLoadingMonth = "";
       renderUpcoming();

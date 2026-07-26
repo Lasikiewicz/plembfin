@@ -268,8 +268,10 @@ repo modules (`dataRepo.js`, `configStore.js`, `posterCache.js`, `activeSessions
 
 Derived caches use **in-process memoization** keyed by an in-memory `dataVersion` integer
 (`getDataVersion()` / `bumpDataVersion()` in `db.js`). `invalidateHistoryDerivedCaches()`
-just bumps the version; the in-memory `historyCache`/`movieCache`/`showCache`/`statsCache`
-reload on the next read.
+just bumps the version; the in-memory `historyCache`/`movieCache`/`showCache`/
+`scheduledShowCache`/`statsCache` reload on the next read. `getCachedShows()` keeps two
+slots because its `includeScheduledLibraryHistory` variant returns a different show set —
+both must be memoized or that variant recomputes from the full watch history on every call.
 
 ### Auth (`server/src/utils/auth.js` + `server/src/appConfig.js`)
 

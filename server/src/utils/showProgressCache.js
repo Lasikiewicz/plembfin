@@ -11,6 +11,14 @@ const pendingShowUpdates = new Set();
 // Bump whenever the total_episodes calculation changes shape, so previously
 // cached shows are refetched instead of keeping a stale total indefinitely.
 const PROGRESS_CACHE_SCHEMA_VERSION = 2; // bumped: total_episodes now excludes specials (season 0)
+// How long to wait before retrying a show whose episode total could not be resolved.
+const MISSING_TOTAL_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
+
+// True for values like "plex://season/602e6a1b66dfdb002c0a6aa8" or "tvdb://12345"
+// that ended up in a show_title column instead of an actual show name.
+function isOpaqueProviderRef(value) {
+  return /^[a-z][a-z0-9.+-]*:\/\//i.test(String(value || "").trim());
+}
 
 // Pure helper functions decoupled from dataRepo.js to avoid circular dependency issues
 function decodeBasicHtmlEntities(value) {
@@ -85,7 +93,14 @@ export async function initShowProgressCache() {
       const data = fs.readFileSync(CACHE_FILE_PATH, "utf8");
       progressCache = JSON.parse(data);
       const total = Object.keys(progressCache).length;
-      const missingTotals = Object.values(progressCache).filter((s) => !s.total_episodes).map((s) => s.title);
+      // Some shows have no resolvable episode total at all (a provider URI where
+      // the title should be, or metadata that simply lacks one). Retrying those
+      // on every boot re-spent the same failing lookups forever, so a show whose
+      // total was checked recently waits for the retry interval.
+      const totalsRetryCutoff = Date.now() - MISSING_TOTAL_RETRY_MS;
+      const missingTotals = Object.values(progressCache)
+        .filter((s) => !s.total_episodes && Number(s.total_checked_at || 0) <= totalsRetryCutoff)
+        .map((s) => s.title);
       const staleSchema = Object.values(progressCache).filter((s) => (s.schema_version || 1) < PROGRESS_CACHE_SCHEMA_VERSION).map((s) => s.title);
       const uncached = findUncachedShowTitles();
       const toQueue = new Set([...missingTotals, ...staleSchema, ...uncached]);
@@ -137,14 +152,24 @@ export function queueShowProgressUpdate(showTitle) {
  */
 async function calculateAndSetShowProgress(showTitle) {
   const showKey = canonicalTitleKey(showTitle) || normalizeKeyPart(showTitle);
-  
-  // Get all episode rows for this show from SQLite
+
+  // Titles reach this function already run through showTitleFrom(), which strips
+  // a trailing "(year)". Matching show_title_lower exactly therefore missed rows
+  // stored as "Robin Hood (2025)" — the show was never cached, so it was
+  // rediscovered as uncached and requeued on every boot. Prefilter on the exact
+  // title plus the "(year)" form, then confirm by canonical key so only rows
+  // that really belong to this show are counted.
+  const lowerTitle = showTitle.toLowerCase();
   const rows = db.prepare(`
-    SELECT season, episode, tmdb_id, tvdb_id, sync_action, sync_dispatch_telemetry
+    SELECT season, episode, tmdb_id, tvdb_id, sync_action, sync_dispatch_telemetry, show_title, title
     FROM watch_history
-    WHERE media_type = 'episode' AND show_title_lower = ?
-  `).all(showTitle.toLowerCase());
-  
+    WHERE media_type = 'episode' AND (show_title_lower = ? OR show_title_lower LIKE ?)
+  `).all(lowerTitle, `${lowerTitle} (%`)
+    .filter((row) => {
+      const derived = showTitleFrom(row.show_title || row.title);
+      return (canonicalTitleKey(derived) || normalizeKeyPart(derived)) === showKey;
+    });
+
   const trackedRows = rows.filter(isPlembfinTrackedWatchRow);
   
   if (trackedRows.length === 0) {
@@ -174,12 +199,22 @@ async function calculateAndSetShowProgress(showTitle) {
   
   // Retrieve total episodes count from TMDB (utilizing cached details when possible)
   let totalEpisodes = 0;
-  if (tmdbId || showTitle) {
+  // A handful of rows carry an opaque provider URI in show_title instead of a
+  // real name. Neither TVDB nor TMDB can ever resolve one, so attempting it just
+  // spends two outbound requests per boot to produce the same failure.
+  const titleIsResolvable = Boolean(showTitle) && !isOpaqueProviderRef(showTitle);
+  if (tmdbId || titleIsResolvable) {
     try {
-      const tmdbShow = await getTmdbDetails({ mediaType: "tv", tmdbId, title: showTitle, ids: { tvdbId } });
+      const tmdbShow = await getTmdbDetails({
+        mediaType: "tv",
+        tmdbId,
+        title: titleIsResolvable ? showTitle : "",
+        ids: { tvdbId },
+      });
       totalEpisodes = tmdbShow?.number_of_episodes || 0;
     } catch (e) {
-      console.error(`[ShowProgressCache] Failed fetching TMDB total episodes for ${showTitle}:`, e.message);
+      // An unresolvable ID is an expected data gap, not a failure of this run.
+      console.warn(`[ShowProgressCache] No episode total for ${showTitle}: ${e.message}`);
     }
   }
   
@@ -188,6 +223,9 @@ async function calculateAndSetShowProgress(showTitle) {
     tmdb_id: tmdbId || "",
     episode_count: watchedCount,
     total_episodes: totalEpisodes,
+    // Stamped so a show whose total cannot be resolved is retried on a schedule
+    // rather than on every single boot.
+    total_checked_at: Date.now(),
     schema_version: PROGRESS_CACHE_SCHEMA_VERSION
   };
 }
