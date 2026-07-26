@@ -1,7 +1,17 @@
 {
-  "version": "0.6.18",
-  "updatedAt": "2026-07-26T22:02:20+01:00",
+  "version": "0.6.19",
+  "updatedAt": "2026-07-26T22:14:45+01:00",
   "entries": [
+    {
+      "version": "0.6.19",
+      "date": "2026-07-26T22:14:45+01:00",
+      "commit": "4644717053a4f8feaa4779cde0021310b09754a3",
+      "message": "Fix - Repair phantom watch bursts",
+      "author": "Lasikiewicz",
+      "details": [
+        "Remove implausible historical media-server watch bursts during migration\\n- Preserve explicit manual watches and clean orphaned playstates\\n- Add detector and migration coverage"
+      ]
+    },
     {
       "version": "0.6.18",
       "date": "2026-07-26T22:02:20+01:00",
