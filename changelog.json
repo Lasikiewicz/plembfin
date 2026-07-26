@@ -1,7 +1,25 @@
 {
-  "version": "0.6.11",
-  "updatedAt": "2026-07-26T12:04:46+01:00",
+  "version": "0.6.12",
+  "updatedAt": "2026-07-26T13:17:39+01:00",
   "entries": [
+    {
+      "version": "0.6.12",
+      "date": "2026-07-26T13:17:39+01:00",
+      "commit": "a6791f893f6ad889e5f6e422f93d4dc04cf7341b",
+      "message": "Fix - Protect rewatch history, restore Sync Health, and load Upcoming instantly",
+      "author": "Lasikiewicz",
+      "details": [
+        "Clean Duplicate History Rows no longer collapses rewatches: it previously kept only the newest row per item and would have deleted 1,288 rows, most of them separate viewings recorded weeks or months apart. It now removes only rows that record the same watch event, and reports how many rewatched items it preserved",
+        "Sync Health works again — the panel returned an internal error on every request and showed nothing",
+        "Sync Health now reports watch-history data quality: rows duplicating an existing watch event, items with several distinct watch dates, episode rows missing a season number, and rows holding a provider URI instead of a show title, each with a recommendation",
+        "The Upcoming calendar opens from its saved cache and refreshes in the background instead of rebuilding before anything renders, so it no longer shows a blank month on every visit. Months in view load together, and repeated reloads no longer queue repeated rebuilds",
+        "TV show progress is now calculated for shows whose stored title carries a year, such as \"Robin Hood (2025)\". Those shows previously never cached a progress figure and were recalculated fruitlessly on every start",
+        "Shows with no resolvable episode total wait a week before retrying rather than repeating the same failing metadata lookups every start",
+        "Emby items flagged played over the API — which is what outbound sync itself does — are no longer reported as watches with missing metadata; only genuine missing play dates are surfaced",
+        "The Logs panel reads from the database, so it merges web and worker output and stays fast however long the server runs; a sync tick that changed nothing now logs nothing, repeated per-item outcomes are condensed, and detailed request tracing moved behind a new LOG_VERBOSE setting",
+        "Log files under data/logs are pruned automatically and the HTTP access log now rotates on size, so the directory stops growing without limit"
+      ]
+    },
     {
       "version": "0.6.11",
       "date": "2026-07-26T12:04:46+01:00",
