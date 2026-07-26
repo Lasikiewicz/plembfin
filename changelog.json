@@ -1,7 +1,17 @@
 {
-  "version": "0.6.21",
-  "updatedAt": "2026-07-26T22:24:41+01:00",
+  "version": "0.6.22",
+  "updatedAt": "2026-07-26T22:25:35+01:00",
   "entries": [
+    {
+      "version": "0.6.22",
+      "date": "2026-07-26T22:25:35+01:00",
+      "commit": "1c59f181cd576e187ba1839927cbff3fead20038",
+      "message": "Fix - Split current changelog bullets",
+      "author": "Lasikiewicz",
+      "details": [
+        "Remove the remaining escaped bullet separators from the latest release entry"
+      ]
+    },
     {
       "version": "0.6.21",
       "date": "2026-07-26T22:24:41+01:00",
