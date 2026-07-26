@@ -109,20 +109,19 @@ export function dedupePlaybackProgress(items = []) {
       map.set(key, { ...item, sources: [item.source].filter(Boolean) });
       continue;
     }
-    if (item.source && !existing.sources.includes(item.source)) {
-      existing.sources.push(item.source);
-    }
     const existingTime = Number(existing.updated_at || 0);
     const itemTime = Number(item.updated_at || 0);
     if (itemTime > existingTime) {
-      const sources = existing.sources;
       Object.assign(existing, item);
-      existing.sources = sources;
+      // The badge describes the app that supplied the progress row currently
+      // being displayed. Do not retain sources from older duplicate rows: a
+      // stale match from another server can otherwise make Part Watched claim
+      // that playback came from multiple apps.
+      existing.sources = [item.source].filter(Boolean);
     } else if (itemTime === existingTime) {
       if (partWatchedProgress(item) > partWatchedProgress(existing)) {
-        const sources = existing.sources;
         Object.assign(existing, item);
-        existing.sources = sources;
+        existing.sources = [item.source].filter(Boolean);
       }
     }
   }
