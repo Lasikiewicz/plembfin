@@ -22,6 +22,9 @@ export function formatChangelogMessage(message) {
 
 export function bulletPointsFrom(message) {
   return String(message || "")
+    // Commit bodies entered through some shell paths contain a literal
+    // "\\n" instead of an actual line break. Treat both forms identically.
+    .replace(/\\n/g, "\n")
     .split(/\r?\n/)
     .slice(1)
     .map((line) => line.trim())

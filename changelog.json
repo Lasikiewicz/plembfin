@@ -19,7 +19,9 @@
       "message": "Fix - Repair phantom watch bursts",
       "author": "Lasikiewicz",
       "details": [
-        "Remove implausible historical media-server watch bursts during migration\\n- Preserve explicit manual watches and clean orphaned playstates\\n- Add detector and migration coverage"
+        "Remove implausible historical media-server watch bursts during migration",
+        "Preserve explicit manual watches and clean orphaned playstates",
+        "Add detector and migration coverage"
       ]
     },
     {

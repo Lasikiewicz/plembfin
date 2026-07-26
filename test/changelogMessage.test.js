@@ -20,6 +20,13 @@ test("bulletPointsFrom extracts commit body bullets", () => {
   ]);
 });
 
+test("bulletPointsFrom converts escaped newline bullets", () => {
+  assert.deepEqual(bulletPointsFrom("docs: summary\\n- First detail\\n- Second detail"), [
+    "First detail",
+    "Second detail",
+  ]);
+});
+
 test("validateReleaseMessage rejects title-only release commits", () => {
   assert.equal(validateReleaseMessage("fix: keep controls visible").length, 2);
   assert.equal(
