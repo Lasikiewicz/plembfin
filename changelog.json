@@ -1,7 +1,17 @@
 {
-  "version": "0.6.19",
-  "updatedAt": "2026-07-26T22:14:45+01:00",
+  "version": "0.6.20",
+  "updatedAt": "2026-07-26T22:19:53+01:00",
   "entries": [
+    {
+      "version": "0.6.20",
+      "date": "2026-07-26T22:19:53+01:00",
+      "commit": "1f9fdfc56545a7c553135811c884609a8358ab48",
+      "message": "Docs - Clean changelog and backlog",
+      "author": "Lasikiewicz",
+      "details": [
+        "Split escaped changelog bullets into separate details\\n- Remove completed TODO entries\\n- Normalize the alpha software wording"
+      ]
+    },
     {
       "version": "0.6.19",
       "date": "2026-07-26T22:14:45+01:00",
