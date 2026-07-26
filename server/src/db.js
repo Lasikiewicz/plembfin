@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { DB_PATH, ensureDataDirs } from "./paths.js";
+import { repairPhantomWatchBursts } from "./utils/phantomWatchRepair.js";
 
 ensureDataDirs();
 
@@ -57,6 +58,21 @@ const migrations = [
       const watchCols = database.pragma("table_info(watch_history)").map(c => c.name);
       if (!watchCols.includes("sync_retry_count")) database.exec("ALTER TABLE watch_history ADD COLUMN sync_retry_count INTEGER DEFAULT 0");
       if (!watchCols.includes("sync_next_retry_at")) database.exec("ALTER TABLE watch_history ADD COLUMN sync_next_retry_at INTEGER DEFAULT 0");
+    },
+  },
+  {
+    id: 4,
+    up(database) {
+      const watchCols = new Set(database.pragma("table_info(watch_history)").map((column) => column.name));
+      // Very old/imported databases can be upgraded in stages and may not yet
+      // have the columns needed for burst detection. The normal compatibility
+      // path will finish those upgrades; do not make startup fail here.
+      if (!["title", "media_type", "watched_at", "source", "sync_action"].every((column) => watchCols.has(column))) return;
+      // The migration runner already owns an IMMEDIATE transaction.
+      const result = repairPhantomWatchBursts(database, { transaction: false });
+      if (result.deleted) {
+        console.warn(`[history] removed ${result.deleted} implausible phantom watch row${result.deleted === 1 ? "" : "s"} from ${result.bursts.length} burst${result.bursts.length === 1 ? "" : "s"}`);
+      }
     },
   },
 ];
