@@ -15,7 +15,7 @@
 
 ---
 
-> ## ⚠️ Alpha software — expect bugs
+> ## ⚠️ Alpha software - expect bugs
 >
 > Plembfin is in **alpha testing**. The core features described below work, but
 > this is not yet a finished product: you should expect bugs, rough edges, and
