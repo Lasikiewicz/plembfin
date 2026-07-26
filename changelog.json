@@ -1,7 +1,17 @@
 {
-  "version": "0.6.17",
-  "updatedAt": "2026-07-26T21:52:36+01:00",
+  "version": "0.6.18",
+  "updatedAt": "2026-07-26T22:02:20+01:00",
   "entries": [
+    {
+      "version": "0.6.18",
+      "date": "2026-07-26T22:02:20+01:00",
+      "commit": "3e39c433adde5549b0a8a466b8bc7837495eedb9",
+      "message": "Fix - Refresh upcoming cache on worker startup",
+      "author": "Lasikiewicz",
+      "details": [
+        "Refresh the current Upcoming month as soon as the worker starts while continuing to serve the persisted snapshot immediately"
+      ]
+    },
     {
       "version": "0.6.17",
       "date": "2026-07-26T21:52:36+01:00",
