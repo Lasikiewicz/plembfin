@@ -1,7 +1,17 @@
 {
-  "version": "0.6.9",
-  "updatedAt": "2026-07-24T20:53:02+01:00",
+  "version": "0.6.10",
+  "updatedAt": "2026-07-26T11:36:42+01:00",
   "entries": [
+    {
+      "version": "0.6.10",
+      "date": "2026-07-26T11:36:42+01:00",
+      "commit": "0e85b7ba4d6bfb3b7384b07645d01461f0c0cf5e",
+      "message": "Fix - Show actual part watched app",
+      "author": "Lasikiewicz",
+      "details": [
+        "Part Watched now shows only the media app that supplied the current progress, preventing stale Emby badges from appearing beside Plex."
+      ]
+    },
     {
       "version": "0.6.9",
       "date": "2026-07-24T20:53:02+01:00",
