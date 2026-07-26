@@ -20,7 +20,9 @@
       "message": "Docs - Clean changelog and backlog",
       "author": "Lasikiewicz",
       "details": [
-        "Split escaped changelog bullets into separate details\\n- Remove completed TODO entries\\n- Normalize the alpha software wording"
+        "Split escaped changelog bullets into separate details",
+        "Remove completed TODO entries",
+        "Normalize the alpha software wording"
       ]
     },
     {
