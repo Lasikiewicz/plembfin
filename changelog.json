@@ -1,7 +1,24 @@
 {
-  "version": "0.6.13",
-  "updatedAt": "2026-07-26T19:37:32+01:00",
+  "version": "0.6.14",
+  "updatedAt": "2026-07-26T19:54:26+01:00",
   "entries": [
+    {
+      "version": "0.6.14",
+      "date": "2026-07-26T19:54:26+01:00",
+      "commit": "6b06692a8f7e2fb1b0ea7c75080f0c2e785732f7",
+      "message": "Docs - Flag alpha status and make rejected webhooks identifiable",
+      "author": "Lasikiewicz",
+      "details": [
+        "Choosing a series in Fix Match now renames the episodes to that show, so a group stuck as 'Unknown Show' takes on its real name instead of silently keeping the old one",
+        "The show page moves to the renamed show's URL after a match instead of leaving you on a route that no longer exists",
+        "Episode titles keep their season/episode numbers and episode names through the rename",
+        "Picking the same series a show already has still corrects its identity without touching the titles",
+        "README now opens with an alpha-testing notice: core features work, expect bugs, and take a backup before starting",
+        "A webhook Plembfin can't parse now records the content type, user agent, and start of the body, so you can tell which server sent it instead of seeing an anonymous rejection",
+        "Emby and Jellyfin setup guides say to leave unused event categories unticked, since ignored events only add rejected entries to Sync History",
+        "Jellyfin guide notes that a custom template must send application/json or the request is refused"
+      ]
+    },
     {
       "version": "0.6.13",
       "date": "2026-07-26T19:37:32+01:00",
