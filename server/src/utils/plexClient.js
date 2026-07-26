@@ -215,7 +215,11 @@ function getCacheKey(media) {
 }
 
 async function findPlexSeries(config, media) {
-  const cacheKey = getCacheKey(media);
+  // Namespaced separately from the item cache. For an episode both lookups derive
+  // the same key from `media`, so a shared slot lets the episode's ratingKey
+  // overwrite its series' — and a later series lookup then returns the episode,
+  // whose /allLeaves is empty, so the episode stops matching.
+  const cacheKey = `series:${getCacheKey(media)}`;
   if (plexRatingKeyCache.has(cacheKey)) {
     const ratingKey = plexRatingKeyCache.get(cacheKey);
     if (ratingKey) {

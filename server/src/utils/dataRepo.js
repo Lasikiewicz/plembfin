@@ -64,12 +64,21 @@ const getTmdbShowDetailsStmt = db.prepare("SELECT details FROM tmdb_metadata_cac
 const recoverShowTitleByTmdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tmdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
 const recoverShowTitleByTvdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tvdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
 const selectUnknownShowRowsStmt = db.prepare("SELECT id, title, tmdb_id, tvdb_id, sync_dispatch_telemetry FROM watch_history WHERE media_type = 'episode' AND show_title_lower = 'unknown show'");
+// Fix Match asserts these episodes belong to a different series, so every
+// provider id carried over from the old match is wrong — imdb included, not just
+// tmdb. Leaving imdb behind would also keep mediaKeyFor deriving the key from it.
 const rematchShowEpisodeStmt = db.prepare(`
   UPDATE watch_history
-  SET tvdb_id = ?, tmdb_id = '', poster_url = NULL, logo_url = NULL,
+  SET tvdb_id = ?, tmdb_id = '', imdb_id = '', poster_url = NULL, logo_url = NULL,
       backdrop_url = NULL, updated_at = ?
   WHERE id = ?
 `);
+const updateWatchMediaKeyStmt = db.prepare("UPDATE watch_history SET media_key = ?, updated_at = ? WHERE id = ?");
+const selectPlaystateKeyStmt = db.prepare("SELECT media_key FROM playstate WHERE media_key = ?");
+const movePlaystateKeyStmt = db.prepare(
+  `UPDATE playstate SET media_key = ?, tvdb_id = ?, tmdb_id = '', imdb_id = '', title = ?, title_lower = ?, updated_at = ?
+   WHERE media_key = ?`,
+);
 const deleteTmdbMetadataStmt = db.prepare("DELETE FROM tmdb_metadata_cache WHERE id = ?");
 const deleteTvdbMetadataStmt = db.prepare("DELETE FROM tvdb_metadata_cache WHERE id = ?");
 
@@ -2125,20 +2134,51 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
   const mediaKeys = new Set(rows.map((row) => cleanString(row.media_key)).filter(Boolean));
   const updatedAt = Date.now();
 
+  // Old media_key -> new media_key, collected while the rows are rewritten so the
+  // playstate rows keyed by the old value can follow in the same transaction.
+  const keyMigrations = new Map();
+
   transaction(() => {
     for (const row of rows) {
       rematchShowEpisodeStmt.run(cleanTvdbId, updatedAt, row.id);
-      if (!renameTo) continue;
-      const nextTitle = retitledEpisode(row.title, renameTo, row.season, row.episode);
-      updateShowTitleStmt.run(
-        nextTitle,
-        nextTitle.toLowerCase(),
-        renameTo,
-        renameTo.toLowerCase(),
-        updatedAt,
-        row.id,
-      );
+
+      const nextTitle = renameTo ? retitledEpisode(row.title, renameTo, row.season, row.episode) : row.title;
+      if (renameTo) {
+        updateShowTitleStmt.run(
+          nextTitle,
+          nextTitle.toLowerCase(),
+          renameTo,
+          renameTo.toLowerCase(),
+          updatedAt,
+          row.id,
+        );
+      }
+
+      // The key encodes the identity that just changed, so it has to be rebuilt
+      // from what the row now holds — otherwise it keeps pointing at the old
+      // show and playstate lookups miss.
+      const previousKey = cleanString(row.media_key);
+      const nextKey = mediaKeyFor({
+        media_type: "episode",
+        season: row.season,
+        episode: row.episode,
+        tvdb_id: cleanTvdbId,
+        title: nextTitle,
+      });
+      if (nextKey && nextKey !== previousKey) {
+        updateWatchMediaKeyStmt.run(nextKey, updatedAt, row.id);
+        if (previousKey) keyMigrations.set(previousKey, { nextKey, title: nextTitle });
+      }
     }
+
+    for (const [previousKey, { nextKey, title }] of keyMigrations) {
+      // A playstate row may already sit at the destination when only some of the
+      // episodes were mis-keyed. The row already at the correct key is the
+      // authoritative one, so drop the stale source rather than collide with it.
+      if (selectPlaystateKeyStmt.get(nextKey)) deletePlaystateByKeyStmt.run(previousKey);
+      else movePlaystateKeyStmt.run(nextKey, cleanTvdbId, title, title.toLowerCase(), updatedAt, previousKey);
+    }
+
     for (const mediaKey of mediaKeys) deletePosterByMediaKeyStmt.run(mediaKey);
     for (const tmdbId of oldTmdbIds) deleteTmdbMetadataStmt.run(`tv_${tmdbId}`);
     deleteTvdbMetadataStmt.run(`series_${cleanTvdbId}`);
@@ -2201,6 +2241,64 @@ export async function mergeShows(sourceTitle, targetTitle) {
   });
   await invalidateHistoryDerivedCaches();
   return { merged: docs.length };
+}
+
+const selectNullSeasonEpisodeRowsStmt = db.prepare(
+  "SELECT id, title, media_key, season, episode, imdb_id, tmdb_id, tvdb_id FROM watch_history WHERE media_type = 'episode' AND season IS NULL",
+);
+const updateWatchSeasonStmt = db.prepare("UPDATE watch_history SET season = ?, updated_at = ? WHERE id = ?");
+const movePlaystateSeasonKeyStmt = db.prepare(
+  "UPDATE playstate SET media_key = ?, season = ?, updated_at = ? WHERE media_key = ?",
+);
+
+// Episode rows with no season number cannot match reliably for sync and do not
+// count toward show progress, but the season is still written in the title
+// ("Show - S00E13"). Recovering it also changes what mediaKeyFor produces, so the
+// key is rebuilt and the playstate row keyed by the old value follows in the same
+// transaction — leaving those out of step would strand the watched state.
+export async function backfillMissingEpisodeSeasons() {
+  const rows = selectNullSeasonEpisodeRowsStmt.all();
+  if (!rows.length) return 0;
+
+  const updatedAt = Date.now();
+  const keyMigrations = new Map();
+  let fixed = 0;
+
+  transaction(() => {
+    for (const row of rows) {
+      const { season } = episodeCoordinatesFromTitle(row.title);
+      if (season == null || !Number.isFinite(Number(season))) continue;
+
+      updateWatchSeasonStmt.run(Number(season), updatedAt, row.id);
+      fixed++;
+
+      const previousKey = cleanString(row.media_key);
+      const nextKey = mediaKeyFor({
+        media_type: "episode",
+        season: Number(season),
+        episode: row.episode,
+        imdb_id: row.imdb_id,
+        tmdb_id: row.tmdb_id,
+        tvdb_id: row.tvdb_id,
+        title: row.title,
+      });
+      if (nextKey && nextKey !== previousKey) {
+        updateWatchMediaKeyStmt.run(nextKey, updatedAt, row.id);
+        if (previousKey) keyMigrations.set(previousKey, { nextKey, season: Number(season) });
+      }
+    }
+
+    for (const [previousKey, { nextKey, season }] of keyMigrations) {
+      if (selectPlaystateKeyStmt.get(nextKey)) deletePlaystateByKeyStmt.run(previousKey);
+      else movePlaystateSeasonKeyStmt.run(nextKey, season, updatedAt, previousKey);
+    }
+  });
+
+  if (fixed) {
+    await invalidateHistoryDerivedCaches();
+    console.log(`[dataRepo] backfillMissingEpisodeSeasons: recovered ${fixed} of ${rows.length} season numbers`);
+  }
+  return fixed;
 }
 
 export async function backfillUnknownShowTitles() {

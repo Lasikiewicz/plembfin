@@ -163,20 +163,40 @@ function isCachedStorageUrl(value = "") {
   return raw.startsWith("/media/posters/") || raw.startsWith("/media/backdrops/");
 }
 
-async function normalizeWebhook(req) {
+function parseJsonWebhookBody(json) {
+  const customPayload = parseCustomWebhook(json);
+  if (customPayload.isValid) return customPayload;
+  const embyPayload = parseEmbyWebhook(json);
+  if (embyPayload.isValid || json?.Event) return embyPayload;
+  return parseJellyfinWebhook(json);
+}
+
+export async function normalizeWebhook(req) {
   const contentType = req.get("content-type") || "";
   if (contentType.includes("multipart/form-data") || contentType.includes("application/x-www-form-urlencoded")) {
     return parsePlexWebhook(await readFormData(req));
   }
+  // A body that claims to be JSON and isn't is a real client error, so let
+  // readJson's 400 through rather than quietly treating it as unrecognised.
   if (contentType.includes("application/json")) {
-    const json = await readJson(req);
-    const customPayload = parseCustomWebhook(json);
-    if (customPayload.isValid) return customPayload;
-    const embyPayload = parseEmbyWebhook(json);
-    if (embyPayload.isValid || json?.Event) return embyPayload;
-    return parseJellyfinWebhook(json);
+    return parseJsonWebhookBody(await readJson(req));
   }
-  // Nothing here can be parsed, so capture enough to identify the sender. A
+
+  // Otherwise judge the body, not the header. Jellyfin's webhook plugin posts
+  // valid JSON labelled `text/plain`, so trusting the declared content type
+  // silently drops every event it sends — including the mark-played and
+  // mark-unplayed events that unwatch propagation depends on.
+  let sniffed = null;
+  try {
+    sniffed = await readJson(req);
+  } catch {
+    sniffed = null;
+  }
+  if (sniffed && typeof sniffed === "object" && Object.keys(sniffed).length) {
+    return parseJsonWebhookBody(sniffed);
+  }
+
+  // The body is not JSON either, so capture enough to identify the sender. A
   // rejected webhook is otherwise anonymous, and "some server keeps posting
   // something" is not a diagnosable report.
   return {

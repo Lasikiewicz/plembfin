@@ -80,3 +80,40 @@ test("Fix Match without a new name still repoints the ids", async () => {
   assert.equal(row.title, "Mystery Show - S02E05");
   assert.equal(row.tvdb_id, "999111");
 });
+
+test("Fix Match rebuilds the media key and moves playstate with it", async () => {
+  const id = await insertEpisode("Mis-Matched Show - S01E01", 1, 1);
+
+  const before = await repo.getWatchRecordById(id);
+  await repo.upsertPlaystateForMedia(
+    {
+      title: before.title,
+      type: "episode",
+      season: 1,
+      episode: 1,
+      ids: { tvdb: before.tvdb_id || undefined },
+      isValid: true,
+    },
+    "watched",
+    before.watched_at,
+  );
+  const beforeKey = before.media_key;
+
+  await repo.rematchShowWatchRecords({ id, tvdbId: "424242", newShowTitle: "Correct Show" });
+
+  const after = await repo.getWatchRecordById(id);
+  assert.notEqual(after.media_key, beforeKey, "the key must follow the new identity");
+  assert.match(after.media_key, /tvdb:424242/, "the rebuilt key uses the show that was picked");
+  assert.equal(after.tmdb_id || "", "", "ids from the wrong match are cleared");
+  assert.equal(after.imdb_id || "", "");
+
+  // The watched state has to be findable under the new key, not stranded on the old one.
+  const playstate = await repo.getPlaystateForMedia({
+    title: after.title,
+    type: "episode",
+    season: 1,
+    episode: 1,
+    ids: { tvdb: "424242" },
+  });
+  assert.equal(playstate?.state, "watched", "playstate follows the key migration");
+});

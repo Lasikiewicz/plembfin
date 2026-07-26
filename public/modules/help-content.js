@@ -176,7 +176,7 @@ export function jellyfinWebhookSetup() {
         <li>Under <b>Notification Type</b>, check: <code>Playback Start</code>, <code>Playback Progress</code>, <code>Playback Stop</code>, <code>User Data Saved</code>.</li>
         <li>Under <b>Item Type</b>, select: <code>Movies</code>, <code>Episodes</code>. Leave the other notification types and item types unticked — Plembfin ignores them.</li>
         <li>Check <b>Send All Properties (ignores template)</b> so resume position fields are included.</li>
-        <li>The request has to arrive as JSON. If you use a custom template instead of Send All Properties, set the destination's content type to <code>application/json</code> — anything else is rejected and logged in Sync History as <code>Unsupported webhook content type</code>.</li>
+        <li>The body has to be JSON, but the content type does not matter — Jellyfin labels its payloads <code>text/plain</code> and Plembfin reads them anyway. A body that is not JSON is logged in Sync History as <code>Unsupported webhook content type</code>, along with the sender that posted it.</li>
       </ul>
     </div>
   `;

@@ -4,7 +4,7 @@ import { createSyncPlanRecord } from "./utils/syncPlans.js";
 import { getCachedHistory } from "./utils/dataRepo.js";
 import { loadMediaConfig } from "./utils/configStore.js";
 import { runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener, restartPlexNotificationListener } from "./scheduler.js";
-import { backfillUnknownShowTitles } from "./utils/dataRepo.js";
+import { backfillUnknownShowTitles, backfillMissingEpisodeSeasons } from "./utils/dataRepo.js";
 import { db } from "./db.js";
 import { setRuntimeState } from "./utils/configStore.js";
 import {
@@ -63,6 +63,7 @@ export function createWorkerCoordinator({ holderId, role }) {
     console.log(`[worker] scheduler leadership acquired (generation ${lease.generation})`);
     startPlexNotificationListener();
     await backfillUnknownShowTitles().catch((error) => console.error("backfillUnknownShowTitles failed", error));
+    await backfillMissingEpisodeSeasons().catch((error) => console.error("backfillMissingEpisodeSeasons failed", error));
     later(runTick, FIRST_TICK_MS);
   }
 

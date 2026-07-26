@@ -76,12 +76,18 @@ before it can trigger another round.
 Results are written back as `sync_dispatch_telemetry` on the watch record and into
 the `sync_history` SQLite table.
 
-**Rejected requests:** a request no parser can handle is recorded in `sync_history`
-as `Unsupported webhook content type` with its `contentType`, `userAgent`, and the
-first 300 bytes of its body in `rawPayloadDebug`. That is enough to identify which
-server sent it and why it was refused. The usual cause is a media server configured
-to post events Plembfin does not consume, or a Jellyfin generic destination using a
-custom template without `application/json` as its content type.
+**Content type is not trusted.** `normalizeWebhook` routes multipart and form-encoded
+bodies to the Plex parser, and everything else is judged by whether the body parses as
+JSON — not by the declared content type. Jellyfin's webhook plugin posts valid JSON
+labelled `text/plain`, so a header-based check would drop every event it sends,
+including the mark-played and mark-unplayed events unwatch propagation depends on. A
+body that *declares* `application/json` and is malformed is still a 400, because that is
+a genuine client error rather than an unrecognised sender.
+
+**Rejected requests:** a body that is not JSON at all is recorded in `sync_history` as
+`Unsupported webhook content type` with its `contentType`, `userAgent`, and the first
+300 bytes of the body in `rawPayloadDebug` — enough to identify which server sent it and
+why it was refused.
 
 ## Rewatch detection
 

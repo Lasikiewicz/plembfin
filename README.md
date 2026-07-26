@@ -275,7 +275,7 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 3.  Set the URL to the full webhook URL (with `?token=`) from **Settings → Webhooks**.
 4.  Under **Notification Type**, check: `Playback Start`, `Playback Progress`, `Playback Stop`, `User Data Saved`.
 5.  Under **Item Type**, select: `Movies`, `Episodes`. Leave the other notification and item types unticked.
-6.  Check **Send All Properties (ignores template)** and save. The request must arrive as JSON — if you use a custom template instead, set the destination's content type to `application/json`, or the request is rejected and logged in Sync History as `Unsupported webhook content type`.
+6.  Check **Send All Properties (ignores template)** and save. The body must be JSON, but the content type does not matter — Jellyfin labels its payloads `text/plain` and Plembfin reads them anyway.
 
 ---
 
