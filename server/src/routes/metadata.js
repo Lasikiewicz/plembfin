@@ -915,7 +915,8 @@ export async function handleUpcoming(req, res) {
   try {
     const requested = String(req.query.month || "").trim();
     const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : new Date().toISOString().slice(0, 7);
-    const payload = await getUpcomingCalendarMonth(month);
+    const refresh = ["1", "true", "yes"].includes(String(req.query.refresh || "").toLowerCase());
+    const payload = await getUpcomingCalendarMonth(month, { refresh });
     return sendJson(res, payload);
   } catch (error) {
     return sendJson(res, { error: error.message }, error.status || 500);

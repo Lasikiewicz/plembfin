@@ -677,10 +677,11 @@ export async function getCachedMovies() {
   return rows;
 }
 
-export async function getCachedShows() {
+export async function getCachedShows({ includeScheduledLibraryHistory = false } = {}) {
   const version = getDataVersion();
-  if (showCache.version === version && showCache.shows.length > 0) return showCache.shows;
-  const episodeRows = (await getCachedHistory()).filter((r) => r.media_type === "episode" && isPlembfinTrackedWatchRow(r));
+  if (!includeScheduledLibraryHistory && showCache.version === version && showCache.shows.length > 0) return showCache.shows;
+  const episodeRows = (await getCachedHistory()).filter((r) => r.media_type === "episode"
+    && (includeScheduledLibraryHistory ? isWatchedAction(r) : isPlembfinTrackedWatchRow(r)));
   const groups = groupShowRows(dedupeHistory(episodeRows));
   const shows = groups.map((group) => {
     const showKey = canonicalTitleKey(group.title) || normalizeKeyPart(group.title);
@@ -716,7 +717,7 @@ export async function getCachedShows() {
       total_episodes: cachedProgress?.total_episodes || 0,
     };
   });
-  showCache = { version, shows };
+  if (!includeScheduledLibraryHistory) showCache = { version, shows };
   return shows;
 }
 

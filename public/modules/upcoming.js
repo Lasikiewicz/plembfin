@@ -356,7 +356,8 @@ export async function loadUpcoming({ revalidateMonth = "" } = {}) {
     renderUpcoming();
     try {
       for (const month of monthsToFetch) {
-        const response = await fetch(`/api/upcoming?month=${encodeURIComponent(month)}`, { headers: authHeaders() });
+        const refresh = month === staleMonth ? "&refresh=1" : "";
+        const response = await fetch(`/api/upcoming?month=${encodeURIComponent(month)}${refresh}`, { headers: authHeaders() });
         if (!response.ok) throw new Error("Failed to load upcoming episodes");
         const payload = await response.json();
         state.upcomingByMonth.set(month, Array.isArray(payload.episodes) ? payload.episodes : []);

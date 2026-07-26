@@ -89,7 +89,10 @@ function currentMonth() {
 }
 
 function showKey(show) {
-  return String(show?.tmdb_id || "").trim();
+  const tmdbId = String(show?.tmdb_id || "").trim();
+  if (tmdbId) return `tmdb:${tmdbId}`;
+  const title = String(show?.title || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return title ? `title:${title}` : "";
 }
 
 function uniqueTrackedShows(shows) {
@@ -120,7 +123,10 @@ async function collectMonth(month, { shows: suppliedShows = null, prefilterFutur
   const thisMonth = currentMonth();
   const isHistoricalMonth = month < thisMonth;
   const includesHistory = month <= thisMonth;
-  const [allShows, airingCache] = await Promise.all([suppliedShows || getCachedShows(), readNextAiringCache()]);
+  const [allShows, airingCache] = await Promise.all([
+    suppliedShows || getCachedShows({ includeScheduledLibraryHistory: true }),
+    readNextAiringCache(),
+  ]);
   const trackedShows = uniqueTrackedShows(allShows);
   const queue = trackedShows.filter((show) => {
     if (!includesHistory && prefilterFuture) {
@@ -139,7 +145,10 @@ async function collectMonth(month, { shows: suppliedShows = null, prefilterFutur
       const maxSeason = Math.max(0, ...(details?.seasons || []).map((season) => Number(season.season_number) || 0));
       const seasonNumbers = isHistoricalMonth
         ? [...new Set((details?.seasons || []).map((season) => Number(season.season_number) || 0))].filter((value) => value > 0)
-        : [...new Set([maxSeason, maxSeason + 1])].filter((value) => value > 0);
+        // Metadata can contain an empty placeholder for the next season while
+        // the currently airing episodes still belong to maxSeason - 1 (Silo
+        // has an empty Season 4 while Season 3 airs in July/August 2026).
+        : [...new Set([maxSeason - 1, maxSeason, maxSeason + 1])].filter((value) => value > 0);
       for (const seasonNumber of seasonNumbers) {
         const season = await getTvdbSeasonEpisodes({ tvdbId, seasonNumber }).catch(() => null);
         for (const episode of season?.episodes || []) {
@@ -149,7 +158,7 @@ async function collectMonth(month, { shows: suppliedShows = null, prefilterFutur
             airDate,
             showTitle: show.title,
             showId: show.id,
-            tmdbId: String(show.tmdb_id),
+            tmdbId: String(details?.id || show.tmdb_id || ""),
             tvdbId,
             posterUrl: show.poster_url || "",
             posterRecordId: show.representative_episode?.id || "",
@@ -182,7 +191,9 @@ async function buildAndStoreMonth(month) {
   return promise;
 }
 
-export async function getUpcomingCalendarMonth(month) {
+export async function getUpcomingCalendarMonth(month, { refresh = false } = {}) {
+  if (refresh) return (await buildAndStoreMonth(month)).payload;
+
   const cache = await readCache();
   const entry = cache.months[month];
   if (!entry?.payload) return (await buildAndStoreMonth(month)).payload;
@@ -190,7 +201,7 @@ export async function getUpcomingCalendarMonth(month) {
   // Library-derived shows can change at any time. Add only newly tracked shows
   // to an existing month so the calendar updates immediately without rebuilding
   // every show and season already represented in the local cache.
-  const trackedShows = uniqueTrackedShows(await getCachedShows());
+  const trackedShows = uniqueTrackedShows(await getCachedShows({ includeScheduledLibraryHistory: true }));
   const covered = new Set(entry.showKeys || []);
   const missingShows = trackedShows.filter((show) => !covered.has(showKey(show)));
   if (!missingShows.length) return entry.payload;

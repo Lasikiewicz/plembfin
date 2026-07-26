@@ -464,7 +464,20 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
     const cached = metaGet(initialCacheId);
     if (!force && cacheSatisfies(cached, { light })) return cached.details;
     try {
-      const extended = await getTvdbSeriesExtended(tvdbId, { force: forceTvdb });
+      // Older library records can carry a TVDB episode ID rather than the
+      // series ID. If that ID cannot be loaded as a series, resolve the series
+      // from the title so calendar/season lookups still work (for example,
+      // Silo's stored episode IDs are 11751879+ while its series ID is 403245).
+      let seriesTvdbId = tvdbId;
+      let extended;
+      try {
+        extended = await getTvdbSeriesExtended(seriesTvdbId, { force: forceTvdb });
+      } catch (error) {
+        const fallbackSeriesId = title && await resolveTvdbSeriesId({ title });
+        if (!fallbackSeriesId || fallbackSeriesId === seriesTvdbId) throw error;
+        seriesTvdbId = fallbackSeriesId;
+        extended = await getTvdbSeriesExtended(seriesTvdbId, { force: forceTvdb });
+      }
       const shaped = shapeTvdbSeriesAsTmdb(extended);
       let resolvedTmdbId = String(tmdbId || shaped.external_ids.tmdb_id || "");
 
@@ -483,7 +496,7 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
         }
       }
 
-      const cacheId = resolvedTmdbId ? `tv_${resolvedTmdbId}` : `tv_tvdb_${tvdbId}`;
+      const cacheId = resolvedTmdbId ? `tv_${resolvedTmdbId}` : `tv_tvdb_${seriesTvdbId}`;
       if (!force && cacheId !== initialCacheId) {
         const resolvedCached = metaGet(cacheId);
         // A tmdb_id cache slot can hold a doc for a *different* show than the one
@@ -491,7 +504,7 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
         // remoteIds mapping and cached its title-search fallback under this same
         // tmdb id). Only reuse it when it actually corresponds to this tvdbId,
         // or a show rematched away from that tmdb id would keep serving forever.
-        if (cacheSatisfies(resolvedCached, { light }) && String(resolvedCached.details?.external_ids?.tvdb_id || "") === tvdbId) {
+        if (cacheSatisfies(resolvedCached, { light }) && String(resolvedCached.details?.external_ids?.tvdb_id || "") === seriesTvdbId) {
           return resolvedCached.details;
         }
       }
@@ -534,11 +547,11 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
         }
         details.details_light = true;
       } else {
-        const nextAiring = await deriveNextAiring(details, tvdbId);
+        const nextAiring = await deriveNextAiring(details, seriesTvdbId);
         if (nextAiring) details.next_airing_date = nextAiring;
         else delete details.next_airing_date;
 
-        Object.assign(details, await cacheCanonicalArtwork("tv", resolvedTmdbId || `tvdb-${tvdbId}`, details));
+        Object.assign(details, await cacheCanonicalArtwork("tv", resolvedTmdbId || `tvdb-${seriesTvdbId}`, details));
       }
       metaSet(cacheId, { tmdbId: resolvedTmdbId, mediaType: "tv", details, schemaVersion: DETAILS_SCHEMA_VERSION, updatedAtMs: Date.now() });
       return details;
