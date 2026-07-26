@@ -1,7 +1,24 @@
 {
-  "version": "0.6.12",
-  "updatedAt": "2026-07-26T13:17:39+01:00",
+  "version": "0.6.13",
+  "updatedAt": "2026-07-26T19:37:32+01:00",
   "entries": [
+    {
+      "version": "0.6.13",
+      "date": "2026-07-26T19:37:32+01:00",
+      "commit": "f629f444821dde5081ccf3cef48a2e2d4163e949",
+      "message": "Fix - Keep history posters at 2:3 when cards stack on small screens",
+      "author": "Lasikiewicz",
+      "details": [
+        "Watches synced out to Emby, Jellyfin or Plex no longer come back hours later as new watches dated at the time the echo arrived",
+        "A bare 'marked played' event from Emby or Jellyfin no longer counts as a rewatch for something already watched; only real playback does",
+        "When such an event does record a first watch, it is dated from the media server's own last-played time instead of the moment it was received",
+        "Library polling and the Plex notification listener now recognise a played flag that Plembfin itself wrote, instead of reading it back as a fresh play",
+        "Plex polling repairs a drifted watched state in place rather than filing a second watch for the same play",
+        "A playback session left in the live cache is dated from when it was last seen playing, not from the tick that noticed it had gone",
+        "History posters keep their 2:3 shape on narrow screens instead of stretching when the card's details wrap",
+        "History posters no longer flatten to a square on phone-width screens, where the stacked card layout was pinning their height instead of their width"
+      ]
+    },
     {
       "version": "0.6.12",
       "date": "2026-07-26T13:17:39+01:00",
