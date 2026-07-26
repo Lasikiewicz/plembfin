@@ -1,7 +1,17 @@
 {
-  "version": "0.6.10",
-  "updatedAt": "2026-07-26T11:36:42+01:00",
+  "version": "0.6.11",
+  "updatedAt": "2026-07-26T12:04:46+01:00",
   "entries": [
+    {
+      "version": "0.6.11",
+      "date": "2026-07-26T12:04:46+01:00",
+      "commit": "9ce7b49c5099d4e23a8a880e28325b46626f841a",
+      "message": "Fix - Include future episodes in upcoming calendar",
+      "author": "Lasikiewicz",
+      "details": [
+        "Upcoming now includes future episodes from watched library-history records, title-only shows, and active seasons before a placeholder next season."
+      ]
+    },
     {
       "version": "0.6.10",
       "date": "2026-07-26T11:36:42+01:00",
