@@ -4,6 +4,7 @@ import { createSyncPlanRecord } from "./utils/syncPlans.js";
 import { getCachedHistory } from "./utils/dataRepo.js";
 import { loadMediaConfig } from "./utils/configStore.js";
 import { runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener, restartPlexNotificationListener } from "./scheduler.js";
+import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
 import { backfillUnknownShowTitles, backfillMissingEpisodeSeasons } from "./utils/dataRepo.js";
 import { db } from "./db.js";
 import { setRuntimeState } from "./utils/configStore.js";
@@ -64,6 +65,10 @@ export function createWorkerCoordinator({ holderId, role }) {
     startPlexNotificationListener();
     await backfillUnknownShowTitles().catch((error) => console.error("backfillUnknownShowTitles failed", error));
     await backfillMissingEpisodeSeasons().catch((error) => console.error("backfillMissingEpisodeSeasons failed", error));
+    // Warm the persisted Upcoming snapshot as soon as this process becomes the
+    // scheduler leader. The refresh is intentionally detached so leadership
+    // renewal and the HTTP server remain responsive while metadata is fetched.
+    later(() => refreshUpcomingCalendarCache({ forceCurrent: true }), 0);
     later(runTick, FIRST_TICK_MS);
   }
 

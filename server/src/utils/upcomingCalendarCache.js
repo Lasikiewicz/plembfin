@@ -241,7 +241,7 @@ export async function getUpcomingCalendarMonth(month, { refresh = false, revalid
   return payload;
 }
 
-export async function refreshUpcomingCalendarCache() {
+export async function refreshUpcomingCalendarCache({ forceCurrent = false } = {}) {
   const cache = await readCache();
   const anchor = currentMonth();
   const historicalMonths = Array.from({ length: BACKGROUND_HISTORY_MONTHS }, (_, index) => addMonths(anchor, -(index + 1)));
@@ -256,7 +256,12 @@ export async function refreshUpcomingCalendarCache() {
   } else {
     month = missingHistorical || missingFuture;
   }
-  if (!month) {
+  if (forceCurrent) {
+    // A restart is a useful freshness boundary: refresh the month users land
+    // on immediately, even when its normal six-hour check has not elapsed.
+    // The persisted payload is still served while this rebuild is in flight.
+    month = anchor;
+  } else if (!month) {
     month = futureMonths
       .filter((candidate) => Date.now() - Number(checkedAtByMonth.get(candidate) || cache.months[candidate]?.builtAt || 0) >= FUTURE_CHECK_INTERVAL_MS)
       .sort((a, b) => Number(checkedAtByMonth.get(a) || cache.months[a]?.builtAt || 0)
