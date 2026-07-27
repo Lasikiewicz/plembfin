@@ -1,7 +1,17 @@
 {
-  "version": "0.6.39",
-  "updatedAt": "2026-07-27T15:28:51+01:00",
+  "version": "0.6.40",
+  "updatedAt": "2026-07-27T16:19:00+01:00",
   "entries": [
+    {
+      "version": "0.6.40",
+      "date": "2026-07-27T16:19:00+01:00",
+      "commit": "66a18a75e1ed20a240e247b0e81d772f3d7d8943",
+      "message": "Fix - Exclude episodes from show search results",
+      "author": "Lasikiewicz",
+      "details": [
+        "The global search TV Shows column now contains actual shows only, never individual episode history rows."
+      ]
+    },
     {
       "version": "0.6.39",
       "date": "2026-07-27T15:28:51+01:00",
