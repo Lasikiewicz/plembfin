@@ -1,7 +1,22 @@
 {
-  "version": "0.6.35",
-  "updatedAt": "2026-07-27T14:34:15+01:00",
+  "version": "0.6.36",
+  "updatedAt": "2026-07-27T14:47:38+01:00",
   "entries": [
+    {
+      "version": "0.6.36",
+      "date": "2026-07-27T14:47:38+01:00",
+      "commit": "033455d5b2dfa54326c5c51c000658039782df24",
+      "message": "Feature - Mark newly added media watched and list only unidentified media in the match report",
+      "author": "Lasikiewicz",
+      "details": [
+        "Media that a server is simply missing is no longer listed in the Cross-Platform Match Report; the watch is recorded correctly and there was nothing to act on",
+        "The report now lists only media Plembfin could not identify, which is the one case picking a title actually fixes",
+        "When a media server announces newly added content you have already watched, it is now marked watched on that server as it arrives, instead of waiting for a Force Sync",
+        "Catch-up only ever applies an existing watch to the server that added the item, and never creates watch history, so a library scan cannot invent a play",
+        "Items with no watch record, items you marked unwatched, and platforms not set to receive watched state are left untouched",
+        "Webhook setup help and docs now cover the library-add notification each server needs for this"
+      ]
+    },
     {
       "version": "0.6.35",
       "date": "2026-07-27T14:34:15+01:00",
