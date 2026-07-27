@@ -1,7 +1,18 @@
 {
-  "version": "0.6.22",
-  "updatedAt": "2026-07-26T22:25:35+01:00",
+  "version": "0.6.23",
+  "updatedAt": "2026-07-27T09:43:51+01:00",
   "entries": [
+    {
+      "version": "0.6.23",
+      "date": "2026-07-27T09:43:51+01:00",
+      "commit": "f725da311ba347824fbc6da7a80fdf767b24f3e8",
+      "message": "Fix - Audit phantom watch history globally",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add a read-only maintenance audit for suspicious watch-history echoes across keys, IDs, and episode identities",
+        "Include all canonical movie watch dates in the edit dialog"
+      ]
+    },
     {
       "version": "0.6.22",
       "date": "2026-07-26T22:25:35+01:00",
