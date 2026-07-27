@@ -4145,14 +4145,21 @@ details.issue-category {
   max-width: 100% !important;
   align-self: stretch !important;
   box-sizing: border-box !important;
-}
-
-details.sync-tool-details {
   border: 1px solid var(--line-strong) !important;
   border-radius: var(--radius) !important;
-  background: rgba(255, 255, 255, 0.03) !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
+  background: var(--panel-2) !important;
+}
+
+details.sync-match-report:not([open]),
+details.sync-tool-details:not([open]),
+details.issue-category:not([open]) {
+  background: var(--panel-2) !important;
+}
+
+details.sync-match-report[open],
+details.sync-tool-details[open],
+details.issue-category[open] {
+  background: rgba(255, 255, 255, 0.02) !important;
 }
 
 details.sync-tool-details > summary.accordion-header {
