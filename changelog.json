@@ -1,7 +1,17 @@
 {
-  "version": "0.6.24",
-  "updatedAt": "2026-07-27T09:48:44+01:00",
+  "version": "0.6.25",
+  "updatedAt": "2026-07-27T09:54:26+01:00",
   "entries": [
+    {
+      "version": "0.6.25",
+      "date": "2026-07-27T09:54:26+01:00",
+      "commit": "27b0920f751e06ee5df622b99779405687fc1f8b",
+      "message": "Fix - Remove duplicate database repairs heading",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep the disclosure title as the single Database Repairs heading"
+      ]
+    },
     {
       "version": "0.6.24",
       "date": "2026-07-27T09:48:44+01:00",
