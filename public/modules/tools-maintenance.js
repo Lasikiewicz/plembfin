@@ -558,6 +558,38 @@ export async function runDedupHistory() {
   }
 }
 
+export async function runPhantomWatchAudit() {
+  const button = elements.phantomAuditButton;
+  const status = elements.phantomAuditStatus;
+  const log = elements.phantomAuditLog;
+  if (!button) return;
+  button.disabled = true;
+  button.textContent = "Auditing...";
+  setStatusPill(status, "Scanning history...", "warning");
+  if (log) { log.classList.remove("hidden"); log.textContent = ""; }
+  try {
+    const response = await fetch("/api/phantom-watch-audit", { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    const summary = `Scanned ${Number(body.scanned || 0).toLocaleString()} rows. Found ${Number(body.candidate_groups || 0)} suspicious group(s): ${Number(body.high_confidence_groups || 0)} high-confidence, ${Number(body.review_groups || 0)} review. No records changed.`;
+    setStatusPill(status, body.candidate_groups ? `${body.candidate_groups} candidate(s)` : "No candidates", body.candidate_groups ? "warning" : "ready");
+    if (log) {
+      log.textContent = summary + (body.candidates || []).slice(0, 20).map((item) => {
+        const first = item.records?.[0] || {}; const last = item.records?.at(-1) || {};
+        return `\n[${item.confidence}] ${first.title || first.show_title || "Unknown"} — ${first.watched_at} → ${last.watched_at} (${item.reason}, ${item.gap_seconds}s)`;
+      }).join("");
+    }
+    return body;
+  } catch (error) {
+    setStatusPill(status, `Audit failed: ${error.message}`, "error");
+    if (log) log.textContent = error.message;
+    throw error;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Run Phantom Audit";
+  }
+}
+
 export async function runTraktBackfill() {
   const button = elements.traktBackfillButton;
   const status = elements.traktBackfillStatus;

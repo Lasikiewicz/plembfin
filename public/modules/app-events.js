@@ -831,6 +831,14 @@ function attachEvents() {
     });
   }
 
+  if (elements.phantomAuditButton) {
+    elements.phantomAuditButton.addEventListener("click", () => {
+      _cb.runPhantomWatchAudit?.().catch((error) => {
+        if (elements.phantomAuditStatus) elements.phantomAuditStatus.textContent = `Error: ${error?.message || String(error)}`;
+      });
+    });
+  }
+
   if (elements.refreshMetadataButton) {
     elements.refreshMetadataButton.addEventListener("click", () => {
       runRefreshMetadataWorkflow().catch((error) => {

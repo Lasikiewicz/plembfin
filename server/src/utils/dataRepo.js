@@ -1087,11 +1087,12 @@ function siblingWatchRowsFor(existing = {}) {
     const providerClusters = new Set([...parent.keys()].map(find));
     return allMovies.filter((row) => {
       if (row.id === existing.id) return false;
+      const sharesMediaKey = existing.media_key && row.media_key === existing.media_key;
       const sharesProviderId = ids.some((id) => [row.imdb_id, row.tmdb_id, row.tvdb_id]
         .map(cleanString)
         .includes(id));
       const isUnambiguousTitleMatch = titleKey && canonicalTitleKey(row.title) === titleKey && providerClusters.size === 1;
-      return sharesProviderId || isUnambiguousTitleMatch;
+      return sharesMediaKey || sharesProviderId || isUnambiguousTitleMatch;
     });
   }
 

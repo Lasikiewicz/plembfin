@@ -179,3 +179,24 @@ test("stats merge title-only movie plays into one provider identity", async () =
   const dateEditorRows = await repo.getWatchDatesForRecord(firstPlayId);
   assert.equal(dateEditorRows.rows.length, 3);
 });
+
+test("watch-date editor includes title-only movie rows sharing the canonical media key", async () => {
+  const firstPlayId = await insert({
+    title: "Canonical Key Movie",
+    media_type: "movie",
+    watched_at: "2026-03-01T12:00:00.000Z",
+    source: "plex",
+  });
+  await insert({
+    title: "Canonical Key Movie",
+    media_type: "movie",
+    watched_at: "2026-03-02T12:00:00.000Z",
+    source: "plex",
+  });
+
+  const dateEditorRows = await repo.getWatchDatesForRecord(firstPlayId);
+  assert.deepEqual(dateEditorRows.rows.map((row) => row.watched_at), [
+    "2026-03-01T12:00:00.000Z",
+    "2026-03-02T12:00:00.000Z",
+  ]);
+});

@@ -89,6 +89,7 @@ import {
   backfillUnknownShowTitles,
   clearWatchArtworkUrls,
 } from "../utils/dataRepo.js";
+import { auditPhantomWatchHistory } from "../utils/phantomWatchAudit.js";
 
 function imagePath(path, params = {}) {
   const cleanPath = String(path || "").trim();
@@ -416,6 +417,14 @@ export async function handleDedupHistory(req, res) {
     log(`ERROR: Dedup failed: ${error.message}`);
     res.end();
   }
+}
+
+export async function handlePhantomWatchAudit(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const result = auditPhantomWatchHistory(db);
+  return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
 }
 
 export function handlePing(req, res) {

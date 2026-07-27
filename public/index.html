@@ -485,6 +485,7 @@
                           <p>Account</p>
                           <span>Local username and password session</span>
                         </div>
+
                       </div>
                       <form id="adminCredentialsForm" class="admin-credentials-form" autocomplete="off" data-lpignore="true" data-1p-ignore="true">
                         <label class="field-label" for="settingsUsername">
@@ -911,6 +912,22 @@
                             <div id="dedupHistoryLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Dedup log will appear here.</div>
                             <div class="settings-actions" style="margin-top: var(--space-2);">
                               <button id="dedupHistoryButton" class="button-ghost" type="button">Clean Duplicates</button>
+                            </div>
+                          </div>
+                        </div>
+                        <!-- Inner Box 3: Phantom Watch Audit -->
+                        <div id="phantom-watch-audit" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
+                          <div class="tool-item-row">
+                            <div class="tool-item-meta">
+                              <div class="tool-item-title-desc">
+                                <b>Audit Phantom Watches</b>
+                                <span>Finds suspicious platform duplicates across media keys, provider IDs, and title/episode identities. Read-only; nothing is deleted.</span>
+                              </div>
+                              <span id="phantomAuditStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <div id="phantomAuditLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Audit results will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="phantomAuditButton" class="button-ghost" type="button">Run Phantom Audit</button>
                             </div>
                           </div>
                         </div>
