@@ -1,7 +1,19 @@
 {
-  "version": "0.6.27",
-  "updatedAt": "2026-07-27T12:01:50+01:00",
+  "version": "0.6.28",
+  "updatedAt": "2026-07-27T12:05:53+01:00",
   "entries": [
+    {
+      "version": "0.6.28",
+      "date": "2026-07-27T12:05:53+01:00",
+      "commit": "08bd8bba37719070a171b80006ebab67e4a402db",
+      "message": "style: unify collapsible box backgrounds with settings cards when closed",
+      "author": "Lasikiewicz",
+      "details": [
+        "Set closed accordion background color to match the surrounding settings card glassmorphic panel tone",
+        "Ensured details.sync-tool-details, details.sync-match-report, and details.issue-category seamlessly integrate into cards when collapsed",
+        "Maintained subtle background contrast when accordion boxes are expanded to expose controls"
+      ]
+    },
     {
       "version": "0.6.27",
       "date": "2026-07-27T12:01:50+01:00",
