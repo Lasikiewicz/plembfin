@@ -247,6 +247,16 @@ export async function fetchSyncMatchReport() {
   return body.report || { scannedRows: 0, totalUnmatchedRows: 0, platforms: {} };
 }
 
+// A media key ends in the identifier the record was keyed by: `imdb:tt…`,
+// `tmdb:…`, `tvdb:…`, or `title:…` when no provider id was ever resolved. Only
+// the title-keyed ones can be answered by picking a search result; the rest
+// already know what they are.
+function identityIsUnresolved(sample = {}) {
+  const key = String(sample.media_key || "");
+  if (!key) return true;
+  return !/:(imdb|tmdb|tvdb):/.test(key);
+}
+
 function matchReportSampleLabel(sample = {}) {
   if (sample.media_type === "episode") {
     const show = sample.show_title || sample.title || "Unknown show";
@@ -331,10 +341,17 @@ export async function triggerFixAllMatches(platformTarget = "all", button) {
       await _loadSyncJobs({ force: true });
       await _loadSyncHistory({ force: true });
 
+      // Only items whose identity is unresolved are answerable by hand. An item
+      // that already carries a provider id is not unmatched because Plembfin
+      // picked the wrong title — it is unmatched because that library does not
+      // hold it, and no search result can change that.
+      const matchable = manualQueue.filter(identityIsUnresolved);
+      const libraryGaps = manualQueue.filter((sample) => !identityIsUnresolved(sample));
+
       // Group TV show episodes so matching 1 episode fixes the entire show at once
       const groupedManualQueue = [];
       const seenShows = new Set();
-      for (const sample of manualQueue) {
+      for (const sample of matchable) {
         if (sample.media_type === "episode") {
           const showKey = (sample.show_title || sample.title || "").toLowerCase().trim();
           if (showKey && seenShows.has(showKey)) continue;
@@ -343,13 +360,22 @@ export async function triggerFixAllMatches(platformTarget = "all", button) {
         groupedManualQueue.push(sample);
       }
 
+      const gapNote = libraryGaps.length
+        ? ` ${libraryGaps.length} item(s) are already identified correctly and are missing from the library instead — add them there, or stop syncing that platform for them.`
+        : "";
+
       if (!groupedManualQueue.length) {
-        _setMessage(`Successfully fixed all ${autoSuccessCount} unmatched items automatically!`, "success");
+        _setMessage(
+          libraryGaps.length
+            ? `Auto-fix complete: ${autoSuccessCount} resolved. Nothing left to match by hand.${gapNote}`
+            : `Successfully fixed all ${autoSuccessCount} unmatched items automatically!`,
+          libraryGaps.length ? "warning" : "success",
+        );
         window.dispatchEvent(new Event("sync-match-report-refresh"));
         return;
       }
 
-      _setMessage(`Auto-fix complete: ${autoSuccessCount} resolved, ${groupedManualQueue.length} show(s)/item(s) require manual matching. Opening 1-by-1 manual matching...`, "warning");
+      _setMessage(`Auto-fix complete: ${autoSuccessCount} resolved, ${groupedManualQueue.length} show(s)/item(s) need a manual match. Opening 1-by-1 manual matching...${gapNote}`, "warning");
 
       presentManualMatchQueue(groupedManualQueue, 0, autoSuccessCount);
     }
@@ -413,6 +439,73 @@ function presentManualMatchQueue(queue, index, autoSuccessCount) {
   );
 }
 
+// Each row in the report comes from a watch record's stored sync telemetry, so
+// re-reading the report cannot clear an entry on its own — the record has to be
+// dispatched again first. Rescan re-runs the sync for every listed item and
+// rebuilds the report from the fresh results. Media a library genuinely does
+// not hold stays listed, because that is still true after the rescan.
+export async function triggerRescanMatchReport(button) {
+  let report;
+  try {
+    report = await fetchSyncMatchReport();
+  } catch (error) {
+    _setMessage(`Could not fetch match report: ${error.message}`, "error");
+    return;
+  }
+
+  const samples = Object.values(report.platforms || {}).flatMap((stats) => stats?.samples || []).filter((s) => s && s.id);
+  const uniqueSamples = Array.from(new Map(samples.map((item) => [item.id, item])).values());
+
+  if (!uniqueSamples.length) {
+    _setMessage("No unmatched items to rescan.", "info");
+    window.dispatchEvent(new Event("sync-match-report-refresh"));
+    return;
+  }
+
+  const originalText = button ? button.textContent : "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = `Rescanning 0/${uniqueSamples.length}...`;
+  }
+  _setMessage(`Rescanning ${uniqueSamples.length} unmatched item(s)...`, "info");
+
+  let resolved = 0;
+  for (let i = 0; i < uniqueSamples.length; i++) {
+    const sample = uniqueSamples[i];
+    try {
+      const res = await fetch("/api/retry-sync", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ id: sample.id, media_key: sample.media_key || "" }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (String(data.status || "").includes("success")) resolved += 1;
+      }
+    } catch { /* counted as still unmatched */ }
+
+    if (button) button.textContent = `Rescanning ${i + 1}/${uniqueSamples.length}...`;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+
+  if (button) {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+
+  await _loadSyncJobs({ force: true });
+  await _loadSyncHistory({ force: true });
+
+  const remaining = uniqueSamples.length - resolved;
+  _setMessage(
+    remaining
+      ? `Rescan complete: ${resolved} of ${uniqueSamples.length} item(s) now match. The remaining ${remaining} are still missing from those libraries — add them there, or correct their metadata, to clear them.`
+      : `Rescan complete: all ${resolved} item(s) now match.`,
+    remaining ? "warning" : "success",
+  );
+  window.dispatchEvent(new Event("sync-match-report-refresh"));
+}
+
 export function renderSyncMatchReport(report = {}) {
   const platforms = ["plex", "emby", "jellyfin"]
     .map((platform) => ({ platform, stats: report.platforms?.[platform] }))
@@ -423,9 +516,12 @@ export function renderSyncMatchReport(report = {}) {
   }
 
   const globalHeader = `
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line);">
-      <span style="font-size: 0.85rem; color: var(--muted);">Cross-platform library matching found unmatched items across connected media servers.</span>
-      <button type="button" class="button-primary fix-all-matches-btn" data-platform="all" style="font-size: 0.8rem; padding: 0.35rem 0.85rem; white-space: nowrap;">Fix All Matches</button>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line);">
+      <span style="font-size: 0.85rem; color: var(--muted); flex: 1 1 12rem; min-width: 0;">Cross-platform library matching found unmatched items across connected media servers.</span>
+      <div style="display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; justify-content: flex-end;">
+        <button type="button" class="button-ghost rescan-matches-btn" title="Re-run the sync for every listed item and rebuild this report" style="font-size: 0.8rem; padding: 0.35rem 0.85rem; white-space: nowrap;">Rescan</button>
+        <button type="button" class="button-primary fix-all-matches-btn" data-platform="all" style="font-size: 0.8rem; padding: 0.35rem 0.85rem; white-space: nowrap;">Fix All Matches</button>
+      </div>
     </div>
   `;
 
@@ -459,7 +555,14 @@ export function renderSyncMatchReport(report = {}) {
                   <td style="padding: 0.3rem 0.5rem; word-break: break-word;">${escapeHtml(matchReportSampleLabel(sample))}</td>
                   <td style="padding: 0.3rem 0.5rem;">${escapeHtml(sample.media_type === "episode" ? "TV" : "Movie")}</td>
                   <td style="padding: 0.3rem 0.5rem; white-space: nowrap;">${escapeHtml(formatDate(sample.watched_at))}</td>
-                  <td style="padding: 0.3rem 0.5rem; color: var(--muted); word-break: break-word;">${escapeHtml(sample.detail || "")}</td>
+                  <td style="padding: 0.3rem 0.5rem; color: var(--muted); word-break: break-word;">
+                    ${identityIsUnresolved(sample)
+                      ? `Not identified — pick the right title to fix it.`
+                      : `Identified, but this library has no copy. Add it there, or stop syncing this platform for it.`}
+                    ${sample.detail && !/^no matching item found$/i.test(sample.detail.trim())
+                      ? `<span style="display: block; opacity: 0.75;">${escapeHtml(sample.detail)}</span>`
+                      : ""}
+                  </td>
                   <td style="padding: 0.3rem 0.5rem; white-space: nowrap;">
                     ${sample.id ? `<button type="button" class="button-ghost media-fix-match-btn" data-edit-id="${escapeAttribute(sample.id)}" data-title="${escapeAttribute(sample.media_type === "episode" ? sample.show_title || sample.title || "" : sample.title || "")}" data-media-type="${escapeAttribute(sample.media_type || "movie")}">Fix match</button>` : ""}
                   </td>
@@ -492,6 +595,11 @@ function initSyncMatchReport() {
   };
   details.addEventListener("toggle", loadReport);
   container.addEventListener("click", (event) => {
+    const rescanBtn = event.target.closest(".rescan-matches-btn");
+    if (rescanBtn) {
+      triggerRescanMatchReport(rescanBtn);
+      return;
+    }
     const fixAllBtn = event.target.closest(".fix-all-matches-btn");
     if (fixAllBtn) {
       const platform = fixAllBtn.dataset.platform || "all";

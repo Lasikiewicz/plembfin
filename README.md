@@ -235,7 +235,7 @@ Save and Test actions:
 
 #### Sync Tuning and Match Diagnostics
 *   **Settings → Sync** (or `/settings/sync-tuning`) controls the watched threshold, minimum resume position, active-session TTL, and default outbound timeout. Blank fields inherit their environment variable or built-in default.
-*   **Settings → Sync Issues** (or `/settings/sync-issues`) includes a Cross-Platform Match Report showing which media each target library could not match, with unique-media counts and representative samples for Plex, Emby, and Jellyfin.
+*   **Settings → Sync Issues** (or `/settings/sync-issues`) includes a Cross-Platform Match Report showing which media each target library could not match, with unique-media counts and representative samples for Plex, Emby, and Jellyfin. Each row says which of the two problems it is: media Plembfin never identified, which you fix by picking the right title, or media that is identified and simply absent from that library, which you fix by adding it there. **Rescan** re-runs the sync for the whole list and rebuilds the report; **Fix All Matches** does the same and then walks you through the rows a title match can actually repair.
 
 ---
 

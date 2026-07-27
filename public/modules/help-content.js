@@ -458,7 +458,7 @@ export function renderSettingsInlineHelp() {
   if (syncIssuesHelp) {
     syncIssuesHelp.innerHTML = `
       <b style="display: block; margin-bottom: var(--space-1);">Cross-Platform Match Report</b>
-      <p class="tool-accordion-desc" style="margin: 0;">The expandable report below Sync Issues groups current <code>No matching item found</code> results by target platform. Use its unique-media counts and samples to find items that are absent from a library or have mismatched metadata IDs.</p>
+      <p class="tool-accordion-desc" style="margin: 0;">The expandable report below Sync Issues groups current <code>No matching item found</code> results by target platform. Each row says whether the media was never identified — pick the right title to fix it — or is identified and simply absent from that library, which you fix by adding it there rather than by searching again. <b>Rescan</b> re-runs the sync for every listed item and rebuilds the report; <b>Fix All Matches</b> does the same, then walks through only the rows a title match can repair.</p>
     `;
   }
 }

@@ -161,7 +161,9 @@ seconds respectively.
   The Sync Issues panel also contains the Cross-Platform Match Report (backed by the
   admin-guarded `GET /api/sync-match-report` endpoint), which groups every
   "no matching item found" sync result by platform with per-platform unique-media
-  counts, movie/episode splits, and sample rows.
+  counts, movie/episode splits, and sample rows. See
+  [Cross-Platform Match Report](#cross-platform-match-report) for what the two
+  failure kinds mean and what each button does.
 - Storage & Cache (under Advanced) displays and clears image cache categories.
 - Tools retains history repair, deduplication, full watch-state sync, metadata refresh,
   TV rematching, and Trakt poster backfill with their confirmations and logs, split
@@ -170,6 +172,32 @@ seconds respectively.
 
 No maintenance API or stored media configuration format changes are introduced by the
 settings shell.
+
+## Cross-Platform Match Report
+
+Every row is a watch record a platform reported "no matching item found" for. Two
+different problems produce that result, and the report labels each row with which
+one it is:
+
+- **Not identified** — the record carries no IMDB, TMDB, or TVDB id, so nothing
+  reliable was ever resolved for it (its media key ends in `title:`). Picking the
+  right title fixes these.
+- **Identified, but the library has no copy** — the record already carries a
+  provider id and the platform still cannot find it. Searching again changes
+  nothing; the media has to be added to that library, or that platform stopped
+  from being a sync target for it.
+
+Rows are built from each record's stored `sync_dispatch_telemetry`, so a row only
+leaves the report once that record has been dispatched again and reported a
+match. Two buttons act on the list:
+
+- **Rescan** re-runs the sync for every listed item and rebuilds the report from
+  the results, reporting how many now match. Media a library genuinely does not
+  hold stays listed, because that is still true afterwards.
+- **Fix All Matches** re-runs the sync first, then queues the still-unmatched
+  items for manual matching one at a time. Only "not identified" rows are queued
+  — an item that already knows what it is cannot be repaired by choosing a search
+  result, so those are counted in the summary instead of being asked about.
 
 ## Server Logs
 
