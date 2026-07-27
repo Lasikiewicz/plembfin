@@ -1,7 +1,22 @@
 {
-  "version": "0.6.32",
-  "updatedAt": "2026-07-27T13:16:42+01:00",
+  "version": "0.6.33",
+  "updatedAt": "2026-07-27T13:47:52+01:00",
   "entries": [
+    {
+      "version": "0.6.33",
+      "date": "2026-07-27T13:47:52+01:00",
+      "commit": "e4e0a0b6605f501c4e4d85a9393e13a4c51c8448",
+      "message": "Fix - Stop unwatch echo loop between media servers and repair Fix Match saves",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed an unwatch feedback loop where Emby and Jellyfin echoed each other's unplayed events, deleting and re-creating the same watch record about once a second until it stopped on its own",
+        "Echo detection now recognises a returning event as Plembfin's own write even when the media server reports provider IDs that the outgoing record did not carry",
+        "Marking an item unwatched when it is already recorded as unwatched now changes nothing and propagates nothing, so a late echo cannot restart the cycle",
+        "An unwatched record keeps the identity of the watched record it supersedes, so an open edit dialog or a queued manual match still points at a record that exists",
+        "Fix Match in the Sync Issues manual match queue now saves instead of failing with \"Watch record not found\", and Retry Sync works on the same items",
+        "Retry Sync and match saves send a media key alongside the record id and fall back to it when the id no longer resolves"
+      ]
+    },
     {
       "version": "0.6.32",
       "date": "2026-07-27T13:16:42+01:00",
