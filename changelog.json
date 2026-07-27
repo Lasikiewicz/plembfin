@@ -1,7 +1,21 @@
 {
-  "version": "0.6.29",
-  "updatedAt": "2026-07-27T12:11:50+01:00",
+  "version": "0.6.30",
+  "updatedAt": "2026-07-27T12:28:06+01:00",
   "entries": [
+    {
+      "version": "0.6.30",
+      "date": "2026-07-27T12:28:06+01:00",
+      "commit": "3d371f93f78e914547a7571c371d919c387063c8",
+      "message": "Feature - Expand settings sections from left menu and add Fix All Matches manual queue",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added subsection definitions to settings navigation menu for Sync Tuning, Sync Issues, Database Repairs, Library Rebuilds, and Webhooks.",
+        "Clicking any section or subsection in the left sidebar menu auto-expands the target accordion box and smoothly scrolls it to the top of the viewport.",
+        "Added Fix All Matches action buttons to the Cross-Platform Match Report header and platform blocks.",
+        "Implemented automatic batch rematching pass followed by a 1-by-1 manual matching queue fallback for unresolved items.",
+        "Added progress count tracking and a Skip option to the manual match dialog flow."
+      ]
+    },
     {
       "version": "0.6.29",
       "date": "2026-07-27T12:11:50+01:00",
