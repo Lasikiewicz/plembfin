@@ -12,20 +12,20 @@ history.
 | File | Role |
 | --- | --- |
 | `public/modules/explorer.js` | `renderHistoryView`, `loadHistoryView`, `renderHistoryItems`, `observeHistorySentinel`, `resetHistoryView` |
-| `server/src/index.js` | `handleHistory` — `GET /api/history?limit=&offset=&search=&mediaType=` |
+| `server/src/index.js` | `handleHistory` - `GET /api/history?limit=&offset=&search=&mediaType=` |
 | `server/src/utils/dataRepo.js` | `queryWatchHistory` (with dedupe), `getCachedHistory` |
 
 Behavior:
 
-- **Paging** — the endpoint returns an explicit `hasMore` flag so the page can
+- **Paging** - the endpoint returns an explicit `hasMore` flag so the page can
   lazy-load through the full log with an IntersectionObserver sentinel.
-- **Dedupe** — raw history collapses duplicates to one entry per movie or show episode
+- **Dedupe** - raw history collapses duplicates to one entry per movie or show episode
   per calendar day, so same-day webhook echoes don't crowd out genuine later rewatches
   (`dedupe` option in `queryWatchHistory`).
-- **View modes** — grid / list / cards (`plembfin:historyView`), filter all/movies/shows
+- **View modes** - grid / list / cards (`plembfin:historyView`), filter all/movies/shows
   (`plembfin:historyFilter`), search box (server-side `?search=`), adjustable poster
   width (`applyHistoryPosterWidth`).
-- **Row actions** — each entry links to its detail page; sync pills, edit-date, and
+- **Row actions** - each entry links to its detail page; sync pills, edit-date, and
   debug modal are available per row (see [media-detail.md](media-detail.md)).
 
 ## Clean Duplicate History Rows
@@ -46,7 +46,7 @@ reports how many it preserved rather than collapsing them, so rewatch history su
 clean-up. `GET /api/health/sync` reports the same split up front as
 `dataQuality.sameEventDuplicateRows` and `dataQuality.rewatchedItems`, computed with the same
 rule, so the number of rows the tool would delete is visible before running it. Note that
-`rewatchedItems` is only a true rewatch count once `sameEventDuplicateRows` is zero — a
+`rewatchedItems` is only a true rewatch count once `sameEventDuplicateRows` is zero - a
 duplicate recorded seconds after the original also carries a distinct `watched_at`.
 
 Note that the same episode can hold different `media_key` values across platforms when each
@@ -54,7 +54,7 @@ supplies a different external ID (title vs IMDb vs TMDB vs TVDB). Those copies g
 separately and are not merged by this tool.
 
 The dashboard's recent-history rail is a separate, smaller consumer of the same
-endpoint — see [dashboard.md](dashboard.md).
+endpoint - see [dashboard.md](dashboard.md).
 
 ## Search page (`/search`)
 
@@ -70,7 +70,7 @@ search or `/search?q=`.
 Behavior:
 
 - Local results match the watch history/library caches; remote results come from TMDB
-  search (debounced — `state.globalSearchRemoteTimer`), merged and de-duplicated with
+  search (debounced - `state.globalSearchRemoteTimer`), merged and de-duplicated with
   local items marked as in-library.
 - A result click opens the standard detail page: in-library items by their local id,
   discovery-only items via the TMDB routes (`/movie/tmdb/:id`, `/tvshow/tmdb/:id`),

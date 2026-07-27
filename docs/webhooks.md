@@ -83,7 +83,7 @@ the title key is what lets the second half of that trip recognise the first.
 
 Unwatch handling is also idempotent as a second line of defence. Marking an item
 unwatched when it is already recorded that way changes nothing, so the record is
-left as it stands and no propagation is dispatched — an echo that outlives the
+left as it stands and no propagation is dispatched - an echo that outlives the
 loop window cannot restart the cycle.
 
 ## Catching up newly added media
@@ -103,7 +103,7 @@ deliberately tight:
   server, considering only the ones it currently reports as unplayed. This runs
   ahead of the season/series branch that handles play events, which would
   otherwise read an addition as "the whole show was just watched".
-- No watch history is ever written. A library scan cannot manufacture a play —
+- No watch history is ever written. A library scan cannot manufacture a play -
   only an already-recorded watch is applied.
 - An item with no watched record, or one explicitly marked unwatched, is left
   alone.
@@ -127,7 +127,7 @@ the `sync_history` SQLite table.
 
 **Content type is not trusted.** `normalizeWebhook` routes multipart and form-encoded
 bodies to the Plex parser, and everything else is judged by whether the body parses as
-JSON — not by the declared content type. Jellyfin's webhook plugin posts valid JSON
+JSON - not by the declared content type. Jellyfin's webhook plugin posts valid JSON
 labelled `text/plain`, so a header-based check would drop every event it sends,
 including the mark-played and mark-unplayed events unwatch propagation depends on. A
 body that *declares* `application/json` and is malformed is still a 400, because that is
@@ -135,7 +135,7 @@ a genuine client error rather than an unrecognised sender.
 
 **Rejected requests:** a body that is not JSON at all is recorded in `sync_history` as
 `Unsupported webhook content type` with its `contentType`, `userAgent`, and the first
-300 bytes of the body in `rawPayloadDebug` — enough to identify which server sent it and
+300 bytes of the body in `rawPayloadDebug` - enough to identify which server sent it and
 why it was refused.
 
 ## Rewatch detection
@@ -148,7 +148,7 @@ not by when it arrived.
 
 Emby and Jellyfin emit a **played-flag event** (`item.markplayed`, or a
 userdata-saved event carrying `Played=true`) whenever anything sets the played
-flag — including Plembfin's own outbound sync — and they can deliver it hours
+flag - including Plembfin's own outbound sync - and they can deliver it hours
 after the fact. The parser marks these with `playedFlagOnly` on the normalized
 payload. They carry no playback evidence, so:
 
@@ -162,7 +162,7 @@ payload. They carry no playback evidence, so:
   threshold) is real evidence of a play. For an item already watched, one on a
   later UTC day is recorded as a genuine rewatch: a new `watch_history` row is
   inserted and `playstate.watched_at` advances. Pause/resume events never reach
-  this check at all — they're routed through the `active`/`ended` phases above.
+  this check at all - they're routed through the `active`/`ended` phases above.
 
 The same principle applies to inbound state read from library polling and from
 the Plex notification listener, so a played flag Plembfin itself wrote is never
@@ -171,7 +171,7 @@ read back as a new watch. See [scheduled-sync.md](scheduled-sync.md#echo-suppres
 Every watch of the same movie/episode collapses into one card everywhere the UI
 lists history (`dedupeHistory` / `collapseMovieCluster` in
 `server/src/utils/dataRepo.js`), carrying a `playHistory` array of
-`{ id, watched_at, source }` for each individual play — this is what powers the
+`{ id, watched_at, source }` for each individual play - this is what powers the
 "Watch History" list and rewatch counts described in [media-detail.md](media-detail.md).
 
 ## Resume / playback progress
@@ -187,7 +187,7 @@ agreement with the resume position written to each media server.
 ## Plex specifics worth remembering
 
 - Native Plex webhooks only fire on **state changes** (play/pause/resume/stop/
-  scrobble) — there is **no heartbeat**. So a single `media.play` creates an
+  scrobble) - there is **no heartbeat**. So a single `media.play` creates an
   `active_sessions` row that **expires after the active-session TTL (5 minutes by
   default)** unless another event
   arrives. Continuous "still playing" tracking for Plex comes from the

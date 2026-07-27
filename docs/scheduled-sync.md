@@ -14,9 +14,9 @@ recovery protection.
 The same logic runs on demand via:
 - `GET /api/cron-sync/status` - returns the last cron trigger/result as JSON for
   automation that needs a reliable success/failure signal after a streamed run.
-- `POST /api/cron-sync` — `handleCronSync` (streams a text log back, auth by API key
+- `POST /api/cron-sync` - `handleCronSync` (streams a text log back, auth by API key
   or session cookie).
-- `POST /api/force-sync` — queues durable worker work for the dashboard to poll;
+- `POST /api/force-sync` - queues durable worker work for the dashboard to poll;
   `POST /api/stop-force-sync` cancels queued or running work.
 
 Manual cron and force-sync requests are stored in `background_jobs`; their ordered
@@ -40,7 +40,7 @@ Implementation lives in `server/src/scheduled.js`.
 
 ## What it does each run
 
-1. **Live session tracking** (this feeds Now Playing) — **runs every minute**:
+1. **Live session tracking** (this feeds Now Playing) - **runs every minute**:
    - `fetchLiveSessions(config)` polls the configured servers for what's playing now.
    - `buildCacheRow()` shapes each session; `upsertLiveTrackingCache()` writes them
      to the `live_tracking_cache` SQLite table.
@@ -48,19 +48,19 @@ Implementation lives in `server/src/scheduled.js`.
      longer playing** and had `last_progress >= 90` is treated as a **completed
      watch** (`processCompletedSession` → inserts history + propagates). Sessions
      that vanish below the threshold are marked/cleared as stale.
-2. **Manual dispatch queue** — **runs every minute**:
+2. **Manual dispatch queue** - **runs every minute**:
    - `syncPendingManualDispatches` processes anything queued by the UI (manual mark-watched, retries).
    - Records whose targets keep failing are retried with **exponential backoff**
      (1 m → 5 m → 15 m → 1 h → 6 h, tracked in the `sync_retry_count` /
      `sync_next_retry_at` columns on `watch_history`). After 10 failed attempts a
-     record becomes terminal — its telemetry says automatic retries are exhausted
+     record becomes terminal - its telemetry says automatic retries are exhausted
      and only a manual **Retry Sync** (which resets the counters) re-queues it.
      A `sync_history` row is only written when the outcome changes (first
      failure, success, or giving up), not on every identical failed attempt.
      Targets that answer "No matching item found" are recorded in the row's
      telemetry and aggregated per platform by the Cross-Platform Match Report
      (Settings → Sync → Sync Issues, backed by `GET /api/sync-match-report`).
-3. **Catch-up library sync** — **runs every 15 minutes** (configurable via `CATCHUP_SYNC_INTERVAL_MS` env variable) to avoid heavy redundant API queries:
+3. **Catch-up library sync** - **runs every 15 minutes** (configurable via `CATCHUP_SYNC_INTERVAL_MS` env variable) to avoid heavy redundant API queries:
    - Pulls recently-watched and continue-watching (resumable) items from each active server: `syncRecentlyWatchedFromPlex`/`syncRecentlyResumableFromPlex` (and Emby/Jellyfin equivalents) in `scheduled.js`.
    - Emby/Jellyfin episode resume rows retain series provider IDs so the corresponding SxxExx item can be found on another server. Resume and playstate records sharing any IMDb, TMDB, or TVDB ID are treated as one media item even when app titles differ.
    - Propagates playstate changes that were missed by webhooks. Each is wrapped in try/catch so one platform failing doesn't abort the run.
@@ -69,7 +69,7 @@ This is how a play that finishes without a final scrobble webhook still gets
 recorded: the poller sees it hit the watched threshold (90% by default), then
 disappear, and completes it.
 
-4. **TV next-airing cache** — `runScheduledTick()` maintains
+4. **TV next-airing cache** - `runScheduledTick()` maintains
    `data/next-airing-cache.json`. To prevent timing out, the cache is
    built and refreshed in small batches (default 40 shows per 30-minute tick)
    sorted by the oldest update times. Each show is looked up through the regular
@@ -78,7 +78,7 @@ disappear, and completes it.
    allows the TV Shows page to sort by upcoming episode date without querying
    TMDB for every row, while avoiding timeouts on large libraries.
 
-5. **Upcoming calendar cache** — every 10 minutes the scheduler processes one month
+5. **Upcoming calendar cache** - every 10 minutes the scheduler processes one month
    in `data/upcoming-calendar-cache.json`. It builds the previous 24 months once and
    checks the current month plus the next 12 months every 6 hours. Future checks only
    rewrite stored data when episode results changed; historical months are not refreshed.
@@ -88,25 +88,25 @@ disappear, and completes it.
 
 Marking an item played on a media server bumps that server's own "last played"
 timestamp. That makes Plembfin's own outbound write indistinguishable from a user's
-play the next time the same server is read back — through library polling, the Plex
+play the next time the same server is read back - through library polling, the Plex
 notification listener, or a delayed webhook. Left unchecked it records a watch that
 never happened, and each phantom re-propagates and produces another one.
 
 Three mechanisms keep inbound state honest:
 
-- **Outbound mark ledger** — every successful played-mark is recorded per target in
+- **Outbound mark ledger** - every successful played-mark is recorded per target in
   `loop_keys` under a `mark:` prefix with a 14-day TTL
   (`recordOutboundPlayedMarks` / `lastOutboundPlayedMarkAt` in `syncOrchestrator.js`).
   The Plex notification listener consults it: a view timestamp within 10 minutes of
   a mark Plembfin wrote is treated as its own echo, not a new play. This outlives the
   15-second loop-detection window, which only breaks immediate ping-pong.
-- **Existing-record guard** — the Plex, Emby, and Jellyfin library pollers record a
+- **Existing-record guard** - the Plex, Emby, and Jellyfin library pollers record a
   watch only for an item with no watch record at all. When a record exists but the
   playstate has drifted, the poller repairs the playstate instead of filing a second
   watch for the same play.
-- **Played-flag rule** — a bare "marked played" webhook never opens a rewatch for an
+- **Played-flag rule** - a bare "marked played" webhook never opens a rewatch for an
   item already watched; see [webhooks.md](webhooks.md#rewatch-detection).
-- **Idempotent unwatch** — marking an item unwatched when it is already recorded that
+- **Idempotent unwatch** - marking an item unwatched when it is already recorded that
   way is a no-op: the record stands and nothing is propagated. An echo that arrives
   after the 15-second loop window closes therefore ends there instead of starting
   another round trip.
@@ -119,11 +119,11 @@ lingered through a restart is not backdated to the restart time.
 
 `live_tracking_cache` is the **primary** source for Now Playing (see
 [now-playing.md](now-playing.md)). If the poller can't reach the media servers,
-`live_tracking_cache` goes empty and Now Playing shows idle — even though the UI and
+`live_tracking_cache` goes empty and Now Playing shows idle - even though the UI and
 webhooks are fine.
 
 **Reachability:** the poller runs on the same machine as the Plembfin server process.
-It can reach any URL that machine can reach — including `localhost`, LAN IPs, and VPN
+It can reach any URL that machine can reach - including `localhost`, LAN IPs, and VPN
 addresses.
 
 ## Debugging
@@ -131,7 +131,7 @@ addresses.
 - Trigger it manually and watch the log: `POST /api/cron-sync` with your API key
   (the response streams a line-by-line log identical to what the scheduler runs).
 - Or watch the server process stdout. A background tick that changed nothing logs
-  nothing, so silence between ticks is normal — errors and completed work still log.
+  nothing, so silence between ticks is normal - errors and completed work still log.
 - Set `LOG_VERBOSE=true` to add the per-phase narration, including
   `"live sessions: N, cached sessions in tracking: M"`, which tells you whether the
   poller is seeing anything. A user-triggered catch-up run logs those phases to its

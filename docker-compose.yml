@@ -10,7 +10,7 @@ services:
       - ./data:/data
     environment:
       # Admin login for the dashboard.
-      # REQUIRED: set a strong password before first boot — do not leave this commented out.
+      # REQUIRED: set a strong password before first boot - do not leave this commented out.
       - ADMIN_USERNAME=admin
       # - ADMIN_PASSWORD=
       # Set to true when the app is served behind an HTTPS reverse proxy so the

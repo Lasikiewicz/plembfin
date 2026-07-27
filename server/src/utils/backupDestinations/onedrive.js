@@ -22,12 +22,12 @@ export function deviceCodeEndpoint(tenant) {
 async function ensureAccessToken(destination, persistSecrets) {
   const cached = tokenCache.get(destination.id);
   if (cached && cached.expiresAt > Date.now() + 60000) return cached.accessToken;
-  if (cached) tokenCache.delete(destination.id); // expired — drop so stale destinations don't accumulate
+  if (cached) tokenCache.delete(destination.id); // expired - drop so stale destinations don't accumulate
 
   const clientId = destination.settings?.clientId;
   const refreshToken = destination.secrets?.refreshToken;
   if (!clientId) throw new Error("OneDrive client ID is required");
-  if (!refreshToken) throw new Error("OneDrive is not connected — run Connect first");
+  if (!refreshToken) throw new Error("OneDrive is not connected - run Connect first");
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -48,7 +48,7 @@ async function ensureAccessToken(destination, persistSecrets) {
     accessToken: data.access_token,
     expiresAt: Date.now() + (Number(data.expires_in) || 3600) * 1000,
   });
-  // Microsoft rotates refresh tokens — persist the new one so we stay connected.
+  // Microsoft rotates refresh tokens - persist the new one so we stay connected.
   if (data.refresh_token && data.refresh_token !== refreshToken) {
     destination.secrets.refreshToken = data.refresh_token;
     persistSecrets({ refreshToken: data.refresh_token });

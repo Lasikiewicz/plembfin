@@ -338,7 +338,7 @@ export function renderShowAvailabilityPills(show = {}) {
           allUnavailable = false;
           break;
         } else if (match.status === "skipped" && (match.detail.includes("No matching") || match.detail.includes("not_found") || match.detail.includes("not found"))) {
-          // Continue loop — item not found on this target, keep checking
+          // Continue loop - item not found on this target, keep checking
         } else {
           allUnavailable = false;
         }
@@ -755,7 +755,7 @@ export function renderActiveSessions() {
       const isEpisode = session.mediaType === "episode" || (session.season != null && session.episode != null);
       const showTitle = isEpisode ? (session.showTitle || showName(session.title)) : session.title;
       const epLabel = isEpisode && session.season != null && session.episode != null
-        ? `S${String(session.season).padStart(2, "0")}E${String(session.episode).padStart(2, "0")}${session.episodeTitle ? ` – ${session.episodeTitle}` : ""}`
+        ? `S${String(session.season).padStart(2, "0")}E${String(session.episode).padStart(2, "0")}${session.episodeTitle ? ` - ${session.episodeTitle}` : ""}`
         : "";
       const userName = session.client?.userName || "";
       const deviceName = session.client?.deviceName || "";
@@ -856,7 +856,7 @@ export async function loadActiveSessions() {
     _cb.resetPartWatchedView?.("default");
     _cb.renderPartWatched?.();
     // A remote watched/unwatched change (e.g. from the Plex notification listener) can
-    // land while the user is browsing Movies/TV Shows/History rather than the dashboard —
+    // land while the user is browsing Movies/TV Shows/History rather than the dashboard -
     // refresh whatever's currently on screen so it doesn't wait for a manual reload.
     _cb.clearDerivedUiCaches?.({ resetExplorer: false });
     if (state.activeView === "explorer" && !state.mediaDetailInline) _cb.renderExplorer?.();

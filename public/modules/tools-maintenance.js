@@ -141,7 +141,7 @@ export async function runSystemIntegrityCheck() {
 
   const testConnection = async (type, url, token, name) => {
     // Secrets are never sent to the browser, so the token input is blank for an
-    // already-configured server — the backend falls back to the stored credential.
+    // already-configured server - the backend falls back to the stored credential.
     if (!url || (!token && !state.savedConfig?.[type]?.configured)) { results.push({ name, status: "skipped", detail: "Skipped - URL or token not provided." }); return; }
     try {
       const startTime = Date.now();
@@ -163,7 +163,7 @@ export async function runSystemIntegrityCheck() {
   if (plexUrl && state.savedConfig?.plex?.configured) {
     try {
       const startTime = Date.now();
-      // A blank token is fine — the backend falls back to the saved Plex config.
+      // A blank token is fine - the backend falls back to the saved Plex config.
       const response = await fetch("/api/test-plex-notifications", { method: "POST", headers: authHeaders(), body: JSON.stringify({ url: plexUrl, token: "" }) });
       const body = await response.json().catch(() => ({}));
       const elapsed = Date.now() - startTime;
@@ -346,7 +346,7 @@ export async function triggerFixAllMatches(platformTarget = "all", button) {
 
       // Only items whose identity is unresolved are answerable by hand. An item
       // that already carries a provider id is not unmatched because Plembfin
-      // picked the wrong title — it is unmatched because that library does not
+      // picked the wrong title - it is unmatched because that library does not
       // hold it, and no search result can change that.
       const matchable = manualQueue.filter(identityIsUnresolved);
       const libraryGaps = manualQueue.filter((sample) => !identityIsUnresolved(sample));
@@ -443,7 +443,7 @@ function presentManualMatchQueue(queue, index, autoSuccessCount) {
 }
 
 // Each row in the report comes from a watch record's stored sync telemetry, so
-// re-reading the report cannot clear an entry on its own — the record has to be
+// re-reading the report cannot clear an entry on its own - the record has to be
 // dispatched again first. Rescan re-runs the sync for every listed item and
 // rebuilds the report from the fresh results. Media a library genuinely does
 // not hold stays listed, because that is still true after the rescan.
@@ -504,7 +504,7 @@ export async function triggerRescanMatchReport(button) {
   const remaining = uniqueSamples.length - resolved;
   _setMessage(
     remaining
-      ? `Rescan complete: ${resolved} of ${uniqueSamples.length} item(s) now match. The remaining ${remaining} still have no confirmed identity — use Fix All Matches to set them.`
+      ? `Rescan complete: ${resolved} of ${uniqueSamples.length} item(s) now match. The remaining ${remaining} still have no confirmed identity - use Fix All Matches to set them.`
       : `Rescan complete: all ${resolved} item(s) now match.`,
     remaining ? "warning" : "success",
   );
@@ -514,7 +514,7 @@ export async function triggerRescanMatchReport(button) {
 export function renderSyncMatchReport(report = {}) {
   // Only media Plembfin could not identify is worth showing. A record that
   // carries a provider id and still finds no match means that library has no
-  // copy — a difference between libraries, not a fault, and nothing here can
+  // copy - a difference between libraries, not a fault, and nothing here can
   // act on it. The full unfiltered figures remain in `GET /api/sync-match-report`
   // and in Sync Health.
   const platforms = ["plex", "emby", "jellyfin"]
@@ -581,7 +581,7 @@ export function renderSyncMatchReport(report = {}) {
                   <td style="padding: 0.3rem 0.5rem;">${escapeHtml(sample.media_type === "episode" ? "TV" : "Movie")}</td>
                   <td style="padding: 0.3rem 0.5rem; white-space: nowrap;">${escapeHtml(formatDate(sample.watched_at))}</td>
                   <td style="padding: 0.3rem 0.5rem; color: var(--muted); word-break: break-word;">
-                    Not identified — pick the right title to fix it.
+                    Not identified - pick the right title to fix it.
                     ${sample.detail && !/^no matching item found$/i.test(sample.detail.trim())
                       ? `<span style="display: block; opacity: 0.75;">${escapeHtml(sample.detail)}</span>`
                       : ""}
@@ -639,7 +639,7 @@ export async function triggerClearMissingTelemetry(button) {
   if (!btn) return;
 
   _showConfirmModal(
-    "Clear missing dispatch telemetry records?\n\nThis will mark records with missing telemetry as resolved, removing them from the outstanding jobs list. This is safe — it only affects logging, not actual sync functionality.",
+    "Clear missing dispatch telemetry records?\n\nThis will mark records with missing telemetry as resolved, removing them from the outstanding jobs list. This is safe - it only affects logging, not actual sync functionality.",
     async () => {
       const originalText = btn.textContent;
       btn.disabled = true;
@@ -854,7 +854,7 @@ export async function runDedupHistory() {
     }
     if (finalResult) {
       const kept = Number(finalResult.rewatchGroups || 0);
-      const msg = `Complete — deleted ${finalResult.deleted} same-event duplicate(s) from ${finalResult.scanned} records.`
+      const msg = `Complete - deleted ${finalResult.deleted} same-event duplicate(s) from ${finalResult.scanned} records.`
         + (kept ? ` Kept ${kept} item(s) with multiple watch dates (rewatches).` : "");
       setStatusPill(status, msg, "ready");
       if (logEl) logEl.textContent += msg + "\n";
@@ -889,7 +889,7 @@ export async function runPhantomWatchAudit() {
     if (log) {
       log.textContent = summary + (body.candidates || []).slice(0, 20).map((item) => {
         const first = item.records?.[0] || {}; const last = item.records?.at(-1) || {};
-        return `\n[${item.confidence}] ${first.title || first.show_title || "Unknown"} — ${first.watched_at} → ${last.watched_at} (${item.reason}, ${item.gap_seconds}s)`;
+        return `\n[${item.confidence}] ${first.title || first.show_title || "Unknown"} - ${first.watched_at} → ${last.watched_at} (${item.reason}, ${item.gap_seconds}s)`;
       }).join("");
     }
     return body;

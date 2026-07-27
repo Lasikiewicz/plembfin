@@ -3,7 +3,7 @@ import { db, parseJson, toJson } from "../db.js";
 import { fetchWithTimeout } from "./outbound.js";
 import { loadMediaConfig, loadRuntimeState, setRuntimeState } from "./configStore.js";
 
-// Shared TVDB v4 project key — intentionally public: TVDB issues these for
+// Shared TVDB v4 project key - intentionally public: TVDB issues these for
 // open-source apps to embed, and rate-limits them upstream. Operators can swap
 // in their own via TVDB_PROJECT_KEY (or a personal key in Settings, which takes
 // precedence over both) if this one is revoked or exhausted.
@@ -252,9 +252,9 @@ const ARTWORK_TYPES_TTL_MS = 30 * DAY_MS;
 let artworkTypesPromise = null;
 let artworkTypesCachedAt = 0;
 
-// Series artwork type ids aren't stable/documented constants — they're resolved
+// Series artwork type ids aren't stable/documented constants - they're resolved
 // dynamically from /artwork/types (cached in-memory) and matched by `name` (not
-// `slug` — TVDB's slugs are inconsistently pluralized, e.g. "posters"/"backgrounds"
+// `slug` - TVDB's slugs are inconsistently pluralized, e.g. "posters"/"backgrounds"
 // vs singular "clearlogo"/"clearart", while `name` is a consistent singular label).
 async function getSeriesArtworkTypeIds() {
   if (artworkTypesPromise && fresh(artworkTypesCachedAt, ARTWORK_TYPES_TTL_MS)) return artworkTypesPromise;
@@ -371,7 +371,7 @@ function shapeEpisodes(seasonDetails) {
 function bestRemoteId(remoteIds, sourceNames) {
   const list = Array.isArray(remoteIds) ? remoteIds : [];
   // TVDB's actual sourceName values are inconsistent ("TheMovieDB.com", "IMDB", etc.)
-  // and undocumented — match by prefix rather than exact string.
+  // and undocumented - match by prefix rather than exact string.
   const match = list.find((entry) => sourceNames.some((name) => String(entry.sourceName || "").toLowerCase().startsWith(name.toLowerCase())));
   return match ? String(match.id || "") : "";
 }
@@ -387,7 +387,7 @@ export function shapeTvdbSeriesAsTmdb(extended) {
   const seasons = (Array.isArray(extended.seasons) ? extended.seasons : [])
     .filter((season) => (season.type?.type === "official" || season.type?.name === "Aired Order") && Number(season.number) >= 0)
     // TVDB sometimes carries an empty "Specials" placeholder (season 0) with no
-    // episodes attached — unlike a not-yet-aired regular season, an empty Specials
+    // episodes attached - unlike a not-yet-aired regular season, an empty Specials
     // entry has nothing to browse, so drop it rather than show a dead accordion row.
     .filter((season) => Number(season.number) > 0 || episodeCounts.has(0))
     .map((season) => ({

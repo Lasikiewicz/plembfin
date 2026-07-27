@@ -638,7 +638,7 @@
                               Point Plex, Emby, and Jellyfin webhooks here. The URL contains the secret token. Automation clients can also pass the secret in an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.
                             </p>
                             <div class="settings-actions" style="margin-top: var(--space-1);">
-                              <button id="rotateWebhookButton" class="button-ghost" type="button" title="Generate a new webhook secret — update the URL in all media servers after rotating">Rotate Secret</button>
+                              <button id="rotateWebhookButton" class="button-ghost" type="button" title="Generate a new webhook secret - update the URL in all media servers after rotating">Rotate Secret</button>
                             </div>
                           </div>
                         </details>
@@ -850,19 +850,19 @@
                         <b style="display: block; margin-bottom: 2px;">Run System Diagnostic</b>
                         <p style="margin: 0; line-height: 1.4;">Runs nine live checks in sequence and reports each as Online, Warnings Detected, Failed, or Not Configured, with a "Fix" tip and a link to the relevant settings page for anything that isn't healthy:</p>
                         <ul class="tool-accordion-desc" style="margin: 4px 0 0; padding-left: 1.2rem; line-height: 1.6;">
-                          <li><b>Watch History API</b> — confirms the local SQLite database responds.</li>
-                          <li><b>Server Configuration</b> — confirms saved media-server/config settings can be read back.</li>
-                          <li><b>Webhook Listener Endpoint</b> — pings <code>/api/webhook</code> and shows the last event received, if any.</li>
-                          <li><b>Scheduled Cron Job</b> — checks the per-minute background worker fired recently.</li>
-                          <li><b>Outbound Playstate Sync</b> — scans the 5 most recent history rows' dispatch telemetry for failures.</li>
-                          <li><b>Plex / Emby / Jellyfin Media Server</b> — live connection test against each configured server.</li>
-                          <li><b>Plex Realtime Notifications</b> — confirms the WebSocket notification listener can connect (unwatch sync falls back to the periodic poll if this fails).</li>
-                          <li><b>Cross-Platform Library Matching</b> — summarizes current "no matching item found" sync failures per platform.</li>
+                          <li><b>Watch History API</b> - confirms the local SQLite database responds.</li>
+                          <li><b>Server Configuration</b> - confirms saved media-server/config settings can be read back.</li>
+                          <li><b>Webhook Listener Endpoint</b> - pings <code>/api/webhook</code> and shows the last event received, if any.</li>
+                          <li><b>Scheduled Cron Job</b> - checks the per-minute background worker fired recently.</li>
+                          <li><b>Outbound Playstate Sync</b> - scans the 5 most recent history rows' dispatch telemetry for failures.</li>
+                          <li><b>Plex / Emby / Jellyfin Media Server</b> - live connection test against each configured server.</li>
+                          <li><b>Plex Realtime Notifications</b> - confirms the WebSocket notification listener can connect (unwatch sync falls back to the periodic poll if this fails).</li>
+                          <li><b>Cross-Platform Library Matching</b> - summarizes current "no matching item found" sync failures per platform.</li>
                         </ul>
                       </div>
                       <div>
                         <b style="display: block; margin-bottom: 2px;">Refresh Sync Health</b>
-                        <p style="margin: 0; line-height: 1.4;">Loads a lighter-weight snapshot: watch history/playstate/playback-progress row counts, database size on disk, and outbound request pressure (requests, throttles, and cooldowns) per media-server host — useful for spotting rate-limiting or an oversized database before running a large Force Sync.</p>
+                        <p style="margin: 0; line-height: 1.4;">Loads a lighter-weight snapshot: watch history/playstate/playback-progress row counts, database size on disk, and outbound request pressure (requests, throttles, and cooldowns) per media-server host - useful for spotting rate-limiting or an oversized database before running a large Force Sync.</p>
                       </div>
                     </article>
                   </div>
@@ -1084,7 +1084,7 @@
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Rematch All TV Shows</b>
-                        <p style="margin: 0; line-height: 1.4;">Looks up each series title on TVDB first (the primary source for TV matching), then derives the TMDB ID from TVDB's own cross-reference — falling back to a TMDB title search only if that mapping is stale. Stamps the corrected TVDB/TMDB IDs onto local episode rows.</p>
+                        <p style="margin: 0; line-height: 1.4;">Looks up each series title on TVDB first (the primary source for TV matching), then derives the TMDB ID from TVDB's own cross-reference - falling back to a TMDB title search only if that mapping is stale. Stamps the corrected TVDB/TMDB IDs onto local episode rows.</p>
                       </div>
                       <div>
                         <b style="display: block; margin-bottom: 2px;">Backfill Trakt Imports</b>
@@ -1309,11 +1309,11 @@
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Local Watch History Backups</b>
-                        <p style="margin: 0; line-height: 1.4;">Unencrypted daily snapshots of watched state, playstate, and resume progress, saved to <code id="watchBackupLocalPath">data/backups/watch-history</code> on the server running Plembfin. No passphrase needed — "Save Schedule" and "Back Up Now" work as soon as backups are enabled.</p>
+                        <p style="margin: 0; line-height: 1.4;">Unencrypted daily snapshots of watched state, playstate, and resume progress, saved to <code id="watchBackupLocalPath">data/backups/watch-history</code> on the server running Plembfin. No passphrase needed - "Save Schedule" and "Back Up Now" work as soon as backups are enabled.</p>
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Local Plembfin Backups</b>
-                        <p style="margin: 0; line-height: 1.4;">A full encrypted export of the database and saved settings (including server credentials and API keys), encrypted in your browser with the passphrase you enter — Plembfin never sees or stores the plaintext backup. You need at least 12 characters. Losing the passphrase means the backup cannot be decrypted; there is no recovery.</p>
+                        <p style="margin: 0; line-height: 1.4;">A full encrypted export of the database and saved settings (including server credentials and API keys), encrypted in your browser with the passphrase you enter - Plembfin never sees or stores the plaintext backup. You need at least 12 characters. Losing the passphrase means the backup cannot be decrypted; there is no recovery.</p>
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Remember passphrase</b>
@@ -1443,7 +1443,7 @@
                         <li>Stamps a restore watermark so background sync does not re-import the previous app state.</li>
                       </ol>
                       <p class="tool-accordion-desc" style="font-size: 0.8rem; margin-bottom: var(--space-3);">
-                        While the restore is running, the cron sync and incoming webhooks are ignored, so nothing is written to watch history mid-restore. <b>Watch dates are always preserved</b> — an item already watched on an earlier date is never re-added as watched today.
+                        While the restore is running, the cron sync and incoming webhooks are ignored, so nothing is written to watch history mid-restore. <b>Watch dates are always preserved</b> - an item already watched on an earlier date is never re-added as watched today.
                       </p>
 
                       <h4 style="margin: 0 0 var(--space-1); color: var(--text); font-size: 0.85rem;">Reconcile tracked items</h4>
@@ -1494,7 +1494,7 @@
                       <div style="margin-bottom: var(--space-1);">
                         <b style="display: block; margin-bottom: 2px;">What This Controls</b>
                         <p style="margin: 0; line-height: 1.4;">
-                          These four values drive the heuristics behind watched-state detection and outbound sync. Every field is optional — leaving a field blank keeps the built-in default (or a matching environment variable, if one is set on the server).
+                          These four values drive the heuristics behind watched-state detection and outbound sync. Every field is optional - leaving a field blank keeps the built-in default (or a matching environment variable, if one is set on the server).
                         </p>
                       </div>
 

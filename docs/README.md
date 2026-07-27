@@ -1,7 +1,7 @@
 # Plembfin Documentation
 
 Reference docs for how Plembfin works under the hood. These exist so that when
-something breaks — or when an AI agent is asked to change something — you can be
+something breaks - or when an AI agent is asked to change something - you can be
 pointed at the relevant file instead of re-deriving the architecture from the source.
 
 > **Start with [architecture.md](architecture.md).** It is the master guide: the big
@@ -67,21 +67,21 @@ pointed at the relevant file instead of re-deriving the architecture from the so
 
 This is a **single-process, self-hosted Node.js application**. There are no separate
 runtimes, no cloud functions, no external databases, and no background services.
-Everything — the web UI, the API, and the per-minute scheduler — runs in one
+Everything - the web UI, the API, and the per-minute scheduler - runs in one
 `node server/server.js` process, backed by a local SQLite file at `data/plembfin.db`.
 
 Data written to the database is always in the same file regardless of where you run
 the app. There is no "works locally but not in production" because there is no
-separate production environment — you run the binary directly, or in a container
+separate production environment - you run the binary directly, or in a container
 via `docker compose up`.
 
 Common gotchas:
-1. **Media server reachability** — Plembfin contacts Plex/Emby/Jellyfin from the
+1. **Media server reachability** - Plembfin contacts Plex/Emby/Jellyfin from the
    machine it runs on, not from the browser. A URL that the browser can reach but
    the server cannot (e.g. a different LAN segment or a VPN-gated address) will
    fail silently for the background sync while appearing fine in the UI probe.
-2. **Webhook secret in URL** — The webhook endpoint requires `?token=<webhookSecret>`
+2. **Webhook secret in URL** - The webhook endpoint requires `?token=<webhookSecret>`
    in the URL. Omitting it returns 401. Copy the full URL from Settings → Webhooks.
-3. **Config persistence** — Credentials and settings are stored in `data/config.json`
+3. **Config persistence** - Credentials and settings are stored in `data/config.json`
    (generated on first boot) and in the `settings` SQLite row. The Docker volume mount
    at `/data` must be persistent across container restarts or settings will reset.

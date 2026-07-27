@@ -34,7 +34,7 @@ test("a watch propagated across servers collapses to one viewing", async () => {
 test("genuine rewatches are never collapsed", async () => {
   const day1 = await insertPlay("Rewatched Movie", "2026-06-01T20:00:00.000Z", "plex", "tt-rewatch");
   const day2 = await insertPlay("Rewatched Movie", "2026-06-08T20:00:00.000Z", "plex", "tt-rewatch");
-  // Just outside the window — still two viewings.
+  // Just outside the window - still two viewings.
   const later = await insertPlay("Rewatched Movie", "2026-06-08T20:11:00.000Z", "plex", "tt-rewatch");
 
   const duplicates = repo.sameEventDuplicateIds();

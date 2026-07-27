@@ -133,7 +133,7 @@ export function plexWebhookSetup() {
       <p style="font-size: 0.78rem; color: var(--muted); margin: 0;">Automation clients can also call <code>/api/webhook</code> with an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.</p>
       <ul style="padding-left: 1.2rem; margin: var(--space-1) 0 0; display: grid; gap: 4px; font-size: 0.82rem; color: var(--text);">
         <li>Go to Plex Web ➔ <b>Account Settings ➔ Webhooks</b> and click <b>Add Webhook</b>. Paste the URL above (requires Plex Pass).</li>
-        <li><b>Automatic Event Delivery:</b> Plex automatically sends all playback events (play, pause, resume, stop, scrobble) to the webhook URL — no individual event selection is required.</li>
+        <li><b>Automatic Event Delivery:</b> Plex automatically sends all playback events (play, pause, resume, stop, scrobble) to the webhook URL - no individual event selection is required.</li>
         <li><b>Library Watch-State Sync (built-in):</b> Plembfin automatically connects to your Plex Media Server via its WebSocket notification channel to capture watched and unwatched library changes in real time.</li>
         <li><b>Per-Minute Synchronization:</b> The internal scheduler runs every minute to evaluate playback progress against your watched threshold (90%) and dispatch cross-platform sync.</li>
       </ul>
@@ -175,9 +175,9 @@ export function jellyfinWebhookSetup() {
         <li>Add a new <b>Generic Webhook</b> named <code>plembfin</code> pointing to the URL above. Check <b>Enable</b>.</li>
         <li>Under <b>Notification Type</b>, check: <code>Playback Start</code>, <code>Playback Progress</code>, <code>Playback Stop</code>, <code>User Data Saved</code>, <code>Item Added</code>.</li>
         <li><code>Item Added</code> is what lets Plembfin mark newly added media watched if you have already seen it. Leave it unticked to skip that.</li>
-        <li>Under <b>Item Type</b>, select: <code>Movies</code>, <code>Episodes</code>. Leave the other notification types and item types unticked — Plembfin ignores them.</li>
+        <li>Under <b>Item Type</b>, select: <code>Movies</code>, <code>Episodes</code>. Leave the other notification types and item types unticked - Plembfin ignores them.</li>
         <li>Check <b>Send All Properties (ignores template)</b> so resume position fields are included.</li>
-        <li>The body has to be JSON, but the content type does not matter — Jellyfin labels its payloads <code>text/plain</code> and Plembfin reads them anyway. A body that is not JSON is logged in Sync History as <code>Unsupported webhook content type</code>, along with the sender that posted it.</li>
+        <li>The body has to be JSON, but the content type does not matter - Jellyfin labels its payloads <code>text/plain</code> and Plembfin reads them anyway. A body that is not JSON is logged in Sync History as <code>Unsupported webhook content type</code>, along with the sender that posted it.</li>
       </ul>
     </div>
   `;
@@ -197,7 +197,7 @@ export function webhookWarning() {
         <ul style="padding-left: 1.2rem; margin: 0; display: grid; gap: 4px;">
           <li>Plex does not support sending unwatched (unscrobble) events via native webhooks or Tautulli.</li>
           <li>For resume sync, Plex webhook traffic must include playback lifecycle events such as <code>media.play</code>, <code>media.resume</code>, <code>media.pause</code>, <code>media.stop</code>, and <code>media.scrobble</code>. Plembfin reads <code>viewOffset</code> and <code>duration</code> when Plex provides them.</li>
-          <li><b>Real-time Sync (Built-in):</b> Plembfin's server includes a built-in Plex notification listener. It connects to your Plex Media Server via the WebSocket notification channel (configured automatically from your Plex URL and token in Settings → Media Servers), records watched library changes, and forwards unwatched changes directly — no external script or daemon is required.</li>
+          <li><b>Real-time Sync (Built-in):</b> Plembfin's server includes a built-in Plex notification listener. It connects to your Plex Media Server via the WebSocket notification channel (configured automatically from your Plex URL and token in Settings → Media Servers), records watched library changes, and forwards unwatched changes directly - no external script or daemon is required.</li>
           <li><b>Per-Minute Scheduler:</b> Plembfin's background worker runs every minute to process playback sessions, evaluate watched thresholds, and dispatch sync actions.</li>
           <li>For general playback events, set up webhooks according to the <a href="https://support.plex.tv/articles/115002267687-webhooks/?utm_campaign=Plex%20Apps&utm_medium=Plex%20Web&utm_source=Plex%20Apps" target="_blank" rel="noopener noreferrer" style="color: #4b96e6; text-decoration: underline;">Plex Webhook Documentation</a>.</li>
         </ul>
@@ -257,7 +257,7 @@ export function cronSyncGuide() {
   return `
     <section class="guide-callout" id="cron-sync-setup">
       <b>Background Sync Worker</b>
-      <p>Plembfin runs a built-in scheduler directly inside the server process — no external cron job or cloud infrastructure is required. It fires once per minute as long as the server is running.</p>
+      <p>Plembfin runs a built-in scheduler directly inside the server process - no external cron job or cloud infrastructure is required. It fires once per minute as long as the server is running.</p>
       <h3>Manual trigger</h3>
       <p>To force an immediate run, send an authenticated POST to <code>/api/cron-sync</code>. You can also use <b>Force Sync</b> in the dashboard, which calls <code>/api/force-sync</code> and streams progress.</p>
       <h3>Authenticated request</h3>
@@ -389,7 +389,7 @@ export function savedCredentialNote() {
   return `
     <div class="guide-callout credential-guide">
       <b>About saved credentials</b>
-      <p>Saved tokens and API keys are never redisplayed in the browser. A blank field showing a "Configured" placeholder means a credential is stored and in use — leave the field blank to keep it, or enter a new value to replace it.</p>
+      <p>Saved tokens and API keys are never redisplayed in the browser. A blank field showing a "Configured" placeholder means a credential is stored and in use - leave the field blank to keep it, or enter a new value to replace it.</p>
     </div>
   `;
 }
@@ -460,7 +460,7 @@ export function renderSettingsInlineHelp() {
   if (syncIssuesHelp) {
     syncIssuesHelp.innerHTML = `
       <b style="display: block; margin-bottom: var(--space-1);">Cross-Platform Match Report</b>
-      <p class="tool-accordion-desc" style="margin: 0;">The expandable report below Sync Issues lists media Plembfin could not identify, grouped by target platform — pick the right title to fix each one. Media that is identified and simply absent from a library is not listed: the watch is recorded correctly, and if the file is added to that server later it is marked watched automatically. <b>Rescan</b> re-runs the sync for every listed item and rebuilds the report; <b>Fix All Matches</b> does the same, then walks through them one at a time.</p>
+      <p class="tool-accordion-desc" style="margin: 0;">The expandable report below Sync Issues lists media Plembfin could not identify, grouped by target platform - pick the right title to fix each one. Media that is identified and simply absent from a library is not listed: the watch is recorded correctly, and if the file is added to that server later it is marked watched automatically. <b>Rescan</b> re-runs the sync for every listed item and rebuilds the report; <b>Fix All Matches</b> does the same, then walks through them one at a time.</p>
     `;
   }
 }

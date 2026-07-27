@@ -1,4 +1,4 @@
-// Force Sync planner — the read-only half of Force Sync.
+// Force Sync planner - the read-only half of Force Sync.
 //
 // This module inspects the connected media servers and Plembfin's own watch
 // history and produces a *plan*: an ordered list of typed actions describing
@@ -321,7 +321,7 @@ export async function collectServerFingerprintCounts(config, { scope: rawScope, 
       try {
         counts[server] = await countFn(config[server], { libraryIds });
       } catch {
-        counts[server] = null; // unknown — treated as "cannot verify", not stale
+        counts[server] = null; // unknown - treated as "cannot verify", not stale
       }
     }),
   );
@@ -489,7 +489,7 @@ export function buildForceSyncPlan({
 
     if (serverWatchedEntry) {
       serverWatchedOn = serverWatchedEntry.group.watchedOn;
-      // Servers not allowed to send watched state contribute status only —
+      // Servers not allowed to send watched state contribute status only -
       // their evidence never bumps the resolved state (M4).
       const sendingWatchedOn = new Set([...serverWatchedOn].filter((server) => sendingServers.has(server)));
       const serverWatchedTime = serverWatchedEntry.group.timestamp
@@ -707,7 +707,7 @@ export function planStaleness(plan, { counts = {}, config = {}, now = Date.now()
   }
   for (const [server, fingerprint] of Object.entries(plan.fingerprints || {})) {
     const fresh = counts[server];
-    if (fresh === null || fresh === undefined) continue; // could not verify — TTL still applies
+    if (fresh === null || fresh === undefined) continue; // could not verify - TTL still applies
     if (Number(fresh) !== Number(fingerprint.rawCount)) {
       reasons.push(`${server} watched-item count changed (${fingerprint.rawCount} → ${fresh}).`);
     }

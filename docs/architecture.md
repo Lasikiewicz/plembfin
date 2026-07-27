@@ -1,4 +1,4 @@
-# Architecture — Start Here
+# Architecture - Start Here
 
 **This is the first document to read before changing anything in this repo.** It maps
 every file in the project, explains how the pieces fit together, and routes you to the
@@ -9,9 +9,9 @@ feature doc that covers the area you are touching. If you only read one doc, rea
 Plembfin is a **self-hosted, single-process Node.js app** in the style of Sonarr/Radarr/
 Jellyseerr. One long-running `node server/server.js` process serves:
 
-- the **web UI** — a plain ES-module SPA in `public/` with no framework, bundler, or build step
-- the **API** — every route lives under `/api/*`, dispatched by one hand-written router
-- the **scheduler** — an in-process `setInterval` tick that runs sync work every minute
+- the **web UI** - a plain ES-module SPA in `public/` with no framework, bundler, or build step
+- the **API** - every route lives under `/api/*`, dispatched by one hand-written router
+- the **scheduler** - an in-process `setInterval` tick that runs sync work every minute
 
 All state lives in a local **SQLite** database (`data/plembfin.db`, WAL mode) and a local
 media folder (`data/media/`). There is no external database, no cloud functions, and no
@@ -35,7 +35,7 @@ history retain complete source data for export and refresh, but render a bounded
 initial view. Preserve these loading, stale-request, and retry guards when adding
 new metadata requests.
 
-## Task router — "I need to change X, where do I go?"
+## Task router - "I need to change X, where do I go?"
 
 | Task | Files | Doc |
 | --- | --- | --- |
@@ -62,8 +62,8 @@ new metadata requests.
 | SPA routing, view switching, module layout | `public/app.js`, `public/modules/state.js`, `app-events.js` | [frontend.md](frontend.md) |
 | Database tables and their meaning | `server/src/schema.sql`, `server/src/db.js` | [sqlite-schema.md](sqlite-schema.md) |
 | Build check, CI, Docker, release/changelog pipeline | `scripts/`, `.github/workflows/`, `Dockerfile` | [development.md](development.md) |
-| Production security posture | — | [hardening.md](hardening.md), [security-checklist.md](security-checklist.md) |
-| "Something is broken, where do I look?" | — | [troubleshooting.md](troubleshooting.md) |
+| Production security posture | - | [hardening.md](hardening.md), [security-checklist.md](security-checklist.md) |
+| "Something is broken, where do I look?" | - | [troubleshooting.md](troubleshooting.md) |
 
 Frontend module placement rules (file size limits, which module owns which feature,
 dependency rules) live in [`../CLAUDE.md`](../CLAUDE.md) and are mirrored in
@@ -86,7 +86,7 @@ Every tracked file in the repository, by directory.
 | `docker-compose.yml` | Base compose file: port 5055, `./data:/data` volume, admin env vars, `no-new-privileges`, resource limits. |
 | `docker-compose.secure.yml` | Hardened overlay: read-only rootfs, tmpfs `/tmp`, required env vars (`ADMIN_PASSWORD`, `SESSION_SECRET`, `API_KEY`, `WEBHOOK_SECRET`), forces `COOKIE_SECURE=true`. |
 | `.dockerignore` | Excludes `node_modules`, `data`, `docs`, `scratch`, markdown, and secrets from the Docker build context while whitelisting the required runtime scripts. |
-| `.env.example` | Commented template of every supported environment variable — copy to `.env` (loaded by `server/src/env.js`). The variables are documented under [Environment variables](#environment-variables) below. |
+| `.env.example` | Commented template of every supported environment variable - copy to `.env` (loaded by `server/src/env.js`). The variables are documented under [Environment variables](#environment-variables) below. |
 | `.editorconfig` | Editor whitespace/indent conventions. |
 | `.gitattributes` | Normalizes line endings to LF; marks image formats binary. |
 | `.gitignore` | Ignores `node_modules`, `data/`, logs, local env files. |
@@ -110,7 +110,7 @@ Every tracked file in the repository, by directory.
 
 ### `docs/`
 
-See [README.md](README.md) for the full doc index with "read it when…" guidance —
+See [README.md](README.md) for the full doc index with "read it when…" guidance -
 including this file (`architecture.md`), the per-feature docs, and the
 [watch-history-backups.md](watch-history-backups.md) design document.
 `docs/screenshots/` holds the PNG screenshots embedded in the root README (`bio.png`,
@@ -126,7 +126,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `src/db.js` | Opens `data/plembfin.db` via better-sqlite3 (WAL), applies concurrency-safe migrations, and exposes helpers plus the SQLite-backed cache version observed by every process. |
 | `src/schema.sql` | Authoritative table definitions. See [sqlite-schema.md](sqlite-schema.md). |
 | `src/appConfig.js` | Resolves admin credentials + secrets from env / `data/config.json` (scrypt password hash, generated API key / webhook secret / session secret), warns about insecure config at startup, exports `AUTH`, `verifyWebhookToken`, `rotateWebhookSecret`, `updateAdminCredentials`. |
-| `src/env.js` | Minimal `.env` loader (`loadLocalEnv`) — parses `<repo>/.env` without a dotenv dependency; env vars already set take precedence. |
+| `src/env.js` | Minimal `.env` loader (`loadLocalEnv`) - parses `<repo>/.env` without a dotenv dependency; env vars already set take precedence. |
 | `src/paths.js` | Resolves `DATA_DIR` and every path under it (`MEDIA_DIR`, `POSTERS_DIR`, `BACKDROPS_DIR`, `PROFILES_DIR`, backup dirs, `DB_PATH`, `CONFIG_PATH`, `PUBLIC_DIR`); `ensureDataDirs()` creates them. |
 | `src/scheduled.js` | The background sync engine: live-session polling → `live_tracking_cache`, completed-session detection, resume-progress replication, per-platform catch-up sync (recently watched + resumable), manual dispatch queue, Plex unwatched reconciliation, `runScheduledSync` and `runForceSync`. See [scheduled-sync.md](scheduled-sync.md). |
 | `src/scheduler.js` | Scheduler wrapper and Plex notification listener lifecycle: per-minute tick orchestration, scheduled backup runs, next-airing cache refresh, startup/shutdown listener control, and Plex library-item unwatch callback. |
@@ -146,7 +146,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 
 | File | What it is |
 | --- | --- |
-| `dataRepo.js` | **The data repository** — pure SQLite. All prepared-statement CRUD for watch history, playstate, playback progress, live tracking cache; the memoized derived caches (`getCachedHistory/Movies/Shows`, `getWatchStats`); `mediaKeyFor` canonical keys; query functions behind `/api/history`, `/api/movies`, `/api/shows`, `/api/show`; dedup/merge/rematch/backfill helpers. |
+| `dataRepo.js` | **The data repository** - pure SQLite. All prepared-statement CRUD for watch history, playstate, playback progress, live tracking cache; the memoized derived caches (`getCachedHistory/Movies/Shows`, `getWatchStats`); `mediaKeyFor` canonical keys; query functions behind `/api/history`, `/api/movies`, `/api/shows`, `/api/show`; dedup/merge/rematch/backfill helpers. |
 | `parsers.js` | Webhook normalization: `parsePlexWebhook` (multipart), `parseEmbyWebhook`, `parseJellyfinWebhook`, `parseCustomWebhook` → a unified `media` object with a `phase` field (`active`/`completed`/`ended`/`unplayed`/`ignored`). Also `parsePlexGuids`, `normalizeProviderIds`, `decodeHtmlEntities`, `buildPlexMediaFromMetadata`. See [webhooks.md](webhooks.md). |
 | `syncOrchestrator.js` | Cross-platform propagation: `syncMediaPlaystate` / `syncMediaUnplayedPlaystate` / `syncMediaProgress` fan out to the other platforms' clients, with `TARGETS_BY_SOURCE` routing, echo-loop detection via `loopStore.checkAndClaim`, and result summaries written to telemetry. |
 | `syncMatchReport.js` | Pure aggregation of current watch-history telemetry into per-platform unmatched-media counts, movie/episode splits, and bounded samples for Settings → Sync Issues. |
@@ -158,16 +158,16 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `liveSessions.js` | Polls Plex/Emby/Jellyfin `sessions` endpoints for what's playing now (`fetchLiveSessions`), normalizes them (`buildCacheRow`, `sessionIdentity`, `hydrateCachedSession`) for `live_tracking_cache`. Feeds Now Playing and completed-session detection. |
 | `activeSessions.js` | The `active_sessions` table (webhook `active`-phase sessions, configurable 5-minute TTL by default, enforced on read). |
 | `loopStore.js` | SQLite-backed loop-detection KV (`loop_keys` table) with TTL; `checkAndClaim` runs check+claim in one transaction so concurrent webhooks can't both pass. |
-| `syncFlags.js` | `watchedPlayedSyncEnabled()` — global kill-switch for watched/played propagation via `WATCHED_PLAYED_SYNC_ENABLED`. |
+| `syncFlags.js` | `watchedPlayedSyncEnabled()` - global kill-switch for watched/played propagation via `WATCHED_PLAYED_SYNC_ENABLED`. |
 | `configStore.js` | The `settings` SQLite row: media-server connection config (Plex/Emby/Jellyfin/Seerr/TMDB/Fanart/TVDB/YouTube/OMDb) and sync-tuning overrides with env-var defaults, secret-preserving merges (`mergeIncomingConfig`), browser-safe shape (`publicMediaConfig`), URL/range validation; plus `runtime_state` helpers and the `sync_history` log. |
 | `auth.js` | Session cookie sign/verify (HMAC, 7-day TTL), API-key matching, `requireAdmin`, and the auth route handlers (`login`, `logout`, `auth/status`, `auth/apikey`, `auth/webhook-secret`, `auth/credentials`, `auth/sessions/revoke-all`). See [auth.md](auth.md). |
-| `outbound.js` | `fetchWithTimeout` (configurable 10s default — **all** server-side outbound HTTP must use it; enforced by the build check), `normalizeHttpUrl`, and `assertSafeOutboundUrl`. The shared boundary permits configured LAN media servers while rejecting unsafe schemes, embedded credentials, cloud-metadata targets, and unsafe redirect targets; credentials are removed from cross-origin redirects. |
-| `http.js` | `sendJson` / `sendOptions` / `methodNotAllowed` / `notFound` response helpers. Same-origin only — no CORS headers are ever sent. |
+| `outbound.js` | `fetchWithTimeout` (configurable 10s default - **all** server-side outbound HTTP must use it; enforced by the build check), `normalizeHttpUrl`, and `assertSafeOutboundUrl`. The shared boundary permits configured LAN media servers while rejecting unsafe schemes, embedded credentials, cloud-metadata targets, and unsafe redirect targets; credentials are removed from cross-origin redirects. |
+| `http.js` | `sendJson` / `sendOptions` / `methodNotAllowed` / `notFound` response helpers. Same-origin only - no CORS headers are ever sent. |
 | `requestBody.js` | `readJson` and `readFormData` (urlencoded + multipart via busboy) over the raw body captured by `server.js`. |
 | `diagnosticLogger.js` | Wraps `console.log/warn/error` and writes captured lines (secrets redacted) to the `diagnostic_log` table for Settings → Logs (`/api/diagnostic-logs`). Batches writes, caps the table at 20,000 rows, and prunes the `data/logs` JSONL archive on boot. |
 | `logVerbose.js` | `LOG_VERBOSE` flag plus `traceLog()`, used to keep per-request tracing (Plex GUID lookups, search fallbacks) out of the log unless explicitly enabled. |
 | `posterCache.js` | Artwork fetch-resize-store pipeline: downloads a remote image (Plex token moved to a header), resizes with sharp to webp (poster 340w / backdrop 1600w / profile 780w / logo 800w), writes to `data/media/<variant>s/`, records metadata in `poster_cache` with negative caching for missing/failed. See [posters-artwork.md](posters-artwork.md). |
-| `tmdbGateway.js` | TMDB API gateway + SQLite caches (`tmdb_metadata_cache`, `tmdb_search_cache`, `tmdb_person_cache`): details, search, seasons, people, images, library prewarm, request throttling and in-flight dedupe. For TV it merges TVDB structural data — see [metadata.md](metadata.md). |
+| `tmdbGateway.js` | TMDB API gateway + SQLite caches (`tmdb_metadata_cache`, `tmdb_search_cache`, `tmdb_person_cache`): details, search, seasons, people, images, library prewarm, request throttling and in-flight dedupe. For TV it merges TVDB structural data - see [metadata.md](metadata.md). |
 | `tvdbGateway.js` | TheTVDB v4 gateway (built-in shared project key, optional personal key): series/season/episode data, title search, artwork; raw responses cached in `tvdb_metadata_cache` / `tvdb_season_cache`; `shapeTvdbSeriesAsTmdb` adapts TVDB shapes to TMDB-style fields. |
 | `fanartGateway.js` | Fanart.tv gateway (built-in shared key + optional personal `client_key`): best/all posters, backdrops, HD logos for movies (by TMDB id) and TV (by TVDB id). |
 | `omdbGateway.js` | OMDb gateway: IMDb rating + vote count by IMDb id, cached 7 days in `omdb_cache`. |
@@ -178,7 +178,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `backup.js` | Portable full-backup format: exports/imports the core SQLite tables as versioned JSON collections (paged export, batched import, optional reset). Used by Settings → Backups / Restore and the encrypted backup subsystem. |
 | `watchHistoryBackups.js` | Watch-history-only backup subsystem: gzip JSON of `watch_history` + `playstate` + `playback_progress` with checksum manifest, independent daily local and remote schedules with separate retention counts, dry-run/merge/replace restore, remote destination management (secrets kept server-side, redacted in every API response), cron-sync pausing around restores. See [backups.md](backups.md). |
 | `plembfinBackups.js` | Full encrypted backup subsystem: AES-256-GCM (PBKDF2) encrypted export of the entire portable backup, daily scheduling + retention, optional remote mirroring. |
-| `backupDestinations/index.js` | Adapter registry: `folder`, `webdav`, `s3` (also `backblaze`), `onedrive`, `dropbox` — all sharing `testConnection / upload / list / download / delete`. |
+| `backupDestinations/index.js` | Adapter registry: `folder`, `webdav`, `s3` (also `backblaze`), `onedrive`, `dropbox` - all sharing `testConnection / upload / list / download / delete`. |
 | `backupDestinations/folder.js` | Local/mounted-folder destination adapter. |
 | `backupDestinations/webdav.js` | WebDAV destination adapter (basic auth). |
 | `backupDestinations/s3.js` | S3-compatible destination adapter with its own SigV4 signer (AWS S3, Backblaze B2, MinIO…). |
@@ -221,7 +221,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `media-detail-events.js` | Click delegation inside the detail modal (cast, trailers, poster edit, watch actions, card navigation). |
 | `media-person.js` | Person profile pages: bio, filmography with watch badges. |
 | `media-lightbox.js` | Trailer playback (YouTube embed) and photo lightbox. |
-| `calendar-picker.js` | Shared calendar + time picker (month/year quick-select, fixed-height day grid) used by every date/time picker in the app — the edit-date dialogs and the mark-watched date prompts — so they all look and behave identically. No global state; each mount owns its own picker instance. |
+| `calendar-picker.js` | Shared calendar + time picker (month/year quick-select, fixed-height day grid) used by every date/time picker in the app - the edit-date dialogs and the mark-watched date prompts - so they all look and behave identically. No global state; each mount owns its own picker instance. |
 | `edit-dialogs.js` | Edit watched-date (including multiple watch dates per item: add/edit/delete), edit images (poster/logo/backdrop picker), fix-match, and merge-show dialogs. |
 | `watch-action.js` | Manual mark watched/unwatched flows: date prompt (built on `calendar-picker.js`), batched `/api/manual-watch` posts, delete-media, Seerr request submission. |
 | `tmdb.js` | Frontend TMDB enrichment helpers (`fetchTmdbDetails`, season details, episode-title resolution) with in-memory caches. |
@@ -243,7 +243,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `docker-entrypoint.sh` | Container entrypoint: chowns `/data` when starting as root, then drops to the `plembfin` user via gosu. |
 | `exportPlexHistory.js` | Standalone one-shot importer: reads a Plex server's watch history over its API and posts it to `/api/import` in chunks. Driven by env vars (`PLEX_URL`, `PLEX_TOKEN`, `API_KEY`). |
 | `forcePushHistory.js` | Standalone one-shot replicator: fetches Plembfin's `/api/history` and replays every row against Plex/Emby/Jellyfin as mark-played calls. |
-| `seed-demo-content.js` | `npm run seed:demo` — inserts fictional movies/shows with generated poster art for demo screenshots/dev. |
+| `seed-demo-content.js` | `npm run seed:demo` - inserts fictional movies/shows with generated poster art for demo screenshots/dev. |
 
 ### `test/`
 
@@ -321,9 +321,9 @@ Full detail: [webhooks.md](webhooks.md).
 running when the next fires, the new tick is skipped.
 
 The same logic runs on demand via:
-- `GET /api/cron-sync/status` — returns the last cron trigger/result as JSON for automation.
-- `POST /api/cron-sync` — streams a text log of what the tick did.
-- `POST /api/force-sync` — runs and stores progress in `runtime_state` for the
+- `GET /api/cron-sync/status` - returns the last cron trigger/result as JSON for automation.
+- `POST /api/cron-sync` - streams a text log of what the tick did.
+- `POST /api/force-sync` - runs and stores progress in `runtime_state` for the
   dashboard to poll; `stop-force-sync` cancels.
 
 The tick also runs the scheduled watch-history backup and encrypted backup jobs
@@ -340,7 +340,7 @@ Full detail: [scheduled-sync.md](scheduled-sync.md).
 metadata by source, both behind the same `getTmdbDetails()`/`getTmdbSeason()` API so
 every caller (routes, frontend, `deriveNextAiring`) is unaware of the split:
 
-- **TheTVDB** supplies structural data for TV shows — name, overview, status, network,
+- **TheTVDB** supplies structural data for TV shows - name, overview, status, network,
   genres, artwork, and season/episode numbering, titles, overviews, and air dates.
   This is deliberately more accurate than TMDB's own numbering for many shows.
 - **TMDB** supplies everything TheTVDB doesn't have: cast/credits, trailers,
@@ -349,10 +349,10 @@ every caller (routes, frontend, `deriveNextAiring`) is unaware of the split:
   caller-supplied ID), since Seerr requests and `/tvshow/tmdb/:id` routing are
   TMDB-keyed. TheTVDB's `remoteIds` mapping is community-submitted and occasionally
   points at a stale/incorrect TMDB id; `getTvShowDetails` verifies it by fetching that
-  id and, if it 404s, falls back to a TMDB title search and uses the corrected id —
+  id and, if it 404s, falls back to a TMDB title search and uses the corrected id -
   otherwise cast/trailers/images would silently stay empty for that show.
 - A "Specials" (season 0) entry is only included in a show's `seasons` list when
-  TheTVDB actually has episodes attached to it — an empty placeholder season is
+  TheTVDB actually has episodes attached to it - an empty placeholder season is
   dropped rather than shown as a dead, always-empty accordion row.
 - **Movies** are 100% TMDB.
 
@@ -365,7 +365,7 @@ the merged TMDB+TVDB result is cached in the `tmdb_metadata_cache` table
 under `tv_{tmdbId}` keys, so movie caching and downstream consumers (poster pipeline,
 Seerr, next-airing) all read one shape. `DETAILS_SCHEMA_VERSION` is bumped whenever the
 cached shape changes, which forces every existing cache row to be treated as stale and
-refetched on next access — no manual cache clearing needed after an upgrade that changes
+refetched on next access - no manual cache clearing needed after an upgrade that changes
 this shape.
 
 Full detail: [metadata.md](metadata.md).
@@ -373,7 +373,7 @@ Full detail: [metadata.md](metadata.md).
 ## Changelog & update check
 
 Each build ships with a bundled `changelog.json` at the repo root (served verbatim at
-`GET /changelog.json`) that records the version this instance was built from — this is what
+`GET /changelog.json`) that records the version this instance was built from - this is what
 the sidebar version badge shows. On dashboard load `loadAppVersion()` calls `/api/changelog`
 with `?refresh=1` for a quick update check; when a newer release exists the badge changes
 from `v0.2.15` to `v0.2.15 - Update available` (accent-tinted).
@@ -406,7 +406,7 @@ boot. All database access uses prepared statements.
 `cache_versions`, polled at most every 500 ms. SQLite triggers advance it in the same
 transaction as canonical watch-state writes; `bumpDataVersion()` also supports
 file-backed derived changes. The next read reloads from SQLite. This works
-because Plembfin is a single long-lived process — never assume a second process can
+because Plembfin is a single long-lived process - never assume a second process can
 share these caches.
 
 Gotcha: `getCachedHistory()`, `getCachedMovies()`, and `getCachedShows()` rebuild full
@@ -441,7 +441,7 @@ Full detail: [auth.md](auth.md).
   grouped settings aliases), `/movie/:id`,
   `/movie/tmdb/:id`, `/tvshow/:key(/season/:n(/episode/:n))`, `/tvshow/tmdb/:id`,
   `/person/:id`.
-- Auth handled by `onAuthChange()` (`modules/auth.js`) — which checks
+- Auth handled by `onAuthChange()` (`modules/auth.js`) - which checks
   `/api/auth/status`. The auth panel is hidden until a session is confirmed.
 - Browser API calls use the HttpOnly session cookie after authentication.
   `fetchAndCacheApiKey()` keeps the integration API key in memory only for
@@ -456,7 +456,7 @@ redacted before request log formatting.
 
 Morgan `combined`-format request logs are written to `data/logs/access.log`. The file
 rotates daily and the last 14 days of logs are retained. Logs are never written to
-stdout — only to the file — so container log streams stay clean.
+stdout - only to the file - so container log streams stay clean.
 
 ## Security headers
 
@@ -496,32 +496,32 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 
 ## Environment variables
 
-- `PORT` — HTTP port (default `5055`)
-- `DATA_DIR` — data directory (default `<repo>/data`; Docker sets `/data`)
-- `ROLE` — `all` (default), `web`, or `worker`; worker mode does not bind HTTP
-- `ADMIN_USERNAME` (default `admin`) / `ADMIN_PASSWORD` — admin login. If `ADMIN_PASSWORD` is unset on a brand-new install, a random password is generated and printed once to the server console.
-- `API_KEY` — pin the webhook/integration key
-- `WEBHOOK_SECRET` — pin the webhook secret used by header/Bearer auth and the compatibility `?token=` URL
-- `SESSION_SECRET` — pin the session signing secret
-- `COOKIE_SECURE` — set to `true` when behind an HTTPS reverse proxy
-- `LOG_VERBOSE` — set to `true` to include per-request tracing (Plex GUID lookups, search fallbacks, per-phase scheduled-sync narration) in the logs. Off by default; errors and warnings are always logged.
-- `WATCHED_PLAYED_SYNC_ENABLED` — set to `false`/`0`/`off` to disable all watched/played propagation (recording still happens)
-- `CATCHUP_SYNC_INTERVAL_MS` — how often the catch-up library sync runs inside the scheduler (default 15 minutes)
-- `WATCHED_THRESHOLD_PERCENT` — playback percentage that counts as watched (default `90`, range 50–100)
-- `MIN_RESUME_POSITION_SEC` — minimum stopped-play position saved as resume progress (default `60`, range 0–3600 seconds)
-- `ACTIVE_SESSION_TTL_MIN` — time without a webhook update before an active session is stale (default `5`, range 1–120 minutes)
-- `OUTBOUND_TIMEOUT_SEC` — default timeout for outbound media-server requests (default `10`, range 2–120 seconds)
-- `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` / `PLEX_ENABLED` — Plex connection defaults (Settings values take precedence)
-- `EMBY_SERVER_URL` / `EMBY_API_KEY` / `EMBY_USER_ID` / `EMBY_ENABLED` — Emby connection defaults
-- `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` — Jellyfin connection defaults
-- `TMDB_API_KEY` — TMDB API key default
-- `YOUTUBE_API_KEY` — YouTube Data API key default (trailer metadata)
-- `OMDB_API_KEY` — optional OMDb API key; when set, enables IMDb rating badges on media detail pages (free tier: 1,000 req/day from omdbapi.com). Can also be configured in Settings → Metadata → OMDb.
-- `TVDB_API_KEY` — optional personal TheTVDB API key for a higher personal rate limit. A built-in project key is used when this is unset. Can also be configured in Settings → Metadata → TheTVDB.
-- `TVDB_PROJECT_KEY` — advanced: replace the built-in shared TheTVDB project key (used when no personal key is set). Only needed if the built-in key is revoked or exhausted.
-- `FANART_PROJECT_KEY` — advanced: replace the built-in shared Fanart.tv project key. Only needed if the built-in key is revoked or exhausted.
-- `FANART_API_KEY` — optional personal Fanart.tv key (raises the rate limit as a `client_key`)
-- `PLEMBFIN_DEBUG_OUTBOUND` — set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs); for measuring upstream traffic
+- `PORT` - HTTP port (default `5055`)
+- `DATA_DIR` - data directory (default `<repo>/data`; Docker sets `/data`)
+- `ROLE` - `all` (default), `web`, or `worker`; worker mode does not bind HTTP
+- `ADMIN_USERNAME` (default `admin`) / `ADMIN_PASSWORD` - admin login. If `ADMIN_PASSWORD` is unset on a brand-new install, a random password is generated and printed once to the server console.
+- `API_KEY` - pin the webhook/integration key
+- `WEBHOOK_SECRET` - pin the webhook secret used by header/Bearer auth and the compatibility `?token=` URL
+- `SESSION_SECRET` - pin the session signing secret
+- `COOKIE_SECURE` - set to `true` when behind an HTTPS reverse proxy
+- `LOG_VERBOSE` - set to `true` to include per-request tracing (Plex GUID lookups, search fallbacks, per-phase scheduled-sync narration) in the logs. Off by default; errors and warnings are always logged.
+- `WATCHED_PLAYED_SYNC_ENABLED` - set to `false`/`0`/`off` to disable all watched/played propagation (recording still happens)
+- `CATCHUP_SYNC_INTERVAL_MS` - how often the catch-up library sync runs inside the scheduler (default 15 minutes)
+- `WATCHED_THRESHOLD_PERCENT` - playback percentage that counts as watched (default `90`, range 50-100)
+- `MIN_RESUME_POSITION_SEC` - minimum stopped-play position saved as resume progress (default `60`, range 0-3600 seconds)
+- `ACTIVE_SESSION_TTL_MIN` - time without a webhook update before an active session is stale (default `5`, range 1-120 minutes)
+- `OUTBOUND_TIMEOUT_SEC` - default timeout for outbound media-server requests (default `10`, range 2-120 seconds)
+- `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` / `PLEX_ENABLED` - Plex connection defaults (Settings values take precedence)
+- `EMBY_SERVER_URL` / `EMBY_API_KEY` / `EMBY_USER_ID` / `EMBY_ENABLED` - Emby connection defaults
+- `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` - Jellyfin connection defaults
+- `TMDB_API_KEY` - TMDB API key default
+- `YOUTUBE_API_KEY` - YouTube Data API key default (trailer metadata)
+- `OMDB_API_KEY` - optional OMDb API key; when set, enables IMDb rating badges on media detail pages (free tier: 1,000 req/day from omdbapi.com). Can also be configured in Settings → Metadata → OMDb.
+- `TVDB_API_KEY` - optional personal TheTVDB API key for a higher personal rate limit. A built-in project key is used when this is unset. Can also be configured in Settings → Metadata → TheTVDB.
+- `TVDB_PROJECT_KEY` - advanced: replace the built-in shared TheTVDB project key (used when no personal key is set). Only needed if the built-in key is revoked or exhausted.
+- `FANART_PROJECT_KEY` - advanced: replace the built-in shared Fanart.tv project key. Only needed if the built-in key is revoked or exhausted.
+- `FANART_API_KEY` - optional personal Fanart.tv key (raises the rate limit as a `client_key`)
+- `PLEMBFIN_DEBUG_OUTBOUND` - set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs); for measuring upstream traffic
 
 Environment variables act as **defaults** for connection and sync-tuning settings:
 values saved in Settings (stored in the `settings` SQLite row) take precedence over
@@ -541,7 +541,7 @@ in `dataRepo.js`:
 
 | Field | Meaning |
 | --- | --- |
-| `sameEventDuplicateRows` | Rows restating a play already recorded for the same `media_key` within 10 minutes — what Clean Duplicate History Rows would delete |
+| `sameEventDuplicateRows` | Rows restating a play already recorded for the same `media_key` within 10 minutes - what Clean Duplicate History Rows would delete |
 | `rewatchedItems` | Items with one `media_key` and watches further apart than that window; separate viewings, deliberately kept. Only a true rewatch count once `sameEventDuplicateRows` is zero |
 | `nullSeasonEpisodeRows` | Episode rows with no season number, which cannot match reliably for sync or count toward show progress |
 | `opaqueShowTitleRows` | Rows storing a provider URI (`plex://…`) in `show_title`, so episode totals cannot be resolved |

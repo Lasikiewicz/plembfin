@@ -2,8 +2,8 @@ import { escapeHtml, toDateInputValue } from "./utils.js";
 
 // Shared calendar + time picker used everywhere the app lets you pick a watch
 // date (the edit-date dialogs, and the "mark watched" date prompts). Every
-// call to mountCalendarPicker owns its own independent pickerState object —
-// there is no global singleton — so multiple instances never collide and
+// call to mountCalendarPicker owns its own independent pickerState object -
+// there is no global singleton - so multiple instances never collide and
 // every picker in the app stays visually and behaviorally identical.
 
 const WD_WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
@@ -11,7 +11,7 @@ const WD_MONTH_NAMES = Array.from({ length: 12 }, (_, m) =>
   new Intl.DateTimeFormat(undefined, { month: "long" }).format(new Date(2000, m, 1)));
 
 // Fixed at 6 rows (42 cells) regardless of month length/weekday alignment, so
-// the calendar's overall height — and the position of controls around it —
+// the calendar's overall height - and the position of controls around it -
 // never shifts when moving between months.
 const WD_GRID_CELLS = 42;
 

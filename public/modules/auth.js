@@ -33,7 +33,7 @@ async function fetchAndCacheApiKey() {
     if (data.apiKey) {
       cachedToken = data.apiKey;
     }
-  } catch { /* network error — session cookie covers same-origin requests */ }
+  } catch { /* network error - session cookie covers same-origin requests */ }
 }
 
 async function fetchAndCacheWebhookToken() {

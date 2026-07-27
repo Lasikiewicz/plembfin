@@ -24,7 +24,7 @@ See [now-playing.md](now-playing.md) for full diagnosis steps.
 
 - Confirm the webhook reached Plembfin with the correct `?token=` secret. The server
   logs every incoming webhook attempt and whether auth passed.
-- Check `media.phase` was `completed` — a Plex `media.stop` below the watched
+- Check `media.phase` was `completed` - a Plex `media.stop` below the watched
   threshold (90% by default) becomes
   `ended`, not `completed`. See the phase table in [webhooks.md](webhooks.md).
 - Check `sync_history` and the watch record's `sync_dispatch_telemetry` for errors.
@@ -37,11 +37,11 @@ See [now-playing.md](now-playing.md) for full diagnosis steps.
   ```
 - Check the target platform's client credentials (URL / API key / user ID).
 - Errors reading `Request timed out after 10000ms` mean the target server accepted
-  the connection but did not answer within the outbound timeout — check that the
+  the connection but did not answer within the outbound timeout - check that the
   media server is responsive and reachable from the Plembfin host (backup
   destinations use a 60-second budget for uploads/downloads).
 - Echo suppression: `loopStore` drops events that look like echoes of a recent
-  dispatch — usually correct. If sync is double-firing, check loop keys:
+  dispatch - usually correct. If sync is double-firing, check loop keys:
   ```sh
   sqlite3 data/plembfin.db "SELECT * FROM loop_keys WHERE expires_at > unixepoch('now', 'subsec') * 1000;"
   ```
@@ -56,8 +56,8 @@ the position is over one minute (sub-minute positions are ignored to avoid noise
 ## "Posters are missing / wrong"
 
 Two-tier: frontend renders a `poster-fallback` then calls
-`/api/poster?id=<watchRecordId>`. Backend tries candidates in order — stored URL →
-configured server URL (Plex/Emby/Jellyfin) → TMDB — resizes with sharp, writes the
+`/api/poster?id=<watchRecordId>`. Backend tries candidates in order - stored URL →
+configured server URL (Plex/Emby/Jellyfin) → TMDB - resizes with sharp, writes the
 winner to `data/media/posters` or `data/media/backdrops`, and records metadata in
 `poster_cache`.
 
@@ -89,7 +89,7 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
   worker container/process rather than only the web process.
 - Confirm every process uses the same local `DATA_DIR` and that no network filesystem
   is involved.
-- Trigger it manually: `POST /api/cron-sync` with your API key — the response
+- Trigger it manually: `POST /api/cron-sync` with your API key - the response
   streams a line-by-line log.
 - Watch the server stdout for `[cron]` log lines.
 
@@ -101,8 +101,8 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
 
 ## "The Logs panel doesn't show enough detail"
 
-Per-request tracing — Plex ID lookups, search fallbacks, and the per-phase narration of
-each scheduled-sync run — is suppressed by default, because on a per-minute scheduler it
+Per-request tracing - Plex ID lookups, search fallbacks, and the per-phase narration of
+each scheduled-sync run - is suppressed by default, because on a per-minute scheduler it
 produces hundreds of lines an hour that describe routine no-op work. Errors and warnings
 are always recorded.
 
@@ -118,10 +118,10 @@ Two related behaviours are worth knowing when reading a log:
 ## "The data/logs directory is large"
 
 `data/logs` holds two separate things:
-- `access.log` — Morgan HTTP access log, rotated daily **and** at 10 MB, keeping 14 files.
+- `access.log` - Morgan HTTP access log, rotated daily **and** at 10 MB, keeping 14 files.
   Successful static-asset, cached-artwork, and front-end poller requests are excluded, so
   it records meaningful traffic and errors rather than every poster fetch.
-- `diagnostic-*.jsonl` — crash-forensics archive of captured console output, pruned on boot
+- `diagnostic-*.jsonl` - crash-forensics archive of captured console output, pruned on boot
   to the newest 20 files / last 7 days. Nothing reads these at runtime; the Logs panel is
   served from the `diagnostic_log` table.
 

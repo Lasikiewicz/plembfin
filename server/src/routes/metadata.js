@@ -485,7 +485,7 @@ export async function handleTmdbDetailsBatch(req, res) {
 
   // Bounded worker pool: upstream calls are serialized by the gateway throttles
   // anyway, so unbounded Promise.all only inflates the in-flight promise count
-  // for a cold batch — 8 workers keeps cache hits fast without that.
+  // for a cold batch - 8 workers keeps cache hits fast without that.
   const BATCH_CONCURRENCY = 8;
   const results = new Array(items.length);
   let nextIndex = 0;
@@ -879,7 +879,7 @@ export async function handleYoutubeMeta(req, res) {
   ];
 
   const payload = { videoId, title, channelName, description, publishedAt, duration, thumbnails };
-  // Only cache when at least the oEmbed call answered — an all-empty payload
+  // Only cache when at least the oEmbed call answered - an all-empty payload
   // usually means a transient failure, not an empty video.
   if (title || channelName) {
     youtubeMetaSetStmt.run(videoId, toJson(payload), Date.now());

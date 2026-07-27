@@ -833,7 +833,7 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
       const url = tmdbImage(l.file_path, "original");
       if (!seen.has(url)) {
         seen.add(url);
-        items.push({ url, lang: l.iso_639_1 ? l.iso_639_1.toUpperCase() : "—", source: "TMDB" });
+        items.push({ url, lang: l.iso_639_1 ? l.iso_639_1.toUpperCase() : "-", source: "TMDB" });
       }
     }
     status.textContent = "Checking TVDB and fanart.tv...";
@@ -844,7 +844,7 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
     if (items.length) {
       const hasEnTmdb = enLogos.length > 0;
       const hasEnFallback = items.some(l => l.source !== "TMDB" && String(l.lang || "").toLowerCase() === "en");
-      status.textContent = (!hasEnTmdb && !hasEnFallback && items.length > 0) ? "No English logo found — showing other languages." : "";
+      status.textContent = (!hasEnTmdb && !hasEnFallback && items.length > 0) ? "No English logo found - showing other languages." : "";
       renderGrid(items, true, true);
       return;
     }
@@ -1021,7 +1021,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   overlay.innerHTML = `
     <div class="edit-dialog edit-dialog--wide fix-match-dialog glass-panel">
       <h3>${escapeHtml(headerTitle)}</h3>
-      <p class="muted-copy" style="margin-bottom: 0.75rem;">Search ${sourceLabel} to link the correct ${isTv ? "TV show" : "movie"}${isTv ? " — this rematches every episode of the show" : ""}, or match to a YouTube video.</p>
+      <p class="muted-copy" style="margin-bottom: 0.75rem;">Search ${sourceLabel} to link the correct ${isTv ? "TV show" : "movie"}${isTv ? " - this rematches every episode of the show" : ""}, or match to a YouTube video.</p>
       <div style="display: flex; gap: 0.5rem;">
         <input type="search" class="field fix-match-input" placeholder="${escapeAttribute(currentTitle || "Search title…")}" value="${escapeAttribute(currentTitle || "")}" style="flex: 1;" />
         <button class="button-primary fix-match-search-btn" type="button">Search ${sourceLabel}</button>
@@ -1103,7 +1103,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
     _setMessage(`Match updated for ${updatedRows} episode${updatedRows === 1 ? "" : "s"}. Refreshing metadata in the background.`, "success");
 
     // The show's route key is derived from its name, so a rename moves it to a
-    // new URL — stay put and the current page no longer resolves to anything.
+    // new URL - stay put and the current page no longer resolves to anything.
     if (renamed && slug(nextTitle) !== showKey) {
       _navigateTo(`/tvshow/${slug(nextTitle)}`);
       return;

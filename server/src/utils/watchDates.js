@@ -40,7 +40,7 @@ export function isEmbyLikeApiMarked(item = {}) {
   if (embyLikePlayedDate(item)) return false;
   if (!isEmbyLikePlayed(item)) return false;
   // Require an explicit zero. A missing PlayCount means the server did not tell
-  // us, which is not the same as telling us the item was never played — that
+  // us, which is not the same as telling us the item was never played - that
   // case stays a reportable "missing played date".
   const raw = item.UserData?.PlayCount ?? item.PlayCount;
   if (raw === undefined || raw === null || raw === "") return false;

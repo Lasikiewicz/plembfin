@@ -65,7 +65,7 @@ test("normalizeTuningSection treats blank/null/missing fields as null and parses
   );
 });
 
-test("normalizeTuningSection does not clamp — out-of-range values pass through for validateConfig to reject", () => {
+test("normalizeTuningSection does not clamp - out-of-range values pass through for validateConfig to reject", () => {
   assert.deepEqual(normalizeTuningSection({ watchedThresholdPercent: 5, outboundTimeoutSec: 999 }), {
     watchedThresholdPercent: 5,
     minResumePositionSec: null,

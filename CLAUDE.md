@@ -8,36 +8,36 @@ Agent instructions for working with this codebase.
 
 ## Agent Guidelines
 
-- **No Git Pushes** — Never execute `git push` or push commits to any remote repository unless the user explicitly instructs you to push in their request.
-- **No Deployments** — Never deploy the application or run deployment commands unless explicitly instructed by the user.
-- **No Unsolicited Actions** — Do only exactly what the user asks. Do not perform unsolicited refactorings, add extra features, or modify files outside the direct scope of the request.
-- **No Browser Actions Unless Asked** — Never open web browsers/browser tools unless the user has explicitly requested it. Test commands are part of the normal project checks: run `npm test` or `npm run build` when a change touches code covered by those checks or when the user asks for verification.
-- **Act immediately on simple requests** — If the user describes a clear, specific change, make it directly without preamble, planning steps, or explanation. Save analysis for genuinely complex or ambiguous tasks.
+- **No Git Pushes** - Never execute `git push` or push commits to any remote repository unless the user explicitly instructs you to push in their request.
+- **No Deployments** - Never deploy the application or run deployment commands unless explicitly instructed by the user.
+- **No Unsolicited Actions** - Do only exactly what the user asks. Do not perform unsolicited refactorings, add extra features, or modify files outside the direct scope of the request.
+- **No Browser Actions Unless Asked** - Never open web browsers/browser tools unless the user has explicitly requested it. Test commands are part of the normal project checks: run `npm test` or `npm run build` when a change touches code covered by those checks or when the user asks for verification.
+- **Act immediately on simple requests** - If the user describes a clear, specific change, make it directly without preamble, planning steps, or explanation. Save analysis for genuinely complex or ambiguous tasks.
 
 ## "Push to git" command
 
 When the user says **"Push to git"** (exactly), run this full pre-push workflow before committing:
 
-### 1 — Review all pending changes
+### 1 - Review all pending changes
 ```bash
 git diff --stat HEAD
 ```
 Read the list of changed files to understand what was touched in this session.
 
-### 2 — Sync docs and README
+### 2 - Sync docs and README
 For every changed file, check whether the corresponding doc **and** the relevant section of `README.md` need updating:
 
 | Changed area | Doc to check | README section to check |
 | --- | --- | --- |
 | Webhook auth / `parsers.js` / webhook flow | `docs/webhooks.md` | ⚡ Webhook Setup |
 | Scheduler / `scheduled.js` / `cron-sync` | `docs/scheduled-sync.md` | 🛠️ Architecture |
-| Now-playing / `live_tracking_cache` | `docs/now-playing.md` | — |
+| Now-playing / `live_tracking_cache` | `docs/now-playing.md` | - |
 | `schema.sql` / new SQLite tables | `docs/sqlite-schema.md` | ⚙️ Configuration Reference |
 | Plex client / notification listener | `docs/plex.md` | ⚡ Webhook Setup |
 | Emby client | `docs/emby.md` | ⚡ Webhook Setup |
 | Jellyfin client | `docs/jellyfin.md` | ⚡ Webhook Setup |
 | TMDB / TVDB / Fanart / OMDb gateways or caches | `docs/metadata.md` | ⚙️ Configuration Reference |
-| Poster pipeline (`posterCache.js` / `images.js`) | `docs/posters-artwork.md` | — |
+| Poster pipeline (`posterCache.js` / `images.js`) | `docs/posters-artwork.md` | - |
 | Dashboard (`dashboard.js`) | `docs/dashboard.md` | 🌟 Key Features |
 | Movies page | `docs/movies.md` | 🌟 Key Features |
 | TV Shows page / show progress / next-airing | `docs/tv-shows.md` | 🌟 Key Features |
@@ -47,18 +47,18 @@ For every changed file, check whether the corresponding doc **and** the relevant
 | Settings tabs / config store / maintenance tools | `docs/settings.md` | 🔧 Full Setup Guide |
 | Auth / sessions / cookies / secrets | `docs/auth.md` + `docs/architecture.md` | 🔧 Full Setup Guide |
 | Backups / destinations / backup UI | `docs/backups.md` | 💾 Backup & Restore System |
-| SPA routing / state / module layout | `docs/frontend.md` | — |
+| SPA routing / state / module layout | `docs/frontend.md` | - |
 | Scripts / CI workflows / Docker / release pipeline | `docs/development.md` | 🚀 Getting Started |
 | New feature or setting | `docs/architecture.md` + the matching feature doc | 🌟 Key Features / 🔧 Full Setup Guide |
 | New env variable | `docs/architecture.md` | ⚙️ Configuration Reference |
-| New file, or a file moved/renamed | file map in `docs/architecture.md` | — |
+| New file, or a file moved/renamed | file map in `docs/architecture.md` | - |
 | Any server-side breaking change | `docs/troubleshooting.md` | relevant setup section |
 | Overall architecture change | `docs/architecture.md` + `docs/README.md` | 🛠️ Architecture |
 | Docker / deployment change | `docs/development.md` | 🚀 Getting Started |
-| Key Features list in README | — | 🌟 Key Features |
+| Key Features list in README | - | 🌟 Key Features |
 | Push-to-git / agent workflow change | `CLAUDE.md` | 🧑‍💻 Development Workflow |
 
-**Important**: Always read the actual README sections that correspond to changed areas — do not assume they are already up to date. README prose can become stale even when docs/ files are current.
+**Important**: Always read the actual README sections that correspond to changed areas - do not assume they are already up to date. README prose can become stale even when docs/ files are current.
 
 Update any doc **and** the matching README section that is out of date before proceeding.
 
@@ -71,16 +71,16 @@ item from the TODO file in the same change. If the completed work changes user-v
 behavior, also update the relevant `docs/` page and README section. Before removing
 an item, verify that the code and documentation both describe the current behavior.
 
-### 3 — Sync in-app help
+### 3 - Sync in-app help
 For every changed feature or setting, check the relevant frontend module in `public/modules/` or `public/app.js`:
-- **Feature-owned help renderers and modal `helpHtml`** — update any setup copy if flows changed
-- **`renderSettingsInlineHelp()`** — check that the inline help content in each settings panel still matches the current behaviour
-- **`webhookWarning()` / `plexWebhookSetup()` / `embyWebhookSetup()` / `jellyfinWebhookSetup()`** — update if webhook setup steps changed (live in `modules/help-content.js` after refactor)
-- **`cronSyncGuide()`** — update if scheduler endpoint or behaviour changed
-- **`adminTokenGuide()`** — update if auth flow changed
+- **Feature-owned help renderers and modal `helpHtml`** - update any setup copy if flows changed
+- **`renderSettingsInlineHelp()`** - check that the inline help content in each settings panel still matches the current behaviour
+- **`webhookWarning()` / `plexWebhookSetup()` / `embyWebhookSetup()` / `jellyfinWebhookSetup()`** - update if webhook setup steps changed (live in `modules/help-content.js` after refactor)
+- **`cronSyncGuide()`** - update if scheduler endpoint or behaviour changed
+- **`adminTokenGuide()`** - update if auth flow changed
 
-### 4 — Write the commit message
-Use this format — the first line becomes the changelog `message`; bullet-point body lines are parsed into `details` by `scripts/update-changelog.js`:
+### 4 - Write the commit message
+Use this format - the first line becomes the changelog `message`; bullet-point body lines are parsed into `details` by `scripts/update-changelog.js`:
 
 ```
 <type>: <concise one-line summary of the session>
@@ -93,7 +93,7 @@ Use this format — the first line becomes the changelog `message`; bullet-point
 
 Types: `feat` (new feature), `fix` (bug fix), `security` (security change), `chore` (maintenance), `docs` (docs only).
 
-Keep bullet points to the 3–8 most significant user-visible changes. Skip internal refactors that don't affect behaviour.
+Keep bullet points to the 3-8 most significant user-visible changes. Skip internal refactors that don't affect behaviour.
 
 Do not create single-line commits for user-visible changes. If the change affects behavior, UI, docs, setup, data sources, sync, caching, or settings, the commit body must include bullet-point details. The changelog generator only reads body lines that start with `- ` or `* `; without them, the Settings → Changelog entry will be sparse. If you are about to commit without bullet details, stop and rewrite the commit message before committing.
 
@@ -107,20 +107,20 @@ git commit -m "fix: concise summary" \
 
 The `.githooks/commit-msg` hook rejects `feat`, `fix`, `security`, `enhance`, and `docs` commits that have no meaningful bullet. `scripts/update-changelog.js` applies the same validation in CI, so bypassing local hooks cannot publish a title-only changelog entry. After committing, verify the recorded message with `git log -1 --format=full` before pushing.
 
-### 5 — Stage and commit
+### 5 - Stage and commit
 Stage all modified files **except** `data/`, `node_modules/`, and any secrets. Commit using the message written in step 4.
 
-### 6 — Push
+### 6 - Push
 ```bash
 git push origin main
 ```
 CI will then auto-bump the patch version, add a `changelog.json` entry, and build/push the Docker image.
 
-The generated entry's headline and version always come from the last commit in the push, while the `details` list is backfilled from bullet points in *every* commit included in that push. Maintenance commits may fall back to their subject; user-visible release commits must pass the meaningful-bullet validation above. Nothing gets silently dropped even if the final commit's message doesn't summarize the whole push. Still, write the last commit's message as a proper user-facing summary of the session's work — features and fixes, no internal implementation details (file names, CSS properties, line counts) — since it becomes the entry's headline.
+The generated entry's headline and version always come from the last commit in the push, while the `details` list is backfilled from bullet points in *every* commit included in that push. Maintenance commits may fall back to their subject; user-visible release commits must pass the meaningful-bullet validation above. Nothing gets silently dropped even if the final commit's message doesn't summarize the whole push. Still, write the last commit's message as a proper user-facing summary of the session's work - features and fixes, no internal implementation details (file names, CSS properties, line counts) - since it becomes the entry's headline.
 
-#### Expect `main` to be ahead — this is normal, not a conflict to escalate
+#### Expect `main` to be ahead - this is normal, not a conflict to escalate
 
-The GitHub Actions workflow above commits its version bump **directly back to `main`** within seconds of every push, and a local pre-push hook also fetches/rebases against the remote before pushing. Together these mean `origin/main` will very often show 1 (sometimes more) commits that your local branch doesn't have yet — usually just `chore: update changelog for <sha>` bump commits that only ever touch `changelog.json`, `package.json`, and `package-lock.json`.
+The GitHub Actions workflow above commits its version bump **directly back to `main`** within seconds of every push, and a local pre-push hook also fetches/rebases against the remote before pushing. Together these mean `origin/main` will very often show 1 (sometimes more) commits that your local branch doesn't have yet - usually just `chore: update changelog for <sha>` bump commits that only ever touch `changelog.json`, `package.json`, and `package-lock.json`.
 
 When `git status` or a failed push reports `main` and `origin/main` have diverged, treat it as the expected steady-state, not a real conflict, and reconcile automatically as part of the same "Push to git" run:
 ```bash
@@ -128,7 +128,7 @@ git fetch origin
 git merge origin/main --no-edit   # or: git merge --ff-only origin/main if it's a straight fast-forward
 git push origin main
 ```
-This is safe to do without stopping to ask, because the only files those CI commits ever touch (`changelog.json`, `package.json`, `package-lock.json`) don't overlap with feature work in `public/` or `server/`, so the merge is conflict-free by construction. Only pause and ask the user if the merge actually produces a conflict (e.g. someone hand-edited `changelog.json`), or if `origin/main` contains commits that touch source files you don't recognize — that would mean unrelated work landed on `main` and needs a real decision, not an automatic merge.
+This is safe to do without stopping to ask, because the only files those CI commits ever touch (`changelog.json`, `package.json`, `package-lock.json`) don't overlap with feature work in `public/` or `server/`, so the merge is conflict-free by construction. Only pause and ask the user if the merge actually produces a conflict (e.g. someone hand-edited `changelog.json`), or if `origin/main` contains commits that touch source files you don't recognize - that would mean unrelated work landed on `main` and needs a real decision, not an automatic merge.
 
 ## Commands
 
@@ -161,8 +161,8 @@ a generated API key, and a session secret.
 > These rules prevent `app.js` from growing back into a monolith.
 
 ### File size limits
-- **`public/app.js`** — orchestrator only. Must stay under **3,000 lines**. If it approaches this limit, extract the next logical group into a module.
-- **`public/modules/*.js`** — individual modules. Soft limit **1,200 lines**; hard limit **1,500 lines**. If a module exceeds 1,200 lines, split it before adding more to it.
+- **`public/app.js`** - orchestrator only. Must stay under **3,000 lines**. If it approaches this limit, extract the next logical group into a module.
+- **`public/modules/*.js`** - individual modules. Soft limit **1,200 lines**; hard limit **1,500 lines**. If a module exceeds 1,200 lines, split it before adding more to it.
 
 ### Where new code goes
 When adding frontend code, place it in the most specific existing module that owns that feature area:
@@ -211,9 +211,9 @@ If a new feature area doesn't fit any existing module and would exceed 150 lines
 
 ### Dependency rules
 - Modules may import from `state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `settings-ui.js`
-- `sync.js` may be imported by `dashboard.js` and `media-detail.js` — not the reverse
+- `sync.js` may be imported by `dashboard.js` and `media-detail.js` - not the reverse
 - No module may import from `app.js`
-- Avoid circular dependencies — if you need A→B and B→A, the shared logic belongs in a third module
+- Avoid circular dependencies - if you need A→B and B→A, the shared logic belongs in a third module
 
 ## Backend Module Discipline
 
@@ -248,17 +248,17 @@ folder** under `data/`.
 
 ### Process layout
 
-**Entrypoint** (`server/server.js`) — an Express app that:
+**Entrypoint** (`server/server.js`) - an Express app that:
 - static-serves `public/` (the SPA) and `data/media` (cached artwork at `/media/...`)
 - mounts the API router at `/api/*` (raw body captured so webhook/JSON handlers parse it themselves)
 - runs `setInterval(runScheduledTick, 60000)` for the per-minute scheduler
 - falls back to `index.html` for client-side routes
 
-**API** (`server/src/index.js`) — a manual `dispatch()` router that strips the `/api/`
+**API** (`server/src/index.js`) - a manual `dispatch()` router that strips the `/api/`
 prefix and routes to `handleWebhook`, `handleHistory`, `handleMovies`, etc. `dispatch` is
 imported and mounted by `server.js`.
 
-**Frontend** (`public/`) — a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `settings-ui.js`, `settings-services.js`, `settings-shell.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`, `tools-backups.js`, `tools-maintenance.js`, `media-detail.js`, `media-person.js`, `media-lightbox.js`, `edit-dialogs.js`, `watch-action.js`, `tmdb.js`, `app-events.js`). No framework, bundler, or TypeScript.
+**Frontend** (`public/`) - a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `settings-ui.js`, `settings-services.js`, `settings-shell.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`, `tools-backups.js`, `tools-maintenance.js`, `media-detail.js`, `media-person.js`, `media-lightbox.js`, `edit-dialogs.js`, `watch-action.js`, `tmdb.js`, `app-events.js`). No framework, bundler, or TypeScript.
 
 ### Data layer (`server/src/db.js` + `schema.sql`)
 
@@ -270,7 +270,7 @@ Derived caches use **in-process memoization** keyed by an in-memory `dataVersion
 (`getDataVersion()` / `bumpDataVersion()` in `db.js`). `invalidateHistoryDerivedCaches()`
 just bumps the version; the in-memory `historyCache`/`movieCache`/`showCache`/
 `scheduledShowCache`/`statsCache` reload on the next read. `getCachedShows()` keeps two
-slots because its `includeScheduledLibraryHistory` variant returns a different show set —
+slots because its `includeScheduledLibraryHistory` variant returns a different show set -
 both must be memoized or that variant recomputes from the full watch history on every call.
 
 ### Auth (`server/src/utils/auth.js` + `server/src/appConfig.js`)
@@ -301,23 +301,23 @@ and stores progress in `runtime_state` for polling.
 ### Poster pipeline
 
 1. **Frontend** (`posterMarkup` / `hydratePosterFallbacks` in `modules/images.js`): renders a `poster-fallback` span if no URL is known, then calls `/api/poster?id=<watchRecordId>`. The TMDB prefetch observer (`observeExplorerTmdbPrefetch`) short-circuits this for explorer cards.
-2. **Backend** (`/api/poster`, `posterCache.js`): tries candidates in order — stored URL, configured server URL (Plex/Emby/Jellyfin), TMDB fallback — resizes with `sharp`, writes the winner to `data/media/posters` (or `backdrops`), and serves it at `/media/...`. The cache key is `mediaKey` (canonical title + type + IDs); metadata lives in the `poster_cache` table.
+2. **Backend** (`/api/poster`, `posterCache.js`): tries candidates in order - stored URL, configured server URL (Plex/Emby/Jellyfin), TMDB fallback - resizes with `sharp`, writes the winner to `data/media/posters` (or `backdrops`), and serves it at `/media/...`. The cache key is `mediaKey` (canonical title + type + IDs); metadata lives in the `poster_cache` table.
 
 **Important**: `isCachedStorageImageUrl()` in `modules/images.js` returns `true` only for `/media/posters/` and `/media/backdrops/` URLs. TMDB `image.tmdb.org` URLs are **not** treated as cached.
 
 ### SQLite tables
 
-- `watch_history` — canonical watch records
-- `playstate` — per-item watched/unwatched state for sync targets
-- `playback_progress` — resume position records
-- `active_sessions` — currently-playing sessions from webhook `active` events
-- `live_tracking_cache` — richer live session data used by scheduled sync
-- `sync_history` — log of all sync dispatch results
-- `runtime_state` (single row, JSON blob) — last cron time, force sync state/log, now-playing refresh signal
-- `settings` (single row, JSON blob) — Plex/Emby/Jellyfin/TMDB connection settings
-- `loop_keys` — loop-detection KV with TTL
-- `poster_cache` — cached artwork metadata (binaries live in `data/media`)
-- `tmdb_metadata_cache` / `tmdb_search_cache` / `tmdb_season_cache` / `tmdb_person_cache` — TMDB caches
+- `watch_history` - canonical watch records
+- `playstate` - per-item watched/unwatched state for sync targets
+- `playback_progress` - resume position records
+- `active_sessions` - currently-playing sessions from webhook `active` events
+- `live_tracking_cache` - richer live session data used by scheduled sync
+- `sync_history` - log of all sync dispatch results
+- `runtime_state` (single row, JSON blob) - last cron time, force sync state/log, now-playing refresh signal
+- `settings` (single row, JSON blob) - Plex/Emby/Jellyfin/TMDB connection settings
+- `loop_keys` - loop-detection KV with TTL
+- `poster_cache` - cached artwork metadata (binaries live in `data/media`)
+- `tmdb_metadata_cache` / `tmdb_search_cache` / `tmdb_season_cache` / `tmdb_person_cache` - TMDB caches
 
 ### Frontend state and routing
 
@@ -325,7 +325,7 @@ and stores progress in `runtime_state` for polling.
 `navigateTo(url)` / `handleRouting()` / `history.pushState`. Routes: `/` → dashboard,
 `/movie/:id`, `/tvshow/:key`, `/person/:id`, `/help/:topic`.
 
-Auth is managed by `onAuthChange()` (`modules/auth.js`) — which checks `/api/auth/status`.
+Auth is managed by `onAuthChange()` (`modules/auth.js`) - which checks `/api/auth/status`.
 The auth panel becomes visible when no session is active; the app shell shows on successful login.
 
 The explorer grid uses IntersectionObserver (1200px rootMargin) to pre-fetch the next page;
@@ -333,8 +333,8 @@ page size 240. A second observer (`observeExplorerTmdbPrefetch`) pre-fetches TMD
 
 ### Environment variables
 
-- `PORT` — HTTP port (default `5055`)
-- `DATA_DIR` — data directory (default `<repo>/data`; Docker sets `/data`)
-- `ADMIN_USERNAME` (default `admin`) / `ADMIN_PASSWORD` — admin login. If `ADMIN_PASSWORD` is unset on a brand-new install, a random password is generated and printed once to the server console.
-- `API_KEY` — pin the webhook/integration key (otherwise generated into `data/config.json`)
-- `SESSION_SECRET` — pin the session signing secret (otherwise generated)
+- `PORT` - HTTP port (default `5055`)
+- `DATA_DIR` - data directory (default `<repo>/data`; Docker sets `/data`)
+- `ADMIN_USERNAME` (default `admin`) / `ADMIN_PASSWORD` - admin login. If `ADMIN_PASSWORD` is unset on a brand-new install, a random password is generated and printed once to the server console.
+- `API_KEY` - pin the webhook/integration key (otherwise generated into `data/config.json`)
+- `SESSION_SECRET` - pin the session signing secret (otherwise generated)

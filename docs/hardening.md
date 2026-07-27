@@ -8,7 +8,7 @@ A practical checklist for running Plembfin securely in production.
 
 | What | Recommendation |
 |------|----------------|
-| Admin password | Fresh installs get a random password generated on first boot (printed once to the server console) — record it before it scrolls off. Set your own via `ADMIN_PASSWORD` or **Settings → Account & Security**. Minimum 12 characters. |
+| Admin password | Fresh installs get a random password generated on first boot (printed once to the server console) - record it before it scrolls off. Set your own via `ADMIN_PASSWORD` or **Settings → Account & Security**. Minimum 12 characters. |
 | `SESSION_SECRET` | Pin to a random 32+ char string via env var. Auto-generated value is fine for single-host installs. |
 | `API_KEY` | Pin if you share the key with external scripts or Home Assistant. |
 | `WEBHOOK_SECRET` | Rotate via **Settings → Webhooks → Rotate Secret** after any suspected exposure. |
@@ -25,7 +25,7 @@ openssl rand -hex 32
 
 Plembfin speaks plain HTTP. Always place it behind a TLS-terminating reverse proxy when accessible over the internet.
 
-### Caddy (recommended — auto TLS)
+### Caddy (recommended - auto TLS)
 
 ```caddyfile
 plembfin.example.com {
@@ -88,9 +88,9 @@ docker compose -f docker-compose.yml -f docker-compose.secure.yml up -d
 
 The overlay adds:
 
-- **Read-only root filesystem** — the container cannot write to `/` except `/tmp` (tmpfs) and `/data` (volume).
-- **Required env vars** — `ADMIN_PASSWORD`, `SESSION_SECRET`, `API_KEY`, and `WEBHOOK_SECRET` must be set or Compose refuses to start.
-- **`COOKIE_SECURE=true`** — enforced automatically.
+- **Read-only root filesystem** - the container cannot write to `/` except `/tmp` (tmpfs) and `/data` (volume).
+- **Required env vars** - `ADMIN_PASSWORD`, `SESSION_SECRET`, `API_KEY`, and `WEBHOOK_SECRET` must be set or Compose refuses to start.
+- **`COOKIE_SECURE=true`** - enforced automatically.
 
 Create a `.env` file (never commit it):
 
@@ -184,5 +184,5 @@ healthcheck:
 |--------|---------------|
 | Admin password | **Settings → Account & Security → Admin login** |
 | Webhook token | **Settings → Webhooks → Rotate Secret** |
-| Session secret | Set a new `SESSION_SECRET` env var and restart — invalidates all sessions |
-| API key | Set a new `API_KEY` env var and restart — update any external integrations |
+| Session secret | Set a new `SESSION_SECRET` env var and restart - invalidates all sessions |
+| API key | Set a new `API_KEY` env var and restart - update any external integrations |

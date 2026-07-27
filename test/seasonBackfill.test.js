@@ -71,7 +71,7 @@ test("a title with no season marker is left alone", async () => {
   });
   await result.assetPrefetch;
   // The insert path appends "SxxEyy" to episode titles, so strip it back off as
-  // well as clearing the column — this is the only shape where the season is
+  // well as clearing the column - this is the only shape where the season is
   // genuinely unrecoverable, and the backfill must not invent one.
   db.prepare("UPDATE watch_history SET season = NULL, title = ? WHERE id = ?")
     .run("Nameless Coordinates", result.id);

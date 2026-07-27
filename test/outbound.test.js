@@ -62,7 +62,7 @@ test("fetchWithTimeout falls back to the tunable default when no explicit timeou
 
   const originalFetch = globalThis.fetch;
   // Never resolves on its own, but rejects when the internal AbortController
-  // fires — matching real fetch()'s abort-signal contract.
+  // fires - matching real fetch()'s abort-signal contract.
   globalThis.fetch = (url, options) => new Promise((resolve, reject) => {
     options?.signal?.addEventListener("abort", () => reject(options.signal.reason));
   });

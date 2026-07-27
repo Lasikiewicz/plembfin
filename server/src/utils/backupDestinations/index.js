@@ -9,7 +9,7 @@
 //
 // Adapters receive the full destination record ({ id, type, label, settings, secrets })
 // plus a `persistSecrets(partial)` callback used to write back rotated OAuth refresh
-// tokens. Everything goes over the global fetch (undici) — no extra dependencies.
+// tokens. Everything goes over the global fetch (undici) - no extra dependencies.
 import { createFolderAdapter } from "./folder.js";
 import { createWebdavAdapter } from "./webdav.js";
 import { createS3Adapter } from "./s3.js";

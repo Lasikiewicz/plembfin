@@ -75,7 +75,7 @@ app.use(cookieParser());
 
 const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
 if (!COOKIE_SECURE) {
-  console.warn("[security] COOKIE_SECURE is not set — session cookies will not have the Secure flag. Set COOKIE_SECURE=true when running behind HTTPS.");
+  console.warn("[security] COOKIE_SECURE is not set - session cookies will not have the Secure flag. Set COOKIE_SECURE=true when running behind HTTPS.");
 }
 
 // HTTP security headers.
@@ -124,12 +124,12 @@ app.use(async (_req, res, next) => {
   next();
 });
 
-// Rate limiting — applied before any route handler.
+// Rate limiting - applied before any route handler.
 app.use("/api/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/webhook", rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/tmdb-poster", rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/tmdb-profile", rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
-// Destructive/expensive admin actions — several of these paths also serve a
+// Destructive/expensive admin actions - several of these paths also serve a
 // cheap GET status/poll (e.g. force-sync progress), so only the mutating
 // request is throttled; GET/HEAD/OPTIONS pass through untouched.
 app.use([
@@ -153,11 +153,11 @@ app.use([
   legacyHeaders: false,
   skip: (req) => req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS",
 }));
-// General API limiter — generous ceiling so the poster-heavy dashboard/explorer is never
+// General API limiter - generous ceiling so the poster-heavy dashboard/explorer is never
 // throttled in normal use, while still capping abusive bursts. Applied after the tighter
 // per-route limiters above so those still take precedence for their paths.
 app.use("/api", rateLimit({ windowMs: 60 * 1000, max: 1200, standardHeaders: true, legacyHeaders: false }));
-// Static asset / SPA fallback limiter — high ceiling, just bounds runaway requests.
+// Static asset / SPA fallback limiter - high ceiling, just bounds runaway requests.
 app.use(rateLimit({ windowMs: 60 * 1000, max: 2000, standardHeaders: true, legacyHeaders: false }));
 
 // Capture the raw request body for /api so webhook/JSON handlers can parse it
@@ -188,7 +188,7 @@ app.get("/changelog.json", (_req, res) => {
   res.sendFile(path.resolve(PUBLIC_DIR, "..", "changelog.json"));
 });
 
-// Health check — must be above the SPA fallback.
+// Health check - must be above the SPA fallback.
 app.all(["/health", "/health/"], (req, res) => {
   if (req.method !== "GET" && req.method !== "HEAD") {
     return res.status(405).set("Allow", "GET, HEAD").json({ error: "Method not allowed" });
@@ -248,9 +248,9 @@ let shuttingDown = false;
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`${signal} received — shutting down gracefully`);
+  console.log(`${signal} received - shutting down gracefully`);
   const timer = setTimeout(() => {
-    console.error("Graceful shutdown timed out — forcing exit");
+    console.error("Graceful shutdown timed out - forcing exit");
     process.exit(1);
   }, 5000);
   timer.unref();

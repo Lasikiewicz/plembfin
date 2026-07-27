@@ -26,7 +26,7 @@ let historyCache = { version: null, rows: [] };
 let showCache = { version: null, shows: [] };
 // The includeScheduledLibraryHistory variant returns a different show set, so it
 // needs its own slot. Without one it was recomputed from the full watch history
-// on every call — the Upcoming calendar asks for it once per month requested.
+// on every call - the Upcoming calendar asks for it once per month requested.
 let scheduledShowCache = { version: null, shows: [] };
 let movieCache = { version: null, rows: null };
 let statsCache = { version: null, stats: null };
@@ -65,7 +65,7 @@ const recoverShowTitleByTmdbStmt = db.prepare("SELECT show_title FROM watch_hist
 const recoverShowTitleByTvdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tvdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
 const selectUnknownShowRowsStmt = db.prepare("SELECT id, title, tmdb_id, tvdb_id, sync_dispatch_telemetry FROM watch_history WHERE media_type = 'episode' AND show_title_lower = 'unknown show'");
 // Fix Match asserts these episodes belong to a different series, so every
-// provider id carried over from the old match is wrong — imdb included, not just
+// provider id carried over from the old match is wrong - imdb included, not just
 // tmdb. Leaving imdb behind would also keep mediaKeyFor deriving the key from it.
 const rematchShowEpisodeStmt = db.prepare(`
   UPDATE watch_history
@@ -952,7 +952,7 @@ async function invalidateAfterRowMetaWrite(id, oldRow, changed) {
 }
 
 // --- Watch history writes --------------------------------------------------
-// `id` lets a caller that is replacing a row keep that row's identity — see
+// `id` lets a caller that is replacing a row keep that row's identity - see
 // applyManualUnwatch, where a superseding unwatched record stands in for the
 // watched one it replaced. It must name a row that no longer exists.
 export async function insertWatchRecord(record, { skipInvalidate = false, id: presetId = "" } = {}) {
@@ -1126,7 +1126,7 @@ function relatedTrackedWatchRowsForDateEdit(existing = {}) {
   return siblingWatchRowsFor(existing).filter((row) => String(row.watched_at || "").slice(0, 10) === day);
 }
 
-// Every watch date recorded for the same movie/episode as `id`, oldest first —
+// Every watch date recorded for the same movie/episode as `id`, oldest first -
 // powers the "Edit Watch Date" dialog's per-date list.
 export async function getWatchDatesForRecord(id) {
   const existing = selectByIdStmt.get(String(id));
@@ -1413,7 +1413,7 @@ export async function countPlaybackProgressRows() {
 // previously only observable by reading the server log.
 // Two plays of the same item recorded within this window are one viewing written
 // down twice: nobody finishes an episode and starts it again inside ten minutes.
-// Matching on an identical timestamp is not enough — a watch propagated between
+// Matching on an identical timestamp is not enough - a watch propagated between
 // media servers lands milliseconds to minutes apart, never on the same instant,
 // so an exact-match test reports almost none of the duplicates that exist.
 export const SAME_EVENT_WINDOW_MS = 10 * 60 * 1000;
@@ -2137,7 +2137,7 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
   if (!resolvedTitle) return { ok: false, error: "show_title is required" };
 
   // The show the user picked. Fix Match corrects which series these episodes
-  // belong to, so the stored name has to follow the new match — otherwise a
+  // belong to, so the stored name has to follow the new match - otherwise a
   // mismatched or "Unknown Show" group keeps its old name and stays parked on
   // the old route even though the ids now point somewhere else.
   const cleanNewShowTitle = cleanString(newShowTitle);
@@ -2187,7 +2187,7 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
       }
 
       // The key encodes the identity that just changed, so it has to be rebuilt
-      // from what the row now holds — otherwise it keeps pointing at the old
+      // from what the row now holds - otherwise it keeps pointing at the old
       // show and playstate lookups miss.
       const previousKey = cleanString(row.media_key);
       const nextKey = mediaKeyFor({
@@ -2288,7 +2288,7 @@ const movePlaystateSeasonKeyStmt = db.prepare(
 // count toward show progress, but the season is still written in the title
 // ("Show - S00E13"). Recovering it also changes what mediaKeyFor produces, so the
 // key is rebuilt and the playstate row keyed by the old value follows in the same
-// transaction — leaving those out of step would strand the watched state.
+// transaction - leaving those out of step would strand the watched state.
 export async function backfillMissingEpisodeSeasons() {
   const rows = selectNullSeasonEpisodeRowsStmt.all();
   if (!rows.length) return 0;

@@ -37,7 +37,7 @@
 | | |
 |---|---|
 | **Bi-directional sync** | Watched/unwatched states stay in sync across Plex, Emby, and Jellyfin automatically |
-| **New media arrives watched** | Add a film or show you have already seen and it is marked watched on that server as it appears — no re-watching prompts on a rebuilt library, no manual catch-up. Applies an existing watch only; it never invents one |
+| **New media arrives watched** | Add a film or show you have already seen and it is marked watched on that server as it appears - no re-watching prompts on a rebuilt library, no manual catch-up. Applies an existing watch only; it never invents one |
 | **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |
 | **Rewatch tracking** | Watching a movie or episode again logs a new watch instead of overwriting the old one; detail pages show a full watch history with the date and app for every play. The duplicate-cleanup tool only removes rows recording the same watch event, so rewatches are never collapsed |
 | **Now Playing dashboard** | Real-time active sessions, weekly charts, and recent watch history |
@@ -48,7 +48,7 @@
 | **Movie collections** | Movie pages show a poster row of other films in the same franchise (sequels, prequels, spin-offs) |
 | **Open-in-app links** | Detail pages and Part Watched cards link straight to the item in Plex, Emby, or Jellyfin when it exists in that server's library |
 | **Automated backups** | Daily local backups plus independently scheduled remote backups to Backblaze B2 |
-| **Self-hosted & private** | SQLite on your own hardware — no cloud accounts required |
+| **Self-hosted & private** | SQLite on your own hardware - no cloud accounts required |
 | **Security hardening** | Strict CSP headers, scrypt hashing, rate-limited login, HMAC-signed sessions |
 | **Artwork pipeline** | Posters and logos fetched from TMDB, TheTVDB, and Fanart.tv, resized and cached locally; the per-title artwork picker includes a manual search for titles that fail to match automatically |
 | **Accurate TV episode data** | TV show names, seasons, episode numbering, titles, and air dates are sourced from TheTVDB; cast, trailers, reviews, and recommendations are sourced from TMDB |
@@ -215,11 +215,11 @@ Save and Test actions:
 *   **TMDB API Key**: Obtain a free API key from [TheMovieDB](https://www.themoviedb.org/documentation/api) and paste it here. This enables search capability on the dashboard, rich cast lists, trailers, recommendations, and poster fallbacks. Movies are sourced entirely from TMDB.
 
 #### TheTVDB (TV Show Episode Data)
-*   Plembfin includes a built-in project key for [TheTVDB](https://thetvdb.com) — no setup is required. TV show names, seasons, episode numbering, titles, and air dates are sourced from TheTVDB, since it is often more accurate for TV episode ordering. Cast, trailers, reviews, and recommendations are sourced from TMDB.
+*   Plembfin includes a built-in project key for [TheTVDB](https://thetvdb.com) - no setup is required. TV show names, seasons, episode numbering, titles, and air dates are sourced from TheTVDB, since it is often more accurate for TV episode ordering. Cast, trailers, reviews, and recommendations are sourced from TMDB.
 *   **Personal API Key (optional)**: Register at thetvdb.com (Dashboard → API Keys) and enter your personal key under **Settings → Metadata Providers → TheTVDB** for your own request quota.
 
 #### Fanart.tv (Artwork Fallback)
-*   Plembfin includes a built-in project key for [Fanart.tv](https://fanart.tv) — no setup is required. Fanart.tv is queried after TMDB as a fallback/additional source for posters, backdrops, and transparent logo art.
+*   Plembfin includes a built-in project key for [Fanart.tv](https://fanart.tv) - no setup is required. Fanart.tv is queried after TMDB as a fallback/additional source for posters, backdrops, and transparent logo art.
 *   **Personal API Key (optional)**: Register at fanart.tv and enter your personal key under **Settings → Metadata Providers → Fanart.tv** to get higher rate limits and access to your own uploaded artwork.
 
 #### OMDb (IMDb Ratings)
@@ -236,8 +236,8 @@ Save and Test actions:
 
 #### Sync Tuning and Match Diagnostics
 *   **Settings → Sync** (or `/settings/sync-tuning`) controls the watched threshold, minimum resume position, active-session TTL, and default outbound timeout. Blank fields inherit their environment variable or built-in default.
-*   **Settings → Sync Issues** (or `/settings/sync-issues`) includes a Cross-Platform Match Report listing media Plembfin could not identify, so you can pick the right title for it. Media that is identified and simply absent from a library is left out — the watch is recorded correctly and there is nothing to fix. **Rescan** re-runs the sync for the list and rebuilds it; **Fix All Matches** does the same and then walks you through each item.
-*   **Newly added media is caught up automatically.** When a server announces new content that you have already watched, Plembfin marks it watched there as it arrives — so restoring or re-adding a file does not leave it looking unplayed. Adding a whole show catches up its episodes too, skipping any the server already has as played. It only ever applies an existing watch, never creates one. This needs the library-add notification enabled in each server's webhook setup (`library.new` on Plex and Emby, `Item Added` on Jellyfin) — see [webhooks.md](docs/webhooks.md#catching-up-newly-added-media).
+*   **Settings → Sync Issues** (or `/settings/sync-issues`) includes a Cross-Platform Match Report listing media Plembfin could not identify, so you can pick the right title for it. Media that is identified and simply absent from a library is left out - the watch is recorded correctly and there is nothing to fix. **Rescan** re-runs the sync for the list and rebuilds it; **Fix All Matches** does the same and then walks you through each item.
+*   **Newly added media is caught up automatically.** When a server announces new content that you have already watched, Plembfin marks it watched there as it arrives - so restoring or re-adding a file does not leave it looking unplayed. Adding a whole show catches up its episodes too, skipping any the server already has as played. It only ever applies an existing watch, never creates one. This needs the library-add notification enabled in each server's webhook setup (`library.new` on Plex and Emby, `Item Added` on Jellyfin) - see [webhooks.md](docs/webhooks.md#catching-up-newly-added-media).
 
 ---
 
@@ -268,7 +268,7 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 2.  Set the URL to the full webhook URL (with `?token=`) from **Settings → Webhooks**.
 3.  Under **Events → Playback**, check: `Start`, `Pause`, `Unpause`, `Stop`.
 4.  Under **Events → Users**, check: `Mark Played`, `Mark Unplayed`.
-5.  Leave every other event category unticked — Plembfin ignores library, system, and activity events, and they only add rejected entries to Sync History.
+5.  Leave every other event category unticked - Plembfin ignores library, system, and activity events, and they only add rejected entries to Sync History.
 6.  Enable **Send All Properties** so payloads include position data for resume sync.
 
 #### 3. Jellyfin Webhook Setup
@@ -277,7 +277,7 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 3.  Set the URL to the full webhook URL (with `?token=`) from **Settings → Webhooks**.
 4.  Under **Notification Type**, check: `Playback Start`, `Playback Progress`, `Playback Stop`, `User Data Saved`.
 5.  Under **Item Type**, select: `Movies`, `Episodes`. Leave the other notification and item types unticked.
-6.  Check **Send All Properties (ignores template)** and save. The body must be JSON, but the content type does not matter — Jellyfin labels its payloads `text/plain` and Plembfin reads them anyway.
+6.  Check **Send All Properties (ignores template)** and save. The body must be JSON, but the content type does not matter - Jellyfin labels its payloads `text/plain` and Plembfin reads them anyway.
 
 ---
 
@@ -328,7 +328,7 @@ The following environment variables can be set in your system or defined in `doc
 | `API_KEY` | _generated_ | Security token used to authorize incoming webhooks and API calls. |
 | `WEBHOOK_SECRET` | _generated_ | Secret used by webhook header/Bearer auth and the compatibility `?token=` URL. Rotatable independently of the API key. |
 | `SESSION_SECRET` | _generated_ | Signing secret for the dashboard session cookie. |
-| `COOKIE_SECURE` | `false` | Set to `true` when the app is served behind an HTTPS reverse proxy — enables `Secure` cookie flag and `Strict-Transport-Security` header. |
+| `COOKIE_SECURE` | `false` | Set to `true` when the app is served behind an HTTPS reverse proxy - enables `Secure` cookie flag and `Strict-Transport-Security` header. |
 | `LOG_VERBOSE` | `false` | Set to `true` to add per-request tracing (Plex ID lookups, search fallbacks, per-phase scheduled-sync steps) to Settings → Logs. Useful when diagnosing a specific match failure. Errors and warnings are logged either way. |
 | `FANART_API_KEY` | _none_ | Optional personal Fanart.tv API key for higher rate limits. A built-in project key is used when this is unset. |
 | `TVDB_API_KEY` | _none_ | Optional personal TheTVDB API key for a higher personal rate limit. A built-in project key is used when this is unset. |
@@ -342,13 +342,13 @@ The following environment variables can be set in your system or defined in `doc
 | `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` | _none_ | Default Jellyfin connection values (Settings takes precedence). |
 | `WATCHED_PLAYED_SYNC_ENABLED` | `true` | Set to `false` to disable all watched/played propagation between platforms (watch recording still happens). |
 | `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | The frequency (in milliseconds) of database-heavy catch-up library scans on Plex/Emby/Jellyfin. |
-| `WATCHED_THRESHOLD_PERCENT` | `90` | Playback percentage that counts as watched (50–100). Settings → Sync takes precedence. |
-| `MIN_RESUME_POSITION_SEC` | `60` | Minimum stopped-play position saved and propagated as resume progress (0–3600 seconds). Settings takes precedence. |
-| `ACTIVE_SESSION_TTL_MIN` | `5` | Time without a webhook update before an active session is stale (1–120 minutes). Settings takes precedence. |
-| `OUTBOUND_TIMEOUT_SEC` | `10` | Default timeout for media-server outbound requests (2–120 seconds). Explicit per-call timeouts still take precedence. |
-| `PLEMBFIN_DEBUG_OUTBOUND` | _off_ | Set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs) — useful for measuring how much traffic each metadata service and media server receives. |
+| `WATCHED_THRESHOLD_PERCENT` | `90` | Playback percentage that counts as watched (50-100). Settings → Sync takes precedence. |
+| `MIN_RESUME_POSITION_SEC` | `60` | Minimum stopped-play position saved and propagated as resume progress (0-3600 seconds). Settings takes precedence. |
+| `ACTIVE_SESSION_TTL_MIN` | `5` | Time without a webhook update before an active session is stale (1-120 minutes). Settings takes precedence. |
+| `OUTBOUND_TIMEOUT_SEC` | `10` | Default timeout for media-server outbound requests (2-120 seconds). Explicit per-call timeouts still take precedence. |
+| `PLEMBFIN_DEBUG_OUTBOUND` | _off_ | Set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs) - useful for measuring how much traffic each metadata service and media server receives. |
 
-A commented template of every variable is provided in [`.env.example`](.env.example) — copy it to `.env` for bare-metal installs.
+A commented template of every variable is provided in [`.env.example`](.env.example) - copy it to `.env` for bare-metal installs.
 
 ---
 
@@ -361,7 +361,7 @@ Plembfin runs as a single-process Node application:
 *   **Scheduler**: Runs in-process on a `setInterval` timer (no crontab required). It executes once per minute to reconcile active play states, check sync queues, maintain the TV next-airing cache, and perform nightly backups. Failed sync dispatches are retried with exponential backoff (up to 10 attempts) rather than every minute, so an offline media server never gets hammered.
 *   **Pre-push build check**: Before code is deployed or pushed, `npm run build` is run automatically. This checks JavaScript syntax and boots the server temporarily in a clean directory on port 0 to verify startup health.
 
-For the full technical reference — a complete map of every file in the repository, a task router, and per-feature deep dives (Plex/Emby/Jellyfin integrations, dashboard, libraries, upcoming episodes, media detail, backups, metadata, posters, auth) — start at [`docs/architecture.md`](docs/architecture.md) and the [docs index](docs/README.md).
+For the full technical reference - a complete map of every file in the repository, a task router, and per-feature deep dives (Plex/Emby/Jellyfin integrations, dashboard, libraries, upcoming episodes, media detail, backups, metadata, posters, auth) - start at [`docs/architecture.md`](docs/architecture.md) and the [docs index](docs/README.md).
 
 ---
 
@@ -394,8 +394,8 @@ and shown in **Settings → About**.
 
 ## Thank You
 
-Plembfin uses the following third-party services for artwork and metadata — thank you to the people and communities that make them possible:
+Plembfin uses the following third-party services for artwork and metadata - thank you to the people and communities that make them possible:
 
-*   **[The Movie Database (TMDB)](https://www.themoviedb.org)** — The primary source for movie metadata, posters, backdrops, cast information, and logo art, and the source of cast/trailers/recommendations for TV shows. This product uses the TMDB API but is not endorsed or certified by TMDB.
-*   **[TheTVDB](https://thetvdb.com)** — The source of TV show names, seasons, episode numbering/titles/air dates, and artwork. Metadata provided by TheTVDB. Please consider adding missing information or subscribing.
-*   **[Fanart.tv](https://fanart.tv)** — Community-driven source of high-quality poster art, backdrop images, and transparent logo art used as a fallback when TMDB images are unavailable. Thank you to all the fanart.tv contributors who upload and curate artwork.
+*   **[The Movie Database (TMDB)](https://www.themoviedb.org)** - The primary source for movie metadata, posters, backdrops, cast information, and logo art, and the source of cast/trailers/recommendations for TV shows. This product uses the TMDB API but is not endorsed or certified by TMDB.
+*   **[TheTVDB](https://thetvdb.com)** - The source of TV show names, seasons, episode numbering/titles/air dates, and artwork. Metadata provided by TheTVDB. Please consider adding missing information or subscribing.
+*   **[Fanart.tv](https://fanart.tv)** - Community-driven source of high-quality poster art, backdrop images, and transparent logo art used as a fallback when TMDB images are unavailable. Thank you to all the fanart.tv contributors who upload and curate artwork.

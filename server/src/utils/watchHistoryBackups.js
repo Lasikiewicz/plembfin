@@ -97,7 +97,7 @@ export function isCronSyncPaused() {
 
 // Stamp the restore watermark. The scheduled sync permanently skips any item whose
 // app-side play timestamp is <= lastRestoreAt, so this MUST be set *after* the
-// authoritative restore has finished pushing fresh state to the apps — otherwise the
+// authoritative restore has finished pushing fresh state to the apps - otherwise the
 // pushes (stamped "now" by the apps) would be re-imported as watched-today.
 export function setLastRestoreAt(timestamp = Date.now()) {
   saveRuntime({ lastRestoreAt: timestamp });
@@ -211,7 +211,7 @@ export function getBackupDestination(id) {
 }
 
 // Upsert a destination. Incoming secret fields overwrite when a non-empty value is
-// supplied, are removed when explicitly null, and are otherwise preserved — so the
+// supplied, are removed when explicitly null, and are otherwise preserved - so the
 // UI can save settings without re-sending stored credentials.
 export function saveBackupDestination(input = {}) {
   const list = loadBackupDestinations();
@@ -345,7 +345,7 @@ export function importWatchHistoryBackupFile({ filename = "", buffer }) {
 
 async function applyRemoteRetention(adapter, retention, pattern) {
   // Retention only counts and deletes files of the same backup type as the one just
-  // uploaded — watch-history and full Plembfin backups keep independent retention.
+  // uploaded - watch-history and full Plembfin backups keep independent retention.
   const files = (await adapter.list()).filter((file) => pattern.test(file.name));
   // Order by filename, not remote-reported mtimes: our names embed a sortable UTC
   // timestamp, so this is newest-first regardless of how the remote reports dates.

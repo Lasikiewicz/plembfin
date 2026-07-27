@@ -2,4 +2,4 @@ blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
     url: https://github.com/Lasikiewicz/plembfin/security/advisories/new
-    about: Please report security vulnerabilities privately instead of opening a public issue — see SECURITY.md.
+    about: Please report security vulnerabilities privately instead of opening a public issue - see SECURITY.md.

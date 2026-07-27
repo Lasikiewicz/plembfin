@@ -1,5 +1,5 @@
 // Configurable sync heuristics. This module imports nothing else in the repo
-// (env-only reads) so configStore.js — which already imports outbound.js —
+// (env-only reads) so configStore.js - which already imports outbound.js -
 // can import this module too without creating an import cycle.
 //
 // Each value has an env var, a default equal to the previous hardcoded
@@ -57,7 +57,7 @@ let effective = {
 };
 
 // Normalizes a raw stored/incoming tuning section (numbers-or-null/blank) into
-// { key: number|null } — null means "not overridden, fall back to env/default".
+// { key: number|null } - null means "not overridden, fall back to env/default".
 // Deliberately does NOT clamp: out-of-range values are rejected by
 // validateConfig() in configStore.js rather than silently corrected here, so
 // bad input via the settings API produces a validation error instead of a
@@ -80,7 +80,7 @@ export function normalizeTuningSection(raw = {}) {
 // values: an explicit non-null field overrides env/default; null/missing
 // falls back to env/default. Call on boot and after every settings save.
 // Clamps as a safety net for out-of-range values that reach storage some
-// other way (hand-edited config.json, older data) — normal saves are already
+// other way (hand-edited config.json, older data) - normal saves are already
 // range-checked by validateConfig() before they ever get here.
 export function applyTuningConfig(section = {}) {
   const normalized = normalizeTuningSection(section);

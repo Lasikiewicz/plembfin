@@ -8,7 +8,7 @@ project, so please keep pull requests focused and read this guide before opening
 - For anything beyond a small fix, open an issue first to discuss the change. This avoids
   wasted effort on approaches that don't fit the project's direction.
 - Check existing issues and pull requests to avoid duplicate work.
-- Security vulnerabilities should **not** be reported as public issues — see [SECURITY.md](SECURITY.md).
+- Security vulnerabilities should **not** be reported as public issues - see [SECURITY.md](SECURITY.md).
 
 ## Development setup
 
@@ -17,7 +17,7 @@ npm install
 npm run dev   # auto-reload dev server on http://localhost:5055
 ```
 
-There are no automated tests or linters configured in this project — verify changes by
+There are no automated tests or linters configured in this project - verify changes by
 running the app locally and exercising the affected feature in the browser.
 
 ## Project structure
@@ -29,7 +29,7 @@ breakdown of the server and frontend architecture, including:
 - The webhook → sync data flow
 - SQLite schema and data layer conventions
 
-Please follow the existing module boundaries described there — `public/app.js` is an
+Please follow the existing module boundaries described there - `public/app.js` is an
 orchestrator only, and new frontend logic should go in the most specific existing module for
 that feature area.
 
@@ -46,7 +46,7 @@ that feature area.
 1. Fork the repository and create a branch from `main`.
 2. Make your changes and verify them locally.
 3. Open a pull request describing the change, the motivation, and how you tested it.
-4. Be responsive to review feedback — this is a small project maintained in spare time, so
+4. Be responsive to review feedback - this is a small project maintained in spare time, so
    reviews may take a few days.
 
 ## Reporting bugs and requesting features

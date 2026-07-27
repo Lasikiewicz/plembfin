@@ -5,7 +5,7 @@ import { safeImageUrl, escapeAttribute } from "./utils.js";
 // /api/poster resolves most requests from an already-cached DB row or webp
 // file (no outbound API call); the actual TMDB fallback downloads are
 // throttled server-side (TMDB_POSTER_CONCURRENCY = 8 in server/src/index.js),
-// so this only needs to stay under the browser's per-origin connection cap —
+// so this only needs to stay under the browser's per-origin connection cap -
 // it doesn't need to additionally protect TMDB itself.
 const POSTER_LOOKUP_CONCURRENCY = 6;
 const POSTER_LOOKUP_PERSISTED_CACHE_KEY = "plembfin:posterLookupCache:v3";
@@ -167,7 +167,7 @@ export function configuredImageUrl(path, item = {}) {
     const url = new URL(raw, `${baseUrl}/`);
     // Credentials never reach the browser (/api/config is redacted), so direct
     // server-image URLs can't carry a token. Plex rejects unauthenticated image
-    // requests — bail out so callers use the /api/poster pipeline (which fetches
+    // requests - bail out so callers use the /api/poster pipeline (which fetches
     // and caches server artwork with the stored token) instead of a 401 <img>.
     // Emby/Jellyfin image endpoints serve without an api_key.
     if (server.source === "plex" && !url.searchParams.has("X-Plex-Token")) return "";

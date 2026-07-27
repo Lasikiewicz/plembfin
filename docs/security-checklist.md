@@ -8,7 +8,7 @@ Tick a box when the fix is merged. For each item the affected file(s) and the mi
 
 ---
 
-## Phase 1 — Day 1 (ship-blockers; do before any internet exposure)
+## Phase 1 - Day 1 (ship-blockers; do before any internet exposure)
 
 - [x] **[C-1] Add `requireAdmin` guard to `handleWebhook`**  
   `server/src/index.js`  
@@ -22,10 +22,10 @@ Tick a box when the fix is merged. For each item the affected file(s) and the mi
 - [x] **[H-2] Install `express-rate-limit` and add rate limiters to critical endpoints**  
   `server/server.js`  
   Added limiters before the generic `/api/*` handler:
-  - `/api/login` — 10 requests per 15 minutes per IP
-  - `/api/webhook` — 60 requests per minute per IP
-  - `/api/tmdb-poster` — 30 requests per minute per IP
-  - `/api/tmdb-profile` — 30 requests per minute per IP
+  - `/api/login` - 10 requests per 15 minutes per IP
+  - `/api/webhook` - 60 requests per minute per IP
+  - `/api/tmdb-poster` - 30 requests per minute per IP
+  - `/api/tmdb-profile` - 30 requests per minute per IP
 
 - [x] **[H-3] Add `requireAdmin` to `handleTmdbPoster` and `handleTmdbProfile`**  
   `server/src/index.js`  
@@ -37,7 +37,7 @@ Tick a box when the fix is merged. For each item the affected file(s) and the mi
 
 ---
 
-## Phase 2 — Day 8–30 (admin surface hardening)
+## Phase 2 - Day 8-30 (admin surface hardening)
 
 - [x] **[M-1] Add `Secure` flag to session cookie**  
   `server/src/utils/auth.js`  
@@ -53,7 +53,7 @@ Tick a box when the fix is merged. For each item the affected file(s) and the mi
   Added `GET /api/auth/apikey` (admin-only) and `POST /api/auth/sessions/revoke-all` routes.
 
 - [x] **[M-4] Add HTTP security headers middleware**  
-  `server/server.js` — inserted before the `/api/*` handler:
+  `server/server.js` - inserted before the `/api/*` handler:
   ```javascript
   app.use((_req, res, next) => {
     res.setHeader("X-Frame-Options", "DENY");
@@ -84,7 +84,7 @@ Tick a box when the fix is merged. For each item the affected file(s) and the mi
 
 ---
 
-## Phase 3 — Day 31–90 (defence in depth)
+## Phase 3 - Day 31-90 (defence in depth)
 
 - [x] **[L-1] Pass Plex token via request header instead of URL query parameter**  
   `server/src/utils/posterCache.js`, `server/src/index.js`  

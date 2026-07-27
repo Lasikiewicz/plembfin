@@ -560,7 +560,7 @@ function attachEvents() {
         );
       },
       {
-        title: "Rotate Webhook Secret — Step 1 of 2",
+        title: "Rotate Webhook Secret - Step 1 of 2",
         approveLabel: "Proceed to Final Step",
         mediaHtml: `
           <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 0.82rem; line-height: 1.5; color: var(--text);">

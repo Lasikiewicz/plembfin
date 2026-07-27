@@ -341,7 +341,7 @@ function updateVersionBadge(data) {
     : `v${data.current}`;
   elements.appVersion.classList.toggle("app-version-update", Boolean(data.updateAvailable));
   elements.appVersion.title = data.updateAvailable
-    ? `Update available — v${data.latest || data.current}. Open changelog`
+    ? `Update available - v${data.latest || data.current}. Open changelog`
     : "Open changelog";
 }
 
@@ -413,13 +413,13 @@ async function renderChangelog(force = false) {
     } else if (data.updateAvailable) {
       banner = `
         <div class="changelog-status changelog-status-update">
-          <b>Update available — v${escapeHtml(latest)}</b>
+          <b>Update available - v${escapeHtml(latest)}</b>
           <span>You're running v${escapeHtml(current || "?")}. ${newerCount} newer release${newerCount === 1 ? "" : "s"} listed below.</span>
         </div>`;
     } else {
       banner = `
         <div class="changelog-status changelog-status-ok">
-          <b>You're up to date — v${escapeHtml(current || "?")}</b>
+          <b>You're up to date - v${escapeHtml(current || "?")}</b>
           <span>Running the latest published release.</span>
         </div>`;
     }
@@ -898,7 +898,7 @@ function rememberExplorerPage(key, body) {
 function setMessage(text, tone = "muted") {
   elements.message.textContent = text;
   elements.message.dataset.tone = tone;
-  // #message lives inside the auth panel, which is hidden once signed in — surface
+  // #message lives inside the auth panel, which is hidden once signed in - surface
   // feedback as a toast whenever the app shell is the visible surface.
   if (text && elements.appShell && !elements.appShell.classList.contains("hidden")) {
     showToast(text, tone);
@@ -1311,14 +1311,14 @@ function syncPageTopbar() {
     if (isInlineDetail) {
       if (mode === "shows" && state.activeShowModalKey) {
         const activeShow = state.showsRaw?.find(s => slug(s.title) === state.activeShowModalKey);
-        if (activeShow?.title) title = `TV Shows — ${activeShow.title}`;
+        if (activeShow?.title) title = `TV Shows - ${activeShow.title}`;
       } else if (mode === "shows" && state.activeShowModalTitle) {
-        title = `TV Shows — ${state.activeShowModalTitle}`;
+        title = `TV Shows - ${state.activeShowModalTitle}`;
       } else if (mode === "movies" && state.activeMovieModalId) {
         const activeMovie =
           state.history?.find(h => h.id === state.activeMovieModalId) ||
           state.moviesRaw?.find(movie => String(movie.id) === String(state.activeMovieModalId));
-        if (activeMovie?.title) title = `Movies — ${activeMovie.title}`;
+        if (activeMovie?.title) title = `Movies - ${activeMovie.title}`;
       }
     }
     subtitle = isInlineDetail ? "" : (state.savedConfig?.plex?.username || "Watched history library");
@@ -1498,7 +1498,7 @@ function applyActiveView() {
       renderPlembfinBackups();
       // The remote listing feeds both the Remote Watch History card's storage count
       // and the Remote Restore list, and it needs the backup status (destinations)
-      // first — chain it behind loadWatchBackups so a cold direct link to any
+      // first - chain it behind loadWatchBackups so a cold direct link to any
       // backups route (including the aggregated group page) still populates it.
       loadWatchBackups()
         .then(() => {
@@ -1632,7 +1632,7 @@ async function loadHistory({ force = false } = {}) {
     // so routine loads/polls can reuse the browser's HTTP cache. A forced
     // refresh (e.g. right after marking something watched) needs to bypass
     // that cache, or it can silently hand back a pre-mutation response for
-    // up to 30s — the "watched" item would then be missing from the
+    // up to 30s - the "watched" item would then be missing from the
     // dashboard's watch-history row until the cache naturally expired.
     const response = await fetch(url, { headers: authHeaders(), cache: force ? "no-store" : "default" });
     const body = await response.json().catch(() => ({}));
@@ -1713,7 +1713,7 @@ async function renderLogs(forceScrollToBottom = false) {
       state.renderedLogsText = allLogs;
 
       const htmlLines = [
-        `<div class="log-section-header">=== BACKEND DIAGNOSTIC LOGS (${escapeHtml(category.toUpperCase())}) — showing latest ${visibleBackendLogs.length} of ${backendLogs.length} ===</div>`,
+        `<div class="log-section-header">=== BACKEND DIAGNOSTIC LOGS (${escapeHtml(category.toUpperCase())}) - showing latest ${visibleBackendLogs.length} of ${backendLogs.length} ===</div>`,
         ...visibleBackendLogs.map(formatLogLineToHtml),
         `<div class="log-section-header" style="margin-top: 1rem;">=== FRONTEND DEBUG LOGS ===</div>`,
         ...(visibleFrontendLogs.length ? visibleFrontendLogs.map(formatLogLineToHtml) : ['<div class="log-row"><span class="log-msg" style="opacity: 0.6;">[no frontend logs]</span></div>'])
@@ -2175,7 +2175,7 @@ function initialize() {
         primeSensitiveRouteState(fullPath);
         applyActiveView();
         // Paint the media detail immediately using local data (e.g. /api/show)
-        // instead of waiting for loadSavedConfig() — which is three sequential
+        // instead of waiting for loadSavedConfig() - which is three sequential
         // round-trips (/api/config → /api/seerr/status → /api/appearance). The
         // local show record (title, poster, episodes, progress) needs no config,
         // so rendering now removes the blank flash on a direct load/refresh. The

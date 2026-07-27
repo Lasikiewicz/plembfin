@@ -3,7 +3,7 @@ import { WebSocket } from "undici";
 // Plex Media Server pushes real-time notifications over a WebSocket at
 // `/:/websockets/notifications`. Unlike the webhook (which only fires for playback
 // events), this stream carries `timeline` notifications whenever a library item's
-// state changes — including when an item is marked watched/unwatched in any Plex client.
+// state changes - including when an item is marked watched/unwatched in any Plex client.
 // We use it to detect unwatch events the webhook can never deliver, then verify the
 // actual view state with a targeted metadata lookup before propagating.
 //
@@ -12,7 +12,7 @@ import { WebSocket } from "undici";
 // ratingKey to `onLibraryItemChange`. All DB/config/propagation logic lives in the caller.
 //
 // Reverse proxies in front of Plex (Cloudflare, nginx, Traefik, etc.) commonly drop an
-// idle WebSocket after a timeout without ever sending a close frame — the socket then
+// idle WebSocket after a timeout without ever sending a close frame - the socket then
 // looks open to us forever but never delivers another message. undici's WebSocket only
 // exposes the plain browser surface (no ping/pong control), so there's no way to probe
 // liveness directly. Instead an idle watchdog forces a reconnect if no frame has arrived
@@ -41,7 +41,7 @@ function buildNotificationsUrl(baseUrl, token) {
 }
 
 // One-shot connectivity probe used by the System Integrity Check. Opens the notification
-// socket exactly the way the listener does and resolves as soon as it connects — proving
+// socket exactly the way the listener does and resolves as soon as it connects - proving
 // the full path works end to end (including any reverse proxy / Cloudflare WebSocket
 // upgrade in front of Plex). Never throws; always resolves to a result object.
 export async function probePlexNotificationSocket({ baseUrl, token, timeoutMs = 8000 } = {}) {
@@ -80,7 +80,7 @@ export async function probePlexNotificationSocket({ baseUrl, token, timeoutMs = 
     };
 
     const timer = setTimeout(
-      () => finish({ ok: false, error: `Timed out after ${timeoutMs}ms (no WebSocket upgrade — check reverse proxy)` }),
+      () => finish({ ok: false, error: `Timed out after ${timeoutMs}ms (no WebSocket upgrade - check reverse proxy)` }),
       timeoutMs,
     );
 
@@ -232,7 +232,7 @@ function handleFrame(raw) {
     }
 
     if (!config?.baseUrl || !config?.token || config.disabled) {
-      // Plex not configured (or disabled) yet — back off and re-check later. A settings
+      // Plex not configured (or disabled) yet - back off and re-check later. A settings
       // save calls restart() which retries immediately.
       scheduleReconnect();
       return;

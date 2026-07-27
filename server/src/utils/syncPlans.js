@@ -48,7 +48,7 @@ function shapeSummaryRow(row) {
 
 export function createSyncPlanRecord(plan, { status } = {}) {
   const id = crypto.randomUUID();
-  // A new plan supersedes any older unexecuted plan — there is exactly one
+  // A new plan supersedes any older unexecuted plan - there is exactly one
   // actionable plan at a time.
   const now = Date.now();
   db.transaction(() => {
@@ -76,7 +76,7 @@ export function getLatestSyncPlan() {
   return shapeSummaryRow(selectLatest.get());
 }
 
-// Full plan including actions — used by the executor, never by list views.
+// Full plan including actions - used by the executor, never by list views.
 export function getSyncPlanFull(id) {
   const row = selectPlan.get(String(id || ""));
   if (!row) return null;
@@ -146,7 +146,7 @@ export function pruneSyncPlans(now = Date.now()) {
   pruneStmt.run(now - PLAN_RETENTION_MS);
 }
 
-// Snapshot filenames still referenced by recent plans — backup retention must
+// Snapshot filenames still referenced by recent plans - backup retention must
 // not delete these (see watchHistoryBackups.js).
 export function protectedSnapshotFiles(now = Date.now()) {
   return new Set(

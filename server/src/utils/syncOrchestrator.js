@@ -59,7 +59,7 @@ export function shouldSyncResumeProgress(media = {}) {
   if (!["movie", "episode"].includes(media.type || media.mediaType)) return false;
   if (!Number.isFinite(positionMs) || positionMs < minResumePositionMs()) return false;
   // Resume progress stops being actionable at the same boundary that marks a
-  // play "watched" — past that point there's nothing left to resume.
+  // play "watched" - past that point there's nothing left to resume.
   if (Number.isFinite(progress) && progress >= watchedThresholdPercent()) return false;
   return true;
 }
@@ -121,8 +121,8 @@ function checkAndClaimLoop(media, target, targets, kv, prefix = "loop") {
 
 // Marking an item played on a media server bumps that server's own "last played"
 // timestamp, so our write looks exactly like a user's play the next time we read
-// that server back. Recording every outbound mark — for long enough to outlive
-// delayed webhook delivery and daily poll cycles — is what lets the inbound paths
+// that server back. Recording every outbound mark - for long enough to outlive
+// delayed webhook delivery and daily poll cycles - is what lets the inbound paths
 // tell the two apart. The 15-second echo window above only breaks immediate
 // ping-pong and expires long before a late echo arrives.
 const OUTBOUND_MARK_TTL_SECONDS = 14 * 24 * 60 * 60;

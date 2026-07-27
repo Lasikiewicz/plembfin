@@ -1,4 +1,4 @@
-// Pure utility functions — no state, no DOM, no side effects.
+// Pure utility functions - no state, no DOM, no side effects.
 
 export function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (character) => {

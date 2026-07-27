@@ -134,7 +134,7 @@ checkRoutedHandlersAuthenticate();
     });
   }
   if (offenders.length) {
-    console.error("Bare fetch() bypasses outbound security checks — use fetchWithTimeout (server/src/utils/outbound.js):");
+    console.error("Bare fetch() bypasses outbound security checks - use fetchWithTimeout (server/src/utils/outbound.js):");
     for (const offender of offenders) console.error(`  ${offender}`);
     process.exit(1);
   }

@@ -39,7 +39,7 @@ function putValue(key, value, ttlSeconds = 60) {
 // `windowMs`) and, only if none of them are still fresh, claims a (possibly
 // different) set of keys in the same SQLite transaction. Running both the
 // read and the write under one db.transaction means a concurrent claim for
-// the same key can't slip in between the check and the write — better-sqlite3
+// the same key can't slip in between the check and the write - better-sqlite3
 // executes the whole callback as a single exclusive transaction rather than
 // relying on this module's callers never `await`ing between the two steps.
 const checkAndClaimTxn = db.transaction((checkKeys, claimKeys, ttlSeconds, windowMs) => {

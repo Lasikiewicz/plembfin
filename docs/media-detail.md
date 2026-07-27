@@ -1,6 +1,6 @@
 # Media Detail Pages (Movies, TV Shows, People)
 
-The immersive detail pages opened from any card in the app — or directly via URL
+The immersive detail pages opened from any card in the app - or directly via URL
 (`/movie/:id`, `/movie/tmdb/:id`, `/tvshow/:key`, `/tvshow/tmdb/:id`, `/person/:id`).
 They render TMDB/TVDB metadata (overview, cast, trailers, ratings, recommendations,
 images), watch state, sync status, Seerr request controls, and the edit tools.
@@ -42,51 +42,51 @@ picker every date/time control in the app is built on).
    an old page over a new one.
 5. Closing the page (`closeMediaDetail`) navigates back to the recorded return view.
 
-Direct URL loads work identically — routing hydrates the same UI without needing
+Direct URL loads work identically - routing hydrates the same UI without needing
 in-app navigation state. TV URLs support deep links:
 `/tvshow/<key>/season/2/episode/5` (and a legacy `#season2ep5` hash form).
 
 ## What's on the page
 
-- **Metadata** — overview, genres, runtime, status, ratings; TV structure (seasons/
+- **Metadata** - overview, genres, runtime, status, ratings; TV structure (seasons/
   episodes, air dates) comes from TVDB, extras (cast, trailers, recommendations,
-  watch providers) from TMDB — see [metadata.md](metadata.md).
-- **External ratings** — IMDb rating pill via `GET /api/omdb-rating` when an OMDb key
+  watch providers) from TMDB - see [metadata.md](metadata.md).
+- **External ratings** - IMDb rating pill via `GET /api/omdb-rating` when an OMDb key
   is configured.
-- **Trailers** — YouTube keys from TMDB, metadata enriched via `GET /api/youtube-meta`,
+- **Trailers** - YouTube keys from TMDB, metadata enriched via `GET /api/youtube-meta`,
   played in the lightbox.
-- **Cast** — profile images proxied/cached via `GET /api/tmdb-profile`; clicking opens
+- **Cast** - profile images proxied/cached via `GET /api/tmdb-profile`; clicking opens
   `/person/:id`.
-- **Watch state & actions** — mark watched (with date prompt: today / release date /
+- **Watch state & actions** - mark watched (with date prompt: today / release date /
   custom), mark unwatched, delete; episode- season- and show-level for TV
   (`watch-action.js`, `POST /api/manual-watch` in batches of 100,
   `POST /api/manual-unwatch`, `POST /api/delete-media`).
-- **Rewatch tracking** — a genuine rewatch (a webhook playback event for an
+- **Rewatch tracking** - a genuine rewatch (a webhook playback event for an
   already-watched item on a later UTC calendar day; see [webhooks.md](webhooks.md#rewatch-detection))
   adds a new watch record instead of being dropped as a duplicate. A bare
   played-flag event never counts as a rewatch. Movies and
   episodes with more than one recorded watch show a "Watch History" list (date +
   source app for every play) in place of the single watched-date line.
-- **Sync status** — per-platform pills from `sync_dispatch_telemetry`
+- **Sync status** - per-platform pills from `sync_dispatch_telemetry`
   (`modules/sync.js`), with retry (`POST /api/retry-sync`).
   `POST /api/retry-sync` and `POST /api/update-watch` both take an optional
   `media_key` next to `id`, and fall back to it when the id names no row. A
   record can be superseded between the moment a caller reads its id and the
-  moment it acts, so callers that hold an id for any length of time — the manual
-  match queue in Settings → Sync Issues — send the key as well. Both endpoints
+  moment it acts, so callers that hold an id for any length of time - the manual
+  match queue in Settings → Sync Issues - send the key as well. Both endpoints
   also accept a media key supplied as the `id` itself.
-- **Seerr integration** — when Jellyseerr/Overseerr is configured, availability status
+- **Seerr integration** - when Jellyseerr/Overseerr is configured, availability status
   (`GET /api/seerr/media-status`) and request buttons (`POST /api/seerr/request`,
   season-level for TV, optional 4K) render on the page. The last known status per
   title is persisted in localStorage (`plembfin:seerrStatusCache:v1`), so availability
   pills render instantly on page open; a silent background refresh re-renders the page
   only when the status actually changed (`fetchSeerrMediaStatus` resolves `null` when
   the fresh result matches the persisted one).
-- **App links** — "open in Plex/Emby/Jellyfin" deep links via
+- **App links** - "open in Plex/Emby/Jellyfin" deep links via
   `GET /api/media-app-links`. The last known links per title are persisted in
   localStorage (`plembfin:appLinksCache:v1`) and rendered instantly; a background
   refresh (at most once per 5 minutes per title) updates the buttons only on change.
-- **Edit tools** — edit watched date (single, per-season, per-show), edit artwork
+- **Edit tools** - edit watched date (single, per-season, per-show), edit artwork
   (poster/logo/backdrop picker fed by `GET /api/tmdb-images`, `/api/tvdb-images`,
   `/api/fanart-images`; saves via `POST /api/update-watch`), fix match
   (TMDB search for movies; TheTVDB search for shows), merge show. All in
@@ -94,7 +94,7 @@ in-app navigation state. TV URLs support deep links:
   date for that movie/episode (`GET /api/watch-dates?id=`), letting you edit any
   one of them, add another watch date (`POST /api/add-watch-date`, clones the
   anchor row's identity fields onto a new date), or remove one with confirmation
-  (`POST /api/delete-watch-date` — rolls `playstate.watched_at` back to whichever
+  (`POST /api/delete-watch-date` - rolls `playstate.watched_at` back to whichever
   remaining watch is newest, or clears it if none remain). TV Fix Match sends one `POST /api/rematch-show` request that
   updates every episode record in a transaction, renaming them onto the picked
   series when that name differs; the dialog closes after that local update while
@@ -102,9 +102,9 @@ in-app navigation state. TV URLs support deep links:
   show's route key, so the UI navigates to the new show URL.
   The artwork dialog has a match search box at the top (`GET /api/tmdb-search`):
   when a title has no automatic TMDB/TVDB match, searching and picking a result
-  swaps the identifiers the picker browses with — the record itself is not
+  swaps the identifiers the picker browses with - the record itself is not
   re-linked (use Fix Match for that).
-- **Debug modal** — `openHistoryDebugModal` shows the raw watch record + telemetry for
+- **Debug modal** - `openHistoryDebugModal` shows the raw watch record + telemetry for
   a history row.
 
 ## Person pages

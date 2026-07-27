@@ -1,7 +1,7 @@
 // Sonarr-style settings primitives shared by the settings pages: service card
 // grids with an "add" tile, an add-type picker modal, and an edit modal with a
 // Test / Cancel / Save footer. Consumers describe fields declaratively; secret
-// fields are never prefilled — a "Configured" placeholder stands in for the
+// fields are never prefilled - a "Configured" placeholder stands in for the
 // stored credential (redacted-config semantics).
 import { escapeHtml, escapeAttribute } from "./utils.js";
 
@@ -88,14 +88,14 @@ export function collectFieldValues(container) {
 const collectValues = collectFieldValues;
 
 // Opens a centered edit modal. Options:
-//   title, fields          — dialog heading and field specs (see renderFieldRow)
-//   onSave(values, ui)     — required; resolve to close, return false to stay open
-//   onTest(values, ui)     — optional; resolve to a success message string
-//   onDelete(ui)           — optional; shows a red button on the footer's left
-//   deleteLabel, saveLabel, testLabel — button captions
-//   enabledKey             — key of a checkbox field that gates the other fields;
+//   title, fields          - dialog heading and field specs (see renderFieldRow)
+//   onSave(values, ui)     - required; resolve to close, return false to stay open
+//   onTest(values, ui)     - optional; resolve to a success message string
+//   onDelete(ui)           - optional; shows a red button on the footer's left
+//   deleteLabel, saveLabel, testLabel - button captions
+//   enabledKey             - key of a checkbox field that gates the other fields;
 //                            unchecking disables them and relabels Save
-//   helpHtml               — trusted HTML rendered inside a "Setup help" disclosure
+//   helpHtml               - trusted HTML rendered inside a "Setup help" disclosure
 export function openSettingsEditModal({
   title = "Edit",
   fields = [],

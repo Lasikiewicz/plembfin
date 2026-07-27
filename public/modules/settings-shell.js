@@ -498,7 +498,7 @@ function renderSettingsSectionSelect() {
       for (const subSection of definition.subSections || []) {
         const subOption = document.createElement("option");
         subOption.value = `/settings/${sectionId}#${subSection.id}`;
-        subOption.textContent = `— ${definition.label}: ${subSection.label}`;
+        subOption.textContent = `- ${definition.label}: ${subSection.label}`;
         groupOptgroup.append(subOption);
       }
     }
@@ -553,7 +553,7 @@ function renderSettingsOverview() {
 }
 
 function prepareToolsDisclosures() {
-  // Legacy disclosure wrapper disabled — panels now use standalone glass-panel settings-cards and sync-tool-details accordions.
+  // Legacy disclosure wrapper disabled - panels now use standalone glass-panel settings-cards and sync-tool-details accordions.
   return;
 }
 

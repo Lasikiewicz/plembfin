@@ -185,7 +185,7 @@ export async function normalizeWebhook(req) {
 
   // Otherwise judge the body, not the header. Jellyfin's webhook plugin posts
   // valid JSON labelled `text/plain`, so trusting the declared content type
-  // silently drops every event it sends — including the mark-played and
+  // silently drops every event it sends - including the mark-played and
   // mark-unplayed events that unwatch propagation depends on.
   let sniffed = null;
   try {
@@ -394,8 +394,8 @@ export async function applyManualUnwatch(media, config, loopStore, recordId = ""
   }
 
   // Reuse the identity of the row being superseded. The replacement describes
-  // the same media, and anything holding a reference to it — an open Fix Match
-  // dialog, a queued manual match, a match report row — resolves to a record
+  // the same media, and anything holding a reference to it - an open Fix Match
+  // dialog, a queued manual match, a match report row - resolves to a record
   // that still exists instead of a deleted id.
   const supersededId = existingWatched?.id || existingRecord?.id || "";
 
@@ -1275,7 +1275,7 @@ export async function handleWebhook(req, res) {
   // A server announcing new content is the moment a watch Plembfin already
   // holds can finally be applied there. Until the file exists, an outbound sync
   // has nothing to mark; this catches the item up without waiting for a manual
-  // Force Sync. It never creates history — only an existing watched record is
+  // Force Sync. It never creates history - only an existing watched record is
   // ever applied, and only to the server that just added the item.
   //
   // This runs ahead of the season/series branch below on purpose. That branch
@@ -1515,7 +1515,7 @@ export async function handleWebhook(req, res) {
       // flag, including plembfin's own outbound sync, and they can deliver it
       // hours after the fact. For an item already held as watched such an event
       // carries no evidence that a new play happened, so it never opens a
-      // rewatch — the calendar day it happens to land on is meaningless. Real
+      // rewatch - the calendar day it happens to land on is meaningless. Real
       // rewatches arrive as playback events (media.scrobble, playback.stop) and
       // fall through to be recorded below.
       const lastWatchedDay = String(existingPlaystate.watched_at || "").slice(0, 10);

@@ -1,4 +1,4 @@
-# Hardened overlay — requires Docker Compose v2+
+# Hardened overlay - requires Docker Compose v2+
 # Usage: docker compose -f docker-compose.yml -f docker-compose.secure.yml up -d
 #
 # This overlay adds:
@@ -21,9 +21,9 @@ services:
       - no-new-privileges:true
     environment:
       - COOKIE_SECURE=true
-      # Required — must be set to a strong password before first boot.
+      # Required - must be set to a strong password before first boot.
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
-      # Required — pin secrets so they survive container replacement.
+      # Required - pin secrets so they survive container replacement.
       - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET must be set}
       - API_KEY=${API_KEY:?API_KEY must be set}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:?WEBHOOK_SECRET must be set}

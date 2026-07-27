@@ -17,7 +17,7 @@ function authHeaders() {
 }
 
 export function getRowFitLimit(rowElement) {
-  // Dashboard history rows scroll horizontally — render more cards than fit on
+  // Dashboard history rows scroll horizontally - render more cards than fit on
   // screen so the row scrolls rather than cutting off content.
   if (rowElement && (rowElement.id === "tvHistoryRow" || rowElement.id === "movieHistoryRow")) {
     return 24;
@@ -294,7 +294,7 @@ export function observeDashboardPosters() {
       };
 
       // Each IntersectionObserver batch is just the handful of cards that
-      // scrolled into view, not the whole row — no need to serialize them.
+      // scrolled into view, not the whole row - no need to serialize them.
       await Promise.allSettled(fallbacks.map(hydrateOne));
     },
     { rootMargin: "200px" },

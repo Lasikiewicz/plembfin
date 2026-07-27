@@ -230,7 +230,7 @@ export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source 
     }
     const response = await fetchWithTimeout(fetchUrl.toString(), { headers: fetchHeaders }, 12_000);
     if (!response.ok) {
-      // Don't persist rate-limit failures — they're transient and would block retries.
+      // Don't persist rate-limit failures - they're transient and would block retries.
       if (response.status !== 429 && response.status !== 503) {
         await markPosterFailure(mediaKey, source, `HTTP ${response.status}`, remoteUrl, variant);
       }

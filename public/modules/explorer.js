@@ -21,7 +21,7 @@ import {
 import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js";
 import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js";
 // ---------------------------------------------------------------------------
-// Callback injection — functions defined outside the 2636–4016 range in app.js
+// Callback injection - functions defined outside the 2636-4016 range in app.js
 // ---------------------------------------------------------------------------
 let _cb = {};
 const searchResultsCache = new Map();
@@ -519,7 +519,7 @@ export function observeExplorerTmdbPrefetch(container) {
         const title = el.dataset.prefetchTitle;
         // In the default "posters" grid the only thing TMDB details supplies is a
         // poster_path for cards whose poster hasn't resolved yet. Cards that already
-        // rendered an <img> need nothing — skip them so we don't fire a request per
+        // rendered an <img> need nothing - skip them so we don't fire a request per
         // card. List/overview views always need the metadata (dates, runtime, eps).
         const needsMeta = currentExplorerView() === "list" || currentExplorerView() === "overview" || (mediaType === "tv" && currentExplorerView() === "posters");
         const needsPoster = !!el.querySelector(".poster-fallback[data-poster-id]");
@@ -717,7 +717,7 @@ export function resolvedTmdbCache(mediaType, tmdbId, title) {
   return null;
 }
 // ---------------------------------------------------------------------------
-// Rewatch badge — shown wherever a card/row has a playHistory of more than
+// Rewatch badge - shown wherever a card/row has a playHistory of more than
 // one watched_at entry (see collapseMovieCluster / dedupeHistory server-side).
 // ---------------------------------------------------------------------------
 function rewatchBadge(entry) {

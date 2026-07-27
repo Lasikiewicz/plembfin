@@ -40,7 +40,7 @@ const MIN_SECRET_LENGTH = 32;
 
 // Auto-generated secrets are always long enough (hex-encoded randomBytes), so
 // this only ever fires for a value pinned via env or hand-edited into
-// data/config.json — fail fast at startup rather than merely warn.
+// data/config.json - fail fast at startup rather than merely warn.
 function assertMinSecretLength(name, value) {
   const length = String(value || "").length;
   if (length < MIN_SECRET_LENGTH) {
@@ -53,7 +53,7 @@ function assertMinSecretLength(name, value) {
 
 // Set when resolveAuthConfig generates a random password for a brand-new
 // install, so logSecuritySummary can print it once. Never persisted in
-// plaintext — only the scrypt hash goes into data/config.json.
+// plaintext - only the scrypt hash goes into data/config.json.
 let generatedInitialPassword = null;
 
 // Resolve the auth config from data/config.json, applying env overrides and
@@ -100,9 +100,9 @@ function logSecuritySummary() {
   const warnings = [];
 
   if (isDefaultPasswordHash(config.passwordHash)) {
-    warnings.push("ADMIN PASSWORD IS DEFAULT ('admin') — change it immediately in Settings → General");
+    warnings.push("ADMIN PASSWORD IS DEFAULT ('admin') - change it immediately in Settings → General");
   } else if (!config.authManagedInApp && process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD.length < 8) {
-    warnings.push("ADMIN_PASSWORD is shorter than 8 characters — use a stronger password");
+    warnings.push("ADMIN_PASSWORD is shorter than 8 characters - use a stronger password");
   }
 
   const pinned = [];

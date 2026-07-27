@@ -7,20 +7,20 @@ polling. Read [architecture.md](architecture.md) first for the big picture.
 
 | File | Role |
 | --- | --- |
-| `server/src/utils/embyClient.js` | Outbound HTTP client — all Emby API calls |
-| `server/src/utils/parsers.js` | `parseEmbyWebhook` — webhook normalization |
-| `server/src/scheduled.js` | `syncRecentlyWatchedFromEmby`, `syncRecentlyResumableFromEmby` — catch-up polling |
+| `server/src/utils/embyClient.js` | Outbound HTTP client - all Emby API calls |
+| `server/src/utils/parsers.js` | `parseEmbyWebhook` - webhook normalization |
+| `server/src/scheduled.js` | `syncRecentlyWatchedFromEmby`, `syncRecentlyResumableFromEmby` - catch-up polling |
 | `server/src/utils/liveSessions.js` | Polls `/Sessions` for Now Playing |
-| `public/modules/help-content.js` | `embyCredentialGuide()`, `embyWebhookSetup()` — in-app setup guides |
+| `public/modules/help-content.js` | `embyCredentialGuide()`, `embyWebhookSetup()` - in-app setup guides |
 
 ## Configuration
 
 Settings → Media Servers → Emby needs three values (stored in the `settings` SQLite row; env
 vars `EMBY_SERVER_URL` / `EMBY_API_KEY` / `EMBY_USER_ID` act as defaults):
 
-- **baseUrl** — reachable *from the Plembfin server machine*
-- **apiKey** — an Emby API key (Dashboard → Advanced → API Keys)
-- **userId** — the Emby user whose watch state is tracked and written
+- **baseUrl** - reachable *from the Plembfin server machine*
+- **apiKey** - an Emby API key (Dashboard → Advanced → API Keys)
+- **userId** - the Emby user whose watch state is tracked and written
 
 All three are required when Emby is enabled (`validateConfig`). Requests authenticate
 with the `X-Emby-Token` header.
@@ -28,7 +28,7 @@ with the `X-Emby-Token` header.
 ## Inbound: webhooks
 
 Emby posts JSON to `/api/webhook?token=<webhookSecret>`. **Enable "Send All
-Properties" on the Emby webhook** — without the full item payload, events can arrive
+Properties" on the Emby webhook** - without the full item payload, events can arrive
 without enough title/type/progress data to record a watch.
 
 `parseEmbyWebhook` (`parsers.js`) derives the phase:
@@ -39,23 +39,23 @@ without enough title/type/progress data to record a watch.
 - `playback.stop` → `completed` at the watched threshold (90% by default), else `ended`
 
 `item.markplayed` and userdata-saved events are also tagged `playedFlagOnly`, because
-Emby fires them whenever anything sets the played flag — including Plembfin's own
-outbound sync — and can deliver them hours late. They are dated from the item's
+Emby fires them whenever anything sets the played flag - including Plembfin's own
+outbound sync - and can deliver them hours late. They are dated from the item's
 `LastPlayedDate` rather than arrival time, and never record a rewatch for an item
 already marked watched. See [webhooks.md](webhooks.md#rewatch-detection).
 
 Unlike Plex, Emby **does** send mark-unplayed events, so unwatch propagation works
-purely through the webhook — no extra listener is needed.
+purely through the webhook - no extra listener is needed.
 
 ## Inbound: scheduler polling
 
 Every minute `fetchLiveSessions` polls `/Sessions` for Now Playing. The catch-up sync
 (every 15 minutes by default) pulls:
 
-- **Recently watched** — `fetchEmbyWatchedItems` (user's items filtered to
+- **Recently watched** - `fetchEmbyWatchedItems` (user's items filtered to
   `IsPlayed`, ordered by play date) → `syncRecentlyWatchedFromEmby` records watches
   whose webhooks were missed.
-- **Resumable items** — `fetchEmbyResumableItems` (`/Users/<id>/Items/Resume`) →
+- **Resumable items** - `fetchEmbyResumableItems` (`/Users/<id>/Items/Resume`) →
   `syncRecentlyResumableFromEmby` replicates resume positions to the other platforms.
   Episode rows include series provider IDs so cross-server lookup can resolve the
   series before selecting the matching season and episode.
@@ -65,8 +65,8 @@ with `ticksToMilliseconds`.
 
 ### Items flagged played without a play date
 
-Marking an item watched over the Emby API — which is exactly what outbound playstate sync
-does — sets `UserData.Played` to `true` but leaves `PlayCount` at `0` and writes no
+Marking an item watched over the Emby API - which is exactly what outbound playstate sync
+does - sets `UserData.Played` to `true` but leaves `PlayCount` at `0` and writes no
 `LastPlayedDate`. Emby returns those items in the recently-watched list, so a propagated
 watch comes back on the next catch-up poll looking like a watch with missing metadata.
 
@@ -74,9 +74,9 @@ watch comes back on the next catch-up poll looking like a watch with missing met
 would turn an existing library into a burst of new watch rows after a restore or first
 connection. It separates the two cases:
 
-- **`Played: true` with an explicit `PlayCount: 0`** — marked over the API, nothing to
+- **`Played: true` with an explicit `PlayCount: 0`** - marked over the API, nothing to
   ingest. Ignored silently; counted only when `LOG_VERBOSE` is set.
-- **`Played: true` with a real play count but no date** — a genuine data gap. Reported as
+- **`Played: true` with a real play count but no date** - a genuine data gap. Reported as
   one aggregated line naming the affected titles.
 
 An install whose Emby library was populated entirely by outbound sync will therefore have
@@ -95,7 +95,7 @@ platform that reported them.
 | `fetchEmbySeriesEpisodes` / `fetchEmbyEpisodes` | Episode lists for season-level operations |
 | `fetchEmbyWatchedItems` / `fetchEmbyResumableItems` | Feeds for catch-up sync |
 
-A `not_found` result is reported as "skipped — no matching item" in sync telemetry:
+A `not_found` result is reported as "skipped - no matching item" in sync telemetry:
 the item isn't in Emby's library, which is normal for non-mirrored libraries.
 
 ## Artwork
@@ -103,4 +103,4 @@ the item isn't in Emby's library, which is normal for non-mirrored libraries.
 Emby poster URLs are built from `/Items/<id>/Images/Primary` with the image tag
 (`embyLikePosterUrl` in `liveSessions.js`, `configuredImageUrl` in
 `public/modules/images.js`). The server-side poster pipeline caches a resized local
-copy — see [posters-artwork.md](posters-artwork.md).
+copy - see [posters-artwork.md](posters-artwork.md).

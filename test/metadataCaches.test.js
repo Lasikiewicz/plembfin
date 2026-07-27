@@ -14,7 +14,7 @@ const { getTmdbDetails } = await import("../server/src/utils/tmdbGateway.js");
 
 // No TMDB API key is configured in this environment and fanart.tv is not
 // reachable synchronously, so any code path that misses the SQLite caches and
-// reaches the network either throws or returns a fallback — the assertions
+// reaches the network either throws or returns a fallback - the assertions
 // below only pass when the cache layer answers.
 
 const seedFanart = db.prepare(
@@ -98,6 +98,6 @@ test("getTmdbDetails returns fresh cached TV details without upstream fetches", 
   assert.equal(result.name, "Cached Show");
   assert.equal(result.next_airing_date, "2999-01-01");
   // cache_stale is only stamped when the fresh-cache path was missed and the
-  // upstream fetch failed — its absence proves the cache answered directly.
+  // upstream fetch failed - its absence proves the cache answered directly.
   assert.equal(result.cache_stale, undefined);
 });

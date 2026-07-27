@@ -2,7 +2,7 @@ import { db, parseJson, toJson } from "../db.js";
 import { loadMediaConfig } from "./configStore.js";
 import { fetchWithTimeout } from "./outbound.js";
 
-// Shared fanart.tv project key — intentionally public: fanart.tv issues these
+// Shared fanart.tv project key - intentionally public: fanart.tv issues these
 // for apps to embed, and rate-limits them upstream. Operators can swap in their
 // own via FANART_PROJECT_KEY (a personal key in Settings additionally raises the
 // rate limit as client_key) if this one is revoked or exhausted.
@@ -76,7 +76,7 @@ async function fetchFanart(path) {
     const clientKey = await userKey();
     try {
       let result = await requestFanart(path, PROJECT_KEY, clientKey ? { client_key: clientKey } : {});
-      // A 404 from the project key means fanart.tv has nothing for this item —
+      // A 404 from the project key means fanart.tv has nothing for this item -
       // the personal key would 404 too, so only fall back on other failures.
       if (!result.data && clientKey && result.status !== 404) {
         result = await requestFanart(path, clientKey);

@@ -34,15 +34,15 @@ try {
   const parsedCommits = JSON.parse(process.env.COMMITS_JSON || "[]");
   if (Array.isArray(parsedCommits)) pushedCommits = parsedCommits;
 } catch {
-  // COMMITS_JSON absent or malformed — the head commit is still validated below.
+  // COMMITS_JSON absent or malformed - the head commit is still validated below.
 }
 
 // A `git push` can carry several commits, but GitHub's push event only exposes
-// head_commit — everything else would silently vanish from the changelog if a
+// head_commit - everything else would silently vanish from the changelog if a
 // multi-commit push isn't summarized by hand in the final commit message.
 // Worse, if an earlier push's CI run failed before this script ever ran (e.g. a
 // flaky test on the runner), that push's commit never got a changelog entry at
-// all, and it won't appear in *this* push's event payload either — from
+// all, and it won't appear in *this* push's event payload either - from
 // GitHub's perspective it was already on `main` before this push started. So
 // the authoritative source of "what's new since the last entry" is git history
 // itself: walk every commit between the last recorded changelog commit and the

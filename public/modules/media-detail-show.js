@@ -233,8 +233,8 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
 
   const seasonDetailsByNumber = new Map();
   await Promise.all([
-    // Pull persisted watched state from the server so a fresh page load — where
-    // state.showsRaw/state.history aren't populated yet — still reflects what is
+    // Pull persisted watched state from the server so a fresh page load - where
+    // state.showsRaw/state.history aren't populated yet - still reflects what is
     // already marked watched (otherwise the show looks unwatched after a refresh).
     loadShowDetail({ title: showTitle }).catch(() => null),
     ensurePlaybackProgressLoaded(),
@@ -574,7 +574,7 @@ function episodeReleaseLabel(airDate) {
 
 // Full watch history list (each play's date + source app) shown in place of
 // the single "Watched on ..." line once an episode has more than one
-// recorded watch — see playHistory ({ id, watched_at, source }[]) built
+// recorded watch - see playHistory ({ id, watched_at, source }[]) built
 // server-side in dedupeHistory (server/src/utils/dataRepo.js).
 function episodeWatchHistoryHtml(watched) {
   const history = Array.isArray(watched?.playHistory) ? watched.playHistory : [];
@@ -746,7 +746,7 @@ export function renderShowModalContent(show, {
   const isUnmatchedShow = showTitle === "Unknown Show";
   const orphanHistoryId = show.unmatched_history_id || "";
   // Specials (season 0) are kept in the list so they're still browsable, but
-  // are excluded from the progress totals below — a "100 of 100" show isn't
+  // are excluded from the progress totals below - a "100 of 100" show isn't
   // meant to imply specials don't exist, just that they don't count toward it.
   const seasonsList = [...(tmdbData?.seasons?.length ? tmdbData.seasons : fallbackSeasonList(seasonsMap))]
     .sort((a, b) => Number(b.season_number) - Number(a.season_number));
@@ -819,7 +819,7 @@ export function renderShowModalContent(show, {
   };
   const unwatchedRows = episodeRows.filter((episode) => !episode.watched && !isUnreleased(episode));
 
-  // Normally only the selected season's episode list is built/rendered — the
+  // Normally only the selected season's episode list is built/rendered - the
   // rest stay collapsed and unbuilt. "Expand all" (state.showModalAllSeasonsExpanded)
   // builds a panel for every season instead, so the accordion below can render
   // them all open at once.
@@ -983,7 +983,7 @@ export function renderShowModalContent(show, {
     ${renderWatchDatePrompt(state.pendingWatchAction)}
   `;
   // Refresh when there's no status yet, or when the rendered status came from
-  // the persisted cache (`stale`) — the fetch resolves null if nothing
+  // the persisted cache (`stale`) - the fetch resolves null if nothing
   // changed, so an up-to-date page never re-renders.
   if (tvSeerrTmdbId && (!hasTvSeerrStatus || tvSeerrStatus.stale)) {
     fetchSeerrMediaStatus("tv", tvSeerrTmdbId)
@@ -1070,7 +1070,7 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
 }
 
 export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, activeEpisodeNum = null, historyId = "") {
-  // Half of a two-token handshake with media-detail-movie.js — see the
+  // Half of a two-token handshake with media-detail-movie.js - see the
   // bumpMediaRenderToken doc comment in media-detail-context.js before changing this.
   bumpMediaRenderToken(); // invalidate any in-flight movie render
   syncInlineMediaDetailHeading("shows");

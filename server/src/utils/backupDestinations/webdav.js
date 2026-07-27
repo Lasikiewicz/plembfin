@@ -1,4 +1,4 @@
-// WebDAV adapter — covers Nextcloud, ownCloud, Apache mod_dav, and most NAS units.
+// WebDAV adapter - covers Nextcloud, ownCloud, Apache mod_dav, and most NAS units.
 // Settings: { url, username, directory? }  Secrets: { password }
 import fs from "node:fs";
 import { fetchWithTimeout } from "../outbound.js";

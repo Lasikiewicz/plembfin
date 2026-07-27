@@ -401,11 +401,11 @@ export function renderWatchBackups() {
       <div class="restore-clear-intro">Watch-history restore makes the selected backup the source of truth and pushes it to every connected app. Choose how Plembfin should handle existing app state first:</div>
       <label>
         <input type="radio" name="restoreClearMode" value="reconcile" ${clearMode === "reconcile" ? "checked" : ""} data-restore-clear-mode>
-        <span><b>Reconcile tracked items</b> — push only items in this backup. Faster, and apps keep watched items that the backup does not know about.</span>
+        <span><b>Reconcile tracked items</b> - push only items in this backup. Faster, and apps keep watched items that the backup does not know about.</span>
       </label>
       <label>
         <input type="radio" name="restoreClearMode" value="wipe" ${clearMode === "wipe" ? "checked" : ""} data-restore-clear-mode>
-        <span><b>Full wipe then push</b> — first mark every watched item in each app as unwatched, then re-apply only this backup's watched set. Slower, but the apps end up matching the backup.</span>
+        <span><b>Full wipe then push</b> - first mark every watched item in each app as unwatched, then re-apply only this backup's watched set. Slower, but the apps end up matching the backup.</span>
       </label>
     </div>`;
   const entryRow = (entry) => `
@@ -648,9 +648,9 @@ export async function restoreRemoteBackupFromCard(card, filename, clearMode = "r
   const wipe = clearMode === "wipe";
   const approved = await _openConfirmDialog({
     title: "Restore watch history?",
-    body: `⚠️ AUTHORITATIVE RESTORE — this backup becomes the source of truth.\n\nWill DELETE all current watch history, playstate and resume progress, restore from:\n\n${filename}\n\nand push that state to every connected app.\n\n${wipe
-      ? "Clear mode: FULL WIPE — every currently-watched item on each app is first marked unwatched."
-      : "Clear mode: RECONCILE — only items tracked by the backup are pushed."}\n\nThis cannot be undone.`,
+    body: `⚠️ AUTHORITATIVE RESTORE - this backup becomes the source of truth.\n\nWill DELETE all current watch history, playstate and resume progress, restore from:\n\n${filename}\n\nand push that state to every connected app.\n\n${wipe
+      ? "Clear mode: FULL WIPE - every currently-watched item on each app is first marked unwatched."
+      : "Clear mode: RECONCILE - only items tracked by the backup are pushed."}\n\nThis cannot be undone.`,
     confirmLabel: wipe ? "Wipe Apps and Restore" : "Restore and Push",
     danger: true,
   });
@@ -1138,9 +1138,9 @@ export async function restoreWatchBackup(filename, clearMode = "reconcile", dryR
   const wipe = clearMode === "wipe";
   const approved = await _openConfirmDialog({
     title: "⚠️ Wipe and restore watch history?",
-    body: `⚠️ AUTHORITATIVE RESTORE — this backup becomes the source of truth.\n\nWill DELETE all current watch history, playstate and resume progress, restore from ${filename}, and push that state to every connected app (Plex/Emby/Jellyfin).\n\n${wipe
-      ? "Clear mode: FULL WIPE — every currently-watched item on each app is first marked unwatched, so the apps end up matching the backup exactly."
-      : "Clear mode: RECONCILE — only items tracked by the backup are pushed; extra watched items on the apps are left as-is."}\n\nThis cannot be undone.`,
+    body: `⚠️ AUTHORITATIVE RESTORE - this backup becomes the source of truth.\n\nWill DELETE all current watch history, playstate and resume progress, restore from ${filename}, and push that state to every connected app (Plex/Emby/Jellyfin).\n\n${wipe
+      ? "Clear mode: FULL WIPE - every currently-watched item on each app is first marked unwatched, so the apps end up matching the backup exactly."
+      : "Clear mode: RECONCILE - only items tracked by the backup are pushed; extra watched items on the apps are left as-is."}\n\nThis cannot be undone.`,
     confirmLabel: wipe ? "Wipe Apps and Restore" : "Restore and Push",
     danger: true,
   });
@@ -1208,6 +1208,6 @@ async function pollRestoreProgress(terminal) {
     }
     await sleep(2000);
   }
-  if (terminal) terminal.textContent += "[Note] Still running — stopped following the log. Check the server logs for completion.\n";
+  if (terminal) terminal.textContent += "[Note] Still running - stopped following the log. Check the server logs for completion.\n";
   return null;
 }

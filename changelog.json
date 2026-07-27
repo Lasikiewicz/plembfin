@@ -344,12 +344,12 @@
       "author": "Lasikiewicz",
       "details": [
         "Clean Duplicate History Rows no longer collapses rewatches: it previously kept only the newest row per item and would have deleted 1,288 rows, most of them separate viewings recorded weeks or months apart. It now removes only rows that record the same watch event, and reports how many rewatched items it preserved",
-        "Sync Health works again — the panel returned an internal error on every request and showed nothing",
+        "Sync Health works again - the panel returned an internal error on every request and showed nothing",
         "Sync Health now reports watch-history data quality: rows duplicating an existing watch event, items with several distinct watch dates, episode rows missing a season number, and rows holding a provider URI instead of a show title, each with a recommendation",
         "The Upcoming calendar opens from its saved cache and refreshes in the background instead of rebuilding before anything renders, so it no longer shows a blank month on every visit. Months in view load together, and repeated reloads no longer queue repeated rebuilds",
         "TV show progress is now calculated for shows whose stored title carries a year, such as \"Robin Hood (2025)\". Those shows previously never cached a progress figure and were recalculated fruitlessly on every start",
         "Shows with no resolvable episode total wait a week before retrying rather than repeating the same failing metadata lookups every start",
-        "Emby items flagged played over the API — which is what outbound sync itself does — are no longer reported as watches with missing metadata; only genuine missing play dates are surfaced",
+        "Emby items flagged played over the API - which is what outbound sync itself does - are no longer reported as watches with missing metadata; only genuine missing play dates are surfaced",
         "The Logs panel reads from the database, so it merges web and worker output and stays fast however long the server runs; a sync tick that changed nothing now logs nothing, repeated per-item outcomes are condensed, and detailed request tracing moved behind a new LOG_VERBOSE setting",
         "Log files under data/logs are pruned automatically and the HTTP access log now rotates on size, so the directory stops growing without limit"
       ]
@@ -1136,11 +1136,11 @@
       "message": "Fix - Keep mobile controls accessible across breakpoints",
       "author": "Lasikiewicz",
       "details": [
-        "Responsive Stats and Upcoming controls now fit without hidden overflow from 320–1280 px",
+        "Responsive Stats and Upcoming controls now fit without hidden overflow from 320-1280 px",
         "Mobile controls now use 44 px touch targets",
         "Closed navigation is now inert, aria-hidden, and removed from keyboard and screen-reader navigation",
         "Routed pages now have proper h1 headings with a logical Dashboard and Stats section hierarchy",
-        "Fixed the tablet breakpoint regression affecting layouts from 761–1023 px"
+        "Fixed the tablet breakpoint regression affecting layouts from 761-1023 px"
       ]
     },
     {
@@ -2576,7 +2576,7 @@
       "message": "Fix - Prevent watched items from being silently dropped from history",
       "author": "Lasikiewicz",
       "details": [
-        "Fix scheduled sync skipping items that had a playstate record but no history row — these were permanently blocked from being logged",
+        "Fix scheduled sync skipping items that had a playstate record but no history row - these were permanently blocked from being logged",
         "Add coordinate-based fallback lookup (season + episode + show title) so items imported via Trakt with IMDB keys are found when Emby or Jellyfin returns TVDB keys",
         "Switch Plex sync path to use multi-key lookup instead of exact key match, fixing cross-ID misses",
         "Remove release date fallback from Emby/Jellyfin watch timestamp logic to prevent bogus historical dates being recorded when no real play date is available",
@@ -2720,7 +2720,7 @@
       "message": "Chore - Remove scratch files and add project hygiene files",
       "author": "Lasikiewicz",
       "details": [
-        "Remove entire scratch/ directory (40 debug scripts, logs, diffs — never belonged in git)",
+        "Remove entire scratch/ directory (40 debug scripts, logs, diffs - never belonged in git)",
         "Remove dated security audit snapshot (docs/security-audit-2026-06-20.md)",
         "Add scratch/ to .gitignore so it stays out permanently",
         "Add .editorconfig for consistent indentation and line endings",
@@ -2912,7 +2912,7 @@
         "Move IMDb link from top-bar actions into the ratings row as a styled rating pill",
         "Wrap movie and TV show action buttons in a collapsible \"Movie/Show actions\" menu on mobile (≤640px), keeping IMDb and YouTube links outside the menu",
         "Fix mobile top bar layout: title truncates with ellipsis, actions area becomes full-width horizontal scroll row",
-        "Fix movie page refresh \"Content not found\" for titles with special characters (e.g. Angels & Demons) — normalize special chars in title search comparison and add first-word fallback search on the client",
+        "Fix movie page refresh \"Content not found\" for titles with special characters (e.g. Angels & Demons) - normalize special chars in title search comparison and add first-word fallback search on the client",
         "Add omdb_cache SQLite table (id = IMDb tt-id, 7-day TTL)"
       ]
     },
@@ -2946,7 +2946,7 @@
         "Removed \"styled like Sonarr/Radarr/Jellyseerr\" phrasing",
         "Added mentions of easy configuration and light/dark theme options",
         "Added Screenshots section to README with all 8 app screenshots",
-        "Fixed global search dropdown using hardcoded dark hex colours — replaced with CSS variables so it renders correctly in light mode"
+        "Fixed global search dropdown using hardcoded dark hex colours - replaced with CSS variables so it renders correctly in light mode"
       ]
     },
     {
@@ -3137,7 +3137,7 @@
         "Edit Images dialog now pulls posters and logos from Fanart.tv alongside TMDB, with source badges (TMDB / Fanart) on each image tile",
         "Edit Images dialog widened from 680px to 980px with taller image grid and two-column logo layout",
         "New /api/fanart-images endpoint returns all Fanart.tv posters and logos for a given movie or TV show",
-        "TV show page breadcrumb now shows show name (e.g. \"TV Shows — Aussie Gold Hunters\")",
+        "TV show page breadcrumb now shows show name (e.g. \"TV Shows - Aussie Gold Hunters\")",
         "Season accordion sections made virtually transparent",
         "Filmography filter and sort controls replaced with pill toggle buttons (Movies / TV Shows, Popularity / Newest / Oldest)"
       ]
@@ -3283,7 +3283,7 @@
       "message": "Docs - Update README backup section and tighten push-to-git README check rule",
       "author": "Lasikiewicz",
       "details": [
-        "Remove stale backup destinations (Local/Synced Folder, S3, WebDAV, OneDrive, Dropbox) from README — only Backblaze B2 remote is supported now",
+        "Remove stale backup destinations (Local/Synced Folder, S3, WebDAV, OneDrive, Dropbox) from README - only Backblaze B2 remote is supported now",
         "Update Key Features blurb to reflect local + Backblaze B2 only",
         "Add backup destinations and Key Features rows to the CLAUDE.md doc-sync table",
         "Add explicit reminder to always read README sections before assuming they are current"

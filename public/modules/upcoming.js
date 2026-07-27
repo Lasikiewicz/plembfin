@@ -56,7 +56,7 @@ export function initUpcoming(callbacks) {
     if (tmdbId) _cb.navigateTo?.(`/tvshow/tmdb/${tmdbId}`);
     else if (showId) _cb.navigateTo?.(`/tvshow/${encodeURIComponent(showId)}`);
   });
-  // The page-shell is the app's scroll container — body itself never scrolls.
+  // The page-shell is the app's scroll container - body itself never scrolls.
   // One handler drives poster hydration, the visible-month title, and the
   // range growth in both directions.
   scrollContainerEl()?.addEventListener("scroll", handleUpcomingScroll, { passive: true });
@@ -179,7 +179,7 @@ function weekStartsInMonth(monthKey) {
 }
 
 // A straddling week appears in both months' grids, so the week alone does not
-// identify a row — the owning month is part of the key.
+// identify a row - the owning month is part of the key.
 function weekRowSelector(dayIso) {
   return `[data-month="${dayIso.slice(0, 7)}"][data-week="${weekStartOf(dayIso)}"]`;
 }
@@ -201,7 +201,7 @@ function fillBelowAnchor() {
   const root = scrollContainerEl();
   if (!root || !pendingAnchorSelector) return;
   // The search view has no calendar to anchor against, so there is nothing to
-  // make room for — growing the range would just fetch months for nothing.
+  // make room for - growing the range would just fetch months for nothing.
   if (normalizeUpcomingSearch(state.upcomingSearch)) return;
   for (let pass = 0; pass < UPCOMING_ANCHOR_FILL_PASSES; pass += 1) {
     if (root.scrollTop < root.scrollHeight - root.clientHeight - 1) return;
@@ -213,7 +213,7 @@ function fillBelowAnchor() {
 async function anchorTo(selector, { revalidateMonth = "" } = {}) {
   pendingAnchorSelector = selector;
   renderUpcoming();
-  // The title normally tracks scrolling, but nothing has scrolled yet — name
+  // The title normally tracks scrolling, but nothing has scrolled yet - name
   // the target month up front so it is correct while episode data loads.
   if (elements.upcomingMonthTitle) elements.upcomingMonthTitle.textContent = monthTitle(activeMonth());
   applyPendingAnchor();
@@ -232,7 +232,7 @@ async function anchorTo(selector, { revalidateMonth = "" } = {}) {
   anchorHoldUntil = Date.now() + UPCOMING_ANCHOR_HOLD_MS;
 }
 
-// Month stepping jumps straight to the target heading rather than animating —
+// Month stepping jumps straight to the target heading rather than animating -
 // an animated scroll keeps firing scroll events after the jump is considered
 // finished, and those would reset the active month to whatever it passed over.
 function scrollToMonth(monthKey) {
@@ -275,7 +275,7 @@ function handleUpcomingScroll() {
     if (normalizeUpcomingSearch(state.upcomingSearch)) return;
     // This scroll came from a jump, not the user: either one is still mid-flight
     // or its queued scroll events are only now being delivered. The target month
-    // is already in `state.upcomingMonth` — reading it back off the viewport here
+    // is already in `state.upcomingMonth` - reading it back off the viewport here
     // would replace it with wherever the scroll sits and leave the arrows
     // stepping from that month instead of the one just selected.
     if (pendingAnchorSelector || Date.now() < anchorHoldUntil) return;
@@ -329,7 +329,7 @@ function syncVisibleMonthTitle() {
     if (rect.top > contentTop + rect.height) break;
     visibleMonth = heading.dataset.monthHeading || visibleMonth;
   }
-  // Scrolled above the first heading — that month is the one on screen.
+  // Scrolled above the first heading - that month is the one on screen.
   if (!visibleMonth) visibleMonth = headings[0]?.dataset.monthHeading || "";
   if (!visibleMonth) return;
 
@@ -339,7 +339,7 @@ function syncVisibleMonthTitle() {
 
 // `revalidateMonth` refetches a single month even when it is already held in
 // client state, and asks the server to refresh that month in the background.
-// Only the current month is worth revalidating on open — doing it for the whole
+// Only the current month is worth revalidating on open - doing it for the whole
 // range would turn every page visit into a burst of requests.
 export async function loadUpcoming({ revalidateMonth = "" } = {}) {
   ensureUpcomingRange();
@@ -485,7 +485,7 @@ function entryMarkup(episode) {
     <button class="upcoming-entry" type="button"
       data-upcoming-tmdb="${escapeAttribute(episode.tmdbId || "")}"
       data-upcoming-show="${escapeAttribute(episode.showId || "")}"
-      title="${escapeAttribute(tooltipParts.join(" — "))}">
+      title="${escapeAttribute(tooltipParts.join(" - "))}">
       ${posterMarkup(posterItem, "upcoming-entry-poster")}
       <span class="upcoming-entry-text">
         <span class="upcoming-entry-title">${escapeHtml(episode.showTitle || "Unknown show")}</span>

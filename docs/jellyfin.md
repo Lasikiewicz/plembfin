@@ -9,20 +9,20 @@ fork and keeps most of the API surface) with a few differences noted below. Read
 
 | File | Role |
 | --- | --- |
-| `server/src/utils/jellyfinClient.js` | Outbound HTTP client — all Jellyfin API calls |
-| `server/src/utils/parsers.js` | `parseJellyfinWebhook` — webhook normalization |
-| `server/src/scheduled.js` | `syncRecentlyWatchedFromJellyfin`, `syncRecentlyResumableFromJellyfin` — catch-up polling |
+| `server/src/utils/jellyfinClient.js` | Outbound HTTP client - all Jellyfin API calls |
+| `server/src/utils/parsers.js` | `parseJellyfinWebhook` - webhook normalization |
+| `server/src/scheduled.js` | `syncRecentlyWatchedFromJellyfin`, `syncRecentlyResumableFromJellyfin` - catch-up polling |
 | `server/src/utils/liveSessions.js` | Polls `/Sessions` for Now Playing |
-| `public/modules/help-content.js` | `jellyfinCredentialGuide()`, `jellyfinWebhookSetup()` — in-app setup guides |
+| `public/modules/help-content.js` | `jellyfinCredentialGuide()`, `jellyfinWebhookSetup()` - in-app setup guides |
 
 ## Configuration
 
 Settings → Media Servers → Jellyfin needs three values (stored in the `settings` SQLite row; env
 vars `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` act as defaults):
 
-- **baseUrl** — reachable *from the Plembfin server machine*
-- **apiKey** — a Jellyfin API key (Dashboard → API Keys)
-- **userId** — the Jellyfin user whose watch state is tracked and written
+- **baseUrl** - reachable *from the Plembfin server machine*
+- **apiKey** - a Jellyfin API key (Dashboard → API Keys)
+- **userId** - the Jellyfin user whose watch state is tracked and written
 
 All three are required when Jellyfin is enabled (`validateConfig`). Requests send both
 `X-Emby-Token` and `X-MediaBrowser-Token` headers so every Jellyfin version accepts
@@ -48,9 +48,9 @@ which notification types to enable in the plugin.
 Every minute `fetchLiveSessions` polls `/Sessions` for Now Playing. The catch-up sync
 (every 15 minutes by default) pulls:
 
-- **Recently watched** — `fetchJellyfinWatchedItems` → `syncRecentlyWatchedFromJellyfin`
+- **Recently watched** - `fetchJellyfinWatchedItems` → `syncRecentlyWatchedFromJellyfin`
   records watches whose webhooks were missed.
-- **Resumable items** — `fetchJellyfinResumableItems` (`/Users/<id>/Items/Resume`) →
+- **Resumable items** - `fetchJellyfinResumableItems` (`/Users/<id>/Items/Resume`) →
   `syncRecentlyResumableFromJellyfin` replicates resume positions. Episode rows include
   series provider IDs so cross-server lookup can resolve the series before selecting
   the matching season and episode.
@@ -68,11 +68,11 @@ Playback positions use tick units (1 tick = 100 ns), converted in `scheduled.js`
 | `fetchJellyfinSeriesEpisodes` / `fetchJellyfinEpisodes` | Episode lists for season-level operations |
 | `fetchJellyfinWatchedItems` / `fetchJellyfinResumableItems` | Feeds for catch-up sync |
 
-A `not_found` result is reported as "skipped — no matching item" in sync telemetry:
+A `not_found` result is reported as "skipped - no matching item" in sync telemetry:
 the item isn't in Jellyfin's library.
 
 ## Artwork
 
 Jellyfin poster URLs use the same `/Items/<id>/Images/Primary` shape as Emby
 (`embyLikePosterUrl` in `liveSessions.js`). The server-side poster pipeline caches a
-resized local copy — see [posters-artwork.md](posters-artwork.md).
+resized local copy - see [posters-artwork.md](posters-artwork.md).

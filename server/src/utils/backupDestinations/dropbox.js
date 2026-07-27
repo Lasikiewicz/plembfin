@@ -18,13 +18,13 @@ function folderPath(destination) {
 async function ensureAccessToken(destination) {
   const cached = tokenCache.get(destination.id);
   if (cached && cached.expiresAt > Date.now() + 60000) return cached.accessToken;
-  if (cached) tokenCache.delete(destination.id); // expired — drop so stale destinations don't accumulate
+  if (cached) tokenCache.delete(destination.id); // expired - drop so stale destinations don't accumulate
 
   const appKey = destination.settings?.appKey;
   const appSecret = destination.secrets?.appSecret;
   const refreshToken = destination.secrets?.refreshToken;
   if (!appKey || !appSecret) throw new Error("Dropbox app key and secret are required");
-  if (!refreshToken) throw new Error("Dropbox is not connected — run Connect first");
+  if (!refreshToken) throw new Error("Dropbox is not connected - run Connect first");
 
   const basic = Buffer.from(`${appKey}:${appSecret}`).toString("base64");
   const params = new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken });

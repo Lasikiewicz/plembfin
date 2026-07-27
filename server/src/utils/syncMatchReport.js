@@ -5,7 +5,7 @@
 //
 // The target-line regex matches both telemetry formats the app writes
 // ("Target plex status: ..." from the scheduler and "Plex status: ..." from the
-// webhook path) and mirrors telemetryTargetStates() in public/modules/sync.js —
+// webhook path) and mirrors telemetryTargetStates() in public/modules/sync.js -
 // keep the two in step.
 
 const TARGET_LINE_RE = /^(?:Target\s+)?(Plex|Emby|Jellyfin)\s+(?:progress\s+)?status:\s*([^-]+?)(?:\s+-\s*(.*))?$/i;

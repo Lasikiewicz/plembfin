@@ -102,7 +102,7 @@ function mergeEnvDefaults(stored = {}) {
     }
   }
 
-  // Seerr has no env-var defaults — carry stored values through as-is.
+  // Seerr has no env-var defaults - carry stored values through as-is.
   merged.seerr = normalized.seerr;
 
   // Tuning uses numbers-or-null (null = fall back to env/default) rather than
@@ -187,7 +187,7 @@ export async function loadMediaConfig() {
   return merged;
 }
 
-// The browser-facing config shape. Secrets (tokens/API keys) are never included —
+// The browser-facing config shape. Secrets (tokens/API keys) are never included -
 // each section carries a `configured` boolean instead, plus the non-secret fields
 // the settings form needs for repopulation (baseUrl, username, userId, disabled).
 export function publicMediaConfig(config = {}) {
@@ -253,7 +253,7 @@ function publicTuningConfig(storedTuning = {}) {
 }
 
 // Merge an incoming section over the stored one. Secret fields (tokens/API keys)
-// are kept from the stored config when the incoming value is blank or missing —
+// are kept from the stored config when the incoming value is blank or missing -
 // the browser never receives secrets (publicMediaConfig), so a settings save with
 // an empty key field means "keep the saved credential", not "clear it".
 function mergeSection(existing = {}, incoming, secretFields = []) {
@@ -299,7 +299,7 @@ export function validateConfig(config = {}) {
     if (!value) return;
     try {
       // normalizeHttpUrl enforces http/https and rejects embedded credentials;
-      // assertSafeOutboundUrl blocks cloud-metadata endpoints — every configured
+      // assertSafeOutboundUrl blocks cloud-metadata endpoints - every configured
       // server URL is later fetched with credentials attached, so both apply.
       assertSafeOutboundUrl(normalizeHttpUrl(value, { label }), { label });
     } catch (error) {

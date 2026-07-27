@@ -126,7 +126,7 @@ export async function handleRevokeAllSessions(req, res) {
   const principal = await requireAdmin(req, res);
   if (!principal) return;
   const callerUsername = principal.username;
-  // updateAdminCredentials regenerates sessionSecret, persists it, and updates AUTH —
+  // updateAdminCredentials regenerates sessionSecret, persists it, and updates AUTH -
   // this atomically invalidates all existing signed cookies.
   updateAdminCredentials({ username: AUTH.username, password: "" });
   writeAuditLog("sessions.revoked", { ip: req.ip || req.socket?.remoteAddress, detail: { username: callerUsername } });

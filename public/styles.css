@@ -4,12 +4,12 @@
  * RESPONSIVE DESIGN GUIDE
  * ========================
  * Breakpoints (max-width):
- *   ≤1100px  — sidebar collapses from 16rem to compact; dashboard history grid adapts
- *   ≤980px   — stats/settings go to single column; leaderboard podium collapses
- *   ≤760px   — nav becomes collapsible top bar; dashboard reverts to scrollable stacked
+ *   ≤1100px  - sidebar collapses from 16rem to compact; dashboard history grid adapts
+ *   ≤980px   - stats/settings go to single column; leaderboard podium collapses
+ *   ≤760px   - nav becomes collapsible top bar; dashboard reverts to scrollable stacked
  *              layout (NOT a fixed-height column split); layout is column-stacked
- *   ≤640px   — further text/spacing shrinks; stats toolbar/KPI stack; topbar stacks
- *   ≤480px   — smallest adjustments (part-watched card width, mini-card sizing)
+ *   ≤640px   - further text/spacing shrinks; stats toolbar/KPI stack; topbar stacks
+ *   ≤480px   - smallest adjustments (part-watched card width, mini-card sizing)
  *
  * IMPORTANT: When adding or changing dashboard or stats layouts, always verify on
  * mobile (≤760px). The dashboard uses a fixed-height flex split on desktop that is
@@ -258,7 +258,7 @@ details.issue-category,
   padding: 0 var(--space-4) var(--space-4);
 }
 
-/* Removed sync-specific row margin-top override — uniform 1.5rem flex gap handles spacing consistently */
+/* Removed sync-specific row margin-top override - uniform 1.5rem flex gap handles spacing consistently */
 
 html.light-mode .settings-pane .settings-card,
 html.light-mode .settings-pane .sync-panel,
@@ -2169,7 +2169,7 @@ h2 {
   font-size: 0.95rem;
 }
 
-/* Now-playing large card: poster left, details right — mirrors part-watched layout */
+/* Now-playing large card: poster left, details right - mirrors part-watched layout */
 .now-card-large {
   display: flex;
   gap: var(--space-3);
@@ -8597,17 +8597,17 @@ h1 {
   flex: 1 1 0;
 }
 
-/* Default / state 1 — 20 / 20 / 60 */
+/* Default / state 1 - 20 / 20 / 60 */
 #timeline-view .live-panel { flex-grow: 20; }
 #timeline-view #partWatchedDashboardSection { flex-grow: 20; }
 #timeline-view .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 60; }
 
-/* State 2 — idle + part-watched → 15 / 25 / 60 */
+/* State 2 - idle + part-watched → 15 / 25 / 60 */
 #timeline-view[data-dash-state="2"] .live-panel { flex-grow: 15; }
 #timeline-view[data-dash-state="2"] #partWatchedDashboardSection { flex-grow: 25; }
 #timeline-view[data-dash-state="2"] .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 60; }
 
-/* State 3 — idle + nothing part-watched → 30 / 10 / 60 (Part Watched hidden) */
+/* State 3 - idle + nothing part-watched → 30 / 10 / 60 (Part Watched hidden) */
 #timeline-view[data-dash-state="3"] .live-panel { flex-grow: 30; }
 #timeline-view[data-dash-state="3"] #partWatchedDashboardSection { flex-grow: 10; }
 #timeline-view[data-dash-state="3"] .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 60; }
@@ -10107,7 +10107,7 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
     display: contents !important;
   }
 
-  /* #appShell (display: grid) puts a var(--space-3) gap between EVERY row —
+  /* #appShell (display: grid) puts a var(--space-3) gap between EVERY row -
      title/actions, and also actions/content. Canceling just the title-actions
      gap with a negative margin left the second gap in place: once the
      (non-sticky) actions row scrolls past, that gap is exposed as a bare
@@ -10148,7 +10148,7 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
      It also needs its own stacking position: .modal-backdrop-image is
      `position: fixed` with z-index: 0, and a non-positioned (position:
      static) element always paints *below* any positioned element in the
-     same context regardless of DOM order — so without this, the fixed
+     same context regardless of DOM order - so without this, the fixed
      backdrop art was painting over the controls row instead of the other
      way around. */
   body:has(.media-detail-page) .page-topbar-actions,
@@ -10301,7 +10301,7 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
   }
 
   /* "Expand All"/"Collapse All" seasons stays reachable without scrolling
-     the (potentially collapsed/overflowing) actions row — pin it to the
+     the (potentially collapsed/overflowing) actions row - pin it to the
      right edge of the row's own scroll area, like Sonarr's season toolbar. */
   body #mediaDetailActions .media-toggle-all-seasons-btn {
     position: sticky !important;
@@ -10376,7 +10376,7 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
     display: flex !important;
   }
 
-  /* Stacked list for dropdown items — only when collapsed. When the panel is
+  /* Stacked list for dropdown items - only when collapsed. When the panel is
      flattened inline (fits without a "More" button), the plain .action-pill
      rules above already give it the right look. */
   body #mediaDetailActions.actions-collapsed .actions-more-panel .action-pill,
@@ -10841,7 +10841,7 @@ html.light-mode #explorerPanel .media-detail-page {
   min-width: 0;
 }
 
-/* Status fallback in the "Next Airing" column (Returning / Ended / etc.) —
+/* Status fallback in the "Next Airing" column (Returning / Ended / etc.) -
    dimmed and italic so genuine upcoming dates stand out. */
 .list-next-air-status {
   font-style: italic;
@@ -12643,7 +12643,7 @@ details[open] > .tool-section-summary::before {
 /*
  * Large-screen layout: topbar = 3.5rem, page-shell padding-top = 1.05rem.
  * margin-top: -1.05rem pulls heading up so its top edge sits right at the
- * topbar bottom — no gap for content to scroll through.
+ * topbar bottom - no gap for content to scroll through.
  * padding-top: calc(1.05rem + 0.25rem) restores the visual internal spacing.
  * top: 3.5rem = heading sticks at topbar bottom with zero movement.
  */
@@ -13650,7 +13650,7 @@ html.light-mode .seerr-owned-pill {
   border-color: rgba(5, 150, 105, 0.25);
 }
 
-/* Appearance settings — hide media page sections */
+/* Appearance settings - hide media page sections */
 body.hide-logo-art .immersive-logo { display: none !important; }
 body.hide-logo-art .immersive-title.sr-only {
   position: static !important;
@@ -14094,7 +14094,7 @@ html.light-mode .watch-date-custom label {
 }
 
 /* The picker uses theme variables (--field, --blue, --line, --text, --muted),
-   so it inherits the light palette automatically — no overrides needed. */
+   so it inherits the light palette automatically - no overrides needed. */
 
 /* Watch History View Segmented Control inside Settings */
 .settings-segmented-control {
@@ -14899,7 +14899,7 @@ html.light-mode .settings-pane .drop-zone:hover {
   gap: var(--space-3);
 }
 
-/* One block per month. The block is what confines its sticky heading — without
+/* One block per month. The block is what confines its sticky heading - without
    it every heading in the range would pile up at the top of the scroller. */
 .upcoming-month-block {
   display: flex;
@@ -15096,7 +15096,7 @@ html.light-mode .upcoming-week-day {
   border-color: rgba(0, 0, 0, 0.08);
 }
 
-/* Mobile (≤760px): the 7-column grid becomes an agenda list — weekday header
+/* Mobile (≤760px): the 7-column grid becomes an agenda list - weekday header
    and empty/outside day cells are hidden, days with episodes stack full-width. */
 @media (max-width: 760px) {
   .upcoming-controls {

@@ -96,7 +96,7 @@ function fresh(data, ttl) {
   return Boolean(data?.updatedAtMs && Date.now() - data.updatedAtMs < ttl);
 }
 
-// A cached row satisfies a caller when it is schema-current and inside its TTL —
+// A cached row satisfies a caller when it is schema-current and inside its TTL -
 // and, for full callers, was not produced by a light fetch (light rows skip
 // next-airing derivation and artwork enrichment, so a full request must refetch).
 function cacheSatisfies(cached, { light = false } = {}) {
@@ -127,7 +127,7 @@ function hasImageCandidates(images = {}) {
 // top billing and can be missing long-running regular cast entirely (e.g. it
 // omits The Office US's Michael Scott/Steve Carell). `aggregate_credits`
 // covers the whole series but returns every guest/one-episode actor too
-// (hundreds of rows) — shape it down to the regularly-billed cast TMDB orders
+// (hundreds of rows) - shape it down to the regularly-billed cast TMDB orders
 // first (guest appearances are ordered far afterward) so the show page shows
 // the real main cast instead of whichever handful `/credits` happened to have.
 function mainCastFromAggregate(aggregateCredits) {
@@ -154,7 +154,7 @@ function compactDetails(details = {}) {
       crew: (details.credits?.crew || []).slice(0, 60),
     };
   }
-  // Only the shaped main-cast list above is kept — the raw aggregate payload
+  // Only the shaped main-cast list above is kept - the raw aggregate payload
   // (hundreds of guest-actor rows) isn't worth persisting.
   delete compact.aggregate_credits;
   if (details.videos) compact.videos = boundedResults(details.videos, 30);
@@ -233,7 +233,7 @@ async function fetchTmdbRaw(type, id) {
 }
 
 // The movie details response only stubs belongs_to_collection ({id, name, poster_path,
-// backdrop_path}) — the member films (`parts`) require this separate collection call.
+// backdrop_path}) - the member films (`parts`) require this separate collection call.
 async function fetchCollectionParts(collectionId) {
   const cacheId = `collection_${collectionId}`;
   const cached = metaGet(cacheId);
@@ -436,7 +436,7 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
 }
 
 // TV shows: TVDB supplies the structural data (name, overview, air dates,
-// artwork, seasons/episodes — the accurate episode ordering this feature
+// artwork, seasons/episodes - the accurate episode ordering this feature
 // exists for). TMDB is merged in only for what TVDB doesn't have (cast,
 // trailers, reviews, similar/recommendations, watch providers) and to keep
 // `id` = TMDB id, since Seerr requests and `/tvshow/tmdb/:id` routing are
@@ -458,7 +458,7 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
   return collapse(key, async () => {
     // The caller's tmdbId may be empty (e.g. Fix Match clears it to force re-resolution
     // via the new tvdbId), so the cache row actually written might live under a
-    // different key than this initial guess — re-derived below once resolvedTmdbId
+    // different key than this initial guess - re-derived below once resolvedTmdbId
     // is known, so lookups by the resolved tmdbId (getTmdbSeason, etc.) can find it.
     const initialCacheId = tmdbId ? `tv_${tmdbId}` : `tv_tvdb_${tvdbId}`;
     const cached = metaGet(initialCacheId);
@@ -484,7 +484,7 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
       let raw = resolvedTmdbId ? await fetchTmdbRaw("tv", resolvedTmdbId).catch(() => null) : null;
       if (!raw && resolvedTmdbId && shaped.name) {
         // TVDB's remoteIds mapping is community-submitted and occasionally points at a
-        // stale/incorrect TMDB id (the fetch above 404s) — fall back to a title search
+        // stale/incorrect TMDB id (the fetch above 404s) - fall back to a title search
         // rather than silently leaving cast/trailers/images empty for this show forever.
         const fallbackId = await resolveTmdbId("tv", "", shaped.name, {}, { ignoreTmdbId: true }).catch(() => "");
         if (fallbackId && fallbackId !== resolvedTmdbId) {
@@ -583,7 +583,7 @@ export async function searchTmdb({ query, page = 1, mediaType = "multi" }) {
   });
 }
 
-// Seasons only exist for TV, so this is entirely TVDB-backed now — it resolves
+// Seasons only exist for TV, so this is entirely TVDB-backed now - it resolves
 // the TVDB ID off the show details already cached under tv_{tmdbId} (getTmdbDetails
 // always runs first in every caller's flow) and fetches episodes from TVDB.
 export async function getTmdbSeason({ tmdbId, seasonNumber }) {

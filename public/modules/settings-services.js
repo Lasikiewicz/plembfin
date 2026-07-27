@@ -1,6 +1,6 @@
 // Media-server and metadata-provider settings: Sonarr-style card grids backed
 // by /api/config, with edit modals that save per-section payloads and test
-// connections. Secrets follow the redacted-config contract — the server never
+// connections. Secrets follow the redacted-config contract - the server never
 // echoes credentials, only a `configured` flag per section, and a blank secret
 // on save means "keep the stored credential" (except Seerr, whose key is only
 // sent when non-empty).
@@ -114,7 +114,7 @@ const METADATA_SERVICES = {
     description: "Artwork, cast, trailers, and metadata (required)",
     keyLabel: "API Key (v3)",
     keyPlaceholder: "TMDB API key",
-    keyHelp: "Free v3 developer key — powers posters, cast, and detail pages.",
+    keyHelp: "Free v3 developer key - powers posters, cast, and detail pages.",
     help: () => `
       <p class="tool-accordion-desc">Provides poster artwork, cast directories, descriptions, and related recommendations. To obtain a free v3 API key:</p>
       ${keySteps(["Create an account at <b>themoviedb.org</b>", "Go to <b>Settings → API</b> in your profile menu", "Request a Developer key"])}
@@ -137,9 +137,9 @@ const METADATA_SERVICES = {
     keyLabel: "Personal API Key",
     keyPlaceholder: "Personal API key (optional)",
     optional: true,
-    keyHelp: "A built-in project key is already configured — a personal key raises rate limits.",
+    keyHelp: "A built-in project key is already configured - a personal key raises rate limits.",
     help: () => `
-      <p class="tool-accordion-desc">Plembfin uses fanart.tv as a fallback source for posters, backdrops, and logo art when TMDB has no images for a title. A built-in project key is already configured — no key is required to use this feature.</p>
+      <p class="tool-accordion-desc">Plembfin uses fanart.tv as a fallback source for posters, backdrops, and logo art when TMDB has no images for a title. A built-in project key is already configured - no key is required to use this feature.</p>
       <p class="tool-accordion-desc">Entering your own personal API key gives you higher rate limits and access to images uploaded by your fanart.tv account:</p>
       ${keySteps(["Create an account at <b>fanart.tv</b>", "Go to your <b>Profile → API Key</b>", "Copy your personal key and paste it here"])}
     `,
@@ -150,9 +150,9 @@ const METADATA_SERVICES = {
     keyLabel: "Personal API Key",
     keyPlaceholder: "Personal API key (optional)",
     optional: true,
-    keyHelp: "A built-in project key is already configured — a personal key gives you your own quota.",
+    keyHelp: "A built-in project key is already configured - a personal key gives you your own quota.",
     help: () => `
-      <p class="tool-accordion-desc">TV show names, seasons, episode numbering, air dates, and artwork are sourced from TheTVDB for more accurate episode ordering than TMDB alone. A built-in project key is already configured — no key is required to use this feature.</p>
+      <p class="tool-accordion-desc">TV show names, seasons, episode numbering, air dates, and artwork are sourced from TheTVDB for more accurate episode ordering than TMDB alone. A built-in project key is already configured - no key is required to use this feature.</p>
       ${keySteps(["Create an account at <b>thetvdb.com</b>", "Go to <b>Dashboard → API Keys</b> and request a key", "Copy your personal key and paste it here"])}
     `,
   },
@@ -171,7 +171,7 @@ const METADATA_SERVICES = {
 
 export const SERVICE_DEFS = Object.freeze({ ...CONNECTION_SERVICES, ...METADATA_SERVICES });
 
-// Sync tuning is not part of the add/remove service picker — it's a single,
+// Sync tuning is not part of the add/remove service picker - it's a single,
 // always-visible card, so it's kept out of CONNECTION_SERVICES/METADATA_SERVICES
 // (which drive the "Add Media Server"/"Add Metadata Provider" pickers).
 const TUNING_FIELD_DEFS = [
@@ -320,7 +320,7 @@ async function saveServiceConfig(section, sectionPayload) {
 }
 
 // Tests a media-server connection from modal values. A blank secret is allowed
-// when the server is already configured — the backend falls back to the stored
+// when the server is already configured - the backend falls back to the stored
 // credential.
 async function testServiceConnection(section, values) {
   const def = CONNECTION_SERVICES[section];

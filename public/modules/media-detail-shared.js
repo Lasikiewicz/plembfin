@@ -538,7 +538,7 @@ export function tvSeasonAvailabilityHtml(status = {}, seasonNumber, watchedInSea
   const available = Number(season.available || 0);
   const available4k = Number(season.available4k || 0);
   // Episodes already watched clearly weren't "missing" to the user, even if the
-  // library/Seerr status hasn't caught up — count them as available for both the
+  // library/Seerr status hasn't caught up - count them as available for both the
   // badge color and the printed count, so the two can never contradict each other
   // (e.g. a green pill that reads "0/20 available").
   const effectiveAvailable = Math.min(total, Math.max(available, Number(watchedInSeason) || 0));

@@ -12,7 +12,7 @@ import {
   renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection,
 } from "./media-detail-shared.js";
 
-// Watch history list — playHistory (every { id, watched_at, source } entry for
+// Watch history list - playHistory (every { id, watched_at, source } entry for
 // this movie, collapsed server-side in dedupeMovies/collapseMovieCluster) has
 // more than one entry once a genuine rewatch has been recorded.
 function rewatchSummaryHtml(movie) {
@@ -106,7 +106,7 @@ export async function renderMovieImmersiveModalContent(movie) {
       movie = fullMovie;
     }
   }
-  // Half of a two-token handshake with media-detail-show.js — see the
+  // Half of a two-token handshake with media-detail-show.js - see the
   // bumpMediaRenderToken doc comment in media-detail-context.js before changing this.
   const renderToken = bumpMediaRenderToken();
   state.showModalRequestToken += 1; // invalidate any in-flight show hydrate
@@ -123,7 +123,7 @@ export async function renderMovieImmersiveModalContent(movie) {
   const root = mediaDetailRoot();
   const isSaving = state.savingWatchAction;
 
-  // Phase 1: Render immediately with all available local data — no blank screen.
+  // Phase 1: Render immediately with all available local data - no blank screen.
   _renderWatchedMovieContent(root, movie, { tmdbData: null, loading: true, imdbPillHtml: "", tvRecommendations: [], isSaving });
 
 
@@ -146,7 +146,7 @@ export async function renderMovieImmersiveModalContent(movie) {
     if (currentMediaRenderToken() !== renderToken) return; // navigated away while loading
   }
 
-  // Phase 2: Render with TMDB data immediately — don't wait for OMDb/TV recs.
+  // Phase 2: Render with TMDB data immediately - don't wait for OMDb/TV recs.
   _renderWatchedMovieContent(root, movie, { tmdbData, youtubeMeta, loading: false, imdbPillHtml: "", tvRecommendations: [], isSaving });
 
   // Phase 3: Fetch OMDb rating and TV recommendations in parallel.
@@ -516,7 +516,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
     </div>
   `;
 
-  // Render immediately with TMDB data — no waiting for TV recs.
+  // Render immediately with TMDB data - no waiting for TV recs.
   root.innerHTML = buildUnwatchedHtml([]);
   hydratePosters(root);
   hydrateMediaAppLinks(root);

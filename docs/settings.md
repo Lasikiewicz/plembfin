@@ -20,7 +20,7 @@ Desktop renders the grouped sidebar; mobile uses the **Settings section** select
 | Logs | Logs | `/settings/logs` |
 | About | About | `/settings/about` |
 
-The left sidebar navigation displays parent menu groups by default, collapsing child sections and sub-sections until that parent section page is active. Every child section is display-only: its sidebar button navigates to the parent group's path with the section id appended as a URL hash (`#health`), then scrolls that specific section into view. The parent's page always renders every child's content stacked together — clicking a child is a same-page jump, not a different screen. Logs is a single-child group of its own (promoted to a top-level sidebar entry, since its content shares no panel with Health or Storage & Cache).
+The left sidebar navigation displays parent menu groups by default, collapsing child sections and sub-sections until that parent section page is active. Every child section is display-only: its sidebar button navigates to the parent group's path with the section id appended as a URL hash (`#health`), then scrolls that specific section into view. The parent's page always renders every child's content stacked together - clicking a child is a same-page jump, not a different screen. Logs is a single-child group of its own (promoted to a top-level sidebar entry, since its content shares no panel with Health or Storage & Cache).
 
 ## Multi-view aggregation
 
@@ -38,7 +38,7 @@ wraps into a one-item `views` array automatically):
 
 `applySettingsRoute()` iterates every view in the route and reveals each one's panel,
 sub-panel rows, and (for the backups panel) accumulates every requested `backupTab`
-into a set before hiding any backup panel not in that set — so Backup and Restore can
+into a set before hiding any backup panel not in that set - so Backup and Restore can
 be shown together without either one clobbering the other's visibility. Post-route
 data loaders in `app.js` (media-server cards, sync jobs/history, watch backups, cache
 stats, logs, changelog) check membership across the whole `route.views` list, not just
@@ -53,7 +53,7 @@ Clicking a child section calls `scrollToSettingsSection(sectionId)`
 
 - If the section's first sub-panel is wrapped in a `<details class="settings-disclosure">`
   accordion (Database Repairs / Library Rebuilds inside the Tools panel), the *disclosure
-  wrapper* is the scroll target, not the bare row — otherwise the scroll would land past
+  wrapper* is the scroll target, not the bare row - otherwise the scroll would land past
   the section's own heading (the heading lives in the synthetic `<summary>`, not the row).
 - Otherwise it falls back to the `[data-sub-panel]` row, the backup-tab-qualified panel,
   or the plain panel element, in that order.
@@ -64,7 +64,7 @@ Clicking a child section calls `scrollToSettingsSection(sectionId)`
 `.page-shell` container) never covers the section that was just scrolled to.
 
 Navigating to a genuinely different settings path (not just a same-page hash jump)
-resets `.page-shell`'s scroll position to the top — this targets the actual scrolling
+resets `.page-shell`'s scroll position to the top - this targets the actual scrolling
 viewport (`.page-shell`, `overflow-y: auto`), not `window`/`body`, since the app shell
 itself never scrolls.
 
@@ -79,8 +79,8 @@ credential-clear operation.
 
 **Sync Tuning is the one exception**: its four numeric fields (watched threshold,
 minimum resume position, active-session TTL, outbound timeout) render directly inline
-on the Sync page in a plain form with its own Save button — not behind a card + edit
-modal — since there's only ever one instance to edit and no add/remove/test workflow.
+on the Sync page in a plain form with its own Save button - not behind a card + edit
+modal - since there's only ever one instance to edit and no add/remove/test workflow.
 
 Media Servers is rendered as a boxed settings section with a separate boxed Seerr
 subsection and its own left-menu link; its edit modal keeps provider setup help visible
@@ -175,7 +175,7 @@ settings shell.
 
 ## Cross-Platform Match Report
 
-The panel lists media Plembfin could not identify — records carrying no IMDB,
+The panel lists media Plembfin could not identify - records carrying no IMDB,
 TMDB, or TVDB id, where nothing reliable was ever resolved. Picking the right
 title fixes these, and the row leaves the list once an id is stamped on it. The
 classification reads the record's ids rather than its media key, because the key
@@ -215,7 +215,7 @@ The **Server Logs** panel (`/settings/logs`) displays real-time and historical d
 
 Log entries feature human-readable timestamps (`YYYY-MM-DD HH:MM:SS`), color-coded category badges (`[PLEX]`, `[SYNC]`, `[POLL]`, `[SYSTEM]`, `[ERROR]`), a live pulsing activity indicator, and glassmorphic styling compatible with both Dark and Light appearance modes. Routine keep-alive recycling and 0-item background sync ticks are filtered out before they are stored, to ensure a high-signal log stream.
 
-Entries are served from the `diagnostic_log` table, so the panel merges output from the web and worker processes and reads at a fixed cost no matter how long the server has been running. The table is a bounded ring buffer; **Clear Logs** empties it. Per-request tracing is off unless `LOG_VERBOSE` is set — see [troubleshooting.md](troubleshooting.md) for what that adds. On-disk JSONL copies under `data/logs` are a crash-forensics archive only, pruned automatically on start.
+Entries are served from the `diagnostic_log` table, so the panel merges output from the web and worker processes and reads at a fixed cost no matter how long the server has been running. The table is a bounded ring buffer; **Clear Logs** empties it. Per-request tracing is off unless `LOG_VERBOSE` is set - see [troubleshooting.md](troubleshooting.md) for what that adds. On-disk JSONL copies under `data/logs` are a crash-forensics archive only, pruned automatically on start.
 
 ## Settings Layout & Card Standards
 

@@ -46,7 +46,7 @@ scheduled.js -> live_tracking_cache   active_sessions <- handleWebhook (phase=ac
   `document.hidden`) or when signed out. `handleNowPlaying` is a cheap local
   SQLite read (no outbound calls to Plex/Emby/Jellyfin), so polling continuously
   across views has negligible cost.
-- The `X-Now-Playing-Refresh` response header signals that watch history changed —
+- The `X-Now-Playing-Refresh` response header signals that watch history changed -
   a webhook fired, or the Plex notification listener (`handlePlexLibraryItemChange`
   in `server/src/scheduler.js`, see [plex.md](plex.md)) detected a watched/unwatched
   change. When it changes, `loadActiveSessions` triggers `loadHistory()` and, if

@@ -13,8 +13,8 @@ const MAX_ROWS = 20000;
 // burst of console output costs one disk sync instead of one per line.
 const FLUSH_INTERVAL_MS = 1000;
 const MAX_PENDING = 200;
-// On-disk archive retention. The JSONL files are crash forensics only — the
-// logs panel reads SQLite — so they can be pruned aggressively.
+// On-disk archive retention. The JSONL files are crash forensics only - the
+// logs panel reads SQLite - so they can be pruned aggressively.
 const ARCHIVE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const ARCHIVE_MAX_FILES = 20;
 const LOGS_DIR = path.join(DATA_DIR, "logs");
@@ -106,7 +106,7 @@ export function flushPending() {
     })();
   } catch { /* diagnostics must never break primary work */ }
 
-  // Crash-forensics archive. Async and batched — the logs panel never reads it.
+  // Crash-forensics archive. Async and batched - the logs panel never reads it.
   try {
     rotateIfNeeded();
     const payload = batch.map((entry) => JSON.stringify(entry)).join("\n");
@@ -237,7 +237,7 @@ export function getLogs({ level, category = "all", limit = 500 } = {}) {
   };
 
   const bounded = Math.min(Math.max(Number(limit) || 500, 1), MAX_LOGS);
-  // Make this process's buffered lines visible immediately — the panel polls
+  // Make this process's buffered lines visible immediately - the panel polls
   // faster than the flush interval.
   flushPending();
 

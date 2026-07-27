@@ -91,7 +91,7 @@ async function fetchFollowingSafeRedirects(url, options) {
     // application deliberately permits configured LAN media servers, while blocking
     // cloud-metadata endpoints and unsafe URL forms at this shared request boundary.
     // CodeQL's js/request-forgery query is excluded repo-wide in
-    // .github/codeql/codeql-config.yml for this exact reason — see that file for why.
+    // .github/codeql/codeql-config.yml for this exact reason - see that file for why.
     const response = await fetch(currentUrl, currentOptions);
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
 

@@ -1,4 +1,4 @@
-// Local-folder adapter — copies the backup to any filesystem path. Pointing this at
+// Local-folder adapter - copies the backup to any filesystem path. Pointing this at
 // a OneDrive/Dropbox/Nextcloud desktop-sync folder gives cloud backups with no API,
 // OAuth, or app registration: the sync client uploads the file. Also handy for a
 // mounted NAS share. Settings: { path }  Secrets: none

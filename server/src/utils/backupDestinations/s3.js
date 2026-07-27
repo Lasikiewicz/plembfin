@@ -26,7 +26,7 @@ function encodeKeyPath(key) {
   return key.split("/").map(encodeRfc3986).join("/");
 }
 
-// Extract the bare region token from whatever the user typed — a plain region,
+// Extract the bare region token from whatever the user typed - a plain region,
 // the full endpoint host, or a value that still carries the "s3." prefix or
 // ".backblazeb2.com"/".amazonaws.com" suffix (all common copy/paste mistakes).
 function deriveRegion(raw) {
@@ -168,7 +168,7 @@ export function createS3Adapter(destination) {
         key: "",
         query: { "list-type": "2", "max-keys": "1", prefix: cfg.prefix },
       });
-      if (response.status === 403) throw new Error("S3 access denied (403) — check keys and bucket policy");
+      if (response.status === 403) throw new Error("S3 access denied (403) - check keys and bucket policy");
       if (response.status === 404) throw new Error("S3 bucket not found (404)");
       if (!response.ok) throw new Error(`S3 connection failed (${response.status})`);
       return { ok: true, detail: `Bucket ${cfg.bucket} reachable` };

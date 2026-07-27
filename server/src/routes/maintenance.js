@@ -390,7 +390,7 @@ export async function handleDedupHistory(req, res) {
     log(`Found ${groups.size} unique media keys.`);
 
     // A watch propagated between media servers is written down once per server,
-    // milliseconds to minutes apart — never on the same instant — so grouping by
+    // milliseconds to minutes apart - never on the same instant - so grouping by
     // an identical timestamp misses nearly all of it. Rows close enough together
     // to be one viewing are duplicates; anything further apart is a real rewatch
     // and is left alone.
@@ -401,7 +401,7 @@ export async function handleDedupHistory(req, res) {
 
     const rewatchGroups = countRewatchedItems();
     if (rewatchGroups) {
-      log(`Preserved ${rewatchGroups} item(s) whose watches are further apart than ${windowMinutes} minutes — those are rewatches, not duplicates.`);
+      log(`Preserved ${rewatchGroups} item(s) whose watches are further apart than ${windowMinutes} minutes - those are rewatches, not duplicates.`);
     }
 
     if (removeIds.length) {
@@ -462,7 +462,7 @@ export async function handleSyncHealth(req, res) {
     recommendations.push("Use a smaller Force Sync scope and review a preview before large runs.");
   }
   if (quality.sameEventDuplicateRows) {
-    recommendations.push(`${quality.sameEventDuplicateRows} watch row(s) duplicate an existing watch event — run Dedup History to remove them.`);
+    recommendations.push(`${quality.sameEventDuplicateRows} watch row(s) duplicate an existing watch event - run Dedup History to remove them.`);
   }
   if (quality.nullSeasonEpisodeRows) {
     recommendations.push(`${quality.nullSeasonEpisodeRows} episode row(s) have no season number, so they may not match for sync or count toward show progress.`);

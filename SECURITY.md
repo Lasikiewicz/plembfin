@@ -15,7 +15,7 @@ Plembfin is a **self-hosted, single-user** dashboard. It assumes:
 
 - The host machine is trusted (it has full access to the SQLite database and `data/` directory).
 - The network perimeter is controlled by the operator (typically behind a reverse proxy or VPN).
-- A single admin account controls the instance — multi-tenancy is out of scope.
+- A single admin account controls the instance - multi-tenancy is out of scope.
 
 Out-of-scope threats:
 
@@ -32,7 +32,7 @@ http(s)://<host>/api/webhook?token=<WEBHOOK_SECRET>
 ```
 
 `WEBHOOK_SECRET` is auto-generated on first boot and shown in **Settings → Integrations**.
-Keep it secret — anyone with this URL can inject watch events.
+Keep it secret - anyone with this URL can inject watch events.
 
 ## Reporting a Vulnerability
 

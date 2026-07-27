@@ -441,7 +441,7 @@ export async function handleWatchDates(req, res) {
 }
 
 // Adds another watch date for the same movie/episode as `id` (the "Add another
-// watch date" control in the edit-date dialog) — a local-only record, not
+// watch date" control in the edit-date dialog) - a local-only record, not
 // propagated to Plex/Emby/Jellyfin, matching how manual date edits behave.
 export async function handleAddWatchDate(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
@@ -487,7 +487,7 @@ export async function handleUpdateWatch(req, res) {
   if (!requestedId && !mediaKey) return sendJson(res, { error: "id is required" }, 400);
 
   // A row can be replaced between the moment a caller reads its id and the
-  // moment it saves — an unwatch event supersedes the record — so an optional
+  // moment it saves - an unwatch event supersedes the record - so an optional
   // media key identifies the same media when the id no longer resolves.
   let id = requestedId;
   if (mediaKey && (!id || !(await getWatchRecordByIdLight(id).catch(() => null)))) {

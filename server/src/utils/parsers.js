@@ -196,7 +196,7 @@ function readPlayedState(...values) {
 // Emby and Jellyfin emit these whenever an item's played *flag* changes, which
 // includes plembfin marking the item played during outbound sync. They carry no
 // playback evidence, so they are never proof on their own that a new play
-// happened — see the same reasoning applied to library polling in watchDates.js.
+// happened - see the same reasoning applied to library polling in watchDates.js.
 const PLAYED_FLAG_ONLY_EVENTS = [
   "itemmarkplayed",
   "itemmarkedplayed",
@@ -272,7 +272,7 @@ function durationMillisecondsFrom(values = {}) {
   );
 }
 
-// A server announcing new content. This is not a play event — it means the
+// A server announcing new content. This is not a play event - it means the
 // media now exists there, which is the moment a watch Plembfin already knows
 // about can finally be applied to that server.
 const ADDED_EVENT_KEYS = ["librarynew", "itemadded", "libraryitemadded", "itemcreated"];
@@ -462,7 +462,7 @@ export async function parsePlexWebhook(formData) {
 // marked unwatched, so the real-time notification listener resolves the changed
 // ratingKey to its metadata and runs it through this builder. It reuses the exact same
 // GUID/title/coordinate extraction as the webhook path, so `media.ids`, `media.title`,
-// `media.season` and `media.episode` are identical to a Plex webhook — which is what
+// `media.season` and `media.episode` are identical to a Plex webhook - which is what
 // lets the Emby and Jellyfin clients match the item the same way they do for any sync.
 export function buildPlexMediaFromMetadata(metadata = {}, { phase = "unplayed" } = {}) {
   const type = normalizeType(metadata.type);

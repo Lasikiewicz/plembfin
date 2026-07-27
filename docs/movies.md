@@ -9,8 +9,8 @@ the movie detail page ([media-detail.md](media-detail.md)).
 | File | Role |
 | --- | --- |
 | `public/modules/explorer.js` | All Movies-page rendering and data loading (`renderMovieExplorer`, `loadExplorerMovies`, `renderMovieCard`, sort/search/paging helpers) |
-| `server/src/index.js` | `handleMovies` — `GET /api/movies` |
-| `server/src/utils/dataRepo.js` | `queryMovies` + `getCachedMovies` — the derived movie list |
+| `server/src/index.js` | `handleMovies` - `GET /api/movies` |
+| `server/src/utils/dataRepo.js` | `queryMovies` + `getCachedMovies` - the derived movie list |
 | `public/modules/images.js` | Poster markup + hydration for the grid |
 | `public/app.js` | Route `/movies` → explorer view in `movies` mode |
 
@@ -32,25 +32,25 @@ rewatch gets recorded instead of dropped as a duplicate webhook echo).
 
 ## Frontend behavior
 
-- **Route** — `/movies` sets `state.activeView = "explorer"`, `state.explorerMode =
+- **Route** - `/movies` sets `state.activeView = "explorer"`, `state.explorerMode =
   "movies"`. The Movies and TV Shows pages share the explorer panel and most controls.
-- **Paging** — pages of 240 (`EXPLORER_PAGE_SIZE` in `app.js`) with an
+- **Paging** - pages of 240 (`EXPLORER_PAGE_SIZE` in `app.js`) with an
   IntersectionObserver sentinel (1200px rootMargin) pre-fetching the next page before
   the user reaches the bottom (`observeExplorerSentinel`).
-- **Page cache** — responses are cached per query key in `state.explorerPageCache` and
+- **Page cache** - responses are cached per query key in `state.explorerPageCache` and
   persisted to localStorage (`plembfin:explorerPageCache:v3`, 14-day TTL) so revisits
   render instantly.
-- **View modes** — posters or list, persisted per mode (`plembfin:explorerView:movies`);
+- **View modes** - posters or list, persisted per mode (`plembfin:explorerView:movies`);
   poster width is adjustable (`applyExplorerPosterWidth`).
-- **Sort** — persisted in `plembfin:explorerSort:movies`; list headers are clickable
+- **Sort** - persisted in `plembfin:explorerSort:movies`; list headers are clickable
   (`applyListHeaderSort`).
-- **Search + alpha filter** — the search box filters server-side via
-  `GET /api/movies?search=`; the A–Z strip (`updateAlphaFilter` /
+- **Search + alpha filter** - the search box filters server-side via
+  `GET /api/movies?search=`; the A-Z strip (`updateAlphaFilter` /
   `handleAlphaFilterClick`) jumps within results.
-- **TMDB prefetch** — a second IntersectionObserver (`observeExplorerTmdbPrefetch`)
+- **TMDB prefetch** - a second IntersectionObserver (`observeExplorerTmdbPrefetch`)
   pre-fetches TMDB details for visible cards so opening a detail page is instant and
   release-year/rating data can enrich cards.
-- **Sync pills** — each card can show sync/availability status derived from the watch
+- **Sync pills** - each card can show sync/availability status derived from the watch
   record's `sync_dispatch_telemetry` (`renderMediaSyncPills` and friends in
   `public/modules/sync.js`).
 
@@ -66,8 +66,8 @@ rewatch gets recorded instead of dropped as a duplicate webhook echo).
 
 ## Gotchas
 
-- The movie list is a **derived cache** — if movies look stale after a direct DB edit,
+- The movie list is a **derived cache** - if movies look stale after a direct DB edit,
   the `dataVersion` bump was skipped. All repo write helpers call
   `invalidateHistoryDerivedCaches()`; raw SQL edits from outside the process won't.
 - Search hits the server, but the alpha filter and some sorts operate on already-loaded
-  pages — a movie that hasn't been paged in yet appears once its page loads.
+  pages - a movie that hasn't been paged in yet appears once its page loads.

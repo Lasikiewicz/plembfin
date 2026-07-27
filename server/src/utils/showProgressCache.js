@@ -69,7 +69,7 @@ function isPlembfinTrackedWatchRow(row = {}) {
 
 /**
  * Titles of shows present in watch history that have no progress cache entry
- * at all yet — e.g. shows watched before this cache existed, or added outside
+ * at all yet - e.g. shows watched before this cache existed, or added outside
  * the incremental queueShowProgressUpdate() call sites.
  */
 function findUncachedShowTitles() {
@@ -155,7 +155,7 @@ async function calculateAndSetShowProgress(showTitle) {
 
   // Titles reach this function already run through showTitleFrom(), which strips
   // a trailing "(year)". Matching show_title_lower exactly therefore missed rows
-  // stored as "Robin Hood (2025)" — the show was never cached, so it was
+  // stored as "Robin Hood (2025)" - the show was never cached, so it was
   // rediscovered as uncached and requeued on every boot. Prefilter on the exact
   // title plus the "(year)" form, then confirm by canonical key so only rows
   // that really belong to this show are counted.
@@ -236,7 +236,7 @@ async function calculateAndSetShowProgress(showTitle) {
 export async function flushShowProgressUpdates() {
   if (pendingShowUpdates.size === 0) return;
   // The database handle can close before the deferred startup refresh runs
-  // (e.g. the test suite's throwaway DB) — drop the queue instead of crashing.
+  // (e.g. the test suite's throwaway DB) - drop the queue instead of crashing.
   if (!db.open) {
     pendingShowUpdates.clear();
     return;
@@ -257,7 +257,7 @@ export async function flushShowProgressUpdates() {
   } catch (e) {
     console.error("[ShowProgressCache] Failed to save updated progress cache:", e);
   }
-  // The show list is memoized by data version — bump it so refreshed totals
+  // The show list is memoized by data version - bump it so refreshed totals
   // (e.g. from the startup background refresh) are visible without waiting
   // for an unrelated watch event to invalidate the cache.
   bumpDataVersion();

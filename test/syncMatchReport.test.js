@@ -171,7 +171,7 @@ test("episodes are split from movies in unique-media counts", () => {
 // The report is what the Sync Issues UI classifies rows with: a record holding
 // a provider id is unmatched because the library lacks it, not because nothing
 // was ever identified. The ids have to survive into the sample for that split
-// to be possible — media_key cannot stand in for them, because it is stamped at
+// to be possible - media_key cannot stand in for them, because it is stamped at
 // insert and is not rebuilt when a Fix Match resolves an id later.
 test("samples carry the record's provider ids, independent of the media key", () => {
   const report = buildSyncMatchReport([

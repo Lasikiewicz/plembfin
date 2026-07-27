@@ -38,7 +38,7 @@ export function loadExplorerShows() { return _cb.loadExplorerShows?.() ?? Promis
 //   - media-detail-movie.js: renderMovieImmersiveModalContent() bumps this
 //     token (and checks it after every await) and also bumps
 //     state.showModalRequestToken to cancel any in-flight show hydration.
-// If you change one side of this handshake, check the other file too —
+// If you change one side of this handshake, check the other file too -
 // grep both files for `bumpMediaRenderToken` and `showModalRequestToken`.
 export function bumpMediaRenderToken() {
   return ++_mediaRenderToken;
@@ -131,7 +131,7 @@ export function prepareInlineMediaDetail(mode = state.explorerMode || "movies") 
   elements.explorerPanel.scrollIntoView({ block: "start" });
   document.querySelector("#explorerBackButton")?.classList.remove("hidden");
   elements.explorerTopbarControls?.classList.add("hidden");
-  // Hide the alphabet picker — it should only appear on the bare movie/show explorer.
+  // Hide the alphabet picker - it should only appear on the bare movie/show explorer.
   elements.alphaFilterNav?.classList.add("hidden");
   syncPageTopbar();
 }

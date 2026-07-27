@@ -125,7 +125,7 @@ function plexGuidIds(attributes = {}, body = "") {
   };
 
   // Plex's new metadata agent stores external IDs as child <Guid id="tmdb://..."/> elements
-  // rather than in the parent tag's guid attribute — parse those too.
+  // rather than in the parent tag's guid attribute - parse those too.
   if (body) {
     const matcher = /<Guid\s+id="([^"]+)"/gi;
     let match;

@@ -4,7 +4,7 @@ import { fetchWithTimeout } from "./outbound.js";
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 // Non-OK HTTP responses (bad key, exhausted daily quota) are negative-cached
 // briefly so a dead key degrades to silence instead of one request per
-// detail-page view — OMDb's free tier is only 1,000 requests/day.
+// detail-page view - OMDb's free tier is only 1,000 requests/day.
 const ERROR_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 const getStmt = db.prepare("SELECT data, updated_at_ms FROM omdb_cache WHERE id = ?");

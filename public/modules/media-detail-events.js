@@ -148,7 +148,7 @@ export function attachMediaDetailEvents() {
             }
           } else if (entry.media_type === "movie") {
             // Re-fetch from /api/movies (not /api/history?id=) so the refreshed
-            // modal gets the deduped movie record with its playHistory array —
+            // modal gets the deduped movie record with its playHistory array -
             // a raw watch_history row doesn't carry other watch dates for the
             // rewatch summary.
             await refreshActiveMovieAfterDateEdit(entry);
@@ -168,7 +168,7 @@ export function attachMediaDetailEvents() {
     if (editImageBtn) {
       const container = editImageBtn.closest(".immersive-container, .modal-body") || document.body;
       const id = editImageBtn.dataset.editId;
-      // Resolve tmdbData — check both movie and TV caches
+      // Resolve tmdbData - check both movie and TV caches
       let tmdbData = null;
       const entry = state.history.find((h) => h.id === id) || state.moviesRaw.find((m) => m.id === id);
       if (entry) {
@@ -419,7 +419,7 @@ export function attachMediaDetailEvents() {
             }
           } else if (entry.media_type === "movie") {
             // Re-fetch from /api/movies (not /api/history?id=) so the refreshed
-            // modal gets the deduped movie record with its playHistory array —
+            // modal gets the deduped movie record with its playHistory array -
             // a raw watch_history row doesn't carry other watch dates for the
             // rewatch summary.
             await refreshActiveMovieAfterDateEdit(entry);
@@ -542,7 +542,7 @@ export function attachMediaDetailEvents() {
       const wasAllExpanded = state.showModalAllSeasonsExpanded;
       const currentSeason = state.activeShowModalSeason == null ? null : Number(state.activeShowModalSeason);
       // Clicking an individual season while "expand all" is active means the
-      // user wants to focus on just this one — drop out of "all" mode instead
+      // user wants to focus on just this one - drop out of "all" mode instead
       // of leaving every season open underneath it.
       const shouldClose = !wasAllExpanded && currentSeason === seasonNum;
       const nextSeason = shouldClose ? null : seasonNum;
@@ -695,7 +695,7 @@ export function attachMediaDetailEvents() {
         navigateTo(movieHref(movieBySlugOrId(historyRow.dataset.historyId) || { id: historyRow.dataset.historyId }));
       } else if (historyRow.tagName === "A" && historyRow.getAttribute("href") && event.button === 0 && !event.ctrlKey && !event.metaKey) {
         // Any other anchor-based history card (e.g. the dashboard's
-        // page-style watch-history cards) — navigate via the SPA router
+        // page-style watch-history cards) - navigate via the SPA router
         // instead of falling through to the debug modal below, which left
         // preventDefault() uncalled and let the browser's native link
         // navigation fire a full page reload.

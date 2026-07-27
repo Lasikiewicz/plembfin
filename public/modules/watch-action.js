@@ -97,7 +97,7 @@ function renderMovieWatchDatePrompt(action, customValue) {
 // Uses the shared calendar-picker.js component (see edit-dialogs.js for the
 // other pickers built on it) so every date/time picker in the app looks and
 // behaves identically. state.watchDateCustom holds the one pickerState for
-// whichever "mark watched" prompt is currently open — only one can be open
+// whichever "mark watched" prompt is currently open - only one can be open
 // at a time, so a single shared instance is intentional here (unlike the
 // edit-date dialog's per-row instances).
 
@@ -236,7 +236,7 @@ export function openWatchDatePrompt(action) {
   state.pendingWatchAction = action;
   // Always mount on document.body so that position:fixed inset:0 covers the
   // full viewport. Mounting inside mediaDetailRoot() would place the overlay
-  // inside an ancestor that has backdrop-filter, which — per the CSS spec —
+  // inside an ancestor that has backdrop-filter, which - per the CSS spec -
   // creates a new containing block for fixed-positioned descendants, breaking
   // the fullscreen overlay and misaligning click targets.
   document.querySelector(".watch-date-overlay")?.remove();
@@ -339,7 +339,7 @@ function rememberLocalWatchedMovie(movieRow) {
 
 export async function submitSeerrRequest(mediaType, mediaId, button) {
   if (!mediaId || !mediaType) {
-    _setMessage("Cannot send Seerr request — missing media info.", "error");
+    _setMessage("Cannot send Seerr request - missing media info.", "error");
     return false;
   }
   const is4k = button?.getAttribute("data-seerr-request-4k") === "true";
@@ -412,7 +412,7 @@ export function openSeerrSeasonRequestDialog(mediaType, mediaId, { is4k = false 
     .filter((season) => Number(season.season_number) > 0)
     .sort((a, b) => Number(a.season_number) - Number(b.season_number));
   if (!seasons.length) {
-    _setMessage("Season information hasn't loaded yet — try again in a moment.", "error");
+    _setMessage("Season information hasn't loaded yet - try again in a moment.", "error");
     return;
   }
   const status = state.seerrMediaStatusCache.get(`tv:${mediaId}`) || {};
@@ -433,7 +433,7 @@ export function openSeerrSeasonRequestDialog(mediaType, mediaId, { is4k = false 
     const availabilityLabel = released
       ? (isFullyAvailable ? `All ${released} available${is4k ? " in 4K" : ""}` : `${availableForKind}/${released} available${is4k ? " in 4K" : ""}`)
       : "Episode count unknown";
-    const seasonName = season.name && season.name !== `Season ${seasonNumber}` ? ` — ${escapeHtml(season.name)}` : "";
+    const seasonName = season.name && season.name !== `Season ${seasonNumber}` ? ` - ${escapeHtml(season.name)}` : "";
     return `
       <label class="seerr-season-row">
         <input type="checkbox" class="seerr-season-checkbox" value="${seasonNumber}" ${isDefaultChecked ? "checked" : ""} ${isFullyAvailable ? "disabled" : ""} />
@@ -483,7 +483,7 @@ export function openSeerrSeasonRequestDialog(mediaType, mediaId, { is4k = false 
 
 export function markMovieWatched(movie) {
   if (!movie?.title) {
-    _setMessage("Cannot mark this movie watched — missing details.", "error");
+    _setMessage("Cannot mark this movie watched - missing details.", "error");
     return;
   }
   openWatchDatePrompt({
@@ -816,7 +816,7 @@ export async function confirmAndMarkUnwatched(button) {
   }
 }
 
-// Permanently delete a library item — requires three explicit confirmations.
+// Permanently delete a library item - requires three explicit confirmations.
 export async function confirmAndDeleteMedia(button) {
   const id = button.dataset.deleteMediaId;
   if (!id) return;
@@ -824,7 +824,7 @@ export async function confirmAndDeleteMedia(button) {
 
   const first = await _openConfirmDialog({
     title: "Delete from library?",
-    body: `This permanently deletes "${label}" and its entire watch history from Plembfin. This does NOT affect Plex, Emby or Jellyfin — it only removes the local record.`,
+    body: `This permanently deletes "${label}" and its entire watch history from Plembfin. This does NOT affect Plex, Emby or Jellyfin - it only removes the local record.`,
     confirmLabel: "Continue",
     cancelLabel: "Keep it",
     danger: true,
@@ -842,7 +842,7 @@ export async function confirmAndDeleteMedia(button) {
 
   const third = await _openConfirmDialog({
     title: "Final confirmation",
-    body: `Last chance — permanently delete "${label}" now?`,
+    body: `Last chance - permanently delete "${label}" now?`,
     confirmLabel: "Delete permanently",
     cancelLabel: "Cancel",
     danger: true,
