@@ -1,7 +1,17 @@
 {
-  "version": "0.6.25",
-  "updatedAt": "2026-07-27T09:54:26+01:00",
+  "version": "0.6.26",
+  "updatedAt": "2026-07-27T09:57:36+01:00",
   "entries": [
+    {
+      "version": "0.6.26",
+      "date": "2026-07-27T09:57:36+01:00",
+      "commit": "b6df47bd5d9df860660fd9ebae6e18c5c439d0a2",
+      "message": "Fix - Flatten settings tool containers",
+      "author": "Lasikiewicz",
+      "details": [
+        "Remove redundant outer cards around database repair and library rebuild actions"
+      ]
+    },
     {
       "version": "0.6.25",
       "date": "2026-07-27T09:54:26+01:00",
