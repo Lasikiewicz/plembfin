@@ -1,7 +1,23 @@
 {
-  "version": "0.6.31",
-  "updatedAt": "2026-07-27T13:02:09+01:00",
+  "version": "0.6.32",
+  "updatedAt": "2026-07-27T13:16:42+01:00",
   "entries": [
+    {
+      "version": "0.6.32",
+      "date": "2026-07-27T13:16:42+01:00",
+      "commit": "03429231158293bd893e9e2df2fa0bdc7c5bf434",
+      "message": "Fix - Repair manual match queue actions and keep both changelog sources visible",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix Match and Retry Sync now work from the Sync Issues manual match queue, which addresses records by media key instead of row id and previously failed with \"Watch record not found\"",
+        "Saving a match against a media key writes the change instead of silently reporting success while leaving the record untouched",
+        "Post-rematch artwork cleanup (poster cache reset, custom backdrop save, related artwork clearing) targets the correct record",
+        "Settings > About merges the bundled release list with the published one, so a release present in only one of them still appears",
+        "Update check re-reads GitHub at most once a minute, and an admin-forced refresh fetches immediately rather than waiting out a floor",
+        "Update banner keys off the highest version known from either source",
+        "Backup passphrase forms carry a hidden username field so password managers stop warning about them"
+      ]
+    },
     {
       "version": "0.6.31",
       "date": "2026-07-27T13:02:09+01:00",
