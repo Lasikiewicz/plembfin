@@ -1,7 +1,22 @@
 {
-  "version": "0.6.33",
-  "updatedAt": "2026-07-27T13:47:52+01:00",
+  "version": "0.6.34",
+  "updatedAt": "2026-07-27T14:20:03+01:00",
   "entries": [
+    {
+      "version": "0.6.34",
+      "date": "2026-07-27T14:20:03+01:00",
+      "commit": "9fa346ca9d50356a05fa4eb3b66336e8bf39ef6b",
+      "message": "Feature - Add match report rescan and separate unidentified media from library gaps",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added a Rescan button to the Cross-Platform Match Report that re-runs the sync for every listed item and rebuilds the report, reporting how many now match",
+        "Each report row now says which problem it is: media that was never identified, or media that is identified and simply missing from that library",
+        "Fix All Matches now queues only the rows a title match can actually repair, instead of asking you to re-pick a title for media whose identity is already correct",
+        "Items that are missing from a library are counted in the summary with what to do about them, rather than opening a search dialog that cannot help",
+        "Report rows keep showing any sync detail the platform returned beyond the generic no-match message",
+        "In-app Sync Issues help and the Settings documentation describe both failure kinds and what each button does"
+      ]
+    },
     {
       "version": "0.6.33",
       "date": "2026-07-27T13:47:52+01:00",
