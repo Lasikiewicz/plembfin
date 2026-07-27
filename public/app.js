@@ -549,34 +549,7 @@ function renderGlobalSearchDropdown(query) {
     });
   }
 
-  // 3. Local Episodes (search episode title)
-  for (const e of (state.history || [])) {
-    if (shows.length >= 5) break;
-    if (e.media_type !== "episode") continue;
-    const epTitle = e.title || "";
-    if (!epTitle.toLowerCase().includes(q)) continue;
-    const key = `${e.show_title}|${epTitle}`.toLowerCase();
-    if (seenShows.has(key)) continue;
-    seenShows.add(key);
-    const showTitle = e.show_title || showTitleFrom(epTitle);
-    const showEntry = (state.showsRaw || []).find((s) => slug(s.title) === slug(showTitle));
-    const poster = showEntry?.poster_url || showEntry?.posterUrl || e.poster_url || "";
-    const sNum = e.season ? `S${String(e.season).padStart(2, "0")}` : "";
-    const eNum = e.episode ? `E${String(e.episode).padStart(2, "0")}` : "";
-    const coord = [sNum, eNum].filter(Boolean).join("·");
-    const sub = [showTitle, coord, "Episode"].filter(Boolean).join(" · ");
-    shows.push({
-      _type: "episode",
-      title: epTitle,
-      poster,
-      href: `/tvshow/${slug(showTitle)}`,
-      sub,
-      overview: "",
-      isLocal: true
-    });
-  }
-
-  // 4. TMDB Discovery
+  // 3. TMDB Discovery
   const discoveryState = state.globalDiscoveryResults.get(q.trim());
   for (const item of (discoveryState?.results || [])) {
     const mediaType = item.media_type || (item.title ? "movie" : "tv");
