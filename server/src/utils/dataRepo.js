@@ -1890,7 +1890,8 @@ export async function getWatchStats() {
 }
 
 export async function getWatchRecordByIdLight(id) {
-  return rowToWatch(selectByIdStmt.get(String(id)));
+  const row = selectByIdStmt.get(String(id)) || selectByMediaKeyStmt.all(String(id))[0];
+  return rowToWatch(row);
 }
 
 const updatePosterStmt = db.prepare("UPDATE watch_history SET poster_url = ?, updated_at = ? WHERE id = ?");
@@ -2019,7 +2020,12 @@ export async function listLibraryItemsForRefresh() {
 }
 
 export async function getWatchRecordById(id) {
-  const row = rowToWatch(selectByIdStmt.get(String(id)));
+  let dbRow = selectByIdStmt.get(String(id));
+  if (!dbRow && id) {
+    const byKey = selectByMediaKeyStmt.all(String(id));
+    if (byKey.length) dbRow = byKey[0];
+  }
+  const row = rowToWatch(dbRow);
   if (!row) return null;
   if (row.media_key) {
     const allRows = await getCachedHistory();
@@ -2043,8 +2049,9 @@ export async function getWatchRecordByMediaKey(mediaKey, minWatchedAt = null) {
 
 export async function updateWatchRecord(id, fields = {}) {
   if (!id) return { ok: false, error: "id is required" };
-  const existing = selectByIdStmt.get(String(id));
+  const existing = selectByIdStmt.get(String(id)) || selectByMediaKeyStmt.all(String(id))[0];
   if (!existing) return { ok: false, error: "Watch record not found" };
+  const targetId = existing.id;
 
   // Queue old show title
   queueProgressUpdateForRecord(existing);
@@ -2077,7 +2084,7 @@ export async function updateWatchRecord(id, fields = {}) {
   if (fields.youtube_url != null) { sets.push("youtube_url = ?"); params.push(String(fields.youtube_url).trim()); }
   if (!sets.length) return { ok: false, error: "No valid fields to update" };
   sets.push("updated_at = ?"); params.push(Date.now());
-  params.push(String(id));
+  params.push(String(targetId));
   db.prepare(`UPDATE watch_history SET ${sets.join(", ")} WHERE id = ?`).run(...params);
   if (normalizedWatchedAt && existing.media_key) {
     const relatedRows = relatedTrackedWatchRowsForDateEdit(existing);

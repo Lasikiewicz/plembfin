@@ -822,7 +822,7 @@ export async function handleClearCache(req, res) {
 
 const REMOTE_CHANGELOG_URL =
   "https://raw.githubusercontent.com/Lasikiewicz/plembfin/main/changelog.json";
-const REMOTE_CHANGELOG_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const REMOTE_CHANGELOG_TTL_MS = 60 * 1000; // 1 minute default TTL
 let remoteChangelogCache = { fetchedAt: 0, data: null };
 
 function readLocalChangelog() {
@@ -834,18 +834,14 @@ function readLocalChangelog() {
   }
 }
 
-// A forced refresh (dashboard update check) still honors a 5-minute floor so
-// routine navigation cannot turn into one GitHub fetch per dashboard load.
-const REMOTE_CHANGELOG_FORCE_FLOOR_MS = 5 * 60 * 1000;
-
 async function fetchRemoteChangelog({ force = false } = {}) {
   const now = Date.now();
-  const ttl = force ? REMOTE_CHANGELOG_FORCE_FLOOR_MS : REMOTE_CHANGELOG_TTL_MS;
-  if (remoteChangelogCache.data && now - remoteChangelogCache.fetchedAt < ttl) {
+  if (!force && remoteChangelogCache.data && now - remoteChangelogCache.fetchedAt < REMOTE_CHANGELOG_TTL_MS) {
     return remoteChangelogCache.data;
   }
-  const response = await fetchWithTimeout(REMOTE_CHANGELOG_URL, {
-    headers: { Accept: "application/json" },
+  const url = `${REMOTE_CHANGELOG_URL}?_t=${now}`;
+  const response = await fetchWithTimeout(url, {
+    headers: { Accept: "application/json", "Cache-Control": "no-cache", "Pragma": "no-cache" },
   }, 8000);
   if (!response.ok) throw new Error(`GitHub responded ${response.status}`);
   const data = await response.json();
@@ -870,6 +866,43 @@ function compareSemver(a, b) {
   return 0;
 }
 
+function mergeChangelogEntries(localEntries = [], remoteEntries = []) {
+  const map = new Map();
+  const entryKey = (e) => e.commit || `${e.version || ""}|${e.message || ""}`;
+
+  for (const entry of localEntries) {
+    if (entry && (entry.version || entry.message)) {
+      map.set(entryKey(entry), entry);
+    }
+  }
+
+  for (const entry of remoteEntries) {
+    if (!entry || (!entry.version && !entry.message)) continue;
+    const key = entryKey(entry);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, entry);
+    } else {
+      map.set(key, {
+        ...existing,
+        ...entry,
+        details: Array.isArray(entry.details) && entry.details.length ? entry.details : existing.details,
+      });
+    }
+  }
+
+  const merged = Array.from(map.values());
+  merged.sort((a, b) => {
+    const semverCmp = compareSemver(a.version, b.version);
+    if (semverCmp !== 0) return -semverCmp;
+    const dateA = new Date(a.date || 0).getTime();
+    const dateB = new Date(b.date || 0).getTime();
+    return dateB - dateA;
+  });
+
+  return merged;
+}
+
 export async function handleChangelog(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -880,15 +913,26 @@ export async function handleChangelog(req, res) {
 
   let remote = null;
   let remoteError = null;
+  const isForceRefresh = req.query?.refresh === "1" && Boolean(resolveAdminPrincipal(req));
+
   try {
-    remote = await fetchRemoteChangelog({ force: req.query?.refresh === "1" && Boolean(resolveAdminPrincipal(req)) });
+    remote = await fetchRemoteChangelog({ force: isForceRefresh });
   } catch (error) {
     remoteError = error?.message || "Unable to reach GitHub";
   }
 
   const remoteAvailable = Boolean(remote && Array.isArray(remote.entries));
-  const entries = remoteAvailable ? remote.entries : localEntries;
-  const latestVersion = remoteAvailable ? remote.version || currentVersion : currentVersion;
+  const remoteEntries = remoteAvailable ? remote.entries : [];
+
+  const entries = mergeChangelogEntries(localEntries, remoteEntries);
+
+  let latestVersion = currentVersion;
+  if (remoteAvailable && remote?.version && compareSemver(remote.version, latestVersion) > 0) {
+    latestVersion = remote.version;
+  }
+  if (entries.length && entries[0].version && compareSemver(entries[0].version, latestVersion) > 0) {
+    latestVersion = entries[0].version;
+  }
 
   const newer = currentVersion
     ? entries.filter((entry) => compareSemver(entry.version, currentVersion) > 0)
@@ -899,7 +943,7 @@ export async function handleChangelog(req, res) {
     {
       current: currentVersion,
       latest: latestVersion,
-      updateAvailable: newer.length > 0,
+      updateAvailable: compareSemver(latestVersion, currentVersion) > 0,
       remoteAvailable,
       remoteError,
       newer,

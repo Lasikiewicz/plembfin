@@ -380,14 +380,22 @@ from `v0.2.15` to `v0.2.15 - Update available` (accent-tinted).
 
 `GET /api/changelog` (`handleChangelog` in `routes/maintenance.js`) layers an update check on top: it
 reads the bundled `changelog.json` for the current version and fetches the published
-`changelog.json` from GitHub raw (`Lasikiewicz/plembfin@main`), cached in-process for 30
-minutes (8-second fetch timeout). `?refresh=1` forces a refresh but honors a 5-minute
-floor, so routine dashboard loads never turn into one GitHub fetch each. The browser cannot reach
-GitHub directly because the CSP is `connect-src 'self'`, so the server proxies and caches it.
-The response is `{ current, latest, updateAvailable, remoteAvailable, remoteError, newer,
-entries }`, where `newer` lists releases with a higher semver than the running build. If
-GitHub is unreachable it falls back to the bundled entries. Settings → About renders the
-current version, an update banner, and the full release list with newer versions highlighted.
+`changelog.json` from GitHub raw (`Lasikiewicz/plembfin@main`), cached in-process for one
+minute (8-second fetch timeout). `?refresh=1` from an admin session bypasses that cache and
+re-fetches immediately. The browser cannot reach GitHub directly because the CSP is
+`connect-src 'self'`, so the server proxies and caches it.
+
+The two entry lists are merged rather than one replacing the other: entries are keyed by
+commit (falling back to version + message), remote copies win on conflict except that a
+local entry's `details` are kept when the remote one has none, and the result is sorted
+newest-first by semver then date. A release that exists only in the bundled file therefore
+stays visible alongside releases that exist only on GitHub. The response is
+`{ current, latest, updateAvailable, remoteAvailable, remoteError, newer, entries }`, where
+`latest` is the highest version across the remote manifest and the merged entries, `newer`
+lists releases with a higher semver than the running build, and `updateAvailable` is true
+when `latest` outranks `current`. If GitHub is unreachable the bundled entries are served on
+their own. Settings → About renders the current version, an update banner, and the full
+release list with newer versions highlighted.
 
 ## Data layer (`server/src/db.js` + `schema.sql`)
 

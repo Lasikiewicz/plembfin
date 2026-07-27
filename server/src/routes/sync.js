@@ -710,7 +710,10 @@ export async function handleRetrySync(req, res) {
   const id = body.id;
   if (!id) return sendJson(res, { error: "Missing required field: id" }, 400);
 
-  const record = await getWatchRecordById(id);
+  let record = await getWatchRecordById(id);
+  if (!record) {
+    record = await getWatchRecordByMediaKey(id);
+  }
   if (!record) return sendJson(res, { error: "Watch record not found" }, 404);
 
   const config = await loadMediaConfig();
@@ -738,8 +741,8 @@ export async function handleRetrySync(req, res) {
 
   // A manual retry resets the automatic backoff so the scheduled dispatcher
   // picks the record back up even after it exhausted its retry budget.
-  await updateWatchSyncRetry(id, 0, 0, { skipInvalidate: true });
-  await updateWatchTelemetry(id, formatDispatchTelemetry(summary, media, action));
+  await updateWatchSyncRetry(record.id, 0, 0, { skipInvalidate: true });
+  await updateWatchTelemetry(record.id, formatDispatchTelemetry(summary, media, action));
   await recordSyncHistory(media, summary, action);
 
   return sendJson(res, { ok: true, status: summary.status, targetStates: summary.targetStates || [] });

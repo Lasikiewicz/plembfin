@@ -502,6 +502,10 @@ export async function handleUpdateWatch(req, res) {
   const result = await updateWatchRecord(id, fields);
   if (!result.ok) return sendJson(res, { error: result.error }, 400);
 
+  // Callers may address a record by its media_key (the manual match queue does),
+  // so resolve the real row id before any of the id-keyed follow-up work below.
+  const recordId = (await getWatchRecordByIdLight(id).catch(() => null))?.id || id;
+
   // If a custom poster was chosen, make it authoritative across the site. The
   // poster pipeline serves /api/poster from the poster cache (keyed by
   // media_key) before it ever looks at a row's poster_url, so simply stamping
@@ -525,7 +529,7 @@ export async function handleUpdateWatch(req, res) {
         // token so each change yields a fresh URL that busts those caches.
         const versionedUrl = `${cached.url}${cached.url.includes("?") ? "&" : "?"}v=${Date.now()}`;
         customPosterUrl = versionedUrl;
-        const related = relatedPosterRows(id);
+        const related = relatedPosterRows(recordId);
         const seenKeys = new Set([editedKey]);
         for (const row of related) {
           if (row.media_key && !seenKeys.has(row.media_key)) {
@@ -550,7 +554,7 @@ export async function handleUpdateWatch(req, res) {
       const cached = await cacheBackdropFromUrl(editedKey, chosenBackdropFetchUrl, "custom").catch(() => null);
       if (cached?.url) {
         customBackdropUrl = `${cached.url}${cached.url.includes("?") ? "&" : "?"}v=${Date.now()}`;
-        await setWatchBackdropUrl(id, customBackdropUrl).catch(() => null);
+        await setWatchBackdropUrl(recordId, customBackdropUrl).catch(() => null);
       }
     }
   }
@@ -574,7 +578,7 @@ export async function handleUpdateWatch(req, res) {
       // (now-cleared) poster cache â€” so the old show/movie's artwork would keep
       // being served forever unless this request is itself uploading new artwork.
       if (body.poster_url === undefined && body.backdrop_url === undefined) {
-        await clearRelatedWatchArtworkUrls(id).catch(() => null);
+        await clearRelatedWatchArtworkUrls(recordId).catch(() => null);
       }
     }
   }

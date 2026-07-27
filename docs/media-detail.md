@@ -69,6 +69,12 @@ in-app navigation state. TV URLs support deep links:
   source app for every play) in place of the single watched-date line.
 - **Sync status** — per-platform pills from `sync_dispatch_telemetry`
   (`modules/sync.js`), with retry (`POST /api/retry-sync`).
+
+`POST /api/retry-sync` and `POST /api/update-watch` accept either a watch-record id or a
+`media_key` in their `id` field, and resolve to the underlying row either way. Callers that
+work from aggregated data — the manual match queue in Settings → Sync Issues — hold a media
+key rather than a row id, so both endpoints act on the record instead of reporting it
+missing.
 - **Seerr integration** — when Jellyseerr/Overseerr is configured, availability status
   (`GET /api/seerr/media-status`) and request buttons (`POST /api/seerr/request`,
   season-level for TV, optional 4K) render on the page. The last known status per
