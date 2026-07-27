@@ -25,7 +25,8 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
-import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { getTargetsForSource, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
@@ -447,6 +448,61 @@ export async function applyManualUnwatch(media, config, loopStore, recordId = ""
   await updateWatchTelemetry(result.id, formatDispatchTelemetry(summary, media, "unwatched"), { skipInvalidate: true });
   await recordSyncHistory(media, summary, "unwatched");
   return { wasDeleted, id: result.id, summary };
+}
+
+// Applies an existing watched record to the single server that just reported
+// the item as newly added. Deliberately narrow: it marks played on that one
+// server and writes no watch history, so a library scan can never manufacture a
+// play. The outbound mark is recorded in the loop ledger, which is what stops
+// the resulting played webhook from coming back as a fresh watch or a rewatch.
+export async function applyWatchedStateToNewItem(media) {
+  const target = String(media.source || "").toLowerCase();
+  if (!["plex", "emby", "jellyfin"].includes(target)) {
+    return { applied: false, reason: "Unknown source platform" };
+  }
+
+  const config = await loadMediaConfig();
+  if (!canReceiveState(config, target, "watched")) {
+    return { applied: false, reason: `${platformLabel(target)} is not configured to receive watched state` };
+  }
+
+  // findWatchedByAnyMediaKey only returns rows whose sync_action is `watched`,
+  // so an item Plembfin has no play for, or has explicitly unwatched, is left
+  // untouched on the server that just added it.
+  const existing = await findWatchedByAnyMediaKey(media).catch(() => null);
+  if (!existing) {
+    return { applied: false, reason: "No watched record for this item" };
+  }
+
+  const loopStore = createLoopStore();
+  let summary;
+  try {
+    if (target === "plex") await markPlexPlayed(config.plex, media);
+    if (target === "emby") await markEmbyPlayed(config.emby, media);
+    if (target === "jellyfin") await markJellyfinPlayed(config.jellyfin, media);
+    await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);
+    summary = {
+      skipped: false,
+      status: "success",
+      details: `Newly added item marked watched on ${platformLabel(target)} from existing history (watched ${existing.watched_at}).`,
+      targetStates: [{ target, status: "success", detail: "Marked watched on add" }],
+    };
+  } catch (error) {
+    summary = {
+      skipped: false,
+      status: "error",
+      details: `Could not mark newly added item watched on ${platformLabel(target)}: ${error.message || String(error)}`,
+      targetStates: [{ target, status: "error", detail: error.message || "Mark failed" }],
+    };
+  }
+
+  await recordSyncHistory(media, summary, "watched").catch(() => null);
+  console.log("New item caught up from history", {
+    source: target,
+    title: media.title,
+    status: summary.status,
+  });
+  return { applied: summary.status === "success", status: summary.status, reason: summary.details };
 }
 
 export async function handleSyncJobs(req, res) {
@@ -1290,6 +1346,19 @@ export async function handleWebhook(req, res) {
       total: filteredEpisodes.length,
       results,
     });
+  }
+
+  // A server announcing new content is the moment a watch Plembfin already
+  // holds can finally be applied there. Until the file exists, an outbound sync
+  // has nothing to mark; this catches the item up without waiting for a manual
+  // Force Sync. It never creates history — only an existing watched record is
+  // ever applied, and only to the server that just added the item.
+  if (media.phase === "added") {
+    const applied = await applyWatchedStateToNewItem(media).catch((error) => {
+      console.error("New-item watched-state apply failed", error);
+      return { applied: false, reason: error.message || "apply failed" };
+    });
+    return sendJson(res, { ok: true, added: true, inserted: false, ...applied });
   }
 
   if (media.phase === "active") {

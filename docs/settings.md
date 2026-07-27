@@ -175,19 +175,21 @@ settings shell.
 
 ## Cross-Platform Match Report
 
-Every row is a watch record a platform reported "no matching item found" for. Two
-different problems produce that result, and the report labels each row with which
-one it is:
+The panel lists media Plembfin could not identify — records carrying no IMDB,
+TMDB, or TVDB id, where nothing reliable was ever resolved. Picking the right
+title fixes these, and the row leaves the list once an id is stamped on it. The
+classification reads the record's ids rather than its media key, because the key
+is written when the row is created and is not rebuilt when a later Fix Match
+resolves an id.
 
-- **Not identified** — the record carries no IMDB, TMDB, or TVDB id, so nothing
-  reliable was ever resolved for it. Picking the right title fixes these, and the
-  row leaves the list once an id is stamped on it. The classification reads the
-  record's ids rather than its media key, because the key is written when the row
-  is created and is not rebuilt when a later Fix Match resolves an id.
-- **Identified, but the library has no copy** — the record already carries a
-  provider id and the platform still cannot find it. Searching again changes
-  nothing; the media has to be added to that library, or that platform stopped
-  from being a sync target for it.
+Records that *are* identified and still report "no matching item found" are not
+listed. That result means the platform has no copy of the media, which is a
+difference between your libraries rather than a fault, and no action in this
+panel can change it. Those items need nothing: the watch is recorded correctly in
+Plembfin, and if the media is later added to that server it is marked watched
+automatically (see [Catching up newly added media](webhooks.md#catching-up-newly-added-media)).
+The unfiltered per-platform totals are still returned by
+`GET /api/sync-match-report` and reported by Sync Health.
 
 Rows are built from each record's stored `sync_dispatch_telemetry`, so a row only
 leaves the report once that record has been dispatched again and reported a
@@ -197,8 +199,8 @@ match. Two buttons act on the list:
   the results, reporting how many now match. Media a library genuinely does not
   hold stays listed, because that is still true afterwards.
 - **Fix All Matches** re-runs the sync first, then queues the still-unmatched
-  items for manual matching one at a time. Only "not identified" rows are queued
-  — an item that already knows what it is cannot be repaired by choosing a search
+  items for manual matching one at a time. Only unidentified items are queued; an
+  item that already knows what it is cannot be repaired by choosing a search
   result, so those are counted in the summary instead of being asked about.
 
 ## Server Logs

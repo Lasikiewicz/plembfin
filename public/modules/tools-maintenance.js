@@ -364,7 +364,7 @@ export async function triggerFixAllMatches(platformTarget = "all", button) {
       }
 
       const gapNote = libraryGaps.length
-        ? ` ${libraryGaps.length} item(s) are already identified correctly and are missing from the library instead — add them there, or stop syncing that platform for them.`
+        ? ` ${libraryGaps.length} item(s) are identified correctly and simply absent from those libraries; they are not listed and need nothing from you.`
         : "";
 
       if (!groupedManualQueue.length) {
@@ -456,7 +456,9 @@ export async function triggerRescanMatchReport(button) {
     return;
   }
 
-  const samples = Object.values(report.platforms || {}).flatMap((stats) => stats?.samples || []).filter((s) => s && s.id);
+  const samples = Object.values(report.platforms || {})
+    .flatMap((stats) => stats?.samples || [])
+    .filter((s) => s && s.id && identityIsUnresolved(s));
   const uniqueSamples = Array.from(new Map(samples.map((item) => [item.id, item])).values());
 
   if (!uniqueSamples.length) {
@@ -502,7 +504,7 @@ export async function triggerRescanMatchReport(button) {
   const remaining = uniqueSamples.length - resolved;
   _setMessage(
     remaining
-      ? `Rescan complete: ${resolved} of ${uniqueSamples.length} item(s) now match. The remaining ${remaining} are still missing from those libraries — add them there, or correct their metadata, to clear them.`
+      ? `Rescan complete: ${resolved} of ${uniqueSamples.length} item(s) now match. The remaining ${remaining} still have no confirmed identity — use Fix All Matches to set them.`
       : `Rescan complete: all ${resolved} item(s) now match.`,
     remaining ? "warning" : "success",
   );
@@ -510,12 +512,32 @@ export async function triggerRescanMatchReport(button) {
 }
 
 export function renderSyncMatchReport(report = {}) {
+  // Only media Plembfin could not identify is worth showing. A record that
+  // carries a provider id and still finds no match means that library has no
+  // copy — a difference between libraries, not a fault, and nothing here can
+  // act on it. The full unfiltered figures remain in `GET /api/sync-match-report`
+  // and in Sync Health.
   const platforms = ["plex", "emby", "jellyfin"]
-    .map((platform) => ({ platform, stats: report.platforms?.[platform] }))
+    .map((platform) => {
+      const stats = report.platforms?.[platform];
+      if (!stats) return { platform, stats: null };
+      const samples = (stats.samples || []).filter(identityIsUnresolved);
+      return {
+        platform,
+        stats: {
+          ...stats,
+          samples,
+          uniqueMediaCount: samples.length,
+          movies: samples.filter((s) => s.media_type === "movie").length,
+          episodes: samples.filter((s) => s.media_type === "episode").length,
+          rowCount: samples.reduce((sum, s) => sum + (Number(s.rowCount) || 1), 0),
+        },
+      };
+    })
     .filter((entry) => entry.stats && entry.stats.uniqueMediaCount > 0);
 
   if (!platforms.length) {
-    return `<div class="empty-log"><b>No match failures</b><span>No platform reported "no matching item found" for any synced media (${report.scannedRows || 0} records with telemetry scanned).</span></div>`;
+    return `<div class="empty-log"><b>Nothing to match</b><span>Every item a platform could not find is already identified, so there is nothing here to correct (${report.scannedRows || 0} records with telemetry scanned).</span></div>`;
   }
 
   const globalHeader = `
@@ -559,9 +581,7 @@ export function renderSyncMatchReport(report = {}) {
                   <td style="padding: 0.3rem 0.5rem;">${escapeHtml(sample.media_type === "episode" ? "TV" : "Movie")}</td>
                   <td style="padding: 0.3rem 0.5rem; white-space: nowrap;">${escapeHtml(formatDate(sample.watched_at))}</td>
                   <td style="padding: 0.3rem 0.5rem; color: var(--muted); word-break: break-word;">
-                    ${identityIsUnresolved(sample)
-                      ? `Not identified — pick the right title to fix it.`
-                      : `Identified, but this library has no copy. Add it there, or stop syncing this platform for it.`}
+                    Not identified — pick the right title to fix it.
                     ${sample.detail && !/^no matching item found$/i.test(sample.detail.trim())
                       ? `<span style="display: block; opacity: 0.75;">${escapeHtml(sample.detail)}</span>`
                       : ""}

@@ -173,7 +173,8 @@ export function jellyfinWebhookSetup() {
       <ul style="padding-left: 1.2rem; margin: var(--space-1) 0 0; display: grid; gap: 4px; font-size: 0.82rem; color: var(--text);">
         <li>Install the <b>Webhooks</b> plugin in the Jellyfin Dashboard (Plugins → Catalog).</li>
         <li>Add a new <b>Generic Webhook</b> named <code>plembfin</code> pointing to the URL above. Check <b>Enable</b>.</li>
-        <li>Under <b>Notification Type</b>, check: <code>Playback Start</code>, <code>Playback Progress</code>, <code>Playback Stop</code>, <code>User Data Saved</code>.</li>
+        <li>Under <b>Notification Type</b>, check: <code>Playback Start</code>, <code>Playback Progress</code>, <code>Playback Stop</code>, <code>User Data Saved</code>, <code>Item Added</code>.</li>
+        <li><code>Item Added</code> is what lets Plembfin mark newly added media watched if you have already seen it. Leave it unticked to skip that.</li>
         <li>Under <b>Item Type</b>, select: <code>Movies</code>, <code>Episodes</code>. Leave the other notification types and item types unticked — Plembfin ignores them.</li>
         <li>Check <b>Send All Properties (ignores template)</b> so resume position fields are included.</li>
         <li>The body has to be JSON, but the content type does not matter — Jellyfin labels its payloads <code>text/plain</code> and Plembfin reads them anyway. A body that is not JSON is logged in Sync History as <code>Unsupported webhook content type</code>, along with the sender that posted it.</li>
@@ -234,6 +235,7 @@ export function webhookWarning() {
               <li><code>Playback Progress</code></li>
               <li><code>Playback Stop</code></li>
               <li><code>User Data Saved</code> <i>(Crucial: sends events when items are marked watched or unwatched)</i></li>
+              <li><code>Item Added</code> <i>(Lets Plembfin mark newly added media watched when you have already seen it)</i></li>
             </ul>
           </li>
           <li>Under <b>Item Type</b>, select:
@@ -458,7 +460,7 @@ export function renderSettingsInlineHelp() {
   if (syncIssuesHelp) {
     syncIssuesHelp.innerHTML = `
       <b style="display: block; margin-bottom: var(--space-1);">Cross-Platform Match Report</b>
-      <p class="tool-accordion-desc" style="margin: 0;">The expandable report below Sync Issues groups current <code>No matching item found</code> results by target platform. Each row says whether the media was never identified — pick the right title to fix it — or is identified and simply absent from that library, which you fix by adding it there rather than by searching again. <b>Rescan</b> re-runs the sync for every listed item and rebuilds the report; <b>Fix All Matches</b> does the same, then walks through only the rows a title match can repair.</p>
+      <p class="tool-accordion-desc" style="margin: 0;">The expandable report below Sync Issues lists media Plembfin could not identify, grouped by target platform — pick the right title to fix each one. Media that is identified and simply absent from a library is not listed: the watch is recorded correctly, and if the file is added to that server later it is marked watched automatically. <b>Rescan</b> re-runs the sync for every listed item and rebuilds the report; <b>Fix All Matches</b> does the same, then walks through them one at a time.</p>
     `;
   }
 }

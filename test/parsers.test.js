@@ -189,3 +189,27 @@ test("real playback events are not treated as bare played-flag events", async ()
   assert.equal(scrobble.phase, "completed");
   assert.equal(scrobble.playedFlagOnly, false);
 });
+
+// A server announcing new content is not a play. It is routed to its own phase
+// so the webhook handler can apply an existing watch to that server without the
+// event ever being mistaken for someone watching something.
+test("library-add events from every server resolve to the added phase", async () => {
+  const plexAdded = await parsePlexWebhook(plexForm("library.new", { guid: "tmdb://329865" }));
+  assert.equal(plexAdded.phase, "added");
+
+  const base = { Item: { Type: "Movie", Name: "Arrival", ProviderIds: { Tmdb: "329865" } } };
+  assert.equal(parseEmbyWebhook({ Event: "library.new", ...base }).phase, "added");
+  assert.equal(parseEmbyWebhook({ Event: "item.added", ...base }).phase, "added");
+  assert.equal(parseJellyfinWebhook({ NotificationType: "ItemAdded", ...base }).phase, "added");
+});
+
+test("an added event still carries the ids and title needed to find the watch record", async () => {
+  const added = parseEmbyWebhook({
+    Event: "library.new",
+    Item: { Type: "Movie", Name: "Arrival", ProviderIds: { Tmdb: "329865", Imdb: "tt2543164" } },
+  });
+  assert.equal(added.title, "Arrival");
+  assert.equal(added.type, "movie");
+  assert.equal(added.ids.tmdb, "329865");
+  assert.equal(added.ids.imdb, "tt2543164");
+});

@@ -272,8 +272,18 @@ function durationMillisecondsFrom(values = {}) {
   );
 }
 
+// A server announcing new content. This is not a play event — it means the
+// media now exists there, which is the moment a watch Plembfin already knows
+// about can finally be applied to that server.
+const ADDED_EVENT_KEYS = ["librarynew", "itemadded", "libraryitemadded", "itemcreated"];
+
+function isAddedEvent(event) {
+  return ADDED_EVENT_KEYS.includes(String(event || "").toLowerCase().replace(/[^a-z0-9]/g, ""));
+}
+
 function phaseFromPlexEvent(event, metadata) {
   const progress = progressPercentFrom(metadata);
+  if (isAddedEvent(event)) return "added";
   if (PLEX_COMPLETE_EVENTS.includes(event)) return "completed";
   if (event === "media.stop") return progress >= watchedThresholdPercent() ? "completed" : "ended";
   if (PLEX_ACTIVE_EVENTS.includes(event)) return "active";
@@ -285,6 +295,7 @@ function phaseFromEmbyEvent(event, json, item) {
   const eventKey = String(event || "").toLowerCase();
   const compactEventKey = eventKey.replace(/[^a-z0-9]/g, "");
   const played = readPlayedState(json, item);
+  if (isAddedEvent(event)) return "added";
   if (["itemmarkplayed", "itemmarkedplayed", "itemmarkedasplayed", "itemplayed"].includes(compactEventKey)) return "completed";
   if (["itemmarkunplayed", "itemmarkedunplayed", "itemmarkedasunplayed", "itemunplayed"].includes(compactEventKey)) return "unplayed";
   if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === true) return "completed";
@@ -299,6 +310,7 @@ function phaseFromJellyfinEvent(event, json, item) {
   const eventKey = String(event || "").toLowerCase();
   const compactEventKey = eventKey.replace(/[^a-z0-9]/g, "");
   const played = readPlayedState(json, item);
+  if (isAddedEvent(event)) return "added";
   if (["itemmarkplayed", "itemmarkedplayed", "itemmarkedasplayed", "itemplayed"].includes(compactEventKey)) return "completed";
   if (["itemmarkunplayed", "itemmarkedunplayed", "itemmarkedasunplayed", "itemunplayed"].includes(compactEventKey)) return "unplayed";
   if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === true) return "completed";

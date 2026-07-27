@@ -41,6 +41,7 @@ object. The crucial output is `media.phase`, derived per platform by
 | `completed` | Watched (scrobble, mark-played, or stop at the watched threshold, 90% by default) | Inserts/updates a `watch_history` record + propagates *watched* to the other platforms. |
 | `ended` | Stopped below the watched threshold | Deletes active session; if resume is actionable, stores/propagates resume progress to `playback_progress`. |
 | `unplayed` | Marked unwatched/unplayed | Deletes active session, deletes the watch record, inserts an `unwatched` row, and propagates *unwatched* to the other platforms. An item already recorded as unwatched is left alone and nothing is propagated. |
+| `added` | New item appeared in a library (`library.new`, `item.added`, `ItemAdded`) | Looks for an existing watched record for that media. If one exists, marks the item watched **on that server only**; writes no history. Nothing happens when there is no watched record. |
 | `ignored` | Not actionable | Dropped early. |
 
 Phase determination highlights:
@@ -84,6 +85,32 @@ Unwatch handling is also idempotent as a second line of defence. Marking an item
 unwatched when it is already recorded that way changes nothing, so the record is
 left as it stands and no propagation is dispatched — an echo that outlives the
 loop window cannot restart the cycle.
+
+## Catching up newly added media
+
+An outbound sync can only mark an item a server actually holds. When a watch is
+recorded for media one of your servers is missing, that server is simply skipped
+with "no matching item found" and the watch stays correct in Plembfin.
+
+The `added` phase closes that gap. When a server announces new content and
+Plembfin already holds a watched record for it, the item is marked watched on
+that server as it arrives, without waiting for a Force Sync. The rules are
+deliberately tight:
+
+- Only the server that reported the addition is touched. Other platforms are not
+  re-dispatched, because nothing about them changed.
+- No watch history is ever written. A library scan cannot manufacture a play —
+  only an already-recorded watch is applied.
+- An item with no watched record, or one explicitly marked unwatched, is left
+  alone.
+- The server's own sync role still applies: a platform not configured to receive
+  watched state is skipped.
+- The outbound mark is written to the loop ledger, so the played event the server
+  fires back is recognised as Plembfin's own write rather than a new play.
+
+Enable the library-add notification in each server's webhook configuration for
+this to fire: **library.new** on Plex, **library.new** / **item.added** on Emby,
+and **ItemAdded** on Jellyfin.
 
 **Record identity across an unwatch:** the `unwatched` row that supersedes a
 watched one inherits the replaced row's id rather than being created under a new
