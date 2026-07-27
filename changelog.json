@@ -1,7 +1,20 @@
 {
-  "version": "0.6.30",
-  "updatedAt": "2026-07-27T12:28:06+01:00",
+  "version": "0.6.31",
+  "updatedAt": "2026-07-27T13:02:09+01:00",
   "entries": [
+    {
+      "version": "0.6.31",
+      "date": "2026-07-27T13:02:09+01:00",
+      "commit": "047ebe5fe8f12056d2f7a6d9f829b6c33d44ad5e",
+      "message": "Fix - Deduplicate manual episode matching by show and reset telemetry on fix match",
+      "author": "Lasikiewicz",
+      "details": [
+        "Grouped manual match queue items by TV show so matching one episode fixes the entire show at once.",
+        "Automatically filtered out redundant episode prompts for the same show after a show match is confirmed.",
+        "Cleared stale error telemetry and reset sync retry backoffs in SQLite whenever provider IDs are updated via Fix Match.",
+        "Invalidated server-side history cache after TV show rematching so the Cross-Platform Match Report updates immediately."
+      ]
+    },
     {
       "version": "0.6.30",
       "date": "2026-07-27T12:28:06+01:00",
