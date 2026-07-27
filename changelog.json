@@ -1,7 +1,19 @@
 {
-  "version": "0.6.34",
-  "updatedAt": "2026-07-27T14:20:03+01:00",
+  "version": "0.6.35",
+  "updatedAt": "2026-07-27T14:34:15+01:00",
   "entries": [
+    {
+      "version": "0.6.35",
+      "date": "2026-07-27T14:34:15+01:00",
+      "commit": "e0da233f12c021d61ce4ac3329e8e2bc54a989b9",
+      "message": "Fix - Keep manually matched media out of the match report queue",
+      "author": "Lasikiewicz",
+      "details": [
+        "A record you fix by picking the right title now leaves the manual matching queue instead of being offered again on every run",
+        "The match report classifies rows by the provider IDs the record actually holds rather than by the key it was first stored under, which never changed when a match was applied later",
+        "Report rows carry their IMDB, TMDB, and TVDB IDs so the Sync Issues panel can tell an unidentified item from one the library simply does not have"
+      ]
+    },
     {
       "version": "0.6.34",
       "date": "2026-07-27T14:20:03+01:00",
