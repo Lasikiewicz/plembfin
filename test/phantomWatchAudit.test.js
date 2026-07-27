@@ -48,3 +48,19 @@ test("audit ignores genuine rewatches outside the same-event window", () => {
   assert.equal(auditPhantomWatchHistory(database).candidate_groups, 0);
   database.close();
 });
+
+test("audit does not merge different episodes that share a series provider ID", () => {
+  const database = makeDb();
+  insert(database, {
+    id: "episode-one", title: "Audit Show - S01E01", media_type: "episode", show_title: "Audit Show",
+    season: 1, episode: 1, watched_at: "2026-07-01T10:00:00.000Z", tmdb_id: "series-1",
+    media_key: "episode:1:1:tmdb:series-1",
+  });
+  insert(database, {
+    id: "episode-two", title: "Audit Show - S01E02", media_type: "episode", show_title: "Audit Show",
+    season: 1, episode: 2, watched_at: "2026-07-01T10:02:00.000Z", tmdb_id: "series-1",
+    media_key: "episode:1:2:tmdb:series-1",
+  });
+  assert.equal(auditPhantomWatchHistory(database).candidate_groups, 0);
+  database.close();
+});

@@ -67,7 +67,13 @@ export function auditPhantomWatchHistory(database, { sameEventWindowMs = SAME_EV
   };
   rows.forEach((row, index) => {
     connect(text(row.media_key) && `key|${row.media_key}`, index);
-    providerIds(row).forEach((id) => connect(`${row.media_type}|${id}`, index));
+    providerIds(row).forEach((id) => {
+      // Episode rows often carry a series-level TMDB/TVDB ID. Include season
+      // and episode so different episodes of one show are never grouped as
+      // duplicate watches merely because they share that series ID.
+      const scope = row.media_type === "episode" ? `${row.season}|${row.episode}` : "";
+      connect(`${row.media_type}|${id}|${scope}`, index);
+    });
     connect(episodeKey(row), index);
     // Title matching is audit-only so title-only and cross-key records are
     // surfaced for review without changing normal deduplication semantics.
