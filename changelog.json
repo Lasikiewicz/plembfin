@@ -1,7 +1,20 @@
 {
-  "version": "0.6.28",
-  "updatedAt": "2026-07-27T12:05:53+01:00",
+  "version": "0.6.29",
+  "updatedAt": "2026-07-27T12:11:50+01:00",
   "entries": [
+    {
+      "version": "0.6.29",
+      "date": "2026-07-27T12:11:50+01:00",
+      "commit": "db7dd7f05203957267c9008df409c7c6699e8cd6",
+      "message": "Fix - Remove nested container borders and duplicate status pills from sync settings",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removed outer container borders from Sync Tuning and Sync Issues so accordions render cleanly inside glass cards",
+        "Standardized vertical flex gaps between all collapsible setting boxes to match Sync Tools",
+        "Removed duplicate All Clear status pill from the No Sync Issues accordion header",
+        "Fixed outer box background leakage on container fields"
+      ]
+    },
     {
       "version": "0.6.28",
       "date": "2026-07-27T12:05:53+01:00",
