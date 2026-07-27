@@ -1,7 +1,19 @@
 {
-  "version": "0.6.38",
-  "updatedAt": "2026-07-27T15:20:05+01:00",
+  "version": "0.6.39",
+  "updatedAt": "2026-07-27T15:28:51+01:00",
   "entries": [
+    {
+      "version": "0.6.39",
+      "date": "2026-07-27T15:28:51+01:00",
+      "commit": "015ce3914094c4a630aabc578c6d76e7cdfb224c",
+      "message": "Chore - Remove em and en dashes from the codebase and documentation",
+      "author": "Lasikiewicz",
+      "details": [
+        "Replaced every em dash and en dash with a plain hyphen across documentation, in-app help, UI copy, code comments, and configuration samples",
+        "Settings help text, match report labels, and server log messages now read with hyphens instead of dashes",
+        "Bundled changelog entries were rewritten the same way so the in-app Changelog matches"
+      ]
+    },
     {
       "version": "0.6.38",
       "date": "2026-07-27T15:20:05+01:00",
