@@ -247,11 +247,14 @@ export async function fetchSyncMatchReport() {
   return body.report || { scannedRows: 0, totalUnmatchedRows: 0, platforms: {} };
 }
 
-// A media key ends in the identifier the record was keyed by: `imdb:tt…`,
-// `tmdb:…`, `tvdb:…`, or `title:…` when no provider id was ever resolved. Only
-// the title-keyed ones can be answered by picking a search result; the rest
-// already know what they are.
+// A record that carries no IMDB, TMDB, or TVDB id was never identified, and is
+// the only kind a search result can repair. The ids are read directly rather
+// than inferred from the media key: the key is stamped when the row is written
+// and is not rebuilt when a Fix Match resolves an id afterwards, so a record
+// fixed by hand would otherwise be offered for matching forever. The key is
+// still consulted for rows written before the report carried the ids.
 function identityIsUnresolved(sample = {}) {
+  if (sample.imdb_id || sample.tmdb_id || sample.tvdb_id) return false;
   const key = String(sample.media_key || "");
   if (!key) return true;
   return !/:(imdb|tmdb|tvdb):/.test(key);

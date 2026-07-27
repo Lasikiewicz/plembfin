@@ -167,3 +167,34 @@ test("episodes are split from movies in unique-media counts", () => {
   assert.equal(report.platforms.emby.movies, 1);
   assert.equal(report.platforms.emby.episodes, 1);
 });
+
+// The report is what the Sync Issues UI classifies rows with: a record holding
+// a provider id is unmatched because the library lacks it, not because nothing
+// was ever identified. The ids have to survive into the sample for that split
+// to be possible — media_key cannot stand in for them, because it is stamped at
+// insert and is not rebuilt when a Fix Match resolves an id later.
+test("samples carry the record's provider ids, independent of the media key", () => {
+  const report = buildSyncMatchReport([
+    row({
+      id: "identified",
+      media_key: "movie|signal-drift",
+      imdb_id: "tt7654321",
+      tmdb_id: "424242",
+      sync_dispatch_telemetry: FIXTURES.embyNotFound,
+    }),
+  ]);
+  const sample = report.platforms.emby.samples[0];
+  assert.equal(sample.imdb_id, "tt7654321");
+  assert.equal(sample.tmdb_id, "424242");
+  assert.equal(sample.tvdb_id, null);
+});
+
+test("a record with no provider ids reports them as null rather than omitting them", () => {
+  const report = buildSyncMatchReport([
+    row({ id: "unidentified", sync_dispatch_telemetry: FIXTURES.embyNotFound }),
+  ]);
+  const sample = report.platforms.emby.samples[0];
+  assert.equal(sample.imdb_id, null);
+  assert.equal(sample.tmdb_id, null);
+  assert.equal(sample.tvdb_id, null);
+});

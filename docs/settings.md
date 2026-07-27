@@ -180,8 +180,10 @@ different problems produce that result, and the report labels each row with whic
 one it is:
 
 - **Not identified** — the record carries no IMDB, TMDB, or TVDB id, so nothing
-  reliable was ever resolved for it (its media key ends in `title:`). Picking the
-  right title fixes these.
+  reliable was ever resolved for it. Picking the right title fixes these, and the
+  row leaves the list once an id is stamped on it. The classification reads the
+  record's ids rather than its media key, because the key is written when the row
+  is created and is not rebuilt when a later Fix Match resolves an id.
 - **Identified, but the library has no copy** — the record already carries a
   provider id and the platform still cannot find it. Searching again changes
   nothing; the media has to be added to that library, or that platform stopped

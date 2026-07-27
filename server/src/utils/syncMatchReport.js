@@ -91,6 +91,13 @@ export function buildSyncMatchReport(rows = []) {
         aggregate.media.set(mediaKey, {
           media_key: row.media_key || null,
           id: row.id || null,
+          // The provider ids say whether this record knows what it is, which is
+          // what separates "we never identified this" from "the library has no
+          // copy". media_key is not a substitute: it is stamped at insert and
+          // is not rebuilt when a Fix Match resolves an id later.
+          imdb_id: row.imdb_id || null,
+          tmdb_id: row.tmdb_id || null,
+          tvdb_id: row.tvdb_id || null,
           title: row.title || "",
           show_title: row.show_title || null,
           media_type: row.media_type || "",
