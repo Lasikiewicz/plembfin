@@ -37,6 +37,7 @@
 | | |
 |---|---|
 | **Bi-directional sync** | Watched/unwatched states stay in sync across Plex, Emby, and Jellyfin automatically |
+| **New media arrives watched** | Add a film or show you have already seen and it is marked watched on that server as it appears — no re-watching prompts on a rebuilt library, no manual catch-up. Applies an existing watch only; it never invents one |
 | **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |
 | **Rewatch tracking** | Watching a movie or episode again logs a new watch instead of overwriting the old one; detail pages show a full watch history with the date and app for every play. The duplicate-cleanup tool only removes rows recording the same watch event, so rewatches are never collapsed |
 | **Now Playing dashboard** | Real-time active sessions, weekly charts, and recent watch history |
@@ -236,7 +237,7 @@ Save and Test actions:
 #### Sync Tuning and Match Diagnostics
 *   **Settings → Sync** (or `/settings/sync-tuning`) controls the watched threshold, minimum resume position, active-session TTL, and default outbound timeout. Blank fields inherit their environment variable or built-in default.
 *   **Settings → Sync Issues** (or `/settings/sync-issues`) includes a Cross-Platform Match Report listing media Plembfin could not identify, so you can pick the right title for it. Media that is identified and simply absent from a library is left out — the watch is recorded correctly and there is nothing to fix. **Rescan** re-runs the sync for the list and rebuilds it; **Fix All Matches** does the same and then walks you through each item.
-*   **Newly added media is caught up automatically.** When a server announces new content that you have already watched, Plembfin marks it watched there as it arrives — so restoring or re-adding a file does not leave it looking unplayed. It only ever applies an existing watch, never creates one.
+*   **Newly added media is caught up automatically.** When a server announces new content that you have already watched, Plembfin marks it watched there as it arrives — so restoring or re-adding a file does not leave it looking unplayed. Adding a whole show catches up its episodes too, skipping any the server already has as played. It only ever applies an existing watch, never creates one. This needs the library-add notification enabled in each server's webhook setup (`library.new` on Plex and Emby, `Item Added` on Jellyfin) — see [webhooks.md](docs/webhooks.md#catching-up-newly-added-media).
 
 ---
 
