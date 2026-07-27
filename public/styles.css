@@ -4135,6 +4135,24 @@ details[open] .tool-accordion-chevron::before {
 #syncIssuesContent,
 #syncIssuesContainer,
 .sync-issues-empty,
+#webhookSetupGuides,
+#rebuildsContent,
+#databaseRepairsContent,
+#diagnosticsContent,
+#migrationContent,
+#refreshMetadataContent {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--space-3) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  align-self: stretch !important;
+  box-sizing: border-box !important;
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
 details.sync-match-report,
 details.sync-tool-details,
 details.issue-category {
