@@ -213,7 +213,7 @@ export async function runSystemIntegrityCheck() {
       else if (res.name === "Server Configuration") { fixInstruction = "Fix: Try saving your configuration again in Settings → Media Servers. If the error persists, check that data/config.json is writable."; }
       else if (res.name === "Webhook Listener Endpoint") { fixInstruction = "Fix: Confirm the server is running and accessible at the expected host and port. Check for firewall or reverse-proxy rules blocking /api/webhook."; }
       else if (res.name === "Outbound Playstate Sync") { fixInstruction = "Fix: Open the latest history row debug details, review sync_dispatch_telemetry, then correct the failed platform credentials or provider-ID match."; }
-      else if (res.name === "Cross-Platform Library Matching") { fixInstruction = "Fix: Open the Cross-Platform Match Report under Settings → Sync → Sync Issues to see which media each platform could not find, then add the media to that library or correct its metadata/external IDs."; settingsPath = "/settings/sync"; }
+      else if (res.name === "Cross-Platform Library Matching") { fixInstruction = "Fix: Open the Cross-Platform Match Report under Settings → Sync → Sync Issues to see which media each platform could not find, then add the media to that library or correct its metadata/external IDs."; settingsPath = "/settings/sync#syncMatchReport"; }
       else if (res.name === "Plex Media Server") { fixInstruction = "Fix: Enter the Plex Server URL and Plex Token in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
       else if (res.name === "Plex Realtime Notifications") { fixInstruction = "Fix: Ensure any reverse proxy / Cloudflare in front of Plex forwards WebSocket upgrades on /:/websockets/notifications, or set the Plex Server URL to the direct LAN address (e.g. http://192.168.x.x:32400). Unwatch sync still works via the fallback poll until this is fixed."; settingsPath = "/settings/media-servers"; }
       else if (res.name === "Emby Media Server") { fixInstruction = "Fix: Enter the Emby Server URL, API Key, and User ID in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
@@ -283,6 +283,7 @@ export function renderSyncMatchReport(report = {}) {
                 <th style="padding: 0.3rem 0.5rem;">Type</th>
                 <th style="padding: 0.3rem 0.5rem;">Last watched</th>
                 <th style="padding: 0.3rem 0.5rem;">Detail</th>
+                <th style="padding: 0.3rem 0.5rem;">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -292,6 +293,9 @@ export function renderSyncMatchReport(report = {}) {
                   <td style="padding: 0.3rem 0.5rem;">${escapeHtml(sample.media_type === "episode" ? "TV" : "Movie")}</td>
                   <td style="padding: 0.3rem 0.5rem; white-space: nowrap;">${escapeHtml(formatDate(sample.watched_at))}</td>
                   <td style="padding: 0.3rem 0.5rem; color: var(--muted); word-break: break-word;">${escapeHtml(sample.detail || "")}</td>
+                  <td style="padding: 0.3rem 0.5rem; white-space: nowrap;">
+                    ${sample.id ? `<button type="button" class="button-ghost media-fix-match-btn" data-edit-id="${escapeAttribute(sample.id)}" data-title="${escapeAttribute(sample.media_type === "episode" ? sample.show_title || sample.title || "" : sample.title || "")}" data-media-type="${escapeAttribute(sample.media_type || "movie")}">Fix match</button>` : ""}
+                  </td>
                 </tr>
               `).join("")}
             </tbody>
@@ -308,7 +312,7 @@ function initSyncMatchReport() {
   const container = document.getElementById("syncMatchReportContainer");
   if (!details || !container || details.dataset.matchReportBound) return;
   details.dataset.matchReportBound = "1";
-  details.addEventListener("toggle", () => {
+  const loadReport = () => {
     if (!details.open) return;
     container.innerHTML = `<div class="idle-state"><b>Loading match report...</b></div>`;
     fetchSyncMatchReport()
@@ -316,7 +320,9 @@ function initSyncMatchReport() {
       .catch((error) => {
         container.innerHTML = `<div class="empty-log"><b>Match report unavailable</b><span>${escapeHtml(error.message)}</span></div>`;
       });
-  });
+  };
+  details.addEventListener("toggle", loadReport);
+  window.addEventListener("sync-match-report-refresh", loadReport);
 }
 
 // ── Clear missing telemetry ────────────────────────────────────────────────

@@ -924,22 +924,6 @@ function attachEvents() {
     });
   }
 
-  // Sync tools toggle
-  if (elements.syncToolsToggle) {
-    elements.syncToolsToggle.addEventListener("click", () => {
-      const isHidden = elements.syncToolsContent.classList.contains("hidden");
-      if (isHidden) {
-        elements.syncToolsContent.classList.remove("hidden");
-        elements.syncToolsToggle.classList.add("open");
-        if (elements.syncToolsToggleIcon) elements.syncToolsToggleIcon.style.transform = "rotate(90deg)";
-      } else {
-        elements.syncToolsContent.classList.add("hidden");
-        elements.syncToolsToggle.classList.remove("open");
-        if (elements.syncToolsToggleIcon) elements.syncToolsToggleIcon.style.transform = "rotate(0deg)";
-      }
-    });
-  }
-
   // Event delegation for action buttons in sync issues
   document.addEventListener("click", (e) => {
     if (e.target.dataset.action === "clearMissingTelemetry") {

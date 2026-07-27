@@ -184,3 +184,22 @@ The **Server Logs** panel (`/settings/logs`) displays real-time and historical d
 Log entries feature human-readable timestamps (`YYYY-MM-DD HH:MM:SS`), color-coded category badges (`[PLEX]`, `[SYNC]`, `[POLL]`, `[SYSTEM]`, `[ERROR]`), a live pulsing activity indicator, and glassmorphic styling compatible with both Dark and Light appearance modes. Routine keep-alive recycling and 0-item background sync ticks are filtered out before they are stored, to ensure a high-signal log stream.
 
 Entries are served from the `diagnostic_log` table, so the panel merges output from the web and worker processes and reads at a fixed cost no matter how long the server has been running. The table is a bounded ring buffer; **Clear Logs** empties it. Per-request tracing is off unless `LOG_VERBOSE` is set — see [troubleshooting.md](troubleshooting.md) for what that adds. On-disk JSONL copies under `data/logs` are a crash-forensics archive only, pruned automatically on start.
+
+## Settings Layout & Card Standards
+
+All settings pages follow the standard layout established on `/settings/metadata`:
+
+1. **Section Heading Structure (`sync-static-heading`)**:
+   - Every settings card uses `<div class="section-heading sync-static-heading"><div><div><p style="margin: 0;">[Title]</p></div><span>[Description]</span></div></div>`.
+   - Title is rendered bold on the left (`font-weight: 850; font-size: 0.95rem;`).
+   - Description is right-aligned on the right side of the card header (`color: var(--muted); font-size: 0.78rem; text-align: right; flex: 0 1 auto;`).
+
+2. **Card Inner Spacing & Layout**:
+   - `.settings-pane` and `.settings-content` use `gap: var(--space-5);` (1.5rem / 24px) vertical spacing between stacked settings rows.
+   - All settings cards (`.settings-card`, `.tool-section-card`, `.settings-row-help > article`) use `gap: var(--space-5) !important;` (1.5rem / 24px) inner spacing between title and card content.
+   - Card content elements have `margin-top: 0 !important;` to avoid doubling the flex gap.
+
+3. **Help Card Height Constraint (`prepareHelpReadMore`)**:
+   - `.settings-row` uses `align-items: flex-start;` so main sections and help boxes size tightly to content without creating empty vertical space.
+   - `prepareHelpReadMore()` measures the height of `.settings-row-main` on the left. If the right help box (`.settings-row-help > article`) exceeds the main card height, it auto-collapses with `max-height: ${mainCardHeight}px` and appends a "Read more" toggle button.
+   - A `ResizeObserver` monitors main card height changes and updates help box collapse states dynamically.

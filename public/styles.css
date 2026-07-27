@@ -152,7 +152,7 @@
 .settings-pane {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-5);
   width: 100%;
   padding-top: 0;
   margin-top: 0;
@@ -161,9 +161,12 @@
 .settings-pane .settings-card,
 .settings-pane .sync-panel,
 .settings-pane .logs-panel,
-.settings-pane .backup-settings-panel {
+.settings-pane .backup-settings-panel,
+.settings-pane .tool-section-card {
   width: 100%;
   padding: 1.5rem !important;
+  gap: var(--space-5) !important;
+  justify-content: stretch !important;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel-2);
@@ -4047,7 +4050,7 @@ details[open] .tool-accordion-chevron::before {
   display: flex;
   min-height: 100%;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-5);
   justify-content: space-between;
 }
 
@@ -4098,10 +4101,260 @@ details[open] .tool-accordion-chevron::before {
   gap: var(--space-3);
 }
 
-.sync-tuning-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+.sync-panel form,
+.settings-card form,
+.tool-section-card form,
+#syncTuningForm {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--space-5) !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  align-self: stretch !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+}
+
+#syncTuningForm > .settings-actions,
+.sync-panel .settings-actions {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+#syncTuningStatus,
+#syncTuningStatus:empty {
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+}
+
+#syncTuningFields,
+.sync-tuning-fields,
+#syncIssuesContent,
+#syncIssuesContainer,
+.sync-issues-empty,
+details.sync-match-report,
+details.sync-tool-details,
+details.issue-category {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--space-3) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  align-self: stretch !important;
+  box-sizing: border-box !important;
+}
+
+details.sync-tool-details {
+  border: 1px solid var(--line-strong) !important;
+  border-radius: var(--radius) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+details.sync-tool-details > summary.accordion-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: var(--space-3) !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  list-style: none !important;
+}
+
+details.sync-tool-details > summary.accordion-header::-webkit-details-marker {
+  display: none !important;
+}
+
+.sync-tool-summary-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--space-2) !important;
+  font-size: 0.92rem !important;
+  color: var(--text) !important;
+}
+
+.accordion-chevron {
+  transition: transform 0.2s ease !important;
+  flex-shrink: 0 !important;
+}
+
+details[open] .accordion-chevron {
+  transform: rotate(90deg) !important;
+}
+
+.sync-issues-empty {
+  padding: var(--space-3) !important;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: var(--radius) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.sync-tuning-fields .settings-modal-field,
+.settings-modal-field {
+  display: flex !important;
+  flex-direction: column !important;
+  padding: var(--space-3) !important;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: var(--radius) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  align-self: stretch !important;
+  box-sizing: border-box !important;
+}
+
+.sync-tuning-fields .settings-modal-field-control,
+.settings-modal-field-control {
+  width: 100% !important;
+  max-width: 100% !important;
+  align-self: stretch !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
+}
+
+.sync-tuning-fields .settings-modal-field-control .field,
+.settings-modal-field-control .field {
+  width: 100% !important;
+  max-width: 100% !important;
+  align-self: stretch !important;
+  box-sizing: border-box !important;
+}
+
+.sync-tuning-fields .settings-field-optional {
+  margin-left: var(--space-2);
+  white-space: nowrap;
+}
+
+.sync-static-heading {
+  width: 100% !important;
+}
+
+.sync-static-heading > div,
+#syncHistoryToggle > div {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: var(--space-3) !important;
+  width: 100% !important;
+}
+
+.sync-static-heading > div > div,
+#syncHistoryToggle > div > div {
+  min-width: 0 !important;
+  flex: 0 1 auto !important;
+}
+
+.sync-static-heading > div > span,
+#syncHistoryToggle > div > span {
+  flex: 0 1 auto !important;
+  color: var(--muted) !important;
+  font-size: 0.78rem !important;
+  text-align: right !important;
+  margin-left: auto !important;
+}
+
+.sync-static-heading > span {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+  margin-left: auto !important;
+}
+
+details.sync-tool-details {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: var(--radius) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+details.sync-tool-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
+  padding: var(--space-3) !important;
+  cursor: pointer;
+  list-style: none;
+}
+
+details.sync-tool-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.sync-tool-summary-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+details.sync-tool-details > summary > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+details.sync-tool-details > .tool-item-row {
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+details.sync-tool-details[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-row-help > article {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box !important;
+}
+
+.settings-row-help .section-heading {
+  margin-bottom: var(--space-2) !important;
+}
+
+.settings-row-help > article.help-collapsed {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.help-read-more {
+  display: none;
+  align-self: flex-end;
+  flex: 0 0 auto !important;
+  margin-top: var(--space-2);
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel-3);
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 750;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.help-collapsed .help-read-more,
+.help-expanded .help-read-more {
+  display: inline-flex !important;
+}
+
+.help-content {
+  min-height: 0;
+  overflow: visible;
+}
+
+.help-collapsed .help-content {
+  flex: 1 1 auto !important;
+  overflow: hidden !important;
+  min-height: 0 !important;
 }
 
 @media (max-width: 640px) {
@@ -4116,6 +4369,21 @@ details[open] .tool-accordion-chevron::before {
   display: grid;
   gap: var(--space-2);
   padding: var(--space-3);
+}
+
+.sync-issues-empty {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+  padding: var(--space-3);
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sync-issues-empty b {
+  color: var(--soft);
 }
 
 .compact-endpoint {
@@ -8651,20 +8919,20 @@ h1 {
 }
 
 /* Settings Section Headings inline layout with hyphen */
-.settings-pane .section-heading > div:has(p + span),
-.settings-pane .section-heading:not(:has(div)):has(p + span) {
+.settings-pane .section-heading:not(.sync-static-heading) > div:has(p + span),
+.settings-pane .section-heading:not(.sync-static-heading):not(:has(div)):has(p + span) {
   display: block !important;
 }
 
-.settings-pane .section-heading > div:has(p + span) > p,
-.settings-pane .section-heading > div:has(p + span) > span,
-.settings-pane .section-heading:not(:has(div)):has(p + span) > p,
-.settings-pane .section-heading:not(:has(div)):has(p + span) > span {
+.settings-pane .section-heading:not(.sync-static-heading) > div:has(p + span) > p,
+.settings-pane .section-heading:not(.sync-static-heading) > div:has(p + span) > span,
+.settings-pane .section-heading:not(.sync-static-heading):not(:has(div)):has(p + span) > p,
+.settings-pane .section-heading:not(.sync-static-heading):not(:has(div)):has(p + span) > span {
   display: inline !important;
 }
 
-.settings-pane .section-heading > div > p:has(+ span)::after,
-.settings-pane .section-heading:not(:has(div)) > p:has(+ span)::after {
+.settings-pane .section-heading:not(.sync-static-heading) > div > p:has(+ span)::after,
+.settings-pane .section-heading:not(.sync-static-heading):not(:has(div)) > p:has(+ span)::after {
   content: " - ";
   color: var(--muted);
   font-weight: normal;
@@ -13900,7 +14168,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 .settings-content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-5);
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -13911,7 +14179,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 .settings-pane {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-5);
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -13924,7 +14192,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 .settings-row {
   display: flex;
   gap: var(--space-3);
-  align-items: stretch;
+  align-items: flex-start;
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -13969,7 +14237,17 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 .settings-row-help .settings-card {
   background: rgba(30, 41, 59, 0.25);
   justify-content: flex-start !important;
-  gap: var(--space-2) !important;
+  gap: var(--space-5) !important;
+}
+
+.settings-row-help .settings-card .section-heading {
+  margin-bottom: var(--space-3) !important;
+}
+
+.database-repairs-help {
+  display: grid;
+  grid-template-rows: auto repeat(3, minmax(0, 1fr));
+  align-content: stretch;
 }
 
 .settings-row-help .guide-callout {
@@ -15625,9 +15903,36 @@ html.light-mode .settings-modal-foot {
   font-size: 0.84rem;
   font-weight: 700;
   color: var(--text);
-  display: flex;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: var(--space-3) !important;
+  width: 100% !important;
+}
+
+.settings-modal-field-title {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.settings-field-optional {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.settings-field-help {
+  color: var(--muted) !important;
+  font-size: 0.78rem !important;
+  font-weight: 400 !important;
+  text-align: right !important;
+  flex: 0 1 auto !important;
+  margin-left: auto !important;
 }
 
 .settings-modal-field-control {

@@ -530,20 +530,84 @@ function renderSettingsOverview() {
 }
 
 function prepareToolsDisclosures() {
-  const labels = {
-    "tools-repairs": ["Database Repairs", "Correct damaged or duplicated local history records."],
-    "tools-sync": ["Library Rebuilds and Backfills", "Reprocess local metadata or push the complete archive to connected services."],
-  };
-  for (const [name, copy] of Object.entries(labels)) {
-    const row = document.querySelector(`[data-sub-panel="${name}"]`);
-    if (!row || row.closest(".settings-disclosure")) continue;
-    const details = document.createElement("details");
-    details.className = "settings-disclosure";
-    details.dataset.settingsDisclosure = name;
-    const summary = document.createElement("summary");
-    summary.innerHTML = `<span><strong>${copy[0]}</strong><small>${copy[1]}</small></span><span aria-hidden="true">+</span>`;
-    row.before(details);
-    details.append(summary, row);
+  // Legacy disclosure wrapper disabled — panels now use standalone glass-panel settings-cards and sync-tool-details accordions.
+  return;
+}
+
+let helpResizeObserver = null;
+
+export function prepareHelpReadMore() {
+  document.querySelectorAll(".settings-row-help > article, .settings-row-help > section").forEach((article) => {
+    const row = article.closest(".settings-row");
+    const main = row?.querySelector(".settings-row-main");
+    if (!main || row.classList.contains("hidden")) return;
+
+    const targetHeight = main.offsetHeight || main.scrollHeight;
+    if (!targetHeight || targetHeight < 20) return;
+
+    let content = article.querySelector(":scope > .help-content");
+    if (!content) {
+      content = document.createElement("div");
+      content.className = "help-content";
+      [...article.children].forEach((child) => {
+        if (!child.matches(".help-read-more")) content.append(child);
+      });
+      article.prepend(content);
+    }
+
+    let button = article.querySelector(":scope > .help-read-more");
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "help-read-more";
+      button.textContent = "Read more";
+      button.addEventListener("click", () => {
+        const isExpanded = article.classList.contains("help-expanded");
+        if (isExpanded) {
+          article.classList.remove("help-expanded");
+          article.classList.add("help-collapsed");
+          article.style.maxHeight = `${main.offsetHeight || main.scrollHeight}px`;
+          button.textContent = "Read more";
+        } else {
+          article.classList.add("help-expanded");
+          article.classList.remove("help-collapsed");
+          article.style.maxHeight = "";
+          button.textContent = "Read less";
+        }
+      });
+      article.append(button);
+    }
+
+    if (article.classList.contains("help-expanded")) {
+      button.textContent = "Read less";
+      article.style.maxHeight = "";
+      return;
+    }
+
+    const compStyle = getComputedStyle(article);
+    const paddingTop = parseFloat(compStyle.paddingTop) || 0;
+    const paddingBottom = parseFloat(compStyle.paddingBottom) || 0;
+    const fullHelpHeight = content.scrollHeight + paddingTop + paddingBottom + button.offsetHeight + 12;
+
+    if (fullHelpHeight > targetHeight + 2) {
+      article.classList.add("help-collapsed");
+      article.classList.remove("help-expanded");
+      article.style.maxHeight = `${targetHeight}px`;
+      button.textContent = "Read more";
+    } else {
+      article.classList.remove("help-collapsed", "help-expanded");
+      article.style.maxHeight = "";
+      button.textContent = "Read more";
+    }
+  });
+
+  if (typeof ResizeObserver !== "undefined" && !helpResizeObserver) {
+    helpResizeObserver = new ResizeObserver(() => {
+      prepareHelpReadMore();
+    });
+    document.querySelectorAll(".settings-row-main").forEach((main) => {
+      helpResizeObserver.observe(main);
+    });
   }
 }
 
@@ -629,6 +693,7 @@ export function applySettingsRoute(route) {
 
   const select = document.querySelector("#settingsSectionSelect");
   if (select) select.value = route.kind === "overview" ? "/settings" : route.path;
+  prepareHelpReadMore();
   return route;
 }
 
@@ -674,6 +739,7 @@ let _highlightTimer = null;
 export function scrollToSettingsSection(sectionId) {
   const target = settingsSectionElement(sectionId);
   if (!target) return;
+  if (target.tagName === "DETAILS") target.open = true;
   target.scrollIntoView({ behavior: "smooth", block: "start" });
   if (!target.matches("button, a, input, select, textarea")) target.setAttribute("tabindex", "-1");
   target.focus({ preventScroll: true });

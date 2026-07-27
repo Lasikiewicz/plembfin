@@ -402,17 +402,35 @@ export function renderSettingsInlineHelp() {
   const webhookSetupGuides = document.getElementById("webhookSetupGuides");
   if (webhookSetupGuides) {
     webhookSetupGuides.innerHTML = `
-      <details class="settings-help-disclosure" open>
-        <summary>Plex setup</summary>
-        <div class="settings-help-body">${plexWebhookSetup()}</div>
+      <details class="sync-tool-details">
+        <summary class="accordion-header">
+          <div class="sync-tool-summary-title">
+            <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+            <b>Plex Webhook Setup Guide</b>
+          </div>
+          <span>Instructions for adding webhooks in Plex Media Server</span>
+        </summary>
+        <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">${plexWebhookSetup()}</div>
       </details>
-      <details class="settings-help-disclosure" open>
-        <summary>Emby setup</summary>
-        <div class="settings-help-body">${embyWebhookSetup()}</div>
+      <details class="sync-tool-details">
+        <summary class="accordion-header">
+          <div class="sync-tool-summary-title">
+            <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+            <b>Emby Webhook Setup Guide</b>
+          </div>
+          <span>Instructions for adding webhooks in Emby Server</span>
+        </summary>
+        <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">${embyWebhookSetup()}</div>
       </details>
-      <details class="settings-help-disclosure" open>
-        <summary>Jellyfin setup</summary>
-        <div class="settings-help-body">${jellyfinWebhookSetup()}</div>
+      <details class="sync-tool-details">
+        <summary class="accordion-header">
+          <div class="sync-tool-summary-title">
+            <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+            <b>Jellyfin Webhook Setup Guide</b>
+          </div>
+          <span>Instructions for adding webhooks in Jellyfin Media Server</span>
+        </summary>
+        <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">${jellyfinWebhookSetup()}</div>
       </details>
     `;
   }

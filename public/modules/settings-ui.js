@@ -19,29 +19,58 @@ function fieldPlaceholder(field) {
   return field.placeholder || "";
 }
 
-export function renderFieldRow(field) {
-  const help = field.help ? `<small class="settings-field-help">${field.helpIsHtml ? field.help : escapeHtml(field.help)}</small>` : "";
+export function renderFieldRow(field, options = {}) {
+  const helpText = field.help ? (field.helpIsHtml ? field.help : escapeHtml(field.help)) : "";
+  const help = helpText ? `<span class="settings-field-help">${helpText}</span>` : "";
+  const type = field.type || "text";
+  const value = field.secret ? "" : (field.value ?? "");
+  const optionalTag = field.optional ? ` <em class="settings-field-optional">- optional</em>` : "";
+  const useAccordion = options.asAccordion || field.asAccordion;
+
+  if (useAccordion) {
+    return `
+      <details class="sync-tool-details" data-field-key="${escapeAttribute(field.key)}">
+        <summary class="accordion-header">
+          <div class="sync-tool-summary-title">
+            <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+            <b>${escapeHtml(field.label)}</b>${optionalTag}
+          </div>
+          ${help}
+        </summary>
+        <div class="tool-item-row" style="padding: 0 var(--space-3) var(--space-3); width: 100%;">
+          <span class="settings-modal-field-control" style="width: 100%; display: block; margin-top: var(--space-2);">
+            <input class="field" type="${escapeAttribute(type)}" data-modal-field="${escapeAttribute(field.key)}"
+              value="${escapeAttribute(String(value))}" placeholder="${escapeAttribute(fieldPlaceholder(field))}"
+              autocomplete="${escapeAttribute(field.autocomplete || "off")}" data-lpignore="true" data-1p-ignore="true" />
+          </span>
+        </div>
+      </details>
+    `;
+  }
+
   if (field.type === "checkbox") {
     return `
       <label class="settings-modal-field settings-modal-field--checkbox" data-field-key="${escapeAttribute(field.key)}">
-        <span class="settings-modal-field-label">${escapeHtml(field.label)}</span>
+        <span class="settings-modal-field-label">
+          <span class="settings-modal-field-title">${escapeHtml(field.label)}</span>
+          ${help}
+        </span>
         <span class="settings-modal-field-control">
           <input type="checkbox" data-modal-field="${escapeAttribute(field.key)}" ${field.value ? "checked" : ""} />
-          ${help}
         </span>
       </label>
     `;
   }
-  const type = field.type || "text";
-  const value = field.secret ? "" : (field.value ?? "");
   return `
     <label class="settings-modal-field" data-field-key="${escapeAttribute(field.key)}">
-      <span class="settings-modal-field-label">${escapeHtml(field.label)}${field.optional ? ` <em class="settings-field-optional">optional</em>` : ""}</span>
+      <span class="settings-modal-field-label">
+        <span class="settings-modal-field-title">${escapeHtml(field.label)}${optionalTag}</span>
+        ${help}
+      </span>
       <span class="settings-modal-field-control">
         <input class="field" type="${escapeAttribute(type)}" data-modal-field="${escapeAttribute(field.key)}"
           value="${escapeAttribute(String(value))}" placeholder="${escapeAttribute(fieldPlaceholder(field))}"
           autocomplete="${escapeAttribute(field.autocomplete || "off")}" data-lpignore="true" data-1p-ignore="true" />
-        ${help}
       </span>
     </label>
   `;

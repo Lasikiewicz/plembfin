@@ -7,6 +7,7 @@
 import { state } from "./state.js";
 import { buildAuthHeaders } from "./auth.js";
 import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues } from "./settings-ui.js";
+import { prepareHelpReadMore } from "./settings-shell.js";
 import {
   plexCredentialGuide,
   embyCredentialGuide,
@@ -220,7 +221,7 @@ export function renderSyncTuningCard() {
   const form = document.querySelector("#syncTuningForm");
   if (!fieldsContainer || !form) return;
   const tuning = state.savedConfig?.tuning || {};
-  fieldsContainer.innerHTML = syncTuningFieldSpecs(tuning).map(renderFieldRow).join("");
+  fieldsContainer.innerHTML = syncTuningFieldSpecs(tuning).map((field) => renderFieldRow(field, { asAccordion: true })).join("");
 
   if (form.dataset.bound) return;
   form.dataset.bound = "true";
@@ -228,6 +229,7 @@ export function renderSyncTuningCard() {
   const setStatus = (text, tone = "muted") => {
     if (!statusEl) return;
     statusEl.textContent = text || "";
+    statusEl.style.display = text ? "block" : "none";
     statusEl.className = `message ${tone}`;
   };
   form.addEventListener("submit", async (event) => {
@@ -462,4 +464,5 @@ export function applyConfigToSettingsUi(config = {}) {
   renderMediaServerCards();
   renderMetadataCards();
   renderSyncTuningCard();
+  prepareHelpReadMore();
 }

@@ -480,12 +480,13 @@
                 <div class="settings-row" data-sub-panel="general-login">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
+                      <div class="section-heading sync-static-heading">
                         <div>
-                          <p>Account</p>
+                          <div>
+                            <p style="margin: 0;">Account</p>
+                          </div>
                           <span>Local username and password session</span>
                         </div>
-
                       </div>
                       <form id="adminCredentialsForm" class="admin-credentials-form" autocomplete="off" data-lpignore="true" data-1p-ignore="true">
                         <label class="field-label" for="settingsUsername">
@@ -531,17 +532,15 @@
                 <div class="settings-row" id="media-servers">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section settings-card">
-                      <div class="section-heading">
+                      <div class="section-heading sync-static-heading">
                         <div>
-                          <p>Media Servers</p>
+                          <div>
+                            <p style="margin: 0;">Media Servers</p>
+                          </div>
                           <span>Connected servers used for watch-state synchronization.</span>
                         </div>
                       </div>
-                      <div class="settings-service-subsection">
-                        <h3>Media servers</h3>
-                        <p>Select a card to edit it, or use + to add a server.</p>
-                        <div id="mediaServerCards" class="settings-card-grid"></div>
-                      </div>
+                      <div id="mediaServerCards" class="settings-card-grid"></div>
                     </section>
                   </div>
                   <div class="settings-row-help">
@@ -571,9 +570,11 @@
                 <div class="settings-row" id="seerr" data-sub-panel="seerr">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section settings-card">
-                      <div class="section-heading">
+                      <div class="section-heading sync-static-heading">
                         <div>
-                          <p>Seerr</p>
+                          <div>
+                            <p style="margin: 0;">Seerr</p>
+                          </div>
                           <span>Optional request integration for movie and TV detail pages.</span>
                         </div>
                       </div>
@@ -606,42 +607,62 @@
                 <div class="settings-row" id="webhooks" data-sub-panel="general-endpoints">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Webhooks</p>
-                        <span>Webhook listener and background worker</span>
+                      <div class="section-heading sync-static-heading">
+                        <div>
+                          <div>
+                            <p style="margin: 0;">Webhooks</p>
+                          </div>
+                          <span>Webhook listener and background worker</span>
+                        </div>
                       </div>
 
-                      <div style="display: flex; flex-direction: column; gap: var(--space-4);">
-                        <div style="display: flex; flex-direction: column; gap: var(--space-2);">
-                          <span class="field-label" style="margin: 0;">Webhook Listener URL</span>
-                          <div class="copy-block">
-                            <button class="copy-button" type="button" aria-label="Copy Webhook URL">Copy</button>
-                            <pre><code id="webhookUrl">/api/webhook</code></pre>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <details class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Webhook Listener Endpoint</b>
+                            </div>
+                            <span>URL and secret token for Plex, Emby, and Jellyfin webhooks</span>
+                          </summary>
+                          <div class="tool-item-row" style="padding: var(--space-3); width: 100%; display: flex; flex-direction: column; gap: var(--space-2);">
+                            <div class="copy-block">
+                              <button class="copy-button" type="button" aria-label="Copy Webhook URL">Copy</button>
+                              <pre><code id="webhookUrl">/api/webhook</code></pre>
+                            </div>
+                            <div class="webhook-secret-line" style="margin-top: 2px;">
+                              <span>Secret token:</span>
+                              <code id="webhookSecret">Not available</code>
+                            </div>
+                            <p style="font-size: 0.78rem; color: var(--muted); margin-top: 2px; line-height: 1.45;">
+                              Point Plex, Emby, and Jellyfin webhooks here. The URL contains the secret token. Automation clients can also pass the secret in an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.
+                            </p>
+                            <div class="settings-actions" style="margin-top: var(--space-1);">
+                              <button id="rotateWebhookButton" class="button-ghost" type="button" title="Generate a new webhook secret — update the URL in all media servers after rotating">Rotate Secret</button>
+                            </div>
                           </div>
-                          <div class="webhook-secret-line" style="margin-top: 2px;">
-                            <span>Secret token:</span>
-                            <code id="webhookSecret">Not available</code>
-                          </div>
-                          <p style="font-size: 0.78rem; color: var(--muted); margin-top: 2px; line-height: 1.45;">
-                            Point Plex, Emby, and Jellyfin webhooks here. The URL contains the secret token. Automation clients can also pass the secret in an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.
-                          </p>
-                          <div class="settings-actions" style="margin-top: var(--space-1);">
-                            <button id="rotateWebhookButton" class="button-ghost" type="button" title="Generate a new webhook secret — update the URL in all media servers after rotating">Rotate Secret</button>
-                          </div>
-                        </div>
+                        </details>
 
-                        <div style="display: flex; flex-direction: column; gap: var(--space-2); border-top: 1px solid var(--line); padding-top: var(--space-3);">
-                          <span class="field-label" style="margin: 0;">Background Scheduler URL</span>
-                          <div class="copy-block">
-                            <button class="copy-button" type="button" aria-label="Copy Cron Sync URL">Copy</button>
-                            <pre><code id="cronSyncUrl">/api/cron-sync</code></pre>
+                        <details class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Background Scheduler Endpoint</b>
+                            </div>
+                            <span>Endpoint polled by the background worker for periodic sync loops</span>
+                          </summary>
+                          <div class="tool-item-row" style="padding: var(--space-3); width: 100%; display: flex; flex-direction: column; gap: var(--space-2);">
+                            <div class="copy-block">
+                              <button class="copy-button" type="button" aria-label="Copy Cron Sync URL">Copy</button>
+                              <pre><code id="cronSyncUrl">/api/cron-sync</code></pre>
+                            </div>
+                            <p style="font-size: 0.78rem; color: var(--muted); margin-top: 2px; line-height: 1.45;">
+                              Endpoint polled by the background worker to execute periodic synchronization loops between media servers.
+                            </p>
                           </div>
-                          <p style="font-size: 0.78rem; color: var(--muted); margin-top: 2px; line-height: 1.45;">
-                            Endpoint polled by the background worker to execute periodic synchronization loops between media servers.
-                          </p>
-                        </div>
+                        </details>
 
-                        <div id="webhookSetupGuides" class="webhook-setup-guides" style="border-top: 1px solid var(--line); padding-top: var(--space-3);"></div>
+                        <div id="webhookSetupGuides" class="webhook-setup-guides" style="display: flex; flex-direction: column; gap: var(--space-3);"></div>
                       </div>
                     </article>
                   </div>
@@ -680,9 +701,11 @@
                 <div class="settings-row hidden" data-sub-panel="metadata-providers">
                   <div class="settings-row-main">
                     <section id="metadata-providers" class="glass-panel p-section settings-card">
-                      <div class="section-heading">
+                      <div class="section-heading sync-static-heading">
                         <div>
-                          <p>Metadata Providers</p>
+                          <div>
+                            <p style="margin: 0;">Metadata Providers</p>
+                          </div>
                           <span>TMDB is required for artwork and detail pages; the other providers are optional enhancements.</span>
                         </div>
                       </div>
@@ -716,45 +739,50 @@
                 <!-- Sub-panel 2: Refresh Metadata -->
                 <div class="settings-row hidden" id="refresh-metadata" data-sub-panel="refresh-metadata">
                   <div class="settings-row-main">
-                    <article class="tool-section-card">
-                      <div class="section-heading">
-                        <p style="margin: 0;">Refresh Metadata</p>
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">Refresh Metadata</p>
+                        </div>
+                        <span>Pre-cache metadata from TMDB and TVDB</span>
                       </div>
 
-                      <div id="refreshMetadataContent" style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
+                      <div id="refreshMetadataContent" style="display: flex; flex-direction: column; gap: var(--space-3);">
                         <!-- Inner Box 1: TMDB -->
-                        <div id="refresh-tmdb-metadata" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div class="tool-item-row">
-                            <div class="tool-item-meta">
-                              <div class="tool-item-title-desc">
-                                <b>Refresh All TMDB Metadata</b>
-                                <span>Pre-cache trailers, posters, cast, and summaries locally</span>
-                              </div>
+                        <details id="refresh-tmdb-metadata" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Refresh All TMDB Metadata</b>
                               <span id="refreshMetadataStatus" class="status-pill status-muted">Idle</span>
                             </div>
+                            <span>Pre-cache trailers, posters, cast, and summaries locally</span>
+                          </summary>
+                          <div class="tool-item-row">
                             <div id="refreshMetadataLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Refresh log will appear here.</div>
                             <div class="settings-actions" style="margin-top: var(--space-2);">
                               <button id="refreshMetadataButton" class="button-primary" type="button">Refresh Metadata Now</button>
                             </div>
                           </div>
-                        </div>
+                        </details>
 
                         <!-- Inner Box 2: TVDB -->
-                        <div id="refresh-tvdb-metadata" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div class="tool-item-row">
-                            <div class="tool-item-meta">
-                              <div class="tool-item-title-desc">
-                                <b>Refresh All TVDB Metadata</b>
-                                <span>Fetch season episode schedules, series details, and artwork from TVDB</span>
-                              </div>
+                        <details id="refresh-tvdb-metadata" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Refresh All TVDB Metadata</b>
                               <span id="refreshTvdbStatus" class="status-pill status-muted">Idle</span>
                             </div>
+                            <span>Fetch episode schedules, series details, and artwork from TVDB</span>
+                          </summary>
+                          <div class="tool-item-row">
                             <div id="refreshTvdbLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Refresh log will appear here.</div>
                             <div class="settings-actions" style="margin-top: var(--space-2);">
                               <button id="refreshTvdbButton" class="button-primary" type="button">Refresh TVDB Metadata Now</button>
                             </div>
                           </div>
-                        </div>
+                        </details>
                       </div>
                     </article>
                   </div>
@@ -782,20 +810,32 @@
                 <!-- Diagnostics Tab -->
                 <div class="settings-row" data-sub-panel="tools-diagnostics">
                   <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="tool-item-row">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>System Integrity Check</b>
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">System Integrity</p>
+                        </div>
+                        <span>Diagnostic health checks and database state inspection</span>
+                      </div>
+
+                      <div id="diagnosticsContent" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <details class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>System Integrity Check</b>
+                            </div>
                             <span>Verify local database state and media server reachability</span>
+                          </summary>
+                          <div class="tool-item-row">
+                            <div id="completeCheckResults" class="complete-check-results hidden" style="display: grid; gap: var(--space-2); margin-top: var(--space-3);"></div>
+                            <div id="syncHealthPanel" class="sync-health-panel" aria-live="polite"></div>
+                            <div class="settings-actions" style="margin-top: var(--space-3);">
+                              <button id="refreshSyncHealthButton" class="button-ghost" type="button" title="Load row counts, database size, and outbound sync pressure">Refresh Sync Health</button>
+                              <button id="runCompleteCheckButton" class="button-primary" type="button">Run System Diagnostic</button>
+                            </div>
                           </div>
-                        </div>
-                        <div id="completeCheckResults" class="complete-check-results hidden" style="display: grid; gap: var(--space-2); margin-top: var(--space-3);"></div>
-                        <div id="syncHealthPanel" class="sync-health-panel" aria-live="polite"></div>
-                        <div class="settings-actions" style="margin-top: var(--space-3);">
-                          <button id="refreshSyncHealthButton" class="button-ghost" type="button" title="Load row counts, database size, and outbound sync pressure">Refresh Sync Health</button>
-                          <button id="runCompleteCheckButton" class="button-primary" type="button">Run System Diagnostic</button>
-                        </div>
+                        </details>
                       </div>
                     </article>
                   </div>
@@ -831,33 +871,44 @@
                 <!-- Migration & Import Tab -->
                 <div class="settings-row hidden" data-sub-panel="tools-migration">
                   <div class="settings-row-main">
-                    <article class="tool-section-card">
-                      <!-- Trakt Importer -->
-                      <div class="tool-item-row">
-                        <div class="tool-item-meta">
-                          <div class="tool-item-title-desc">
-                            <b>Trakt History Importer</b>
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">Trakt Importer</p>
+                        </div>
+                        <span>Bulk import watch history from Trakt.tv CSV or JSON exports</span>
+                      </div>
+
+                      <div id="migrationContent" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <details class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Trakt History Importer</b>
+                              <span id="importProgress" class="status-pill status-muted">Idle</span>
+                            </div>
                             <span>Bulk import records from a Trakt.tv export</span>
+                          </summary>
+                          <div class="tool-item-row">
+                            <label id="dropZone" class="drop-zone" for="importFile" style="padding: 1.5rem; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); cursor: pointer; display: flex; flex-direction: column; gap: var(--space-1); background: rgba(0,0,0,0.2);">
+                              <input id="importFile" type="file" accept=".csv,.json,application/json,text/csv" multiple style="display: none;" />
+                              <b>Choose Trakt export files</b>
+                              <span style="font-size: 0.75rem; color: var(--muted);">Drop CSV or JSON files here, or click to browse.</span>
+                            </label>
+                            <div class="import-progress-row" style="display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2);">
+                              <div class="import-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden;">
+                                <span id="importProgressFill" style="display: block; height: 100%; width: 0%; background: var(--blue); transition: width 0.2s;"></span>
+                              </div>
+                              <span id="importProgressPercent" style="font-size: 0.75rem;">0%</span>
+                            </div>
+                            <pre id="importTerminal" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for files.</pre>
+                            <div id="importPreview" class="import-preview"></div>
+                            <div class="settings-actions" style="margin-top: var(--space-3);">
+                              <button id="clearImportButton" class="button-ghost" type="button">Clear</button>
+                              <button id="startImportButton" class="button-primary" type="button" disabled>Start Import</button>
+                            </div>
                           </div>
-                          <span id="importProgress" class="status-pill status-muted">Idle</span>
-                        </div>
-                        <label id="dropZone" class="drop-zone" for="importFile" style="padding: 1.5rem; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); cursor: pointer; display: flex; flex-direction: column; gap: var(--space-1); background: rgba(0,0,0,0.2);">
-                          <input id="importFile" type="file" accept=".csv,.json,application/json,text/csv" multiple style="display: none;" />
-                          <b>Choose Trakt export files</b>
-                          <span style="font-size: 0.75rem; color: var(--muted);">Drop CSV or JSON files here, or click to browse.</span>
-                        </label>
-                        <div class="import-progress-row" style="display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2);">
-                          <div class="import-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden;">
-                            <span id="importProgressFill" style="display: block; height: 100%; width: 0%; background: var(--blue); transition: width 0.2s;"></span>
-                          </div>
-                          <span id="importProgressPercent" style="font-size: 0.75rem;">0%</span>
-                        </div>
-                        <pre id="importTerminal" class="import-terminal compact-terminal" aria-live="polite">[idle] Waiting for files.</pre>
-                        <div id="importPreview" class="import-preview"></div>
-                        <div class="settings-actions" style="margin-top: var(--space-3);">
-                          <button id="clearImportButton" class="button-ghost" type="button">Clear</button>
-                          <button id="startImportButton" class="button-primary" type="button" disabled>Start Import</button>
-                        </div>
+                        </details>
                       </div>
                     </article>
                   </div>
@@ -876,63 +927,74 @@
                 <!-- Database Repairs Tab -->
                 <div class="settings-row hidden" id="database-repairs" data-sub-panel="tools-repairs">
                   <div class="settings-row-main">
-                    <article class="tool-section-card">
-                      <div style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">Database Repairs</p>
+                        </div>
+                        <span>Repair rows, clean duplicates, and audit phantom watches</span>
+                      </div>
+
+                      <div id="databaseRepairsContent" style="display: flex; flex-direction: column; gap: var(--space-3);">
                         <!-- Inner Box 1: Repair Rows -->
-                        <div id="repair-history-rows" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div class="tool-item-row">
-                            <div class="tool-item-meta">
-                              <div class="tool-item-title-desc">
-                                <b>Repair History Rows</b>
-                                <span>Fill in missing media types and backfill missing posters on recent history rows</span>
-                              </div>
+                        <details id="repair-history-rows" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Repair History Rows</b>
                               <span id="repairStatus" class="status-pill status-muted">Idle</span>
                             </div>
+                            <span>Fill in missing media types and backfill missing posters on recent history rows</span>
+                          </summary>
+                          <div class="tool-item-row">
                             <div id="repairLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Repair log will appear here.</div>
                             <div class="settings-actions" style="margin-top: var(--space-2);">
                               <button id="runRepairButton" class="button-primary" type="button">Repair History Now</button>
                             </div>
                           </div>
-                        </div>
+                        </details>
 
                         <!-- Inner Box 2: Clean Duplicates -->
-                        <div id="clean-duplicate-history" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div class="tool-item-row">
-                            <div class="tool-item-meta">
-                              <div class="tool-item-title-desc">
-                                <b>Clean Duplicate History Rows</b>
-                                <span>Removes extra rows that record the same watch event. Rewatches — the same episode watched on different dates — are kept.</span>
-                              </div>
+                        <details id="clean-duplicate-history" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Clean Duplicate History Rows</b>
                               <span id="dedupHistoryStatus" class="status-pill status-muted">Idle</span>
                             </div>
+                            <span>Removes extra rows that record the same watch event</span>
+                          </summary>
+                          <div class="tool-item-row">
                             <div id="dedupHistoryLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Dedup log will appear here.</div>
                             <div class="settings-actions" style="margin-top: var(--space-2);">
                               <button id="dedupHistoryButton" class="button-ghost" type="button">Clean Duplicates</button>
                             </div>
                           </div>
-                        </div>
+                        </details>
+
                         <!-- Inner Box 3: Phantom Watch Audit -->
-                        <div id="phantom-watch-audit" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div class="tool-item-row">
-                            <div class="tool-item-meta">
-                              <div class="tool-item-title-desc">
-                                <b>Audit Phantom Watches</b>
-                                <span>Finds suspicious platform duplicates across media keys, provider IDs, and title/episode identities. Read-only; nothing is deleted.</span>
-                              </div>
+                        <details id="phantom-watch-audit" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Audit Phantom Watches</b>
                               <span id="phantomAuditStatus" class="status-pill status-muted">Idle</span>
                             </div>
+                            <span>Finds suspicious platform duplicates across media keys and provider IDs</span>
+                          </summary>
+                          <div class="tool-item-row">
                             <div id="phantomAuditLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Audit results will appear here.</div>
                             <div class="settings-actions" style="margin-top: var(--space-2);">
                               <button id="phantomAuditButton" class="button-ghost" type="button">Run Phantom Audit</button>
                             </div>
                           </div>
-                        </div>
+                        </details>
                       </div>
                     </article>
                   </div>
 
                   <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
+                    <article class="glass-panel p-section settings-card database-repairs-help">
                       <div class="section-heading" style="margin-bottom: var(--space-2);">
                         <p>Database Repairs Help</p>
                         <span>Database Care</span>
@@ -945,6 +1007,10 @@
                         <b style="display: block; margin-bottom: 2px;">Clean Duplicate History Rows</b>
                         <p style="margin: 0; line-height: 1.4;">Groups all watch-history rows by media (title/type/season/episode). Where a group has more than one row, it keeps only the most recently watched row and deletes the rest. Use this if the same play was recorded twice (e.g. by both a webhook and the scheduled poll).</p>
                       </div>
+                      <div style="margin-top: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Audit Phantom Watches</b>
+                        <p style="margin: 0; line-height: 1.4;">Runs a read-only scan of all watch-history rows for suspicious platform duplicates across media keys, provider IDs, and title or episode identities. Results are labelled high-confidence or review-only; the audit never changes or deletes records.</p>
+                      </div>
                     </article>
                   </div>
                 </div>
@@ -952,39 +1018,44 @@
                 <!-- Sync & Cache Tab -->
                 <div class="settings-row hidden" id="library-rebuilds" data-sub-panel="tools-sync">
                   <div class="settings-row-main">
-                    <article class="tool-section-card">
-                      <div class="section-heading">
-                        <p style="margin: 0;">Library Rebuilds and Backfills</p>
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">Library Rebuilds</p>
+                        </div>
+                        <span>Reprocess local metadata and backfill Trakt imports</span>
                       </div>
 
-                      <div style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
+                      <div id="rebuildsContent" style="display: flex; flex-direction: column; gap: var(--space-3);">
                         <!-- Inner Box 1: Rematch TV Shows -->
-                        <div id="rematch-tv-shows" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div class="tool-item-row">
-                            <div class="tool-item-meta">
-                              <div class="tool-item-title-desc">
-                                <b>Rematch All TV Shows</b>
-                                <span>Resolve each show title against TVDB (primary) and update episode IDs</span>
-                              </div>
+                        <details id="rematch-tv-shows" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Rematch All TV Shows</b>
                               <span id="rematchTvStatus" class="status-pill status-muted">Idle</span>
                             </div>
+                            <span>Resolve each show title against TVDB (primary) and update episode IDs</span>
+                          </summary>
+                          <div class="tool-item-row">
                             <div id="rematchTvLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Rematch log will appear here.</div>
                             <div class="settings-actions" style="margin-top: var(--space-2);">
                               <button id="rematchTvButton" class="button-ghost" type="button">Rematch TV Shows</button>
                             </div>
                           </div>
-                        </div>
+                        </details>
 
                         <!-- Inner Box 2: Backfill Trakt Imports -->
-                        <div id="backfill-trakt-imports" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div class="tool-item-row">
-                            <div class="tool-item-meta">
-                              <div class="tool-item-title-desc">
-                                <b>Backfill Trakt Imports</b>
-                                <span>Fetch missing posters for imported Trakt events</span>
-                              </div>
+                        <details id="backfill-trakt-imports" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Backfill Trakt Imports</b>
                               <span id="traktBackfillStatus" class="status-pill status-muted">Idle</span>
                             </div>
+                            <span>Fetch missing posters for imported Trakt events</span>
+                          </summary>
+                          <div class="tool-item-row">
                             <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); max-width: 400px; margin-top: var(--space-2);">
                               <label class="field-label" style="margin:0;">
                                 Batch size
@@ -1000,7 +1071,7 @@
                               <button id="traktBackfillButton" class="button-primary" type="button">Backfill Trakt Imports</button>
                             </div>
                           </div>
-                        </div>
+                        </details>
                       </div>
                     </article>
                   </div>
@@ -1029,21 +1100,28 @@
                 <div class="settings-row">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card tool-section-card">
-                      <div class="section-heading">
-                        <p style="margin: 0;">Backup Settings</p>
+                      <div class="section-heading sync-static-heading">
+                        <div>
+                          <div>
+                            <p style="margin: 0;">Backup Settings</p>
+                          </div>
+                          <span>Automated local and remote snapshot engine</span>
+                        </div>
                       </div>
 
                       <div style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
                         <!-- Nested Section Box 1: Local Backups -->
-                        <div id="backup-settings-local" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div style="font-weight: 700; font-size: 1rem; color: var(--text); margin-bottom: var(--space-3);">Local Backups</div>
-                          <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-                            <article class="backup-type-card">
-                              <div class="backup-type-head">
-                                <div>
-                                  <b>Local Watch History Backups</b>
-                                  <span>Enable scheduled local snapshots of watched state, playstate, and resume progress.</span>
-                                </div>
+                        <div id="backup-settings-local" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                          <details class="sync-tool-details">
+                            <summary class="accordion-header">
+                              <div class="sync-tool-summary-title">
+                                <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                                <b>Local Watch History Backups</b>
+                              </div>
+                              <span>Enable scheduled local snapshots of watched state, playstate, and resume progress</span>
+                            </summary>
+                            <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
+                              <div class="backup-type-head" style="margin-bottom: var(--space-2);">
                                 <label class="checkbox-label backup-enable-row">
                                   <input id="watchBackupEnabled" type="checkbox" />
                                   <span>Enable daily backups</span>
@@ -1063,26 +1141,30 @@
                               </div>
                               <div id="watchBackupRuntime" class="backup-runtime" aria-live="polite"></div>
                               <div id="watchBackupProgress" class="backup-progress hidden" role="progressbar" aria-label="Backup in progress"><span class="backup-progress-bar"></span></div>
-                              <div class="backup-settings-grid backup-settings-inline">
+                              <div class="backup-settings-grid backup-settings-inline" style="margin-top: var(--space-2);">
                                 <div class="backup-settings-right">
                                   <button id="saveWatchBackupConfigButton" class="button-primary" type="button">Save Schedule</button>
                                   <button id="createWatchBackupButton" class="button-ghost" type="button">Back Up Now</button>
                                 </div>
                               </div>
-                            </article>
+                            </div>
+                          </details>
 
-                            <article class="backup-type-card backup-type-card-muted">
-                              <div class="backup-type-head">
-                                <div>
-                                  <b>Local Plembfin Backups</b>
-                                  <span>Create an encrypted full Plembfin backup and download it to your computer.</span>
-                                </div>
+                          <details class="sync-tool-details">
+                            <summary class="accordion-header">
+                              <div class="sync-tool-summary-title">
+                                <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                                <b>Local Plembfin Backups</b>
+                              </div>
+                              <span>Create an encrypted full Plembfin backup and download it to your computer</span>
+                            </summary>
+                            <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
+                              <div class="backup-type-head" style="margin-bottom: var(--space-2);">
                                 <label class="checkbox-label backup-enable-row">
                                   <input id="plembfinBackupEnabled" type="checkbox" />
                                   <span>Enable daily backups</span>
                                 </label>
                               </div>
-
                               <form class="backup-managed-form backup-settings-stack" data-submit-target="savePlembfinBackupConfigButton">
                                 <div class="backup-settings-grid backup-settings-inline">
                                   <div class="backup-settings-center">
@@ -1110,36 +1192,41 @@
 
                               <div id="plembfinBackupRuntime" class="backup-runtime" aria-live="polite"></div>
                               <div id="plembfinBackupProgress" class="backup-progress hidden" role="progressbar" aria-label="Backup in progress"><span class="backup-progress-bar"></span></div>
-                              <div class="backup-settings-grid backup-settings-inline">
+                              <div class="backup-settings-grid backup-settings-inline" style="margin-top: var(--space-2);">
                                 <div class="backup-settings-right">
                                   <button id="savePlembfinBackupConfigButton" class="button-primary" type="button" disabled>Save Schedule</button>
                                   <button id="createPlembfinBackupButton" class="button-ghost" type="button" disabled>Back Up Now</button>
                                 </div>
                               </div>
-                            </article>
-                          </div>
+                            </div>
+                          </details>
                         </div>
 
                         <!-- Nested Section Box 2: Remote Backups -->
-                        <div id="backup-settings-remote" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div style="font-weight: 700; font-size: 1rem; color: var(--text); margin-bottom: var(--space-3);">Remote Backups</div>
-                          <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-                            <article class="backup-type-card">
-                              <div class="backup-type-head">
-                                <div>
-                                  <b>Remote Destinations</b>
-                                  <span>Remote backups are uploaded to every enabled destination. Select a card to edit it, or use + to add one.</span>
-                                </div>
+                        <div id="backup-settings-remote" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                          <details class="sync-tool-details">
+                            <summary class="accordion-header">
+                              <div class="sync-tool-summary-title">
+                                <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                                <b>Remote Destinations</b>
                               </div>
+                              <span>Configure cloud destinations for remote backups</span>
+                            </summary>
+                            <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
                               <div id="backupDestinationCards" class="settings-card-grid"></div>
-                            </article>
+                            </div>
+                          </details>
 
-                            <article class="backup-type-card">
-                              <div class="backup-type-head">
-                                <div>
-                                  <b>Remote Watch History Backups</b>
-                                  <span>Create a daily watch-history backup and upload it to every enabled destination.</span>
-                                </div>
+                          <details class="sync-tool-details">
+                            <summary class="accordion-header">
+                              <div class="sync-tool-summary-title">
+                                <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                                <b>Remote Watch History Backups</b>
+                              </div>
+                              <span>Upload daily watch history backups to remote destinations</span>
+                            </summary>
+                            <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
+                              <div class="backup-type-head" style="margin-bottom: var(--space-2);">
                                 <label class="checkbox-label backup-enable-row">
                                   <input id="remoteWatchBackupEnabled" type="checkbox" />
                                   <span>Enable daily backups</span>
@@ -1159,20 +1246,25 @@
                               </div>
                               <div id="watchBackupRemoteRuntime" class="backup-runtime backup-runtime-remote" aria-live="polite"></div>
                               <div id="remoteWatchBackupProgress" class="backup-progress hidden" role="progressbar" aria-label="Backup in progress"><span class="backup-progress-bar"></span></div>
-                              <div class="backup-settings-grid backup-settings-inline">
+                              <div class="backup-settings-grid backup-settings-inline" style="margin-top: var(--space-2);">
                                 <div class="backup-settings-right">
                                   <button id="saveRemoteWatchBackupConfigButton" class="button-primary" type="button">Save Schedule</button>
                                   <button id="createRemoteWatchBackupButton" class="button-ghost" type="button">Back Up Now</button>
                                 </div>
                               </div>
-                            </article>
+                            </div>
+                          </details>
 
-                            <article class="backup-type-card backup-type-card-muted">
-                              <div class="backup-type-head">
-                                <div>
-                                  <b>Remote Plembfin Backups</b>
-                                  <span>Store encrypted Plembfin backup files off-server automatically on a schedule.</span>
-                                </div>
+                          <details class="sync-tool-details">
+                            <summary class="accordion-header">
+                              <div class="sync-tool-summary-title">
+                                <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                                <b>Remote Plembfin Backups</b>
+                              </div>
+                              <span>Store encrypted Plembfin backup files off-server automatically</span>
+                            </summary>
+                            <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
+                              <div class="backup-type-head" style="margin-bottom: var(--space-2);">
                                 <label class="checkbox-label backup-enable-row">
                                   <input id="plembfinBackupRemoteEnabled" type="checkbox" />
                                   <span>Enable remote mirroring</span>
@@ -1194,14 +1286,14 @@
 
                               <div id="plembfinBackupRemoteRuntime" class="backup-runtime" aria-live="polite"></div>
                               <div id="plembfinBackupRemoteProgress" class="backup-progress hidden" role="progressbar" aria-label="Backup in progress"><span class="backup-progress-bar"></span></div>
-                              <div class="backup-settings-grid backup-settings-inline">
+                              <div class="backup-settings-grid backup-settings-inline" style="margin-top: var(--space-2);">
                                 <div class="backup-settings-right">
                                   <button id="savePlembfinBackupRemoteButton" class="button-primary" type="button" disabled>Save Settings</button>
                                   <button id="createPlembfinBackupRemoteButton" class="button-ghost" type="button" disabled>Back Up Now</button>
                                 </div>
                               </div>
-                            </article>
-                          </div>
+                            </div>
+                          </details>
                         </div>
                       </div>
                     </article>
@@ -1243,39 +1335,46 @@
                 <div class="settings-row">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card tool-section-card">
-                      <div class="section-heading">
-                        <p style="margin: 0;">Restore</p>
+                      <div class="section-heading sync-static-heading">
+                        <div>
+                          <div>
+                            <p style="margin: 0;">Restore</p>
+                          </div>
+                          <span>Local and remote backup restore tools</span>
+                        </div>
                       </div>
 
                       <div style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
                         <!-- Nested Section Box 1: Local Restore -->
-                        <div id="restore-local" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div style="font-weight: 700; font-size: 1rem; color: var(--text); margin-bottom: var(--space-3);">Local Restore</div>
-                          <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-                            <article class="backup-type-card">
-                              <div class="backup-type-head">
-                                <div>
-                                  <b>Local Watch History Backups</b>
-                                  <span>Restore a watch-history backup stored on this server or upload one from your computer.</span>
-                                </div>
+                        <div id="restore-local" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                          <details class="sync-tool-details">
+                            <summary class="accordion-header">
+                              <div class="sync-tool-summary-title">
+                                <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                                <b>Local Watch History Restore</b>
                               </div>
-                              <div class="restore-upload-panel">
+                              <span>Restore a watch-history backup stored on this server or upload one</span>
+                            </summary>
+                            <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
+                              <div class="restore-upload-panel" style="margin-bottom: var(--space-2);">
                                 <input id="watchBackupUploadFile" type="file" accept=".gz,application/gzip,application/x-gzip" hidden />
                                 <button id="chooseWatchBackupFileButton" class="button-ghost" type="button">Add Watch-History File</button>
                                 <span id="watchBackupUploadStatus">No watch-history file selected</span>
                               </div>
                               <div id="watchBackupList" class="watch-backup-list" data-watch-backup-list="local" aria-live="polite"></div>
-                            </article>
+                            </div>
+                          </details>
 
-                            <article class="backup-type-card">
-                              <div class="backup-type-head">
-                                <div>
-                                  <b>Local Plembfin Backups</b>
-                                  <span>Restore an encrypted full Plembfin backup.</span>
-                                </div>
-                                <span id="backupRestoreStatus" class="status-pill status-muted">Idle</span>
+                          <details class="sync-tool-details">
+                            <summary class="accordion-header">
+                              <div class="sync-tool-summary-title">
+                                <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                                <b>Local Plembfin Restore</b>
+                                <span id="backupRestoreStatus" class="status-pill status-muted" style="margin-left: var(--space-2);">Idle</span>
                               </div>
-
+                              <span>Restore an encrypted full Plembfin backup</span>
+                            </summary>
+                            <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
                               <form class="backup-settings-grid backup-settings-inline backup-managed-form" data-submit-target="backupImportButton">
                                 <div class="backup-settings-left" style="flex: 2;">
                                   <label class="field-label backup-passphrase-label" style="width: 100%;">
@@ -1291,38 +1390,26 @@
                                   <button id="backupImportButton" class="button-primary" type="button" disabled>Restore Plembfin Backup</button>
                                 </div>
                               </form>
-
                               <div id="plembfinBackupList" class="watch-backup-list" data-watch-backup-list="local" aria-live="polite" style="margin-top: var(--space-3);"></div>
                               <pre id="backupRestoreLog" class="import-terminal compact-terminal" aria-live="polite" style="margin-top: var(--space-2);">[idle] Enter a passphrase, then choose a local or uploaded encrypted Plembfin backup.</pre>
-                            </article>
-                          </div>
-
-                          <pre id="restoreProgressTerminal" class="import-terminal compact-terminal hidden" aria-live="polite" style="margin-top: var(--space-3);"></pre>
+                            </div>
+                          </details>
                         </div>
 
                         <!-- Nested Section Box 2: Remote Restore -->
-                        <div id="restore-remote" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div style="font-weight: 700; font-size: 1rem; color: var(--text); margin-bottom: var(--space-3);">Remote Restore</div>
-                          <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-                            <article class="backup-type-card">
-                              <div class="backup-type-head">
-                                <div>
-                                  <b>Remote Watch History Backups</b>
-                                  <span>Restore a watch-history backup mirrored to Backblaze B2.</span>
-                                </div>
+                        <div id="restore-remote" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                          <details class="sync-tool-details">
+                            <summary class="accordion-header">
+                              <div class="sync-tool-summary-title">
+                                <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                                <b>Remote Watch History Restore</b>
                               </div>
+                              <span>Restore a watch-history backup mirrored to Backblaze B2</span>
+                            </summary>
+                            <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
                               <div id="remoteWatchBackupList" class="watch-backup-list" data-watch-backup-list="remote" aria-live="polite"></div>
-                            </article>
-
-                            <article class="backup-type-card backup-type-card-muted">
-                              <div class="backup-type-head">
-                                <div>
-                                  <b>Remote Plembfin Backups</b>
-                                  <span>Download your encrypted Plembfin backup from remote storage, then restore it as a Local Plembfin Backup.</span>
-                                </div>
-                              </div>
-                            </article>
-                          </div>
+                            </div>
+                          </details>
                         </div>
                       </div>
                     </article>
@@ -1376,15 +1463,17 @@
                 <div class="settings-row hidden" data-sub-panel="sync-tuning">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section sync-panel">
-                      <div class="section-heading">
+                      <div class="section-heading sync-static-heading">
                         <div>
-                          <p>Sync Tuning</p>
-                          <span>Watched threshold, resume position, session TTL, and outbound timeout. Leave a field blank to use its default.</span>
+                          <div>
+                            <p style="margin: 0;">Sync Tuning</p>
+                          </div>
+                          <span>Watched threshold, resume position, session TTL, and outbound timeout</span>
                         </div>
                       </div>
                       <form id="syncTuningForm" class="admin-credentials-form">
                         <div id="syncTuningFields" class="sync-tuning-fields"></div>
-                        <p id="syncTuningStatus" class="message" role="status" aria-live="polite"></p>
+                        <p id="syncTuningStatus" class="message" role="status" aria-live="polite" style="display: none;"></p>
                         <div class="settings-actions">
                           <button id="saveSyncTuningButton" class="button-primary" type="submit">Save Sync Tuning</button>
                         </div>
@@ -1429,58 +1518,58 @@
                 <div class="settings-row hidden" data-sub-panel="sync-tools">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card tool-section-card">
-                      <!-- Sync Tools Accordion Header -->
-                      <button id="syncToolsToggle" class="section-heading sync-heading accordion-header open" type="button" style="background: none; border: none; cursor: pointer; width: 100%; text-align: left; padding: 0;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                          <div style="display: flex; align-items: center; gap: var(--space-2);">
-                            <svg id="syncToolsToggleIcon" class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(90deg);" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
-                            <p style="margin: 0;">Sync Tools</p>
-                          </div>
+                      <div class="section-heading sync-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">Sync Tools</p>
                         </div>
-                      </button>
+                          <span>Sync actions</span>
+                      </div>
 
-                      <div id="syncToolsContent" style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
+                      <div id="syncToolsContent" style="display: flex; flex-direction: column; gap: var(--space-3);">
                         <!-- Inner Box 1: Repair Recent Items -->
-                        <div id="sync-tools-repair" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div class="tool-item-row">
-                            <div class="tool-item-meta">
-                              <div class="tool-item-title-desc">
-                                <b>Repair Recent Items</b>
-                                <span>Check recent watched and part-watched items on each server for missing Plembfin records</span>
-                              </div>
+                        <details id="sync-tools-repair" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Repair Recent Items</b>
                             </div>
+                            <span>Check recent watched and part-watched items on each server</span>
+                          </summary>
+                          <div class="tool-item-row">
                             <div class="settings-actions" style="margin-top: var(--space-2);">
                               <button id="runCronSyncButton" class="button-primary sync-action-btn" type="button" title="Check recent watched and part-watched items for missing Plembfin records">Repair Recent Items</button>
                             </div>
                           </div>
-                        </div>
+                        </details>
 
                         <!-- Inner Box 2: Full Sync Watchstates -->
-                        <div id="full-sync-watchstates" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div class="tool-item-row">
-                            <div class="tool-item-meta">
-                              <div class="tool-item-title-desc">
-                                <b>Full Sync Watchstates</b>
-                                <span>Push your entire watched archive back to media server lists</span>
-                              </div>
+                        <details id="full-sync-watchstates" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Full Sync Watchstates</b>
                               <span id="fullSyncStatus" class="status-pill status-muted">Idle</span>
                             </div>
+                            <span>Push your entire watched archive back to media server lists</span>
+                          </summary>
+                          <div class="tool-item-row">
                             <pre id="fullSyncLog" class="import-terminal compact-terminal hidden" aria-live="polite" style="margin-top: var(--space-2);">[idle] Waiting for restore request.</pre>
                             <div class="settings-actions" style="margin-top: var(--space-2);">
                               <button id="fullSyncButton" class="button-ghost" type="button">Full Sync Watchstates</button>
                             </div>
                           </div>
-                        </div>
+                        </details>
 
                         <!-- Inner Box 3: Force Full Sync -->
-                        <div id="sync-tools-force" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-3);">
-                          <div class="tool-item-row">
-                            <div class="tool-item-meta">
-                              <div class="tool-item-title-desc">
-                                <b>Force Full Sync</b>
-                                <span>Forcefully propagate all pending watched-state changes immediately</span>
-                              </div>
+                        <details id="sync-tools-force" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Force Full Sync</b>
                             </div>
+                            <span>Forcefully propagate all pending watched-state changes immediately</span>
+                          </summary>
+                          <div class="tool-item-row">
                             <div id="forceSyncPreviewPanel" class="sync-preview-panel hidden" aria-live="polite"></div>
                             <div class="activity-log" style="margin-top: var(--space-3);">
                               <div class="activity-log-header">
@@ -1512,7 +1601,7 @@
                               <button id="forceSyncButton" class="button-primary sync-action-btn" type="button" title="Force an immediate sync of all pending watched states">Force Full Sync</button>
                             </div>
                           </div>
-                        </div>
+                        </details>
                       </div>
                     </article>
                   </div>
@@ -1636,6 +1725,7 @@
                             <p style="margin: 0;">Sync History</p>
                             <span id="syncHistorySummary" class="status-pill status-muted">Loading...</span>
                           </div>
+                          <span>Recent propagation attempts</span>
                         </div>
                       </button>
                       <div id="syncHistoryContent" class="hidden" style="margin-top: var(--space-3);">
@@ -1748,9 +1838,11 @@
                 <div class="settings-row">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
+                      <div class="section-heading sync-static-heading">
                         <div>
-                          <p>Changelog</p>
+                          <div>
+                            <p style="margin: 0;">Changelog</p>
+                          </div>
                           <span>Your version and newer releases from GitHub</span>
                         </div>
                       </div>
@@ -1790,9 +1882,11 @@
                 <div class="settings-row">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
+                      <div class="section-heading sync-static-heading">
                         <div>
-                          <p>Image Cache</p>
+                          <div>
+                            <p style="margin: 0;">Image Cache</p>
+                          </div>
                           <span>Locally stored artwork from Plex, TMDB, and other sources</span>
                         </div>
                       </div>

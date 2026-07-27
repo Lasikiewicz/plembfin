@@ -572,7 +572,21 @@ export function renderSyncJobs() {
   }
 
   if (!hasIssues) {
-    container.innerHTML = `<div class="empty-log"><b>No sync issues</b><span>All watched-state dispatches are up to date.</span></div>`;
+    container.innerHTML = `
+      <details class="sync-tool-details">
+        <summary class="accordion-header">
+          <div class="sync-tool-summary-title">
+            <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+            <b>No sync issues</b>
+            <span class="status-pill status-ready" style="margin-left: var(--space-2);">All clear</span>
+          </div>
+          <span>All watched-state dispatches are up to date</span>
+        </summary>
+        <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
+          <p style="margin: 0; color: var(--muted); font-size: 0.85rem;">All watched states, resume positions, and history records across your media servers are fully synchronized. No dispatches are currently failing or pending.</p>
+        </div>
+      </details>
+    `;
     return;
   }
 

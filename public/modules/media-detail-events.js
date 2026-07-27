@@ -288,12 +288,14 @@ export function attachMediaDetailEvents() {
         state.tmdbDetailsCache.clear();
         state.tmdbSeasonCache.clear();
         const syncJobCard = fixMatchBtn.closest(".sync-job-card");
-        const inSyncIssues = fixMatchBtn.closest("#syncIssuesContainer");
+        const inSyncIssues = fixMatchBtn.closest("#syncIssuesContainer, #syncMatchReportContainer");
         if (syncJobCard || inSyncIssues) {
           setMessage("Match updated. Retrying sync...", "info");
           triggerRetrySync(fixMatchBtn.dataset.editId, fixMatchBtn).catch(() => {
             loadSyncJobs({ force: true }).catch(() => null);
             loadSyncHistory({ force: true }).catch(() => null);
+          }).then(() => {
+            if (inSyncIssues) window.dispatchEvent(new Event("sync-match-report-refresh"));
           });
         } else if (mediaType === "movie") {
           const movie = state.history.find((h) => h.id === fixMatchBtn.dataset.editId);
