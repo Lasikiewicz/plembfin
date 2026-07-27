@@ -55,6 +55,12 @@ const SECTIONS = {
     description: "Configure watched threshold, resume position, and timeouts",
     panel: "sync",
     subPanels: ["sync-tuning"],
+    subSections: [
+      { id: "sync-field-watched_threshold", label: "Watched Threshold (%)", description: "Playback progress percentage at which a play counts as watched" },
+      { id: "sync-field-min_resume_position", label: "Minimum Resume Position (sec)", description: "Minimum playback position before a stopped play is saved as a resume point" },
+      { id: "sync-field-active_session_ttl", label: "Active Session TTL (min)", description: "How long a now playing session is kept without an update before it's considered stale" },
+      { id: "sync-field-request_timeout", label: "Outbound Request Timeout (sec)", description: "How long Plembfin waits for a response from Plex, Emby, or Jellyfin before giving up" },
+    ],
     isDisplayOnly: true, // Not a navigable route
   },
   "sync-tools": {
@@ -88,6 +94,10 @@ const SECTIONS = {
     description: "Webhook listener and background scheduler endpoints",
     panel: "general",
     subPanels: ["general-endpoints"],
+    subSections: [
+      { id: "webhook-listener-endpoint", label: "Webhook Listener Endpoint", description: "URL and secret token for Plex, Emby, and Jellyfin webhooks" },
+      { id: "background-scheduler-endpoint", label: "Background Scheduler Endpoint", description: "Endpoint polled by the background worker for periodic sync loops" },
+    ],
     isDisplayOnly: true,
   },
   metadata: {
@@ -133,6 +143,10 @@ const SECTIONS = {
     description: "Unresolved sync issues between your media servers",
     panel: "sync",
     subPanels: ["sync-issues"],
+    subSections: [
+      { id: "sync-issues-status", label: "No sync issues", description: "All watched-state dispatches are up to date" },
+      { id: "syncMatchReport", label: "Cross-Platform Match Report", description: "Media each platform could not find during sync" },
+    ],
     isDisplayOnly: true,
   },
   "sync-history": {
@@ -195,6 +209,11 @@ const SECTIONS = {
     description: "Correct damaged or duplicated local history records",
     panel: "tools",
     subPanels: ["tools-repairs"],
+    subSections: [
+      { id: "repair-history-rows", label: "Repair History Rows", description: "Fill in missing media types and backfill missing posters" },
+      { id: "clean-duplicate-history", label: "Clean Duplicate History Rows", description: "Removes extra rows that record the same watch event" },
+      { id: "phantom-watch-audit", label: "Audit Phantom Watches", description: "Finds suspicious platform duplicates" },
+    ],
     isDisplayOnly: true,
   },
   "library-rebuilds": {
@@ -202,6 +221,10 @@ const SECTIONS = {
     description: "Reprocess local metadata or push the complete archive to connected services",
     panel: "tools",
     subPanels: ["tools-sync"],
+    subSections: [
+      { id: "rematch-tv-shows", label: "Rematch All TV Shows", description: "Resolve show titles against TVDB and update episode IDs" },
+      { id: "backfill-trakt-imports", label: "Backfill Trakt Imports", description: "Fetch missing posters for imported Trakt events" },
+    ],
     isDisplayOnly: true,
   },
   "force-sync": {
@@ -739,8 +762,38 @@ let _highlightTimer = null;
 export function scrollToSettingsSection(sectionId) {
   const target = settingsSectionElement(sectionId);
   if (!target) return;
-  if (target.tagName === "DETAILS") target.open = true;
-  target.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  const detailsTarget = target.closest("details") || (target.tagName === "DETAILS" ? target : null);
+  if (detailsTarget) {
+    if (!detailsTarget.open) {
+      detailsTarget.open = true;
+      detailsTarget.dispatchEvent(new Event("toggle"));
+    }
+  }
+
+  let parent = target.parentElement;
+  while (parent && parent !== document.body) {
+    if (parent.tagName === "DETAILS" && !parent.open) {
+      parent.open = true;
+      parent.dispatchEvent(new Event("toggle"));
+    }
+    parent = parent.parentElement;
+  }
+
+  const scrollContainer = document.querySelector(".page-shell") || document.scrollingElement || document.documentElement;
+  const topbar = document.querySelector(".page-topbar, .right-topbar");
+  const topbarHeight = topbar ? topbar.offsetHeight : 0;
+  
+  const containerRect = scrollContainer.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const targetTop = targetRect.top - containerRect.top + (scrollContainer.scrollTop || 0) - topbarHeight - 16;
+
+  if (typeof scrollContainer.scrollTo === "function") {
+    scrollContainer.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+  } else {
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   if (!target.matches("button, a, input, select, textarea")) target.setAttribute("tabindex", "-1");
   target.focus({ preventScroll: true });
 

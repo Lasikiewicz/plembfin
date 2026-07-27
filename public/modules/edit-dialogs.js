@@ -1000,17 +1000,23 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
 
 // ── Fix match dialog ───────────────────────────────────────────────────────
 
-export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSaved) {
+export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSaved, options = {}) {
   document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
   const isTv = mediaType !== "movie";
   const sourceLabel = isTv ? "TheTVDB" : "TMDB";
+  const headerTitle = options.headerTitle || "Fix Match";
 
   const overlay = document.createElement("div");
   overlay.className = "edit-dialog-overlay";
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) {
+      overlay.remove();
+      if (typeof options.onCancel === "function") options.onCancel();
+    }
+  });
   overlay.innerHTML = `
     <div class="edit-dialog edit-dialog--wide fix-match-dialog glass-panel">
-      <h3>Fix Match</h3>
+      <h3>${escapeHtml(headerTitle)}</h3>
       <p class="muted-copy" style="margin-bottom: 0.75rem;">Search ${sourceLabel} to link the correct ${isTv ? "TV show" : "movie"}${isTv ? " — this rematches every episode of the show" : ""}, or match to a YouTube video.</p>
       <div style="display: flex; gap: 0.5rem;">
         <input type="search" class="field fix-match-input" placeholder="${escapeAttribute(currentTitle || "Search title…")}" value="${escapeAttribute(currentTitle || "")}" style="flex: 1;" />
@@ -1026,6 +1032,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
       <div class="fix-match-yt-preview" style="display:none;margin-top:0.75rem;"></div>
       <p class="edit-dialog-status"></p>
       <div class="edit-dialog-actions" style="margin-top: 0.5rem;">
+        ${options.onSkip ? `<button class="button-ghost edit-dialog-skip" type="button">Skip / Next</button>` : ""}
         <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
       </div>
     </div>
@@ -1234,7 +1241,18 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
   ytFetchBtn.addEventListener("click", doYtFetch);
   ytInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doYtFetch(); } });
-  overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
+  const skipBtn = overlay.querySelector(".edit-dialog-skip");
+  if (skipBtn && typeof options.onSkip === "function") {
+    skipBtn.addEventListener("click", () => {
+      overlay.remove();
+      options.onSkip();
+    });
+  }
+
+  overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => {
+    overlay.remove();
+    if (typeof options.onCancel === "function") options.onCancel();
+  });
 
   document.body.appendChild(overlay);
   doSearch();

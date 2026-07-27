@@ -64,16 +64,10 @@
 .settings-card,
 .tool-section-card,
 [data-sub-panel],
-#refresh-metadata,
-#refresh-tmdb-metadata,
-#refresh-tvdb-metadata,
-#metadata-providers,
-#database-repairs,
-#repair-history-rows,
-#clean-duplicate-history,
-#library-rebuilds,
-#rematch-tv-shows,
-#backfill-trakt-imports {
+details.sync-tool-details,
+details.sync-match-report,
+details.issue-category,
+.settings-pane [id] {
   scroll-margin-top: calc(var(--right-topbar-height) + var(--space-4));
 }
 

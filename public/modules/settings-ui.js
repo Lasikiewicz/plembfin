@@ -29,7 +29,7 @@ export function renderFieldRow(field, options = {}) {
 
   if (useAccordion) {
     return `
-      <details class="sync-tool-details" data-field-key="${escapeAttribute(field.key)}">
+      <details class="sync-tool-details" id="${field.id || `sync-field-${field.key}`}" data-field-key="${escapeAttribute(field.key)}">
         <summary class="accordion-header">
           <div class="sync-tool-summary-title">
             <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>

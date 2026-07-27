@@ -2,6 +2,7 @@ import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, platformName, formatDate } from "./utils.js";
 import { categorizeIssues } from "./sync.js";
+import { openFixMatchDialog } from "./edit-dialogs.js";
 
 let _setMessage = () => {};
 let _showConfirmModal = () => {};
@@ -256,6 +257,138 @@ function matchReportSampleLabel(sample = {}) {
   return sample.title || "Unknown title";
 }
 
+export async function triggerFixAllMatches(platformTarget = "all", button) {
+  let report;
+  try {
+    report = await fetchSyncMatchReport();
+  } catch (error) {
+    _setMessage(`Could not fetch match report: ${error.message}`, "error");
+    return;
+  }
+
+  const platforms = Object.entries(report.platforms || {}).filter(([name, stats]) => {
+    if (platformTarget !== "all" && name !== platformTarget) return false;
+    return stats && Array.isArray(stats.samples) && stats.samples.length > 0;
+  });
+
+  const allSamples = platforms.flatMap(([, stats]) => stats.samples).filter((s) => s && s.id);
+
+  if (!allSamples.length) {
+    _setMessage("No unmatched items found to fix.", "info");
+    return;
+  }
+
+  const uniqueSamples = Array.from(new Map(allSamples.map((item) => [item.id, item])).values());
+  const targetLabel = platformTarget === "all" ? "all media servers" : platformName(platformTarget);
+
+  _showConfirmModal(
+    `Fix all ${uniqueSamples.length} unmatched item(s) on ${targetLabel}?\n\nThis will attempt automatic rematching first. Any items that cannot be matched automatically will be presented 1-by-1 for manual matching.`,
+    async () => {
+      const originalText = button ? button.textContent : "";
+      if (button) {
+        button.disabled = true;
+        button.textContent = `Fixing ${uniqueSamples.length}...`;
+      }
+
+      _setMessage(`Fixing matches automatically... 0/${uniqueSamples.length}`, "info");
+
+      let autoSuccessCount = 0;
+      const manualQueue = [];
+
+      for (let i = 0; i < uniqueSamples.length; i++) {
+        const sample = uniqueSamples[i];
+        try {
+          const res = await fetch("/api/retry-sync", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ id: sample.id }),
+          });
+          if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            if (data.status === "success" || String(data.status || "").includes("success")) {
+              autoSuccessCount++;
+            } else {
+              manualQueue.push(sample);
+            }
+          } else {
+            manualQueue.push(sample);
+          }
+        } catch {
+          manualQueue.push(sample);
+        }
+
+        if (i % 3 === 0 || i === uniqueSamples.length - 1) {
+          _setMessage(`Fixing matches... ${i + 1}/${uniqueSamples.length} (${autoSuccessCount} auto-fixed, ${manualQueue.length} require manual match)`, "info");
+        }
+        await new Promise((r) => setTimeout(r, 150));
+      }
+
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+
+      await _loadSyncJobs({ force: true });
+      await _loadSyncHistory({ force: true });
+      window.dispatchEvent(new Event("sync-match-report-refresh"));
+
+      if (!manualQueue.length) {
+        _setMessage(`Successfully fixed all ${autoSuccessCount} unmatched items automatically!`, "success");
+        return;
+      }
+
+      _setMessage(`Auto-fix complete: ${autoSuccessCount} resolved, ${manualQueue.length} require manual matching. Opening 1-by-1 manual matching...`, "warning");
+
+      presentManualMatchQueue(manualQueue, 0, autoSuccessCount);
+    }
+  );
+}
+
+function presentManualMatchQueue(queue, index, autoSuccessCount) {
+  if (index >= queue.length) {
+    _setMessage(`Completed manual matching queue (${queue.length} item${queue.length !== 1 ? "s" : ""} processed). Re-scanning match report...`, "success");
+    window.dispatchEvent(new Event("sync-match-report-refresh"));
+    return;
+  }
+
+  const sample = queue[index];
+  const title = sample.media_type === "episode" ? (sample.show_title || sample.title || "") : (sample.title || "");
+  const mediaType = sample.media_type || "movie";
+  const countHeader = `Fix Match (${index + 1} of ${queue.length} requiring manual match)`;
+
+  openFixMatchDialog(
+    document.body,
+    sample.id,
+    title,
+    mediaType,
+    async () => {
+      _setMessage(`Updated match for "${title}". Retrying sync... (${index + 1}/${queue.length})`, "info");
+      try {
+        await fetch("/api/retry-sync", {
+          method: "POST",
+          headers: { ...authHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ id: sample.id }),
+        });
+      } catch { /* ignore */ }
+      await _loadSyncJobs({ force: true });
+      await _loadSyncHistory({ force: true });
+      window.dispatchEvent(new Event("sync-match-report-refresh"));
+      setTimeout(() => presentManualMatchQueue(queue, index + 1, autoSuccessCount), 250);
+    },
+    {
+      headerTitle: countHeader,
+      onSkip: () => {
+        _setMessage(`Skipped manual match for "${title}". Loading next item (${index + 2}/${queue.length})...`, "info");
+        setTimeout(() => presentManualMatchQueue(queue, index + 1, autoSuccessCount), 150);
+      },
+      onCancel: () => {
+        _setMessage(`Manual match queue stopped (${index} of ${queue.length} completed).`, "info");
+        window.dispatchEvent(new Event("sync-match-report-refresh"));
+      },
+    }
+  );
+}
+
 export function renderSyncMatchReport(report = {}) {
   const platforms = ["plex", "emby", "jellyfin"]
     .map((platform) => ({ platform, stats: report.platforms?.[platform] }))
@@ -265,15 +398,25 @@ export function renderSyncMatchReport(report = {}) {
     return `<div class="empty-log"><b>No match failures</b><span>No platform reported "no matching item found" for any synced media (${report.scannedRows || 0} records with telemetry scanned).</span></div>`;
   }
 
-  return platforms.map(({ platform, stats }) => {
+  const globalHeader = `
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line);">
+      <span style="font-size: 0.85rem; color: var(--muted);">Cross-platform library matching found unmatched items across connected media servers.</span>
+      <button type="button" class="button-primary fix-all-matches-btn" data-platform="all" style="font-size: 0.8rem; padding: 0.35rem 0.85rem; white-space: nowrap;">Fix All Matches</button>
+    </div>
+  `;
+
+  const blocks = platforms.map(({ platform, stats }) => {
     const truncated = stats.uniqueMediaCount > stats.samples.length
       ? `<div style="font-size: 0.8rem; color: var(--muted); margin-top: var(--space-1);">Showing the first ${stats.samples.length} of ${stats.uniqueMediaCount} unmatched items.</div>`
       : "";
     return `
-      <div>
-        <div style="font-weight: 700; margin-bottom: var(--space-1);">
-          ${escapeHtml(platformName(platform))}
-          <span style="font-weight: 400; color: var(--muted); margin-left: var(--space-1);">${stats.uniqueMediaCount} item${stats.uniqueMediaCount !== 1 ? "s" : ""} not found (${stats.movies} movie${stats.movies !== 1 ? "s" : ""}, ${stats.episodes} episode${stats.episodes !== 1 ? "s" : ""}) across ${stats.rowCount} record${stats.rowCount !== 1 ? "s" : ""}</span>
+      <div style="margin-bottom: var(--space-3);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-1);">
+          <div style="font-weight: 700;">
+            ${escapeHtml(platformName(platform))}
+            <span style="font-weight: 400; color: var(--muted); margin-left: var(--space-1);">${stats.uniqueMediaCount} item${stats.uniqueMediaCount !== 1 ? "s" : ""} not found (${stats.movies} movie${stats.movies !== 1 ? "s" : ""}, ${stats.episodes} episode${stats.episodes !== 1 ? "s" : ""}) across ${stats.rowCount} record${stats.rowCount !== 1 ? "s" : ""}</span>
+          </div>
+          <button type="button" class="button-ghost fix-all-matches-btn" data-platform="${escapeAttribute(platform)}" style="font-size: 0.78rem; padding: 0.3rem 0.65rem; white-space: nowrap;">Fix ${escapeHtml(platformName(platform))} Matches</button>
         </div>
         <div style="overflow-x: auto;">
           <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
@@ -305,6 +448,8 @@ export function renderSyncMatchReport(report = {}) {
       </div>
     `;
   }).join("");
+
+  return globalHeader + blocks;
 }
 
 function initSyncMatchReport() {
@@ -322,6 +467,13 @@ function initSyncMatchReport() {
       });
   };
   details.addEventListener("toggle", loadReport);
+  container.addEventListener("click", (event) => {
+    const fixAllBtn = event.target.closest(".fix-all-matches-btn");
+    if (fixAllBtn) {
+      const platform = fixAllBtn.dataset.platform || "all";
+      triggerFixAllMatches(platform, fixAllBtn);
+    }
+  });
   window.addEventListener("sync-match-report-refresh", loadReport);
 }
 
