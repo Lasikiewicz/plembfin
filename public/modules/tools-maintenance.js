@@ -330,16 +330,28 @@ export async function triggerFixAllMatches(platformTarget = "all", button) {
 
       await _loadSyncJobs({ force: true });
       await _loadSyncHistory({ force: true });
-      window.dispatchEvent(new Event("sync-match-report-refresh"));
 
-      if (!manualQueue.length) {
+      // Group TV show episodes so matching 1 episode fixes the entire show at once
+      const groupedManualQueue = [];
+      const seenShows = new Set();
+      for (const sample of manualQueue) {
+        if (sample.media_type === "episode") {
+          const showKey = (sample.show_title || sample.title || "").toLowerCase().trim();
+          if (showKey && seenShows.has(showKey)) continue;
+          if (showKey) seenShows.add(showKey);
+        }
+        groupedManualQueue.push(sample);
+      }
+
+      if (!groupedManualQueue.length) {
         _setMessage(`Successfully fixed all ${autoSuccessCount} unmatched items automatically!`, "success");
+        window.dispatchEvent(new Event("sync-match-report-refresh"));
         return;
       }
 
-      _setMessage(`Auto-fix complete: ${autoSuccessCount} resolved, ${manualQueue.length} require manual matching. Opening 1-by-1 manual matching...`, "warning");
+      _setMessage(`Auto-fix complete: ${autoSuccessCount} resolved, ${groupedManualQueue.length} show(s)/item(s) require manual matching. Opening 1-by-1 manual matching...`, "warning");
 
-      presentManualMatchQueue(manualQueue, 0, autoSuccessCount);
+      presentManualMatchQueue(groupedManualQueue, 0, autoSuccessCount);
     }
   );
 }
@@ -363,6 +375,16 @@ function presentManualMatchQueue(queue, index, autoSuccessCount) {
     mediaType,
     async () => {
       _setMessage(`Updated match for "${title}". Retrying sync... (${index + 1}/${queue.length})`, "info");
+
+      // Filter out any other episodes of the same show from the remainder of the queue
+      if (sample.media_type === "episode") {
+        const showKey = (sample.show_title || sample.title || "").toLowerCase().trim();
+        for (let k = queue.length - 1; k > index; k--) {
+          const checkKey = (queue[k].show_title || queue[k].title || "").toLowerCase().trim();
+          if (checkKey === showKey) queue.splice(k, 1);
+        }
+      }
+
       try {
         await fetch("/api/retry-sync", {
           method: "POST",
@@ -370,6 +392,7 @@ function presentManualMatchQueue(queue, index, autoSuccessCount) {
           body: JSON.stringify({ id: sample.id }),
         });
       } catch { /* ignore */ }
+
       await _loadSyncJobs({ force: true });
       await _loadSyncHistory({ force: true });
       window.dispatchEvent(new Event("sync-match-report-refresh"));

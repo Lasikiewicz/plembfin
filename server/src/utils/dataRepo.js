@@ -1,4 +1,4 @@
-﻿import crypto from "node:crypto";
+import crypto from "node:crypto";
 import { db, getDataVersion, bumpDataVersion, parseJson, toJson, transaction } from "../db.js";
 import { loadMediaConfig } from "./configStore.js";
 import { fetchPosterFromTmdb } from "./tmdbClient.js";
@@ -70,7 +70,8 @@ const selectUnknownShowRowsStmt = db.prepare("SELECT id, title, tmdb_id, tvdb_id
 const rematchShowEpisodeStmt = db.prepare(`
   UPDATE watch_history
   SET tvdb_id = ?, tmdb_id = '', imdb_id = '', poster_url = NULL, logo_url = NULL,
-      backdrop_url = NULL, updated_at = ?
+      backdrop_url = NULL, sync_dispatch_telemetry = 'Identity updated via Fix Match. Pending outbound sync.',
+      sync_retry_count = 0, sync_next_retry_at = 0, updated_at = ?
   WHERE id = ?
 `);
 const updateWatchMediaKeyStmt = db.prepare("UPDATE watch_history SET media_key = ?, updated_at = ? WHERE id = ?");
@@ -2061,6 +2062,10 @@ export async function updateWatchRecord(id, fields = {}) {
   if (fields.backdrop_url != null) { sets.push("backdrop_url = ?"); params.push(String(fields.backdrop_url).trim()); }
   if (fields.tmdb_id != null) { sets.push("tmdb_id = ?"); params.push(String(fields.tmdb_id).trim()); }
   if (fields.tvdb_id != null) { sets.push("tvdb_id = ?"); params.push(String(fields.tvdb_id).trim()); }
+  if (fields.tmdb_id != null || fields.tvdb_id != null) {
+    sets.push("sync_dispatch_telemetry = ?", "sync_retry_count = ?", "sync_next_retry_at = ?");
+    params.push("Identity updated via Fix Match. Pending outbound sync.", 0, 0);
+  }
   if (fields.title != null) {
     const title = String(fields.title).trim();
     if (title) { sets.push("title = ?", "title_lower = ?"); params.push(title, title.toLowerCase()); }
@@ -2211,6 +2216,7 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
 
   queueShowProgressUpdate(renameTo || resolvedTitle);
   bumpDataVersion();
+  await invalidateHistoryDerivedCaches();
   setImmediate(() => {
     flushShowProgressUpdates().catch((error) => {
       console.error("[dataRepo] Background show progress refresh failed after Fix Match", error);
