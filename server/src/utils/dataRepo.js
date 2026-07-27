@@ -952,7 +952,10 @@ async function invalidateAfterRowMetaWrite(id, oldRow, changed) {
 }
 
 // --- Watch history writes --------------------------------------------------
-export async function insertWatchRecord(record, { skipInvalidate = false } = {}) {
+// `id` lets a caller that is replacing a row keep that row's identity — see
+// applyManualUnwatch, where a superseding unwatched record stands in for the
+// watched one it replaced. It must name a row that no longer exists.
+export async function insertWatchRecord(record, { skipInvalidate = false, id: presetId = "" } = {}) {
   const normalized = normalizeWatchRecord(record, record.source);
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));
@@ -960,7 +963,7 @@ export async function insertWatchRecord(record, { skipInvalidate = false } = {})
   // Queue show progress update
   queueProgressUpdateForRecord(normalized);
 
-  const id = crypto.randomUUID();
+  const id = String(presetId || "").trim() || crypto.randomUUID();
   const params = watchRowParams(normalized);
   insertWatchStmt.run({ id, ...params, created_at: Date.now(), updated_at: Date.now() });
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();

@@ -29,11 +29,15 @@ function authHeaders() {
 
 // ── Core API helper ────────────────────────────────────────────────────────
 
-export async function apiUpdateWatch(id, fields) {
+// `media_key` is optional and identifies the same media across a row being
+// replaced. A record can be superseded between the moment a caller reads an id
+// and the moment it saves (an unwatch event rewrites the row), and the key
+// outlives the id, so the server can still find what the caller meant.
+export async function apiUpdateWatch(id, fields, mediaKey = "") {
   const res = await fetch("/api/update-watch", {
     method: "PATCH",
     headers: authHeaders(),
-    body: JSON.stringify({ id, ...fields }),
+    body: JSON.stringify({ id, ...(mediaKey ? { media_key: mediaKey } : {}), ...fields }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
@@ -1167,7 +1171,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
           status.textContent = "";
           setResultBusy(btn, "Saving match...");
           try {
-            await apiUpdateWatch(id, { tmdb_id: btn.dataset.tmdbId });
+            await apiUpdateWatch(id, { tmdb_id: btn.dataset.tmdbId }, options.mediaKey);
             state.tmdbDetailsCache.clear();
             state.tmdbSeasonCache.clear();
             _clearDerivedUiCaches({ resetExplorer: true });
@@ -1224,7 +1228,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
         try {
           const updates = { youtube_url: url, poster_url: meta.thumbnails?.[0] || "" };
           if (meta.title && meta.title !== currentTitle) updates.title = meta.title;
-          await apiUpdateWatch(id, updates);
+          await apiUpdateWatch(id, updates, options.mediaKey);
           state.tmdbDetailsCache.clear();
           overlay.remove();
           onSaved?.({ youtube_url: url, poster_url: updates.poster_url, title: updates.title || currentTitle });

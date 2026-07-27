@@ -368,6 +368,36 @@ function mediaFromWatchRecord(record) {
 // unwatched record, flip the playstate cache, and propagate unplayed to the other
 // platforms. Shared by the webhook `unplayed` phase and the manual-unwatch handler.
 export async function applyManualUnwatch(media, config, loopStore, recordId = "", { includeSourcePlatform = false } = {}) {
+  // An `unplayed` webhook caused by Plembfin's own unwatch propagation arrives
+  // when the record is already unwatched. Replaying the delete/insert below
+  // would swap the row for an identical one under a new id and dispatch again,
+  // which is what turns two connected servers into an indefinite unwatch
+  // ping-pong. There is no state change here, so there is nothing to do.
+  const existingWatched = await findWatchedByAnyMediaKey(media).catch(() => null);
+  const existingRecord = recordId
+    ? await getWatchRecordByIdLight(recordId).catch(() => null)
+    : await getWatchRecordByMediaKey(mediaKeyFor(media)).catch(() => null);
+  if (!existingWatched && existingRecord && existingRecord.sync_action === "unwatched") {
+    console.log("Unwatch skipped: record is already unwatched", { title: media.title, source: media.source });
+    return {
+      wasDeleted: false,
+      id: existingRecord.id,
+      alreadyUnwatched: true,
+      summary: {
+        skipped: true,
+        status: "skipped",
+        details: "Already unwatched; no change to propagate",
+        targetStates: [],
+      },
+    };
+  }
+
+  // Reuse the identity of the row being superseded. The replacement describes
+  // the same media, and anything holding a reference to it — an open Fix Match
+  // dialog, a queued manual match, a match report row — resolves to a record
+  // that still exists instead of a deleted id.
+  const supersededId = existingWatched?.id || existingRecord?.id || "";
+
   let wasDeleted = false;
   if (recordId) {
     wasDeleted = await deleteWatchRecordById(recordId, { skipInvalidate: true }).catch((error) => {
@@ -386,7 +416,12 @@ export async function applyManualUnwatch(media, config, loopStore, recordId = ""
   const unplayedRecord = mediaToWatchRecord({ ...media, syncAction: "unwatched" }, media.source);
   unplayedRecord.sync_action = "unwatched";
   unplayedRecord.sync_dispatch_telemetry = formatDispatchTelemetry(pendingSummary, media, "unwatched");
-  const result = await insertWatchRecord(unplayedRecord, { skipInvalidate: true });
+  // Only claim the old id once the row holding it is actually gone, so a
+  // partial delete can never collide with the primary key.
+  const reusableId = supersededId && !(await getWatchRecordByIdLight(supersededId).catch(() => null))
+    ? supersededId
+    : "";
+  const result = await insertWatchRecord(unplayedRecord, { skipInvalidate: true, id: reusableId });
   await upsertPlaystateForMedia(media, "unwatched", result.record.watched_at, { skipInvalidate: true });
 
   // Clear resume progress on all target platforms to prevent re-import on next sync
@@ -710,7 +745,13 @@ export async function handleRetrySync(req, res) {
   const id = body.id;
   if (!id) return sendJson(res, { error: "Missing required field: id" }, 400);
 
+  // An id can name a row that was superseded since the caller read it, so fall
+  // back to the media key: either one supplied alongside the id, or the id
+  // itself for callers that only hold a key.
   let record = await getWatchRecordById(id);
+  if (!record && body.media_key) {
+    record = await getWatchRecordByMediaKey(String(body.media_key));
+  }
   if (!record) {
     record = await getWatchRecordByMediaKey(id);
   }
@@ -1295,13 +1336,17 @@ export async function handleWebhook(req, res) {
       });
       await deleteActiveSession(media);
       await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
-      const { wasDeleted, id } = await applyManualUnwatch(media, config, loopStore);
+      const { wasDeleted, id, alreadyUnwatched } = await applyManualUnwatch(media, config, loopStore);
       console.log("Webhook: unwatched sync completed", {
         source: media.source,
         title: media.title,
         wasDeleted,
+        alreadyUnwatched: Boolean(alreadyUnwatched),
         id,
       });
+      if (alreadyUnwatched) {
+        return sendJson(res, { ok: true, deleted: false, unplayed: true, inserted: false, id, reason: "Already unwatched; no change to propagate" });
+      }
       return sendJson(res, { ok: true, deleted: wasDeleted, unplayed: true, inserted: true, id, ...(wasDeleted ? {} : { reason: "No previous watched record found to delete" }) });
     } finally {
       await invalidateHistoryDerivedCaches().catch(() => null);

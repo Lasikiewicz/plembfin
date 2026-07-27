@@ -40,7 +40,7 @@ object. The crucial output is `media.phase`, derived per platform by
 | `active` | Currently playing (play/resume/progress) | `upsertActiveSession()` → writes `active_sessions` row (5-minute TTL by default), bumps `runtimeState.nowPlayingRefresh`. **No history insert.** |
 | `completed` | Watched (scrobble, mark-played, or stop at the watched threshold, 90% by default) | Inserts/updates a `watch_history` record + propagates *watched* to the other platforms. |
 | `ended` | Stopped below the watched threshold | Deletes active session; if resume is actionable, stores/propagates resume progress to `playback_progress`. |
-| `unplayed` | Marked unwatched/unplayed | Deletes active session, deletes the watch record, inserts an `unwatched` row, and propagates *unwatched* to the other platforms. |
+| `unplayed` | Marked unwatched/unplayed | Deletes active session, deletes the watch record, inserts an `unwatched` row, and propagates *unwatched* to the other platforms. An item already recorded as unwatched is left alone and nothing is propagated. |
 | `ignored` | Not actionable | Dropped early. |
 
 Phase determination highlights:
@@ -72,6 +72,24 @@ before it can trigger another round.
 > process restart. The check-then-claim step (`checkAndClaim`) runs the read and
 > the write inside a single SQLite transaction, so a concurrent claim for the
 > same key cannot slip in between the check and the write.
+
+Each media item claims a key per provider id it carries **and** a key derived
+from its title and episode coordinates. Both forms are needed because the two
+directions of a round trip identify the same item differently: a record Plembfin
+holds no provider ids for dispatches under its title key, while the echo the
+target server sends back carries that server's own imdb/tmdb/tvdb ids. Sharing
+the title key is what lets the second half of that trip recognise the first.
+
+Unwatch handling is also idempotent as a second line of defence. Marking an item
+unwatched when it is already recorded that way changes nothing, so the record is
+left as it stands and no propagation is dispatched — an echo that outlives the
+loop window cannot restart the cycle.
+
+**Record identity across an unwatch:** the `unwatched` row that supersedes a
+watched one inherits the replaced row's id rather than being created under a new
+one. Watch records are addressed by id throughout the app, so a queued manual
+match or an open edit dialog still resolves to the record after an unwatch event
+rewrites it.
 
 Results are written back as `sync_dispatch_telemetry` on the watch record and into
 the `sync_history` SQLite table.

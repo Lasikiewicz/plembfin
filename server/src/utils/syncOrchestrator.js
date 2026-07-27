@@ -79,9 +79,15 @@ function mediaCacheParts(media) {
     .filter(([, value]) => Boolean(value))
     .map(([provider, value]) => `${coordinates}:${normalizeCachePart(provider)}:${normalizeCachePart(value)}`);
 
-  if (providerKeys.length) return providerKeys;
-
-  return [`${coordinates}:title:${normalizeCachePart(media.title)}`];
+  // The title key is always included, never only as a fallback. An outbound
+  // sync for a record Plembfin holds no provider ids for claims title keys,
+  // while the echo the target server sends back carries that server's own
+  // imdb/tmdb/tvdb ids and so checks provider keys. With no key the two forms
+  // share, the echo reads as a fresh event and the state bounces between
+  // platforms until something else stops it.
+  const titleKey = media.title ? `${coordinates}:title:${normalizeCachePart(media.title)}` : "";
+  if (!providerKeys.length) return titleKey ? [titleKey] : [];
+  return titleKey ? [...providerKeys, titleKey] : providerKeys;
 }
 
 function targetCacheKeys(media, target, prefix = "loop") {

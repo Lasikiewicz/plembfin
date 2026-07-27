@@ -106,6 +106,10 @@ Three mechanisms keep inbound state honest:
   watch for the same play.
 - **Played-flag rule** — a bare "marked played" webhook never opens a rewatch for an
   item already watched; see [webhooks.md](webhooks.md#rewatch-detection).
+- **Idempotent unwatch** — marking an item unwatched when it is already recorded that
+  way is a no-op: the record stands and nothing is propagated. An echo that arrives
+  after the 15-second loop window closes therefore ends there instead of starting
+  another round trip.
 
 Completed sessions flushed from `live_tracking_cache` are dated from when the session
 was last seen playing, not from the tick that noticed it had gone, so a session that

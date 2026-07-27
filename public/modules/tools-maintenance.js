@@ -301,7 +301,7 @@ export async function triggerFixAllMatches(platformTarget = "all", button) {
           const res = await fetch("/api/retry-sync", {
             method: "POST",
             headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ id: sample.id }),
+            body: JSON.stringify({ id: sample.id, media_key: sample.media_key || "" }),
           });
           if (res.ok) {
             const data = await res.json().catch(() => ({}));
@@ -389,7 +389,7 @@ function presentManualMatchQueue(queue, index, autoSuccessCount) {
         await fetch("/api/retry-sync", {
           method: "POST",
           headers: { ...authHeaders(), "Content-Type": "application/json" },
-          body: JSON.stringify({ id: sample.id }),
+          body: JSON.stringify({ id: sample.id, media_key: sample.media_key || "" }),
         });
       } catch { /* ignore */ }
 
@@ -400,6 +400,7 @@ function presentManualMatchQueue(queue, index, autoSuccessCount) {
     },
     {
       headerTitle: countHeader,
+      mediaKey: sample.media_key || "",
       onSkip: () => {
         _setMessage(`Skipped manual match for "${title}". Loading next item (${index + 2}/${queue.length})...`, "info");
         setTimeout(() => presentManualMatchQueue(queue, index + 1, autoSuccessCount), 150);

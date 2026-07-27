@@ -482,8 +482,19 @@ export async function handleUpdateWatch(req, res) {
   if (!(await requireAdmin(req, res))) return;
 
   const body = await readJson(req);
-  const id = String(body.id || "").trim();
-  if (!id) return sendJson(res, { error: "id is required" }, 400);
+  const requestedId = String(body.id || "").trim();
+  const mediaKey = String(body.media_key || "").trim();
+  if (!requestedId && !mediaKey) return sendJson(res, { error: "id is required" }, 400);
+
+  // A row can be replaced between the moment a caller reads its id and the
+  // moment it saves — an unwatch event supersedes the record — so an optional
+  // media key identifies the same media when the id no longer resolves.
+  let id = requestedId;
+  if (mediaKey && (!id || !(await getWatchRecordByIdLight(id).catch(() => null)))) {
+    const byKey = await getWatchRecordByMediaKey(mediaKey).catch(() => null);
+    if (byKey?.id) id = byKey.id;
+  }
+  if (!id) return sendJson(res, { error: "Watch record not found" }, 400);
 
   const fields = {};
   if (body.watched_at !== undefined) fields.watched_at = body.watched_at;
