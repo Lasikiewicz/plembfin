@@ -1,7 +1,21 @@
 {
-  "version": "0.6.36",
-  "updatedAt": "2026-07-27T14:47:38+01:00",
+  "version": "0.6.37",
+  "updatedAt": "2026-07-27T15:05:22+01:00",
   "entries": [
+    {
+      "version": "0.6.37",
+      "date": "2026-07-27T15:05:22+01:00",
+      "commit": "84df184581623671c53e96730552141ba26c9cc8",
+      "message": "Fix - Make newly added media actually get marked watched",
+      "author": "Lasikiewicz",
+      "details": [
+        "Library-add events from Plex, Emby, and Jellyfin were being discarded as invalid, so newly added media was never marked watched; they are now accepted and acted on",
+        "Adding a show or a season now catches up its episodes, marking the ones you have already watched instead of only handling single items",
+        "A newly added show can no longer be mistaken for the whole series being watched, which would have filed a watch for every episode",
+        "Episodes a server already reports as played are left alone, and an episode with no watch record in Plembfin is never touched",
+        "Webhook parsing tests now check that add events are treated as actionable, which is the gap that let this ship broken"
+      ]
+    },
     {
       "version": "0.6.36",
       "date": "2026-07-27T14:47:38+01:00",
