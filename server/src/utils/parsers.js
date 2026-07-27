@@ -345,7 +345,7 @@ function buildPayload({
   playedFlagOnly = false,
   rawPayloadDebug = {},
 }) {
-  const isActionable = ["active", "completed", "ended", "unplayed"].includes(phase);
+  const isActionable = ["active", "completed", "ended", "unplayed", "added"].includes(phase);
   return {
     playedAt,
     playedFlagOnly: Boolean(playedFlagOnly),

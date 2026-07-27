@@ -450,20 +450,75 @@ export async function applyManualUnwatch(media, config, loopStore, recordId = ""
   return { wasDeleted, id: result.id, summary };
 }
 
+// Fans a newly added show or season out to its episodes on the server that
+// announced it. Only episodes that server currently reports as unplayed are
+// considered, so nothing is re-marked, and each one still has to have a watched
+// record in Plembfin before anything is written.
+async function applyWatchedStateToNewContainer(media, config, target) {
+  let episodes = [];
+  try {
+    if (target === "jellyfin") {
+      const { fetchJellyfinEpisodes } = await import("../utils/jellyfinClient.js");
+      episodes = await fetchJellyfinEpisodes(config.jellyfin, media.itemId);
+    } else if (target === "emby") {
+      const { fetchEmbyEpisodes } = await import("../utils/embyClient.js");
+      episodes = await fetchEmbyEpisodes(config.emby, media.itemId);
+    } else if (target === "plex") {
+      episodes = await fetchPlexSeriesEpisodes(config.plex, media);
+    }
+  } catch (error) {
+    return { applied: false, reason: `Could not read episodes of the new ${media.type}: ${error.message || String(error)}` };
+  }
+
+  const pending = episodes.filter((ep) => ep?.UserData?.Played !== true && ep?.viewCount == null);
+  let applied = 0;
+  for (const ep of pending) {
+    const season = ep.ParentIndexNumber ?? ep.parentIndex;
+    const episodeNumber = ep.IndexNumber ?? ep.index;
+    const showTitle = ep.SeriesName || ep.grandparentTitle || media.title || "Unknown Show";
+    const episodeMedia = {
+      title: `${showTitle} - S${String(season ?? "?").padStart(2, "0")}E${String(episodeNumber ?? "?").padStart(2, "0")}`,
+      show_title: showTitle,
+      type: "episode",
+      source: target,
+      ids: normalizeProviderIds(ep.ProviderIds || {}),
+      season,
+      episode: episodeNumber,
+      itemId: ep.Id || ep.ratingKey,
+      isValid: true,
+    };
+    const result = await applyWatchedStateToNewItem(episodeMedia, config).catch(() => ({ applied: false }));
+    if (result.applied) applied += 1;
+  }
+
+  return {
+    applied: applied > 0,
+    status: applied > 0 ? "success" : "skipped",
+    reason: `Newly added ${media.type}: ${applied} of ${pending.length} unplayed episode(s) marked watched from existing history.`,
+  };
+}
+
 // Applies an existing watched record to the single server that just reported
 // the item as newly added. Deliberately narrow: it marks played on that one
 // server and writes no watch history, so a library scan can never manufacture a
 // play. The outbound mark is recorded in the loop ledger, which is what stops
 // the resulting played webhook from coming back as a fresh watch or a rewatch.
-export async function applyWatchedStateToNewItem(media) {
+export async function applyWatchedStateToNewItem(media, loadedConfig = null) {
   const target = String(media.source || "").toLowerCase();
   if (!["plex", "emby", "jellyfin"].includes(target)) {
     return { applied: false, reason: "Unknown source platform" };
   }
 
-  const config = await loadMediaConfig();
+  const config = loadedConfig || await loadMediaConfig();
   if (!canReceiveState(config, target, "watched")) {
     return { applied: false, reason: `${platformLabel(target)} is not configured to receive watched state` };
+  }
+
+  // Adding a show or a season announces the container, not the episodes. Walk
+  // its children so a series you have already watched arrives watched, and
+  // apply each one through this same function so every guard below still holds.
+  if (media.type === "series" || media.type === "season") {
+    return applyWatchedStateToNewContainer(media, config, target);
   }
 
   // findWatchedByAnyMediaKey only returns rows whose sync_action is `watched`,
@@ -1217,6 +1272,23 @@ export async function handleWebhook(req, res) {
     }
   }
 
+  // A server announcing new content is the moment a watch Plembfin already
+  // holds can finally be applied there. Until the file exists, an outbound sync
+  // has nothing to mark; this catches the item up without waiting for a manual
+  // Force Sync. It never creates history — only an existing watched record is
+  // ever applied, and only to the server that just added the item.
+  //
+  // This runs ahead of the season/series branch below on purpose. That branch
+  // reads any non-`unplayed` phase as a play event and would file watches for
+  // every episode of a newly added show.
+  if (media.phase === "added") {
+    const applied = await applyWatchedStateToNewItem(media, config).catch((error) => {
+      console.error("New-item watched-state apply failed", error);
+      return { applied: false, reason: error.message || "apply failed" };
+    });
+    return sendJson(res, { ok: true, added: true, inserted: false, ...applied });
+  }
+
   if (media.type === "season" || media.type === "series") {
     console.log(`Processing ${media.type} webhook sync from ${media.source}`, {
       title: media.title,
@@ -1346,19 +1418,6 @@ export async function handleWebhook(req, res) {
       total: filteredEpisodes.length,
       results,
     });
-  }
-
-  // A server announcing new content is the moment a watch Plembfin already
-  // holds can finally be applied there. Until the file exists, an outbound sync
-  // has nothing to mark; this catches the item up without waiting for a manual
-  // Force Sync. It never creates history — only an existing watched record is
-  // ever applied, and only to the server that just added the item.
-  if (media.phase === "added") {
-    const applied = await applyWatchedStateToNewItem(media).catch((error) => {
-      console.error("New-item watched-state apply failed", error);
-      return { applied: false, reason: error.message || "apply failed" };
-    });
-    return sendJson(res, { ok: true, added: true, inserted: false, ...applied });
   }
 
   if (media.phase === "active") {

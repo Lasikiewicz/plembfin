@@ -196,11 +196,26 @@ test("real playback events are not treated as bare played-flag events", async ()
 test("library-add events from every server resolve to the added phase", async () => {
   const plexAdded = await parsePlexWebhook(plexForm("library.new", { guid: "tmdb://329865" }));
   assert.equal(plexAdded.phase, "added");
+  // isValid gates every event before the handler sees it. An added event that
+  // parses correctly but is not marked valid is discarded silently, which is
+  // exactly how this shipped broken once.
+  assert.equal(plexAdded.isValid, true);
 
   const base = { Item: { Type: "Movie", Name: "Arrival", ProviderIds: { Tmdb: "329865" } } };
-  assert.equal(parseEmbyWebhook({ Event: "library.new", ...base }).phase, "added");
-  assert.equal(parseEmbyWebhook({ Event: "item.added", ...base }).phase, "added");
-  assert.equal(parseJellyfinWebhook({ NotificationType: "ItemAdded", ...base }).phase, "added");
+  for (const parsed of [
+    parseEmbyWebhook({ Event: "library.new", ...base }),
+    parseEmbyWebhook({ Event: "item.added", ...base }),
+    parseJellyfinWebhook({ NotificationType: "ItemAdded", ...base }),
+  ]) {
+    assert.equal(parsed.phase, "added");
+    assert.equal(parsed.isValid, true);
+  }
+
+  // Jellyfin sends ItemAdded without provider ids; it still has to be actionable
+  // so the title fallback can find the watch record.
+  const noIds = parseJellyfinWebhook({ NotificationType: "ItemAdded", Item: { Type: "Movie", Name: "Arrival" } });
+  assert.equal(noIds.phase, "added");
+  assert.equal(noIds.isValid, true);
 });
 
 test("an added event still carries the ids and title needed to find the watch record", async () => {

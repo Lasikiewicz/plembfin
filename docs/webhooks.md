@@ -99,6 +99,10 @@ deliberately tight:
 
 - Only the server that reported the addition is touched. Other platforms are not
   re-dispatched, because nothing about them changed.
+- Adding a show or a season walks that container's episodes on the announcing
+  server, considering only the ones it currently reports as unplayed. This runs
+  ahead of the season/series branch that handles play events, which would
+  otherwise read an addition as "the whole show was just watched".
 - No watch history is ever written. A library scan cannot manufacture a play —
   only an already-recorded watch is applied.
 - An item with no watched record, or one explicitly marked unwatched, is left
