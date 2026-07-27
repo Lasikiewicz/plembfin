@@ -1,7 +1,19 @@
 {
-  "version": "0.6.37",
-  "updatedAt": "2026-07-27T15:05:22+01:00",
+  "version": "0.6.38",
+  "updatedAt": "2026-07-27T15:20:05+01:00",
   "entries": [
+    {
+      "version": "0.6.38",
+      "date": "2026-07-27T15:20:05+01:00",
+      "commit": "98962a0c742e9a72077b44d5fa89e2837c0e3b5d",
+      "message": "Docs - List automatic catch-up of newly added media as a key feature",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added \"New media arrives watched\" to the README feature table, next to bi-directional sync",
+        "Noted that adding a whole show catches up its episodes and skips any the server already has as played",
+        "Spelled out the library-add notification each server needs for it to work, with a link to the webhook guide"
+      ]
+    },
     {
       "version": "0.6.37",
       "date": "2026-07-27T15:05:22+01:00",
