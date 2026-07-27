@@ -1,7 +1,18 @@
 {
-  "version": "0.6.26",
-  "updatedAt": "2026-07-27T09:57:36+01:00",
+  "version": "0.6.27",
+  "updatedAt": "2026-07-27T12:01:50+01:00",
   "entries": [
+    {
+      "version": "0.6.27",
+      "date": "2026-07-27T12:01:50+01:00",
+      "commit": "63d6359b55dcc9eb6e94026becc6f7cefb1db233",
+      "message": "style: standardize settings card layouts, section headers, and collapsible accordions",
+      "author": "Lasikiewicz",
+      "details": [
+        "Updated user and developer documentation.",
+        "Updated application behavior and the web interface."
+      ]
+    },
     {
       "version": "0.6.26",
       "date": "2026-07-27T09:57:36+01:00",
