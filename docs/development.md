@@ -87,7 +87,12 @@ on GitHub - see the changelog section of [architecture.md](architecture.md).
 - **`Dockerfile`** - `node:22-slim`, production deps only, non-root `plembfin` user
   (uid 1000), `VOLUME /data`, healthcheck against `/api/ping`, entrypoint
   (`scripts/docker-entrypoint.sh`) chowns `/data` and drops privileges via gosu when
-  started as root.
+  started as root. Dependencies install with `npm ci --omit=dev --ignore-scripts`:
+  better-sqlite3 ships a `binding.gyp`, and npm runs `node-gyp rebuild` for any package
+  that has one, which needs a Python and compiler toolchain the image does not carry.
+  Skipping install scripts leaves the prebuilt binary that already ships in the package
+  for this platform, which is the binary its loader prefers. better-sqlite3 is the only
+  production dependency with an install script.
 - **`docker-compose.yml`** - base setup: port 5055, `./data:/data`, admin env vars,
   `no-new-privileges`, cpu/memory limits.
 - **`docker-compose.split.yml`** - optional same-host overlay that runs one
