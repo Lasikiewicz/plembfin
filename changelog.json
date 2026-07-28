@@ -1,7 +1,18 @@
 {
-  "version": "0.6.46",
-  "updatedAt": "2026-07-28T10:22:58+01:00",
+  "version": "0.6.47",
+  "updatedAt": "2026-07-28T10:27:53+01:00",
   "entries": [
+    {
+      "version": "0.6.47",
+      "date": "2026-07-28T10:27:53+01:00",
+      "commit": "272af0df3a13f80ee1137ddc6125cb82697dde85",
+      "message": "Security - Reject unknown artwork variants instead of dispatching on them",
+      "author": "Lasikiewicz",
+      "details": [
+        "The artwork endpoint now resolves its handler from a fixed set of variants, so a request naming an unexpected variant is refused as a bad request rather than reaching an unintended function and failing as a server error",
+        "Clears the open high-severity code-scanning alert for an unvalidated dynamic method call"
+      ]
+    },
     {
       "version": "0.6.46",
       "date": "2026-07-28T10:22:58+01:00",
