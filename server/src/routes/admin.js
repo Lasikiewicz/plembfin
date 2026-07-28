@@ -154,6 +154,7 @@ function isCachedStorageUrl(value = "") {
 
 const APPEARANCE_SETTINGS_ID = "appearanceConfig";
 const APPEARANCE_DEFAULTS = {
+  bioMediaLayout: false,
   showLogoArt: true,
   showCast: true,
   showTrailers: true,

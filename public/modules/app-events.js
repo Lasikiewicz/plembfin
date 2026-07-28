@@ -295,7 +295,7 @@ function attachEvents() {
     elements.sidebarAppearanceButton.setAttribute("aria-expanded", String(!isOpen));
   });
 
-  for (const id of ["appearShowLogoArt", "appearShowCast", "appearShowTrailers", "appearShowReviews", "appearShowImages", "appearShowRelated"]) {
+  for (const id of ["appearBioMediaLayout", "appearShowLogoArt", "appearShowCast", "appearShowTrailers", "appearShowReviews", "appearShowImages", "appearShowRelated"]) {
     elements[id]?.addEventListener("change", () => saveAppearanceSettings().catch(() => null));
   }
 

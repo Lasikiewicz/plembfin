@@ -959,6 +959,7 @@ export async function restorePlembfinBackupFromServer(filename) {
 }
 // ── Appearance settings ────────────────────────────────────────────────────
 export const APPEARANCE_DEFAULTS = {
+  bioMediaLayout: false,
   showLogoArt: true,
   showCast: true,
   showTrailers: true,
@@ -967,6 +968,11 @@ export const APPEARANCE_DEFAULTS = {
   showRelated: true,
 };
 export function applyAppearanceToBody(prefs) {
+  const bioEnabled = Boolean(prefs.bioMediaLayout);
+  document.body.classList.toggle("bio-media-layout", bioEnabled);
+  try {
+    localStorage.setItem("plembfin_bio_media_layout", bioEnabled ? "1" : "0");
+  } catch {}
   document.body.classList.toggle("hide-logo-art", !prefs.showLogoArt);
   document.body.classList.toggle("hide-cast", !prefs.showCast);
   document.body.classList.toggle("hide-trailers", !prefs.showTrailers);
@@ -975,6 +981,7 @@ export function applyAppearanceToBody(prefs) {
   document.body.classList.toggle("hide-related", !prefs.showRelated);
 }
 function populateAppearanceForm(prefs) {
+  if (elements.appearBioMediaLayout) elements.appearBioMediaLayout.checked = Boolean(prefs.bioMediaLayout);
   if (elements.appearShowLogoArt) elements.appearShowLogoArt.checked = prefs.showLogoArt;
   if (elements.appearShowCast) elements.appearShowCast.checked = prefs.showCast;
   if (elements.appearShowTrailers) elements.appearShowTrailers.checked = prefs.showTrailers;
@@ -992,6 +999,7 @@ export async function loadAppearanceSettings() {
 }
 export async function saveAppearanceSettings() {
   const prefs = {
+    bioMediaLayout: elements.appearBioMediaLayout?.checked ?? false,
     showLogoArt: elements.appearShowLogoArt?.checked ?? true,
     showCast: elements.appearShowCast?.checked ?? true,
     showTrailers: elements.appearShowTrailers?.checked ?? true,
@@ -1000,6 +1008,23 @@ export async function saveAppearanceSettings() {
     showRelated: elements.appearShowRelated?.checked ?? true,
   };
   applyAppearanceToBody(prefs);
+
+  if (state.activeShowModalKey) {
+    const { openShowInlineDetail, renderImmersiveShowModal } = await import("./media-detail-show.js");
+    if (state.mediaDetailInline) {
+      openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason).catch(() => null);
+    } else {
+      renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason).catch(() => null);
+    }
+  } else if (state.activeMovieTmdbId || state.activeMovieModalId) {
+    const { openMovieImmersiveModalByTmdbId, openMovieImmersiveModal } = await import("./media-detail-movie.js");
+    if (state.activeMovieTmdbId) {
+      openMovieImmersiveModalByTmdbId(state.activeMovieTmdbId).catch(() => null);
+    } else if (state.activeMovieModalId) {
+      openMovieImmersiveModal(state.activeMovieModalId).catch(() => null);
+    }
+  }
+
   await fetch("/api/appearance", {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },

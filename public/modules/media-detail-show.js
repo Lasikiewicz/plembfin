@@ -945,52 +945,103 @@ export function renderShowModalContent(show, {
     ${expandAllSeasonsBtn}
   `);
 
-  root.innerHTML = `
-    <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || "")}');"></div>
-    <div class="immersive-container media-detail-page">
+  const isBioLayout = document.body.classList.contains("bio-media-layout") || localStorage.getItem("plembfin_bio_media_layout") === "1";
 
-      <header class="immersive-header">
-        <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" data-err="fav" loading="eager" fetchpriority="high" decoding="async" />
-        <div class="immersive-meta">
-          ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(showTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(showTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(showTitle)}</h2>`}
-          <div class="media-detail-bottom-stack">
-            <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-              ${ratingPillsHtml}
-              ${imdbPillHtml}
-              ${showModalStatus(loading, Boolean(tmdbData))}
-            </div>
-
-            ${renderSeerrRequestPill("tv", tvSeerrTmdbId, showIsNowPlaying)}
-
+  if (isBioLayout) {
+    root.innerHTML = `
+      <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || "")}');"></div>
+      <div class="immersive-container media-detail-page bio-layout">
+        <div class="media-detail-bio-left">
+          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" data-err="fav" loading="eager" fetchpriority="high" decoding="async" />
+          <div class="media-detail-meta-below-poster">
             <p class="immersive-overview">${escapeHtml(overview)}</p>
+          </div>
+        </div>
 
-            ${localEvidence}
-
-            <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
-              <div class="progress-label-row">
-                <span>${watchedCount} of ${totalCount} episodes watched</span>
-                <span>${progressPercent}% complete</span>
+        <div class="media-detail-bio-right">
+          <div class="media-detail-right-header">
+            <div class="media-detail-logo-wrap">
+              ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(showTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(showTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(showTitle)}</h2>`}
+              <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                ${ratingPillsHtml}
+                ${imdbPillHtml}
+                ${showModalStatus(loading, Boolean(tmdbData))}
               </div>
-              <div class="progress-bar-track">
-                <div class="progress-bar-fill" style="width: ${progressPercent}%;"></div>
-              </div>
-            </section>
+              ${renderSeerrRequestPill("tv", tvSeerrTmdbId, showIsNowPlaying)}
+              ${localEvidence}
+              <section class="progress-section" style="border: 0; padding: 0; margin-top: 0.5rem; width: 100%;">
+                <div class="progress-label-row">
+                  <span>${watchedCount} of ${totalCount} episodes watched</span>
+                  <span>${progressPercent}% complete</span>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill" style="width: ${progressPercent}%;"></div>
+                </div>
+              </section>
+            </div>
+            <div class="media-detail-facts-wrap">
+              ${renderMediaFacts(tmdbData, "tv", "sidebar")}
+            </div>
           </div>
 
-         </div>
-        ${renderMediaFacts(tmdbData, "tv", "sidebar")}
-      </header>
+          ${seasonsSectionHtml}
+          ${renderCastSection(tmdbData)}
+          ${renderMediaImagesSection(tmdbData)}
+          ${renderTrailersSection(tmdbData)}
+          ${renderReviewsSection(tmdbData)}
+          ${renderRelatedShowsSection(tmdbData)}
+        </div>
+      </div>
+      ${renderWatchDatePrompt(state.pendingWatchAction)}
+    `;
+  } else {
+    root.innerHTML = `
+      <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || "")}');"></div>
+      <div class="immersive-container media-detail-page">
 
-      ${seasonsSectionHtml}
+        <header class="immersive-header">
+          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" data-err="fav" loading="eager" fetchpriority="high" decoding="async" />
+          <div class="immersive-meta">
+            ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(showTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(showTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(showTitle)}</h2>`}
+            <div class="media-detail-bottom-stack">
+              <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                ${ratingPillsHtml}
+                ${imdbPillHtml}
+                ${showModalStatus(loading, Boolean(tmdbData))}
+              </div>
 
-      ${renderCastSection(tmdbData)}
-      ${renderMediaImagesSection(tmdbData)}
-      ${renderTrailersSection(tmdbData)}
-      ${renderReviewsSection(tmdbData)}
-      ${renderRelatedShowsSection(tmdbData)}
-    </div>
-    ${renderWatchDatePrompt(state.pendingWatchAction)}
-  `;
+              ${renderSeerrRequestPill("tv", tvSeerrTmdbId, showIsNowPlaying)}
+
+              <p class="immersive-overview">${escapeHtml(overview)}</p>
+
+              ${localEvidence}
+
+              <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
+                <div class="progress-label-row">
+                  <span>${watchedCount} of ${totalCount} episodes watched</span>
+                  <span>${progressPercent}% complete</span>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill" style="width: ${progressPercent}%;"></div>
+                </div>
+              </section>
+            </div>
+
+           </div>
+          ${renderMediaFacts(tmdbData, "tv", "sidebar")}
+        </header>
+
+        ${seasonsSectionHtml}
+
+        ${renderCastSection(tmdbData)}
+        ${renderMediaImagesSection(tmdbData)}
+        ${renderTrailersSection(tmdbData)}
+        ${renderReviewsSection(tmdbData)}
+        ${renderRelatedShowsSection(tmdbData)}
+      </div>
+      ${renderWatchDatePrompt(state.pendingWatchAction)}
+    `;
+  }
   // Refresh when there's no status yet, or when the rendered status came from
   // the persisted cache (`stale`) - the fetch resolves null if nothing
   // changed, so an up-to-date page never re-renders.

@@ -276,47 +276,101 @@ function _renderWatchedMovieContent(root, movie, {
     </details>
   `);
 
-  root.innerHTML = `
-    <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || localPoster)}');"></div>
-    <div class="immersive-container media-detail-page${loading ? " is-loading-metadata" : ""}">
-      <header class="immersive-header">
-        <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || localPoster)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
-        <div class="immersive-meta">
-          ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
-          <p class="immersive-subtitle">${escapeHtml(released)}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
-          <div class="media-detail-bottom-stack">
-            <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-              ${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}
-              ${imdbPillHtml}
-              ${syncStatusBlockHtml}
-            </div>
-            ${renderSeerrRequestPill("movie", tmdbData?.id || movie.tmdb_id, true)}
+  const isBioLayout = document.body.classList.contains("bio-media-layout") || localStorage.getItem("plembfin_bio_media_layout") === "1";
+
+  if (isBioLayout) {
+    root.innerHTML = `
+      <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || localPoster)}');"></div>
+      <div class="immersive-container media-detail-page bio-layout${loading ? " is-loading-metadata" : ""}">
+        <div class="media-detail-bio-left">
+          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || localPoster)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
+          <div class="media-detail-meta-below-poster">
             <p class="immersive-overview">${escapeHtml(overview)}</p>
-            <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
-              <h3>Watch Status</h3>
-              <div class="progress-label-row">
-                <span>Watched on ${formatDate(movie.watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-watched-at="${escapeAttribute(movie.watched_at || "")}">✎</button></span>
-                <span>100% complete</span>
-              </div>
-              <div class="progress-bar-track">
-                <div class="progress-bar-fill" style="width: 100%;"></div>
-              </div>
-              ${rewatchSummaryHtml(movie)}
-            </section>
           </div>
         </div>
-        ${renderMediaFacts(tmdbData, "movie", "sidebar")}
-      </header>
-      ${tmdbData ? renderCastSection(tmdbData) : ""}
-      ${tmdbData ? renderMediaImagesSection(tmdbData) : ""}
-      ${tmdbData ? renderTrailersSection(tmdbData) : ""}
-      ${tmdbData ? renderReviewsSection(tmdbData) : ""}
-      ${tmdbData ? renderCollectionSection(tmdbData) : ""}
-      ${renderRecommendationSection({ title: "Recommended movies", items: recommendations, mediaType: "movie" })}
-      ${renderRecommendationSection({ title: "Recommended TV Shows", items: tvRecommendations, mediaType: "tv" })}
-    </div>
-    ${renderWatchDatePrompt(state.pendingWatchAction)}
-  `;
+
+        <div class="media-detail-bio-right">
+          <div class="media-detail-right-header">
+            <div class="media-detail-logo-wrap">
+              ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
+              <p class="immersive-subtitle">${escapeHtml(released)}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
+              <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                ${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}
+                ${imdbPillHtml}
+                ${syncStatusBlockHtml}
+              </div>
+              ${renderSeerrRequestPill("movie", tmdbData?.id || movie.tmdb_id, true)}
+              <section class="progress-section" style="border: 0; padding: 0; margin-top: 0.5rem; width: 100%;">
+                <h3>Watch Status</h3>
+                <div class="progress-label-row">
+                  <span>Watched on ${formatDate(movie.watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-watched-at="${escapeAttribute(movie.watched_at || "")}">✎</button></span>
+                  <span>100% complete</span>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill" style="width: 100%;"></div>
+                </div>
+                ${rewatchSummaryHtml(movie)}
+              </section>
+            </div>
+            <div class="media-detail-facts-wrap">
+              ${renderMediaFacts(tmdbData, "movie", "sidebar")}
+            </div>
+          </div>
+
+          ${tmdbData ? renderCastSection(tmdbData) : ""}
+          ${tmdbData ? renderMediaImagesSection(tmdbData) : ""}
+          ${tmdbData ? renderTrailersSection(tmdbData) : ""}
+          ${tmdbData ? renderReviewsSection(tmdbData) : ""}
+          ${tmdbData ? renderCollectionSection(tmdbData) : ""}
+          ${renderRecommendationSection({ title: "Recommended movies", items: recommendations, mediaType: "movie" })}
+          ${renderRecommendationSection({ title: "Recommended TV Shows", items: tvRecommendations, mediaType: "tv" })}
+        </div>
+      </div>
+      ${renderWatchDatePrompt(state.pendingWatchAction)}
+    `;
+  } else {
+    root.innerHTML = `
+      <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || localPoster)}');"></div>
+      <div class="immersive-container media-detail-page${loading ? " is-loading-metadata" : ""}">
+        <header class="immersive-header">
+          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || localPoster)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
+          <div class="immersive-meta">
+            ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
+            <p class="immersive-subtitle">${escapeHtml(released)}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
+            <div class="media-detail-bottom-stack">
+              <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                ${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}
+                ${imdbPillHtml}
+                ${syncStatusBlockHtml}
+              </div>
+              ${renderSeerrRequestPill("movie", tmdbData?.id || movie.tmdb_id, true)}
+              <p class="immersive-overview">${escapeHtml(overview)}</p>
+              <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
+                <h3>Watch Status</h3>
+                <div class="progress-label-row">
+                  <span>Watched on ${formatDate(movie.watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-watched-at="${escapeAttribute(movie.watched_at || "")}">✎</button></span>
+                  <span>100% complete</span>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill" style="width: 100%;"></div>
+                </div>
+                ${rewatchSummaryHtml(movie)}
+              </section>
+            </div>
+          </div>
+          ${renderMediaFacts(tmdbData, "movie", "sidebar")}
+        </header>
+        ${tmdbData ? renderCastSection(tmdbData) : ""}
+        ${tmdbData ? renderMediaImagesSection(tmdbData) : ""}
+        ${tmdbData ? renderTrailersSection(tmdbData) : ""}
+        ${tmdbData ? renderReviewsSection(tmdbData) : ""}
+        ${tmdbData ? renderCollectionSection(tmdbData) : ""}
+        ${renderRecommendationSection({ title: "Recommended movies", items: recommendations, mediaType: "movie" })}
+        ${renderRecommendationSection({ title: "Recommended TV Shows", items: tvRecommendations, mediaType: "tv" })}
+      </div>
+      ${renderWatchDatePrompt(state.pendingWatchAction)}
+    `;
+  }
   hydratePosters(root);
   hydrateMediaAppLinks(root);
   syncRewatchHistoryToggle(root);
