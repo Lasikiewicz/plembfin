@@ -1,7 +1,22 @@
 {
-  "version": "0.6.40",
-  "updatedAt": "2026-07-27T16:19:00+01:00",
+  "version": "0.6.41",
+  "updatedAt": "2026-07-28T09:33:08+01:00",
   "entries": [
+    {
+      "version": "0.6.41",
+      "date": "2026-07-28T09:33:08+01:00",
+      "commit": "9cef7a6eeffbffaac2fceb53d4ee24c190d5aa60",
+      "message": "Fix - Faster media detail loading and reliable artwork",
+      "author": "Lasikiewicz",
+      "details": [
+        "TV show pages opened from a library card no longer sit on \"Loading episode metadata...\": a history-linked link now loads the full show instead of a single-record shell",
+        "Show and movie pages request their metadata directly instead of queueing behind library prefetch, so a page refresh paints in a fraction of the time",
+        "Show pages appear as soon as their own metadata arrives, with season episodes and the IMDb rating filling in afterwards",
+        "Artwork from fanart.tv and TheTVDB is downloaded and cached by the server, so logos and the artwork picker keep working when those image hosts are unreachable from the browser",
+        "Titles whose only TMDB logo art is in another language show their title text instead of a foreign wordmark",
+        "Library grids show an animated placeholder while each poster loads instead of an empty tile"
+      ]
+    },
     {
       "version": "0.6.40",
       "date": "2026-07-27T16:19:00+01:00",
