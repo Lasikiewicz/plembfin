@@ -2,7 +2,7 @@ import { state } from "./state.js";
 import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate } from "./utils.js";
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
-import { tmdbPoster, tmdbImage } from "./images.js";
+import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js";
 import { dateAtMiddayIso, refreshShowAfterManualWatch } from "./watch-action.js";
 import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js";
 
@@ -683,9 +683,13 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
       const lang = typeof item === "object" && item.lang ? item.lang : null;
       const source = typeof item === "object" && item.source ? item.source : null;
       const hasBadges = lang || source;
+      // The tile previews through the caching proxy when the source host is one
+      // the browser may not reach; data-url keeps the original so the saved
+      // record still points at the upstream image.
+      const previewUrl = proxiedArtworkUrl(url, isLogo ? "logo" : isBackdrop ? "backdrop" : "poster");
       return `
         <button class="edit-image-option${isLogo ? " edit-image-option--logo" : ""}${isBackdrop ? " edit-image-option--backdrop" : ""}" type="button" data-url="${escapeAttribute(url)}">
-          <img src="${escapeAttribute(url)}" alt="${isLogo ? "Logo" : isBackdrop ? "Background" : "Poster"} ${i + 1}" loading="lazy" data-err="hide-closest-btn" />
+          <img src="${escapeAttribute(previewUrl)}" alt="${isLogo ? "Logo" : isBackdrop ? "Background" : "Poster"} ${i + 1}" loading="lazy" data-err="hide-closest-btn" />
           ${hasBadges ? `<span class="edit-image-badge-row">${lang ? `<span class="edit-image-logo-lang">${escapeAttribute(lang.toUpperCase())}</span>` : ""}${source ? `<span class="edit-image-source-badge edit-image-source-badge--${escapeAttribute(source.toLowerCase())}">${escapeAttribute(source)}</span>` : ""}</span>` : ""}
         </button>
       `;

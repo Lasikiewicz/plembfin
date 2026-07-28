@@ -1,6 +1,6 @@
 import { state } from "./state.js";
 import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref } from "./utils.js";
-import { isCachedStorageImageUrl, rememberPosterLookup } from "./images.js";
+import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js";
 import {
   openEditDateDialog,
   openEditShowDateDialog,
@@ -245,13 +245,14 @@ export function attachMediaDetailEvents() {
             let logoEl = meta.querySelector(".immersive-logo");
             const titleEl = meta.querySelector(".immersive-title");
             if (logo_url) {
+              const logoSrc = proxiedArtworkUrl(logo_url, "logo");
               if (logoEl) {
-                logoEl.src = logo_url;
+                logoEl.src = logoSrc;
               } else {
                 logoEl = document.createElement("img");
                 logoEl.className = "immersive-logo";
                 logoEl.alt = titleEl?.textContent || "";
-                logoEl.src = logo_url;
+                logoEl.src = logoSrc;
                 meta.insertBefore(logoEl, titleEl);
               }
               titleEl?.classList.add("sr-only");

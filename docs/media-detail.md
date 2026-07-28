@@ -46,6 +46,16 @@ Direct URL loads work identically - routing hydrates the same UI without needing
 in-app navigation state. TV URLs support deep links:
 `/tvshow/<key>/season/2/episode/5` (and a legacy `#season2ep5` hash form).
 
+A TV URL may also carry `?historyId=<record id>`, which library cards append so the
+page opens against the play that was clicked. When that record names a series the app
+can resolve, the page loads the full show and enriches it normally. The single-record
+shell, which keeps Fix Match usable without a stale lookup replacing it, is reserved
+for rows whose series cannot be identified.
+
+The show page paints as soon as the show's own metadata arrives. Season episode lists
+and the IMDb rating pill hydrate into the rendered page rather than holding up the
+first complete render.
+
 ## What's on the page
 
 - **Metadata** - overview, genres, runtime, status, ratings; TV structure (seasons/
@@ -88,7 +98,9 @@ in-app navigation state. TV URLs support deep links:
   refresh (at most once per 5 minutes per title) updates the buttons only on change.
 - **Edit tools** - edit watched date (single, per-season, per-show), edit artwork
   (poster/logo/backdrop picker fed by `GET /api/tmdb-images`, `/api/tvdb-images`,
-  `/api/fanart-images`; saves via `POST /api/update-watch`), fix match
+  `/api/fanart-images`, with tiles previewed through the caching artwork proxy so a
+  fanart.tv or TVDB CDN the browser cannot reach still shows its gallery; saves via
+  `POST /api/update-watch`), fix match
   (TMDB search for movies; TheTVDB search for shows), merge show. All in
   `edit-dialogs.js`. The single-item edit-date dialog lists every recorded watch
   date for that movie/episode (`GET /api/watch-dates?id=`), letting you edit any

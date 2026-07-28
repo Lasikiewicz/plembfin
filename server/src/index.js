@@ -6,7 +6,7 @@ import { handleBackupExport, handleBackupImport, handleImport, handlePlembfinBac
 import { handleAppearance, handleConfig, handleMediaAppLinks, handleSeerrMediaStatus, handleSeerrRequest, handleSeerrStatus, handleTestConnection, handleTestPlexNotifications } from "./routes/admin.js";
 import { handleAddWatchDate, handleClearMissingTelemetry, handleDeleteHistoryRecord, handleDeleteMedia, handleDeleteWatchDate, handleFullSyncWatchstates, handleHistory, handleMergeShows, handleMovies, handleRematchShow, handleShow, handleShows, handleUpdateWatch, handleWatchDates } from "./routes/media.js";
 import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleForceSyncPlan, handleManualUnwatch, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleRetrySync, handleStopForceSync, handleSyncHistory, handleSyncJobs, handleSyncLibraries, handleWebhook } from "./routes/sync.js";
-import { handleFanartImages, handleMediaSearch, handleOmdbRating, handlePoster, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleYoutubeMeta } from "./routes/metadata.js";
+import { handleFanartImages, handleMediaSearch, handleOmdbRating, handlePoster, handleRemoteArtwork, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleYoutubeMeta } from "./routes/metadata.js";
 import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDedupHistory, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRefreshTvdbMetadata, handleRematchTvShows, handleSyncHealth, handleSyncMatchReport, handlePhantomWatchAudit } from "./routes/maintenance.js";
 
 function routePath(req) {
@@ -94,6 +94,7 @@ async function dispatch(req, res) {
     if (path === "media-app-links") return handleMediaAppLinks(req, res);
     if (path === "tmdb-poster") return handleTmdbPoster(req, res);
     if (path === "tmdb-profile") return handleTmdbProfile(req, res);
+    if (path === "remote-artwork") return handleRemoteArtwork(req, res);
     if (path === "poster") return handlePoster(req, res);
     if (path === "cache-stats") return handleCacheStats(req, res);
     if (path === "clear-cache") return handleClearCache(req, res);

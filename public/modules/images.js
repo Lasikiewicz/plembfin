@@ -201,7 +201,10 @@ export function posterMarkup(item = {}, className = "media-poster") {
   const posterId = idValue != null ? ` data-poster-id="${escapeAttribute(String(idValue))}"` : "";
   if (!url) return `<span class="${className} poster-fallback"${posterId} aria-hidden="true"></span>`;
   const loading = item.eager_poster ? "eager" : "lazy";
-  return `<img class="${className}"${posterId} src="${escapeAttribute(url)}" alt="${escapeAttribute(label)} poster" loading="${loading}" decoding="async" fetchpriority="${item.eager_poster ? "high" : "auto"}" referrerpolicy="no-referrer" />`;
+  // `poster-img` carries the loading skeleton; app-events swaps in `is-loaded`
+  // once the bitmap is there. The fallback span above deliberately omits it -
+  // a card with no artwork is finished, not loading.
+  return `<img class="${className} poster-img"${posterId} src="${escapeAttribute(url)}" alt="${escapeAttribute(label)} poster" loading="${loading}" decoding="async" fetchpriority="${item.eager_poster ? "high" : "auto"}" referrerpolicy="no-referrer" />`;
 }
 
 export function posterFallbackElement(className = "media-poster", posterId = "") {
@@ -286,7 +289,7 @@ export async function hydratePosterFallbacks(container = document.body) {
     if (!safeUrl || !fallback.isConnected || !fallback.classList.contains("poster-fallback")) return;
 
     const image = document.createElement("img");
-    image.className = fallback.className.replace(/\bposter-fallback\b/g, "").trim() || fallback.className;
+    image.className = `${fallback.className.replace(/\bposter-fallback\b/g, "").trim() || fallback.className} poster-img`;
     bindPosterImageErrorHandler(image);
     image.src = encodeURI(safeUrl);
     image.alt = `${fallback.getAttribute("aria-label") || "Media poster"}`;
@@ -357,9 +360,31 @@ export function tmdbPoster(path, tmdbId = "", mediaType = "") {
   return url;
 }
 
+// fanart.tv and TVDB return absolute CDN URLs. Those hosts are not always
+// reachable from the browser even when the server can fetch them, so route
+// them through the caching proxy instead of hot-linking. Local /media artwork
+// and data/blob URLs are already served by this app and pass through.
+const PROXIED_ARTWORK_HOSTS = new Set(["assets.fanart.tv", "artworks.thetvdb.com"]);
+
+export function proxiedArtworkUrl(url, variant = "poster") {
+  const raw = String(url || "").trim();
+  if (!raw || !/^https:\/\//i.test(raw)) return raw;
+  let host = "";
+  try {
+    host = new URL(raw).hostname.toLowerCase();
+  } catch {
+    return raw;
+  }
+  if (!PROXIED_ARTWORK_HOSTS.has(host)) return raw;
+  return `/api/remote-artwork?variant=${encodeURIComponent(variant)}&url=${encodeURIComponent(raw)}`;
+}
+
+// English and language-neutral logos only. A logo in another language reads as
+// a different title to anyone using this app, so titles that have neither fall
+// back to their text heading rather than showing foreign wordmark art.
 export function bestTmdbLogo(tmdbData) {
   const logos = tmdbData?.images?.logos || [];
-  const logo = logos.find(l => l.iso_639_1 === "en") || logos.find(l => !l.iso_639_1) || logos[0];
+  const logo = logos.find(l => l.iso_639_1 === "en") || logos.find(l => !l.iso_639_1);
   if (logo) return tmdbImage(logo.file_path, "original");
   return tmdbData?.cached_logo_url || null;
 }

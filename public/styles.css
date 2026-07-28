@@ -25,6 +25,8 @@
   --panel-3: #080b0f;
   --line: rgba(255, 255, 255, 0.05);
   --line-strong: rgba(255, 255, 255, 0.12);
+  --skeleton-base: #101010;
+  --skeleton-sheen: rgba(255, 255, 255, 0.16);
   --text: #f8fafc;
   --soft: #e2e8f0;
   --muted: #94a3b8;
@@ -2450,6 +2452,34 @@ h2 {
   border-radius: 2px;
   background: var(--line-strong);
   transform: translateY(-50%);
+}
+
+/* Artwork that has not decoded yet shows a moving sheen instead of an empty
+   box, so a grid being scrolled reads as loading rather than broken. The
+   bitmap paints over this the moment it arrives; `is-loaded` then stops it. */
+img.poster-img:not(.is-loaded) {
+  background-color: var(--skeleton-base);
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    var(--skeleton-sheen) 42%,
+    var(--skeleton-sheen) 56%,
+    transparent 78%
+  );
+  background-repeat: no-repeat;
+  background-size: 250% 100%;
+  animation: poster-skeleton 1.2s ease-in-out infinite;
+}
+
+@keyframes poster-skeleton {
+  from { background-position: 150% 0; }
+  to { background-position: -50% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  img.poster-img:not(.is-loaded) {
+    animation: none;
+  }
 }
 
 .stream-indicator {
@@ -13136,6 +13166,8 @@ html.light-mode {
   --panel-3: #f1f5f9;  /* Slate 100 - cool grey sidebar background */
   --line: #e2e8f0;     /* Slate 200 - clean and subtle border */
   --line-strong: #cbd5e1; /* Slate 300 - more visible border */
+  --skeleton-base: #e2e8f0;   /* Slate 200 - placeholder tile while artwork loads */
+  --skeleton-sheen: rgba(255, 255, 255, 0.85);
   --text: #0f172a;     /* Slate 900 - dark slate for high legibility */
   --soft: #334155;     /* Slate 700 - medium dark text */
   --muted: #64748b;    /* Slate 500 - muted text with high contrast */

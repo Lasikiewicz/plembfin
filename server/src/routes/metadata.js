@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import nodePath from "node:path";
 import { requireAdmin, resolveAdminPrincipal } from "../utils/auth.js";
@@ -19,7 +20,7 @@ import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyf
 import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
-import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
+import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, getCachedTvdbId } from "../utils/tmdbGateway.js";
 import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from "../utils/tvdbGateway.js";
 import { getUpcomingCalendarMonth } from "../utils/upcomingCalendarCache.js";
@@ -443,6 +444,69 @@ export async function handleTmdbProfile(req, res) {
   if (!stored?.url) {
     return res.redirect(302, "/favicon.svg");
   }
+
+  res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+  return res.redirect(302, stored.url);
+}
+
+// Artwork hosts whose images may be downloaded on request. fanart.tv and TVDB
+// hand back absolute CDN URLs rather than paths, so their art used to be
+// hot-linked straight into the page - which breaks whenever a browser cannot
+// reach that CDN (network filtering, an outage, a blocked region) even though
+// the server can. Proxying puts every artwork source behind the same cached
+// /media URL the poster pipeline already uses.
+const REMOTE_ARTWORK_HOSTS = new Set([
+  "assets.fanart.tv",
+  "artworks.thetvdb.com",
+  "artworks.thetvdb.com.",
+  "image.tmdb.org",
+]);
+
+const REMOTE_ARTWORK_CACHERS = {
+  poster: cachePosterFromUrl,
+  logo: cacheLogoFromUrl,
+  backdrop: cacheBackdropFromUrl,
+};
+
+const _remoteArtworkInflight = new Map();
+
+export async function handleRemoteArtwork(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const rawUrl = String(req.query.url || "").trim();
+  const variant = String(req.query.variant || "poster").toLowerCase();
+  const cacher = REMOTE_ARTWORK_CACHERS[variant];
+  if (!cacher) return sendJson(res, { error: "Invalid artwork variant" }, 400);
+
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return sendJson(res, { error: "Invalid artwork URL" }, 400);
+  }
+  if (parsed.protocol !== "https:" || !REMOTE_ARTWORK_HOSTS.has(parsed.hostname.toLowerCase())) {
+    return sendJson(res, { error: "Artwork host is not allowed" }, 400);
+  }
+
+  const mediaKey = `remote:${variant}:${crypto.createHash("sha1").update(parsed.toString()).digest("hex")}`;
+  const cached = usableCachedPoster(await getPosterCache(mediaKey, variant));
+  if (cached?.url) {
+    res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+    return res.redirect(302, cached.url);
+  }
+  // Report a miss as 404 rather than a placeholder redirect: every caller is an
+  // <img> with its own fallback (title text, hidden tile), and a successfully
+  // loaded placeholder would suppress those.
+  if (cached?.cached) return sendJson(res, { error: "Artwork unavailable" }, 404);
+
+  if (!_remoteArtworkInflight.has(mediaKey)) {
+    _remoteArtworkInflight.set(mediaKey, cacher(mediaKey, parsed.toString(), "remote")
+      .finally(() => _remoteArtworkInflight.delete(mediaKey)));
+  }
+  const stored = await _remoteArtworkInflight.get(mediaKey).catch(() => null);
+  if (!stored?.url) return sendJson(res, { error: "Artwork unavailable" }, 404);
 
   res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
   return res.redirect(302, stored.url);

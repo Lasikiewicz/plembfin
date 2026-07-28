@@ -10,7 +10,7 @@ artwork is fetched once, not per page view.
 | File | Role |
 | --- | --- |
 | `server/src/utils/posterCache.js` | Fetch → sharp resize → store in `data/media/` → record in `poster_cache` |
-| `server/src/index.js` | `handlePoster` (`GET /api/poster`) - candidate resolution; `handleTmdbPoster` / `handleTmdbProfile` proxies |
+| `server/src/index.js` | `handlePoster` (`GET /api/poster`) - candidate resolution; `handleTmdbPoster` / `handleTmdbProfile` / `handleRemoteArtwork` proxies |
 | `server/src/utils/tmdbClient.js` | TMDB poster-URL fallback lookup |
 | `public/modules/images.js` | Frontend: `posterMarkup`, fallback hydration, lookup caching, TMDB URL builders |
 | `server/server.js` | Static mount `/media` → `data/media/` (365-day immutable cache headers) |
@@ -50,10 +50,31 @@ trusts a `cached` row whose file still exists on disk.
 The cache key is the **mediaKey** (canonical title + type + IDs), so a live session, a
 history row, and a playstate row for the same item share one cached image.
 
+## Backend: `GET /api/remote-artwork?url=<url>&variant=<poster|logo|backdrop>`
+
+fanart.tv and TVDB return absolute CDN URLs rather than image paths. `handleRemoteArtwork`
+downloads those through the same `cacheArtworkFromUrl` pipeline and redirects to the
+resulting `/media/...` URL, so the browser only ever loads artwork from this app. The
+host allowlist is `assets.fanart.tv`, `artworks.thetvdb.com`, and `image.tmdb.org`; any
+other host is rejected with 400. Requests for the same URL are deduped while in flight,
+and a URL that cannot be downloaded returns **404** rather than a placeholder image, so
+the caller's own fallback (the title heading, or hiding a gallery tile) still applies.
+The negative cache keeps a repeat request for an unreachable image fast.
+
 ## Frontend (`public/modules/images.js`)
 
 - `posterMarkup(item)` renders an `<img>` when a usable URL is known, otherwise a
   `poster-fallback` span carrying a `data-poster-id`.
+- Every rendered poster carries the `poster-img` class, which draws an animated loading
+  skeleton until the bitmap decodes. A `load` listener in `app-events.js` adds
+  `is-loaded` to end it; the error path clears it too, so a failed image does not keep
+  animating. The skeleton honours `prefers-reduced-motion`.
+- `proxiedArtworkUrl(url, variant)` rewrites fanart.tv and TVDB CDN URLs to
+  `/api/remote-artwork`. Local `/media` and TMDB URLs pass through unchanged. Show and
+  movie logos and the Edit Images gallery tiles all render through it, while the saved
+  value stays the original upstream URL.
+- `bestTmdbLogo(tmdbData)` accepts English and language-neutral logos only. A title
+  whose only TMDB logo art is in another language renders its text heading instead.
 - `hydratePosterFallbacks(container)` finds fallback spans and calls
   `lookupPosterUrl(posterId)` → `GET /api/poster` - deduped in-flight
   (`state.posterLookupInflight`), cached in memory (`state.posterLookupCache`) and in

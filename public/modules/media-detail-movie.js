@@ -1,6 +1,6 @@
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils.js";
-import { posterUrlFor, tmdbPoster, bestTmdbLogo, hydratePosters } from "./images.js";
+import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260710";
 import { renderWatchDatePrompt } from "./watch-action.js";
@@ -128,7 +128,7 @@ export async function renderMovieImmersiveModalContent(movie) {
 
 
   // Fetch TMDB details (primary enrichment).
-  const tmdbData = await fetchTmdbDetails("movie", movie.tmdb_id, movie.title);
+  const tmdbData = await fetchTmdbDetails("movie", movie.tmdb_id, movie.title, {}, { immediate: true });
   if (currentMediaRenderToken() !== renderToken) return; // navigated away while loading
 
   if (tmdbData && tmdbData.id) {
@@ -223,7 +223,7 @@ function _renderWatchedMovieContent(root, movie, {
   }
 
   const movieTitle = movie.title;
-  const logoUrl = movie.logo_url || bestTmdbLogo(tmdbData);
+  const logoUrl = proxiedArtworkUrl(movie.logo_url || bestTmdbLogo(tmdbData), "logo");
   const ratingBadgeHtml = rating ? renderExternalRatingPills("movie", tmdbData, movieTitle, rating) : "";
   const syncStatusDotHtml = renderSyncStatusDot(movie);
   const visibleSyncStatuses = getMediaTargetSyncStatus(movie).filter((s) => !s.hidden);
@@ -282,7 +282,7 @@ function _renderWatchedMovieContent(root, movie, {
       <header class="immersive-header">
         <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || localPoster)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
         <div class="immersive-meta">
-          ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
+          ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
           <p class="immersive-subtitle">${escapeHtml(released)}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
           <div class="media-detail-bottom-stack">
             <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
@@ -441,7 +441,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
       ${mediaDetailLoaderHtml("Loading movie details")}
     </div>
   `;
-  const tmdbData = await fetchTmdbDetails("movie", tmdbId, null);
+  const tmdbData = await fetchTmdbDetails("movie", tmdbId, null, {}, { immediate: true });
   if (currentMediaRenderToken() !== renderToken) return;
   if (!tmdbData) {
     root.innerHTML = `
@@ -468,7 +468,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   const released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : "Unknown Release Date";
   const rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "N/A";
   const recommendations = rankedRecommendations(tmdbData, "movie");
-  const logoUrl = bestTmdbLogo(tmdbData);
+  const logoUrl = proxiedArtworkUrl(bestTmdbLogo(tmdbData), "logo");
   const ratingBadgeHtml = rating !== "N/A" ? `${renderExternalRatingPills("movie", tmdbData, movieTitle, rating)}` : "";
 
   const buildUnwatchedHtml = (tvRecommendations = []) => `
@@ -477,7 +477,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
       <header class="immersive-header">
         <img class="immersive-poster-img" src="${escapeAttribute(posterUrl)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
         <div class="immersive-meta">
-          ${logoUrl ? `<img class="immersive-logo" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
+          ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
           <p class="immersive-subtitle">${escapeHtml(released)}</p>
           <div class="media-detail-bottom-stack">
             <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">

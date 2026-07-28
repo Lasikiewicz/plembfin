@@ -95,9 +95,20 @@ function attachEvents() {
     }
   });
 
+  // Posters render their skeleton until the bitmap is decoded. `load` does not
+  // bubble, so this listens in the capture phase and covers every poster the
+  // app renders, including ones swapped in after a lookup.
+  document.addEventListener("load", (e) => {
+    const img = e.target;
+    if (img.tagName === "IMG" && img.classList.contains("poster-img")) img.classList.add("is-loaded");
+  }, true);
+
   document.addEventListener("error", (e) => {
     const img = e.target;
     if (img.tagName !== "IMG") return;
+    // A poster that failed is no longer loading; the error paths below decide
+    // what replaces it.
+    img.classList.add("is-loaded");
     const mode = img.dataset.err;
     if (!mode) return;
     img.dataset.err = "";
@@ -106,6 +117,13 @@ function attachEvents() {
     else if (mode === "hide-parent") { img.parentElement.style.display = "none"; }
     else if (mode === "hide-closest-btn") { img.closest("button").style.display = "none"; }
     else if (mode === "hide-show-next") { img.style.display = "none"; img.nextElementSibling.style.display = "inline-grid"; }
+    // A logo that cannot be fetched must not leave the hero blank: drop the
+    // image and promote the screen-reader title back to the visible heading.
+    else if (mode === "logo-title") {
+      const heading = img.parentElement?.querySelector(".immersive-title");
+      img.remove();
+      heading?.classList.remove("sr-only");
+    }
   }, true);
 
   elements.authForm.addEventListener("submit", async (event) => {

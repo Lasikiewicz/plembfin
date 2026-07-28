@@ -87,6 +87,7 @@ so detail pages open hot. Settings → Storage & Cache (`GET /api/cache-stats`,
 | `GET /api/tmdb-search`, `GET /api/tvdb-search`, `GET /api/media-search` | Remote + local search |
 | `GET /api/tmdb-images`, `GET /api/tvdb-images`, `GET /api/fanart-images` | Artwork galleries for the edit-image dialog |
 | `GET /api/tmdb-poster`, `GET /api/tmdb-profile` | Image proxies (rate-limited 300/min) |
+| `GET /api/remote-artwork` | Downloads and caches fanart.tv / TVDB / TMDB artwork by URL, then redirects to `/media/...` (see [posters-artwork.md](posters-artwork.md)) |
 | `GET /api/omdb-rating` | IMDb rating pill |
 | `GET /api/youtube-meta` | Trailer metadata |
 | `GET /api/upcoming?month=YYYY-MM` | Future TV episodes for the Upcoming calendar. `&revalidate=1` answers from the persistent cache and rebuilds the month behind the response; `&refresh=1` rebuilds before responding (see [upcoming.md](upcoming.md)) |
@@ -99,3 +100,8 @@ so detail pages open hot. Settings → Storage & Cache (`GET /api/cache-stats`,
 `resolveEpisodeTitleFromTmdb` that upgrade "Episode 5" labels to real titles as data
 arrives. Explorer prefetch (`observeExplorerTmdbPrefetch`) warms details for visible
 cards.
+
+Background lookups are debounced into one batched request, and a batch answers only
+once its slowest item resolves. Detail pages therefore pass `{ immediate: true }` to
+`fetchTmdbDetails`, which sends that single item on its own request so a visible page
+never waits behind grid prefetch work.

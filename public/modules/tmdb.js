@@ -35,6 +35,23 @@ function flushTmdbBatch() {
     });
 }
 
+// A batch answers only once its slowest item resolves, so anything a visible
+// page is waiting on must not share a batch with background prefetch work.
+// Detail views send their single item on its own request instead.
+function requestTmdbDetailsNow(request) {
+  return fetch("/api/tmdb-details-batch", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ items: [request] }),
+  })
+    .then((res) => res.json().then((body) => ({ ok: res.ok, status: res.status, body })))
+    .then(({ ok, status, body }) => {
+      if (!ok) throw new Error(body?.error || `HTTP ${status}`);
+      const result = Array.isArray(body?.results) ? body.results[0] : null;
+      return result && result.details ? result.details : null;
+    });
+}
+
 export function normalizeTmdbLookupIds(ids = {}) {
   return {
     imdbId: ids.imdbId || ids.imdb_id || "",
@@ -55,7 +72,7 @@ function cacheResolvedDetails(mediaType, requestedKey, details) {
 // artwork enrichment on cold items. Light results are cached under their own
 // key so a later full request (detail pages) still fetches complete data;
 // full results satisfy light lookups.
-export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}, { light = false } = {}) {
+export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}, { light = false, immediate = false } = {}) {
   const lookupIds = normalizeTmdbLookupIds(ids);
   const baseKey = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}|${lookupIds.imdbId.toLowerCase()}|${lookupIds.tvdbId.toLowerCase()}`;
   if (state.tmdbDetailsCache.has(baseKey)) return state.tmdbDetailsCache.get(baseKey);
@@ -63,19 +80,17 @@ export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}, { lig
   if (light && state.tmdbDetailsCache.has(cacheKey)) return state.tmdbDetailsCache.get(cacheKey);
   if (!state.savedConfig.tmdb?.configured && !tmdbId && !title && !lookupIds.imdbId && !lookupIds.tvdbId) return null;
 
-  const promise = new Promise((resolve, reject) => {
-    _tmdbBatchQueue.push({
-      request: {
-        mediaType,
-        tmdbId: tmdbId || undefined,
-        title: title || undefined,
-        imdbId: lookupIds.imdbId || undefined,
-        tvdbId: lookupIds.tvdbId || undefined,
-        light: light || undefined,
-      },
-      resolve,
-      reject,
-    });
+  const request = {
+    mediaType,
+    tmdbId: tmdbId || undefined,
+    title: title || undefined,
+    imdbId: lookupIds.imdbId || undefined,
+    tvdbId: lookupIds.tvdbId || undefined,
+    light: light || undefined,
+  };
+
+  const promise = immediate ? requestTmdbDetailsNow(request) : new Promise((resolve, reject) => {
+    _tmdbBatchQueue.push({ request, resolve, reject });
     if (_tmdbBatchQueue.length >= 40) {
       clearTimeout(_tmdbBatchTimer);
       flushTmdbBatch();
