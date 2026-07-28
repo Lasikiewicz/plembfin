@@ -1,7 +1,18 @@
 {
-  "version": "0.6.47",
-  "updatedAt": "2026-07-28T10:27:53+01:00",
+  "version": "0.6.48",
+  "updatedAt": "2026-07-28T11:28:04+01:00",
   "entries": [
+    {
+      "version": "0.6.48",
+      "date": "2026-07-28T11:28:04+01:00",
+      "commit": "cb0f613082e614eba9db85d0febfc27573b6bccf",
+      "message": "Feature - Add bio media layout toggle and layout refinements",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add optional bio media layout toggle in appearance settings",
+        "Refine poster, metadata sidebar, and watch status positioning in bio media layout"
+      ]
+    },
     {
       "version": "0.6.47",
       "date": "2026-07-28T10:27:53+01:00",
