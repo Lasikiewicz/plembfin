@@ -1,7 +1,19 @@
 {
-  "version": "0.6.41",
-  "updatedAt": "2026-07-28T09:33:08+01:00",
+  "version": "0.6.42",
+  "updatedAt": "2026-07-28T09:36:45+01:00",
   "entries": [
+    {
+      "version": "0.6.42",
+      "date": "2026-07-28T09:36:45+01:00",
+      "commit": "da501e7ca3ff143485e0f3fc43557ec376ae9214",
+      "message": "Chore - Bump undici from 8.7.0 to 8.9.0 (#19)",
+      "author": "dependabot[bot]",
+      "details": [
+        "[Release notes](https://github.com/nodejs/undici/releases)",
+        "[Commits](https://github.com/nodejs/undici/compare/v8.7.0...v8.9.0)",
+        "dependency-name: undici"
+      ]
+    },
     {
       "version": "0.6.41",
       "date": "2026-07-28T09:33:08+01:00",
