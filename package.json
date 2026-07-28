@@ -18,7 +18,7 @@
     "changelog:update": "node scripts/update-changelog.js"
   },
   "dependencies": {
-    "better-sqlite3": "^12.11.1",
+    "better-sqlite3": "^13.0.1",
     "busboy": "^1.6.0",
     "cookie-parser": "^1.4.7",
     "express": "^5.2.1",
