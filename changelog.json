@@ -1,7 +1,18 @@
 {
-  "version": "0.6.45",
-  "updatedAt": "2026-07-28T10:00:43+01:00",
+  "version": "0.6.46",
+  "updatedAt": "2026-07-28T10:22:58+01:00",
   "entries": [
+    {
+      "version": "0.6.46",
+      "date": "2026-07-28T10:22:58+01:00",
+      "commit": "9c5558c935e09979ac7f5ca6a1ed2e987ccafede",
+      "message": "Chore - Build the Docker image on pull requests",
+      "author": "Lasikiewicz",
+      "details": [
+        "Pull requests now build the container image and start the database and image libraries inside it, so a change that breaks the container is caught before it can be released",
+        "Closes the gap that let two versions publish with no usable image after the SQLite driver upgrade"
+      ]
+    },
     {
       "version": "0.6.45",
       "date": "2026-07-28T10:00:43+01:00",
