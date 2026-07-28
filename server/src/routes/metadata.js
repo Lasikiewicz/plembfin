@@ -462,11 +462,18 @@ const REMOTE_ARTWORK_HOSTS = new Set([
   "image.tmdb.org",
 ]);
 
-const REMOTE_ARTWORK_CACHERS = {
-  poster: cachePosterFromUrl,
-  logo: cacheLogoFromUrl,
-  backdrop: cacheBackdropFromUrl,
-};
+// Resolved by a switch rather than an object lookup on purpose. A caller-supplied
+// key indexed into an object literal also reaches Object.prototype, so a variant
+// of `constructor` or `toString` would find a function, pass a truthiness check,
+// and get invoked.
+function artworkCacherFor(variant) {
+  switch (variant) {
+    case "poster": return cachePosterFromUrl;
+    case "logo": return cacheLogoFromUrl;
+    case "backdrop": return cacheBackdropFromUrl;
+    default: return null;
+  }
+}
 
 // A short negative cache keeps a reload from re-requesting artwork the server
 // already knows it cannot fetch, without stranding the miss for long once the
@@ -482,7 +489,7 @@ export async function handleRemoteArtwork(req, res) {
 
   const rawUrl = String(req.query.url || "").trim();
   const variant = String(req.query.variant || "poster").toLowerCase();
-  const cacher = REMOTE_ARTWORK_CACHERS[variant];
+  const cacher = artworkCacherFor(variant);
   if (!cacher) return sendJson(res, { error: "Invalid artwork variant" }, 400);
 
   let parsed;
