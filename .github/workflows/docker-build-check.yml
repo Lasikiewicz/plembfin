@@ -1,0 +1,64 @@
+name: Docker Build Check
+
+# The image is only built during a release push, so a change that breaks the
+# Dockerfile or the way dependencies install inside it used to surface after
+# merge, once a version had already been published without an image. This runs
+# the same build on the pull request, without pushing anything.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-build-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  docker-build:
+    name: Image builds and runs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: plembfin:pr
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Building is not enough on its own. Production dependencies install with
+      # `--ignore-scripts`, so a native module that ships no usable binary for
+      # this platform builds cleanly and only fails when the app first opens the
+      # database. Load both native modules inside the image to catch that here.
+      - name: Verify native modules load inside the image
+        run: |
+          docker run --rm --entrypoint node plembfin:pr -e "
+            const Database = require('better-sqlite3');
+            const sharp = require('sharp');
+            const db = new Database(':memory:');
+            db.exec('CREATE TABLE probe (value TEXT)');
+            db.prepare('INSERT INTO probe VALUES (?)').run('ok');
+            const row = db.prepare('SELECT value FROM probe').get();
+            db.close();
+            if (row.value !== 'ok') throw new Error('better-sqlite3 returned unexpected data');
+            sharp({ create: { width: 8, height: 8, channels: 3, background: '#000000' } })
+              .webp()
+              .toBuffer()
+              .then((buffer) => {
+                if (!buffer.length) throw new Error('sharp produced an empty image');
+                console.log('better-sqlite3', require('better-sqlite3/package.json').version, 'and sharp', sharp.versions.sharp, 'both load in the image');
+              })
+              .catch((error) => { console.error(error); process.exit(1); });
+          "

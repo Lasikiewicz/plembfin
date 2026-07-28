@@ -379,6 +379,10 @@ The installed commit hook and CI changelog generator both reject title-only rele
 messages, preventing sparse entries in **Settings → About**. See
 [`docs/development.md`](docs/development.md) for the full release workflow.
 
+Pull requests build the Docker image and start its native modules inside it, so a
+change that breaks the container is caught on the pull request rather than after a
+release has been published.
+
 When a change completes an item in [`TODO.md`](TODO.md), remove that item and update
 the corresponding documentation in the same change.
 

@@ -80,6 +80,7 @@ on GitHub - see the changelog section of [architecture.md](architecture.md).
 | --- | --- |
 | `security.yml` | `npm audit --audit-level=high` + CodeQL, on push/PR/daily. CodeQL loads `.github/codeql/codeql-config.yml`, which excludes the `js/request-forgery` query repo-wide - every outbound request funnels through the centralized, validated fetch guard in `server/src/utils/outbound.js`, and admin-configured LAN media server URLs make that query permanently false-positive for this app |
 | `secret-scan.yml` | TruffleHog verified-secret scan on push/PR |
+| `docker-build-check.yml` | Builds the image on every PR without pushing, then runs `better-sqlite3` and `sharp` inside it. The release workflow is the only other place the image is built, so without this a broken Dockerfile or dependency install is only discovered after a version has been published. The runtime probe matters because production dependencies install with `--ignore-scripts`: a native module with no usable binary for the platform still builds cleanly and would fail on first database open |
 | `dependabot.yml` | Dependency update PRs |
 
 ## Docker
