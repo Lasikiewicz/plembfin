@@ -468,6 +468,11 @@ const REMOTE_ARTWORK_CACHERS = {
   backdrop: cacheBackdropFromUrl,
 };
 
+// A short negative cache keeps a reload from re-requesting artwork the server
+// already knows it cannot fetch, without stranding the miss for long once the
+// upstream host recovers.
+const ARTWORK_MISS_HEADERS = { "Cache-Control": "public, max-age=600" };
+
 const _remoteArtworkInflight = new Map();
 
 export async function handleRemoteArtwork(req, res) {
@@ -499,14 +504,14 @@ export async function handleRemoteArtwork(req, res) {
   // Report a miss as 404 rather than a placeholder redirect: every caller is an
   // <img> with its own fallback (title text, hidden tile), and a successfully
   // loaded placeholder would suppress those.
-  if (cached?.cached) return sendJson(res, { error: "Artwork unavailable" }, 404);
+  if (cached?.cached) return sendJson(res, { error: "Artwork unavailable" }, 404, ARTWORK_MISS_HEADERS);
 
   if (!_remoteArtworkInflight.has(mediaKey)) {
     _remoteArtworkInflight.set(mediaKey, cacher(mediaKey, parsed.toString(), "remote")
       .finally(() => _remoteArtworkInflight.delete(mediaKey)));
   }
   const stored = await _remoteArtworkInflight.get(mediaKey).catch(() => null);
-  if (!stored?.url) return sendJson(res, { error: "Artwork unavailable" }, 404);
+  if (!stored?.url) return sendJson(res, { error: "Artwork unavailable" }, 404, ARTWORK_MISS_HEADERS);
 
   res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
   return res.redirect(302, stored.url);

@@ -366,6 +366,24 @@ export function tmdbPoster(path, tmdbId = "", mediaType = "") {
 // and data/blob URLs are already served by this app and pass through.
 const PROXIED_ARTWORK_HOSTS = new Set(["assets.fanart.tv", "artworks.thetvdb.com"]);
 
+// Artwork the proxy could not fetch this session. A detail page renders more
+// than once as its parts arrive, so without this every render would request a
+// known-dead image again and log another failure.
+const _unavailableArtwork = new Set();
+
+export function markArtworkUnavailable(src) {
+  if (!src) return;
+  try {
+    const parsed = new URL(String(src), window.location.origin);
+    if (parsed.pathname === "/api/remote-artwork") _unavailableArtwork.add(parsed.pathname + parsed.search);
+  } catch {
+    // A src the URL parser rejects cannot match a proxy URL either.
+  }
+}
+
+// Returns "" for artwork already known to be unavailable, so callers fall
+// straight through to their own alternative (the title heading, or dropping a
+// gallery tile) without another request.
 export function proxiedArtworkUrl(url, variant = "poster") {
   const raw = String(url || "").trim();
   if (!raw || !/^https:\/\//i.test(raw)) return raw;
@@ -376,7 +394,8 @@ export function proxiedArtworkUrl(url, variant = "poster") {
     return raw;
   }
   if (!PROXIED_ARTWORK_HOSTS.has(host)) return raw;
-  return `/api/remote-artwork?variant=${encodeURIComponent(variant)}&url=${encodeURIComponent(raw)}`;
+  const proxied = `/api/remote-artwork?variant=${encodeURIComponent(variant)}&url=${encodeURIComponent(raw)}`;
+  return _unavailableArtwork.has(proxied) ? "" : proxied;
 }
 
 // English and language-neutral logos only. A logo in another language reads as

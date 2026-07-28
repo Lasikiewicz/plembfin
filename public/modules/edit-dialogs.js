@@ -687,6 +687,9 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
       // the browser may not reach; data-url keeps the original so the saved
       // record still points at the upstream image.
       const previewUrl = proxiedArtworkUrl(url, isLogo ? "logo" : isBackdrop ? "backdrop" : "poster");
+      // Artwork already known to be unfetchable renders no tile at all, which is
+      // where a failed one would end up anyway via `hide-closest-btn`.
+      if (!previewUrl) return "";
       return `
         <button class="edit-image-option${isLogo ? " edit-image-option--logo" : ""}${isBackdrop ? " edit-image-option--backdrop" : ""}" type="button" data-url="${escapeAttribute(url)}">
           <img src="${escapeAttribute(previewUrl)}" alt="${isLogo ? "Logo" : isBackdrop ? "Background" : "Poster"} ${i + 1}" loading="lazy" data-err="hide-closest-btn" />
@@ -701,10 +704,12 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
         btn.classList.add("selected");
       });
     });
-    const firstUrl = typeof items[0] === "string" ? items[0] : items[0]?.url;
-    if (selectFirst && firstUrl) {
-      urlInput.value = firstUrl;
-      gridEl.querySelector(".edit-image-option")?.classList.add("selected");
+    // Preselect the first tile that actually rendered, so a skipped unfetchable
+    // image is never the value waiting in the save box.
+    const firstTile = gridEl.querySelector(".edit-image-option");
+    if (selectFirst && firstTile?.dataset.url) {
+      urlInput.value = firstTile.dataset.url;
+      firstTile.classList.add("selected");
     }
   };
 

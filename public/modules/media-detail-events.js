@@ -244,8 +244,10 @@ export function attachMediaDetailEvents() {
           if (meta) {
             let logoEl = meta.querySelector(".immersive-logo");
             const titleEl = meta.querySelector(".immersive-title");
-            if (logo_url) {
-              const logoSrc = proxiedArtworkUrl(logo_url, "logo");
+            // An empty proxy URL means the artwork is known to be unfetchable,
+            // so treat it the same as having no logo at all.
+            const logoSrc = logo_url ? proxiedArtworkUrl(logo_url, "logo") : "";
+            if (logoSrc) {
               if (logoEl) {
                 logoEl.src = logoSrc;
               } else {

@@ -59,7 +59,9 @@ host allowlist is `assets.fanart.tv`, `artworks.thetvdb.com`, and `image.tmdb.or
 other host is rejected with 400. Requests for the same URL are deduped while in flight,
 and a URL that cannot be downloaded returns **404** rather than a placeholder image, so
 the caller's own fallback (the title heading, or hiding a gallery tile) still applies.
-The negative cache keeps a repeat request for an unreachable image fast.
+The negative cache keeps a repeat request for an unreachable image fast, and the 404
+carries a 10-minute `Cache-Control` so a page reload does not re-request it while a
+recovered upstream host is still picked up promptly.
 
 ## Frontend (`public/modules/images.js`)
 
@@ -72,7 +74,10 @@ The negative cache keeps a repeat request for an unreachable image fast.
 - `proxiedArtworkUrl(url, variant)` rewrites fanart.tv and TVDB CDN URLs to
   `/api/remote-artwork`. Local `/media` and TMDB URLs pass through unchanged. Show and
   movie logos and the Edit Images gallery tiles all render through it, while the saved
-  value stays the original upstream URL.
+  value stays the original upstream URL. Artwork the proxy could not fetch is remembered
+  for the session (`markArtworkUnavailable`, recorded by the image error handler), and
+  `proxiedArtworkUrl` then returns an empty string for it - a detail page that renders
+  several times as its parts arrive requests a dead image once, not once per render.
 - `bestTmdbLogo(tmdbData)` accepts English and language-neutral logos only. A title
   whose only TMDB logo art is in another language renders its text heading instead.
 - `hydratePosterFallbacks(container)` finds fallback spans and calls
