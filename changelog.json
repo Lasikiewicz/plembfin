@@ -1,7 +1,19 @@
 {
-  "version": "0.6.42",
-  "updatedAt": "2026-07-28T09:36:45+01:00",
+  "version": "0.6.43",
+  "updatedAt": "2026-07-28T09:39:24+01:00",
   "entries": [
+    {
+      "version": "0.6.43",
+      "date": "2026-07-28T09:39:24+01:00",
+      "commit": "51a282eb219ffec0c15d97e849363cf02f3310a3",
+      "message": "Chore - Bump better-sqlite3 from 12.11.1 to 13.0.1 (#20)",
+      "author": "dependabot[bot]",
+      "details": [
+        "[Release notes](https://github.com/WiseLibs/better-sqlite3/releases)",
+        "[Commits](https://github.com/WiseLibs/better-sqlite3/compare/v12.11.1...v13.0.1)",
+        "dependency-name: better-sqlite3"
+      ]
+    },
     {
       "version": "0.6.42",
       "date": "2026-07-28T09:36:45+01:00",
