@@ -519,9 +519,15 @@ function renderGlobalSearchDropdown(query) {
   const seenShows = new Set();
   const seenPeople = new Set();
 
+  // Candidates are collected from every source without a per-source cap, then
+  // ranked by how well each title matches the query and trimmed to the top few.
+  // Capping during collection ranked by source instead: five TMDB shows would
+  // crowd out a closer match that happened to come from TVDB.
+  const COLLECT_LIMIT = 50;
+
   // 1. Local TV shows (deduplicated by title)
   for (const s of (state.showsRaw || [])) {
-    if (shows.length >= 5) break;
+    if (shows.length >= COLLECT_LIMIT) break;
     if (!(s.title || "").toLowerCase().includes(q)) continue;
     if (seenShows.has(comparableTitle(s.title))) continue;
     seenShows.add(comparableTitle(s.title));
@@ -538,7 +544,7 @@ function renderGlobalSearchDropdown(query) {
 
   // 2. Local Movies
   for (const m of (state.history || [])) {
-    if (movies.length >= 5) break;
+    if (movies.length >= COLLECT_LIMIT) break;
     if (m.media_type !== "movie") continue;
     if (!(m.title || "").toLowerCase().includes(q)) continue;
     if (seenMovies.has(comparableTitle(m.title))) continue;
@@ -565,7 +571,7 @@ function renderGlobalSearchDropdown(query) {
     const year = (item.release_date || item.first_air_date || "").slice(0, 4);
 
     if (mediaType === "movie") {
-      if (movies.length >= 5) continue;
+      if (movies.length >= COLLECT_LIMIT) continue;
       if (seenMovies.has(comparableTitle(title))) {
         const existing = movies.find(m => comparableTitle(m.title) === comparableTitle(title));
         if (existing && !existing.overview && overview) existing.overview = overview;
@@ -582,7 +588,7 @@ function renderGlobalSearchDropdown(query) {
         isLocal: false
       });
     } else if (mediaType === "tv") {
-      if (shows.length >= 5) continue;
+      if (shows.length >= COLLECT_LIMIT) continue;
       if (seenShows.has(comparableTitle(title))) {
         const existing = shows.find(s => comparableTitle(s.title) === comparableTitle(title));
         if (existing && !existing.overview && overview) existing.overview = overview;
@@ -616,7 +622,7 @@ function renderGlobalSearchDropdown(query) {
   // 4. TVDB series, searched alongside TMDB and de-duplicated against the local
   // and TMDB shows already collected above
   for (const item of (discoveryState?.tvdbShows || [])) {
-    if (shows.length >= 5) break;
+    if (shows.length >= COLLECT_LIMIT) break;
     const title = item.name || "";
     if (!title || seenShows.has(comparableTitle(title))) continue;
     seenShows.add(comparableTitle(title));
@@ -631,24 +637,12 @@ function renderGlobalSearchDropdown(query) {
     });
   }
 
-  // Prioritize actor matching query at the top of the people list
-  people.sort((a, b) => {
-    const aIsMatch = a.title.toLowerCase() === q;
-    const bIsMatch = b.title.toLowerCase() === q;
-    if (aIsMatch && !bIsMatch) return -1;
-    if (!aIsMatch && bIsMatch) return 1;
+  const needle = comparableTitle(query);
+  const finalMovies = rankSearchResults(movies, needle).slice(0, 5);
+  const finalShows = rankSearchResults(shows, needle).slice(0, 5);
+  const finalPeople = rankSearchResults(people, needle).slice(0, 5);
 
-    const aIsPartial = a.title.toLowerCase().includes(q);
-    const bIsPartial = b.title.toLowerCase().includes(q);
-    if (aIsPartial && !bIsPartial) return -1;
-    if (!aIsPartial && bIsPartial) return 1;
-
-    return 0; // Maintain original order
-  });
-
-  const finalPeople = people.slice(0, 5);
-
-  if (!movies.length && !shows.length && !finalPeople.length && !discoveryState?.loading && !discoveryState?.error) return;
+  if (!finalMovies.length && !finalShows.length && !finalPeople.length && !discoveryState?.loading && !discoveryState?.error) return;
 
   const anchor = document.querySelector(".global-search");
   if (!anchor) return;
@@ -671,13 +665,13 @@ function renderGlobalSearchDropdown(query) {
       <div class="gsd-column">
         <div class="gsd-column-header">Movies</div>
         <div class="gsd-column-list">
-          ${movies.length ? movies.map(renderItem).join("") : '<div class="gsd-column-empty">No matching movies</div>'}
+          ${finalMovies.length ? finalMovies.map(renderItem).join("") : '<div class="gsd-column-empty">No matching movies</div>'}
         </div>
       </div>
       <div class="gsd-column">
         <div class="gsd-column-header">TV Shows</div>
         <div class="gsd-column-list">
-          ${shows.length ? shows.map(renderItem).join("") : '<div class="gsd-column-empty">No matching TV shows</div>'}
+          ${finalShows.length ? finalShows.map(renderItem).join("") : '<div class="gsd-column-empty">No matching TV shows</div>'}
         </div>
       </div>
       <div class="gsd-column">
@@ -720,6 +714,30 @@ function renderGlobalSearchDropdown(query) {
 
 function comparableTitle(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+// How closely a title answers the query. An exact title beats a prefix, which
+// beats a match anywhere in the title, and a title in your library breaks ties
+// against an identical remote one.
+function searchRelevance(title, needle, isLocal = false) {
+  const value = comparableTitle(title);
+  if (!value || !needle) return 0;
+  let score = 0;
+  if (value === needle) score = 8;
+  else if (value.startsWith(`${needle} `)) score = 6;
+  else if (value.includes(` ${needle} `) || value.endsWith(` ${needle}`)) score = 4;
+  else if (value.includes(needle)) score = 2;
+  else if (needle.includes(value)) score = 1;
+  return score && isLocal ? score + 1 : score;
+}
+
+// Stable sort by relevance: equally relevant results keep the order the sources
+// were collected in, so the ranking never reshuffles on a re-render.
+function rankSearchResults(results, needle) {
+  return results
+    .map((result, index) => ({ result, index, score: searchRelevance(result.title, needle, result.isLocal) }))
+    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+    .map((entry) => entry.result);
 }
 
 // TVDB series search, kept to results that plausibly match the query. TVDB uses

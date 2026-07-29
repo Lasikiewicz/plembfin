@@ -83,6 +83,13 @@ Behavior:
 - The topbar dropdown searches TVDB even when no TMDB key is configured, since TVDB
   uses the built-in project key. If TMDB is unavailable, its error notice is shown only
   when TVDB also returned nothing.
+- The dropdown collects candidates from every source, then ranks each of its three
+  columns by how closely the title answers the query (`searchRelevance` in `app.js`:
+  exact title, then prefix, then whole-word, then substring, with in-library titles
+  breaking ties) before trimming to five. Ranking after collection rather than capping
+  per source is what keeps a close match visible regardless of which catalogue it came
+  from. The sort is stable, so equally relevant results keep their collection order and
+  the list does not reshuffle between renders.
 - A result click opens the standard detail page: in-library items by their local id,
   discovery-only items via the TMDB routes (`/movie/tmdb/:id`, `/tvshow/tmdb/:id`), and
   TVDB-only series via `/tvshow/tvdb/:id`. Detail pages reached this way offer Seerr
@@ -90,6 +97,10 @@ Behavior:
   because Seerr requests are keyed on TMDB ids.
 - The filter chips (all / movies / shows / people) drive `state.searchFilter`; person
   results open `/person/:id`.
+- The results page lays the three categories out as columns (`.search-columns` in
+  `styles.css`). Above 1200px the row is capped at the viewport height and each column
+  scrolls its own list; below that the columns stack. The cap is a `max-height`, so
+  short result sets size the panels to their content.
 - The topbar also has a compact search dropdown (wired in `app.js`) that reuses the
   same search plumbing and links to the full page.
 
