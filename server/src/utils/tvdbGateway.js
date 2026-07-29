@@ -236,16 +236,42 @@ export async function resolveTvdbSeriesId({ tvdbId = "", title = "" } = {}) {
   }
 }
 
+// Search result lists are cached because search now runs on every query rather
+// than only as a last resort, and the project key's rate pool is shared by every
+// Plembfin install. The TTL is far shorter than the single-series search cache:
+// a list has to pick up newly added series, where a resolved id does not change.
+const SEARCH_LIST_TTL_MS = 7 * DAY_MS;
+const SEARCH_LIST_MISS_TTL_MS = 60 * 60 * 1000;
+
 export async function searchTvdbSeriesList(query) {
   const cleaned = String(query || "").trim();
   if (!cleaned) return [];
-  const results = await upstream("search", { query: cleaned, type: "series" });
-  return (Array.isArray(results) ? results : []).slice(0, 10).map((item) => ({
-    tvdb_id: normalizeTvdbId(item.tvdb_id || item.id),
-    name: item.name || item.translations?.eng || "Unknown",
-    year: item.year || (item.first_air_time || "").slice(0, 4) || "",
-    image_url: item.image_url || item.thumbnail || "",
-  })).filter((item) => item.tvdb_id);
+  const cacheKey = `searchlist_${hash(canonicalTitle(cleaned))}`;
+  return collapse(cacheKey, async () => {
+    const row = seriesGetStmt.get(cacheKey);
+    const cachedResults = row ? parseJson(row.details)?.results : null;
+    if (Array.isArray(cachedResults)) {
+      const ttl = cachedResults.length ? SEARCH_LIST_TTL_MS : SEARCH_LIST_MISS_TTL_MS;
+      if (fresh(row.updated_at_ms, ttl)) return cachedResults;
+    }
+    let results;
+    try {
+      results = await upstream("search", { query: cleaned, type: "series" });
+    } catch (error) {
+      // A rate limit or outage falls back to whatever was cached rather than
+      // removing TVDB series from search results entirely.
+      if (Array.isArray(cachedResults)) return cachedResults;
+      throw error;
+    }
+    const shaped = (Array.isArray(results) ? results : []).slice(0, 10).map((item) => ({
+      tvdb_id: normalizeTvdbId(item.tvdb_id || item.id),
+      name: item.name || item.translations?.eng || "Unknown",
+      year: item.year || (item.first_air_time || "").slice(0, 4) || "",
+      image_url: item.image_url || item.thumbnail || "",
+    })).filter((item) => item.tvdb_id);
+    seriesSetStmt.run({ id: cacheKey, tvdb_id: "", title: cleaned, details: toJson({ results: shaped }), updated_at_ms: Date.now() });
+    return shaped;
+  });
 }
 
 const ARTWORK_TYPES_TTL_MS = 30 * DAY_MS;

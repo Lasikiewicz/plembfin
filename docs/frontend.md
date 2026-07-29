@@ -159,3 +159,12 @@ All of the following must stay consistent - do not change one without updating t
    give it an `init<Feature>(callbacks)` entry point.
 4. Update the module table in [`../CLAUDE.md`](../CLAUDE.md) and the file map in
    [architecture.md](architecture.md).
+
+### Cache-busting version strings
+
+Some modules carry a `?v=<date>` suffix on their import and `modulepreload` URLs. A
+module URL is a module identity to the browser: the same file imported under two
+different suffixes is loaded and instantiated twice, so any module-level state exists
+twice over. When bumping a suffix, change every import of that file **and** its
+`modulepreload` link in `index.html` together, so the whole app keeps referring to one
+URL per module.

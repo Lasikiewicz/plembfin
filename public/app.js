@@ -15,11 +15,11 @@ import { initUpcoming, openUpcomingToToday } from "./modules/upcoming.js";
 import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js";
 import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js";
 import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=20260710";
-import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260734";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=20260736";
+import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260736";
 import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js";
 import { initMediaLightbox } from "./modules/media-lightbox.js";
-import { initAppEvents } from "./modules/app-events.js?v=20260734";
+import { initAppEvents } from "./modules/app-events.js?v=20260736";
 
 if (localStorage.getItem("plembfin_bio_media_layout") === "1") {
   document.body.classList.add("bio-media-layout");
@@ -523,8 +523,8 @@ function renderGlobalSearchDropdown(query) {
   for (const s of (state.showsRaw || [])) {
     if (shows.length >= 5) break;
     if (!(s.title || "").toLowerCase().includes(q)) continue;
-    if (seenShows.has(s.title.toLowerCase())) continue;
-    seenShows.add(s.title.toLowerCase());
+    if (seenShows.has(comparableTitle(s.title))) continue;
+    seenShows.add(comparableTitle(s.title));
     shows.push({
       _type: "show",
       title: s.title,
@@ -541,8 +541,8 @@ function renderGlobalSearchDropdown(query) {
     if (movies.length >= 5) break;
     if (m.media_type !== "movie") continue;
     if (!(m.title || "").toLowerCase().includes(q)) continue;
-    if (seenMovies.has(m.title.toLowerCase())) continue;
-    seenMovies.add(m.title.toLowerCase());
+    if (seenMovies.has(comparableTitle(m.title))) continue;
+    seenMovies.add(comparableTitle(m.title));
     movies.push({
       _type: "movie",
       title: m.title,
@@ -566,12 +566,12 @@ function renderGlobalSearchDropdown(query) {
 
     if (mediaType === "movie") {
       if (movies.length >= 5) continue;
-      if (seenMovies.has(title.toLowerCase())) {
-        const existing = movies.find(m => m.title.toLowerCase() === title.toLowerCase());
+      if (seenMovies.has(comparableTitle(title))) {
+        const existing = movies.find(m => comparableTitle(m.title) === comparableTitle(title));
         if (existing && !existing.overview && overview) existing.overview = overview;
         continue;
       }
-      seenMovies.add(title.toLowerCase());
+      seenMovies.add(comparableTitle(title));
       movies.push({
         _type: "movie",
         title,
@@ -583,12 +583,12 @@ function renderGlobalSearchDropdown(query) {
       });
     } else if (mediaType === "tv") {
       if (shows.length >= 5) continue;
-      if (seenShows.has(title.toLowerCase())) {
-        const existing = shows.find(s => s.title.toLowerCase() === title.toLowerCase());
+      if (seenShows.has(comparableTitle(title))) {
+        const existing = shows.find(s => comparableTitle(s.title) === comparableTitle(title));
         if (existing && !existing.overview && overview) existing.overview = overview;
         continue;
       }
-      seenShows.add(title.toLowerCase());
+      seenShows.add(comparableTitle(title));
       shows.push({
         _type: "show",
         title,
@@ -599,8 +599,8 @@ function renderGlobalSearchDropdown(query) {
         isLocal: false
       });
     } else if (mediaType === "person") {
-      if (seenPeople.has(title.toLowerCase())) continue;
-      seenPeople.add(title.toLowerCase());
+      if (seenPeople.has(comparableTitle(title))) continue;
+      seenPeople.add(comparableTitle(title));
       people.push({
         _type: "person",
         title,
@@ -613,12 +613,13 @@ function renderGlobalSearchDropdown(query) {
     }
   }
 
-  // 4. TVDB series, present only when TMDB had no matching show for the query
+  // 4. TVDB series, searched alongside TMDB and de-duplicated against the local
+  // and TMDB shows already collected above
   for (const item of (discoveryState?.tvdbShows || [])) {
     if (shows.length >= 5) break;
     const title = item.name || "";
-    if (!title || seenShows.has(title.toLowerCase())) continue;
-    seenShows.add(title.toLowerCase());
+    if (!title || seenShows.has(comparableTitle(title))) continue;
+    seenShows.add(comparableTitle(title));
     shows.push({
       _type: "show",
       title,
@@ -721,19 +722,11 @@ function comparableTitle(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-// TMDB's TV catalogue does not cover everything TVDB lists, so a query TMDB
-// answers with no plausible series falls back to TVDB. Queries TMDB already
-// answers skip it, because the TVDB project key's rate pool is shared by every
-// Plembfin install.
-async function tvdbShowFallback(query, tmdbResults = []) {
+// TVDB series search, kept to results that plausibly match the query. TVDB uses
+// the built-in project key, so this works whether or not a TMDB key is set.
+async function tvdbShowSearch(query) {
   const needle = comparableTitle(query);
   if (!needle) return [];
-  const hasShowMatch = tmdbResults.some((item) => {
-    if ((item.media_type || (item.title ? "movie" : "tv")) !== "tv") return false;
-    const title = comparableTitle(item.name || item.title);
-    return title && (title.includes(needle) || needle.includes(title));
-  });
-  if (hasShowMatch) return [];
   try {
     const response = await fetch(`/api/tvdb-search?query=${encodeURIComponent(query)}`, { headers: authHeaders() });
     if (!response.ok) return [];
@@ -747,12 +740,7 @@ async function tvdbShowFallback(query, tmdbResults = []) {
   }
 }
 
-async function loadGlobalDiscovery(query) {
-  const normalized = query.trim().toLowerCase();
-  if (normalized.length < 2 || !state.savedConfig.tmdb?.configured) return;
-  const token = ++state.globalSearchRequestToken;
-  state.globalDiscoveryResults.set(normalized, { loading: true, results: [] });
-  renderGlobalSearchDropdown(query);
+async function fetchTmdbDiscovery(query) {
   try {
     const response = await fetch(`/api/tmdb-search?query=${encodeURIComponent(query)}&mediaType=multi`, { headers: authHeaders() });
     const body = await response.json().catch(() => ({}));
@@ -761,15 +749,36 @@ async function loadGlobalDiscovery(query) {
       error.status = response.status;
       throw error;
     }
-    const results = body.results || [];
-    state.globalDiscoveryResults.set(normalized, { loading: false, results, tvdbShows: await tvdbShowFallback(query, results) });
+    return { results: body.results || [] };
   } catch (error) {
-    const message = error.status === 504 || /timed out/i.test(error.message || "")
-      ? "TMDB is taking too long to respond. Local results are still available; try again shortly."
-      : "TMDB results are unavailable right now. Local results are still available; try again.";
-    state.globalDiscoveryResults.set(normalized, { loading: false, results: [], error: message });
     console.warn("TMDB discovery search unavailable", error);
+    return {
+      results: [],
+      error: error.status === 504 || /timed out/i.test(error.message || "")
+        ? "TMDB is taking too long to respond. Local and TVDB results are still available; try again shortly."
+        : "TMDB results are unavailable right now. Local and TVDB results are still available; try again.",
+    };
   }
+}
+
+async function loadGlobalDiscovery(query) {
+  const normalized = query.trim().toLowerCase();
+  if (normalized.length < 2) return;
+  const token = ++state.globalSearchRequestToken;
+  state.globalDiscoveryResults.set(normalized, { loading: true, results: [] });
+  renderGlobalSearchDropdown(query);
+  // Both catalogues are queried at once so TVDB series appear as quickly as TMDB
+  // ones, and so an unavailable TMDB does not hold back or hide TVDB results.
+  const [tmdb, tvdbShows] = await Promise.all([
+    state.savedConfig.tmdb?.configured ? fetchTmdbDiscovery(query) : Promise.resolve({ results: [] }),
+    tvdbShowSearch(query),
+  ]);
+  state.globalDiscoveryResults.set(normalized, {
+    loading: false,
+    results: tmdb.results,
+    tvdbShows,
+    error: tmdb.error && !tvdbShows.length ? tmdb.error : "",
+  });
   if (token === state.globalSearchRequestToken && elements.globalSearchInput?.value.trim().toLowerCase() === normalized) {
     renderGlobalSearchDropdown(query);
   }

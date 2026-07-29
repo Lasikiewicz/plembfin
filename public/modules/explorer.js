@@ -101,6 +101,13 @@ export function syncInlineMediaDetailHeading(mode = state.explorerMode || "movie
 // ---------------------------------------------------------------------------
 // Search page
 // ---------------------------------------------------------------------------
+// Dedupe key for merging results from the local library, TMDB and TVDB. The
+// three sources punctuate titles differently ("Star Trek: Picard" vs "Star Trek
+// Picard"), so comparing raw lowercase strings lets the same show through twice.
+function comparableTitle(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 export function triggerSearchPage(query) {
   const normalizedQuery = String(query || "").trim().toLowerCase();
   const requestId = ++searchRequestId;
@@ -175,7 +182,7 @@ export function triggerSearchPage(query) {
         const title = item.title || item.name || "Unknown title";
         const slugTitle = slug(title);
         const overview = item.overview || (item.known_for ? `Known for: ${item.known_for.map(x => x.title || x.name).filter(Boolean).join(", ")}` : "");
-        const existing = results.find((result) => result.mediaType === mediaType && result.title.toLowerCase() === title.toLowerCase());
+        const existing = results.find((result) => result.mediaType === mediaType && comparableTitle(result.title) === comparableTitle(title));
         if (existing) {
           if (!existing.overview && overview) {
             existing.overview = overview;
@@ -194,12 +201,12 @@ export function triggerSearchPage(query) {
           mediaType
         });
       }
-      // TVDB series results, returned only when TMDB had no matching show, so a
-      // series TMDB does not carry is still reachable from search.
+      // TVDB series results, searched alongside TMDB. Any series already listed
+      // locally or by TMDB is dropped here so a show never appears twice.
       for (const item of (body.tvdb?.shows || [])) {
         const title = item.name || "";
         if (!title) continue;
-        if (results.some((result) => result.mediaType === "tv" && result.title.toLowerCase() === title.toLowerCase())) continue;
+        if (results.some((result) => result.mediaType === "tv" && comparableTitle(result.title) === comparableTitle(title))) continue;
         results.push({
           _type: "show",
           title,

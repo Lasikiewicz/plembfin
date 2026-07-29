@@ -626,20 +626,13 @@ function searchableTitle(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-// TMDB's TV catalogue has gaps that TVDB does not (regional and factual series in
-// particular), so a search whose TMDB results contain no plausible series match
-// falls back to TVDB. The fallback is deliberately conditional: the TVDB project
-// key's rate pool is shared by every Plembfin install, and searches that TMDB
-// already answers must not spend from it.
-async function tvdbSearchFallback(query, discovery) {
+// TVDB is searched alongside TMDB rather than after it, because TMDB's TV
+// catalogue has gaps TVDB does not (regional and factual series in particular)
+// and a series missing from TMDB should appear as fast as any other result.
+// Callers de-duplicate these against the local and TMDB show results by title.
+export async function searchTvdbSeries(query) {
   const needle = searchableTitle(query);
   if (!needle) return [];
-  const tmdbShows = (discovery?.results || []).filter((item) => (item.media_type || (item.title ? "movie" : "tv")) === "tv");
-  const hasPlausibleMatch = tmdbShows.some((item) => {
-    const title = searchableTitle(item.name || item.title);
-    return title && (title.includes(needle) || needle.includes(title));
-  });
-  if (hasPlausibleMatch) return [];
   try {
     const results = await searchTvdbSeriesList(query);
     return results.filter((item) => {
@@ -660,12 +653,12 @@ export async function handleMediaSearch(req, res) {
   if (query.length < 2) return sendJson(res, { error: "A search query of at least two characters is required" }, 400);
   try {
     const localLimit = Math.min(Math.max(Number(req.query.limit || req.query.localLimit || 50), 1), 250);
-    const [movies, shows, discovery] = await Promise.all([
+    const [movies, shows, discovery, tvdbShows] = await Promise.all([
       queryMovies({ search: query, limit: localLimit }),
       queryShows({ search: query, limit: localLimit }),
       searchTmdb({ query, page: req.query.page, mediaType: req.query.mediaType || "multi" }),
+      searchTvdbSeries(query),
     ]);
-    const tvdbShows = await tvdbSearchFallback(query, discovery);
     return sendJson(res, { local: { movies, shows }, discovery, tvdb: { shows: tvdbShows } }, 200, {
       "Cache-Control": "private, max-age=60, stale-while-revalidate=900",
       Vary: "Authorization",

@@ -52,7 +52,7 @@
 | **Security hardening** | Strict CSP headers, scrypt hashing, rate-limited login, HMAC-signed sessions |
 | **Artwork pipeline** | Posters and logos fetched from TMDB, TheTVDB, and Fanart.tv, resized and cached locally, so the browser only ever loads artwork from Plembfin itself; library grids show a loading placeholder until each image appears, and the per-title artwork picker includes a manual search for titles that fail to match automatically |
 | **Accurate TV episode data** | TV show names, seasons, episode numbering, titles, and air dates are sourced from TheTVDB; cast, trailers, reviews, and recommendations are sourced from TMDB |
-| **Search that covers both catalogues** | Search spans your library and TMDB, and falls back to TheTVDB when TMDB lists no matching series, so shows TMDB has never catalogued are still findable and open a full detail page |
+| **Search that covers both catalogues** | Search spans your library, TMDB and TheTVDB at once, so shows TMDB has never catalogued are still findable and open a full detail page. Results from the three sources are merged, so nothing appears twice |
 | **Installable on phones** | Add Plembfin to an iOS or Android Home Screen and it launches standalone with the Plembfin icon |
 
 ---

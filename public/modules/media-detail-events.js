@@ -33,7 +33,7 @@ import {
   renderShowModalContent,
   renderMovieImmersiveModalContent,
   openHistoryDebugModal,
-} from "./media-detail.js?v=20260701";
+} from "./media-detail.js?v=20260736";
 import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.

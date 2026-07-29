@@ -2,8 +2,8 @@ import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, slug, movieHref, showTitleFrom, showEpisodeKey } from "./utils.js";
 import { tmdbProfile, tmdbPoster, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction } from "./sync.js";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260710";
-import { movieBySlugOrId, clearMediaDetailState, mediaDetailRoot, mediaDetailLoaderHtml } from "./media-detail.js?v=20260701";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260736";
+import { movieBySlugOrId, clearMediaDetailState, mediaDetailRoot, mediaDetailLoaderHtml } from "./media-detail.js?v=20260736";
 import { FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver, resolvedTmdbCache } from "./explorer.js";
 
 let _cb = {};
