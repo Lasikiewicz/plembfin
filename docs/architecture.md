@@ -192,7 +192,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `index.html` | The single HTML shell: nav tabs (Dashboard / Movies / TV Shows / Upcoming / History / Stats / Settings), one `view-panel` section per view, all modals/dialogs, and `modulepreload` links for every module. Element IDs here are what `bindElements()` queries. |
 | `app.js` | **Frontend orchestrator** (keep under 3,000 lines): startup, theme init, backend warm-up ping, `bindElements`, SPA routing (`handleRouting`/`navigateTo`/`selectView`), auth flow wiring, and the callback objects handed to each module's `init*` function. Feature logic belongs in `public/modules/`, not here. |
 | `styles.css` | All styling for the app, including responsive/mobile rules (mobile ≤ 760px must be verified for any layout change). |
-| `favicon.svg`, `plembfin_header_logo_dark.png`, `plembfin_header_logo_light.png` | App icon and the theme-specific header logos swapped by the theme toggle. |
+| `favicon.png`, `favicon.svg`, `plembfin_header_logo_dark.png`, `plembfin_header_logo_light.png` | `favicon.png` is the browser tab icon; `favicon.svg` is the placeholder art used wherever a poster or profile image is missing. The two header logos are swapped by the theme toggle. |
 | `icons/plex.svg`, `icons/emby.svg`, `icons/jellyfin.svg` | Platform badge icons used on cards and pills. |
 
 ### `public/modules/`
