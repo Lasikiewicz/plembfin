@@ -1,7 +1,22 @@
 {
-  "version": "0.6.48",
-  "updatedAt": "2026-07-28T11:28:04+01:00",
+  "version": "0.6.49",
+  "updatedAt": "2026-07-29T09:13:39+01:00",
   "entries": [
+    {
+      "version": "0.6.49",
+      "date": "2026-07-29T09:13:39+01:00",
+      "commit": "79b6239dc3d69f18701b2489251f7968d5ef65a6",
+      "message": "Fix - Return to the correct library when leaving a movie or show page",
+      "author": "Lasikiewicz",
+      "details": [
+        "Leaving a TV show page returns to the TV Shows library instead of dropping you on Movies",
+        "Closing a detail page updates the address bar, so the page title and the library controls (Hide Fully Watched, Hide Ended) come back with it",
+        "The browser's own back and forward buttons restore the right title, back button, and control bar for the view they land on",
+        "Opening a show from the poster grid no longer reloads the whole app, so it navigates as instantly as every other card",
+        "Show posters stay real links, so middle-click, open in a new tab, and copy link address still work",
+        "Detail pages opened straight from a URL or a bookmark return to the matching library instead of defaulting to Movies"
+      ]
+    },
     {
       "version": "0.6.48",
       "date": "2026-07-28T11:28:04+01:00",
