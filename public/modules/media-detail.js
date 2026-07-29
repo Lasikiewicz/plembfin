@@ -8,9 +8,9 @@ import {
   openDebugModal, closeDebugModal, clearMediaDetailState, closeMediaDetail,
 } from "./media-detail-context.js";
 import {
-  openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowInlineDetail,
+  openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent,
-} from "./media-detail-show.js?v=20260732";
+} from "./media-detail-show.js?v=20260736";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
 } from "./media-detail-movie.js";
@@ -29,6 +29,7 @@ export {
   renderImmersiveShowModal,
   renderShowModalContent,
   openShowImmersiveModalByTmdbId,
+  openShowImmersiveModalByTvdbId,
   renderMovieImmersiveModalContent,
   openMovieImmersiveModalByTmdbId,
   patchMovieWatchedState,

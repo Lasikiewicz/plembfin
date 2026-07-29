@@ -1,7 +1,8 @@
 # Media Detail Pages (Movies, TV Shows, People)
 
 The immersive detail pages opened from any card in the app - or directly via URL
-(`/movie/:id`, `/movie/tmdb/:id`, `/tvshow/:key`, `/tvshow/tmdb/:id`, `/person/:id`).
+(`/movie/:id`, `/movie/tmdb/:id`, `/tvshow/:key`, `/tvshow/tmdb/:id`, `/tvshow/tvdb/:id`,
+`/person/:id`).
 They render TMDB/TVDB metadata (overview, cast, trailers, ratings, recommendations,
 images), watch state, sync status, Seerr request controls, and the edit tools.
 
@@ -50,6 +51,12 @@ picker every date/time control in the app is built on).
 Direct URL loads work identically - routing hydrates the same UI without needing
 in-app navigation state. TV URLs support deep links:
 `/tvshow/<key>/season/2/episode/5` (and a legacy `#season2ep5` hash form).
+
+Series that TMDB has no record of are addressed by `/tvshow/tvdb/:id` instead of
+`/tvshow/tmdb/:id`. Show metadata is TVDB-backed either way, so the page renders the
+same, with two differences: season episode lists are fetched by TVDB id, and the Seerr
+request pill is absent because Seerr requests are keyed on TMDB ids. If the resolved
+metadata does carry a TMDB id after all, the page switches to the TMDB URL.
 
 A TV URL may also carry `?historyId=<record id>`, which library cards append so the
 page opens against the play that was clicked. When that record names a series the app

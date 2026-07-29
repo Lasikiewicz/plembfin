@@ -622,6 +622,36 @@ export async function handleTvdbSearch(req, res) {
   }
 }
 
+function searchableTitle(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+// TMDB's TV catalogue has gaps that TVDB does not (regional and factual series in
+// particular), so a search whose TMDB results contain no plausible series match
+// falls back to TVDB. The fallback is deliberately conditional: the TVDB project
+// key's rate pool is shared by every Plembfin install, and searches that TMDB
+// already answers must not spend from it.
+async function tvdbSearchFallback(query, discovery) {
+  const needle = searchableTitle(query);
+  if (!needle) return [];
+  const tmdbShows = (discovery?.results || []).filter((item) => (item.media_type || (item.title ? "movie" : "tv")) === "tv");
+  const hasPlausibleMatch = tmdbShows.some((item) => {
+    const title = searchableTitle(item.name || item.title);
+    return title && (title.includes(needle) || needle.includes(title));
+  });
+  if (hasPlausibleMatch) return [];
+  try {
+    const results = await searchTvdbSeriesList(query);
+    return results.filter((item) => {
+      const title = searchableTitle(item.name);
+      return title && (title.includes(needle) || needle.includes(title));
+    });
+  } catch {
+    // TVDB being unavailable or rate limited must never fail the whole search.
+    return [];
+  }
+}
+
 export async function handleMediaSearch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -635,7 +665,8 @@ export async function handleMediaSearch(req, res) {
       queryShows({ search: query, limit: localLimit }),
       searchTmdb({ query, page: req.query.page, mediaType: req.query.mediaType || "multi" }),
     ]);
-    return sendJson(res, { local: { movies, shows }, discovery }, 200, {
+    const tvdbShows = await tvdbSearchFallback(query, discovery);
+    return sendJson(res, { local: { movies, shows }, discovery, tvdb: { shows: tvdbShows } }, 200, {
       "Cache-Control": "private, max-age=60, stale-while-revalidate=900",
       Vary: "Authorization",
     });
@@ -649,7 +680,11 @@ export async function handleTmdbSeason(req, res) {
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
   try {
-    const details = await getTmdbSeason({ tmdbId: req.query.tmdbId || req.query.id, seasonNumber: req.query.seasonNumber || req.query.season });
+    const details = await getTmdbSeason({
+      tmdbId: req.query.tmdbId || req.query.id,
+      tvdbId: req.query.tvdbId || req.query.tvdb_id,
+      seasonNumber: req.query.seasonNumber || req.query.season,
+    });
     return sendJson(res, details, 200, { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400", Vary: "Authorization" });
   } catch (error) {
     return sendJson(res, { error: error.message }, error.status || 500);

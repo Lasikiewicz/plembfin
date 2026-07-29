@@ -5,7 +5,7 @@ import { initSettingsServices, applyConfigToSettingsUi, refreshSeerrCapabilities
 import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS } from "./modules/state.js";
 import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSlug, movieHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./modules/utils.js";
 import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-content.js";
-import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile } from "./modules/images.js";
+import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js";
 import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runDedupHistory, runPhantomWatchAudit, runTraktBackfill, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups } from "./modules/tools.js";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync } from "./modules/sync.js";
 import { initSyncPreview } from "./modules/sync-preview.js";
@@ -16,7 +16,7 @@ import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, 
 import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js";
 import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=20260710";
-import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260734";
+import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260734";
 import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js";
 import { initMediaLightbox } from "./modules/media-lightbox.js";
 import { initAppEvents } from "./modules/app-events.js?v=20260734";
@@ -613,6 +613,23 @@ function renderGlobalSearchDropdown(query) {
     }
   }
 
+  // 4. TVDB series, present only when TMDB had no matching show for the query
+  for (const item of (discoveryState?.tvdbShows || [])) {
+    if (shows.length >= 5) break;
+    const title = item.name || "";
+    if (!title || seenShows.has(title.toLowerCase())) continue;
+    seenShows.add(title.toLowerCase());
+    shows.push({
+      _type: "show",
+      title,
+      poster: proxiedArtworkUrl(item.image_url, "poster"),
+      href: `/tvshow/tvdb/${item.tvdb_id}`,
+      sub: `TV Show${item.year ? ` · ${item.year}` : ""} · TVDB`,
+      overview: "",
+      isLocal: false
+    });
+  }
+
   // Prioritize actor matching query at the top of the people list
   people.sort((a, b) => {
     const aIsMatch = a.title.toLowerCase() === q;
@@ -700,6 +717,36 @@ function renderGlobalSearchDropdown(query) {
   });
 }
 
+function comparableTitle(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+// TMDB's TV catalogue does not cover everything TVDB lists, so a query TMDB
+// answers with no plausible series falls back to TVDB. Queries TMDB already
+// answers skip it, because the TVDB project key's rate pool is shared by every
+// Plembfin install.
+async function tvdbShowFallback(query, tmdbResults = []) {
+  const needle = comparableTitle(query);
+  if (!needle) return [];
+  const hasShowMatch = tmdbResults.some((item) => {
+    if ((item.media_type || (item.title ? "movie" : "tv")) !== "tv") return false;
+    const title = comparableTitle(item.name || item.title);
+    return title && (title.includes(needle) || needle.includes(title));
+  });
+  if (hasShowMatch) return [];
+  try {
+    const response = await fetch(`/api/tvdb-search?query=${encodeURIComponent(query)}`, { headers: authHeaders() });
+    if (!response.ok) return [];
+    const body = await response.json().catch(() => ({}));
+    return (body.results || []).filter((item) => {
+      const title = comparableTitle(item.name);
+      return title && (title.includes(needle) || needle.includes(title));
+    });
+  } catch {
+    return [];
+  }
+}
+
 async function loadGlobalDiscovery(query) {
   const normalized = query.trim().toLowerCase();
   if (normalized.length < 2 || !state.savedConfig.tmdb?.configured) return;
@@ -714,7 +761,8 @@ async function loadGlobalDiscovery(query) {
       error.status = response.status;
       throw error;
     }
-    state.globalDiscoveryResults.set(normalized, { loading: false, results: body.results || [] });
+    const results = body.results || [];
+    state.globalDiscoveryResults.set(normalized, { loading: false, results, tvdbShows: await tvdbShowFallback(query, results) });
   } catch (error) {
     const message = error.status === 504 || /timed out/i.test(error.message || "")
       ? "TMDB is taking too long to respond. Local results are still available; try again shortly."
@@ -975,6 +1023,7 @@ function handleRouting(path) {
   const personMatch = pathname.match(/^\/person\/(\d+)$/);
   const movieTmdbMatch = pathname.match(/^\/movie\/tmdb\/(\d+)$/);
   const tvshowTmdbMatch = pathname.match(/^\/tvshow\/tmdb\/(\d+)(?:\/season\/(\d+))?(?:\/episode\/(\d+))?$/);
+  const tvshowTvdbMatch = pathname.match(/^\/tvshow\/tvdb\/(\d+)(?:\/season\/(\d+))?(?:\/episode\/(\d+))?$/);
   const movieMatch = pathname.match(/^\/movie\/([^/]+)$/);
   const tvshowMatch = pathname.match(/^\/tvshow\/([^/]+)(?:\/season\/(\d+))?(?:\/episode\/(\d+))?$/);
 
@@ -1027,6 +1076,34 @@ function handleRouting(path) {
     state.activeShowModalSeason = seasonNum;
     state.activeShowModalEpisode = episodeNum;
     openShowImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
+  } else if (tvshowTvdbMatch) {
+    const tvdbId = tvshowTvdbMatch[1];
+    let seasonNum = null;
+    let episodeNum = null;
+    if (hashPart) {
+      const hashMatch = hashPart.match(/^season(\d+)(?:ep(\d+))?$/);
+      if (hashMatch) {
+        seasonNum = Number(hashMatch[1]);
+        episodeNum = hashMatch[2] ? Number(hashMatch[2]) : null;
+      }
+    }
+    if (seasonNum === null) {
+      seasonNum = tvshowTvdbMatch[2] ? Number(tvshowTvdbMatch[2]) : null;
+      episodeNum = tvshowTvdbMatch[3] ? Number(tvshowTvdbMatch[3]) : null;
+    }
+    if (!state.mediaDetailInline) {
+      state.mediaDetailReturnView = state.activeView || "dashboard";
+      state.mediaDetailReturnExplorerMode = "shows";
+    }
+    state.activeView = "explorer";
+    state.explorerMode = "shows";
+    state.mediaDetailInline = true;
+    state.activeShowModalKey = null;
+    state.activeShowTmdbId = null;
+    state.activeShowTvdbId = String(tvdbId);
+    state.activeShowModalSeason = seasonNum;
+    state.activeShowModalEpisode = episodeNum;
+    openShowImmersiveModalByTvdbId(tvdbId).catch((error) => setMessage(error.message, "error"));
   } else if (movieMatch) {
     const movieKey = decodeURIComponent(movieMatch[1]);
     const movie = movieBySlugOrId(movieKey);
@@ -1208,6 +1285,15 @@ function selectView(view) {
       }
     } else if (state.explorerMode === "shows" && state.activeShowTmdbId) {
       url = `/tvshow/tmdb/${state.activeShowTmdbId}`;
+      if (state.activeShowModalSeason !== null) {
+        url += `#season${state.activeShowModalSeason}`;
+        if (state.activeShowModalEpisode !== null) {
+          url += `ep${state.activeShowModalEpisode}`;
+        }
+      }
+    } else if (state.explorerMode === "shows" && state.activeShowTvdbId) {
+      // Series TMDB has no record of are addressed by their TVDB id instead.
+      url = `/tvshow/tvdb/${state.activeShowTvdbId}`;
       if (state.activeShowModalSeason !== null) {
         url += `#season${state.activeShowModalSeason}`;
         if (state.activeShowModalEpisode !== null) {

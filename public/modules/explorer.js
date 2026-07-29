@@ -12,7 +12,7 @@ import {
   movieHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
   computeProgress, sanitizeTitle, episodeTitle, episodeCode,
 } from "./utils.js";
-import { posterMarkup, hydratePosters, tmdbPoster, tmdbProfile } from "./images.js";
+import { posterMarkup, hydratePosters, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js";
 import {
   historySyncPill, renderSyncStatusDot, renderMediaSyncPills,
   renderAvailabilityPills, renderShowAvailabilityPills, showAvailIssuePopup,
@@ -194,6 +194,24 @@ export function triggerSearchPage(query) {
           mediaType
         });
       }
+      // TVDB series results, returned only when TMDB had no matching show, so a
+      // series TMDB does not carry is still reachable from search.
+      for (const item of (body.tvdb?.shows || [])) {
+        const title = item.name || "";
+        if (!title) continue;
+        if (results.some((result) => result.mediaType === "tv" && result.title.toLowerCase() === title.toLowerCase())) continue;
+        results.push({
+          _type: "show",
+          title,
+          poster: proxiedArtworkUrl(item.image_url, "poster"),
+          href: `/tvshow/tvdb/${item.tvdb_id}`,
+          sub: `TV Show${item.year ? ` · ${item.year}` : ""} · TVDB`,
+          overview: "",
+          isLocal: false,
+          source: "TVDB",
+          mediaType: "tv"
+        });
+      }
       // Prioritize actor matching query at the top
       const qLower = query.toLowerCase();
       results.sort((a, b) => {
@@ -247,7 +265,7 @@ export function renderSearchPage() {
         : `<div class="overview-thumb-poster poster-fallback" style="display: flex; align-items: center; justify-content: center; color: var(--muted); height: 100%; min-height: 160px;"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg></div>`);
     const badgesHtml = r.isLocal
       ? `<span class="status-pill status-success" style="font-size: 0.65rem; padding: 0.1rem 0.3rem;">Local</span>`
-      : `<span class="status-pill status-muted" style="font-size: 0.65rem; padding: 0.1rem 0.3rem;">TMDB</span>`;
+      : `<span class="status-pill status-muted" style="font-size: 0.65rem; padding: 0.1rem 0.3rem;">${escapeHtml(r.source || "TMDB")}</span>`;
     return `
       <article class="explorer-overview-card" data-href="${escapeAttribute(r.href)}">
         <div style="width: 100%; height: 100%; position: relative;">

@@ -58,23 +58,31 @@ endpoint - see [dashboard.md](dashboard.md).
 
 ## Search page (`/search`)
 
-Global search across the local library **and** TMDB discovery, reached from the topbar
-search or `/search?q=`.
+Global search across the local library, TMDB discovery **and** TVDB, reached from the
+topbar search or `/search?q=`.
 
 | File | Role |
 | --- | --- |
 | `public/modules/explorer.js` | `triggerSearchPage`, `renderSearchPage` |
-| `server/src/index.js` | `handleMediaSearch` (`GET /api/media-search`), `handleTmdbSearch` (`GET /api/tmdb-search`), `handleTvdbSearch` |
+| `server/src/index.js` | `handleMediaSearch` (`GET /api/media-search`), `handleTmdbSearch` (`GET /api/tmdb-search`), `handleTvdbSearch` (`GET /api/tvdb-search`) |
 | `server/src/utils/tmdbGateway.js` | `searchTmdb` with the `tmdb_search_cache` table (15-min TTL) |
+| `server/src/utils/tvdbGateway.js` | `searchTvdbSeriesList` for the TVDB series fallback |
 
 Behavior:
 
 - Local results match the watch history/library caches; remote results come from TMDB
   search (debounced - `state.globalSearchRemoteTimer`), merged and de-duplicated with
   local items marked as in-library.
+- TMDB's TV catalogue does not list every series TVDB does. When a query's TMDB results
+  contain no plausible series match, the search falls back to a TVDB series search and
+  shows those results with a `TVDB` badge. Queries TMDB answers skip the fallback
+  entirely, so the shared TVDB project key's rate pool is only spent when it is the
+  only source that can answer.
 - A result click opens the standard detail page: in-library items by their local id,
-  discovery-only items via the TMDB routes (`/movie/tmdb/:id`, `/tvshow/tmdb/:id`),
-  where the detail page offers Seerr requesting instead of watch history.
+  discovery-only items via the TMDB routes (`/movie/tmdb/:id`, `/tvshow/tmdb/:id`), and
+  TVDB-only series via `/tvshow/tvdb/:id`. Detail pages reached this way offer Seerr
+  requesting instead of watch history; the Seerr pill is absent for TVDB-only series,
+  because Seerr requests are keyed on TMDB ids.
 - The filter chips (all / movies / shows / people) drive `state.searchFilter`; person
   results open `/person/:id`.
 - The topbar also has a compact search dropdown (wired in `app.js`) that reuses the

@@ -586,16 +586,19 @@ export async function searchTmdb({ query, page = 1, mediaType = "multi" }) {
 // Seasons only exist for TV, so this is entirely TVDB-backed now - it resolves
 // the TVDB ID off the show details already cached under tv_{tmdbId} (getTmdbDetails
 // always runs first in every caller's flow) and fetches episodes from TVDB.
-export async function getTmdbSeason({ tmdbId, seasonNumber }) {
+export async function getTmdbSeason({ tmdbId, tvdbId: requestedTvdbId = "", seasonNumber }) {
   const id = String(tmdbId || "");
+  const directTvdbId = String(requestedTvdbId || "");
   const number = Number(seasonNumber);
-  if (!id || !Number.isInteger(number) || number < 0) {
-    const error = new Error("tmdbId and a valid seasonNumber are required");
+  if ((!id && !directTvdbId) || !Number.isInteger(number) || number < 0) {
+    const error = new Error("A TMDB or TVDB ID and a valid seasonNumber are required");
     error.status = 400;
     throw error;
   }
-  const cached = metaGet(`tv_${id}`);
-  const tvdbId = String(cached?.details?.external_ids?.tvdb_id || "");
+  // Shows that only exist on TVDB are cached under `tv_tvdb_<id>` because they
+  // have no TMDB id to key on, so accept the TVDB id directly as well.
+  const cached = id ? (metaGet(`tv_${id}`) || metaGet(`tv_tvdb_${id}`)) : null;
+  const tvdbId = directTvdbId || String(cached?.details?.external_ids?.tvdb_id || "");
   if (!tvdbId) {
     const error = new Error("TVDB ID not resolved for this show yet");
     error.status = 404;

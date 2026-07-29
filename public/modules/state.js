@@ -135,6 +135,7 @@ export const state = {
   expandedSeasons: new Set(),
   activeShowModalKey: null,
   activeShowTmdbId: null,
+  activeShowTvdbId: null,
   activeShowModalTitle: null,
   activeShowModalSeason: null,
   activeShowModalEpisode: null,

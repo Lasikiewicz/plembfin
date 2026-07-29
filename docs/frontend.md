@@ -56,7 +56,7 @@ SPA navigation via `history.pushState`:
 | `/settings`, `/settings/:section` | Settings landing list and flat administration sections |
 | `/sync`, `/logs`, retired grouped `/settings/*` URLs | Compatibility aliases normalized to canonical flat sections |
 | `/movie/:idOrSlug`, `/movie/tmdb/:id` | Movie detail (inline in explorer) |
-| `/tvshow/:key(/season/:n(/episode/:n))`, `/tvshow/tmdb/:id` | Show detail, with season/episode deep links (legacy `#seasonNepM` hash also parsed) |
+| `/tvshow/:key(/season/:n(/episode/:n))`, `/tvshow/tmdb/:id`, `/tvshow/tvdb/:id` | Show detail, with season/episode deep links (legacy `#seasonNepM` hash also parsed). The `tvdb` form addresses series TMDB has no record of |
 | `/person/:id` | Person profile |
 | anything else | Dashboard |
 

@@ -192,7 +192,8 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `index.html` | The single HTML shell: nav tabs (Dashboard / Movies / TV Shows / Upcoming / History / Stats / Settings), one `view-panel` section per view, all modals/dialogs, and `modulepreload` links for every module. Element IDs here are what `bindElements()` queries. |
 | `app.js` | **Frontend orchestrator** (keep under 3,000 lines): startup, theme init, backend warm-up ping, `bindElements`, SPA routing (`handleRouting`/`navigateTo`/`selectView`), auth flow wiring, and the callback objects handed to each module's `init*` function. Feature logic belongs in `public/modules/`, not here. |
 | `styles.css` | All styling for the app, including responsive/mobile rules (mobile ≤ 760px must be verified for any layout change). |
-| `favicon.png`, `favicon.svg`, `apple-touch-icon.png`, `plembfin_header_logo_dark.png`, `plembfin_header_logo_light.png` | `favicon.png` is the browser tab icon; `favicon.svg` is the placeholder art used wherever a poster or profile image is missing. `apple-touch-icon.png` is the 180x180 Home Screen icon iOS uses when the app is added to the Home Screen, with the logo flattened onto the dark background colour because iOS renders transparency as black. The two header logos are swapped by the theme toggle. |
+| `favicon.png`, `favicon.svg`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `plembfin_header_logo_dark.png`, `plembfin_header_logo_light.png` | `favicon.png` is the browser tab icon; `favicon.svg` is the placeholder art used wherever a poster or profile image is missing. `apple-touch-icon.png` is the 180x180 icon iOS uses when the app is added to the Home Screen, and the `icon-*.png` files are the Android/Chrome install icons named by the web manifest. All of them flatten the logo onto the dark background colour, because both platforms render transparency as black. The two header logos are swapped by the theme toggle. |
+| `manifest.webmanifest` | Web app manifest: app name, standalone display mode, theme/background colour, and the install icons above. Linked from `index.html`, which also sets `apple-touch-icon`, `apple-mobile-web-app-title` and `theme-color`. |
 | `icons/plex.svg`, `icons/emby.svg`, `icons/jellyfin.svg` | Platform badge icons used on cards and pills. |
 
 ### `public/modules/`
@@ -440,6 +441,7 @@ Full detail: [auth.md](auth.md).
   `/search`, `/settings` and `/settings/:section` (plus `/sync`, `/logs`, and retired
   grouped settings aliases), `/movie/:id`,
   `/movie/tmdb/:id`, `/tvshow/:key(/season/:n(/episode/:n))`, `/tvshow/tmdb/:id`,
+  `/tvshow/tvdb/:id`,
   `/person/:id`.
 - Auth handled by `onAuthChange()` (`modules/auth.js`) - which checks
   `/api/auth/status`. The auth panel is hidden until a session is confirmed.

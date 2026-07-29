@@ -19,6 +19,17 @@ let _playbackProgressLoaded = false;
 let _playbackProgressLoadPromise = null;
 const _seasonDetailsInflight = new Set();
 
+// Season episode lists are keyed by TMDB id for the shows TMDB knows about, and
+// by `tvdb:<id>` for series that only exist on TVDB. Both forms are accepted by
+// fetchTmdbSeasonDetails, so one identity string covers the caching, the
+// in-flight guards, and the "is this still the show on screen?" checks below.
+export function showSeasonLookupId(tmdbData) {
+  const tmdbId = String(tmdbData?.id || "");
+  if (tmdbId) return tmdbId;
+  const tvdbId = String(tmdbData?.external_ids?.tvdb_id || "");
+  return tvdbId ? `tvdb:${tvdbId}` : "";
+}
+
 function identifiableShowTitleFromRow(row, historyId = "") {
   const parsed = showTitleFrom(row?.show_title || row?.grandparent_title || row?.series_title || row?.title || "");
   if (parsed && !/^plex:\/\//i.test(parsed)) return parsed;
@@ -149,6 +160,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
   state.showModalRequestToken += 1;
   setMediaDetailActions("");
   state.activeShowTmdbId = String(tmdbId);
+  state.activeShowTvdbId = null;
   syncInlineMediaDetailHeading("shows");
   if (!state.mediaDetailInline) {
     elements.debugModal.classList.remove("hidden");
@@ -231,7 +243,15 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     `;
     return;
   }
+  await renderShowDetailFromMetadata(tmdbData, renderToken);
+}
+
+// Renders a show from a resolved metadata document. The document is TVDB-backed
+// with TMDB merged in where available, so it renders the same whether it was
+// reached by TMDB id or by TVDB id.
+async function renderShowDetailFromMetadata(tmdbData, renderToken) {
   if (tmdbData?.id) state.activeShowTmdbId = String(tmdbData.id);
+  const lookupId = showSeasonLookupId(tmdbData);
 
   const showTitle = tmdbData.name || "Untitled TV Show";
   state.activeShowModalTitle = showTitle;
@@ -249,23 +269,24 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     ensurePlaybackProgressLoaded(),
     ...seasons.map(async (season) => {
       const seasonNumber = Number(season.season_number);
-      const details = await fetchTmdbSeasonDetails(tmdbData.id, seasonNumber);
+      const details = await fetchTmdbSeasonDetails(lookupId, seasonNumber);
       if (details) seasonDetailsByNumber.set(seasonNumber, details);
     }),
   ]);
   if (currentMediaRenderToken() !== renderToken) return;
 
   const existingShow = state.showsRaw.find((show) => (
-    String(show.tmdb_id || "") === String(tmdbData.id) || slug(show.title) === slug(showTitle)
+    (tmdbData.id && String(show.tmdb_id || "") === String(tmdbData.id)) || slug(show.title) === slug(showTitle)
   ));
   const show = mergeShowWithLoadedHistory(existingShow || {
     title: showTitle,
-    tmdb_id: String(tmdbData.id),
+    tmdb_id: tmdbData.id ? String(tmdbData.id) : "",
+    tvdb_id: String(tmdbData.external_ids?.tvdb_id || ""),
     episodes: [],
     episode_count: 0,
     season_count: seasons.length,
   });
-  const imdbPillHtml = await fetchShowImdbPillHtml(show, tmdbData, () => String(state.activeShowTmdbId || "") === String(tmdbData.id));
+  const imdbPillHtml = await fetchShowImdbPillHtml(show, tmdbData, () => String(state.activeShowTmdbId || "") === String(tmdbData.id || ""));
   if (currentMediaRenderToken() !== renderToken) return;
 
   renderShowModalContent(show, {
@@ -276,6 +297,47 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     tmdbOnly: !existingShow,
     imdbPillHtml,
   });
+}
+
+// Series that TMDB has no record of are reached by TVDB id instead. If the
+// resolved document turns out to carry a TMDB id after all, rendering it sets
+// state.activeShowTmdbId, and the TMDB route wins from that point on.
+export async function openShowImmersiveModalByTvdbId(tvdbId) {
+  const renderToken = bumpMediaRenderToken();
+  state.showModalRequestToken += 1;
+  setMediaDetailActions("");
+  state.activeShowTmdbId = null;
+  state.activeShowTvdbId = String(tvdbId);
+  syncInlineMediaDetailHeading("shows");
+  if (!state.mediaDetailInline) {
+    elements.debugModal.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+    const modalPanel = elements.debugModal.querySelector(".modal-panel");
+    if (modalPanel) {
+      modalPanel.classList.add("modal-panel--immersive");
+    }
+  }
+  const root = mediaDetailRoot();
+  root.innerHTML = `
+    <div class="immersive-container">
+      ${mediaDetailLoaderHtml("Loading TV show details")}
+    </div>
+  `;
+
+  const tmdbData = await fetchTmdbDetails("tv", null, null, { tvdbId }, { immediate: true });
+  if (currentMediaRenderToken() !== renderToken) return;
+  if (!tmdbData) {
+    root.innerHTML = `
+      <div class="immersive-container">
+        <div style="display: flex; justify-content: center; align-items: center; min-height: 200px; flex-direction: column; gap: var(--space-2);">
+          <span style="color: var(--danger); font-size: 1.1rem; font-weight: bold;">Could not load TV show details</span>
+          <span style="color: var(--muted); font-size: 0.9rem;">TVDB did not return a series for this ID.</span>
+        </div>
+      </div>
+    `;
+    return;
+  }
+  await renderShowDetailFromMetadata(tmdbData, renderToken);
 }
 
 function watchedEpisodesByKey(show = {}) {
@@ -344,20 +406,21 @@ async function ensurePlaybackProgressLoaded() {
 }
 
 function hydrateMissingSeasonDetails(show, activeSeasonNum, tmdbData, seasonDetailsByNumber, loading) {
-  if (loading || !tmdbData?.id || activeSeasonNum == null) return;
+  const lookupId = showSeasonLookupId(tmdbData);
+  if (loading || !lookupId || activeSeasonNum == null) return;
   const seasonNumber = Number(activeSeasonNum);
   if (!Number.isFinite(seasonNumber) || seasonDetailsByNumber.has(seasonNumber)) return;
-  const cacheKey = `${tmdbData.id}|${seasonNumber}`;
+  const cacheKey = `${lookupId}|${seasonNumber}`;
   if (_seasonDetailsInflight.has(cacheKey)) return;
 
   _seasonDetailsInflight.add(cacheKey);
-  fetchTmdbSeasonDetails(tmdbData.id, seasonNumber)
+  fetchTmdbSeasonDetails(lookupId, seasonNumber)
     .then((details) => {
       if (!details) return;
       seasonDetailsByNumber.set(seasonNumber, details);
       const current = state.activeShowRenderContext;
-      const currentTmdbId = current?.tmdbData?.id || tmdbData.id;
-      if (Number(state.activeShowModalSeason) !== seasonNumber || String(currentTmdbId) !== String(tmdbData.id)) return;
+      const currentLookupId = showSeasonLookupId(current?.tmdbData) || lookupId;
+      if (Number(state.activeShowModalSeason) !== seasonNumber || currentLookupId !== lookupId) return;
       renderShowModalContent(current?.show || show, {
         ...current,
         activeSeasonNum: seasonNumber,
@@ -371,7 +434,8 @@ function hydrateMissingSeasonDetails(show, activeSeasonNum, tmdbData, seasonDeta
 }
 
 function hydrateAllSeasonEpisodeDetails(show, tmdbData, seasonDetailsByNumber, loading, seasonsList = []) {
-  if (loading || !tmdbData?.id || !seasonsList.length) return;
+  const lookupId = showSeasonLookupId(tmdbData);
+  if (loading || !lookupId || !seasonsList.length) return;
   const requests = [];
   const cacheKeys = [];
 
@@ -379,13 +443,13 @@ function hydrateAllSeasonEpisodeDetails(show, tmdbData, seasonDetailsByNumber, l
     const seasonNumber = Number(season.season_number);
     if (!Number.isFinite(seasonNumber) || seasonDetailsByNumber.has(seasonNumber)) continue;
 
-    const cacheKey = `${tmdbData.id}|${seasonNumber}`;
+    const cacheKey = `${lookupId}|${seasonNumber}`;
     if (_seasonDetailsInflight.has(cacheKey)) continue;
 
     _seasonDetailsInflight.add(cacheKey);
     cacheKeys.push(cacheKey);
     requests.push(
-      fetchTmdbSeasonDetails(tmdbData.id, seasonNumber)
+      fetchTmdbSeasonDetails(lookupId, seasonNumber)
         .then((details) => ({ seasonNumber, details }))
         .catch((error) => {
           console.error(`Failed to hydrate season ${seasonNumber} episodes`, error);
@@ -405,8 +469,8 @@ function hydrateAllSeasonEpisodeDetails(show, tmdbData, seasonDetailsByNumber, l
         changed = true;
       }
       const current = state.activeShowRenderContext;
-      const currentTmdbId = current?.tmdbData?.id || tmdbData.id;
-      if (!changed || !state.showModalAllSeasonsExpanded || String(currentTmdbId) !== String(tmdbData.id)) return;
+      const currentLookupId = showSeasonLookupId(current?.tmdbData) || lookupId;
+      if (!changed || !state.showModalAllSeasonsExpanded || currentLookupId !== lookupId) return;
       renderShowModalContent(current?.show || show, {
         ...current,
         activeSeasonNum: state.activeShowModalSeason,
@@ -422,7 +486,8 @@ function hydrateAllSeasonEpisodeDetails(show, tmdbData, seasonDetailsByNumber, l
 }
 
 function hydrateUnknownSeasonSummaryDetails(show, tmdbData, seasonDetailsByNumber, loading, seasonsList = []) {
-  if (loading || !tmdbData?.id || !seasonsList.length) return;
+  const lookupId = showSeasonLookupId(tmdbData);
+  if (loading || !lookupId || !seasonsList.length) return;
   const requests = [];
   const cacheKeys = [];
 
@@ -431,13 +496,13 @@ function hydrateUnknownSeasonSummaryDetails(show, tmdbData, seasonDetailsByNumbe
     if (!Number.isFinite(seasonNumber) || seasonNumber <= 0) continue;
     if (Number(season.episode_count || 0) > 0 || seasonDetailsByNumber.has(seasonNumber)) continue;
 
-    const cacheKey = `${tmdbData.id}|${seasonNumber}`;
+    const cacheKey = `${lookupId}|${seasonNumber}`;
     if (_seasonDetailsInflight.has(cacheKey)) continue;
 
     _seasonDetailsInflight.add(cacheKey);
     cacheKeys.push(cacheKey);
     requests.push(
-      fetchTmdbSeasonDetails(tmdbData.id, seasonNumber)
+      fetchTmdbSeasonDetails(lookupId, seasonNumber)
         .then((details) => ({ seasonNumber, details }))
         .catch((error) => {
           console.error(`Failed to hydrate season ${seasonNumber} summary`, error);
@@ -457,8 +522,8 @@ function hydrateUnknownSeasonSummaryDetails(show, tmdbData, seasonDetailsByNumbe
         changed = true;
       }
       const current = state.activeShowRenderContext;
-      const currentTmdbId = current?.tmdbData?.id || tmdbData.id;
-      if (!changed || String(currentTmdbId) !== String(tmdbData.id)) return;
+      const currentLookupId = showSeasonLookupId(current?.tmdbData) || lookupId;
+      if (!changed || currentLookupId !== lookupId) return;
       renderShowModalContent(current?.show || show, {
         ...current,
         activeSeasonNum: state.activeShowModalSeason,
@@ -1281,8 +1346,12 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     if (titleGuess) {
       state.activeShowTmdbId = null;
       const tmdbData = await fetchTmdbDetails("tv", null, titleGuess);
-      if (tmdbData) {
+      if (tmdbData?.id) {
         await openShowImmersiveModalByTmdbId(tmdbData.id);
+        return;
+      }
+      if (tmdbData?.external_ids?.tvdb_id) {
+        await openShowImmersiveModalByTvdbId(tmdbData.external_ids.tvdb_id);
         return;
       }
     }

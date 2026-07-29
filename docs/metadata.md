@@ -82,9 +82,9 @@ so detail pages open hot. Settings → Storage & Cache (`GET /api/cache-stats`,
 | --- | --- |
 | `GET /api/tmdb-details` (alias `media-details`) | `getTmdbDetails` - merged movie/TV details |
 | `POST /api/tmdb-details-batch` | Batched details for explorer prefetch (bounded worker pool; items may set `light: true` to skip next-airing/artwork enrichment on cold fetches - light-cached rows are refetched in full by detail pages) |
-| `GET /api/tmdb-season` | Season episode list (TVDB-backed for TV) |
+| `GET /api/tmdb-season` | Season episode list (TVDB-backed for TV). Takes `tmdbId` or, for series that only exist on TVDB, `tvdbId` |
 | `GET /api/tmdb-person` | Person details + filmography |
-| `GET /api/tmdb-search`, `GET /api/tvdb-search`, `GET /api/media-search` | Remote + local search |
+| `GET /api/tmdb-search`, `GET /api/tvdb-search`, `GET /api/media-search` | Remote + local search. `media-search` returns `local`, `discovery` (TMDB) and `tvdb` results; the `tvdb` list is populated only when TMDB returns no plausible series match, so the shared TVDB key is spent only when it is the only source that can answer |
 | `GET /api/tmdb-images`, `GET /api/tvdb-images`, `GET /api/fanart-images` | Artwork galleries for the edit-image dialog |
 | `GET /api/tmdb-poster`, `GET /api/tmdb-profile` | Image proxies (rate-limited 300/min) |
 | `GET /api/remote-artwork` | Downloads and caches fanart.tv / TVDB / TMDB artwork by URL, then redirects to `/media/...` (see [posters-artwork.md](posters-artwork.md)) |

@@ -113,13 +113,18 @@ export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}, { lig
   return promise;
 }
 
-export async function fetchTmdbSeasonDetails(tmdbId, seasonNumber) {
+export async function fetchTmdbSeasonDetails(showId, seasonNumber) {
   // Per-season episode data is TVDB-backed server-side (built-in project key), so
   // this doesn't depend on the user having a personal TMDB key configured.
-  if (!tmdbId || seasonNumber == null) return null;
-  const cacheKey = `${tmdbId}|${seasonNumber}`;
+  // `showId` is a TMDB id, or `tvdb:<id>` for a series that only exists on TVDB.
+  if (!showId || seasonNumber == null) return null;
+  const cacheKey = `${showId}|${seasonNumber}`;
   if (state.tmdbSeasonCache.has(cacheKey)) return state.tmdbSeasonCache.get(cacheKey);
-  const promise = fetch(`/api/tmdb-season?tmdbId=${encodeURIComponent(tmdbId)}&seasonNumber=${encodeURIComponent(seasonNumber)}`, { headers: authHeaders() })
+  const tvdbOnly = String(showId).startsWith("tvdb:");
+  const idParam = tvdbOnly
+    ? `tvdbId=${encodeURIComponent(String(showId).slice(5))}`
+    : `tmdbId=${encodeURIComponent(showId)}`;
+  const promise = fetch(`/api/tmdb-season?${idParam}&seasonNumber=${encodeURIComponent(seasonNumber)}`, { headers: authHeaders() })
     .then(async (res) => {
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
