@@ -1,7 +1,19 @@
 {
-  "version": "0.6.49",
-  "updatedAt": "2026-07-29T09:13:39+01:00",
+  "version": "0.6.50",
+  "updatedAt": "2026-07-29T09:35:39+01:00",
   "entries": [
+    {
+      "version": "0.6.50",
+      "date": "2026-07-29T09:35:39+01:00",
+      "commit": "4a66ae597ff4f14d70a091387ed94c18d28ec359",
+      "message": "Chore - Use the Plembfin logo as the browser tab icon",
+      "author": "Lasikiewicz",
+      "details": [
+        "Browser tabs and bookmarks now show the Plembfin arrow logo instead of the generic placeholder mark",
+        "Added the logo as a 512x512 transparent PNG so it stays crisp on high-DPI displays and in both light and dark browser themes",
+        "Kept the existing placeholder art in place for missing posters and profile images, so card and cast fallbacks look unchanged"
+      ]
+    },
     {
       "version": "0.6.49",
       "date": "2026-07-29T09:13:39+01:00",
