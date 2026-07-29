@@ -1,7 +1,19 @@
 {
-  "version": "0.6.50",
-  "updatedAt": "2026-07-29T09:35:39+01:00",
+  "version": "0.6.51",
+  "updatedAt": "2026-07-29T09:45:28+01:00",
   "entries": [
+    {
+      "version": "0.6.51",
+      "date": "2026-07-29T09:45:28+01:00",
+      "commit": "9c8663c0fcaa13cf9935142f59dbcec17429ae12",
+      "message": "Fix - Use the Plembfin logo when adding the app to an iOS Home Screen",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add a dedicated 180x180 Home Screen icon so iOS shows the Plembfin logo instead of a screenshot of the page",
+        "Flatten the logo onto the dark background colour, since iOS renders transparent icon areas as black",
+        "Label the Home Screen shortcut \"Plembfin\" rather than the full page title"
+      ]
+    },
     {
       "version": "0.6.50",
       "date": "2026-07-29T09:35:39+01:00",
