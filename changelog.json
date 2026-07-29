@@ -1,7 +1,21 @@
 {
-  "version": "0.6.53",
-  "updatedAt": "2026-07-29T10:15:18+01:00",
+  "version": "0.6.54",
+  "updatedAt": "2026-07-29T10:21:06+01:00",
   "entries": [
+    {
+      "version": "0.6.54",
+      "date": "2026-07-29T10:21:06+01:00",
+      "commit": "8664ec9eb38602ae35450f60f36b77d5ebfd1a81",
+      "message": "Fix - Rank search suggestions by relevance and tidy the results page layout",
+      "author": "Lasikiewicz",
+      "details": [
+        "Topbar search suggestions are now ranked by how closely each title matches what you typed, so the best match appears first whichever catalogue it came from",
+        "A close match from TheTVDB is no longer pushed out of the suggestions by loosely matching TMDB results",
+        "Titles already in your library win ties against the same title from a remote catalogue",
+        "Search results columns no longer stretch to the full window height, so a single result sits in a panel sized to fit rather than a large empty box",
+        "Search results columns now follow the light and dark themes instead of always painting a dark grey panel"
+      ]
+    },
     {
       "version": "0.6.53",
       "date": "2026-07-29T10:15:18+01:00",
