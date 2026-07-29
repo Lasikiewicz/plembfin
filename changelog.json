@@ -1,7 +1,21 @@
 {
-  "version": "0.6.52",
-  "updatedAt": "2026-07-29T10:06:19+01:00",
+  "version": "0.6.53",
+  "updatedAt": "2026-07-29T10:15:18+01:00",
   "entries": [
+    {
+      "version": "0.6.53",
+      "date": "2026-07-29T10:15:18+01:00",
+      "commit": "bfc15afbce8a795431e29407163160070109fcd2",
+      "message": "Feature - Search TheTVDB alongside TMDB instead of only as a fallback",
+      "author": "Lasikiewicz",
+      "details": [
+        "TheTVDB is now searched at the same time as TMDB, so series TMDB does not list appear as quickly as any other result rather than only when TMDB comes back empty",
+        "Results from your library, TMDB and TheTVDB are merged on a normalised title, so a title punctuated differently by each source no longer appears twice",
+        "The topbar search now works without a TMDB key configured, and a TMDB outage no longer hides local or TheTVDB results",
+        "Cache TheTVDB search results so searching as you type stays fast and stays within the shared TheTVDB key's limits",
+        "Load every frontend module from a single versioned URL, so the browser no longer loads the same module twice"
+      ]
+    },
     {
       "version": "0.6.52",
       "date": "2026-07-29T10:06:19+01:00",
