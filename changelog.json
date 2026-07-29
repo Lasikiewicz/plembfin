@@ -1,7 +1,21 @@
 {
-  "version": "0.6.51",
-  "updatedAt": "2026-07-29T09:45:28+01:00",
+  "version": "0.6.52",
+  "updatedAt": "2026-07-29T10:06:19+01:00",
   "entries": [
+    {
+      "version": "0.6.52",
+      "date": "2026-07-29T10:06:19+01:00",
+      "commit": "70fdf42e071ea57275566a05ee942d186739a20b",
+      "message": "Feature - Find shows TMDB does not list, and install to a phone Home Screen",
+      "author": "Lasikiewicz",
+      "details": [
+        "Search now falls back to TheTVDB when TMDB lists no matching series, so shows TMDB has never catalogued are findable instead of returning nothing",
+        "TVDB-only series open a full detail page with seasons, episodes and artwork, reached at /tvshow/tvdb/<id>",
+        "The TVDB fallback only runs when TMDB has no plausible match, so searches TMDB already answers are unaffected and stay just as fast",
+        "Add an Android/Chrome web manifest so Plembfin installs to a Home Screen standalone with the Plembfin icon",
+        "Flatten the install icons onto the dark background colour, since both iOS and Android render transparent icon areas as black"
+      ]
+    },
     {
       "version": "0.6.51",
       "date": "2026-07-29T09:45:28+01:00",
