@@ -216,11 +216,14 @@ export function closeMediaDetail() {
   clearMediaDetailState();
   document.querySelector("#explorerBackButton")?.classList.add("hidden");
   elements.explorerTopbarControls?.classList.remove("hidden");
-  syncPageTopbar();
   state.explorerMode = state.mediaDetailReturnExplorerMode || state.explorerMode || "movies";
   if (state.mediaDetailReturnView && state.mediaDetailReturnView !== "explorer") {
     selectView(state.mediaDetailReturnView);
     return;
   }
-  renderExplorer();
+  // A detail page owns a real URL, so closing one has to restore the library URL
+  // as well. Rendering the grid without navigating left /tvshow/<key> in the
+  // address bar, and the topbar (which derives its title and inline-detail state
+  // from location.pathname) stayed in detail mode with the library controls hidden.
+  navigateTo(state.explorerMode === "shows" ? "/tvshows" : "/movies");
 }

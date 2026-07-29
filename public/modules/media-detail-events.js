@@ -712,6 +712,14 @@ export function attachMediaDetailEvents() {
 
     const showTrigger = event.target.closest("[data-show-key]");
     if (showTrigger) {
+      // The poster grid renders this trigger as a real <a> so the card keeps a
+      // copyable URL and can be middle-clicked or opened in a new tab. Leave
+      // those gestures to the browser and take over only the plain left-click,
+      // which otherwise followed the href and reloaded the whole document.
+      if (showTrigger.tagName === "A") {
+        if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+      }
       const recordId = showTrigger.dataset.showRecordId;
       if (recordId) {
         state.pendingShowHistoryId = recordId;

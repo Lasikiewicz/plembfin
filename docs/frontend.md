@@ -60,12 +60,19 @@ SPA navigation via `history.pushState`:
 | `/person/:id` | Person profile |
 | anything else | Dashboard |
 
-- `applyActiveView()` toggles the `view-panel` sections and triggers each view's
-  loader; `selectView(view)` is the nav-tab entry point (and enforces the
-  forced-password-change pin to Settings).
-- Detail pages record `state.mediaDetailReturnView` so closing returns to where the
-  user came from; `state.internalHistoryCount` tracks how deep in-app history goes so
-  back-button behavior stays sane.
+- `applyActiveView()` toggles the `view-panel` sections, triggers each view's loader,
+  and resyncs the topbar (title, back button, and which control group is mounted) so a
+  view reached through `popstate` gets the same chrome as one reached through a nav tab;
+  `selectView(view)` is the nav-tab entry point (and enforces the forced-password-change
+  pin to Settings).
+- Detail pages record `state.mediaDetailReturnView` and
+  `state.mediaDetailReturnExplorerMode` so closing returns to where the user came from.
+  The return library follows the route type: a `/tvshow/…` URL returns to the shows
+  library and a `/movie/…` URL to the movies library, so a detail page opened from a
+  direct URL still returns to the matching grid. Closing navigates rather than only
+  re-rendering, which keeps the address bar and the topbar controls in step with the
+  view. `state.internalHistoryCount` tracks how deep in-app history goes so back-button
+  behavior stays sane.
 - `modules/settings-shell.js` is the settings route registry. It resolves flat sections
   and legacy aliases, renders the landing list/sidebar/mobile selector, and applies
   focused panel visibility.

@@ -988,7 +988,11 @@ function handleRouting(path) {
     const tmdbId = movieTmdbMatch[1];
     if (!state.mediaDetailInline) {
       state.mediaDetailReturnView = state.activeView || "dashboard";
-      state.mediaDetailReturnExplorerMode = state.explorerMode || "movies";
+      // The route type decides which library Back returns to. Reading
+      // state.explorerMode here would capture whatever it happened to be, and on
+      // a direct load of a detail URL that is still its "movies" default, which
+      // sent Back to the wrong library.
+      state.mediaDetailReturnExplorerMode = "movies";
     }
     state.activeView = "explorer";
     state.explorerMode = "movies";
@@ -1013,7 +1017,7 @@ function handleRouting(path) {
     }
     if (!state.mediaDetailInline) {
       state.mediaDetailReturnView = state.activeView || "dashboard";
-      state.mediaDetailReturnExplorerMode = state.explorerMode || "shows";
+      state.mediaDetailReturnExplorerMode = "shows";
     }
     state.activeView = "explorer";
     state.explorerMode = "shows";
@@ -1028,7 +1032,7 @@ function handleRouting(path) {
     const movie = movieBySlugOrId(movieKey);
     if (!state.mediaDetailInline) {
       state.mediaDetailReturnView = state.activeView || "dashboard";
-      state.mediaDetailReturnExplorerMode = state.explorerMode || "movies";
+      state.mediaDetailReturnExplorerMode = "movies";
     }
     state.activeView = "explorer";
     state.explorerMode = "movies";
@@ -1060,7 +1064,7 @@ function handleRouting(path) {
     }
     if (!state.mediaDetailInline) {
       state.mediaDetailReturnView = state.activeView || "dashboard";
-      state.mediaDetailReturnExplorerMode = state.explorerMode || "shows";
+      state.mediaDetailReturnExplorerMode = "shows";
     }
     state.activeView = "explorer";
     state.explorerMode = "shows";
@@ -1433,6 +1437,12 @@ function applyActiveView() {
     state.dashboardPosterObserver?.disconnect();
     state.dashboardPosterObserver = undefined;
   }
+
+  // The topbar (title, back button, and which control group is mounted) is
+  // derived state, so it has to be recomputed for every view change. popstate
+  // reaches this function without going through selectView, so without this the
+  // browser's own back button left the previous view's control bar in place.
+  syncPageTopbar();
 
   const showDashboardAppearance = state.activeView === "dashboard";
   const showMediaAppearance = Boolean(state.mediaDetailInline) && !window.location.pathname.startsWith("/person/");
@@ -1910,16 +1920,24 @@ function primeSensitiveRouteState(path = "") {
     state.activeSettingsTab = state.activeSettingsRoute.group;
     return true;
   }
+  // These branches mark the detail as already open, which means the matching
+  // handleRouting branch skips its own "where did I come from" capture. Record
+  // the return context here too, or Back falls through to the defaults in
+  // state.js and sends a directly loaded show page to the movies library.
   if (pathname.startsWith("/movie/")) {
     state.activeView = "explorer";
     state.explorerMode = "movies";
     state.mediaDetailInline = true;
+    state.mediaDetailReturnView = "explorer";
+    state.mediaDetailReturnExplorerMode = "movies";
     return true;
   }
   if (pathname.startsWith("/tvshow/")) {
     state.activeView = "explorer";
     state.explorerMode = "shows";
     state.mediaDetailInline = true;
+    state.mediaDetailReturnView = "explorer";
+    state.mediaDetailReturnExplorerMode = "shows";
     return true;
   }
   if (pathname.startsWith("/person/")) {

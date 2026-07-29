@@ -1337,7 +1337,7 @@ export function renderShowRecord(show = {}) {
   const detailHref = `/tvshow/${showKey}${historyId ? `?historyId=${encodeURIComponent(historyId)}` : ""}`;
   return `
     <article class="folder-card" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
-      <a class="folder-trigger" href="${escapeAttribute(detailHref)}" style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block; text-decoration: none; color: inherit;">
+      <a class="folder-trigger" href="${escapeAttribute(detailHref)}" data-show-key="${escapeAttribute(showKey)}"${historyId ? ` data-show-record-id="${escapeAttribute(historyId)}"` : ""} style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block; text-decoration: none; color: inherit;">
         ${posterMarkup(latestEpisode, "explorer-folder-poster")}
         <div class="movie-card-body" style="margin-top: 0.5rem;">
           <b>${escapeHtml(displayTitle)}</b>

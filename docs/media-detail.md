@@ -29,7 +29,10 @@ picker every date/time control in the app is built on).
 ## How a detail page opens
 
 1. A card click (delegated in `media-detail-events.js` or `app-events.js`) calls
-   `navigateTo("/movie/…")` / `navigateTo("/tvshow/…")`.
+   `navigateTo("/movie/…")` / `navigateTo("/tvshow/…")`. Show cards in the poster grid
+   render as real links, so they can be middle-clicked, opened in a new tab, or copied;
+   the delegated handler claims only the plain left-click and routes it through the SPA
+   router, leaving modifier and middle clicks to the browser.
 2. `handleRouting` (`app.js`) matches the URL, records the return view
    (`state.mediaDetailReturnView`), sets `state.mediaDetailInline = true`, and calls the
    matching opener in `media-detail.js`.
@@ -40,7 +43,9 @@ picker every date/time control in the app is built on).
 4. A **render token** (`bumpMediaRenderToken`) is captured before each async render;
    stale responses check the token and drop themselves so rapid navigation can't paint
    an old page over a new one.
-5. Closing the page (`closeMediaDetail`) navigates back to the recorded return view.
+5. Closing the page (`closeMediaDetail`) navigates back to the recorded return view,
+   restoring the library URL so the address bar and the topbar controls match the grid
+   the user lands on.
 
 Direct URL loads work identically - routing hydrates the same UI without needing
 in-app navigation state. TV URLs support deep links:
