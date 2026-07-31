@@ -1,7 +1,19 @@
 {
-  "version": "0.6.54",
-  "updatedAt": "2026-07-29T10:21:06+01:00",
+  "version": "0.6.55",
+  "updatedAt": "2026-07-31T09:05:52+01:00",
   "entries": [
+    {
+      "version": "0.6.55",
+      "date": "2026-07-31T09:05:52+01:00",
+      "commit": "9234ca7973ef5a4ca7650f17ccc5f3b0074e3b8b",
+      "message": "Fix - Backfill provider IDs and resolve duplicate watch history records",
+      "author": "Lasikiewicz",
+      "details": [
+        "Backfill missing IMDb/TMDB/TVDB provider IDs and canonical keys on title-fallback watch history records",
+        "Collapse same-event duplicate watch entries across title-fallback and ID-bearing records",
+        "Update history maintenance deduplication tool to execute provider ID resolution prior to same-event window clustering"
+      ]
+    },
     {
       "version": "0.6.54",
       "date": "2026-07-29T10:21:06+01:00",
