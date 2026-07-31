@@ -1,7 +1,17 @@
 {
-  "version": "0.6.55",
-  "updatedAt": "2026-07-31T09:05:52+01:00",
+  "version": "0.6.56",
+  "updatedAt": "2026-07-31T11:27:32+01:00",
   "entries": [
+    {
+      "version": "0.6.56",
+      "date": "2026-07-31T11:27:32+01:00",
+      "commit": "9037cfca5b58742ed8da09379e7d04d3a8676802",
+      "message": "Fix - Align duplicate history cleanup",
+      "author": "Lasikiewicz",
+      "details": [
+        "Clean up cross-provider episode echoes even when media keys or sync fields differ, while preserving genuine movie rewatches."
+      ]
+    },
     {
       "version": "0.6.55",
       "date": "2026-07-31T09:05:52+01:00",
