@@ -1,7 +1,17 @@
 {
-  "version": "0.6.57",
-  "updatedAt": "2026-07-31T12:09:31+01:00",
+  "version": "0.6.58",
+  "updatedAt": "2026-07-31T12:18:48+01:00",
   "entries": [
+    {
+      "version": "0.6.58",
+      "date": "2026-07-31T12:18:48+01:00",
+      "commit": "e0ec7f9e27ebca94582725572cf77458febb5ce1",
+      "message": "Fix - Repair phantom watch batches safely",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add a guarded repair for impossible Plex watch batches while preserving manual marks and genuine rewatches."
+      ]
+    },
     {
       "version": "0.6.57",
       "date": "2026-07-31T12:09:31+01:00",
