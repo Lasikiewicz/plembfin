@@ -1,7 +1,17 @@
 {
-  "version": "0.6.61",
-  "updatedAt": "2026-07-31T15:38:06+01:00",
+  "version": "0.6.62",
+  "updatedAt": "2026-07-31T16:17:01+01:00",
   "entries": [
+    {
+      "version": "0.6.62",
+      "date": "2026-07-31T16:17:01+01:00",
+      "commit": "c0fe666d55b3833365694c1b25352bf5114792e6",
+      "message": "Fix - Cap person photos at two rows",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep small profile galleries on one row and wrap larger galleries into a maximum of two horizontally scrollable rows"
+      ]
+    },
     {
       "version": "0.6.61",
       "date": "2026-07-31T15:38:06+01:00",
