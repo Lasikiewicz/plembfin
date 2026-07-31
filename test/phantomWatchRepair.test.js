@@ -81,6 +81,47 @@ test("does not classify a normal spaced-out binge as a phantom burst", () => {
   database.close();
 });
 
+test("removes only extra copies of an exact same-item same-timestamp event", () => {
+  const database = makeDb();
+  insert(database, {
+    id: "exact-a",
+    title: "Duplicate Movie",
+    media_type: "movie",
+    show_title: null,
+    season: null,
+    episode: null,
+    media_key: "movie:duplicate",
+    watched_at: "2026-07-16T08:25:00.000Z",
+  });
+  insert(database, {
+    id: "exact-b",
+    title: "Duplicate Movie",
+    media_type: "movie",
+    show_title: null,
+    season: null,
+    episode: null,
+    media_key: "movie:duplicate",
+    watched_at: "2026-07-16T08:25:00.000Z",
+  });
+  insert(database, {
+    id: "rewatch",
+    title: "Duplicate Movie",
+    media_type: "movie",
+    show_title: null,
+    season: null,
+    episode: null,
+    media_key: "movie:duplicate",
+    watched_at: "2026-07-20T08:25:00.000Z",
+  });
+
+  const result = repairPhantomWatchBursts(database);
+  assert.equal(result.deleted, 1);
+  assert.equal(database.prepare("SELECT COUNT(*) AS count FROM watch_history").get().count, 2);
+  assert.equal(database.prepare("SELECT COUNT(*) AS count FROM watch_history WHERE id = 'rewatch'").get().count, 1);
+  assert.equal(result.bursts[0].reason, "exact-same-item-same-timestamp");
+  database.close();
+});
+
 test("repairs an impossible same-show episode batch", () => {
   const database = makeDb();
   for (let index = 0; index < 8; index += 1) {

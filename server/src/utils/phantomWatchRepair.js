@@ -58,6 +58,29 @@ export function findPhantomWatchBurstRows(database, {
 
   const removeIds = new Set();
   const bursts = [];
+
+  // A smaller but very clear form of the same import bug is two platform rows
+  // for the same item at the exact same timestamp. Keep the first row and
+  // remove only the extra copies; spaced-out rewatches are never included.
+  const exactEvents = new Map();
+  for (const row of rows) {
+    const key = `${identity(row)}|${row.watched_at}`;
+    const members = exactEvents.get(key) || [];
+    members.push(row);
+    exactEvents.set(key, members);
+  }
+  for (const members of exactEvents.values()) {
+    if (members.length < 2) continue;
+    const ids = members.slice(1).map((row) => row.id);
+    ids.forEach((id) => removeIds.add(id));
+    bursts.push({
+      ids,
+      itemCount: 1,
+      groupCount: 1,
+      reason: "exact-same-item-same-timestamp",
+    });
+  }
+
   let burst = [];
 
   const flush = () => {
