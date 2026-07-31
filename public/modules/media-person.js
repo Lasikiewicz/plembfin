@@ -291,12 +291,14 @@ export async function loadCastMemberDetails(personId, personName = null) {
 
         <div class="person-credits-section">
           <div class="person-credits-header">
-            <h3>Filmography</h3>
+            <div class="person-credits-header-main">
+              <h3>Filmography</h3>
+              <div class="person-credits-controls" aria-label="Filmography filters">
+                ${renderSelectFilter("personCreditsYearFilter", "Year", state.personCreditsYear, [["all", "All years"], ...yearOptions])}
+                ${renderSelectFilter("personCreditsGenreFilter", "Genre", state.personCreditsGenre, [["all", "All genres"], ...creditGenreIds.map((genreId) => [String(genreId), PERSON_CREDIT_GENRES.get(genreId)])])}
+              </div>
+            </div>
             <span class="person-credits-count"><span id="personCreditsCount">${castCredits.length}</span> matching titles</span>
-          </div>
-          <div class="person-credits-controls" aria-label="Filmography filters">
-            ${renderSelectFilter("personCreditsYearFilter", "Year", state.personCreditsYear, [["all", "All years"], ...yearOptions])}
-            ${renderSelectFilter("personCreditsGenreFilter", "Genre", state.personCreditsGenre, [["all", "All genres"], ...creditGenreIds.map((genreId) => [String(genreId), PERSON_CREDIT_GENRES.get(genreId)])])}
           </div>
           <div class="person-credits-split">
             <section class="person-credits-pane">
@@ -560,18 +562,6 @@ export async function loadCastMemberDetails(personId, personName = null) {
       updateSection("movie", movieGrid, movieCount, state.personCreditsMovieSort);
       updateSection("tv", tvGrid, tvCount, state.personCreditsTvSort);
     });
-
-    const syncPhotoRows = () => {
-      if (!photosGrid) return;
-      photosGrid.classList.remove("is-two-row");
-      const needsSecondRow = photosGrid.scrollWidth > photosGrid.clientWidth + 1;
-      photosGrid.classList.toggle("is-two-row", needsSecondRow);
-    };
-    requestAnimationFrame(syncPhotoRows);
-    if (typeof ResizeObserver !== "undefined" && photosGrid) {
-      const photoResizeObserver = new ResizeObserver(syncPhotoRows);
-      photoResizeObserver.observe(photosGrid);
-    }
 
     photosGrid?.addEventListener("wheel", (event) => {
       if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;

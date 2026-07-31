@@ -11311,9 +11311,10 @@ html.light-mode #explorerPanel .media-detail-page {
 
 /* Person profile */
 .person-profile-container {
+  --person-section-gap: 1.35rem;
   display: grid;
   grid-template-columns: minmax(360px, 440px) minmax(0, 1fr);
-  gap: clamp(1.5rem, 3vw, 3rem);
+  gap: var(--person-section-gap);
   align-items: start;
   min-width: 0;
 }
@@ -11326,7 +11327,7 @@ html.light-mode #explorerPanel .media-detail-page {
 .person-profile-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 1.35rem;
+  gap: var(--person-section-gap);
 }
 
 .person-profile-sidebar .person-profile-name,
@@ -11341,14 +11342,18 @@ html.light-mode #explorerPanel .media-detail-page {
 @media (min-width: 921px) {
   /* Keep the profile itself inside the viewport so the two columns, rather
      than the explorer page, own vertical scrolling. */
+  .page-shell:has(.person-profile-container) {
+    padding-bottom: 0;
+  }
+
   #explorerPanel:has(> .person-profile-container) {
     min-height: 0;
     overflow: hidden;
   }
 
   .person-profile-container {
-    height: calc(100vh - var(--right-topbar-height) - var(--space-3));
-    max-height: calc(100vh - var(--right-topbar-height) - var(--space-3));
+    height: calc(100vh - var(--right-topbar-height) - var(--space-3) - var(--control-inline-padding));
+    max-height: calc(100vh - var(--right-topbar-height) - var(--space-3) - var(--control-inline-padding));
     min-height: 0;
     overflow: hidden;
   }
@@ -11367,6 +11372,13 @@ html.light-mode #explorerPanel .media-detail-page {
   .person-profile-content {
     display: flex;
     flex-direction: column;
+    gap: var(--person-section-gap);
+    /* Keep the outer column fixed; the movie and TV panes own the scrolling. */
+    overflow-y: hidden;
+  }
+
+  .person-photos-section {
+    flex: 0 0 auto;
   }
 
   .person-profile-sidebar::-webkit-scrollbar,
@@ -11434,7 +11446,7 @@ html.light-mode #explorerPanel .media-detail-page {
 @media (max-width: 920px) {
   .person-profile-container {
     grid-template-columns: 1fr;
-    gap: 2rem;
+    gap: var(--person-section-gap);
     height: auto;
     max-height: none;
     overflow: visible;
@@ -11444,7 +11456,8 @@ html.light-mode #explorerPanel .media-detail-page {
   .person-profile-content {
     height: auto;
     max-height: none;
-    overflow: visible;
+    overflow-x: hidden;
+    overflow-y: visible;
     padding-right: 0;
   }
 
@@ -11454,6 +11467,28 @@ html.light-mode #explorerPanel .media-detail-page {
 
   .person-profile-img {
     width: min(100%, 350px) !important;
+  }
+
+  .person-profile-meta-items {
+    flex-wrap: wrap;
+    gap: 0.45rem 0.9rem;
+    max-width: 100%;
+    overflow-x: visible;
+    overflow-y: visible;
+    white-space: normal;
+  }
+
+  .person-profile-meta .meta-item {
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+
+  .person-profile-meta .meta-value {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }
 
@@ -11578,6 +11613,16 @@ html.light-mode #explorerPanel .media-detail-page {
   color: #fff;
 }
 
+.person-photos-section h3 {
+  margin-top: 0;
+}
+
+@media (min-width: 921px) {
+  .person-profile-content .person-credits-section {
+    margin-top: 0;
+  }
+}
+
 .person-photos-count {
   display: inline-block;
   margin-left: 0.4rem;
@@ -11597,17 +11642,9 @@ html.light-mode #explorerPanel .media-detail-page {
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 0 0 0.65rem;
+  padding: 0;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
-}
-
-.person-photos-grid.is-two-row {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 120px;
-  grid-template-rows: repeat(2, 180px);
-  width: max-content;
 }
 
 .person-photo-thumb {
@@ -11733,6 +11770,12 @@ html.light-mode #explorerPanel .media-detail-page {
   flex-direction: column;
   min-height: 0;
   margin-top: 2.5rem;
+}
+
+@media (max-width: 920px) {
+  .person-profile-content .person-credits-section {
+    margin-top: var(--person-section-gap);
+  }
 }
 
 .person-credits-controls {
@@ -11882,6 +11925,18 @@ html.light-mode #explorerPanel .media-detail-page {
   justify-content: space-between;
   gap: var(--space-3);
   padding: 0 0 0.85rem;
+}
+
+.person-credits-header-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+}
+
+.person-credits-header-main .person-credits-controls {
+  padding: 0;
 }
 
 .person-credits-header h3 {
