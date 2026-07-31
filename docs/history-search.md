@@ -49,9 +49,10 @@ rule, so the number of rows the tool would delete is visible before running it. 
 `rewatchedItems` is only a true rewatch count once `sameEventDuplicateRows` is zero - a
 duplicate recorded seconds after the original also carries a distinct `watched_at`.
 
-Note that the same episode can hold different `media_key` values across platforms when each
-supplies a different external ID (title vs IMDb vs TMDB vs TVDB). Those copies group
-separately and are not merged by this tool.
+Episode rows are grouped by show title plus season/episode when cleaning, so
+copies with different platform keys (title vs IMDb vs TMDB vs TVDB) are still
+recognized as the same event. Movies remain provider-ID-first so films with the
+same title are not accidentally merged.
 
 The dashboard's recent-history rail is a separate, smaller consumer of the same
 endpoint - see [dashboard.md](dashboard.md).

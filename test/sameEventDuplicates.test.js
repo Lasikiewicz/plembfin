@@ -5,6 +5,7 @@ import { makeTempDataDir } from "./helpers.js";
 makeTempDataDir("plembfin-same-event-dupes-");
 
 const repo = await import("../server/src/utils/dataRepo.js");
+const { db } = await import("../server/src/db.js");
 
 async function insertPlay(title, watchedAt, source, tmdbId) {
   const result = await repo.insertWatchRecord({
@@ -54,6 +55,29 @@ test("plays chain into a single viewing while each is inside the window", async 
   assert.ok(!duplicates.includes(a));
   assert.ok(duplicates.includes(b));
   assert.ok(duplicates.includes(c));
+});
+
+test("episode echoes are found across provider keys and incomplete rows", () => {
+  const insert = db.prepare(`
+    INSERT INTO watch_history
+      (id, title, title_lower, media_type, watched_at, source, sync_action,
+       season, episode, show_title, imdb_id, tmdb_id, tvdb_id, media_key,
+       created_at, updated_at)
+    VALUES (?, ?, ?, 'episode', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  insert.run(
+    "episode-echo-a", "Cross Key Show - S01E01", "cross key show - s01e01",
+    "2026-06-30T10:00:00.000Z", "plex", "watched", 1, 1, "Cross Key Show",
+    null, "tmdb-series-id", null, "episode:tmdb-series-id", Date.now(), Date.now(),
+  );
+  insert.run(
+    "episode-echo-b", "Cross Key Show - S01E01", "cross key show - s01e01",
+    "2026-06-30T10:00:01.000Z", "jellyfin", null, 1, 1, "Cross Key Show",
+    null, null, "tvdb-episode-id", "episode:tvdb-episode-id", Date.now(), Date.now(),
+  );
+
+  const duplicates = repo.sameEventDuplicateIds();
+  assert.ok(duplicates.includes("episode-echo-b"));
 });
 
 test("the reported duplicate count matches what the cleanup would remove", async () => {

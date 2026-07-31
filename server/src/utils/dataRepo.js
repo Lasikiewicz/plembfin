@@ -1419,7 +1419,11 @@ export async function countPlaybackProgressRows() {
 export const SAME_EVENT_WINDOW_MS = 10 * 60 * 1000;
 
 const selectWatchedStampsStmt = db.prepare(
-  "SELECT id, title, title_lower, media_type, watched_at, sync_action, imdb_id, tmdb_id, tvdb_id, season, episode, media_key FROM watch_history WHERE sync_action = 'watched' AND media_key IS NOT NULL AND media_key != ''",
+  `SELECT id, title, title_lower, media_type, watched_at, sync_action,
+          imdb_id, tmdb_id, tvdb_id, season, episode, media_key, show_title
+     FROM watch_history
+    WHERE watched_at IS NOT NULL
+      AND (sync_action IS NULL OR LOWER(sync_action) NOT IN ('unwatched', 'unplayed'))`,
 );
 
 export function backfillWatchRecordIdsAndKeys() {
@@ -1469,31 +1473,35 @@ export function backfillWatchRecordIdsAndKeys() {
 // and the earliest row of each chain is the one kept.
 export function sameEventDuplicateIds(windowMs = SAME_EVENT_WINDOW_MS) {
   const allWatched = selectWatchedStampsStmt.all();
-  const idMap = new Map();
-  for (const r of allWatched) {
-    if (r.imdb_id || r.tmdb_id || r.tvdb_id) {
-      const type = (r.media_type || "").toLowerCase() === "series" ? "show" : (r.media_type || "").toLowerCase() || "movie";
-      const key = `${r.title_lower}|${type}|${r.season || ""}|${r.episode || ""}`;
-      if (!idMap.has(key)) idMap.set(key, { imdb_id: r.imdb_id, tmdb_id: r.tmdb_id, tvdb_id: r.tvdb_id });
-    }
-  }
-
   const byKey = new Map();
   for (const row of allWatched) {
-    const effective = { ...row };
-    if (!effective.imdb_id && !effective.tmdb_id && !effective.tvdb_id) {
-      const type = (effective.media_type || "").toLowerCase() === "series" ? "show" : (effective.media_type || "").toLowerCase() || "movie";
-      const lookupKey = `${effective.title_lower}|${type}|${effective.season || ""}|${effective.episode || ""}`;
-      const match = idMap.get(lookupKey);
-      if (match) {
-        effective.imdb_id = match.imdb_id;
-        effective.tmdb_id = match.tmdb_id;
-        effective.tvdb_id = match.tvdb_id;
-      }
+    const type = normalizeMediaType(row.media_type);
+    // Episodes are the important cross-key case: Plex, Emby, Jellyfin, and
+    // imports can use different provider IDs for the same show episode. The
+    // show/season/episode identity is stable, while provider IDs are not.
+    // Movies intentionally remain provider-ID-first so two films with the
+    // same title are never collapsed merely because their titles match.
+    let key;
+    if (type === "episode") {
+      const show = canonicalTitleKey(row.show_title || showTitleFrom(row.title));
+      const season = row.season ?? "unknown";
+      const episode = row.episode ?? "unknown";
+      key = show && season !== "unknown" && episode !== "unknown"
+        ? `episode|show:${show}|s:${season}|e:${episode}`
+        : mediaKeyFor(row);
+    } else if (type === "movie") {
+      key = row.imdb_id
+        ? `movie|imdb:${normalizeKeyPart(row.imdb_id)}`
+        : row.tmdb_id
+          ? `movie|tmdb:${normalizeKeyPart(row.tmdb_id)}`
+          : row.tvdb_id
+            ? `movie|tvdb:${normalizeKeyPart(row.tvdb_id)}`
+            : `movie|title:${canonicalTitleKey(row.title)}`;
+    } else {
+      key = mediaKeyFor(row);
     }
-    const key = mediaKeyFor(effective);
     if (!byKey.has(key)) byKey.set(key, []);
-    byKey.get(key).push(effective);
+    byKey.get(key).push(row);
   }
 
   const duplicates = [];
