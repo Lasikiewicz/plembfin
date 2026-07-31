@@ -561,6 +561,18 @@ export async function loadCastMemberDetails(personId, personName = null) {
       updateSection("tv", tvGrid, tvCount, state.personCreditsTvSort);
     });
 
+    const syncPhotoRows = () => {
+      if (!photosGrid) return;
+      photosGrid.classList.remove("is-two-row");
+      const needsSecondRow = photosGrid.scrollWidth > photosGrid.clientWidth + 1;
+      photosGrid.classList.toggle("is-two-row", needsSecondRow);
+    };
+    requestAnimationFrame(syncPhotoRows);
+    if (typeof ResizeObserver !== "undefined" && photosGrid) {
+      const photoResizeObserver = new ResizeObserver(syncPhotoRows);
+      photoResizeObserver.observe(photosGrid);
+    }
+
     photosGrid?.addEventListener("wheel", (event) => {
       if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
       const multiplier = event.deltaMode === 1 ? 32 : (event.deltaMode === 2 ? photosGrid.clientWidth : 1);

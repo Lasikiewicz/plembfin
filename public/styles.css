@@ -11602,10 +11602,18 @@ html.light-mode #explorerPanel .media-detail-page {
   -webkit-overflow-scrolling: touch;
 }
 
+.person-photos-grid.is-two-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 120px;
+  grid-template-rows: repeat(2, 180px);
+  width: max-content;
+}
+
 .person-photo-thumb {
   flex: 0 0 auto;
+  width: 120px;
   height: 180px;
-  width: auto;
   border-radius: 6px;
   object-fit: cover;
   border: 1px solid var(--line);
