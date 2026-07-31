@@ -7,7 +7,7 @@ import { handleAppearance, handleConfig, handleMediaAppLinks, handleSeerrMediaSt
 import { handleAddWatchDate, handleClearMissingTelemetry, handleDeleteHistoryRecord, handleDeleteMedia, handleDeleteWatchDate, handleFullSyncWatchstates, handleHistory, handleMergeShows, handleMovies, handleRematchShow, handleShow, handleShows, handleUpdateWatch, handleWatchDates } from "./routes/media.js";
 import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleForceSyncPlan, handleManualUnwatch, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleRetrySync, handleStopForceSync, handleSyncHistory, handleSyncJobs, handleSyncLibraries, handleWebhook } from "./routes/sync.js";
 import { handleFanartImages, handleMediaSearch, handleOmdbRating, handlePoster, handleRemoteArtwork, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleYoutubeMeta } from "./routes/metadata.js";
-import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDedupHistory, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRefreshTvdbMetadata, handleRematchTvShows, handleSyncHealth, handleSyncMatchReport, handlePhantomWatchAudit } from "./routes/maintenance.js";
+import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDedupHistory, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRefreshTvdbMetadata, handleRematchTvShows, handleSyncHealth, handleSyncMatchReport, handlePhantomWatchAudit, handlePhantomWatchRepair } from "./routes/maintenance.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -69,6 +69,7 @@ async function dispatch(req, res) {
     if (path === "stop-force-sync") return handleStopForceSync(req, res);
     if (path === "dedup-history") return handleDedupHistory(req, res);
     if (path === "phantom-watch-audit") return handlePhantomWatchAudit(req, res);
+    if (path === "phantom-watch-repair") return handlePhantomWatchRepair(req, res);
     if (path === "tmdb-details") return handleTmdbDetails(req, res);
     if (path === "tmdb-details-batch") return handleTmdbDetailsBatch(req, res);
     if (path === "refresh-tmdb-metadata") return handleRefreshTmdbMetadata(req, res);

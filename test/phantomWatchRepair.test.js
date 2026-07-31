@@ -80,3 +80,22 @@ test("does not classify a normal spaced-out binge as a phantom burst", () => {
   assert.equal(findPhantomWatchBurstRows(database).ids.length, 0);
   database.close();
 });
+
+test("repairs an impossible same-show episode batch", () => {
+  const database = makeDb();
+  for (let index = 0; index < 8; index += 1) {
+    insert(database, {
+      id: `same-show-${index}`,
+      title: `Episode ${index}`,
+      show_title: "Trying",
+      season: 4,
+      episode: index + 1,
+      media_key: `trying:s04e0${index + 1}`,
+      watched_at: "2026-07-24T01:02:00.000Z",
+    });
+  }
+  const detected = findPhantomWatchBurstRows(database);
+  assert.equal(detected.ids.length, 8);
+  assert.equal(detected.bursts[0].reason, "same-group-impossible-batch");
+  database.close();
+});

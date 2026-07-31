@@ -91,6 +91,7 @@ import {
   clearWatchArtworkUrls,
 } from "../utils/dataRepo.js";
 import { auditPhantomWatchHistory } from "../utils/phantomWatchAudit.js";
+import { repairPhantomWatchBursts } from "../utils/phantomWatchRepair.js";
 
 function imagePath(path, params = {}) {
   const cleanPath = String(path || "").trim();
@@ -432,6 +433,23 @@ export async function handlePhantomWatchAudit(req, res) {
   if (!(await requireAdmin(req, res))) return;
   const result = auditPhantomWatchHistory(db);
   return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
+}
+
+export async function handlePhantomWatchRepair(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const result = repairPhantomWatchBursts(db);
+    if (result.deleted) await invalidateHistoryDerivedCaches().catch(() => null);
+    writeAuditLog("history.phantom_burst_repair", {
+      ip: req.ip || req.socket?.remoteAddress,
+      detail: { deleted: result.deleted, bursts: result.bursts },
+    });
+    return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    return sendJson(res, { error: error.message || "Phantom watch repair failed" }, 500);
+  }
 }
 
 export function handlePing(req, res) {

@@ -6,6 +6,8 @@
 const PLATFORM_SOURCES = new Set(["plex", "emby", "jellyfin"]);
 const BURST_GAP_MS = 3 * 60 * 1000;
 const MIN_BURST_ITEMS = 8;
+const SAME_GROUP_MIN_ITEMS = 6;
+const SAME_GROUP_MAX_SPAN_MS = 60 * 1000;
 
 function timestampMs(value) {
   const time = Date.parse(String(value || ""));
@@ -62,10 +64,25 @@ export function findPhantomWatchBurstRows(database, {
     if (!burst.length) return;
     const identities = new Set(burst.map(identity));
     const groups = new Set(burst.map(groupIdentity));
-    if (identities.size >= minItems && groups.size >= 2) {
+    const firstAt = timestampMs(burst[0]?.watched_at);
+    const lastAt = timestampMs(burst.at(-1)?.watched_at);
+    const groupCounts = new Map();
+    for (const row of burst) {
+      const group = groupIdentity(row);
+      groupCounts.set(group, (groupCounts.get(group) || 0) + 1);
+    }
+    const sameGroupBatch = [...groupCounts.values()].some((count) => count >= SAME_GROUP_MIN_ITEMS)
+      && lastAt - firstAt <= SAME_GROUP_MAX_SPAN_MS;
+    const crossGroupBatch = identities.size >= minItems && groups.size >= 2;
+    if (crossGroupBatch || sameGroupBatch) {
       const ids = burst.map((row) => row.id);
       ids.forEach((id) => removeIds.add(id));
-      bursts.push({ ids, itemCount: identities.size, groupCount: groups.size });
+      bursts.push({
+        ids,
+        itemCount: identities.size,
+        groupCount: groups.size,
+        reason: sameGroupBatch && !crossGroupBatch ? "same-group-impossible-batch" : "cross-group-batch",
+      });
     }
     burst = [];
   };

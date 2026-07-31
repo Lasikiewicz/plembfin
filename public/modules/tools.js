@@ -345,4 +345,4 @@ export async function startImport() {
 // checks live in tools-maintenance.js (per CLAUDE.md's module table) and are
 // re-exported here so existing imports of these names from "./tools.js"
 // keep working unchanged.
-export { runRepairWorkflow, runDedupHistory, runPhantomWatchAudit, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js";
+export { runRepairWorkflow, runDedupHistory, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js";

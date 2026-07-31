@@ -903,6 +903,36 @@ export async function runPhantomWatchAudit() {
   }
 }
 
+export async function runPhantomWatchRepair() {
+  const button = elements.phantomRepairButton;
+  if (!button) return;
+  button.disabled = true;
+  button.textContent = "Removing batches...";
+  try {
+    const response = await fetch("/api/phantom-watch-repair", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    const deleted = Number(body.deleted || 0);
+    setStatusPill(elements.phantomAuditStatus, deleted ? `${deleted} batch row(s) removed` : "No batches found", deleted ? "ready" : "muted");
+    if (elements.phantomAuditLog) {
+      elements.phantomAuditLog.classList.remove("hidden");
+      elements.phantomAuditLog.textContent = deleted
+        ? `Removed ${deleted} high-confidence phantom row(s) from ${(body.bursts || []).length} batch(es). Explicit manual watches and spaced-out rewatches were preserved.`
+        : "No high-confidence phantom batches were found.";
+    }
+    await clearDerivedUiCaches();
+    await loadHistory();
+    return body;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Remove Confirmed Batches";
+  }
+}
+
 export async function runTraktBackfill() {
   const button = elements.traktBackfillButton;
   const status = elements.traktBackfillStatus;
