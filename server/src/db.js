@@ -75,6 +75,19 @@ const migrations = [
       }
     },
   },
+  {
+    id: 5,
+    up(database) {
+      const watchCols = new Set(database.pragma("table_info(watch_history)").map((column) => column.name));
+      if (!["title", "media_type", "watched_at", "source", "sync_action"].every((column) => watchCols.has(column))) return;
+      // Re-run the guarded repair after the exact-event duplicate rules were
+      // expanded. Migration 4 may already have run on an existing database.
+      const result = repairPhantomWatchBursts(database, { transaction: false });
+      if (result.deleted) {
+        console.warn(`[history] removed ${result.deleted} duplicate or implausible phantom watch row${result.deleted === 1 ? "" : "s"} from ${result.bursts.length} burst${result.bursts.length === 1 ? "" : "s"}`);
+      }
+    },
+  },
 ];
 
 function runSchemaMigrations() {
