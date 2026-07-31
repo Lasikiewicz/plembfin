@@ -1,7 +1,17 @@
 {
-  "version": "0.6.56",
-  "updatedAt": "2026-07-31T11:27:32+01:00",
+  "version": "0.6.57",
+  "updatedAt": "2026-07-31T12:09:31+01:00",
   "entries": [
+    {
+      "version": "0.6.57",
+      "date": "2026-07-31T12:09:31+01:00",
+      "commit": "02b8997ee00824f5cf27f0e26d6fb16942936625",
+      "message": "Fix - Suppress outbound watch-state echoes",
+      "author": "Lasikiewicz",
+      "details": [
+        "Remember direct bulk and force-sync played marks so Plex does not re-import them as new viewing history."
+      ]
+    },
     {
       "version": "0.6.56",
       "date": "2026-07-31T11:27:32+01:00",
