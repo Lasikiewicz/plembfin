@@ -11323,6 +11323,77 @@ html.light-mode #explorerPanel .media-detail-page {
   min-width: 0;
 }
 
+.person-profile-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.person-profile-sidebar .person-profile-name,
+.person-profile-sidebar .person-profile-meta,
+.person-profile-sidebar .person-socials-section,
+.person-profile-sidebar .person-biography-section,
+.person-profile-sidebar > .muted-copy {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media (min-width: 921px) {
+  /* Keep the profile itself inside the viewport so the two columns, rather
+     than the explorer page, own vertical scrolling. */
+  #explorerPanel:has(> .person-profile-container) {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .person-profile-container {
+    height: calc(100vh - var(--right-topbar-height) - var(--space-3));
+    max-height: calc(100vh - var(--right-topbar-height) - var(--space-3));
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .person-profile-sidebar,
+  .person-profile-content {
+    min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 0.75rem;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--line-strong), var(--muted) 18%) transparent;
+  }
+
+  .person-profile-content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .person-profile-sidebar::-webkit-scrollbar,
+  .person-profile-content::-webkit-scrollbar {
+    width: 7px;
+  }
+
+  .person-profile-sidebar::-webkit-scrollbar-track,
+  .person-profile-content::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .person-profile-sidebar::-webkit-scrollbar-thumb,
+  .person-profile-content::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--line-strong), var(--muted) 18%);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+
+  .person-profile-sidebar:hover::-webkit-scrollbar-thumb,
+  .person-profile-content:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--line-strong), var(--muted) 38%);
+    background-clip: padding-box;
+  }
+}
+
 .person-profile-name {
   margin: 1.25rem 0 0;
   font-size: clamp(1.55rem, 2.2vw, 2rem);
@@ -11336,10 +11407,45 @@ html.light-mode #explorerPanel .media-detail-page {
   color: var(--muted);
 }
 
+.person-socials-section {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.person-socials-section h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.person-socials-section .person-socials-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.person-biography-section {
+  margin-top: 0;
+}
+
 @media (max-width: 920px) {
   .person-profile-container {
     grid-template-columns: 1fr;
     gap: 2rem;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .person-profile-sidebar,
+  .person-profile-content {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .person-profile-sidebar {
@@ -11614,6 +11720,10 @@ html.light-mode #explorerPanel .media-detail-page {
 }
 
 .person-credits-section {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
   margin-top: 2.5rem;
 }
 
@@ -11680,6 +11790,65 @@ html.light-mode #explorerPanel .media-detail-page {
   outline-offset: 2px;
 }
 
+.person-filter-menu {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+}
+
+.person-filter-group-label {
+  color: var(--soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.person-filter-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.person-filter-menu-option {
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--soft);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0.4rem 0.55rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.person-credits-controls .person-filter-menu {
+  flex-wrap: nowrap;
+}
+
+.person-credits-controls .person-filter-options {
+  flex-wrap: nowrap;
+  max-width: min(72vw, 56rem);
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+  scrollbar-width: thin;
+}
+
+.person-filter-menu-option:hover,
+.person-filter-menu-option:focus-visible {
+  background: color-mix(in srgb, var(--blue), transparent 86%);
+  color: var(--blue);
+}
+
+.person-filter-menu-option.active {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue), transparent 88%);
+  color: var(--blue);
+}
+
 .person-credit-filter select {
   width: auto;
   min-width: 7rem;
@@ -11709,6 +11878,85 @@ html.light-mode #explorerPanel .media-detail-page {
 
 .person-credits-header h3 {
   margin: 0;
+}
+
+.person-credits-split {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  min-height: 0;
+}
+
+.person-credits-pane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-2), transparent 25%);
+  padding: 0.75rem;
+}
+
+.person-credits-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.7rem;
+}
+
+.person-credits-pane-header h4 {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.person-credits-pane .person-credit-filter {
+  gap: 0.3rem;
+}
+
+.person-credits-pane .person-credit-filter > span {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+.person-credits-pane .person-credit-filter select {
+  min-width: 5.5rem;
+  font-size: 0.72rem;
+}
+
+.person-credits-pane .person-credits-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.45rem;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--line-strong), var(--muted) 18%) transparent;
+}
+
+.person-credits-pane .person-credits-grid::-webkit-scrollbar {
+  width: 7px;
+}
+
+.person-credits-pane .person-credits-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.person-credits-pane .person-credits-grid::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--line-strong), var(--muted) 18%);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.person-credits-pane .person-credits-grid:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--line-strong), var(--muted) 38%);
+  background-clip: padding-box;
 }
 
 .person-credits-count {
@@ -11924,6 +12172,23 @@ html.light-mode .pill-toggle.active {
   .person-credits-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1rem var(--space-2);
+  }
+
+  .person-credits-split {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .person-credits-pane {
+    min-height: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+  }
+
+  .person-credits-pane .person-credits-grid {
+    overflow: visible;
+    padding-right: 0;
   }
 
   .person-photos-grid {
@@ -16343,6 +16608,7 @@ body.bio-media-layout .media-detail-page {
   gap: clamp(1.5rem, 3vw, 2.5rem);
   align-items: start;
   min-width: 0;
+  min-height: 0;
   width: 100%;
 }
 
@@ -16352,12 +16618,22 @@ body.bio-media-layout .media-detail-page {
     height: calc(100vh - 120px);
     max-height: calc(100vh - 120px);
     overflow: hidden;
+    flex: 1 1 auto;
   }
 
   .modal-panel--immersive .media-detail-page.bio-layout,
   body.bio-media-layout .modal-panel--immersive .media-detail-page {
-    height: calc(100vh - 80px);
-    max-height: calc(100vh - 80px);
+    height: auto;
+    max-height: none;
+  }
+
+  /* The columns own vertical scrolling in bio mode. Keep their flex parent
+     from becoming a third scroll surface, otherwise wheel/touch input can
+     move the whole detail page instead of the pane under the pointer. */
+  .immersive-container:has(> .media-detail-page.bio-layout),
+  #explorerPanel:has(> .media-detail-page.bio-layout) {
+    min-height: 0;
+    overflow: hidden;
   }
 }
 
@@ -16366,6 +16642,7 @@ body.bio-media-layout .media-detail-page {
   flex-direction: column;
   gap: 1.25rem;
   min-width: 0;
+  min-height: 0;
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
@@ -16378,6 +16655,7 @@ body.bio-media-layout .media-detail-page {
   flex-direction: column;
   gap: 1.5rem;
   min-width: 0;
+  min-height: 0;
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;

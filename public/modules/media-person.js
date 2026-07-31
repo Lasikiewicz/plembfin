@@ -4,7 +4,7 @@ import { tmdbProfile, tmdbPoster, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260736";
 import { movieBySlugOrId, clearMediaDetailState, mediaDetailRoot, mediaDetailLoaderHtml } from "./media-detail.js?v=20260736";
-import { FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver, resolvedTmdbCache } from "./explorer.js";
+import { FILMOGRAPHY_PAGE_SIZE, resolvedTmdbCache } from "./explorer.js";
 
 let _cb = {};
 const PERSON_LIBRARY_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -181,6 +181,8 @@ export async function loadCastMemberDetails(personId, personName = null) {
       state.personCreditsYear = "all";
       state.personCreditsGenre = "all";
       state.personCreditsSort = "date_desc";
+      state.personCreditsMovieSort = "date_desc";
+      state.personCreditsTvSort = "date_desc";
     }
     state.personCreditsFilter = state.personCreditsFilter || "all";
     state.personCreditsYear = state.personCreditsYear || "all";
@@ -189,7 +191,35 @@ export async function loadCastMemberDetails(personId, personName = null) {
     if (!["all", "movie", "tv"].includes(state.personCreditsFilter)) state.personCreditsFilter = "all";
     if (state.personCreditsGenre !== "all" && !creditGenreIds.includes(Number(state.personCreditsGenre))) state.personCreditsGenre = "all";
     if (!["popularity", "date_desc", "date_asc", "title_asc", "title_desc"].includes(state.personCreditsSort)) state.personCreditsSort = "date_desc";
-    state.personCreditsVisible = FILMOGRAPHY_PAGE_SIZE;
+    state.personCreditsMovieSort = state.personCreditsMovieSort || state.personCreditsSort;
+    state.personCreditsTvSort = state.personCreditsTvSort || state.personCreditsSort;
+    if (!["popularity", "date_desc", "date_asc", "title_asc", "title_desc"].includes(state.personCreditsMovieSort)) state.personCreditsMovieSort = "date_desc";
+    if (!["popularity", "date_desc", "date_asc", "title_asc", "title_desc"].includes(state.personCreditsTvSort)) state.personCreditsTvSort = "date_desc";
+
+    const sortOptions = [
+      ["popularity", "Popularity"],
+      ["date_desc", "Newest"],
+      ["date_asc", "Oldest"],
+      ["title_asc", "A → Z"],
+      ["title_desc", "Z → A"],
+    ];
+    const yearOptions = [...new Set(castCredits.map(personCreditYear).filter((year) => year !== null))]
+      .sort((a, b) => b - a)
+      .map((year) => [String(year), String(year)]);
+    const renderFilterMenu = (id, label, current, options) => `
+      <div class="person-filter-menu" data-menu-id="${id}">
+        <span class="person-filter-group-label">${label}</span>
+        <div class="person-filter-options" role="group" aria-label="${label}">
+          ${options.map(([value, text]) => `<button class="person-filter-menu-option${String(value) === String(current) ? " active" : ""}" type="button" data-person-filter-option="${id}" data-value="${escapeAttribute(value)}">${escapeHtml(text)}</button>`).join("")}
+        </div>
+      </div>`;
+    const renderSelectFilter = (id, label, current, options) => `
+      <label class="person-credit-filter">
+        <span>${label}</span>
+        <select id="${id}">
+          ${options.map(([value, text]) => `<option value="${escapeAttribute(value)}"${String(value) === String(current) ? " selected" : ""}>${escapeHtml(text)}</option>`).join("")}
+        </select>
+      </label>`;
 
     root.innerHTML = `
       <div class="person-profile-container">
@@ -199,21 +229,8 @@ export async function loadCastMemberDetails(personId, personName = null) {
             const age = personAge(data.birthday, data.deathday);
             return age !== null ? ` <span class="person-profile-age">(${age})</span>` : '';
           })()}</h2>
-          ${data.biography ? `
-          <div class="person-biography-section">
-            <h3>Biography</h3>
-            <p class="person-biography-text">${escapeHtml(data.biography)}</p>
-          </div>
-          ` : '<p class="muted-copy">No biography available for this cast member.</p>'}
-        </div>
-        <div class="person-profile-content">
-          <div class="person-profile-meta">
-            <h3>Personal Info</h3>
+          <section class="person-profile-meta">
             <div class="person-profile-meta-items">
-            <div class="meta-item">
-              <span class="meta-label">Known For</span>
-              <span class="meta-value">${escapeHtml(data.known_for_department || "Acting")}</span>
-            </div>
             ${data.birthday ? `
             <div class="meta-item">
               <span class="meta-label">Born</span>
@@ -226,19 +243,25 @@ export async function loadCastMemberDetails(personId, personName = null) {
               <span class="meta-value">${escapeHtml(data.deathday)}${personAge(data.birthday, data.deathday) !== null ? ` (aged ${personAge(data.birthday, data.deathday)})` : ''}</span>
             </div>
             ` : ''}
-            ${(() => {
-        const socials = personSocialLinks(data);
-        if (!socials.length) return '';
-        return `
-              <div class="meta-item person-socials">
-                <span class="meta-label">Socials</span>
-                <span class="person-socials-links">
-                  ${socials.map((s) => `<a class="person-social-link" href="${escapeAttribute(s.href)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeAttribute(s.label)}" title="${escapeAttribute(s.label)}">${personSocialIcon(s.label)}<span class="sr-only">${escapeHtml(s.label)}</span></a>`).join('')}
-                </span>
-              </div>`;
-      })()}
             </div>
+          </section>
+          ${(() => {
+            const socials = personSocialLinks(data);
+            if (!socials.length) return '';
+            return `
+          <section class="person-socials-section">
+            <div class="person-socials-links">
+              ${socials.map((s) => `<a class="person-social-link" href="${escapeAttribute(s.href)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeAttribute(s.label)}" title="${escapeAttribute(s.label)}">${personSocialIcon(s.label)}<span class="sr-only">${escapeHtml(s.label)}</span></a>`).join('')}
+            </div>
+          </section>`;
+          })()}
+          ${data.biography ? `
+          <div class="person-biography-section">
+            <p class="person-biography-text">${escapeHtml(data.biography)}</p>
           </div>
+          ` : '<p class="muted-copy">No biography available for this cast member.</p>'}
+        </div>
+        <div class="person-profile-content">
         ${(() => {
       const seen = new Set();
       const addUnique = (list) => list.filter((img) => {
@@ -272,55 +295,40 @@ export async function loadCastMemberDetails(personId, personName = null) {
             <span class="person-credits-count"><span id="personCreditsCount">${castCredits.length}</span> matching titles</span>
           </div>
           <div class="person-credits-controls" aria-label="Filmography filters">
-            <div class="person-credit-filter person-credit-filter--media">
-              <span>Media</span>
-              <div class="person-media-filter-buttons" id="personCreditsMediaFilter" role="group" aria-label="Media type">
-                <button class="person-filter-button${state.personCreditsFilter === "all" ? " active" : ""}" type="button" data-filter="all" aria-pressed="${state.personCreditsFilter === "all"}">All media</button>
-                <button class="person-filter-button${state.personCreditsFilter === "movie" ? " active" : ""}" type="button" data-filter="movie" aria-pressed="${state.personCreditsFilter === "movie"}">Movies</button>
-                <button class="person-filter-button${state.personCreditsFilter === "tv" ? " active" : ""}" type="button" data-filter="tv" aria-pressed="${state.personCreditsFilter === "tv"}">TV shows</button>
-              </div>
-            </div>
-            <label class="person-credit-filter">
-              <span>Year</span>
-              <select id="personCreditsYearFilter">
-                <option value="all">All years</option>
-              </select>
-            </label>
-            <label class="person-credit-filter">
-              <span>Genre</span>
-              <select id="personCreditsGenreFilter">
-                <option value="all"${state.personCreditsGenre === "all" ? " selected" : ""}>All genres</option>
-                ${creditGenreIds.map((genreId) => `<option value="${genreId}"${String(state.personCreditsGenre) === String(genreId) ? " selected" : ""}>${escapeHtml(PERSON_CREDIT_GENRES.get(genreId))}</option>`).join("")}
-              </select>
-            </label>
-            <label class="person-credit-filter">
-              <span>Sort by</span>
-              <select id="personCreditsSort">
-                <option value="popularity"${state.personCreditsSort === "popularity" ? " selected" : ""}>Popularity</option>
-                <option value="date_desc"${state.personCreditsSort === "date_desc" ? " selected" : ""}>Newest</option>
-                <option value="date_asc"${state.personCreditsSort === "date_asc" ? " selected" : ""}>Oldest</option>
-                <option value="title_asc"${state.personCreditsSort === "title_asc" ? " selected" : ""}>A → Z</option>
-                <option value="title_desc"${state.personCreditsSort === "title_desc" ? " selected" : ""}>Z → A</option>
-              </select>
-            </label>
+            ${renderSelectFilter("personCreditsYearFilter", "Year", state.personCreditsYear, [["all", "All years"], ...yearOptions])}
+            ${renderSelectFilter("personCreditsGenreFilter", "Genre", state.personCreditsGenre, [["all", "All genres"], ...creditGenreIds.map((genreId) => [String(genreId), PERSON_CREDIT_GENRES.get(genreId)])])}
           </div>
-          <div class="person-credits-grid" id="personCreditsGrid">
-            <div class="person-credits-loading">
-              <span>Sorting filmography...</span>
-            </div>
+          <div class="person-credits-split">
+            <section class="person-credits-pane">
+              <div class="person-credits-pane-header">
+                <h4>Movies <span class="person-credits-count"><span id="personMoviesCount">0</span></span></h4>
+                ${renderFilterMenu("movie-sort", "Sort", state.personCreditsMovieSort, sortOptions)}
+              </div>
+              <div class="person-credits-grid" id="personMoviesGrid"><div class="person-credits-loading"><span>Sorting movies...</span></div></div>
+            </section>
+            <section class="person-credits-pane">
+              <div class="person-credits-pane-header">
+                <h4>TV Shows <span class="person-credits-count"><span id="personTvCount">0</span></span></h4>
+                ${renderFilterMenu("tv-sort", "Sort", state.personCreditsTvSort, sortOptions)}
+              </div>
+              <div class="person-credits-grid" id="personTvGrid"><div class="person-credits-loading"><span>Sorting TV shows...</span></div></div>
+            </section>
           </div>
         </div>
       </div>
     </div>
     `;
 
-    const mediaFilter = root.querySelector("#personCreditsMediaFilter");
     const yearFilter = root.querySelector("#personCreditsYearFilter");
     const genreFilter = root.querySelector("#personCreditsGenreFilter");
-    const sortSelect = root.querySelector("#personCreditsSort");
-    const gridEl = root.querySelector("#personCreditsGrid");
-    const countEl = root.querySelector("#personCreditsCount");
+    const movieGrid = root.querySelector("#personMoviesGrid");
+    const tvGrid = root.querySelector("#personTvGrid");
+    const movieCount = root.querySelector("#personMoviesCount");
+    const tvCount = root.querySelector("#personTvCount");
     const photosGrid = root.querySelector(".person-photos-grid");
+    const visibleCounts = { movie: FILMOGRAPHY_PAGE_SIZE, tv: FILMOGRAPHY_PAGE_SIZE };
+    let movieObserver = null;
+    let tvObserver = null;
 
     const renderCreditCards = (credits) => {
       const libraryTvCredits = [];
@@ -422,10 +430,6 @@ export async function loadCastMemberDetails(personId, personName = null) {
       return { html, libraryTvCredits };
     };
 
-    const matchesMediaFilter = (credit) => (
-      state.personCreditsFilter === "all" || credit.media_type === state.personCreditsFilter
-    );
-
     const matchesGenreFilter = (credit) => (
       state.personCreditsGenre === "all" || (credit.genre_ids || []).includes(Number(state.personCreditsGenre))
     );
@@ -433,7 +437,7 @@ export async function loadCastMemberDetails(personId, personName = null) {
     const updateYearOptions = () => {
       if (!yearFilter) return;
       const yearCounts = new Map();
-      castCredits.filter(matchesMediaFilter).filter(matchesGenreFilter).forEach((credit) => {
+      castCredits.filter(matchesGenreFilter).forEach((credit) => {
         const year = personCreditYear(credit);
         if (year === null) return;
         yearCounts.set(year, (yearCounts.get(year) || 0) + 1);
@@ -449,52 +453,56 @@ export async function loadCastMemberDetails(personId, personName = null) {
       yearFilter.value = String(state.personCreditsYear);
     };
 
-    const updateGrid = (resetVisible = true) => {
-      if (resetVisible) {
-        state.personCreditsVisible = FILMOGRAPHY_PAGE_SIZE;
-      }
-
-      updateYearOptions();
-      let filtered = castCredits.filter(matchesMediaFilter).filter(matchesGenreFilter);
-      if (state.personCreditsYear !== "all") {
-        const selectedYear = Number.parseInt(state.personCreditsYear, 10);
-        filtered = filtered.filter((credit) => personCreditYear(credit) === selectedYear);
-      }
-
-      if (state.personCreditsSort === "popularity") {
-        filtered.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
-      } else if (state.personCreditsSort === "date_desc") {
-        filtered.sort((a, b) => {
+    const sortCredits = (credits, sort) => {
+      const sorted = [...credits];
+      if (sort === "popularity") {
+        sorted.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+      } else if (sort === "date_desc") {
+        sorted.sort((a, b) => {
           const dateA = a.release_date || a.first_air_date || "";
           const dateB = b.release_date || b.first_air_date || "";
           if (!dateA) return 1;
           if (!dateB) return -1;
           return dateB.localeCompare(dateA);
         });
-      } else if (state.personCreditsSort === "date_asc") {
-        filtered.sort((a, b) => {
+      } else if (sort === "date_asc") {
+        sorted.sort((a, b) => {
           const dateA = a.release_date || a.first_air_date || "";
           const dateB = b.release_date || b.first_air_date || "";
           if (!dateA) return 1;
           if (!dateB) return -1;
           return dateA.localeCompare(dateB);
         });
-      } else if (state.personCreditsSort === "title_asc") {
-        filtered.sort((a, b) => (a.title || a.name || "").localeCompare(b.title || b.name || ""));
-      } else if (state.personCreditsSort === "title_desc") {
-        filtered.sort((a, b) => (b.title || b.name || "").localeCompare(a.title || a.name || ""));
+      } else if (sort === "title_asc") {
+        sorted.sort((a, b) => (a.title || a.name || "").localeCompare(b.title || b.name || ""));
+      } else if (sort === "title_desc") {
+        sorted.sort((a, b) => (b.title || b.name || "").localeCompare(a.title || a.name || ""));
       }
+      return sorted;
+    };
 
+    const updateSection = (mediaType, gridEl, countEl, sort, resetVisible = true) => {
+      if (!gridEl) return;
+      if (resetVisible) visibleCounts[mediaType] = FILMOGRAPHY_PAGE_SIZE;
+      updateYearOptions();
+      let filtered = castCredits.filter((credit) => credit.media_type === mediaType).filter(matchesGenreFilter);
+      if (state.personCreditsYear !== "all") {
+        const selectedYear = Number.parseInt(state.personCreditsYear, 10);
+        filtered = filtered.filter((credit) => personCreditYear(credit) === selectedYear);
+      }
+      filtered = sortCredits(filtered, sort);
       countEl.textContent = filtered.length;
 
-      if (getFilmographyObserver()) { getFilmographyObserver().disconnect(); setFilmographyObserver(null); }
+      const observerKey = mediaType === "movie" ? "movie" : "tv";
+      if (observerKey === "movie" && movieObserver) movieObserver.disconnect();
+      if (observerKey === "tv" && tvObserver) tvObserver.disconnect();
 
       if (filtered.length === 0) {
         gridEl.innerHTML = `<p class="muted-copy" style="grid-column: 1 / -1; text-align: center; padding: 2rem 0;">No matching filmography items found.</p>`;
         return;
       }
 
-      const visibleCount = Math.min(state.personCreditsVisible, filtered.length);
+      const visibleCount = Math.min(visibleCounts[mediaType], filtered.length);
       const page = filtered.slice(0, visibleCount);
       const hasMore = filtered.length > visibleCount;
 
@@ -508,41 +516,49 @@ export async function loadCastMemberDetails(personId, personName = null) {
       if (hasMore) {
         const sentinel = gridEl.querySelector(".filmography-load-sentinel");
         if (sentinel) {
-          setFilmographyObserver(new IntersectionObserver(([entry]) => {
+          const observer = new IntersectionObserver(([entry]) => {
             if (!entry.isIntersecting) return;
-            state.personCreditsVisible += FILMOGRAPHY_PAGE_SIZE;
-            updateGrid(false);
-          }, { rootMargin: "600px" }));
-          getFilmographyObserver().observe(sentinel);
+            visibleCounts[mediaType] += FILMOGRAPHY_PAGE_SIZE;
+            updateSection(mediaType, gridEl, countEl, sort, false);
+          }, { root: gridEl, rootMargin: "600px" });
+          if (observerKey === "movie") movieObserver = observer;
+          else tvObserver = observer;
+          observer.observe(sentinel);
         }
       }
     };
 
-    mediaFilter?.addEventListener("click", (event) => {
-      const button = event.target.closest("button[data-filter]");
-      if (!button) return;
-      state.personCreditsFilter = button.dataset.filter;
-      mediaFilter.querySelectorAll("button[data-filter]").forEach((item) => {
-        const active = item.dataset.filter === state.personCreditsFilter;
-        item.classList.toggle("active", active);
-        item.setAttribute("aria-pressed", String(active));
-      });
-      updateGrid();
+    root.addEventListener("click", (event) => {
+      const option = event.target.closest("[data-person-filter-option]");
+      if (!option) return;
+      const menu = option.closest("[data-menu-id]");
+      const filter = option.dataset.personFilterOption;
+      const value = option.dataset.value;
+      if (filter === "year") state.personCreditsYear = value;
+      if (filter === "genre") state.personCreditsGenre = value;
+      if (filter === "movie-sort") state.personCreditsMovieSort = value;
+      if (filter === "tv-sort") state.personCreditsTvSort = value;
+      menu?.querySelectorAll("[data-person-filter-option]").forEach((item) => item.classList.toggle("active", item === option));
+      if (filter === "year" || filter === "genre") {
+        updateSection("movie", movieGrid, movieCount, state.personCreditsMovieSort);
+        updateSection("tv", tvGrid, tvCount, state.personCreditsTvSort);
+      } else if (filter === "movie-sort") {
+        updateSection("movie", movieGrid, movieCount, state.personCreditsMovieSort);
+      } else if (filter === "tv-sort") {
+        updateSection("tv", tvGrid, tvCount, state.personCreditsTvSort);
+      }
     });
 
     yearFilter?.addEventListener("change", () => {
       state.personCreditsYear = yearFilter.value;
-      updateGrid();
+      updateSection("movie", movieGrid, movieCount, state.personCreditsMovieSort);
+      updateSection("tv", tvGrid, tvCount, state.personCreditsTvSort);
     });
 
     genreFilter?.addEventListener("change", () => {
       state.personCreditsGenre = genreFilter.value;
-      updateGrid();
-    });
-
-    sortSelect?.addEventListener("change", () => {
-      state.personCreditsSort = sortSelect.value;
-      updateGrid();
+      updateSection("movie", movieGrid, movieCount, state.personCreditsMovieSort);
+      updateSection("tv", tvGrid, tvCount, state.personCreditsTvSort);
     });
 
     photosGrid?.addEventListener("wheel", (event) => {
@@ -557,7 +573,8 @@ export async function loadCastMemberDetails(personId, personName = null) {
     }, { passive: false });
 
     // Initial render of the grid
-    updateGrid();
+    updateSection("movie", movieGrid, movieCount, state.personCreditsMovieSort);
+    updateSection("tv", tvGrid, tvCount, state.personCreditsTvSort);
 
     // Watched-state decoration is useful, but it is not required for the profile
     // shell or filmography to become usable. Load the large local snapshots after
@@ -584,7 +601,8 @@ export async function loadCastMemberDetails(personId, personName = null) {
     loadLibrarySnapshot().then((snapshot) => {
       if (renderToken !== personRenderToken) return;
       filmographyLookup = snapshot;
-      updateGrid(false);
+      updateSection("movie", movieGrid, movieCount, state.personCreditsMovieSort, false);
+      updateSection("tv", tvGrid, tvCount, state.personCreditsTvSort, false);
     }).catch(() => {});
 
   } catch (err) {
