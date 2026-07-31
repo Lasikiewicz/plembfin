@@ -79,12 +79,6 @@ import {
   listMissingPosterTraktRows,
   stampWatchPoster,
   setWatchMediaType,
-  loadWatchKeyGroupsForDedup,
-  deleteWatchRecordsByIds,
-  sameEventDuplicateIds,
-  backfillWatchRecordIdsAndKeys,
-  countRewatchedItems,
-  SAME_EVENT_WINDOW_MS,
   deleteMovieByWatchId,
   deletePosterCacheByMediaKey,
   backfillUnknownShowTitles,
@@ -368,63 +362,6 @@ export async function handleMaintenanceStub(req, res, name) {
     tried: 0,
     note: "Cloudflare-era maintenance repair jobs are not included.",
   });
-}
-
-export async function handleDedupHistory(req, res) {
-  if (req.method === "OPTIONS") return sendOptions(res);
-  if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
-  if (!(await requireAdmin(req, res))) return;
-
-  res.setHeader("Content-Type", "text/plain; charset=utf-8");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.write("Dedup started...\n");
-
-  const log = (msg) => { res.write(`${msg}\n`); console.log(msg); };
-
-  try {
-    log("Loading all watchHistory records...");
-    const groups = loadWatchKeyGroupsForDedup();
-    let scanned = 0;
-    for (const docs of groups.values()) scanned += docs.length;
-    log(`Loaded ${scanned} total records.`);
-    log(`Found ${groups.size} unique media keys.`);
-
-    // A watch propagated between media servers is written down once per server,
-    // milliseconds to minutes apart - never on the same instant - so grouping by
-    // an identical timestamp misses nearly all of it. Rows close enough together
-    // to be one viewing are duplicates; anything further apart is a real rewatch
-    // and is left alone.
-    log("Backfilling missing IDs and media keys for title-fallback records...");
-    const backfilled = backfillWatchRecordIdsAndKeys();
-    if (backfilled) {
-      log(`Backfilled provider IDs and media keys on ${backfilled} record(s).`);
-    }
-
-    const windowMinutes = Math.round(SAME_EVENT_WINDOW_MS / 60000);
-    log(`Collapsing plays of the same item recorded within ${windowMinutes} minutes of each other...`);
-    const removeIds = sameEventDuplicateIds();
-    const deleted = removeIds.length;
-
-    const rewatchGroups = countRewatchedItems();
-    if (rewatchGroups) {
-      log(`Preserved ${rewatchGroups} item(s) whose watches are further apart than ${windowMinutes} minutes - those are rewatches, not duplicates.`);
-    }
-
-    if (removeIds.length) {
-      deleteWatchRecordsByIds(removeIds);
-      await invalidateHistoryDerivedCaches().catch(() => null);
-    }
-
-    const summary = { scanned, uniqueKeys: groups.size, deleted, rewatchGroups };
-    log(`Done! Scanned ${summary.scanned} records, found ${summary.uniqueKeys} unique items, deleted ${summary.deleted} same-event duplicate${summary.deleted === 1 ? "" : "s"}.`);
-    res.write(`RESULT: ${JSON.stringify(summary)}\n`);
-    res.end();
-  } catch (error) {
-    log(`ERROR: Dedup failed: ${error.message}`);
-    res.end();
-  }
 }
 
 export async function handlePhantomWatchAudit(req, res) {

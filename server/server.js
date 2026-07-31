@@ -140,7 +140,6 @@ app.use([
   "/api/force-sync",
   "/api/cron-sync",
   "/api/auth/credentials",
-  "/api/dedup-history",
   "/api/full-sync-watchstates",
   "/api/merge-shows",
   "/api/admin-backfill-trakt",

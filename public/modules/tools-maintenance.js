@@ -813,64 +813,6 @@ export async function runRepairWorkflow() {
   return { converted: totalConverted, backfilled: totalBackfilled };
 }
 
-export async function runDedupHistory() {
-  const button = elements.dedupHistoryButton;
-  const status = elements.dedupHistoryStatus;
-  const logEl = elements.dedupHistoryLog;
-  if (!button) return;
-  button.disabled = true;
-  button.textContent = "Running...";
-  setStatusPill(status, "Running deduplication...", "warning");
-  if (logEl) {
-    logEl.classList.remove("hidden");
-    logEl.textContent = "";
-  }
-  try {
-    const response = await fetch("/api/dedup-history", {
-      method: "POST",
-      headers: authHeaders(),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let buffer = "";
-    let finalResult = null;
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop();
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        if (trimmed.startsWith("RESULT: ")) {
-          try { finalResult = JSON.parse(trimmed.substring(8)); } catch (_) { }
-        } else {
-          if (logEl) logEl.textContent += trimmed + "\n";
-        }
-      }
-      if (logEl) logEl.scrollTop = logEl.scrollHeight;
-    }
-    if (finalResult) {
-      const kept = Number(finalResult.rewatchGroups || 0);
-      const msg = `Complete - deleted ${finalResult.deleted} same-event duplicate(s) from ${finalResult.scanned} records.`
-        + (kept ? ` Kept ${kept} item(s) with multiple watch dates (rewatches).` : "");
-      setStatusPill(status, msg, "ready");
-      if (logEl) logEl.textContent += msg + "\n";
-    } else {
-      setStatusPill(status, "Complete.", "ready");
-    }
-  } catch (error) {
-    const msg = `Error: ${error.message}`;
-    setStatusPill(status, msg, "error");
-    if (logEl) logEl.textContent += msg + "\n";
-  } finally {
-    button.disabled = false;
-    button.textContent = "Clean Duplicates";
-  }
-}
-
 export async function runPhantomWatchAudit() {
   const button = elements.phantomAuditButton;
   const status = elements.phantomAuditStatus;

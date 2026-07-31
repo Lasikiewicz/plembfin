@@ -211,7 +211,6 @@ const SECTIONS = {
     subPanels: ["tools-repairs"],
     subSections: [
       { id: "repair-history-rows", label: "Repair History Rows", description: "Fill in missing media types and backfill missing posters" },
-      { id: "clean-duplicate-history", label: "Clean Duplicate History Rows", description: "Removes extra rows that record the same watch event" },
       { id: "phantom-watch-audit", label: "Audit Phantom Watches", description: "Finds suspicious platform duplicates" },
     ],
     isDisplayOnly: true,
