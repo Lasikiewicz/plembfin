@@ -1,7 +1,19 @@
 {
-  "version": "0.6.59",
-  "updatedAt": "2026-07-31T12:35:55+01:00",
+  "version": "0.6.60",
+  "updatedAt": "2026-07-31T13:02:36+01:00",
   "entries": [
+    {
+      "version": "0.6.60",
+      "date": "2026-07-31T13:02:36+01:00",
+      "commit": "0495f7d1284de3ce7254a9f0146e0eaac7070d65",
+      "message": "test: include latest schema migration",
+      "author": "Lasikiewicz",
+      "details": [
+        "Apply the duplicate-watch repair to databases that already completed the original migration.",
+        "Remove the destructive generic history deduplication UI and endpoint; targeted phantom repair remains available.",
+        "Keep concurrent startup migration coverage aligned with the production schema."
+      ]
+    },
     {
       "version": "0.6.59",
       "date": "2026-07-31T12:35:55+01:00",
