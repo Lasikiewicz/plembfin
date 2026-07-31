@@ -31,7 +31,7 @@ Behavior:
 ## Clean Duplicate History Rows
 
 Settings → Tools → **Clean Duplicate History Rows** (`POST /api/dedup-history`) permanently
-deletes rows from `watch_history`. It groups rows by `media_key` and collapses plays that
+deletes rows from `watch_history`. It first backfills missing IMDb/TMDB/TVDB provider IDs and canonicalizes `media_key` values for title-fallback records matching ID-bearing records. It then groups rows by `media_key` and collapses plays that
 fall within `SAME_EVENT_WINDOW_MS` (10 minutes) of each other into one viewing, keeping the
 earliest row of each chain. Plays chain together while each is inside the window of the one
 before it, so a run of copies arriving over several minutes collapses to a single row.

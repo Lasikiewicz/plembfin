@@ -82,6 +82,7 @@ import {
   loadWatchKeyGroupsForDedup,
   deleteWatchRecordsByIds,
   sameEventDuplicateIds,
+  backfillWatchRecordIdsAndKeys,
   countRewatchedItems,
   SAME_EVENT_WINDOW_MS,
   deleteMovieByWatchId,
@@ -394,6 +395,12 @@ export async function handleDedupHistory(req, res) {
     // an identical timestamp misses nearly all of it. Rows close enough together
     // to be one viewing are duplicates; anything further apart is a real rewatch
     // and is left alone.
+    log("Backfilling missing IDs and media keys for title-fallback records...");
+    const backfilled = backfillWatchRecordIdsAndKeys();
+    if (backfilled) {
+      log(`Backfilled provider IDs and media keys on ${backfilled} record(s).`);
+    }
+
     const windowMinutes = Math.round(SAME_EVENT_WINDOW_MS / 60000);
     log(`Collapsing plays of the same item recorded within ${windowMinutes} minutes of each other...`);
     const removeIds = sameEventDuplicateIds();

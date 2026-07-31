@@ -1419,17 +1419,81 @@ export async function countPlaybackProgressRows() {
 export const SAME_EVENT_WINDOW_MS = 10 * 60 * 1000;
 
 const selectWatchedStampsStmt = db.prepare(
-  "SELECT id, media_key, watched_at FROM watch_history WHERE sync_action = 'watched' AND media_key IS NOT NULL AND media_key != ''",
+  "SELECT id, title, title_lower, media_type, watched_at, sync_action, imdb_id, tmdb_id, tvdb_id, season, episode, media_key FROM watch_history WHERE sync_action = 'watched' AND media_key IS NOT NULL AND media_key != ''",
 );
+
+export function backfillWatchRecordIdsAndKeys() {
+  const allRows = db.prepare(
+    "SELECT id, title, title_lower, media_type, watched_at, sync_action, imdb_id, tmdb_id, tvdb_id, season, episode, media_key FROM watch_history"
+  ).all();
+
+  const idMap = new Map();
+  for (const r of allRows) {
+    if (r.imdb_id || r.tmdb_id || r.tvdb_id) {
+      const type = (r.media_type || "").toLowerCase() === "series" ? "show" : (r.media_type || "").toLowerCase() || "movie";
+      const key = `${r.title_lower}|${type}|${r.season || ""}|${r.episode || ""}`;
+      if (!idMap.has(key)) {
+        idMap.set(key, { imdb_id: r.imdb_id, tmdb_id: r.tmdb_id, tvdb_id: r.tvdb_id });
+      }
+    }
+  }
+
+  const updateStmt = db.prepare(
+    "UPDATE watch_history SET imdb_id = ?, tmdb_id = ?, tvdb_id = ?, media_key = ?, updated_at = ? WHERE id = ?"
+  );
+
+  let updatedCount = 0;
+  const now = Date.now();
+
+  db.transaction(() => {
+    for (const r of allRows) {
+      if (!r.imdb_id && !r.tmdb_id && !r.tvdb_id) {
+        const type = (r.media_type || "").toLowerCase() === "series" ? "show" : (r.media_type || "").toLowerCase() || "movie";
+        const lookupKey = `${r.title_lower}|${type}|${r.season || ""}|${r.episode || ""}`;
+        const match = idMap.get(lookupKey);
+        if (match) {
+          const updatedRow = { ...r, imdb_id: match.imdb_id, tmdb_id: match.tmdb_id, tvdb_id: match.tvdb_id };
+          const canonicalKey = mediaKeyFor(updatedRow);
+          updateStmt.run(match.imdb_id || null, match.tmdb_id || null, match.tvdb_id || null, canonicalKey, now, r.id);
+          updatedCount++;
+        }
+      }
+    }
+  })();
+
+  return updatedCount;
+}
 
 // Ids of rows that restate a viewing already recorded by an earlier row. Plays
 // chain into one viewing while each is within the window of the one before it,
 // and the earliest row of each chain is the one kept.
 export function sameEventDuplicateIds(windowMs = SAME_EVENT_WINDOW_MS) {
+  const allWatched = selectWatchedStampsStmt.all();
+  const idMap = new Map();
+  for (const r of allWatched) {
+    if (r.imdb_id || r.tmdb_id || r.tvdb_id) {
+      const type = (r.media_type || "").toLowerCase() === "series" ? "show" : (r.media_type || "").toLowerCase() || "movie";
+      const key = `${r.title_lower}|${type}|${r.season || ""}|${r.episode || ""}`;
+      if (!idMap.has(key)) idMap.set(key, { imdb_id: r.imdb_id, tmdb_id: r.tmdb_id, tvdb_id: r.tvdb_id });
+    }
+  }
+
   const byKey = new Map();
-  for (const row of selectWatchedStampsStmt.all()) {
-    if (!byKey.has(row.media_key)) byKey.set(row.media_key, []);
-    byKey.get(row.media_key).push(row);
+  for (const row of allWatched) {
+    const effective = { ...row };
+    if (!effective.imdb_id && !effective.tmdb_id && !effective.tvdb_id) {
+      const type = (effective.media_type || "").toLowerCase() === "series" ? "show" : (effective.media_type || "").toLowerCase() || "movie";
+      const lookupKey = `${effective.title_lower}|${type}|${effective.season || ""}|${effective.episode || ""}`;
+      const match = idMap.get(lookupKey);
+      if (match) {
+        effective.imdb_id = match.imdb_id;
+        effective.tmdb_id = match.tmdb_id;
+        effective.tvdb_id = match.tvdb_id;
+      }
+    }
+    const key = mediaKeyFor(effective);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(effective);
   }
 
   const duplicates = [];
