@@ -2,6 +2,8 @@ import { getCachedHistory, deleteWatchRecordById, insertWatchRecord, mediaToWatc
 import { markPlexPlayed, markPlexUnplayed } from "./plexClient.js";
 import { markEmbyPlayed, markEmbyUnplayed } from "./embyClient.js";
 import { markJellyfinPlayed, markJellyfinUnplayed } from "./jellyfinClient.js";
+import { recordOutboundPlayedMarks } from "./syncOrchestrator.js";
+import { createLoopStore } from "./loopStore.js";
 import { collectServerFingerprintCounts, planStaleness } from "./forceSyncPlanner.js";
 import { finishSyncPlan, getSyncPlanFull, setSyncPlanSnapshot, setSyncPlanStatus } from "./syncPlans.js";
 import { createWatchHistoryBackup, verifyWatchBackup } from "./watchHistoryBackups.js";
@@ -30,6 +32,7 @@ export async function executeForceSyncPlan(id, config, logger = () => {}, { sign
     return { success: false, planId: id, error: "Plan exceeds its maximum-change limit." };
   }
   setSyncPlanStatus(id, "executing");
+  const loopStore = createLoopStore();
   let snapshot = null;
   try {
     if (plan.summary?.destructive > 0) {
@@ -43,7 +46,12 @@ export async function executeForceSyncPlan(id, config, logger = () => {}, { sign
     for (const action of plan.actions) {
       if (signal?.aborted) throw new Error("Force Sync cancelled");
       try {
-        if (action.kind === "mark_played" || action.kind === "mark_unplayed") await remoteWrite(action, config);
+        if (action.kind === "mark_played" || action.kind === "mark_unplayed") {
+          await remoteWrite(action, config);
+          if (action.kind === "mark_played") {
+            await recordOutboundPlayedMarks(action.media, [action.target], loopStore).catch(() => null);
+          }
+        }
         else if (["remove_unwatched_marker", "delete_history_rows"].includes(action.kind)) for (const rowId of action.historyRowIds || []) await deleteWatchRecordById(rowId, { skipInvalidate: true });
         else if (action.kind === "insert_unwatched_record") {
           const record = mediaToWatchRecord({ ...action.media, source: "force_sync", watched_at: action.resolvedAt || new Date().toISOString() }, "force_sync");

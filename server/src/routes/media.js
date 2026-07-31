@@ -16,7 +16,7 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
-import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { getTargetsForSource, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
@@ -361,6 +361,7 @@ export async function handleFullSyncWatchstates(req, res) {
   const targets = configuredRestoreTargets(config);
   const summary = emptyRestoreSummary(targets);
   const errors = [];
+  const loopStore = createLoopStore();
 
   if (!targets.length) {
     return sendJson(res, { ok: true, phase, offset, limit, processed: 0, nextOffset: offset, hasMore: false, targets, summary, errors, note: "No configured restore targets." });
@@ -380,6 +381,9 @@ export async function handleFullSyncWatchstates(req, res) {
       }
       try {
         const result = await restoreClientFor(target, phase, config, media)();
+        if (phase === "watched" && result?.status !== "not_found") {
+          await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);
+        }
         applyRestoreResult(summary, target, result);
       } catch (error) {
         summary[target].error += 1;

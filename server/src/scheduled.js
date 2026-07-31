@@ -1,6 +1,6 @@
 import { fetchWithTimeout } from "./utils/outbound.js";
 import { watchedThresholdPercent } from "./utils/tuning.js";
-import { shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
+import { recordOutboundPlayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { parsePlexGuids } from "./utils/parsers.js";
 import { findPlexItem, plexAuthHeaders, resolvePlexAccountId } from "./utils/plexClient.js";
 import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/liveSessions.js";
@@ -1829,6 +1829,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
           logger(`Propagating: marking played "${mediaObj.title}" on ${target}`);
           try {
             await markPlayedTarget(target, mediaObj);
+            await recordOutboundPlayedMarks(mediaObj, [target], loopStore).catch(() => null);
             propagatedCount++;
           } catch (err) {
             logger(`Error: failed to mark played for "${mediaObj.title}" on ${target}: ${err.message}`);
