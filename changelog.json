@@ -1,7 +1,17 @@
 {
-  "version": "0.6.60",
-  "updatedAt": "2026-07-31T13:03:00+01:00",
+  "version": "0.6.61",
+  "updatedAt": "2026-07-31T15:38:06+01:00",
   "entries": [
+    {
+      "version": "0.6.61",
+      "date": "2026-07-31T15:38:06+01:00",
+      "commit": "53e4e9ed114732877f189185e4a130e5fca3a1c5",
+      "message": "Feature - Refine person profile layout",
+      "author": "Lasikiewicz",
+      "details": [
+        "Split person filmography into independently scrolling movie and TV sections with dedicated sorting controls"
+      ]
+    },
     {
       "version": "0.6.60",
       "date": "2026-07-31T13:03:00+01:00",
