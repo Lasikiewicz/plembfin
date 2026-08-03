@@ -1,7 +1,17 @@
 {
-  "version": "0.6.69",
-  "updatedAt": "2026-08-03T12:20:56+01:00",
+  "version": "0.6.70",
+  "updatedAt": "2026-08-03T19:07:27+01:00",
   "entries": [
+    {
+      "version": "0.6.70",
+      "date": "2026-08-03T19:07:27+01:00",
+      "commit": "c29577bfed792de0af7db356eccc28bbe82a3d32",
+      "message": "Fix - Harden watchstate sync and history edits",
+      "author": "Lasikiewicz",
+      "details": [
+        "Season date edits now apply release dates to existing watch records and show actual repeat watches without phantom echoes."
+      ]
+    },
     {
       "version": "0.6.69",
       "date": "2026-08-03T12:20:56+01:00",
