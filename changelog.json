@@ -1,7 +1,19 @@
 {
-  "version": "0.6.68",
-  "updatedAt": "2026-08-03T12:04:16+01:00",
+  "version": "0.6.69",
+  "updatedAt": "2026-08-03T12:20:56+01:00",
   "entries": [
+    {
+      "version": "0.6.69",
+      "date": "2026-08-03T12:20:56+01:00",
+      "commit": "0996f7cf34acc9e9edc3a484d4725735e85e97ee",
+      "message": "Fix - Recover interrupted full watchstate restores",
+      "author": "Lasikiewicz",
+      "details": [
+        "Adds a confirmed Reset Restore Lock control for abandoned or restarted restores.",
+        "Clears interrupted Full Sync locks on startup while keeping backup restores protected.",
+        "Stops orphaned restore requests before they can send another batch."
+      ]
+    },
     {
       "version": "0.6.68",
       "date": "2026-08-03T12:04:16+01:00",
