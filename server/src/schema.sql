@@ -121,6 +121,52 @@ CREATE TABLE IF NOT EXISTS sync_history (
 );
 CREATE INDEX IF NOT EXISTS idx_sync_history_timestamp ON sync_history(timestamp DESC);
 
+-- Durable, per-media history of every ingest, local state change, and outbound
+-- dispatch. Unlike sync_history this is not a diagnostic ring buffer: it is the
+-- provenance record shown by the media Info page and retained with backups.
+CREATE TABLE IF NOT EXISTS watch_audit_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp INTEGER NOT NULL,
+  event_type TEXT NOT NULL,
+  action TEXT,
+  watch_record_id TEXT,
+  media_key TEXT,
+  media_type TEXT,
+  title TEXT,
+  title_lower TEXT,
+  show_title TEXT,
+  show_title_lower TEXT,
+  source TEXT,
+  source_event TEXT,
+  phase TEXT,
+  source_timestamp TEXT,
+  captured_at TEXT,
+  target TEXT,
+  status TEXT,
+  details TEXT,
+  device TEXT,
+  device_id TEXT,
+  client TEXT,
+  client_version TEXT,
+  user_name TEXT,
+  session_id TEXT,
+  item_id TEXT,
+  imdb_id TEXT,
+  tmdb_id TEXT,
+  tvdb_id TEXT,
+  season INTEGER,
+  episode INTEGER,
+  payload TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_watch_audit_media_key ON watch_audit_events(media_key, timestamp);
+CREATE INDEX IF NOT EXISTS idx_watch_audit_record_id ON watch_audit_events(watch_record_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_watch_audit_tmdb_id ON watch_audit_events(tmdb_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_watch_audit_tvdb_id ON watch_audit_events(tvdb_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_watch_audit_imdb_id ON watch_audit_events(imdb_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_watch_audit_title ON watch_audit_events(title_lower, timestamp);
+CREATE INDEX IF NOT EXISTS idx_watch_audit_show_title ON watch_audit_events(show_title_lower, timestamp);
+
 -- Single-row key/value documents stored as JSON blobs.
 CREATE TABLE IF NOT EXISTS runtime_state (
   id TEXT PRIMARY KEY,

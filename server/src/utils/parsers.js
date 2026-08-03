@@ -122,6 +122,28 @@ function embyLikeUserFrom(json = {}) {
   return firstDefined(json.UserId, json.userId, json.User?.Id, json.User?.Name, json.UserName, json.Username, json.userName, json.username) || "";
 }
 
+function plexClientFrom(payload = {}) {
+  const player = payload.Player || payload.player || {};
+  return {
+    device: firstDefined(player.title, player.device, player.model, player.product, player.platform) || "",
+    deviceId: firstDefined(player.machineIdentifier, player.machine_identifier, player.deviceId) || "",
+    client: firstDefined(player.product, player.platform) || "",
+    clientVersion: firstDefined(player.version, player.clientVersion) || "",
+    sessionId: firstDefined(player.machineIdentifier, player.sessionKey) || "",
+  };
+}
+
+function embyLikeClientFrom(json = {}, item = {}) {
+  const session = json.Session || json.session || json.PlaybackInfo?.Session || json.playbackInfo?.Session || {};
+  return {
+    device: firstDefined(json.DeviceName, json.deviceName, session.DeviceName, session.deviceName, session.Device, session.device, json.Client, json.client) || "",
+    deviceId: firstDefined(json.DeviceId, json.deviceId, session.DeviceId, session.deviceId) || "",
+    client: firstDefined(json.Client, json.client, session.Client, session.client, json.Application, json.application) || "",
+    clientVersion: firstDefined(json.ApplicationVersion, json.applicationVersion, session.ApplicationVersion, session.applicationVersion) || "",
+    sessionId: firstDefined(json.SessionId, json.sessionId, session.Id, session.SessionId) || "",
+  };
+}
+
 function plexPosterInfo(metadata = {}, type = "unknown") {
   const path =
     type === "episode"
@@ -338,6 +360,11 @@ function buildPayload({
   offsetMs = 0,
   durationMs = 0,
   user,
+  device,
+  deviceId,
+  client,
+  clientVersion,
+  sessionId,
   posterUrl,
   poster,
   itemId,
@@ -350,7 +377,7 @@ function buildPayload({
 }) {
   const isActionable = ["active", "completed", "ended", "unplayed", "added"].includes(phase);
   const resolvedWatchProvenance = watchProvenance || buildWatchProvenance(
-    { source, event, phase, itemId, user, playedAt },
+    { source, event, phase, itemId, user, device, deviceId, client, clientVersion, sessionId, playedAt },
     { ingestPath, sourceTimestamp: playedAt },
   );
   return {
@@ -368,6 +395,11 @@ function buildPayload({
     offsetMs: Number.isFinite(Number(offsetMs)) ? Math.max(0, Math.round(Number(offsetMs))) : 0,
     durationMs: Number.isFinite(Number(durationMs)) ? Math.max(0, Math.round(Number(durationMs))) : 0,
     user,
+    device,
+    deviceId,
+    client,
+    clientVersion,
+    sessionId,
     posterUrl,
     poster,
     itemId,
@@ -414,6 +446,7 @@ export async function parsePlexWebhook(formData) {
     const durationMs = durationMillisecondsFrom(metadata);
     const ids = parsePlexGuids(metadata);
     const user = payload.Account?.title || "";
+    const client = plexClientFrom(payload);
 
     if (phase === "ignored") {
       return buildPayload({
@@ -429,6 +462,11 @@ export async function parsePlexWebhook(formData) {
         offsetMs,
         durationMs,
         user,
+        device: client.device,
+        deviceId: client.deviceId,
+        client: client.client,
+        clientVersion: client.clientVersion,
+        sessionId: client.sessionId,
         itemId: metadata.ratingKey,
         ingestPath: "plex_webhook",
         poster: plexPosterInfo(metadata, type),
@@ -450,6 +488,11 @@ export async function parsePlexWebhook(formData) {
       offsetMs,
       durationMs,
       user,
+      device: client.device,
+      deviceId: client.deviceId,
+      client: client.client,
+      clientVersion: client.clientVersion,
+      sessionId: client.sessionId,
       itemId: metadata.ratingKey,
       ingestPath: "plex_webhook",
       poster: plexPosterInfo(metadata, type),
@@ -513,6 +556,7 @@ export function parseJellyfinWebhook(json) {
     const season = seasonNumberFrom(item);
     const episode = episodeNumberFrom(item);
     const episodeTitle = type === "episode" ? itemTitleFrom(item) : null;
+    const client = embyLikeClientFrom(json, item);
 
     if (phase === "ignored") {
       return buildPayload({
@@ -528,6 +572,11 @@ export function parseJellyfinWebhook(json) {
         offsetMs,
         durationMs,
         user,
+        device: client.device,
+        deviceId: client.deviceId,
+        client: client.client,
+        clientVersion: client.clientVersion,
+        sessionId: client.sessionId,
         itemId: item.Id,
         ingestPath: "jellyfin_webhook",
         poster: embyLikePosterInfo(item, type),
@@ -553,6 +602,11 @@ export function parseJellyfinWebhook(json) {
       offsetMs,
       durationMs,
       user,
+      device: client.device,
+      deviceId: client.deviceId,
+      client: client.client,
+      clientVersion: client.clientVersion,
+      sessionId: client.sessionId,
       itemId: item.Id,
       ingestPath: "jellyfin_webhook",
       poster: embyLikePosterInfo(item, type),
@@ -594,6 +648,7 @@ export function parseEmbyWebhook(json) {
     const season = seasonNumberFrom(item);
     const episode = episodeNumberFrom(item);
     const episodeTitle = type === "episode" ? itemTitleFrom(item) : null;
+    const client = embyLikeClientFrom(json, item);
 
     if (phase === "ignored") {
       return buildPayload({
@@ -609,6 +664,11 @@ export function parseEmbyWebhook(json) {
         offsetMs,
         durationMs,
         user,
+        device: client.device,
+        deviceId: client.deviceId,
+        client: client.client,
+        clientVersion: client.clientVersion,
+        sessionId: client.sessionId,
         itemId: item.Id,
         ingestPath: "emby_webhook",
         poster: embyLikePosterInfo(item, type),
@@ -634,6 +694,11 @@ export function parseEmbyWebhook(json) {
       offsetMs,
       durationMs,
       user,
+      device: client.device,
+      deviceId: client.deviceId,
+      client: client.client,
+      clientVersion: client.clientVersion,
+      sessionId: client.sessionId,
       itemId: item.Id,
       ingestPath: "emby_webhook",
       poster: embyLikePosterInfo(item, type),
@@ -686,6 +751,11 @@ export function parseCustomWebhook(json) {
     phase,
     ingestPath: "custom_webhook",
     user,
+    device: json.device || json.deviceName,
+    deviceId: json.deviceId || json.device_id,
+    client: json.client,
+    clientVersion: json.clientVersion || json.client_version,
+    sessionId: json.sessionId || json.session_id,
     posterUrl: json.posterUrl || json.poster_url,
     rawPayloadDebug: json,
   });

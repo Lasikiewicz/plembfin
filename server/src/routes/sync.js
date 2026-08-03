@@ -29,6 +29,7 @@ import { getTargetsForSource, isRecentOutboundPlayedFlagEcho, recordOutboundPlay
 import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { provenanceTelemetryLines } from "../utils/watchProvenance.js";
+import { recordWatchAuditEvent, recordWatchAuditEvents } from "../utils/watchAudit.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, getCachedTvdbId } from "../utils/tmdbGateway.js";
@@ -248,7 +249,89 @@ function formatProgressTelemetry(summary, media) {
   return lines.join("\n");
 }
 
+function recordPlaybackEndedAudit(media = {}, { status = "completed", details = "Playback ended." } = {}) {
+  const playedAt = Date.parse(String(media.playedAt || media.watched_at || ""));
+  recordWatchAuditEvent({
+    eventType: "playback_ended",
+    timestamp: Number.isFinite(playedAt) ? playedAt : Date.now(),
+    action: "playback",
+    mediaKey: mediaKeyFor(media),
+    mediaType: media.type || media.mediaType,
+    title: media.title,
+    showTitle: media.showTitle || media.show_title,
+    source: media.source,
+    sourceEvent: media.event,
+    phase: "ended",
+    watchProvenance: media.watchProvenance || media.watch_provenance,
+    ids: media.ids,
+    season: media.season,
+    episode: media.episode,
+    itemId: media.itemId,
+    sessionId: media.sessionId || media.session_id,
+    user: media.user,
+    device: media.device || media.deviceName || media.client?.deviceName,
+    deviceId: media.deviceId || media.device_id || media.client?.deviceId,
+    client: media.clientName || media.client?.client || media.client?.product || media.client?.platform,
+    clientVersion: media.clientVersion || media.client?.version,
+    status,
+    details,
+    payload: {
+      progress: media.progress,
+      offsetMs: media.offsetMs ?? media.positionMs,
+      durationMs: media.durationMs,
+      playedAt: media.playedAt || media.watched_at || "",
+    },
+  });
+}
+
 async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
+  const timestamp = Date.now();
+  const targetStates = Array.isArray(summary.targetStates) ? summary.targetStates : [];
+  const auditBase = {
+    timestamp,
+    eventType: action === "progress" ? "sync_dispatch" : "sync_dispatch",
+    action,
+    mediaKey: mediaKeyFor(media),
+    mediaType: media.type || media.mediaType || "unknown",
+    title: media.title || "Unknown media",
+    showTitle: media.showTitle || media.show_title,
+    source: media.source || "unknown",
+    sourceEvent: media.event,
+    phase: media.phase,
+    watchProvenance: media.watchProvenance || media.watch_provenance,
+    ids: media.ids || {},
+    season: media.season,
+    episode: media.episode,
+    itemId: media.itemId,
+    sessionId: media.sessionId || media.session_id,
+    user: media.user,
+    device: media.device || media.deviceName || media.client?.deviceName,
+    deviceId: media.deviceId || media.device_id || media.client?.deviceId,
+    client: media.clientName || media.client?.client || media.client?.product || media.client?.platform,
+    clientVersion: media.clientVersion || media.client?.version,
+    status: summary.status || "unknown",
+    details: summary.details || "",
+  };
+  recordWatchAuditEvents([
+    {
+      ...auditBase,
+      details: `Outbound ${action} dispatch ${summary.status || "unknown"}: ${summary.details || "No details"}`,
+      payload: {
+        targetStates,
+        loopSkipped: Boolean(summary.skipped),
+        rawPayloadDebug: media.rawPayloadDebug || null,
+      },
+    },
+    ...targetStates.map((targetState) => ({
+      ...auditBase,
+      eventType: "sync_target",
+      target: targetState.target,
+      status: targetState.status,
+      details: targetState.detail || `Target ${targetState.target || "unknown"} reported ${targetState.status}.`,
+      itemId: targetState.itemId || targetState.item_id || auditBase.itemId,
+      payload: targetState,
+    })),
+  ]);
   await appendSyncHistory({
     mediaType: media.type || media.mediaType || "unknown",
     title: media.title || "Unknown media",
@@ -256,7 +339,7 @@ async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
     status: summary.status || "unknown",
     details: summary.details || "",
     action,
-    targetStates: summary.targetStates || [],
+    targetStates,
     rawPayloadDebug: {
       event: media.event || "",
       phase: media.phase || "",
@@ -542,15 +625,16 @@ export async function applyWatchedStateToNewItem(media, loadedConfig = null) {
     // still in flight; writing only after the request leaves a race where the
     // callback is recorded as a fresh watch.
     await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);
-    if (target === "plex") await markPlexPlayed(config.plex, media);
-    if (target === "emby") await markEmbyPlayed(config.emby, media);
-    if (target === "jellyfin") await markJellyfinPlayed(config.jellyfin, media);
+    let targetResult = null;
+    if (target === "plex") targetResult = await markPlexPlayed(config.plex, media);
+    if (target === "emby") targetResult = await markEmbyPlayed(config.emby, media);
+    if (target === "jellyfin") targetResult = await markJellyfinPlayed(config.jellyfin, media);
     await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);
     summary = {
       skipped: false,
       status: "success",
       details: `Newly added item marked watched on ${platformLabel(target)} from existing history (watched ${existing.watched_at}).`,
-      targetStates: [{ target, status: "success", detail: "Marked watched on add" }],
+      targetStates: [{ target, status: "success", detail: "Marked watched on add", itemId: targetResult?.itemId || "", itemIds: targetResult?.itemIds || undefined, httpStatus: targetResult?.httpStatus || null }],
     };
   } catch (error) {
     summary = {
@@ -1194,6 +1278,41 @@ export async function handleWebhook(req, res) {
     return sendJson(res, { error: "Invalid webhook body", details: error.message }, 400);
   }
 
+  recordWatchAuditEvent({
+    eventType: "source_event",
+    timestamp: Date.now(),
+    action: media.phase === "unplayed" ? "unwatched" : media.phase,
+    mediaKey: mediaKeyFor(media),
+    mediaType: media.type || media.mediaType,
+    title: media.title,
+    source: media.source,
+    sourceEvent: media.event,
+    phase: media.phase,
+    watchProvenance: media.watchProvenance || media.watch_provenance,
+    ids: media.ids,
+    season: media.season,
+    episode: media.episode,
+    itemId: media.itemId,
+    sessionId: media.sessionId,
+    user: media.user,
+    device: media.device,
+    deviceId: media.deviceId,
+    client: media.client,
+    clientVersion: media.clientVersion,
+    status: media.isValid ? "received" : "ignored",
+    details: media.isValid
+      ? `Received ${media.event || "source event"} from ${media.source || "unknown source"}.`
+      : `Received source event but did not process it: ${media.phase === "ignored" ? "unsupported event" : "missing required media fields"}.`,
+    payload: {
+      rawPayloadDebug: media.rawPayloadDebug || null,
+      watchProvenance: media.watchProvenance || media.watch_provenance || null,
+      request: {
+        userAgent: req.get("user-agent") || "",
+        remoteAddress: req.ip || req.socket?.remoteAddress || "",
+      },
+    },
+  });
+
   await setRuntimeState({
     lastWebhookReceived: {
       timestamp: Date.now(),
@@ -1440,6 +1559,10 @@ export async function handleWebhook(req, res) {
   }
 
   if (media.phase === "ended") {
+    recordPlaybackEndedAudit(media, {
+      status: "stopped",
+      details: "Playback ended before the watched threshold; resume progress was retained when available.",
+    });
     await deleteActiveSession(media);
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
     let progressSummary = { skipped: true, status: "skipped", details: "Resume progress is not actionable", targetStates: [] };
@@ -1600,6 +1723,13 @@ export async function handleWebhook(req, res) {
         inserted: false,
         skipped: true,
         reason: "Post-restore completed webhook without active playback evidence",
+      });
+    }
+
+    if (!media.playedFlagOnly) {
+      recordPlaybackEndedAudit(media, {
+        status: "completed",
+        details: "Playback ended after the source reported a completed play.",
       });
     }
 

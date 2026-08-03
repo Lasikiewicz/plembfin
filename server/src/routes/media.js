@@ -85,6 +85,7 @@ import {
   backfillUnknownShowTitles,
   clearRelatedWatchArtworkUrls,
 } from "../utils/dataRepo.js";
+import { listWatchAuditEvents, watchAuditEventForLegacyRecord } from "../utils/watchAudit.js";
 
 function imagePath(path, params = {}) {
   const cleanPath = String(path || "").trim();
@@ -196,6 +197,55 @@ export async function handleHistory(req, res) {
   ]);
   const hasMore = historyRows.length > requestedLimit;
   return sendJson(res, { history: historyRows.slice(0, requestedLimit), hasMore, stats, historyVersion });
+}
+
+function queryList(value) {
+  const values = Array.isArray(value) ? value : [value];
+  return [...new Set(values.flatMap((entry) => String(entry || "").split(",")).map((entry) => entry.trim()).filter(Boolean))];
+}
+
+export async function handleHistoryAudit(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const recordIds = queryList(req.query.recordId || req.query.recordIds);
+  const mediaKeys = queryList(req.query.mediaKey || req.query.mediaKeys);
+  const title = String(req.query.title || "").trim();
+  const showTitle = String(req.query.showTitle || req.query.show_title || "").trim();
+  const ids = {
+    imdb: String(req.query.imdbId || req.query.imdb_id || "").trim(),
+    tmdb: String(req.query.tmdbId || req.query.tmdb_id || "").trim(),
+    tvdb: String(req.query.tvdbId || req.query.tvdb_id || "").trim(),
+  };
+
+  const records = (await Promise.all(recordIds.map((id) => getWatchRecordByIdLight(id).catch(() => null)))).filter(Boolean);
+  for (const record of records) watchAuditEventForLegacyRecord(record);
+
+  const events = listWatchAuditEvents({
+    recordIds,
+    mediaKeys,
+    titles: title ? [title] : [],
+    showTitles: showTitle ? [showTitle] : [],
+    ids,
+    mediaType: req.query.mediaType || req.query.type || "",
+    limit: req.query.limit || 2000,
+  });
+
+  const unique = (values) => [...new Set(values.filter(Boolean))];
+  return sendJson(res, {
+    events,
+    coverage: {
+      eventCount: events.length,
+      exactEventCount: events.filter((event) => event.eventType !== "legacy_record").length,
+      legacyEventCount: events.filter((event) => event.eventType === "legacy_record").length,
+      sources: unique(events.map((event) => event.source)),
+      targets: unique(events.map((event) => event.target)),
+      devices: unique(events.map((event) => event.device)),
+      users: unique(events.map((event) => event.user)),
+      sessions: unique(events.map((event) => event.sessionId)),
+    },
+  }, 200, { "Cache-Control": "private, no-store", Vary: "Authorization" });
 }
 
 // Remove one orphaned history row when it cannot be matched to a show.

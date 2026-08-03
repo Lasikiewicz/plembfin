@@ -206,6 +206,9 @@ function summarizeResults(targets, results) {
       target,
       status: "success",
       detail: result.value?.httpStatus ? `${result.value.httpStatus} OK` : "Marked played",
+      itemId: result.value?.itemId || "",
+      itemIds: Array.isArray(result.value?.itemIds) ? result.value.itemIds : undefined,
+      httpStatus: result.value?.httpStatus || null,
     });
   });
 
@@ -264,6 +267,10 @@ function summarizeProgressResults(targets, results) {
       target,
       status: "success",
       detail: result.value?.positionMs ? `Resume set to ${Math.round(result.value.positionMs / 1000)}s` : "Resume position updated",
+      itemId: result.value?.itemId || "",
+      itemIds: Array.isArray(result.value?.itemIds) ? result.value.itemIds : undefined,
+      positionMs: result.value?.positionMs ?? null,
+      httpStatus: result.value?.httpStatus || null,
     });
   });
 

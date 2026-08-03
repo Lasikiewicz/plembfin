@@ -64,6 +64,10 @@ function provenanceForEntry(entry = {}) {
     item_id: "",
     session_id: "",
     user: "",
+    device: "",
+    device_id: "",
+    client: "",
+    client_version: "",
     source_timestamp: "",
     captured_at: "",
     confidence: "source_only",
@@ -78,6 +82,8 @@ function provenanceValue(value, fallback = "Not recorded") {
 let _mediaInfoOverlay = null;
 let _mediaInfoPreviousOverflow = "";
 let _mediaInfoKeydown = null;
+let _mediaInfoBoundsHandler = null;
+let _mediaInfoRequestToken = 0;
 
 export function mediaInfoActionHtml() {
   return `
@@ -128,12 +134,11 @@ function infoField(label, value, className = "") {
   `;
 }
 
-function infoSection(title, eyebrow, body) {
+function infoSection(title, body) {
   return `
     <section class="media-info-section">
       <div class="media-info-section-head">
         <div>
-          ${eyebrow ? `<span class="media-info-eyebrow">${escapeHtml(eyebrow)}</span>` : ""}
           <h3>${escapeHtml(title)}</h3>
         </div>
       </div>
@@ -157,6 +162,7 @@ function infoRecordTitle(record = {}, context = {}) {
 }
 
 function infoRecordPayload(record = {}) {
+  const provenance = provenanceForEntry(record);
   return {
     id: record.id || null,
     title: record.title || null,
@@ -174,8 +180,30 @@ function infoRecordPayload(record = {}) {
     sync_action: record.sync_action || null,
     sync_dispatch_telemetry: record.sync_dispatch_telemetry || record.syncDispatchTelemetry || null,
     watch_provenance: record.watch_provenance || record.watchProvenance || null,
+    source_device: provenance.device || null,
+    source_device_id: provenance.device_id || null,
+    source_client: provenance.client || null,
+    source_client_version: provenance.client_version || null,
     playHistory: Array.isArray(record.playHistory) ? record.playHistory : undefined,
   };
+}
+
+function renderInfoRecordSummary(record, context) {
+  const telemetry = record.sync_dispatch_telemetry || record.syncDispatchTelemetry || "";
+  const hasRecord = hasWatchRecordData(record);
+  const status = hasRecord && telemetry ? syncStatus(record) : { label: "Not recorded" };
+  return `
+    <div class="media-info-history-record">
+      <div class="media-info-record-main">
+        <strong class="media-info-record-title">${escapeHtml(infoRecordTitle(record, context))}</strong>
+        <span class="media-info-record-meta">${escapeHtml(infoDate(record.watched_at))} · ${escapeHtml(infoValue(platformName(record.source), "Source unknown"))}</span>
+      </div>
+      <div class="media-info-record-state">
+        <span>${escapeHtml(hasRecord ? historyAction(record) : "Not recorded")}</span>
+        <span>${escapeHtml(status.label)}</span>
+      </div>
+    </div>
+  `;
 }
 
 function renderInfoWatchRecord(record, context, index) {
@@ -186,10 +214,10 @@ function renderInfoWatchRecord(record, context, index) {
   const playHistory = Array.isArray(record.playHistory) ? [...record.playHistory].sort((a, b) => String(b.watched_at).localeCompare(String(a.watched_at))) : [];
   const recordId = record.id || `record-${index}`;
   return `
-    <details class="media-info-history-record"${index === 0 ? " open" : ""}>
+    <details class="media-info-detail-record"${context.mediaType !== "tv" ? " open" : ""}>
       <summary>
         <span class="media-info-record-title">${escapeHtml(infoRecordTitle(record, context))}</span>
-        <span class="media-info-record-meta">${escapeHtml(infoDate(record.watched_at))} · ${escapeHtml(infoValue(record.source, "Source unknown"))}</span>
+        <span class="media-info-record-meta">Open details</span>
       </summary>
       <div class="media-info-history-body">
         <div class="media-info-fields">
@@ -213,6 +241,10 @@ function renderInfoWatchRecord(record, context, index) {
             ${infoField("Source item ID", provenance.item_id)}
             ${infoField("Source session ID", provenance.session_id)}
             ${infoField("Source user", provenance.user)}
+            ${infoField("Source device", provenance.device)}
+            ${infoField("Source device ID", provenance.device_id)}
+            ${infoField("Source client", provenance.client)}
+            ${infoField("Source client version", provenance.client_version)}
             ${infoField("Source timestamp", infoDate(provenance.source_timestamp))}
             ${infoField("Captured at", infoDate(provenance.captured_at))}
             ${infoField("Confidence", provenance.confidence)}
@@ -240,71 +272,534 @@ function renderInfoWatchRecord(record, context, index) {
   `;
 }
 
-function mediaInfoMetadataFields(context = {}) {
+function mediaInfoGlanceEntries({ isTv, records, watchedCount, totalCount, progress, sources, targets, watchDates }) {
+  return [
+    ["Media type", isTv ? "TV show" : "Movie"],
+    ["Watch status", records.length ? "Watched" : "Not watched"],
+    [isTv ? "Episodes watched" : "Watch records", isTv ? `${watchedCount} of ${infoValue(totalCount, "?")}` : records.length],
+    ["Completion", `${progress}%`],
+    ["Source platforms", sources.length ? sources : "Not recorded"],
+    ["Push destinations", targets.length ? targets : "Not recorded"],
+    ["Latest watched", infoDate(watchDates.at(-1))],
+    ["Earliest watched", infoDate(watchDates[0])],
+  ];
+}
+
+function mediaInfoAuditQuery(context = {}) {
+  const params = new URLSearchParams();
   const media = context.media || {};
   const metadata = context.tmdbData || {};
-  const isTv = context.mediaType === "tv";
+  const records = infoRecords(context);
+  const add = (key, value) => {
+    if (value != null && value !== "") params.append(key, String(value));
+  };
+  const addUnique = (key, values) => {
+    [...new Set(values.filter((value) => value != null && value !== ""))].forEach((value) => add(key, value));
+  };
+
+  params.set("mediaType", context.mediaType === "tv" ? "tv" : "movie");
+  addUnique("recordId", records.map((record) => record.id));
+  addUnique("mediaKey", records.map((record) => record.media_key));
+  addUnique("mediaKey", [media.media_key]);
+  add("title", media.title || metadata.title || metadata.name);
+  if (context.mediaType === "tv") add("showTitle", media.show_title || media.showTitle || media.title || metadata.name);
+
   const externalIds = metadata.external_ids || {};
-  const providers = metadata["watch/providers"]?.results?.GB?.flatrate
-    || metadata["watch/providers"]?.results?.US?.flatrate
-    || [];
-  const fields = [
-    ["TMDB", metadata.id || media.tmdb_id],
-    ["IMDb", metadata.imdb_id || externalIds.imdb_id || media.imdb_id],
-    ["TVDB", externalIds.tvdb_id || media.tvdb_id],
-    ["Local record ID", media.id],
-    [isTv ? "First aired" : "Release date", infoDate(metadata.first_air_date || metadata.release_date)],
-    ["Status", metadata.status],
-    ["Original title", metadata.original_name || metadata.original_title],
-    ["Original language", metadata.original_language ? String(metadata.original_language).toUpperCase() : ""],
-    ["Runtime", isTv
-      ? (metadata.episode_run_time?.[0] ? `${metadata.episode_run_time[0]} min per episode` : "")
-      : (metadata.runtime ? `${metadata.runtime} min` : "")],
-    ["Genres", (metadata.genres || []).map((genre) => genre.name).filter(Boolean)],
-    ["Networks", (metadata.networks || []).map((network) => network.name).filter(Boolean)],
-    ["Streaming", providers.map((provider) => provider.provider_name).filter(Boolean)],
-    ["Rating", metadata.vote_average ? `${metadata.vote_average}/10` : ""],
-    ["Vote count", metadata.vote_count],
-    ["Homepage", metadata.homepage],
-  ].filter(([, value]) => value != null && value !== "" && (!Array.isArray(value) || value.length));
-  return fields.map(([label, value]) => infoField(label, value)).join("");
+  add("imdbId", media.imdb_id || metadata.imdb_id || externalIds.imdb_id);
+  add("tmdbId", media.tmdb_id || metadata.id);
+  add("tvdbId", media.tvdb_id || externalIds.tvdb_id);
+  return params.toString();
+}
+
+async function fetchMediaInfoAudit(context = {}) {
+  const query = mediaInfoAuditQuery(context);
+  const response = await fetch(`/api/history-audit?${query}`, { headers: authHeaders() });
+  if (!response.ok) throw new Error(`Audit request failed (${response.status})`);
+  return response.json();
+}
+
+function auditEventLabel(event = {}) {
+  const type = String(event.eventType || "").toLowerCase();
+  const phase = String(event.phase || "").toLowerCase();
+  if (type === "source_event") {
+    if (phase === "active") return "Playback detected";
+    if (phase === "ended") return "Playback ended";
+    if (phase === "completed") return "Watch completion received";
+    if (phase === "unplayed" || phase === "unwatched") return "Unwatched event received";
+    if (phase === "added") return "Library item detected";
+    if (phase === "ignored") return "Source event ignored";
+    return "Source event received";
+  }
+  if (type === "playback_detected") return "Playback detected";
+  if (type === "playback_ended") return "Playback ended";
+  if (type === "history_added") return "Added to Plembfin watch history";
+  if (type === "history_state_recorded") return "Watch state recorded in Plembfin";
+  if (type === "history_deleted") return "Removed from Plembfin watch history";
+  if (type === "history_record_updated") return "Plembfin history record updated";
+  if (type === "sync_queued") return "Outbound sync queued";
+  if (type === "playstate_updated") return "Plembfin playstate updated";
+  if (type === "resume_progress_stored") return "Resume progress stored";
+  if (type === "resume_progress_cleared") return "Resume progress cleared";
+  if (type === "sync_dispatch") return "Outbound sync dispatched";
+  if (type === "sync_target") return event.target ? `Pushed to ${platformName(event.target)}` : "Outbound target processed";
+  if (type === "legacy_record") return "Historical record — exact timeline unavailable";
+  return event.eventType || "Recorded event";
+}
+
+function auditEventTime(event = {}) {
+  const timestamp = Number(event.timestamp || 0);
+  return timestamp > 0 ? infoDate(new Date(timestamp).toISOString(), "Time not recorded") : "Time not recorded";
+}
+
+function auditEventDate(value) {
+  if (value == null || value === "") return "";
+  if (typeof value === "number" || /^\d+$/.test(String(value))) {
+    const timestamp = Number(value);
+    if (Number.isFinite(timestamp) && timestamp > 0) return infoDate(new Date(timestamp).toISOString());
+  }
+  return infoDate(value, "");
+}
+
+function auditEventPayloadText(event = {}) {
+  if (event.payload == null || event.payload === "") return "No additional payload was stored.";
+  if (typeof event.payload === "string") return event.payload;
+  try {
+    return JSON.stringify(event.payload, null, 2);
+  } catch {
+    return String(event.payload);
+  }
+}
+
+function auditEventCounts(events = [], coverage = {}) {
+  const exactValue = Number(coverage.exactEventCount);
+  const legacyValue = Number(coverage.legacyEventCount);
+  const exact = Number.isFinite(exactValue)
+    ? Math.max(0, exactValue)
+    : events.filter((event) => event.eventType !== "legacy_record").length;
+  const legacy = Number.isFinite(legacyValue)
+    ? Math.max(0, legacyValue)
+    : events.filter((event) => event.eventType === "legacy_record").length;
+  return { exact, legacy };
+}
+
+function auditEventCountText(events = [], coverage = {}) {
+  const { exact, legacy } = auditEventCounts(events, coverage);
+  if (exact && legacy) return `${exact} captured · ${legacy} legacy placeholders`;
+  if (exact) return `${exact} captured event${exact === 1 ? "" : "s"}`;
+  if (legacy) return `${legacy} legacy placeholder${legacy === 1 ? "" : "s"}`;
+  return `${events.length} event${events.length === 1 ? "" : "s"}`;
+}
+
+function auditEventCoverageNote(events = [], coverage = {}) {
+  const { exact, legacy } = auditEventCounts(events, coverage);
+  if (!legacy) return "";
+  const legacyLabel = `${legacy} historical record${legacy === 1 ? "" : "s"}`;
+  const exactNote = exact
+    ? `${exact} captured event${exact === 1 ? "" : "s"} are also shown below.`
+    : "No individual playback, history, or dispatch steps were captured for these records.";
+  return `
+    <div class="media-info-audit-coverage-note">
+      <strong>Historical coverage</strong>
+      <span>${escapeHtml(`${legacyLabel} only contain compact history data. The exact source event, device, and dispatch sequence were not stored and cannot be reconstructed exactly. ${exactNote}`)}</span>
+    </div>
+  `;
+}
+
+function auditEventProviderIds(event = {}) {
+  const labels = { imdb: "IMDb", tmdb: "TMDB", tvdb: "TVDB" };
+  return Object.entries(event.ids || {})
+    .filter(([, value]) => value != null && value !== "")
+    .map(([key, value]) => `${labels[key] || key.toUpperCase()}: ${value}`)
+    .join(", ");
+}
+
+function auditEventFieldEntries(event = {}) {
+  const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
+  const itemIds = [...new Set([
+    event.itemId,
+    ...(Array.isArray(payload.itemIds) ? payload.itemIds : []),
+  ].filter(Boolean))];
+  return [
+    ["Event ID", event.id],
+    ["Event type", event.eventType],
+    ["Action", event.action],
+    ["Media type", event.mediaType],
+    ["Title", event.title],
+    ["Show title", event.showTitle],
+    ["Occurred at", auditEventTime(event)],
+    ["Source platform", event.source ? platformName(event.source) : ""],
+    ["Source event", event.sourceEvent],
+    ["Phase", event.phase],
+    ["Push destination", event.target ? platformName(event.target) : ""],
+    ["Status", event.status],
+    ["HTTP status", payload.httpStatus ?? payload.statusCode],
+    ["Playback device", event.device],
+    ["Device ID", event.deviceId],
+    ["Client", event.client],
+    ["Client version", event.clientVersion],
+    ["Source user", event.user],
+    ["Session ID", event.sessionId],
+    ["Source item ID", event.itemId],
+    ["Related item IDs", itemIds],
+    ["Provider IDs", auditEventProviderIds(event)],
+    ["Season / episode", event.season != null && event.episode != null
+      ? `S${String(event.season).padStart(2, "0")}E${String(event.episode).padStart(2, "0")}`
+      : "Not applicable"],
+    ["Source timestamp", auditEventDate(event.sourceTimestamp)],
+    ["Captured at", auditEventDate(event.capturedAt)],
+    ["Watch record ID", event.watchRecordId],
+    ["Media key", event.mediaKey],
+    ["Audit row created at", auditEventDate(event.createdAt)],
+  ];
+}
+
+function renderLegacyInfoAuditTimeline(events = [], coverage = {}) {
+  const sourceValues = [...new Set(events.map((event) => platformName(event.source)).filter((value) => value && value !== "Unknown"))];
+  const targetValues = [...new Set(events.map((event) => platformName(event.target)).filter((value) => value && value !== "Unknown"))];
+  const deviceValues = [...new Set(events.map((event) => event.device).filter(Boolean))];
+  const userValues = [...new Set(events.map((event) => event.user).filter(Boolean))];
+  const sessionValues = [...new Set(events.map((event) => event.sessionId).filter(Boolean))];
+  const contextEntries = [
+    ["Recorded source", sourceValues.length ? sourceValues : "Not recorded"],
+    ["Push destinations", targetValues.length ? targetValues : "Not recorded"],
+    ["Playback device", deviceValues.length ? deviceValues : "Not recorded by source"],
+    ["Source user", userValues.length ? userValues : "Not recorded"],
+    ["Sessions", sessionValues.length || coverage.eventCount ? (sessionValues.length || "Not recorded") : "Not recorded"],
+  ];
+  const sortedEvents = [...events].sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0) || Number(a.id || 0) - Number(b.id || 0));
+
+  return `
+    <section class="media-info-timeline-block">
+      <div class="media-info-subhead media-info-timeline-head">
+        <div>
+          <h3>Timeline</h3>
+        </div>
+        <b>${events.length} event${events.length === 1 ? "" : "s"}</b>
+      </div>
+      <div class="media-info-fields media-info-timeline-context">
+        ${contextEntries.map(([label, value]) => infoField(label, value)).join("")}
+      </div>
+      ${sortedEvents.length ? `
+        <ol class="media-info-timeline" aria-label="Media history timeline">
+          ${sortedEvents.map((event, index) => {
+            const targetItemIds = [event.itemId, ...(Array.isArray(event.payload?.itemIds) ? event.payload.itemIds : [])].filter(Boolean);
+            const metadata = [
+              event.source ? `From ${platformName(event.source)}` : "",
+              event.target ? `Target ${platformName(event.target)}` : "",
+              event.status ? `Status ${event.status}` : "",
+              event.device ? `Device ${event.device}` : "",
+              event.user ? `User ${event.user}` : "",
+              targetItemIds.length ? `Item${targetItemIds.length === 1 ? "" : "s"} ${targetItemIds.join(", ")}` : "",
+              event.sessionId ? `Session ${event.sessionId}` : "",
+              event.sourceTimestamp ? `Source time ${infoDate(event.sourceTimestamp)}` : "",
+              event.payload?.httpStatus ? `HTTP ${event.payload.httpStatus}` : "",
+            ].filter(Boolean);
+            const payloadText = auditEventPayloadText(event);
+            return `
+              <li class="media-info-timeline-event media-info-timeline-event--${escapeAttribute(String(event.status || "recorded").toLowerCase().replace(/[^a-z0-9_-]/g, "-"))}">
+                <span class="media-info-timeline-marker" aria-hidden="true">${index + 1}</span>
+                <div class="media-info-timeline-event-body">
+                  <div class="media-info-timeline-event-head">
+                    <div>
+                      <strong>${escapeHtml(auditEventLabel(event))}</strong>
+                      <span>${escapeHtml(auditEventTime(event))}</span>
+                    </div>
+                    ${event.phase || event.sourceEvent ? `<span class="media-info-timeline-kind">${escapeHtml([event.phase, event.sourceEvent].filter(Boolean).join(" · "))}</span>` : ""}
+                  </div>
+                  ${event.details ? `<p>${escapeHtml(event.details)}</p>` : ""}
+                  ${metadata.length ? `<div class="media-info-timeline-meta">${metadata.map((value) => `<span>${escapeHtml(value)}</span>`).join("")}</div>` : ""}
+                  ${payloadText !== "No additional payload was stored." ? `
+                    <details class="media-info-telemetry media-info-timeline-payload">
+                      <summary>Recorded event payload</summary>
+                      <pre>${escapeHtml(payloadText)}</pre>
+                    </details>
+                  ` : ""}
+                </div>
+              </li>
+            `;
+          }).join("")}
+        </ol>
+      ` : `
+        <div class="media-info-audit-empty">
+          <strong>No durable timeline events are recorded yet.</strong>
+          <span>New playback, history writes, and outbound syncs will appear here.</span>
+        </div>
+      `}
+    </section>
+  `;
+}
+
+function renderInfoAuditTimeline(events = [], coverage = {}) {
+  const sourceValues = [...new Set(events.map((event) => platformName(event.source)).filter((value) => value && value !== "Unknown"))];
+  const targetValues = [...new Set(events.map((event) => platformName(event.target)).filter((value) => value && value !== "Unknown"))];
+  const deviceValues = [...new Set(events.map((event) => event.device).filter(Boolean))];
+  const userValues = [...new Set(events.map((event) => event.user).filter(Boolean))];
+  const sessionValues = [...new Set(events.map((event) => event.sessionId).filter(Boolean))];
+  const contextEntries = [
+    ["Recorded source", sourceValues.length ? sourceValues : "Not recorded"],
+    ["Push destinations", targetValues.length ? targetValues : "Not recorded"],
+    ["Playback device", deviceValues.length ? deviceValues : "Not recorded by source"],
+    ["Source user", userValues.length ? userValues : "Not recorded"],
+    ["Sessions", sessionValues.length || coverage.eventCount ? (sessionValues.length || "Not recorded") : "Not recorded"],
+  ];
+  const sortedEvents = [...events].sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0) || Number(a.id || 0) - Number(b.id || 0));
+
+  return `
+    <section class="media-info-timeline-block">
+      <div class="media-info-subhead media-info-timeline-head">
+        <div>
+          <h3>Event timeline</h3>
+          <p>One card represents one stored audit event.</p>
+        </div>
+        <b>${escapeHtml(auditEventCountText(events, coverage))}</b>
+      </div>
+      ${auditEventCoverageNote(events, coverage)}
+      <div class="media-info-fields media-info-timeline-context">
+        ${contextEntries.map(([label, value]) => infoField(label, value)).join("")}
+      </div>
+      ${sortedEvents.length ? `
+        <ol class="media-info-audit-records" aria-label="Media history audit records">
+          ${sortedEvents.map((event, index) => {
+            const payloadText = auditEventPayloadText(event);
+            return `
+              <li class="media-info-audit-record media-info-audit-record--${escapeAttribute(String(event.status || "recorded").toLowerCase().replace(/[^a-z0-9_-]/g, "-"))}">
+                <article class="media-info-audit-record-card">
+                  <header class="media-info-audit-record-head">
+                    <div>
+                      <span class="media-info-audit-record-number">Event ${index + 1}</span>
+                      <strong>${escapeHtml(auditEventLabel(event))}</strong>
+                      <span class="media-info-audit-record-time">${escapeHtml(auditEventTime(event))}</span>
+                    </div>
+                    <span class="media-info-audit-record-status">${escapeHtml(infoValue(event.status, "Recorded"))}</span>
+                  </header>
+                  ${event.details ? `
+                    <div class="media-info-audit-record-details">
+                      <span>Details</span>
+                      <p>${escapeHtml(event.details)}</p>
+                    </div>
+                  ` : ""}
+                  <div class="media-info-fields media-info-audit-event-fields">
+                    ${auditEventFieldEntries(event).map(([label, value]) => infoField(label, value)).join("")}
+                  </div>
+                  ${payloadText !== "No additional payload was stored." ? `
+                    <details class="media-info-telemetry media-info-audit-payload">
+                      <summary>Recorded event payload</summary>
+                      <pre>${escapeHtml(payloadText)}</pre>
+                    </details>
+                  ` : ""}
+                </article>
+              </li>
+            `;
+          }).join("")}
+        </ol>
+      ` : `
+        <div class="media-info-audit-empty">
+          <strong>No durable timeline events are recorded yet.</strong>
+          <span>New playback, history writes, and outbound syncs will appear here.</span>
+        </div>
+      `}
+    </section>
+  `;
+}
+
+function exportFieldLines(entries, indent = "") {
+  return entries.map(([label, value]) => `${indent}${label}: ${infoValue(value)}`);
+}
+
+function mediaInfoExportText({ context, title, summaryText, isTv, records, glanceEntries, auditEvents = [], auditCoverage = {} }) {
+  const lines = [
+    "PLEMBFIN MEDIA INFORMATION",
+    "===========================",
+    `Title: ${title}`,
+    `Media type: ${isTv ? "TV show" : "Movie"}`,
+    `Summary: ${summaryText}`,
+    "",
+    "AUDIT SUMMARY",
+    "------------",
+    ...exportFieldLines(glanceEntries),
+    `Audit coverage: ${auditEventCountText(auditEvents, auditCoverage)}`,
+    "",
+    "TIMELINE",
+    "--------",
+  ];
+
+  if (!auditEvents.length) {
+    lines.push("No durable timeline events are recorded yet.");
+  } else {
+    [...auditEvents]
+      .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0) || Number(a.id || 0) - Number(b.id || 0))
+      .forEach((event, index) => {
+        lines.push(
+          "",
+          `Event ${index + 1}: ${auditEventLabel(event)}`,
+          ...exportFieldLines(auditEventFieldEntries(event), "  "),
+        );
+        if (event.payload != null) lines.push("", "  Recorded event payload", auditEventPayloadText(event));
+      });
+  }
+
+  lines.push("", "DETAILED AUDIT", "--------------");
+
+  if (!records.length) {
+    lines.push("No local watch records.");
+  } else {
+    records.forEach((record, index) => {
+      const telemetry = record.sync_dispatch_telemetry || record.syncDispatchTelemetry || "";
+      const provenance = provenanceForEntry(record);
+      const hasRecord = hasWatchRecordData(record);
+      const status = hasRecord && telemetry ? syncStatus(record) : { label: "Not recorded" };
+      const playHistory = Array.isArray(record.playHistory)
+        ? [...record.playHistory].sort((a, b) => String(b.watched_at).localeCompare(String(a.watched_at)))
+        : [];
+      const recordId = record.id || `record-${index}`;
+      const episode = record.season != null && record.episode != null
+        ? `S${String(record.season).padStart(2, "0")}E${String(record.episode).padStart(2, "0")}`
+        : "Not applicable";
+
+      lines.push(
+        "",
+        `Record ${index + 1}: ${infoRecordTitle(record, context)}`,
+        ...exportFieldLines([
+          ["Record ID", recordId],
+          ["Source platform", platformName(record.source)],
+          ["Action", hasRecord ? historyAction(record) : "Not recorded"],
+          ["Sync state", status.label],
+          ["Telemetry origin", telemetryLineValue(telemetry, "Origin")],
+          ["Watched at", infoDate(record.watched_at)],
+          ["Media key", record.media_key],
+          ["Season / episode", episode],
+        ], "  "),
+        "",
+        "  Ingest provenance",
+        ...exportFieldLines([
+          ["Ingest path", provenance.ingest_path],
+          ["Source event", provenance.event],
+          ["Source item ID", provenance.item_id],
+          ["Source session ID", provenance.session_id],
+          ["Source user", provenance.user],
+          ["Source device", provenance.device],
+          ["Source device ID", provenance.device_id],
+          ["Source client", provenance.client],
+          ["Source client version", provenance.client_version],
+          ["Source timestamp", infoDate(provenance.source_timestamp)],
+          ["Captured at", infoDate(provenance.captured_at)],
+          ["Confidence", provenance.confidence],
+          ["Note", provenance.note],
+        ], "    "),
+      );
+
+      if (playHistory.length) {
+        lines.push("", "  Recorded play history", ...playHistory.map((play) => `    ${infoDate(play.watched_at)} · ${platformName(play.source)}`));
+      }
+
+      lines.push(
+        "",
+        "  Sync dispatch telemetry",
+        `    ${telemetry || "No sync telemetry recorded for this row."}`,
+        "",
+        "  Stored record fields",
+        JSON.stringify(infoRecordPayload(record), null, 2),
+      );
+    });
+  }
+
+  return lines.join("\n");
+}
+
+function mediaInfoExportFilename(title) {
+  const safeTitle = String(title || "media")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 80) || "media";
+  return `${safeTitle}-plembfin-info.txt`;
+}
+
+function downloadMediaInfoText(title, text) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = mediaInfoExportFilename(title);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export function closeMediaInfoModal() {
+  _mediaInfoRequestToken += 1;
   if (!_mediaInfoOverlay) return;
   if (_mediaInfoKeydown) document.removeEventListener("keydown", _mediaInfoKeydown);
+  if (_mediaInfoBoundsHandler) window.removeEventListener("resize", _mediaInfoBoundsHandler);
   _mediaInfoOverlay.remove();
   _mediaInfoOverlay = null;
   document.body.style.overflow = _mediaInfoPreviousOverflow;
   _mediaInfoPreviousOverflow = "";
   _mediaInfoKeydown = null;
+  _mediaInfoBoundsHandler = null;
 }
 
-export function openMediaInfoModal() {
+function syncMediaInfoOverlayBounds() {
+  if (!_mediaInfoOverlay) return;
+  const detailPage = document.querySelector(".immersive-container.media-detail-page");
+  if (!detailPage) return;
+  const rect = detailPage.getBoundingClientRect();
+  if (!rect.width) return;
+  _mediaInfoOverlay.classList.add("media-info-overlay--detail-page");
+  _mediaInfoOverlay.style.setProperty("--media-info-page-left", `${rect.left}px`);
+  _mediaInfoOverlay.style.setProperty("--media-info-page-top", `${rect.top}px`);
+  _mediaInfoOverlay.style.setProperty("--media-info-page-width", `${rect.width}px`);
+  _mediaInfoOverlay.style.setProperty("--media-info-page-right", `${Math.max(window.innerWidth - rect.right, 0)}px`);
+}
+
+export async function openMediaInfoModal() {
   const context = state.activeMediaInfo;
   if (!context) return;
   closeMediaInfoModal();
-  const media = context.media || {};
-  const metadata = context.tmdbData || {};
-  const isTv = context.mediaType === "tv";
+  const requestToken = ++_mediaInfoRequestToken;
+  let activeContext = context;
+  let auditEvents = Array.isArray(context.auditEvents) ? context.auditEvents : [];
+  let auditCoverage = context.auditCoverage || {};
+  let auditError = "";
+  try {
+    const audit = await fetchMediaInfoAudit(context);
+    auditEvents = Array.isArray(audit.events) ? audit.events : [];
+    auditCoverage = audit.coverage || {};
+  } catch (error) {
+    auditError = error?.message || "The durable audit could not be loaded.";
+  }
+  if (requestToken !== _mediaInfoRequestToken || state.activeMediaInfo !== context) return;
+  activeContext = { ...context, auditEvents, auditCoverage, auditError };
+  state.activeMediaInfo = activeContext;
+  const media = activeContext.media || {};
+  const metadata = activeContext.tmdbData || {};
+  const isTv = activeContext.mediaType === "tv";
   const title = metadata.name || metadata.title || media.title || "Media information";
-  const overview = metadata.overview || context.overview || "No synopsis available.";
-  const records = infoRecords(context);
+  const records = infoRecords(activeContext);
   const watchDates = records.map((record) => record.watched_at).filter(Boolean).sort();
-  const sources = [...new Set(records.map((record) => platformName(record.source)).filter((source) => source && source !== "Unknown"))];
+  const sources = [...new Set([
+    ...records.map((record) => platformName(record.source)),
+    ...auditEvents.map((event) => platformName(event.source)),
+  ].filter((source) => source && source !== "Unknown"))];
+  const targets = [...new Set(
+    auditEvents.map((event) => platformName(event.target)).filter((target) => target && target !== "Unknown"),
+  )];
   const watchedCount = isTv
-    ? (context.summary?.watchedCount ?? records.length)
+    ? (activeContext.summary?.watchedCount ?? records.length)
     : (records.length ? 1 : 0);
-  const totalCount = isTv ? (context.summary?.totalCount ?? metadata.number_of_episodes ?? media.episode_count) : 1;
-  const progress = isTv ? (context.summary?.progressPercent ?? (totalCount ? Math.round((watchedCount / totalCount) * 100) : 0)) : records.length ? 100 : 0;
-  const poster = context.posterUrl || media.poster_url || metadata.cached_poster_url || "";
+  const totalCount = isTv ? (activeContext.summary?.totalCount ?? metadata.number_of_episodes ?? media.episode_count) : 1;
+  const progress = isTv ? (activeContext.summary?.progressPercent ?? (totalCount ? Math.round((watchedCount / totalCount) * 100) : 0)) : records.length ? 100 : 0;
+  const poster = activeContext.posterUrl || media.poster_url || metadata.cached_poster_url || "";
   const infoId = `mediaInfoTitle-${Date.now()}`;
-  const recordsBody = records.length
-    ? records.map((record, index) => renderInfoWatchRecord(record, context, index)).join("")
-    : `<div class="media-info-empty"><strong>No local watch record</strong><span>This page is showing metadata only. A provenance record will appear here after a watched-state entry is saved.</span></div>`;
+  const glanceEntries = mediaInfoGlanceEntries({ isTv, records, watchedCount, totalCount, progress, sources, targets, watchDates });
+  const detailedRecordsBody = records.map((record, index) => renderInfoWatchRecord(record, activeContext, index)).join("");
   const summaryText = isTv
     ? `${watchedCount} of ${infoValue(totalCount, "?")} episodes watched · ${progress}% complete`
     : (records.length ? `Watched · ${infoDate(watchDates.at(-1))}` : "Not watched in Plembfin");
+  const exportText = mediaInfoExportText({ context: activeContext, title, summaryText, isTv, records, glanceEntries, auditEvents, auditCoverage });
+  const auditTimeline = renderInfoAuditTimeline(auditEvents, auditCoverage);
+  const auditErrorHtml = auditError ? `<div class="media-info-audit-error"><strong>Audit timeline unavailable</strong><span>${escapeHtml(auditError)}</span></div>` : "";
 
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay media-info-overlay";
@@ -317,40 +812,56 @@ export function openMediaInfoModal() {
         <div class="media-info-title-block">
           ${poster ? `<img class="media-info-poster" src="${escapeAttribute(poster)}" alt="" data-err="hide" />` : ""}
           <div>
-            <span class="media-info-eyebrow">${isTv ? "TV show" : "Movie"} · Complete record</span>
             <h2 id="${infoId}">${escapeHtml(title)}</h2>
             <p>${escapeHtml(summaryText)}</p>
           </div>
         </div>
-        <button class="button-ghost media-info-close" type="button" data-media-info-close>Close</button>
+        <div class="media-info-head-actions">
+          <button class="button-ghost media-info-export" type="button" data-media-info-export>
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">
+              <path d="M8 1.5v8m0 0 3-3m-3 3-3-3M2.5 10.5v3h11v-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span>Export</span>
+          </button>
+          <button class="button-ghost media-info-close" type="button" data-media-info-close>Close</button>
+        </div>
       </header>
       <div class="media-info-content">
-        ${infoSection("At a glance", "State and identity", `
-          <div class="media-info-fields">
-            ${infoField("Media type", isTv ? "TV show" : "Movie")}
-            ${infoField("Watch status", records.length ? "Watched" : "Not watched")}
-            ${infoField(isTv ? "Episodes watched" : "Watch records", isTv ? `${watchedCount} of ${infoValue(totalCount, "?")}` : records.length)}
-            ${infoField("Completion", `${progress}%`)}
-            ${infoField("Source platforms", sources.length ? sources : "Not recorded")}
-            ${infoField("Latest watched", infoDate(watchDates.at(-1)))}
-            ${infoField("Earliest watched", infoDate(watchDates[0]))}
-            ${infoField("Metadata source", context.tmdbData ? "TMDB / Plembfin cache" : "Local record only")}
-          </div>
-        `)}
-        ${infoSection("Metadata and identifiers", "Catalog details", `
-          <div class="media-info-fields">${mediaInfoMetadataFields(context) || `<div class="media-info-empty"><span>No enriched metadata is currently available.</span></div>`}</div>
-          ${overview ? `<div class="media-info-overview"><span>Synopsis</span><p>${escapeHtml(overview)}</p></div>` : ""}
-        `)}
-        ${infoSection("Watch history and provenance", "What Plembfin knows about each entry", `<div class="media-info-history-list">${recordsBody}</div>`)}
+        <div class="media-info-glance">
+          ${infoSection("Audit summary", `
+            <div class="media-info-fields">
+              ${glanceEntries.map(([label, value]) => infoField(label, value)).join("")}
+            </div>
+          `)}
+        </div>
+        ${(records.length || auditEvents.length || auditError) ? `
+          <details class="media-info-detail-section" open>
+            <summary>
+              <div class="media-info-detail-summary">
+                <h3>Audit trail</h3>
+              </div>
+              <span class="media-info-detail-count">${records.length} record${records.length === 1 ? "" : "s"} · ${escapeHtml(auditEventCountText(auditEvents, auditCoverage))}</span>
+            </summary>
+            <div class="media-info-detail-section-body">
+              ${auditErrorHtml}
+              ${auditTimeline}
+              ${detailedRecordsBody}
+            </div>
+          </details>
+        ` : ""}
       </div>
     </article>
   `;
   _mediaInfoPreviousOverflow = document.body.style.overflow;
   _mediaInfoOverlay = overlay;
   document.body.appendChild(overlay);
+  _mediaInfoBoundsHandler = () => syncMediaInfoOverlayBounds();
+  window.addEventListener("resize", _mediaInfoBoundsHandler);
+  syncMediaInfoOverlayBounds();
   document.body.style.overflow = "hidden";
   const close = () => closeMediaInfoModal();
   overlay.querySelector("[data-media-info-close]")?.addEventListener("click", close);
+  overlay.querySelector("[data-media-info-export]")?.addEventListener("click", () => downloadMediaInfoText(title, exportText));
   overlay.addEventListener("click", (event) => {
     if (event.target === overlay) close();
   });

@@ -37,9 +37,9 @@ function inferredPath(source = "") {
 }
 
 /**
- * Normalize the persisted, deliberately small provenance object. Raw webhook
- * payloads and credentials never belong in this object; those remain in the
- * existing short-lived diagnostic history when an invalid request needs them.
+ * Normalize the compact provenance object stored alongside a watch row. Raw
+ * webhook payloads never belong in this object; the durable audit event keeps
+ * the event payload separately, while credentials must never be captured.
  */
 export function normalizeWatchProvenance(value, defaults = {}) {
   const input = objectFrom(value);
@@ -62,6 +62,10 @@ export function normalizeWatchProvenance(value, defaults = {}) {
     item_id: text(input.item_id || input.itemId || defaults.itemId),
     session_id: text(input.session_id || input.sessionId || defaults.sessionId),
     user: text(input.user || defaults.user),
+    device: text(input.device || input.deviceName || defaults.device || defaults.deviceName),
+    device_id: text(input.device_id || input.deviceId || defaults.deviceId || defaults.device_id),
+    client: text(input.client || defaults.client),
+    client_version: text(input.client_version || input.clientVersion || defaults.clientVersion || defaults.client_version),
     source_timestamp: sourceTimestamp,
     captured_at: capturedAt,
     confidence,
@@ -75,6 +79,10 @@ export function buildWatchProvenance(media = {}, {
   capturedAt = "",
   confidence = "",
   note = "",
+  device = "",
+  deviceId = "",
+  client = "",
+  clientVersion = "",
 } = {}) {
   const source = text(media.source || media.platform);
   const path = text(ingestPath || media.ingest_path || media.ingestPath) || inferredPath(source);
@@ -86,6 +94,10 @@ export function buildWatchProvenance(media = {}, {
     item_id: media.item_id || media.itemId,
     session_id: media.session_id || media.sessionId,
     user: media.user,
+    device: device || media.device || media.deviceName,
+    device_id: deviceId || media.deviceId || media.device_id,
+    client: client || media.client,
+    client_version: clientVersion || media.clientVersion || media.client_version,
     source_timestamp: sourceTimestamp || media.source_timestamp || media.sourceTimestamp || media.playedAt,
     captured_at: capturedAt,
     confidence: confidence || (path === "unknown" ? "source_only" : "exact"),
@@ -112,6 +124,10 @@ export function provenanceTelemetryLines(value, defaults = {}) {
   ];
   if (provenance.session_id) lines.push(`Source session ID: ${provenance.session_id}`);
   if (provenance.user) lines.push(`Source user: ${provenance.user}`);
+  if (provenance.device) lines.push(`Source device: ${provenance.device}`);
+  if (provenance.device_id) lines.push(`Source device ID: ${provenance.device_id}`);
+  if (provenance.client) lines.push(`Source client: ${provenance.client}`);
+  if (provenance.client_version) lines.push(`Source client version: ${provenance.client_version}`);
   if (provenance.source_timestamp) lines.push(`Source timestamp: ${provenance.source_timestamp}`);
   if (provenance.captured_at) lines.push(`Provenance captured: ${provenance.captured_at}`);
   lines.push(`Provenance confidence: ${provenance.confidence || "unknown"}`);

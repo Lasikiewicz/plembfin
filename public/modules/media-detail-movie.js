@@ -4,7 +4,7 @@ import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePoste
 import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260803";
 import { renderWatchDatePrompt } from "./watch-action.js";
-import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260806";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260808";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
@@ -232,7 +232,6 @@ function _renderWatchedMovieContent(root, movie, {
             <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
               <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase;">Sync Status:</span>
               ${syncStatusDotHtml}
-              <button class="button-ghost" type="button" data-history-debug-id="${escapeAttribute(movie.id)}" title="Show exactly how this watch row was recorded" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Provenance</button>
               ${!allSynced ? `<button class="retry-sync-btn action-pill" type="button" ${isSaving ? "disabled" : ""} data-retry-sync-id="${escapeAttribute(movie.id)}" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Retry Sync</button>` : ""}
             </div>
   ` : "";
@@ -403,7 +402,6 @@ export function patchMovieWatchedState(movie) {
             <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
               <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase;">Sync Status:</span>
               ${syncStatusDotHtml}
-              <button class="button-ghost" type="button" data-history-debug-id="${escapeAttribute(movie.id)}" title="Show exactly how this watch row was recorded" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Provenance</button>
               ${!allSynced ? `<button class="retry-sync-btn action-pill" type="button" data-retry-sync-id="${escapeAttribute(movie.id)}" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Retry Sync</button>` : ""}
             </div>
   ` : "";

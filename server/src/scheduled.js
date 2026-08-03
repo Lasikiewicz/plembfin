@@ -12,6 +12,7 @@ import { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
 import { watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./utils/watchDates.js";
 import { isVerboseLogging } from "./utils/logVerbose.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
+import { recordWatchAuditEvent, recordWatchAuditEvents } from "./utils/watchAudit.js";
 export { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
 import {
   deleteLiveTrackingCacheRows,
@@ -111,10 +112,16 @@ function buildProgressTelemetry(media, summary) {
 
 function cachedRowToMedia(row) {
   const session = hydrateCachedSession(row);
+  const client = session.client && typeof session.client === "object" ? session.client : {};
   return {
     ...session,
     type: session.mediaType,
     source: session.source || row.source_platform,
+    device: session.device || session.deviceName || client.deviceName || "",
+    deviceId: session.deviceId || client.deviceId || "",
+    clientName: session.clientName || client.client || client.product || client.platform || "",
+    clientVersion: session.clientVersion || client.version || "",
+    user: session.user || client.userName || "",
     isValid: Boolean(session.title && (session.mediaType === "movie" || session.mediaType === "episode") && session.source),
   };
 }
@@ -303,6 +310,49 @@ function plexHistoryItemMatchesConfiguredUser(item = {}, { username = "", accoun
 }
 
 async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
+  const timestamp = Date.now();
+  const targetStates = Array.isArray(summary.targetStates) ? summary.targetStates : [];
+  const auditBase = {
+    timestamp,
+    eventType: "sync_dispatch",
+    action,
+    mediaKey: mediaKeyFor(media),
+    mediaType: media.type || media.mediaType || "unknown",
+    title: media.title || "Unknown media",
+    showTitle: media.showTitle || media.show_title,
+    source: media.source || "unknown",
+    sourceEvent: media.event,
+    phase: media.phase,
+    watchProvenance: media.watchProvenance || media.watch_provenance,
+    ids: media.ids || {},
+    season: media.season,
+    episode: media.episode,
+    itemId: media.itemId,
+    sessionId: media.sessionId || media.session_id,
+    user: media.user,
+    device: media.device || media.deviceName || media.client?.deviceName,
+    deviceId: media.deviceId || media.device_id || media.client?.deviceId,
+    client: media.clientName || media.client?.client || media.client?.product || media.client?.platform,
+    clientVersion: media.clientVersion || media.client?.version,
+    status: summary.status || "unknown",
+    details: summary.details || "",
+  };
+  recordWatchAuditEvents([
+    {
+      ...auditBase,
+      details: `Outbound ${action} dispatch ${summary.status || "unknown"}: ${summary.details || "No details"}`,
+      payload: { targetStates, scheduled: true },
+    },
+    ...targetStates.map((targetState) => ({
+      ...auditBase,
+      eventType: "sync_target",
+      target: targetState.target,
+      status: targetState.status,
+      details: targetState.detail || `Target ${targetState.target || "unknown"} reported ${targetState.status}.`,
+      itemId: targetState.itemId || targetState.item_id || auditBase.itemId,
+      payload: targetState,
+    })),
+  ]);
   await appendSyncHistory({
     mediaType: media.type || media.mediaType || "unknown",
     title: media.title || "Unknown media",
@@ -310,7 +360,7 @@ async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
     status: summary.status || "unknown",
     details: summary.details || "",
     action,
-    targetStates: summary.targetStates || [],
+    targetStates,
     rawPayloadDebug: {
       sessionId: media.sessionId || media.id || "",
       ids: media.ids || {},
@@ -411,6 +461,30 @@ async function processCompletedSession(row, config, loopStore) {
   // (server restart, a tick that could not reach the media server) the last-seen
   // time is the real watch time and the current time would be wrong.
   const lastSeenAt = Number(row.updated_at || 0);
+  recordWatchAuditEvent({
+    eventType: "playback_ended",
+    timestamp: lastSeenAt > 0 ? lastSeenAt : Date.now(),
+    action: "playback",
+    mediaKey: mediaKeyFor(media),
+    mediaType: media.type,
+    title: media.title,
+    source: media.source,
+    sourceEvent: media.event,
+    phase: "ended",
+    ids: media.ids,
+    season: media.season,
+    episode: media.episode,
+    itemId: media.itemId,
+    sessionId: row.session_id,
+    user: media.user,
+    device: media.device,
+    deviceId: media.deviceId,
+    client: media.clientName,
+    clientVersion: media.clientVersion,
+    status: "completed",
+    details: "Live playback session ended after reaching the watched threshold.",
+    payload: { progress: media.progress, offsetMs: media.offsetMs, durationMs: media.durationMs },
+  });
 
   const watchRecord = mediaToWatchRecord(
     {
@@ -428,6 +502,11 @@ async function processCompletedSession(row, config, loopStore) {
           event: media.event || "playback.complete",
           phase: "completed",
           sessionId: row.session_id,
+          user: media.user,
+          device: media.device,
+          deviceId: media.deviceId,
+          client: media.clientName,
+          clientVersion: media.clientVersion,
         },
         {
           ingestPath: "live_session",
@@ -479,6 +558,31 @@ async function processStoppedSessionProgress(row, config, loopStore) {
     });
     return null;
   }
+
+  recordWatchAuditEvent({
+    eventType: "playback_ended",
+    timestamp: Number(row.updated_at || 0) || Date.now(),
+    action: "playback",
+    mediaKey: mediaKeyFor(media),
+    mediaType: media.type,
+    title: media.title,
+    source: media.source,
+    sourceEvent: media.event,
+    phase: "ended",
+    ids: media.ids,
+    season: media.season,
+    episode: media.episode,
+    itemId: media.itemId,
+    sessionId: row.session_id,
+    user: media.user,
+    device: media.device,
+    deviceId: media.deviceId,
+    client: media.clientName,
+    clientVersion: media.clientVersion,
+    status: "stopped",
+    details: "Live playback session ended before the watched threshold; resume progress was retained.",
+    payload: { progress: media.progress, offsetMs: media.offsetMs, durationMs: media.durationMs },
+  });
 
   const progressRecord = mediaToPlaybackProgressRecord(media, media.source);
   await upsertPlaybackProgress({

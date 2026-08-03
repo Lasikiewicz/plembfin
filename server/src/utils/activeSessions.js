@@ -1,5 +1,6 @@
 ﻿import { db, parseJson, toJson } from "../db.js";
 import { activeSessionTtlMs } from "./tuning.js";
+import { recordWatchAuditEvent } from "./watchAudit.js";
 
 function normalizePart(value) {
   return String(value ?? "none").trim().toLowerCase().replace(/[^a-z0-9._:-]+/g, "-");
@@ -64,8 +65,10 @@ export async function listActiveSessions() {
 export async function upsertActiveSession(media) {
   if (!media) return [];
   const now = Date.now();
+  const id = sessionIdentity(media);
+  const wasActive = Boolean(db.prepare("SELECT id FROM active_sessions WHERE id = ? LIMIT 1").get(id));
   upsertStmt.run({
-    id: sessionIdentity(media),
+    id,
     title: media.title || "Unknown media",
     media_type: media.type || "unknown",
     source: media.source || "unknown",
@@ -80,10 +83,43 @@ export async function upsertActiveSession(media) {
     client: toJson({
       userName: media.user || "",
       deviceName: media.device || media.deviceName || "",
+      deviceId: media.deviceId || "",
+      client: media.clientName || media.client?.client || media.client?.product || media.client?.platform || "",
+      version: media.clientVersion || media.client?.version || "",
     }),
     updated_at: now,
     expire_at: now + activeSessionTtlMs(),
   });
+  if (!wasActive || /start|resume|unpause/i.test(String(media.event || ""))) {
+    const client = media.client && typeof media.client === "object" ? media.client : {};
+    recordWatchAuditEvent({
+      eventType: "playback_detected",
+      timestamp: now,
+      action: "playback",
+      mediaType: media.type || media.mediaType,
+      title: media.title,
+      source: media.source,
+      sourceEvent: media.event,
+      phase: "active",
+      watchProvenance: media.watchProvenance || media.watch_provenance,
+      ids: media.ids,
+      season: media.season,
+      episode: media.episode,
+      itemId: media.itemId,
+      sessionId: media.sessionId || id,
+      user: media.user || client.userName,
+      device: media.device || media.deviceName || client.deviceName,
+      deviceId: media.deviceId || client.deviceId,
+      client: media.clientName || client.client || client.product || client.platform,
+      clientVersion: media.clientVersion || client.version,
+      details: wasActive ? "Playback resumed on a known active session." : "Playback detected and active session opened.",
+      payload: {
+        progress: media.progress,
+        offsetMs: media.offsetMs,
+        durationMs: media.durationMs,
+      },
+    });
+  }
   return listActiveSessions();
 }
 

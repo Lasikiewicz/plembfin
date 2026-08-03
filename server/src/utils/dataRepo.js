@@ -5,6 +5,7 @@ import { fetchPosterFromTmdb } from "./tmdbClient.js";
 import { getTmdbDetails, getTmdbSeason } from "./tmdbGateway.js";
 import { cachedNextAiringFor, readNextAiringCache } from "./nextAiringCache.js";
 import { buildWatchProvenance, normalizeWatchProvenance } from "./watchProvenance.js";
+import { recordWatchAuditEvent, recordWatchAuditEvents } from "./watchAudit.js";
 import {
   initShowProgressCache,
   getCachedShowProgress,
@@ -336,6 +337,10 @@ export function normalizeWatchRecord(record = {}, fallbackSource = "trakt_import
       itemId: record.itemId,
       sessionId: record.sessionId,
       user: record.user,
+      device: record.device || record.deviceName,
+      deviceId: record.deviceId || record.device_id,
+      client: record.client,
+      clientVersion: record.clientVersion || record.client_version,
       playedAt: record.playedAt,
     }),
     episode_title: emptyToNull(record.episode_title || record.episodeTitle || record.episode?.title),
@@ -359,6 +364,16 @@ export function mediaToWatchRecord(media, source = media?.source || "webhook") {
       sync_action: media?.syncAction || media?.sync_action || "watched",
       sync_dispatch_telemetry: media?.syncDispatchTelemetry,
       watch_provenance: media?.watchProvenance || media?.watch_provenance || media?.provenance,
+      event: media?.event,
+      phase: media?.phase,
+      itemId: media?.itemId || media?.item_id,
+      sessionId: media?.sessionId || media?.session_id,
+      user: media?.user,
+      device: media?.device || media?.deviceName,
+      deviceId: media?.deviceId || media?.device_id,
+      client: media?.client,
+      clientVersion: media?.clientVersion || media?.client_version,
+      playedAt: media?.playedAt,
       episode_title: media?.episodeTitle || media?.episode_title,
     },
     source,
@@ -837,6 +852,21 @@ export async function upsertPlaystate(record, stateOverride = undefined, { skipI
     updated_at: Date.now(),
   });
 
+  recordWatchAuditEvent({
+    eventType: "playstate_updated",
+    timestamp: Date.now(),
+    action: state,
+    mediaKey,
+    mediaType: normalized.media_type,
+    title: normalized.title,
+    source: normalized.source,
+    ids: { imdb: normalized.imdb_id, tmdb: normalized.tmdb_id, tvdb: normalized.tvdb_id },
+    season: normalized.season,
+    episode: normalized.episode,
+    details: `Plembfin playstate set to ${state}.`,
+    payload: { state, watchedAt: normalized.watched_at, sources: [...sources].sort() },
+  });
+
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
   return { mediaKey, state, record: normalized };
 }
@@ -980,7 +1010,68 @@ export async function insertWatchRecord(record, { skipInvalidate = false, id: pr
 
   const id = String(presetId || "").trim() || crypto.randomUUID();
   const params = watchRowParams(normalized);
-  insertWatchStmt.run({ id, ...params, created_at: Date.now(), updated_at: Date.now() });
+  const storedAt = Date.now();
+  insertWatchStmt.run({ id, ...params, created_at: storedAt, updated_at: storedAt });
+  recordWatchAuditEvent({
+    eventType: isWatchedAction(normalized) ? "history_added" : "history_state_recorded",
+    timestamp: storedAt,
+    action: normalized.sync_action,
+    watchRecordId: id,
+    mediaKey: params.media_key,
+    mediaType: normalized.media_type,
+    title: normalized.title,
+    showTitle: params.show_title,
+    source: normalized.source,
+    sourceEvent: normalized.watch_provenance?.event,
+    phase: normalized.watch_provenance?.phase,
+    watchProvenance: normalized.watch_provenance,
+    ids: { imdb: normalized.imdb_id, tmdb: normalized.tmdb_id, tvdb: normalized.tvdb_id },
+    season: normalized.season,
+    episode: normalized.episode,
+    itemId: normalized.watch_provenance?.item_id,
+    sessionId: normalized.watch_provenance?.session_id,
+    user: normalized.watch_provenance?.user,
+    device: normalized.watch_provenance?.device,
+    deviceId: normalized.watch_provenance?.device_id,
+    client: normalized.watch_provenance?.client,
+    clientVersion: normalized.watch_provenance?.client_version,
+    details: isWatchedAction(normalized)
+      ? "Watch record added to Plembfin history; outbound sync is tracked separately."
+      : `Watch history state recorded as ${normalized.sync_action}.`,
+    payload: {
+      record: normalized,
+      provenance: normalized.watch_provenance,
+      storedAt,
+    },
+  });
+  if (!String(normalized.source || "").toLowerCase().includes("import")) {
+    recordWatchAuditEvent({
+      eventType: "sync_queued",
+      timestamp: storedAt,
+      action: normalized.sync_action,
+      watchRecordId: id,
+      mediaKey: params.media_key,
+      mediaType: normalized.media_type,
+      title: normalized.title,
+      showTitle: params.show_title,
+      source: normalized.source,
+      sourceEvent: normalized.watch_provenance?.event,
+      phase: normalized.watch_provenance?.phase,
+      watchProvenance: normalized.watch_provenance,
+      ids: { imdb: normalized.imdb_id, tmdb: normalized.tmdb_id, tvdb: normalized.tvdb_id },
+      season: normalized.season,
+      episode: normalized.episode,
+      itemId: normalized.watch_provenance?.item_id,
+      sessionId: normalized.watch_provenance?.session_id,
+      user: normalized.watch_provenance?.user,
+      device: normalized.watch_provenance?.device,
+      deviceId: normalized.watch_provenance?.device_id,
+      client: normalized.watch_provenance?.client,
+      clientVersion: normalized.watch_provenance?.client_version,
+      status: "queued",
+      details: "Outbound synchronization queued after the Plembfin history write.",
+    });
+  }
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
 
   // Eagerly pull + store TMDB metadata/artwork at ingest (fire-and-forget;
@@ -1047,17 +1138,47 @@ export async function batchInsertWatchRecords(records) {
   }
 
   if (toInsert.length) {
+    const insertedAuditEvents = [];
     transaction(() => {
       for (const normalized of toInsert) {
         // Queue show progress update
         queueProgressUpdateForRecord(normalized);
+        const id = crypto.randomUUID();
         const params = watchRowParams({
           ...normalized,
           sync_dispatch_telemetry: normalized.sync_dispatch_telemetry || defaultTelemetry(normalized),
         });
-        insertWatchStmt.run({ id: crypto.randomUUID(), ...params, created_at: Date.now(), updated_at: Date.now() });
+        const storedAt = Date.now();
+        insertWatchStmt.run({ id, ...params, created_at: storedAt, updated_at: storedAt });
+        insertedAuditEvents.push({
+          eventType: isWatchedAction(normalized) ? "history_added" : "history_state_recorded",
+          timestamp: storedAt,
+          action: normalized.sync_action,
+          watchRecordId: id,
+          mediaKey: params.media_key,
+          mediaType: normalized.media_type,
+          title: normalized.title,
+          showTitle: params.show_title,
+          source: normalized.source,
+          sourceEvent: normalized.watch_provenance?.event,
+          phase: normalized.watch_provenance?.phase,
+          watchProvenance: normalized.watch_provenance,
+          ids: { imdb: normalized.imdb_id, tmdb: normalized.tmdb_id, tvdb: normalized.tvdb_id },
+          season: normalized.season,
+          episode: normalized.episode,
+          itemId: normalized.watch_provenance?.item_id,
+          sessionId: normalized.watch_provenance?.session_id,
+          user: normalized.watch_provenance?.user,
+          device: normalized.watch_provenance?.device,
+          deviceId: normalized.watch_provenance?.device_id,
+          client: normalized.watch_provenance?.client,
+          clientVersion: normalized.watch_provenance?.client_version,
+          details: "Watch record imported into Plembfin history; no outbound sync was initiated by the import.",
+          payload: { record: normalized, import: true, storedAt },
+        });
       }
     });
+    recordWatchAuditEvents(insertedAuditEvents);
     for (const normalized of toInsert) {
       if (isWatchedAction(normalized) && (normalized.tmdb_id || normalized.title)) {
         prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
@@ -1182,7 +1303,24 @@ export async function addWatchDate(id, watchedAtInput) {
   }
   params.watched_at = watchedAt;
   params.sync_dispatch_telemetry = "Origin: manual\nLoop-check: Skipped propagation\nDispatch status: skipped\nDetails: Additional watch date added manually.";
-  insertWatchStmt.run({ id: newId, ...params, created_at: Date.now(), updated_at: Date.now() });
+  const storedAt = Date.now();
+  insertWatchStmt.run({ id: newId, ...params, created_at: storedAt, updated_at: storedAt });
+  recordWatchAuditEvent({
+    eventType: "history_added",
+    timestamp: storedAt,
+    action: "watched",
+    watchRecordId: newId,
+    mediaKey,
+    mediaType: existing.media_type,
+    title: existing.title,
+    showTitle: existing.show_title,
+    source: "manual",
+    ids: { imdb: existing.imdb_id, tmdb: existing.tmdb_id, tvdb: existing.tvdb_id },
+    season: existing.season,
+    episode: existing.episode,
+    details: "Additional watch date added manually to Plembfin history.",
+    payload: { copiedFromRecordId: existing.id, watchedAt },
+  });
 
   if (mediaKey) {
     const currentPlaystate = selectPlaystateStmt.get(mediaKey);
@@ -1206,7 +1344,23 @@ export async function deleteWatchDate(id) {
 
   queueProgressUpdateForRecord(existing);
   deleteByIdStmt.run(String(id));
-
+  recordWatchAuditEvent({
+    eventType: "history_deleted",
+    timestamp: Date.now(),
+    action: existing.sync_action || "watched",
+    watchRecordId: existing.id,
+    mediaKey: existing.media_key,
+    mediaType: existing.media_type,
+    title: existing.title,
+    showTitle: existing.show_title,
+    source: existing.source,
+    ids: { imdb: existing.imdb_id, tmdb: existing.tmdb_id, tvdb: existing.tvdb_id },
+    season: existing.season,
+    episode: existing.episode,
+    status: "deleted",
+    details: "A single watch date was deleted from Plembfin history.",
+    payload: { record: existing, operation: "delete_watch_date" },
+  });
   const mediaKey = existing.media_key;
   if (mediaKey) {
     const remaining = selectByMediaKeyStmt.all(mediaKey).filter(isPlembfinTrackedWatchRow);
@@ -1365,6 +1519,24 @@ export async function upsertPlaybackProgress(record) {
     updated_at: normalized.updated_at,
     sync_dispatch_telemetry: normalized.sync_dispatch_telemetry,
   });
+  recordWatchAuditEvent({
+    eventType: "resume_progress_stored",
+    timestamp: normalized.updated_at || Date.now(),
+    action: "progress",
+    mediaKey,
+    mediaType: normalized.media_type,
+    title: normalized.title,
+    source: normalized.source,
+    ids: { imdb: normalized.imdb_id, tmdb: normalized.tmdb_id, tvdb: normalized.tvdb_id },
+    season: normalized.season,
+    episode: normalized.episode,
+    details: "Resume progress stored in Plembfin.",
+    payload: {
+      positionMs: normalized.position_ms,
+      durationMs: normalized.duration_ms,
+      progress: normalized.progress,
+    },
+  });
   if (normalized.tmdb_id || normalized.title) {
     prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
   }
@@ -1410,6 +1582,19 @@ export async function deletePlaybackProgress(mediaOrRecord) {
   ]);
   for (const key of keys) {
     deleteProgressStmt.run(key);
+    recordWatchAuditEvent({
+      eventType: "resume_progress_cleared",
+      timestamp: Date.now(),
+      action: "progress",
+      mediaKey: key,
+      mediaType: normalized.media_type,
+      title: normalized.title,
+      source: normalized.source,
+      ids: { imdb: normalized.imdb_id, tmdb: normalized.tmdb_id, tvdb: normalized.tvdb_id },
+      season: normalized.season,
+      episode: normalized.episode,
+      details: "Resume progress cleared from Plembfin.",
+    });
   }
   return keys.size > 0;
 }
@@ -2174,9 +2359,31 @@ export async function updateWatchRecord(id, fields = {}) {
   }
   if (fields.youtube_url != null) { sets.push("youtube_url = ?"); params.push(String(fields.youtube_url).trim()); }
   if (!sets.length) return { ok: false, error: "No valid fields to update" };
-  sets.push("updated_at = ?"); params.push(Date.now());
+  const updatedAt = Date.now();
+  sets.push("updated_at = ?"); params.push(updatedAt);
   params.push(String(targetId));
   db.prepare(`UPDATE watch_history SET ${sets.join(", ")} WHERE id = ?`).run(...params);
+  recordWatchAuditEvent({
+    eventType: "history_record_updated",
+    timestamp: updatedAt,
+    action: existing.sync_action || "watched",
+    watchRecordId: targetId,
+    mediaKey: existing.media_key,
+    mediaType: existing.media_type,
+    title: fields.title != null ? String(fields.title).trim() : existing.title,
+    showTitle: existing.show_title,
+    source: "manual",
+    ids: {
+      imdb: existing.imdb_id,
+      tmdb: fields.tmdb_id != null ? String(fields.tmdb_id).trim() : existing.tmdb_id,
+      tvdb: fields.tvdb_id != null ? String(fields.tvdb_id).trim() : existing.tvdb_id,
+    },
+    season: existing.season,
+    episode: existing.episode,
+    status: "updated",
+    details: "Stored watch history record updated in Plembfin.",
+    payload: { fields, previousRecord: existing, updatedAt },
+  });
   if (normalizedWatchedAt && existing.media_key) {
     const relatedRows = relatedTrackedWatchRowsForDateEdit(existing);
     transaction(() => {
@@ -2460,6 +2667,23 @@ export async function deleteWatchRecordById(id, { skipInvalidate = false } = {})
   const row = selectByIdStmt.get(String(id));
   if (row) {
     queueProgressUpdateForRecord(row);
+    recordWatchAuditEvent({
+      eventType: "history_deleted",
+      timestamp: Date.now(),
+      action: row.sync_action || "watched",
+      watchRecordId: row.id,
+      mediaKey: row.media_key,
+      mediaType: row.media_type,
+      title: row.title,
+      showTitle: row.show_title,
+      source: row.source,
+      ids: { imdb: row.imdb_id, tmdb: row.tmdb_id, tvdb: row.tvdb_id },
+      season: row.season,
+      episode: row.episode,
+      status: "deleted",
+      details: "Watch history row deleted from Plembfin.",
+      payload: { record: row },
+    });
   }
   deleteByIdStmt.run(String(id));
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
@@ -2482,7 +2706,26 @@ export async function deleteWatchRecord(media, { skipInvalidate = false } = {}) 
     queueProgressUpdateForRecord(row);
   }
   transaction(() => {
-    for (const row of rows) deleteByIdStmt.run(row.id);
+    for (const row of rows) {
+      deleteByIdStmt.run(row.id);
+      recordWatchAuditEvent({
+        eventType: "history_deleted",
+        timestamp: Date.now(),
+        action: row.sync_action || "watched",
+        watchRecordId: row.id,
+        mediaKey: row.media_key,
+        mediaType: row.media_type,
+        title: row.title,
+        showTitle: row.show_title,
+        source: row.source,
+        ids: { imdb: row.imdb_id, tmdb: row.tmdb_id, tvdb: row.tvdb_id },
+        season: row.season,
+        episode: row.episode,
+        status: "deleted",
+        details: "Watch history row deleted from Plembfin.",
+        payload: { record: row },
+      });
+    }
   });
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
   return true;
