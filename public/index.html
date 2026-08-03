@@ -1565,6 +1565,7 @@
                             <div class="settings-actions" style="margin-top: var(--space-2);">
                               <button id="fullSyncButton" class="button-ghost" type="button">Full Sync Watchstates</button>
                               <button id="cancelFullSyncButton" class="button-danger hidden" type="button" title="Stop sending new restore batches">Stop Restore</button>
+                              <button id="resetFullSyncButton" class="button-danger" type="button" title="Clear a Full Sync Watchstates lock left by a stopped or restarted server">Reset Restore Lock</button>
                             </div>
                           </div>
                         </details>
@@ -1630,6 +1631,11 @@
                       <div style="margin-bottom: var(--space-1);">
                         <b style="display: block; margin-bottom: 2px;">Full Sync Watchstates</b>
                         <p style="margin: 0; line-height: 1.4;">Scans the complete recorded Plembfin watch archive and pushes all historical watched events back into configured Plex, Emby, and Jellyfin watchlists. The progress panel shows rows processed, live rate, and an ETA; inbound app callbacks are ignored as restore echoes while the run is active.<br><b>When to use:</b> Essential after connecting a new server, rebuilding a library, or restoring watch history from a backup. Avoid watching media until it finishes.</p>
+                      </div>
+
+                      <div style="margin-bottom: var(--space-1);">
+                        <b style="display: block; margin-bottom: 2px;">Reset Restore Lock</b>
+                        <p style="margin: 0; line-height: 1.4;">Stops a Full Sync Watchstates run that cannot continue because its browser or server restarted. Use only when no other Full Sync restore should remain active; the action asks for confirmation.</p>
                       </div>
 
                       <div style="margin-bottom: var(--space-1);">

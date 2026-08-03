@@ -19,12 +19,35 @@ process.env.ROLE = ROLE;
 const { DATA_DIR, PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
 const { dispatch } = await import("./src/index.js");
 const { db } = await import("./src/db.js");
-const { loadMediaConfig } = await import("./src/utils/configStore.js");
+const { clearRestoreSyncState, loadMediaConfig, loadRuntimeState, RESTORE_KIND_FULL_SYNC } = await import("./src/utils/configStore.js");
 const { schedulerLeaseStatus } = await import("./src/utils/schedulerLease.js");
 const { createWorkerCoordinator } = await import("./src/workerCoordinator.js");
 const { flushPending: flushDiagnosticLogs } = await import("./src/utils/diagnosticLogger.js");
 
 ensureDataDirs();
+
+// Full Sync Watchstates is driven by browser requests, so it cannot survive a
+// process restart. Clear only the tagged full-sync guard here; backup restores
+// have their own kind and must remain protected across web-process startup.
+if (roleHasWeb(ROLE)) {
+  const runtime = await loadRuntimeState().catch(() => ({}));
+  const restoreKind = String(runtime.restoreSyncKind || "");
+  const legacyFullSync = runtime.restoreSyncActive === true
+    && !restoreKind
+    && /^[a-zA-Z0-9_-]{8,100}$/.test(String(runtime.restoreSyncRunId || ""));
+  const interruptedRestore = (restoreKind === RESTORE_KIND_FULL_SYNC || legacyFullSync)
+    ? await clearRestoreSyncState({
+      ...(legacyFullSync ? {} : { expectedKind: RESTORE_KIND_FULL_SYNC }),
+      reason: "Full Sync Watchstates was interrupted by a server restart.",
+    }).catch(() => ({ reset: false }))
+    : { reset: false };
+  if (interruptedRestore.reset) {
+    console.warn("Cleared interrupted Full Sync Watchstates restore after server restart", {
+      runId: interruptedRestore.runId,
+    });
+  }
+}
+
 const LOGS_DIR = path.join(DATA_DIR, "logs");
 fs.mkdirSync(LOGS_DIR, { recursive: true });
 // Interval rotation only fires while a process stays alive across the boundary,

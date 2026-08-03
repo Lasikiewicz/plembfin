@@ -10,7 +10,7 @@ import { createLoopStore } from "../utils/loopStore.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
 import { runForceSync, runScheduledSync } from "../scheduled.js";
-import { appendSyncHistory, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "../utils/configStore.js";
+import { appendSyncHistory, clearRestoreSyncState, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, RESTORE_KIND_FULL_SYNC, setRuntimeState, appendRuntimeLog } from "../utils/configStore.js";
 import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes } from "../utils/plexClient.js";
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "../utils/embyClient.js";
@@ -371,15 +371,31 @@ function restoreRuntimeIsFresh(runtime = {}, now = Date.now()) {
   return heartbeat > 0 && heartbeat >= now - FULL_SYNC_HEARTBEAT_STALE_MS;
 }
 
-async function runWithConcurrency(items, concurrency, worker) {
+async function runWithConcurrency(items, concurrency, worker, shouldStop = async () => false) {
   let cursor = 0;
+  let processed = 0;
+  let stopped = false;
   const workerCount = Math.min(Math.max(Number(concurrency) || 1, 1), items.length || 1);
   await Promise.all(Array.from({ length: workerCount }, async () => {
     while (cursor < items.length) {
+      if (await shouldStop()) {
+        stopped = true;
+        return;
+      }
       const index = cursor++;
       await worker(items[index], index);
+      processed += 1;
     }
   }));
+  return { processed, stopped };
+}
+
+async function fullSyncRestoreIsCancelled(runId) {
+  const runtime = await loadRuntimeState().catch(() => null);
+  if (!runtime) return false;
+  return runtime.restoreSyncCancelRequested === true
+    || runtime.restoreSyncActive !== true
+    || validFullSyncRunId(runtime.restoreSyncRunId) !== runId;
 }
 
 async function beginFullSyncRestore(runId, phase, requestedSnapshotAt, phaseStart = false) {
@@ -390,6 +406,10 @@ async function beginFullSyncRestore(runId, phase, requestedSnapshotAt, phaseStar
 
   if (active && activeRunId !== runId) {
     return { conflict: true };
+  }
+
+  if (!phaseStart && runtime.restoreSyncCancelRequested === true) {
+    return { cancelled: true, snapshotAt: Number(runtime.restoreSyncSnapshotAt || requestedSnapshotAt || now) };
   }
 
   if (!active && runtime.restoreSyncActive === true) {
@@ -407,6 +427,8 @@ async function beginFullSyncRestore(runId, phase, requestedSnapshotAt, phaseStar
   await setRuntimeState({
     restoreSyncActive: true,
     restoreSyncRunId: runId,
+    restoreSyncKind: RESTORE_KIND_FULL_SYNC,
+    restoreSyncCancelRequested: false,
     restoreSyncPhase: phase,
     restoreSyncStartedAt: startedAt,
     restoreSyncHeartbeat: now,
@@ -423,6 +445,8 @@ async function finishFullSyncRestore(runId, result = {}) {
   await setRuntimeState({
     restoreSyncActive: false,
     restoreSyncRunId: "",
+    restoreSyncKind: "",
+    restoreSyncCancelRequested: Boolean(result.cancelled),
     restoreSyncHeartbeat: Date.now(),
     restoreSyncResult: { ...result, finishedAt: Date.now() },
   }).catch(() => null);
@@ -471,10 +495,27 @@ export async function handleFullSyncWatchstates(req, res) {
   if (!(await requireAdmin(req, res))) return;
 
   const body = (await readJson(req).catch(() => ({}))) || {};
+  const action = String(body.action || "").trim().toLowerCase();
+
+  if (action === "reset") {
+    const runtime = await loadRuntimeState();
+    const restoreKind = String(runtime.restoreSyncKind || "");
+    if (restoreKind && restoreKind !== RESTORE_KIND_FULL_SYNC) {
+      return sendJson(res, { error: "Another restore is currently active. Stop it from its owning tool first." }, 409);
+    }
+    const result = await clearRestoreSyncState({
+      reason: "Full Sync Watchstates was reset by an administrator.",
+    });
+    const message = result.reset
+      ? "Full Sync Watchstates was stopped and its restore lock was cleared."
+      : "No Full Sync Watchstates restore lock was active.";
+    return sendJson(res, { ok: true, reset: result.reset, active: false, previousRunId: result.runId || "", message });
+  }
+
   const runId = validFullSyncRunId(body.runId);
   if (!runId) return sendJson(res, { error: "A valid full-sync runId is required." }, 400);
 
-  if (String(body.action || "").toLowerCase() === "cancel") {
+  if (action === "cancel") {
     const runtime = await loadRuntimeState();
     const activeRunId = validFullSyncRunId(runtime.restoreSyncRunId);
     if (restoreRuntimeIsFresh(runtime) && activeRunId && activeRunId !== runId) {
@@ -513,7 +554,33 @@ export async function handleFullSyncWatchstates(req, res) {
 
   const restoreState = await beginFullSyncRestore(runId, phase, body.snapshotAt, phaseStart);
   if (restoreState.conflict) {
-    return sendJson(res, { error: "Another restore is currently active." }, 409);
+    const runtime = await loadRuntimeState();
+    return sendJson(res, {
+      error: "Another restore is currently active.",
+      restore: {
+        runId: validFullSyncRunId(runtime.restoreSyncRunId),
+        phase: String(runtime.restoreSyncPhase || "watched"),
+        startedAt: Number(runtime.restoreSyncStartedAt || 0),
+        heartbeat: Number(runtime.restoreSyncHeartbeat || 0),
+      },
+    }, 409);
+  }
+  if (restoreState.cancelled) {
+    return sendJson(res, {
+      ok: true,
+      phase,
+      runId,
+      snapshotAt: restoreState.snapshotAt,
+      total: 0,
+      processed: 0,
+      nextOffset: offset,
+      hasMore: false,
+      cancelled: true,
+      targets,
+      summary,
+      errors,
+      note: "This restore was stopped by an administrator.",
+    });
   }
   const snapshotAt = restoreState.snapshotAt;
   let total;
@@ -533,8 +600,10 @@ export async function handleFullSyncWatchstates(req, res) {
   const heartbeatTimer = setInterval(() => {
     touchFullSyncRestore(runId).catch(() => null);
   }, 30_000);
+  let processedRows = 0;
+  let restoreCancelled = false;
   try {
-    await runWithConcurrency(rows, FULL_SYNC_ROW_CONCURRENCY, async (row) => {
+    const runResult = await runWithConcurrency(rows, FULL_SYNC_ROW_CONCURRENCY, async (row) => {
       const outcomes = await Promise.all(targets.map(async (target) => {
         const media = phase === "progress" ? progressRowToMedia(row, target) : watchRowToMedia(row, target);
         if (!media.isValid) return { target, result: { status: "skipped" } };
@@ -580,12 +649,36 @@ export async function handleFullSyncWatchstates(req, res) {
           applyRestoreResult(summary, outcome.target, outcome.result);
         }
       }
-    });
+    }, () => fullSyncRestoreIsCancelled(runId));
+    processedRows = runResult.processed;
+    restoreCancelled = runResult.stopped || await fullSyncRestoreIsCancelled(runId);
   } catch (error) {
     await finishFullSyncRestore(runId, { success: false, error: error.message || String(error) });
     throw error;
   } finally {
     clearInterval(heartbeatTimer);
+  }
+
+  if (restoreCancelled) {
+    await finishFullSyncRestore(runId, { success: true, cancelled: true });
+    const nextOffset = offset + processedRows;
+    return sendJson(res, {
+      ok: true,
+      phase,
+      offset,
+      limit,
+      runId,
+      snapshotAt,
+      total,
+      processed: processedRows,
+      nextOffset,
+      hasMore: false,
+      cancelled: true,
+      targets,
+      summary,
+      errors,
+      note: "Restore stopped before the next batch.",
+    });
   }
 
   const nextOffset = offset + rows.length;

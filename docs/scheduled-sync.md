@@ -130,6 +130,14 @@ Three mechanisms keep inbound state honest:
   says watched, the event takes the repair path and re-marks the item watched on the
   configured destinations.
 
+Full Sync Watchstates uses a separate `restoreSyncKind` marker and heartbeat in the
+shared runtime state. A server restart cannot resume its browser-driven batch, so a
+startup clears a tagged Full Sync lock and marks it cancelled. The **Reset Restore
+Lock** control under **Settings → Sync → Sync Tools → Full Sync Watchstates** handles
+older or untagged locks and stops an in-flight request before it can send another
+batch. Backup restores use a different restore kind and are not cleared by this
+control.
+
 Completed sessions flushed from `live_tracking_cache` are dated from when the session
 was last seen playing, not from the tick that noticed it had gone, so a session that
 lingered through a restart is not backdated to the restart time.

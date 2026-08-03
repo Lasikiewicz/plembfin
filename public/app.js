@@ -166,6 +166,7 @@ function bindElements() {
     globalSearchInput: document.querySelector("#globalSearchInput"),
     fullSyncButton: document.querySelector("#fullSyncButton"),
     cancelFullSyncButton: document.querySelector("#cancelFullSyncButton"),
+    resetFullSyncButton: document.querySelector("#resetFullSyncButton"),
     fullSyncLog: document.querySelector("#fullSyncLog"),
     fullSyncStatus: document.querySelector("#fullSyncStatus"),
     fullSyncProgress: document.querySelector("#fullSyncProgress"),

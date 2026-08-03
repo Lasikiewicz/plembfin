@@ -70,7 +70,7 @@ export {
   updatePlembfinButtonsState,
   uploadWatchBackupFile,
 } from "./tools-backups.js";
-export { loadCacheStats, renderCachePanel } from "./tools-maintenance.js";
+export { loadCacheStats, renderCachePanel, resetFullSyncWatchstates } from "./tools-maintenance.js";
 export { loadSyncHealth } from "./tools-health.js";
 // ── Trakt / CSV import ─────────────────────────────────────────────────────
 export async function parseSelectedFiles(files) {

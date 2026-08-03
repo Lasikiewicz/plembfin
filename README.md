@@ -301,7 +301,7 @@ Plembfin runs automated daily backups; each backup type has its own schedule tim
 ### Trakt Watch History Import
 1. Download a JSON watch history export of your Trakt profile.
 2. Go to **Settings → Import** (`/settings/import`), upload the JSON, and start the import.
-3. Imported watches are queued and propagated automatically. Use **Settings → Sync → Sync Tools → Full Sync Watchstates** (`/settings/sync#full-sync-watchstates`) to replay the complete Plembfin archive immediately, for example after connecting a new server or rebuilding a library.
+3. Imported watches are queued and propagated automatically. Use **Settings → Sync → Sync Tools → Full Sync Watchstates** (`/settings/sync#full-sync-watchstates`) to replay the complete Plembfin archive immediately, for example after connecting a new server or rebuilding a library. If a browser or server restart leaves a restore lock behind, use **Reset Restore Lock** in the same tool after confirming no other restore should continue.
 
 ---
 

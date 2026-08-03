@@ -1171,6 +1171,7 @@ export async function runFullSyncWatchstates() {
     elements.cancelFullSyncButton.disabled = false;
     elements.cancelFullSyncButton.textContent = "Stop Restore";
   }
+  if (elements.resetFullSyncButton) elements.resetFullSyncButton.disabled = true;
   if (elements.fullSyncLog) elements.fullSyncLog.textContent = "";
   beginFullSyncProgress();
   const limit = 100;
@@ -1200,13 +1201,24 @@ export async function runFullSyncWatchstates() {
           signal: fullSyncAbortController.signal,
         });
         const body = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(body.error || `Full sync failed with ${response.status}`);
+        if (!response.ok) {
+          const error = new Error(body.error || `Full sync failed with ${response.status}`);
+          error.status = response.status;
+          error.body = body;
+          throw error;
+        }
         updateFullSyncProgress(phase, body);
         if (body.snapshotAt) snapshotAt = Number(body.snapshotAt);
         const phaseState = fullSyncProgressState?.phases?.[phase];
         appendFullSyncLog(`${phase} batch ${batch}: processed ${formatNumber(phaseState?.processed || 0)} of ${formatNumber(phaseState?.total || 0)}. ${summarizeFullSyncPhase(body.summary || {})}`);
         if (Array.isArray(body.errors) && body.errors.length) {
           appendFullSyncLog(`${phase} batch ${batch}: ${body.errors.length} platform errors captured.`);
+        }
+        if (body.cancelled) {
+          fullSyncCancelRequested = true;
+          appendFullSyncLog(`${phase} restore was stopped by another session or an administrator.`);
+          hasMore = false;
+          break;
         }
         offset = Number(body.nextOffset || offset + Number(body.processed || 0));
         hasMore = Boolean(body.hasMore) && Number(body.processed || 0) > 0;
@@ -1238,7 +1250,13 @@ export async function runFullSyncWatchstates() {
     finishFullSyncProgress("error");
     setStatusPill(status, "Error", "error");
     appendFullSyncLog(`ERROR: ${error.message}`);
-    setMessage(`Full sync failed: ${error.message}`, "error");
+    if (Number(error?.status) === 409) {
+      if (elements.resetFullSyncButton) elements.resetFullSyncButton.disabled = false;
+      appendFullSyncLog("If the other restore was interrupted, use Reset Restore Lock before trying again.");
+      setMessage("Another restore is active. Reset its lock only if it was interrupted or abandoned.", "warning");
+    } else {
+      setMessage(`Full sync failed: ${error.message}`, "error");
+    }
     throw error;
   } finally {
     state.fullSyncActive = false;
@@ -1249,6 +1267,7 @@ export async function runFullSyncWatchstates() {
       elements.cancelFullSyncButton.disabled = false;
       elements.cancelFullSyncButton.textContent = "Stop Restore";
     }
+    if (elements.resetFullSyncButton) elements.resetFullSyncButton.disabled = false;
     fullSyncAbortController = null;
     fullSyncRunId = "";
     fullSyncCancelRequested = false;
@@ -1277,6 +1296,37 @@ export async function cancelFullSyncWatchstates() {
 }
 
 // ── Cache stats ──────────────────────────────────────────────────────────
+
+export function resetFullSyncWatchstates() {
+  if (state.fullSyncActive || !elements.resetFullSyncButton) return;
+
+  showConfirmModal(
+    "Reset the Full Sync Watchstates restore lock?\n\nUse this only when the other restore was abandoned or interrupted by a server restart. Any in-flight restore request will stop before sending another batch.",
+    async () => {
+      const button = elements.resetFullSyncButton;
+      button.disabled = true;
+      const status = elements.fullSyncStatus;
+      try {
+        const response = await fetch("/api/full-sync-watchstates", {
+          method: "POST",
+          headers: { ...authHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "reset" }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || `Restore reset failed with ${response.status}`);
+        appendFullSyncLog(body.message || "Full Sync Watchstates restore lock cleared.");
+        if (status) setStatusPill(status, "Ready", "muted");
+        if (fullSyncProgressState?.status === "error") finishFullSyncProgress("stopped");
+        setMessage(body.message || "Full Sync Watchstates restore lock cleared.", body.reset ? "success" : "info");
+      } catch (error) {
+        appendFullSyncLog(`ERROR: ${error.message}`);
+        setMessage(`Could not reset the restore lock: ${error.message}`, "error");
+      } finally {
+        button.disabled = false;
+      }
+    },
+  );
+}
 
 function fmtCacheBytes(bytes) {
   if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(1)} GB`;

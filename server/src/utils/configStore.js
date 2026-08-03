@@ -369,6 +369,9 @@ const upsertRuntimeStmt = db.prepare(
    ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
 );
 
+export const RESTORE_KIND_FULL_SYNC = "full_sync_watchstates";
+export const RESTORE_KIND_BACKUP = "backup_restore";
+
 export async function setRuntimeState(values = {}) {
   db.transaction(() => {
     const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
@@ -379,6 +382,37 @@ export async function setRuntimeState(values = {}) {
 
 export async function loadRuntimeState() {
   return parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+}
+
+// Clear a restore guard after the owning process has stopped or an administrator
+// has explicitly confirmed that the persisted lock is orphaned. The cancellation
+// flag lets an in-flight full-sync request finish its current remote call without
+// accepting another batch under the old run id.
+export async function clearRestoreSyncState({ reason = "Restore lock cleared.", expectedKind = "" } = {}) {
+  const runtime = await loadRuntimeState();
+  const kind = String(runtime.restoreSyncKind || "");
+  if (expectedKind && kind !== expectedKind) return { reset: false, skipped: true, kind, runId: String(runtime.restoreSyncRunId || "") };
+
+  const runId = String(runtime.restoreSyncRunId || "");
+  const wasActive = runtime.restoreSyncActive === true || Boolean(runId) || runtime.restoreSyncCancelRequested === true;
+  if (!wasActive) return { reset: false, skipped: false, kind, runId };
+
+  const finishedAt = Date.now();
+  await setRuntimeState({
+    restoreSyncActive: false,
+    restoreSyncRunId: "",
+    restoreSyncKind: "",
+    restoreSyncCancelRequested: true,
+    restoreSyncHeartbeat: finishedAt,
+    restoreSyncResult: {
+      success: false,
+      cancelled: true,
+      reset: true,
+      reason,
+      finishedAt,
+    },
+  });
+  return { reset: true, skipped: false, kind, runId };
 }
 
 // Append items onto an array field in runtime_state.

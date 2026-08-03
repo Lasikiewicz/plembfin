@@ -5,6 +5,7 @@ import { makeTempDataDir } from "./helpers.js";
 makeTempDataDir("plembfin-canonical-watch-state-");
 
 const repo = await import("../server/src/utils/dataRepo.js");
+const runtime = await import("../server/src/utils/configStore.js");
 
 test("imported watched records become canonical playstate and remain queued for app sync", async () => {
   const result = await repo.batchInsertWatchRecords([{
@@ -92,4 +93,35 @@ test("watchstate replay snapshots exclude rows written after the run began", asy
   const keys = new Set(rows.map((row) => row.media_key));
   assert.ok(keys.has(firstPlaystate.media_key));
   assert.ok(!keys.has((await repo.getPlaystateForMedia(secondMedia)).media_key));
+});
+
+test("restore lock reset cancels an orphaned full-sync owner without clearing backup restores", async () => {
+  await runtime.setRuntimeState({
+    restoreSyncActive: true,
+    restoreSyncRunId: "orphan-full-sync",
+    restoreSyncKind: runtime.RESTORE_KIND_FULL_SYNC,
+    restoreSyncCancelRequested: false,
+  });
+
+  const cleared = await runtime.clearRestoreSyncState({ reason: "test reset" });
+  assert.equal(cleared.reset, true);
+  let state = await runtime.loadRuntimeState();
+  assert.equal(state.restoreSyncActive, false);
+  assert.equal(state.restoreSyncRunId, "");
+  assert.equal(state.restoreSyncCancelRequested, true);
+  assert.equal(state.restoreSyncResult.reason, "test reset");
+
+  await runtime.setRuntimeState({
+    restoreSyncActive: true,
+    restoreSyncRunId: "backup-restore",
+    restoreSyncKind: runtime.RESTORE_KIND_BACKUP,
+    restoreSyncCancelRequested: false,
+  });
+  const skipped = await runtime.clearRestoreSyncState({ expectedKind: runtime.RESTORE_KIND_FULL_SYNC });
+  assert.equal(skipped.reset, false);
+  assert.equal(skipped.skipped, true);
+  state = await runtime.loadRuntimeState();
+  assert.equal(state.restoreSyncActive, true);
+  assert.equal(state.restoreSyncKind, runtime.RESTORE_KIND_BACKUP);
+  await runtime.clearRestoreSyncState({ reason: "test cleanup" });
 });

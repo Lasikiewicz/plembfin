@@ -6,7 +6,7 @@ import { fetchWithTimeout } from "../utils/outbound.js";
 import { db, writeAuditLog } from "../db.js";
 import { createLoopStore } from "../utils/loopStore.js";
 import { listActiveSessions } from "../utils/activeSessions.js";
-import { loadMediaConfig, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "../utils/configStore.js";
+import { loadMediaConfig, loadRuntimeState, RESTORE_KIND_BACKUP, setRuntimeState, appendRuntimeLog } from "../utils/configStore.js";
 import { markPlexUnplayedByRatingKey, fetchPlexWatchedItems } from "../utils/plexClient.js";
 import { markEmbyUnplayedById, fetchEmbyWatchedItems } from "../utils/embyClient.js";
 import { markJellyfinUnplayedById, fetchJellyfinWatchedItems } from "../utils/jellyfinClient.js";
@@ -494,7 +494,7 @@ async function runRestoreReconcileJob(clearMode) {
     await stop();
     // Clear the active flag LAST (after lastRestoreAt is stamped) so the first allowed cron tick
     // already sees the watermark.
-    await setRuntimeState({ restoreSyncActive: false, restoreSyncResult: result || { success: false } }).catch(() => null);
+    await setRuntimeState({ restoreSyncActive: false, restoreSyncKind: "", restoreSyncCancelRequested: false, restoreSyncResult: result || { success: false } }).catch(() => null);
   }
   return result;
 }
@@ -511,6 +511,8 @@ async function startAuthoritativeRestore(filename, clearMode) {
   // Mark active BEFORE touching the DB so the cron + webhook stop importing immediately.
   await setRuntimeState({
     restoreSyncActive: true,
+    restoreSyncKind: RESTORE_KIND_BACKUP,
+    restoreSyncCancelRequested: false,
     restoreSyncStartedAt: Date.now(),
     restoreSyncHeartbeat: Date.now(),
     restoreSyncResult: null,
@@ -522,7 +524,7 @@ async function startAuthoritativeRestore(filename, clearMode) {
     restore = restoreWatchHistoryBackup(filename, { mode: "replace", dryRun: false });
     writeAuditLog("backup.restored", { detail: { filename, clearMode, records: restore?.imported } });
   } catch (error) {
-    await setRuntimeState({ restoreSyncActive: false, restoreSyncResult: { success: false, error: error.message } }).catch(() => null);
+    await setRuntimeState({ restoreSyncActive: false, restoreSyncKind: "", restoreSyncCancelRequested: false, restoreSyncResult: { success: false, error: error.message } }).catch(() => null);
     return { status: 400, body: { error: error.message } };
   }
 
