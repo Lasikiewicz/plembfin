@@ -10,7 +10,7 @@ Causes, in order of likelihood:
    server machine. If that machine can't reach the configured Plex/Emby/Jellyfin
    URLs, `live_tracking_cache` stays empty. The browser-side local probe compensates
    for display but the scheduler's completion/catch-up logic won't run. Check the
-   server logs and Settings → Health.
+   server logs and Settings → Advanced → System integrity check.
 2. **Database is stale.** Check via SQLite directly:
    ```sh
    sqlite3 data/plembfin.db "SELECT title, last_progress, completed_at FROM live_tracking_cache ORDER BY updated_at DESC LIMIT 10;"
@@ -78,7 +78,7 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
 ## "Webhook returns 401"
 
 - The webhook secret is missing or wrong. Media-server setup usually uses the
-  `?token=` URL from **Settings → Webhooks**; automation can send
+  `?token=` URL from **Settings → Media servers → Webhooks**; automation can send
   `X-Plembfin-Webhook-Secret` or `Authorization: Bearer <secret>`.
 - If you rotated the webhook secret ("Rotate Secret" button), all media servers need
   to be updated with the new URL or header value.

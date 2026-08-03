@@ -22,7 +22,7 @@
 > occasional changes that require reconfiguration.
 >
 > It writes watched state to your media servers, so treat your watch history as
-> precious. **Take a backup before you start** (Settings → Backups) and keep
+> precious. **Take a backup before you start** (Settings → Backup / restore → Backup settings) and keep
 > your own copy of anything you cannot afford to lose. Please report anything
 > you run into on the [issue tracker](https://github.com/Lasikiewicz/plembfin/issues).
 
@@ -111,8 +111,9 @@
 Force Sync can be previewed before writes, with scoped libraries/media types, typed
 additive or destructive actions, stale-plan protection, and verified pre-run watch-history
 snapshots. Server roles can be bidirectional, source-only, destination-only, or monitor-only.
-Outbound requests use shared per-destination pacing and cooldown telemetry, while Settings
-â†’ Health reports current history scale, matching failures, and upstream pressure. See
+Outbound requests use shared per-destination pacing and cooldown telemetry, while
+**Settings → Advanced → System integrity check** reports current history scale, matching
+failures, and upstream pressure. See
 [`docs/scheduled-sync.md`](docs/scheduled-sync.md) and [`docs/capacity.md`](docs/capacity.md)
 for operating guidance.
 
@@ -188,7 +189,7 @@ for operating guidance.
 ## Full Setup & Integration Guide
 
 ### 1. Sign In & Set Admin Credentials
-Sign in with `admin` and the password you set via `ADMIN_PASSWORD`, or the random password Plembfin generated and printed to the console on first boot. If the configured admin password is the insecure default `admin`, Plembfin redirects to **Settings → Account** with a security banner until the password is changed.
+Sign in with `admin` and the password you set via `ADMIN_PASSWORD`, or the random password Plembfin generated and printed to the console on first boot. If the configured admin password is the insecure default `admin`, Plembfin redirects to **Settings → General → Account** with a security banner until the password is changed.
 
 ### 2. Connect Your Media Apps
 Go to **Settings → Media Servers**. Select an existing card to edit it, or use the
@@ -218,14 +219,14 @@ Save and Test actions:
 
 #### TheTVDB (TV Show Episode Data)
 *   Plembfin includes a built-in project key for [TheTVDB](https://thetvdb.com) - no setup is required. TV show names, seasons, episode numbering, titles, and air dates are sourced from TheTVDB, since it is often more accurate for TV episode ordering. Cast, trailers, reviews, and recommendations are sourced from TMDB.
-*   **Personal API Key (optional)**: Register at thetvdb.com (Dashboard → API Keys) and enter your personal key under **Settings → Metadata Providers → TheTVDB** for your own request quota.
+*   **Personal API Key (optional)**: Register at thetvdb.com (Dashboard → API Keys) and enter your personal key under **Settings → Metadata → Metadata Providers → TheTVDB** for your own request quota.
 
 #### Fanart.tv (Artwork Fallback)
 *   Plembfin includes a built-in project key for [Fanart.tv](https://fanart.tv) - no setup is required. Fanart.tv is queried after TMDB as a fallback/additional source for posters, backdrops, and transparent logo art.
-*   **Personal API Key (optional)**: Register at fanart.tv and enter your personal key under **Settings → Metadata Providers → Fanart.tv** to get higher rate limits and access to your own uploaded artwork.
+*   **Personal API Key (optional)**: Register at fanart.tv and enter your personal key under **Settings → Metadata → Metadata Providers → Fanart.tv** to get higher rate limits and access to your own uploaded artwork.
 
 #### OMDb (IMDb Ratings)
-*   **Optional**: Register for a free API key at [omdbapi.com](https://www.omdbapi.com/apikey.aspx) (1,000 req/day free tier) and paste it under **Settings → Metadata Providers → OMDb**.
+*   **Optional**: Register for a free API key at [omdbapi.com](https://www.omdbapi.com/apikey.aspx) (1,000 req/day free tier) and paste it under **Settings → Metadata → Metadata Providers → OMDb**.
 *   When configured, IMDb ratings appear as a rating badge (e.g. **IMDb 85%**) next to the TMDB score on media detail pages. If no OMDb key is configured, IMDb rating badges are hidden. Ratings are cached locally for 7 days. Can also be set via the `OMDB_API_KEY` environment variable.
 
 #### Seerr (Request Manager)
@@ -237,15 +238,15 @@ Save and Test actions:
 *   The browser also remembers the last known availability and open-in-app links for each title, so detail pages show availability badges and app buttons instantly on open and refresh them silently in the background when anything changed.
 
 #### Sync Tuning and Match Diagnostics
-*   **Settings → Sync** (or `/settings/sync-tuning`) controls the watched threshold, minimum resume position, active-session TTL, and default outbound timeout. Blank fields inherit their environment variable or built-in default.
-*   **Settings → Sync Issues** (or `/settings/sync-issues`) includes a Cross-Platform Match Report listing media Plembfin could not identify, so you can pick the right title for it. Media that is identified and simply absent from a library is left out - the watch is recorded correctly and there is nothing to fix. **Rescan** re-runs the sync for the list and rebuilds it; **Fix All Matches** does the same and then walks you through each item.
+*   **Settings → Sync → Sync Tuning** (or `/settings/sync#sync-tuning`) controls the watched threshold, minimum resume position, active-session TTL, and default outbound timeout. Blank fields inherit their environment variable or built-in default.
+*   **Settings → Sync → Sync Issues** (or `/settings/sync#sync-issues`) includes a Cross-Platform Match Report listing media Plembfin could not identify, so you can pick the right title for it. Media that is identified and simply absent from a library is left out - the watch is recorded correctly and there is nothing to fix. **Rescan** re-runs the sync for the list and rebuilds it; **Fix All Matches** does the same and then walks you through each item.
 *   **Newly added media is caught up automatically.** When a server announces new content that you have already watched, Plembfin marks it watched there as it arrives - so restoring or re-adding a file does not leave it looking unplayed. Adding a whole show catches up its episodes too, skipping any the server already has as played. It only ever applies an existing watch, never creates one. This needs the library-add notification enabled in each server's webhook setup (`library.new` on Plex and Emby, `Item Added` on Jellyfin) - see [webhooks.md](docs/webhooks.md#catching-up-newly-added-media).
 
 ---
 
 ## Webhook Setup & Real-time Watch Sync
 
-Playback events are sent to Plembfin via webhooks. Plembfin accepts the webhook secret in the `X-Plembfin-Webhook-Secret` header, as `Authorization: Bearer <secret>`, or in the compatibility query-token URL used by Plex/Emby/Jellyfin. Copy the full URL from **Settings → Webhooks** after signing in. It will look like:
+Playback events are sent to Plembfin via webhooks. Plembfin accepts the webhook secret in the `X-Plembfin-Webhook-Secret` header, as `Authorization: Bearer <secret>`, or in the compatibility query-token URL used by Plex/Emby/Jellyfin. Copy the full URL from **Settings → Media servers → Webhooks** after signing in. It will look like:
 
 ```
 http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
@@ -259,7 +260,7 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 #### 1. Plex Webhook Setup
 1.  Navigate to Plex Web → **Account Settings → Webhooks**.
 2.  Click **Add Webhook**.
-3.  Paste the full webhook URL (with `?token=`) from **Settings → Webhooks**.
+3.  Paste the full webhook URL (with `?token=`) from **Settings → Media servers → Webhooks**.
 4.  Enable events: `media.play`, `media.resume`, `media.pause`, `media.stop`, `media.scrobble`.
 5.  Save changes.
 
@@ -267,7 +268,7 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 
 #### 2. Emby Webhook Setup
 1.  Go to Emby Server Settings → **Webhooks** and add a new webhook.
-2.  Set the URL to the full webhook URL (with `?token=`) from **Settings → Webhooks**.
+2.  Set the URL to the full webhook URL (with `?token=`) from **Settings → Media servers → Webhooks**.
 3.  Under **Events → Playback**, check: `Start`, `Pause`, `Unpause`, `Stop`.
 4.  Under **Events → Users**, check: `Mark Played`, `Mark Unplayed`.
 5.  Leave every other event category unticked - Plembfin ignores library, system, and activity events, and they only add rejected entries to Sync History.
@@ -276,7 +277,7 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 #### 3. Jellyfin Webhook Setup
 1.  Install the **Webhooks** plugin from the Jellyfin Plugin Catalog.
 2.  Add a new **Generic Webhook** named `plembfin`.
-3.  Set the URL to the full webhook URL (with `?token=`) from **Settings → Webhooks**.
+3.  Set the URL to the full webhook URL (with `?token=`) from **Settings → Media servers → Webhooks**.
 4.  Under **Notification Type**, check: `Playback Start`, `Playback Progress`, `Playback Stop`, `User Data Saved`.
 5.  Under **Item Type**, select: `Movies`, `Episodes`. Leave the other notification and item types unticked.
 6.  Check **Send All Properties (ignores template)** and save. The body must be JSON, but the content type does not matter - Jellyfin labels its payloads `text/plain` and Plembfin reads them anyway.
@@ -291,7 +292,7 @@ Plembfin runs automated daily backups; each backup type has its own schedule tim
 
 *   **Local Watch History Backups**: Capture watch history snapshots, playstates, and resume markers. Saved to `data/backups/watch-history`.
 *   **Local Plembfin Backups**: Create full, AES-256-GCM encrypted database backups (including settings, API keys, credentials, and play history, excluding cache). Manual backups can use a one-time passphrase; scheduled backups require a remembered passphrase. Saved to `data/backups/plembfin`.
-*   **Remote Backups**: Upload watch-history and full encrypted Plembfin backups to one or more private Backblaze B2 destinations under **Settings → Backup / Restore → Remote Backups** (`/settings/backup-restore`). Remote watch-history backups run on their own daily schedule with their own retention count on the remote, independent of the local schedule; remote Plembfin backups run with the daily Plembfin backup when remote mirroring is enabled. Select a destination card to edit/test it, or use **+** to add one.
+*   **Remote Backups**: Upload watch-history and full encrypted Plembfin backups to one or more private Backblaze B2 destinations under **Settings → Backup / restore → Backup settings → Remote** (`/settings/backup-restore#backup-settings-remote`). Remote watch-history backups run on their own daily schedule with their own retention count on the remote, independent of the local schedule; remote Plembfin backups run with the daily Plembfin backup when remote mirroring is enabled. Select a destination card to edit/test it, or use **+** to add one.
 
 ---
 
@@ -300,20 +301,20 @@ Plembfin runs automated daily backups; each backup type has its own schedule tim
 ### Trakt Watch History Import
 1. Download a JSON watch history export of your Trakt profile.
 2. Go to **Settings → Import** (`/settings/import`), upload the JSON, and start the import.
-3. Imported watches are queued and propagated automatically. Use **Settings → Tools → Full Sync Watchstates** (`/settings/full-sync-watchstates`) to replay the complete Plembfin archive immediately, for example after connecting a new server or rebuilding a library.
+3. Imported watches are queued and propagated automatically. Use **Settings → Sync → Sync Tools → Full Sync Watchstates** (`/settings/sync#full-sync-watchstates`) to replay the complete Plembfin archive immediately, for example after connecting a new server or rebuilding a library.
 
 ---
 
 ## System Diagnostics & Logs
 
-Plembfin includes a real-time, screen-filling diagnostic log viewer under **Settings → Server Logs** (`/settings/logs`).
+Plembfin includes a real-time, screen-filling diagnostic log viewer under **Settings → Logs** (`/settings/logs`).
 - **Category Filtering**: Filter the telemetry log stream by **All Logs**, **Plex WebSockets**, **Outbound Sync**, **Scheduled Polls**, or **System Logs**.
 - **Local Timestamp Parsing**: Timestamps are parsed in the client browser to render in your local system timezone.
 - **Download Logs**: Click **Download Logs** to export a complete `.log` file containing full backend and frontend diagnostic history for debugging.
 - **Merged across processes**: Log entries are stored in the database, so the viewer shows web and worker output together and stays fast however long the server has been running.
 - **High signal by default**: A background sync tick that changed nothing writes nothing, and repeated per-item outcomes are condensed into a single line with a count. Set `LOG_VERBOSE=true` when you need the full per-request trace.
 
-**Sync Health** (**Settings → Sync → Sync Issues**) reports watch-history data quality alongside the match report: rows that duplicate an existing watch event, items with several distinct watch dates (rewatches, which are kept as-is), episode rows missing a season number, and rows storing a provider URI instead of a show title. Each one comes with a plain-language recommendation.
+**Sync Health** (**Settings → Sync → Sync Issues**; `/settings/sync#sync-issues`) reports watch-history data quality alongside the match report: rows that duplicate an existing watch event, items with several distinct watch dates (rewatches, which are kept as-is), episode rows missing a season number, and rows storing a provider URI instead of a show title. Each one comes with a plain-language recommendation.
 
 ---
 
@@ -336,7 +337,7 @@ The following environment variables can be set in your system or defined in `doc
 | `TVDB_API_KEY` | _none_ | Optional personal TheTVDB API key for a higher personal rate limit. A built-in project key is used when this is unset. |
 | `TVDB_PROJECT_KEY` | _built-in_ | Advanced: replaces the built-in shared TheTVDB project key. Only needed if the built-in key is revoked or exhausted. |
 | `FANART_PROJECT_KEY` | _built-in_ | Advanced: replaces the built-in shared Fanart.tv project key. Only needed if the built-in key is revoked or exhausted. |
-| `TMDB_API_KEY` | _none_ | Default TMDB API key (Settings → Metadata Providers takes precedence). |
+| `TMDB_API_KEY` | _none_ | Default TMDB API key (Settings → Metadata → Metadata Providers takes precedence). |
 | `YOUTUBE_API_KEY` | _none_ | Optional YouTube Data API key for trailer metadata (Settings takes precedence). |
 | `OMDB_API_KEY` | _none_ | Optional OMDb API key. When set, IMDb ratings are fetched and displayed as a rating badge on media detail pages. Free tier: 1,000 req/day. |
 | `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` / `PLEX_ENABLED` | _none_ | Default Plex connection values. Anything saved in Settings → Media Servers takes precedence. |

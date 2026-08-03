@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, platformName, formatDate } from "./utils.js";
+import { escapeHtml, escapeAttribute, platformName, formatDate, formatNumber } from "./utils.js";
 import { categorizeIssues } from "./sync.js";
 import { openFixMatchDialog } from "./edit-dialogs.js";
 
@@ -11,6 +11,11 @@ let _loadSyncHistory = async () => {};
 let _loadHistory = async () => {};
 let _clearDerivedUiCaches = () => {};
 let _loadSavedConfig = async () => {};
+let fullSyncAbortController = null;
+let fullSyncRunId = "";
+let fullSyncCancelRequested = false;
+let fullSyncProgressTimer = null;
+let fullSyncProgressState = null;
 
 export function initMaintenanceTools(callbacks = {}) {
   if (callbacks.setMessage) _setMessage = callbacks.setMessage;
@@ -34,6 +39,120 @@ function setStatusPill(element, text, tone = "muted") {
   if (!element) return;
   element.textContent = text;
   element.className = `status-pill status-${tone}`;
+}
+
+function formatFullSyncDuration(milliseconds) {
+  const totalSeconds = Math.max(0, Math.round(Number(milliseconds || 0) / 1000));
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}
+
+function fullSyncRowsProcessed() {
+  if (!fullSyncProgressState) return 0;
+  return Object.values(fullSyncProgressState.phases).reduce((sum, phase) => sum + Number(phase.processed || 0), 0);
+}
+
+function fullSyncKnownTotal() {
+  if (!fullSyncProgressState) return null;
+  const totals = Object.values(fullSyncProgressState.phases).map((phase) => phase.total);
+  return totals.every((total) => Number.isFinite(total)) ? totals.reduce((sum, total) => sum + total, 0) : null;
+}
+
+function fullSyncProgressValue() {
+  if (!fullSyncProgressState) return 0;
+  if (fullSyncProgressState.status === "complete") return 100;
+  const watched = fullSyncProgressState.phases.watched;
+  const progress = fullSyncProgressState.phases.progress;
+  const watchedValue = watched.total == null ? 0 : watched.total > 0 ? watched.processed / watched.total : 1;
+  const progressValue = progress.total > 0 ? progress.processed / progress.total : 0;
+  return fullSyncProgressState.phase === "progress"
+    ? 50 + Math.max(0, Math.min(1, progressValue)) * 50
+    : Math.max(0, Math.min(1, watchedValue)) * 50;
+}
+
+function renderFullSyncProgress() {
+  if (!fullSyncProgressState || !elements.fullSyncProgress) return;
+
+  const processed = fullSyncRowsProcessed();
+  const total = fullSyncKnownTotal();
+  const elapsedMs = Math.max(0, Date.now() - fullSyncProgressState.startedAt);
+  const rowsPerMinute = elapsedMs > 0 ? processed / (elapsedMs / 60_000) : 0;
+  const currentPhase = fullSyncProgressState.phases[fullSyncProgressState.phase];
+  const phaseProcessed = Number(currentPhase?.processed || 0);
+  const phaseTotal = Number.isFinite(currentPhase?.total) ? currentPhase.total : null;
+  const remainingMs = rowsPerMinute > 0 && phaseTotal != null && phaseTotal > phaseProcessed
+    ? ((phaseTotal - phaseProcessed) / rowsPerMinute) * 60_000
+    : null;
+  const value = Math.max(0, Math.min(100, Math.round(fullSyncProgressValue())));
+  const phaseLabel = fullSyncProgressState.phase === "progress" ? "Resume positions" : "Watched states";
+
+  let meta = `${value}% · ${formatFullSyncDuration(elapsedMs)} elapsed`;
+  if (total == null) meta += " · Calculating remaining phase";
+  else if (fullSyncProgressState.status === "complete") meta = `100% · ${formatFullSyncDuration(elapsedMs)} total`;
+
+  if (elements.fullSyncProgressLabel) {
+    elements.fullSyncProgressLabel.textContent = fullSyncProgressState.status === "complete"
+      ? "Restore complete"
+      : fullSyncProgressState.status === "stopped"
+        ? "Restore stopped"
+        : `${phaseLabel}: ${formatNumber(phaseProcessed)}${phaseTotal == null ? "" : ` / ${formatNumber(phaseTotal)}`}`;
+  }
+  if (elements.fullSyncProgressMeta) elements.fullSyncProgressMeta.textContent = meta;
+  if (elements.fullSyncProgressCount) {
+    elements.fullSyncProgressCount.textContent = total == null
+      ? `${formatNumber(processed)} rows processed`
+      : `${formatNumber(processed)} of ${formatNumber(total)} rows processed`;
+  }
+  if (elements.fullSyncProgressRate) {
+    elements.fullSyncProgressRate.textContent = rowsPerMinute > 0 ? `${rowsPerMinute.toFixed(1)} rows/min` : "Rate —";
+  }
+  if (elements.fullSyncProgressEta) {
+    elements.fullSyncProgressEta.textContent = fullSyncProgressState.status === "complete"
+      ? "ETA complete"
+      : remainingMs != null
+        ? `${total == null ? `${phaseLabel} ` : ""}ETA ${formatFullSyncDuration(remainingMs)}`
+        : "ETA calculating";
+  }
+  elements.fullSyncProgress.classList.remove("hidden");
+  elements.fullSyncProgress.dataset.status = fullSyncProgressState.status;
+  if (elements.fullSyncProgressTrack) elements.fullSyncProgressTrack.setAttribute("aria-valuenow", String(value));
+  if (elements.fullSyncProgressFill) elements.fullSyncProgressFill.style.transform = `scaleX(${value / 100})`;
+}
+
+function beginFullSyncProgress() {
+  if (fullSyncProgressTimer) clearInterval(fullSyncProgressTimer);
+  fullSyncProgressState = {
+    phase: "watched",
+    status: "running",
+    startedAt: Date.now(),
+    phases: {
+      watched: { processed: 0, total: null },
+      progress: { processed: 0, total: null },
+    },
+  };
+  renderFullSyncProgress();
+  fullSyncProgressTimer = setInterval(renderFullSyncProgress, 1000);
+}
+
+function updateFullSyncProgress(phase, body = {}) {
+  if (!fullSyncProgressState) return;
+  fullSyncProgressState.phase = phase;
+  const phaseState = fullSyncProgressState.phases[phase];
+  const total = Number(body.total);
+  if (Number.isFinite(total) && total >= 0) phaseState.total = total;
+  phaseState.processed += Math.max(0, Number(body.processed || 0));
+  renderFullSyncProgress();
+}
+
+function finishFullSyncProgress(status, label = "") {
+  if (!fullSyncProgressState) return;
+  if (fullSyncProgressTimer) clearInterval(fullSyncProgressTimer);
+  fullSyncProgressTimer = null;
+  fullSyncProgressState.status = status;
+  if (label) fullSyncProgressState.label = label;
+  renderFullSyncProgress();
 }
 
 export async function runSystemIntegrityCheck() {
@@ -1037,34 +1156,55 @@ export async function runFullSyncWatchstates() {
   const button = elements.fullSyncButton;
   const status = elements.fullSyncStatus;
   if (!button || !status) return;
+
+  fullSyncRunId = typeof globalThis.crypto?.randomUUID === "function"
+    ? globalThis.crypto.randomUUID()
+    : `full-sync-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  fullSyncCancelRequested = false;
+  fullSyncAbortController = new AbortController();
   state.fullSyncActive = true;
   button.disabled = true;
   button.textContent = "Syncing...";
-  status.textContent = "Running";
-  status.className = "status-pill status-ready";
+  setStatusPill(status, "Running", "ready");
+  if (elements.cancelFullSyncButton) {
+    elements.cancelFullSyncButton.classList.remove("hidden");
+    elements.cancelFullSyncButton.disabled = false;
+    elements.cancelFullSyncButton.textContent = "Stop Restore";
+  }
   if (elements.fullSyncLog) elements.fullSyncLog.textContent = "";
-  const limit = 25;
+  beginFullSyncProgress();
+  const limit = 100;
   const phases = ["watched", "progress"];
-  const totals = {
-    watched: { processed: 0 },
-    progress: { processed: 0 },
-  };
   try {
     for (const phase of phases) {
+      if (fullSyncCancelRequested) break;
       let offset = 0;
       let batch = 1;
       let hasMore = true;
-      appendFullSyncLog(`Starting ${phase} restore.`);
+      let snapshotAt = null;
+      appendFullSyncLog(`Starting ${phase} restore (up to ${limit} rows per batch).`);
       while (hasMore) {
+        if (fullSyncCancelRequested) break;
+        const requestBody = {
+          phase,
+          offset,
+          limit,
+          runId: fullSyncRunId,
+          start: batch === 1,
+        };
+        if (snapshotAt) requestBody.snapshotAt = snapshotAt;
         const response = await fetch("/api/full-sync-watchstates", {
           method: "POST",
           headers: { ...authHeaders(), "Content-Type": "application/json" },
-          body: JSON.stringify({ phase, offset, limit }),
+          body: JSON.stringify(requestBody),
+          signal: fullSyncAbortController.signal,
         });
         const body = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(body.error || `Full sync failed with ${response.status}`);
-        totals[phase].processed += Number(body.processed || 0);
-        appendFullSyncLog(`${phase} batch ${batch}: processed ${Number(body.processed || 0)} of ${Number(body.total || 0)}. ${summarizeFullSyncPhase(body.summary || {})}`);
+        updateFullSyncProgress(phase, body);
+        if (body.snapshotAt) snapshotAt = Number(body.snapshotAt);
+        const phaseState = fullSyncProgressState?.phases?.[phase];
+        appendFullSyncLog(`${phase} batch ${batch}: processed ${formatNumber(phaseState?.processed || 0)} of ${formatNumber(phaseState?.total || 0)}. ${summarizeFullSyncPhase(body.summary || {})}`);
         if (Array.isArray(body.errors) && body.errors.length) {
           appendFullSyncLog(`${phase} batch ${batch}: ${body.errors.length} platform errors captured.`);
         }
@@ -1072,14 +1212,31 @@ export async function runFullSyncWatchstates() {
         hasMore = Boolean(body.hasMore) && Number(body.processed || 0) > 0;
         batch += 1;
       }
+      if (!fullSyncCancelRequested) appendFullSyncLog(`${phase} restore complete.`);
+    }
+    if (fullSyncCancelRequested) {
+      finishFullSyncProgress("stopped");
+      setStatusPill(status, "Stopped", "warning");
+      appendFullSyncLog("Restore stopped. Completed batches remain applied; no new batches will be sent.");
+      setMessage("Full sync stopped. Completed batches remain applied.", "warning");
+      return;
     }
     clearDerivedUiCaches();
-    status.textContent = "Complete";
-    status.className = "status-pill status-ready";
-    setMessage(`Full sync complete. Watched rows: ${totals.watched.processed}. Progress rows: ${totals.progress.processed}.`, "success");
+    finishFullSyncProgress("complete");
+    setStatusPill(status, "Complete", "ready");
+    const watchedRows = fullSyncProgressState?.phases?.watched?.processed || 0;
+    const progressRows = fullSyncProgressState?.phases?.progress?.processed || 0;
+    setMessage(`Full sync complete. Watched rows: ${formatNumber(watchedRows)}. Progress rows: ${formatNumber(progressRows)}.`, "success");
   } catch (error) {
-    status.textContent = "Error";
-    status.className = "status-pill status-error";
+    if (fullSyncCancelRequested || error?.name === "AbortError") {
+      finishFullSyncProgress("stopped");
+      setStatusPill(status, "Stopped", "warning");
+      appendFullSyncLog("Restore stopped. Completed batches remain applied; no new batches will be sent.");
+      setMessage("Full sync stopped. Completed batches remain applied.", "warning");
+      return;
+    }
+    finishFullSyncProgress("error");
+    setStatusPill(status, "Error", "error");
     appendFullSyncLog(`ERROR: ${error.message}`);
     setMessage(`Full sync failed: ${error.message}`, "error");
     throw error;
@@ -1087,6 +1244,35 @@ export async function runFullSyncWatchstates() {
     state.fullSyncActive = false;
     button.disabled = false;
     button.textContent = "Full Sync Watchstates";
+    if (elements.cancelFullSyncButton) {
+      elements.cancelFullSyncButton.classList.add("hidden");
+      elements.cancelFullSyncButton.disabled = false;
+      elements.cancelFullSyncButton.textContent = "Stop Restore";
+    }
+    fullSyncAbortController = null;
+    fullSyncRunId = "";
+    fullSyncCancelRequested = false;
+  }
+}
+
+export async function cancelFullSyncWatchstates() {
+  if (!state.fullSyncActive || !fullSyncRunId) return;
+  fullSyncCancelRequested = true;
+  if (elements.cancelFullSyncButton) {
+    elements.cancelFullSyncButton.disabled = true;
+    elements.cancelFullSyncButton.textContent = "Stopping...";
+  }
+  const runId = fullSyncRunId;
+  fullSyncAbortController?.abort();
+  try {
+    await fetch("/api/full-sync-watchstates", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "cancel", runId }),
+    });
+  } catch {
+    // The browser request is already aborted; a stale server heartbeat will
+    // release the restore guard if this cancellation request cannot reach it.
   }
 }
 

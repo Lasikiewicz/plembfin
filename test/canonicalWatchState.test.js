@@ -52,3 +52,44 @@ test("an explicit Plembfin unwatch remains canonical over an older watched recor
 
   assert.equal(await repo.getCanonicalWatchState(media), "unwatched");
 });
+
+test("watchstate replay snapshots exclude rows written after the run began", async () => {
+  const firstMedia = {
+    title: "Replay Snapshot First",
+    type: "movie",
+    ids: { tmdb: "replay-snapshot-first" },
+    isValid: true,
+  };
+  const secondMedia = {
+    title: "Replay Snapshot Later",
+    type: "movie",
+    ids: { tmdb: "replay-snapshot-later" },
+    isValid: true,
+  };
+
+  const firstRecord = await repo.insertWatchRecord({
+    title: firstMedia.title,
+    media_type: "movie",
+    tmdb_id: firstMedia.ids.tmdb,
+    watched_at: "2026-07-19T12:00:00.000Z",
+    source: "trakt_import",
+  });
+  await repo.upsertPlaystateForMedia(firstMedia, "watched", firstRecord.record.watched_at);
+  const firstPlaystate = await repo.getPlaystateForMedia(firstMedia);
+  const snapshotAt = firstPlaystate.updated_at;
+
+  await new Promise((resolve) => setTimeout(resolve, 3));
+  const secondRecord = await repo.insertWatchRecord({
+    title: secondMedia.title,
+    media_type: "movie",
+    tmdb_id: secondMedia.ids.tmdb,
+    watched_at: "2026-07-19T12:01:00.000Z",
+    source: "trakt_import",
+  });
+  await repo.upsertPlaystateForMedia(secondMedia, "watched", secondRecord.record.watched_at);
+
+  const rows = await repo.listWatchedPlaystateRowsForReplay({ limit: 100, snapshotAt });
+  const keys = new Set(rows.map((row) => row.media_key));
+  assert.ok(keys.has(firstPlaystate.media_key));
+  assert.ok(!keys.has((await repo.getPlaystateForMedia(secondMedia)).media_key));
+});

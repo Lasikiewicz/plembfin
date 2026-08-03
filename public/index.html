@@ -1547,9 +1547,24 @@
                             <span>Push your entire watched archive back to media server lists</span>
                           </summary>
                           <div class="tool-item-row">
+                            <div id="fullSyncProgress" class="sync-progress full-sync-progress hidden" role="group" aria-label="Full sync watchstate progress">
+                              <div class="sync-progress-summary">
+                                <strong id="fullSyncProgressLabel" aria-live="polite">Preparing restore</strong>
+                                <span id="fullSyncProgressMeta">0% · Calculating archive size</span>
+                              </div>
+                              <div id="fullSyncProgressTrack" class="sync-progress-track" role="progressbar" aria-label="Full sync watchstate progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                                <span id="fullSyncProgressFill" class="sync-progress-fill"></span>
+                              </div>
+                              <div class="full-sync-progress-details" aria-live="polite">
+                                <span id="fullSyncProgressCount">0 rows processed</span>
+                                <span id="fullSyncProgressRate">Rate —</span>
+                                <span id="fullSyncProgressEta">ETA —</span>
+                              </div>
+                            </div>
                             <pre id="fullSyncLog" class="import-terminal compact-terminal hidden" aria-live="polite" style="margin-top: var(--space-2);">[idle] Waiting for restore request.</pre>
                             <div class="settings-actions" style="margin-top: var(--space-2);">
                               <button id="fullSyncButton" class="button-ghost" type="button">Full Sync Watchstates</button>
+                              <button id="cancelFullSyncButton" class="button-danger hidden" type="button" title="Stop sending new restore batches">Stop Restore</button>
                             </div>
                           </div>
                         </details>
@@ -1614,7 +1629,7 @@
 
                       <div style="margin-bottom: var(--space-1);">
                         <b style="display: block; margin-bottom: 2px;">Full Sync Watchstates</b>
-                        <p style="margin: 0; line-height: 1.4;">Scans the complete recorded Plembfin watch archive and pushes all historical watched events back into configured Plex, Emby, and Jellyfin watchlists.<br><b>When to use:</b> Essential after connecting a new server, rebuilding a library, or restoring watch history from a backup.</p>
+                        <p style="margin: 0; line-height: 1.4;">Scans the complete recorded Plembfin watch archive and pushes all historical watched events back into configured Plex, Emby, and Jellyfin watchlists. The progress panel shows rows processed, live rate, and an ETA; inbound app callbacks are ignored as restore echoes while the run is active.<br><b>When to use:</b> Essential after connecting a new server, rebuilding a library, or restoring watch history from a backup. Avoid watching media until it finishes.</p>
                       </div>
 
                       <div style="margin-bottom: var(--space-1);">

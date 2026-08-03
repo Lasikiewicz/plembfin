@@ -782,8 +782,16 @@ const upsertPlaystateStmt = db.prepare(
      imdb_id=excluded.imdb_id, tmdb_id=excluded.tmdb_id, tvdb_id=excluded.tvdb_id, season=excluded.season, episode=excluded.episode,
      poster_url=excluded.poster_url, updated_at=excluded.updated_at`,
 );
-const selectWatchedPlaystateStmt = db.prepare("SELECT * FROM playstate WHERE state = 'watched' LIMIT ? OFFSET ?");
+const selectWatchedPlaystateStmt = db.prepare(
+  "SELECT * FROM playstate WHERE state = 'watched' ORDER BY COALESCE(updated_at, 0) DESC, media_key DESC LIMIT ? OFFSET ?",
+);
+const selectWatchedPlaystateSnapshotStmt = db.prepare(
+  "SELECT * FROM playstate WHERE state = 'watched' AND COALESCE(updated_at, 0) <= ? ORDER BY COALESCE(updated_at, 0) DESC, media_key DESC LIMIT ? OFFSET ?",
+);
 const countWatchedPlaystateStmt = db.prepare("SELECT COUNT(*) AS c FROM playstate WHERE state = 'watched'");
+const countWatchedPlaystateSnapshotStmt = db.prepare(
+  "SELECT COUNT(*) AS c FROM playstate WHERE state = 'watched' AND COALESCE(updated_at, 0) <= ?",
+);
 
 function playstateFromRow(row) {
   return {
@@ -926,14 +934,22 @@ export async function getCanonicalWatchState(media) {
   return watched ? "watched" : null;
 }
 
-export async function listWatchedPlaystateRowsForReplay({ limit = 25, offset = 0 } = {}) {
+export async function listWatchedPlaystateRowsForReplay({ limit = 25, offset = 0, snapshotAt = undefined } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
   const safeOffset = Math.max(Number(offset) || 0, 0);
-  return selectWatchedPlaystateStmt.all(safeLimit, safeOffset).map(playstateFromRow);
+  const safeSnapshotAt = Number(snapshotAt);
+  const rows = Number.isFinite(safeSnapshotAt) && safeSnapshotAt > 0
+    ? selectWatchedPlaystateSnapshotStmt.all(safeSnapshotAt, safeLimit, safeOffset)
+    : selectWatchedPlaystateStmt.all(safeLimit, safeOffset);
+  return rows.map(playstateFromRow);
 }
 
-export async function countWatchedPlaystateRows() {
-  return countWatchedPlaystateStmt.get().c || 0;
+export async function countWatchedPlaystateRows({ snapshotAt = undefined } = {}) {
+  const safeSnapshotAt = Number(snapshotAt);
+  const row = Number.isFinite(safeSnapshotAt) && safeSnapshotAt > 0
+    ? countWatchedPlaystateSnapshotStmt.get(safeSnapshotAt)
+    : countWatchedPlaystateStmt.get();
+  return row.c || 0;
 }
 
 function queueProgressUpdateForRecord(record) {
@@ -1441,8 +1457,14 @@ const selectProgressByTitleStmt = db.prepare("SELECT * FROM playback_progress WH
 const selectProgressByImdbStmt = db.prepare("SELECT * FROM playback_progress WHERE media_type = ? AND imdb_id = ?");
 const selectProgressByTmdbStmt = db.prepare("SELECT * FROM playback_progress WHERE media_type = ? AND tmdb_id = ?");
 const selectProgressByTvdbStmt = db.prepare("SELECT * FROM playback_progress WHERE media_type = ? AND tvdb_id = ?");
-const selectProgressReplayStmt = db.prepare("SELECT * FROM playback_progress ORDER BY updated_at DESC LIMIT ? OFFSET ?");
+const selectProgressReplayStmt = db.prepare("SELECT * FROM playback_progress ORDER BY COALESCE(updated_at, 0) DESC, media_key DESC LIMIT ? OFFSET ?");
+const selectProgressSnapshotStmt = db.prepare(
+  "SELECT * FROM playback_progress WHERE COALESCE(updated_at, 0) <= ? ORDER BY COALESCE(updated_at, 0) DESC, media_key DESC LIMIT ? OFFSET ?",
+);
 const countProgressStmt = db.prepare("SELECT COUNT(*) AS c FROM playback_progress");
+const countProgressSnapshotStmt = db.prepare(
+  "SELECT COUNT(*) AS c FROM playback_progress WHERE COALESCE(updated_at, 0) <= ?",
+);
 
 function playbackProgressFromRow(row) {
   const positionMs = Number(row.position_ms || 0);
@@ -1627,14 +1649,22 @@ export async function deletePlaybackProgress(mediaOrRecord) {
   return keys.size > 0;
 }
 
-export async function listPlaybackProgressRowsForReplay({ limit = 25, offset = 0 } = {}) {
+export async function listPlaybackProgressRowsForReplay({ limit = 25, offset = 0, snapshotAt = undefined } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
   const safeOffset = Math.max(Number(offset) || 0, 0);
-  return selectProgressReplayStmt.all(safeLimit, safeOffset).map(playbackProgressFromRow);
+  const safeSnapshotAt = Number(snapshotAt);
+  const rows = Number.isFinite(safeSnapshotAt) && safeSnapshotAt > 0
+    ? selectProgressSnapshotStmt.all(safeSnapshotAt, safeLimit, safeOffset)
+    : selectProgressReplayStmt.all(safeLimit, safeOffset);
+  return rows.map(playbackProgressFromRow);
 }
 
-export async function countPlaybackProgressRows() {
-  return countProgressStmt.get().c || 0;
+export async function countPlaybackProgressRows({ snapshotAt = undefined } = {}) {
+  const safeSnapshotAt = Number(snapshotAt);
+  const row = Number.isFinite(safeSnapshotAt) && safeSnapshotAt > 0
+    ? countProgressSnapshotStmt.get(safeSnapshotAt)
+    : countProgressStmt.get();
+  return row.c || 0;
 }
 
 // Data-quality counters for the Sync Health panel. These conditions were

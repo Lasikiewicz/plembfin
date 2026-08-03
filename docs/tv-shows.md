@@ -88,7 +88,8 @@ TV-specific extras:
 
 ## Show identity maintenance
 
-Two admin tools deal with mis-grouped shows under Settings → Advanced:
+The batch TV re-match tool is under **Settings → Tools → Library Rebuilds**
+(`/settings/tools#library-rebuilds`); the merge action is available from a show page:
 
 - **Merge shows** (`POST /api/merge-shows`, `mergeShows` in `dataRepo.js`,
   dialog in `edit-dialogs.js`) - folds one show title's episode rows into another.

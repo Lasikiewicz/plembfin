@@ -152,6 +152,13 @@ let plexNotificationListener = null;
 async function handlePlexLibraryItemChange(ratingKey) {
   if (!watchedPlayedSyncEnabled()) return;
 
+  const restoreRuntime = await loadRuntimeState().catch(() => ({}));
+  const restoreHeartbeat = Number(restoreRuntime.restoreSyncHeartbeat || restoreRuntime.restoreSyncStartedAt || 0);
+  if (restoreRuntime.restoreSyncActive === true && restoreHeartbeat >= Date.now() - 3 * 60 * 1000) {
+    console.log("Plex notifications: ignored library change during authoritative restore", { ratingKey });
+    return;
+  }
+
   const config = await loadMediaConfig().catch(() => null);
   if (!config?.plex?.baseUrl || !config.plex.token || config.plex.disabled) return;
 

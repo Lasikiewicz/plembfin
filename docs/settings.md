@@ -7,20 +7,22 @@ separate screen. `/settings` itself shows a plain overview list grouped the same
 Desktop renders the grouped sidebar; mobile uses the **Settings section** select control
 (a flat list of options under `<optgroup>` headings matching the sidebar groups).
 
-| Group (parent) | Child sections | Canonical child route(s) |
+| Group (parent) | Child sections | Navigation route(s) |
 | --- | --- | --- |
-| General | Account | `/settings/account` |
-| Media Servers | Media Servers, Seerr, Webhooks | `/settings/media-servers`, `/settings/seerr`, `/settings/webhooks` |
-| Metadata | Metadata Providers, Refresh Metadata (TMDB, TVDB) | `/settings/metadata-providers`, `/settings/refresh-metadata` |
-| Sync | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Full Sync), Sync Issues, Sync History | `/settings/sync-tuning`, `/settings/sync-tools`, `/settings/sync-issues`, `/settings/sync-history` |
-| Backup / Restore | Backup Settings (Local, Remote), Restore (Local, Remote) | `/settings/backups`, `/settings/restore` |
+| General | Account | `/settings/general#account` |
+| Media Servers | Media Servers, Seerr, Webhooks | `/settings/media-servers#media-servers`, `/settings/media-servers#seerr`, `/settings/media-servers#webhooks` |
+| Metadata | Metadata Providers, Refresh Metadata (TMDB, TVDB) | `/settings/metadata#metadata-providers`, `/settings/metadata#refresh-metadata` |
+| Sync | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Full Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
+| Backup / Restore | Backup Settings (Local, Remote), Restore (Local, Remote) | `/settings/backup-restore#backups`, `/settings/backup-restore#restore` |
 | Import | Trakt | `/settings/import` |
-| Tools | Database Repairs, Library Rebuilds and Backfills | `/settings/database-repairs`, `/settings/library-rebuilds` |
-| Advanced | System Integrity Check, Storage & Cache | `/settings/health`, `/settings/storage` |
+| Tools | Database Repairs, Library Rebuilds and Backfills | `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds` |
+| Advanced | System Integrity Check, Storage & Cache | `/settings/advanced#health`, `/settings/advanced#storage` |
 | Logs | Logs | `/settings/logs` |
 | About | About | `/settings/about` |
 
-The left sidebar navigation displays parent menu groups by default, collapsing child sections and sub-sections until that parent section page is active. Every child section is display-only: its sidebar button navigates to the parent group's path with the section id appended as a URL hash (`#health`), then scrolls that specific section into view. The parent's page always renders every child's content stacked together - clicking a child is a same-page jump, not a different screen. Logs is a single-child group of its own (promoted to a top-level sidebar entry, since its content shares no panel with Health or Storage & Cache).
+The left sidebar navigation displays parent menu groups by default, collapsing child sections and sub-sections until that parent section page is active. Every child section is display-only: its sidebar button navigates to the parent group's path with the section id appended as a URL hash (`#health`), then scrolls that specific section into view. The parent's page always renders every child's content stacked together - clicking a child is a same-page jump, not a different screen. Logs is a single-child group of its own (promoted to a top-level sidebar entry, since its content shares no panel with Health or Storage & Cache). Use the parent-and-hash routes above when documenting or linking to a child tool; for example, Full Sync Watchstates is `/settings/sync#full-sync-watchstates`.
+
+Full Sync Watchstates replays Plembfin's canonical watched and resume rows in two phases. It takes a fixed snapshot for each phase, temporarily suppresses inbound media-server callbacks and scheduled catch-up work, and shows rows processed, throughput, and an estimated remaining time. The Stop Restore control cancels future batches; already completed batches remain applied.
 
 ## Multi-view aggregation
 
@@ -117,23 +119,23 @@ Old bookmarks are normalized with `history.replaceState`:
 
 | Previous route | Canonical route |
 | --- | --- |
-| `/settings/account/login` | `/settings/account` |
+| `/settings/account/login` | `/settings/account` (UI: `/settings/general#account`) |
 | `/settings/apps`, `/settings/connections`, `/settings/connections/:provider` | `/settings/media-servers` |
 | `/settings/api-keys`, `/settings/metadata/:provider` | `/settings/metadata` |
-| `/settings/connections/webhooks` | `/settings/webhooks` |
-| `/settings/data`, `/settings/data/backups` | `/settings/backups` |
-| `/settings/data/restore` | `/settings/restore` |
+| `/settings/connections/webhooks` | `/settings/webhooks` (UI: `/settings/media-servers#webhooks`) |
+| `/settings/data`, `/settings/data/backups` | `/settings/backups` (UI: `/settings/backup-restore#backups`) |
+| `/settings/data/restore` | `/settings/restore` (UI: `/settings/backup-restore#restore`) |
 | `/settings/data/import` | `/settings/import` |
-| `/settings/tools`, `/settings/system/advanced`, `/settings/advanced` | `/settings/database-repairs` |
-| `/sync`, `/settings/sync`, `/settings/sync/issues`, `/settings/system/sync` | `/settings/sync-issues` |
-| `/settings/sync/history` | `/settings/sync-history` |
-| `/settings/sync/tuning` | `/settings/sync-tuning` |
+| `/settings/system`, `/settings/system/health` | `/settings/health` (UI: `/settings/advanced#health`) |
+| `/settings/system/advanced` | `/settings/database-repairs` (UI: `/settings/tools#database-repairs`) |
+| `/sync`, `/settings/sync/issues`, `/settings/system/sync` | `/settings/sync-issues` (UI: `/settings/sync#sync-issues`) |
+| `/settings/sync/history` | `/settings/sync-history` (UI: `/settings/sync#sync-history`) |
+| `/settings/sync/tuning` | `/settings/sync-tuning` (UI: `/settings/sync#sync-tuning`) |
 | `/logs`, `/settings/system/logs` | `/settings/logs` |
 | `/settings/cache`, `/settings/system/storage` | `/settings/storage` |
 | `/settings/changelog`, `/settings/system/about` | `/settings/about` |
-| `/settings/system/health` | `/settings/health` |
 
-The forced-password-change state always resolves to `/settings/account`.
+The forced-password-change state always resolves to the Account section (`/settings/account`; the normal sidebar path is `/settings/general#account`).
 
 ## Configuration and secrets
 

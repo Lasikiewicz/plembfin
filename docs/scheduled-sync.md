@@ -158,5 +158,6 @@ addresses.
 - Repeated per-item outcomes are condensed: skipped watched items are reported once
   per run with a count, and a resume-progress item that keeps producing the same
   outcome is logged only when that outcome changes.
-- Force sync from the dashboard: **Settings → Sync → Force Sync** streams the same
-  log in-browser and shows per-platform status.
+- Force sync from the dashboard: **Settings → Sync → Sync Tools → Force Full Sync**
+  (`/settings/sync#sync-tools-force`) streams the same log in-browser and shows
+  per-platform status.

@@ -15799,6 +15799,23 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
   background: var(--yellow);
 }
 
+.full-sync-progress {
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.full-sync-progress-details {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .settings-pane .logs-terminal,
 .settings-pane .import-terminal {
   border: none !important;
@@ -15826,6 +15843,11 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 
   .sync-progress-summary span {
     text-align: left;
+  }
+
+  .full-sync-progress-details {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .settings-pane #forceSyncTerminal {

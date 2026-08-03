@@ -357,6 +357,83 @@ function configuredRestoreTargets(config = {}) {
   return targets;
 }
 
+const FULL_SYNC_ROW_CONCURRENCY = 4;
+const FULL_SYNC_HEARTBEAT_STALE_MS = 3 * 60 * 1000;
+
+function validFullSyncRunId(value) {
+  const runId = String(value || "").trim();
+  return /^[a-zA-Z0-9_-]{8,100}$/.test(runId) ? runId : "";
+}
+
+function restoreRuntimeIsFresh(runtime = {}, now = Date.now()) {
+  if (runtime.restoreSyncActive !== true) return false;
+  const heartbeat = Number(runtime.restoreSyncHeartbeat || runtime.restoreSyncStartedAt || 0);
+  return heartbeat > 0 && heartbeat >= now - FULL_SYNC_HEARTBEAT_STALE_MS;
+}
+
+async function runWithConcurrency(items, concurrency, worker) {
+  let cursor = 0;
+  const workerCount = Math.min(Math.max(Number(concurrency) || 1, 1), items.length || 1);
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      await worker(items[index], index);
+    }
+  }));
+}
+
+async function beginFullSyncRestore(runId, phase, requestedSnapshotAt, phaseStart = false) {
+  const now = Date.now();
+  const runtime = await loadRuntimeState();
+  const active = restoreRuntimeIsFresh(runtime, now);
+  const activeRunId = validFullSyncRunId(runtime.restoreSyncRunId);
+
+  if (active && activeRunId !== runId) {
+    return { conflict: true };
+  }
+
+  if (!active && runtime.restoreSyncActive === true) {
+    await setRuntimeState({ restoreSyncActive: false, restoreSyncRunId: "" }).catch(() => null);
+  }
+
+  const requested = Number(requestedSnapshotAt);
+  const snapshotAt = phaseStart || !Number.isFinite(requested) || requested <= 0
+    ? now
+    : Math.min(requested, now);
+  const startedAt = active && activeRunId === runId
+    ? Number(runtime.restoreSyncStartedAt || now)
+    : now;
+
+  await setRuntimeState({
+    restoreSyncActive: true,
+    restoreSyncRunId: runId,
+    restoreSyncPhase: phase,
+    restoreSyncStartedAt: startedAt,
+    restoreSyncHeartbeat: now,
+    restoreSyncSnapshotAt: snapshotAt,
+    restoreSyncResult: null,
+  });
+
+  return { conflict: false, snapshotAt };
+}
+
+async function finishFullSyncRestore(runId, result = {}) {
+  const runtime = await loadRuntimeState();
+  if (validFullSyncRunId(runtime.restoreSyncRunId) !== runId) return;
+  await setRuntimeState({
+    restoreSyncActive: false,
+    restoreSyncRunId: "",
+    restoreSyncHeartbeat: Date.now(),
+    restoreSyncResult: { ...result, finishedAt: Date.now() },
+  }).catch(() => null);
+}
+
+async function touchFullSyncRestore(runId) {
+  const runtime = await loadRuntimeState().catch(() => ({}));
+  if (runtime.restoreSyncActive !== true || validFullSyncRunId(runtime.restoreSyncRunId) !== runId) return;
+  await setRuntimeState({ restoreSyncHeartbeat: Date.now() }).catch(() => null);
+}
+
 function emptyRestoreSummary(targets = []) {
   const summary = {};
   for (const target of targets) {
@@ -393,20 +470,37 @@ export async function handleFullSyncWatchstates(req, res) {
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
 
-  const body = await readJson(req).catch(() => ({}));
+  const body = (await readJson(req).catch(() => ({}))) || {};
+  const runId = validFullSyncRunId(body.runId);
+  if (!runId) return sendJson(res, { error: "A valid full-sync runId is required." }, 400);
+
+  if (String(body.action || "").toLowerCase() === "cancel") {
+    const runtime = await loadRuntimeState();
+    const activeRunId = validFullSyncRunId(runtime.restoreSyncRunId);
+    if (restoreRuntimeIsFresh(runtime) && activeRunId && activeRunId !== runId) {
+      return sendJson(res, { error: "Another restore is currently active." }, 409);
+    }
+    await finishFullSyncRestore(runId, { success: true, cancelled: true });
+    return sendJson(res, { ok: true, cancelled: true });
+  }
+
   const phase = String(body.phase || "watched") === "progress" ? "progress" : "watched";
   if (phase === "watched" && !watchedPlayedSyncEnabled()) {
     return sendJson(res, {
       ok: true,
       skipped: true,
       phase,
+      runId,
+      total: 0,
       processed: 0,
+      nextOffset: 0,
       hasMore: false,
       note: "Watched/played syncing is disabled.",
     });
   }
   const offset = Math.max(Number(body.offset || 0), 0);
   const limit = Math.min(Math.max(Number(body.limit || 25), 1), 100);
+  const phaseStart = body.start === true || String(body.start || "").toLowerCase() === "true";
   const config = await loadMediaConfig();
   const targets = configuredRestoreTargets(config);
   const summary = emptyRestoreSummary(targets);
@@ -414,52 +508,104 @@ export async function handleFullSyncWatchstates(req, res) {
   const loopStore = createLoopStore();
 
   if (!targets.length) {
-    return sendJson(res, { ok: true, phase, offset, limit, processed: 0, nextOffset: offset, hasMore: false, targets, summary, errors, note: "No configured restore targets." });
+    return sendJson(res, { ok: true, phase, offset, limit, runId, total: 0, processed: 0, nextOffset: offset, hasMore: false, targets, summary, errors, note: "No configured restore targets." });
   }
 
-  const total = phase === "progress" ? await countPlaybackProgressRows() : await countWatchedPlaystateRows();
-  const rows = phase === "progress"
-    ? await listPlaybackProgressRowsForReplay({ limit, offset })
-    : await listWatchedPlaystateRowsForReplay({ limit, offset });
+  const restoreState = await beginFullSyncRestore(runId, phase, body.snapshotAt, phaseStart);
+  if (restoreState.conflict) {
+    return sendJson(res, { error: "Another restore is currently active." }, 409);
+  }
+  const snapshotAt = restoreState.snapshotAt;
+  let total;
+  let rows;
+  try {
+    total = phase === "progress"
+      ? await countPlaybackProgressRows({ snapshotAt })
+      : await countWatchedPlaystateRows({ snapshotAt });
+    rows = phase === "progress"
+      ? await listPlaybackProgressRowsForReplay({ limit, offset, snapshotAt })
+      : await listWatchedPlaystateRowsForReplay({ limit, offset, snapshotAt });
+  } catch (error) {
+    await finishFullSyncRestore(runId, { success: false, error: error.message || String(error) });
+    throw error;
+  }
 
-  for (const row of rows) {
-    for (const target of targets) {
-      const media = phase === "progress" ? progressRowToMedia(row, target) : watchRowToMedia(row, target);
-      if (!media.isValid) {
-        summary[target].skipped += 1;
-        continue;
-      }
-      try {
-        if (phase === "watched") {
-          await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);
+  const heartbeatTimer = setInterval(() => {
+    touchFullSyncRestore(runId).catch(() => null);
+  }, 30_000);
+  try {
+    await runWithConcurrency(rows, FULL_SYNC_ROW_CONCURRENCY, async (row) => {
+      const outcomes = await Promise.all(targets.map(async (target) => {
+        const media = phase === "progress" ? progressRowToMedia(row, target) : watchRowToMedia(row, target);
+        if (!media.isValid) return { target, result: { status: "skipped" } };
+
+        try {
+          if (phase === "watched") {
+            await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);
+          }
+          const result = await restoreClientFor(target, phase, config, media)();
+          if (phase === "watched" && result?.status !== "not_found") {
+            const itemIds = Array.isArray(result?.itemIds) && result.itemIds.length
+              ? result.itemIds
+              : result?.itemId
+                ? [result.itemId]
+                : [];
+            if (itemIds.length) {
+              await Promise.all(itemIds.map((itemId) => recordOutboundPlayedMarks({ ...media, itemId }, [target], loopStore).catch(() => null)));
+            } else {
+              await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);
+            }
+          }
+          return { target, result };
+        } catch (error) {
+          return {
+            target,
+            error,
+            rowId: row.id || row.media_key || "",
+            title: row.title || "",
+          };
         }
-        const result = await restoreClientFor(target, phase, config, media)();
-        if (phase === "watched" && result?.status !== "not_found") {
-          await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);
+      }));
+
+      for (const outcome of outcomes) {
+        if (outcome.error) {
+          summary[outcome.target].error += 1;
+          errors.push({
+            target: outcome.target,
+            rowId: outcome.rowId,
+            title: outcome.title,
+            detail: outcome.error?.message || String(outcome.error),
+          });
+        } else {
+          applyRestoreResult(summary, outcome.target, outcome.result);
         }
-        applyRestoreResult(summary, target, result);
-      } catch (error) {
-        summary[target].error += 1;
-        errors.push({
-          target,
-          rowId: row.id || row.media_key || "",
-          title: row.title || "",
-          detail: error?.message || String(error),
-        });
       }
-    }
+    });
+  } catch (error) {
+    await finishFullSyncRestore(runId, { success: false, error: error.message || String(error) });
+    throw error;
+  } finally {
+    clearInterval(heartbeatTimer);
   }
 
   const nextOffset = offset + rows.length;
+  const hasMore = rows.length > 0 && nextOffset < total;
+  if (!hasMore && (phase === "progress" || body.complete === true)) {
+    await finishFullSyncRestore(runId, { success: true, cancelled: false });
+  } else {
+    await touchFullSyncRestore(runId);
+  }
   return sendJson(res, {
     ok: true,
     phase,
     offset,
     limit,
+    runId,
+    snapshotAt,
     total,
     processed: rows.length,
     nextOffset,
-    hasMore: nextOffset < total,
+    hasMore,
     targets,
     summary,
     errors,

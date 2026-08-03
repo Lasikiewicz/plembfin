@@ -53,8 +53,8 @@ SPA navigation via `history.pushState`:
 | `/movies`, `/tvshows` | Explorer in movies/shows mode |
 | `/upcoming` | Upcoming TV episode calendar |
 | `/history`, `/stats`, `/search?q=` | History / Stats / Search |
-| `/settings`, `/settings/:section` | Settings landing list and flat administration sections |
-| `/sync`, `/logs`, retired grouped `/settings/*` URLs | Compatibility aliases normalized to canonical flat sections |
+| `/settings`, `/settings/:section` | Settings landing list and parent-group administration sections; child sections use `#hash` anchors |
+| `/sync`, `/logs`, retired grouped `/settings/*` URLs | Compatibility aliases normalized to supported settings sections |
 | `/movie/:idOrSlug`, `/movie/tmdb/:id` | Movie detail (inline in explorer) |
 | `/tvshow/:key(/season/:n(/episode/:n))`, `/tvshow/tmdb/:id`, `/tvshow/tvdb/:id` | Show detail, with season/episode deep links (legacy `#seasonNepM` hash also parsed). The `tvdb` form addresses series TMDB has no record of |
 | `/person/:id` | Person profile |
@@ -148,8 +148,8 @@ All of the following must stay consistent - do not change one without updating t
 
 ### Settings Navigation Rules
 
-5. **All settings navigation links** (sidebar buttons, overview link rows, section-select dropdown options) must navigate to the **parent group path** (e.g. `/settings/media-servers`), never to a child `#hash` anchor. Hash anchors cause the page to auto-scroll past the top padding.
-6. **`focusSettingsRoute`** must scroll the container to the top (`window.scrollTo(0, 0)`) on every navigation, not `scrollIntoView` to a child element.
+5. **All settings navigation links** (sidebar buttons, overview link rows, section-select dropdown options) must navigate to the **parent group path**, with an optional child `#hash` anchor (for example `/settings/sync#full-sync-watchstates`). Child anchors identify the in-page section on the parent route.
+6. **`focusSettingsRoute`** must scroll the `.page-shell` container to the selected section while respecting its scroll margin; a route without a hash should start at the top of the parent group page.
 
 ## Adding a new module
 

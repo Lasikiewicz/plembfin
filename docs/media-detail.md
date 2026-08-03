@@ -95,7 +95,7 @@ first complete render.
   `media_key` next to `id`, and fall back to it when the id names no row. A
   record can be superseded between the moment a caller reads its id and the
   moment it acts, so callers that hold an id for any length of time - the manual
-  match queue in Settings → Sync Issues - send the key as well. Both endpoints
+  match queue in Settings → Sync → Sync Issues - send the key as well. Both endpoints
   also accept a media key supplied as the `id` itself.
 - **Seerr integration** - when Jellyseerr/Overseerr is configured, availability status
   (`GET /api/seerr/media-status`) and request buttons (`POST /api/seerr/request`,

@@ -72,7 +72,7 @@ cache and waits seven days before trying again, so an unresolvable title does no
 the same failing lookups on every start. See [tv-shows.md](tv-shows.md).
 
 `prewarmTmdbLibrary` (driven by the scheduler) warms details for recently watched items
-so detail pages open hot. Settings → Storage & Cache (`GET /api/cache-stats`,
+so detail pages open hot. Settings → Advanced → Storage & cache (`/settings/advanced#storage`, `GET /api/cache-stats`,
 `POST /api/clear-cache`, handlers in `index.js`) reports and clears the caches;
 `POST /api/refresh-tmdb-metadata` force-refreshes items.
 

@@ -1,8 +1,10 @@
 # Backups
 
 Plembfin has **three backup subsystems** plus a set of pluggable remote destinations.
-Schedules and destinations are managed from **Settings → Backups**; recovery workflows
-live under **Settings → Restore** (UI in `public/modules/tools-backups.js`).
+Schedules and destinations are managed from **Settings → Backup / restore → Backup settings**
+(`/settings/backup-restore#backups`); recovery workflows live under
+**Settings → Backup / restore → Restore** (`/settings/backup-restore#restore`) (UI in
+`public/modules/tools-backups.js`).
 
 | Subsystem | What it saves | Format | Files |
 | --- | --- | --- | --- |
@@ -112,7 +114,7 @@ The portable-format engine the other subsystems build on, also exposed directly:
 
 - `GET /api/backup/export` (`handleBackupExport`) - pages collections out via
   `exportCollectionPage` (cursor + limit ≤ 500) so the browser can assemble a full
-  plain-JSON backup for download (Settings → Backups).
+  plain-JSON backup for download (Settings → Backup / restore → Backup settings).
 - `POST /api/backup/import` (`handleBackupImport`) - imports batches via
   `importCollectionBatch` (≤ 250 documents per batch, optional per-collection reset).
   Importing watch-state collections bumps `dataVersion` so derived caches reload.
@@ -128,11 +130,11 @@ files in the browser and posts records in batches.
 
 ## Frontend (`public/modules/tools-backups.js`)
 
-Settings → Backups renders four schedule cards - local and remote, for watch-history
+Settings → Backup / restore → Backup settings renders four schedule cards - local and remote, for watch-history
 and encrypted Plembfin backups - each with an enable toggle in the card head, its own
 time/retention (or passphrase) fields, a runtime status readout, and Save/Back Up Now
 actions at the bottom right, plus the Backblaze destination cards and edit dialogs.
-Settings → Restore renders local/uploaded/remote backup choices and restore status
+Settings → Backup / restore → Restore renders local/uploaded/remote backup choices and restore status
 (`setBackupTransferState`).
 State lives in
 `state.watchBackups`, `state.remoteBackupFiles`, `state.backupImport`,

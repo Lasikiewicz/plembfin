@@ -1376,7 +1376,9 @@ export async function handleWebhook(req, res) {
   // webhooks â€” they are the apps echoing our own marks back and would re-record as
   // watched-today. Real user plays resume the moment the restore job finishes.
   const restoreRuntime = await loadRuntimeState();
-  if (restoreRuntime.restoreSyncActive === true) {
+  const restoreHeartbeat = Number(restoreRuntime.restoreSyncHeartbeat || restoreRuntime.restoreSyncStartedAt || 0);
+  const restoreIsFresh = restoreHeartbeat > 0 && restoreHeartbeat >= Date.now() - 3 * 60 * 1000;
+  if (restoreRuntime.restoreSyncActive === true && restoreIsFresh) {
     console.log("Webhook ignored: authoritative restore in progress (suppressing app echo)", {
       source: media.source,
       title: media.title,
