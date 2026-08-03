@@ -6,7 +6,7 @@ import { fetchWithTimeout } from "../utils/outbound.js";
 import { db, writeAuditLog } from "../db.js";
 import { createLoopStore } from "../utils/loopStore.js";
 import { listActiveSessions } from "../utils/activeSessions.js";
-import { loadMediaConfig, loadRuntimeState, RESTORE_KIND_BACKUP, setRuntimeState, appendRuntimeLog } from "../utils/configStore.js";
+import { claimSyncOperation, loadMediaConfig, loadRuntimeState, releaseSyncOperation, RESTORE_KIND_BACKUP, setRuntimeState, appendRuntimeLog, touchSyncOperation } from "../utils/configStore.js";
 import { markPlexUnplayedByRatingKey, fetchPlexWatchedItems } from "../utils/plexClient.js";
 import { markEmbyUnplayedById, fetchEmbyWatchedItems } from "../utils/embyClient.js";
 import { markJellyfinUnplayedById, fetchJellyfinWatchedItems } from "../utils/jellyfinClient.js";
@@ -457,14 +457,22 @@ async function clearAppWatchstates(config, logLine) {
 // Background reconcile job, kicked off after the synchronous DB restore. Optionally wipes app
 // watchstates, pushes the restored state to all apps, then stamps lastRestoreAt (AFTER the push
 // so the pushes themselves fall under the cron's pre-restore filter) and clears the active flag.
-async function runRestoreReconcileJob(clearMode) {
+async function runRestoreReconcileJob(clearMode, ownerId) {
   const { log, stop } = createBatchedRuntimeLogger("restoreSyncLog");
   // Keep the restore guard's heartbeat fresh for the entire job so the cron never treats a
   // long-but-alive restore as stale and un-blocks itself mid-push. Fires independently of where
   // the job is (even inside a long library fetch).
-  await setRuntimeState({ restoreSyncHeartbeat: Date.now() }).catch(() => null);
+  await touchSyncOperation({
+    kind: RESTORE_KIND_BACKUP,
+    ownerId,
+    values: { restoreSyncHeartbeat: Date.now() },
+  }).catch(() => null);
   const heartbeat = setInterval(() => {
-    setRuntimeState({ restoreSyncHeartbeat: Date.now() }).catch(() => null);
+    touchSyncOperation({
+      kind: RESTORE_KIND_BACKUP,
+      ownerId,
+      values: { restoreSyncHeartbeat: Date.now() },
+    }).catch(() => null);
   }, 30000);
   if (typeof heartbeat.unref === "function") heartbeat.unref();
   let result;
@@ -494,7 +502,18 @@ async function runRestoreReconcileJob(clearMode) {
     await stop();
     // Clear the active flag LAST (after lastRestoreAt is stamped) so the first allowed cron tick
     // already sees the watermark.
-    await setRuntimeState({ restoreSyncActive: false, restoreSyncKind: "", restoreSyncCancelRequested: false, restoreSyncResult: result || { success: false } }).catch(() => null);
+    await releaseSyncOperation({
+      kind: RESTORE_KIND_BACKUP,
+      ownerId,
+      values: {
+        restoreSyncActive: false,
+        restoreSyncRunId: "",
+        restoreSyncKind: "",
+        restoreSyncCancelRequested: false,
+        restoreSyncHeartbeat: Date.now(),
+        restoreSyncResult: result || { success: false },
+      },
+    }).catch(() => null);
   }
   return result;
 }
@@ -502,34 +521,56 @@ async function runRestoreReconcileJob(clearMode) {
 // Run the synchronous DB restore, then kick off the background clear/push job. Shared by the
 // local "restore" and remote "restore-remote-backup" actions. Returns the response payload.
 async function startAuthoritativeRestore(filename, clearMode) {
-  const runtime = await loadRuntimeState();
-  const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
-  if (runtime.restoreSyncActive === true && runtime.restoreSyncStartedAt && runtime.restoreSyncStartedAt > tenMinutesAgo) {
-    return { status: 409, body: { ok: false, error: "An authoritative restore is already running." } };
-  }
-
-  // Mark active BEFORE touching the DB so the cron + webhook stop importing immediately.
-  await setRuntimeState({
-    restoreSyncActive: true,
-    restoreSyncKind: RESTORE_KIND_BACKUP,
-    restoreSyncCancelRequested: false,
-    restoreSyncStartedAt: Date.now(),
-    restoreSyncHeartbeat: Date.now(),
-    restoreSyncResult: null,
-    restoreSyncLog: [`Authoritative restore started (${clearMode}) from ${filename}...`],
+  const restoreRunId = crypto.randomUUID();
+  const startedAt = Date.now();
+  const claim = await claimSyncOperation({
+    kind: RESTORE_KIND_BACKUP,
+    ownerId: restoreRunId,
+    activeField: "restoreSyncActive",
+    startedAt,
+    values: {
+      restoreSyncRunId: restoreRunId,
+      restoreSyncKind: RESTORE_KIND_BACKUP,
+      restoreSyncCancelRequested: false,
+      restoreSyncStartedAt: startedAt,
+      restoreSyncHeartbeat: startedAt,
+      restoreSyncResult: null,
+      restoreSyncLog: [`Authoritative restore started (${clearMode}) from ${filename}...`],
+    },
   });
+  if (!claim?.ok) {
+    return {
+      status: 409,
+      body: {
+        ok: false,
+        error: "Another sync operation is already active.",
+        operation: claim?.active || null,
+      },
+    };
+  }
 
   let restore;
   try {
     restore = restoreWatchHistoryBackup(filename, { mode: "replace", dryRun: false });
     writeAuditLog("backup.restored", { detail: { filename, clearMode, records: restore?.imported } });
   } catch (error) {
-    await setRuntimeState({ restoreSyncActive: false, restoreSyncKind: "", restoreSyncCancelRequested: false, restoreSyncResult: { success: false, error: error.message } }).catch(() => null);
+    await releaseSyncOperation({
+      kind: RESTORE_KIND_BACKUP,
+      ownerId: restoreRunId,
+      values: {
+        restoreSyncActive: false,
+        restoreSyncRunId: "",
+        restoreSyncKind: "",
+        restoreSyncCancelRequested: false,
+        restoreSyncHeartbeat: Date.now(),
+        restoreSyncResult: { success: false, error: error.message },
+      },
+    }).catch(() => null);
     return { status: 400, body: { error: error.message } };
   }
 
   // Fire-and-forget â€” the job stamps lastRestoreAt and clears the flag when it finishes.
-  runRestoreReconcileJob(clearMode);
+  runRestoreReconcileJob(clearMode, restoreRunId);
 
   return { status: 202, body: { ok: true, restore, clearMode, jobStarted: true } };
 }

@@ -45,7 +45,17 @@ test("background jobs are durably claimed, logged, cancelled, and completed", ()
   assert.equal(jobs.finishBackgroundJob({ id: job.id, holderId: "job-worker", generation: lease.generation, status: "cancelled", result: { aborted: true }, now: 2_005 }), true);
   assert.equal(jobs.getBackgroundJob(job.id).status, "cancelled");
   const queued = jobs.enqueueBackgroundJob("force_sync", {}, 2_006);
-  assert.equal(jobs.requestBackgroundJobCancellation(queued.id, 2_007).status, "cancelled");
+  const cancelledQueued = jobs.requestBackgroundJobCancellation(queued.id, 2_007);
+  assert.equal(cancelledQueued.status, "cancelled");
+  assert.equal(cancelledQueued.result.cancelled, true);
+
+  const staleCandidate = jobs.enqueueBackgroundJob("force_sync", {}, 2_008);
+  const claimedStaleCandidate = jobs.claimNextBackgroundJob({ holderId: "job-worker", generation: lease.generation, now: 2_009 });
+  assert.equal(claimedStaleCandidate.id, staleCandidate.id);
+  jobs.requestBackgroundJobCancellation(staleCandidate.id, 2_010);
+  // A cancelled running job is never eligible for stale reclaim, even before
+  // the cleanup transaction marks it terminal.
+  assert.equal(jobs.claimNextBackgroundJob({ holderId: "job-worker", generation: lease.generation, now: 2_011 }), null);
 });
 
 test("runtime state merges preserve unrelated fields", async () => {
@@ -57,6 +67,43 @@ test("runtime state merges preserve unrelated fields", async () => {
   assert.equal(state.alpha, 1);
   assert.equal(state.beta, 2);
   assert.deepEqual(state.lines, ["one", "two"]);
+});
+
+test("shared sync operation lock is atomic and owner-scoped", async () => {
+  await runtime.setRuntimeState({
+    restoreSyncActive: false,
+    restoreSyncRunId: "",
+    restoreSyncKind: "",
+    forceSyncActive: false,
+    forceSyncRunId: "",
+    syncOperation: null,
+  });
+
+  const first = await runtime.claimSyncOperation({
+    kind: runtime.SYNC_OPERATION_FORCE,
+    ownerId: "force-owner-a",
+    activeField: "forceSyncActive",
+    values: { forceSyncRunId: "force-owner-a" },
+  });
+  assert.equal(first.ok, true);
+  assert.equal(runtime.activeSyncOperation(await runtime.loadRuntimeState()).ownerId, "force-owner-a");
+
+  const blocked = await runtime.claimSyncOperation({
+    kind: runtime.RESTORE_KIND_FULL_SYNC,
+    ownerId: "restore-owner-b",
+    activeField: "restoreSyncActive",
+  });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.active.kind, runtime.SYNC_OPERATION_FORCE);
+  assert.equal(await runtime.touchSyncOperation({ kind: runtime.SYNC_OPERATION_FORCE, ownerId: "wrong-owner" }), false);
+  assert.equal(await runtime.releaseSyncOperation({ kind: runtime.SYNC_OPERATION_FORCE, ownerId: "wrong-owner" }), false);
+
+  assert.equal(await runtime.releaseSyncOperation({
+    kind: runtime.SYNC_OPERATION_FORCE,
+    ownerId: "force-owner-a",
+    values: { forceSyncActive: false },
+  }), true);
+  assert.equal(runtime.activeSyncOperation(await runtime.loadRuntimeState()), null);
 });
 
 test("runtime state merges serialize across real processes", async () => {

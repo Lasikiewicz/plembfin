@@ -159,6 +159,18 @@ function prefetchDashboardHistoryTmdb(tvEntries, movieEntries) {
   }
 }
 
+function actualWatchCount(entry = {}) {
+  const explicit = Number(entry.watch_count);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const historyCount = Array.isArray(entry.playHistory) ? entry.playHistory.length : 0;
+  return historyCount || (entry.watched_at ? 1 : 0);
+}
+
+function actualWatchText(entry = {}) {
+  const count = actualWatchCount(entry);
+  return count > 1 ? ` · ${count} actual watches` : "";
+}
+
 export function renderHistoryCard(entry) {
   const isEpisode = entry.media_type === "episode";
 
@@ -185,7 +197,7 @@ export function renderHistoryCard(entry) {
         <div class="history-mini-card-details">
           <b class="history-mini-card-title" title="${escapeAttribute(showTitle)}">${escapeHtml(showTitle)}</b>
           <span class="history-mini-card-sub history-card-episode-title" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>
-          <span class="history-mini-card-sub">${escapeHtml(episodeCode(entry.season, entry.episode))} · ${formatDate(entry.watched_at)}</span>
+          <span class="history-mini-card-sub">${escapeHtml(episodeCode(entry.season, entry.episode))} · ${formatDate(entry.watched_at)}${actualWatchText(entry)}</span>
         </div>
       </a>
     `;
@@ -198,7 +210,7 @@ export function renderHistoryCard(entry) {
         </span>
         <div class="history-mini-card-details">
           <b class="history-mini-card-title" title="${escapeAttribute(entry.title)}">${escapeHtml(entry.title)}</b>
-          <span class="history-mini-card-sub">${formatDate(entry.watched_at)}</span>
+          <span class="history-mini-card-sub">${formatDate(entry.watched_at)}${actualWatchText(entry)}</span>
         </div>
       </a>
     `;
@@ -249,7 +261,7 @@ function renderDashboardHistoryPageCard(entry) {
           ` : ""}
           <div class="history-card-meta-row">
             <span class="meta-label">Last Played:</span>
-            <span class="meta-value">${formatDate(entry.watched_at)}</span>
+            <span class="meta-value">${formatDate(entry.watched_at)}${actualWatchText(entry)}</span>
           </div>
         </div>
         <div class="history-card-footer">

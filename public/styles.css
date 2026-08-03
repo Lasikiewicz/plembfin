@@ -8242,6 +8242,12 @@ html.light-mode .log-msg {
   transform: translateY(-1px);
 }
 
+.watch-date-pick.is-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
 .watch-date-pick:disabled {
   opacity: 0.5;
   cursor: not-allowed;

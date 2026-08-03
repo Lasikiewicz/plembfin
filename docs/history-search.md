@@ -45,9 +45,10 @@ Rows further apart than the window are separate viewings. The tool counts those 
 reports how many it preserved rather than collapsing them, so rewatch history survives the
 clean-up. `GET /api/health/sync` reports the same split up front as
 `dataQuality.sameEventDuplicateRows` and `dataQuality.rewatchedItems`, computed with the same
-rule, so the number of rows the tool would delete is visible before running it. Note that
-`rewatchedItems` is only a true rewatch count once `sameEventDuplicateRows` is zero - a
-duplicate recorded seconds after the original also carries a distinct `watched_at`.
+rule, so the number of rows the tool would delete and the number of items with genuine
+rewatches are both visible before running it. The dashboard, show explorer, and show detail
+views use the same retained-event count; marking an already watched item does not create a
+second watch.
 
 Episode rows are grouped by show title plus season/episode when cleaning, so
 copies with different platform keys (title vs IMDb vs TMDB vs TVDB) are still

@@ -114,3 +114,4 @@ The batch TV re-match tool is under **Settings → Tools → Library Rebuilds**
 | `GET /api/tmdb-details` / `GET /api/tmdb-season` | Metadata + episode lists for the detail page |
 | `POST /api/merge-shows`, `POST /api/rematch-show`, `POST /api/rematch-tv-shows` | Identity fixes |
 | `GET /api/watch-dates?id=` / `POST /api/add-watch-date` / `POST /api/delete-watch-date` | List/add/remove individual watch dates for one episode (see [media-detail.md](media-detail.md)) |
+| `POST /api/update-watch-dates` | Update selected existing season/show watch rows atomically; never inserts history rows |

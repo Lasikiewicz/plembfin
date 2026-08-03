@@ -124,7 +124,6 @@ export function createWorkerCoordinator({ holderId, role }) {
     };
     const heartbeat = setInterval(() => {
       heartbeatBackgroundJob(token);
-      if (job.type === "force_sync") setRuntimeState({ forceSyncHeartbeat: Date.now() }).catch(() => null);
     }, Math.min(30_000, Math.max(1_000, Math.floor(LEASE_TTL_MS / 3))));
     heartbeat.unref?.();
     try {
@@ -141,25 +140,32 @@ export function createWorkerCoordinator({ holderId, role }) {
         result = { success: true, planId: record.id, summary: record.summary, status: record.status };
         log(`Force Sync preview complete: ${record.id}`);
       } else {
-        await setRuntimeState({
-          forceSyncActive: true,
-          forceSyncStartedAt: job.startedAt || Date.now(),
-          forceSyncHeartbeat: Date.now(),
-          forceSyncCancelRequested: false,
-        });
-        log("Force Sync started...");
-        result = await runForceSync(log, { lockAlreadyClaimed: true, planId: job.payload?.planId || "" });
+        const cancelledBeforeStart = getBackgroundJob(job.id)?.cancelRequested === true;
+        if (cancelledBeforeStart) {
+          result = { success: false, aborted: true, cancelled: true, error: "Force Sync was cancelled before it started." };
+          log("Force Sync cancelled before it started.");
+        } else {
+          log("Force Sync started...");
+          result = await runForceSync(log, {
+            operationOwnerId: job.id,
+            planId: job.payload?.planId || "",
+            isCancelled: async () => getBackgroundJob(job.id)?.cancelRequested === true,
+          });
+        }
       }
       const current = getBackgroundJob(job.id);
       const cancelled = current?.cancelRequested || result?.aborted;
       appendBackgroundJobLog(job.id, `RESULT: ${JSON.stringify(result)}`);
       finishBackgroundJob({ ...token, status: cancelled ? "cancelled" : "succeeded", result });
       if (job.type === "cron_sync") await setRuntimeState({ lastCronResult: { ok: !cancelled, result, finishedAt: Date.now() } });
-      if (job.type === "force_sync") await setRuntimeState({ forceSyncActive: false, forceSyncCancelRequested: false, forceSyncResult: result, forceSyncHeartbeat: Date.now() });
+      if (job.type === "force_sync") await setRuntimeState({ forceSyncResult: result, forceSyncHeartbeat: Date.now() });
     } catch (error) {
+      const current = getBackgroundJob(job.id);
+      const cancelled = current?.cancelRequested === true;
+      const result = { success: false, ...(cancelled ? { aborted: true, cancelled: true } : {}), error: error.message };
       appendBackgroundJobLog(job.id, `ERROR: ${error.message}`);
-      finishBackgroundJob({ ...token, status: "failed", error: error.message, result: { success: false, error: error.message } });
-      if (job.type === "force_sync") await setRuntimeState({ forceSyncActive: false, forceSyncCancelRequested: false, forceSyncResult: { success: false, error: error.message }, forceSyncHeartbeat: Date.now() }).catch(() => null);
+      finishBackgroundJob({ ...token, status: cancelled ? "cancelled" : "failed", error: error.message, result });
+      if (job.type === "force_sync") await setRuntimeState({ forceSyncResult: result, forceSyncHeartbeat: Date.now() }).catch(() => null);
     } finally {
       clearInterval(heartbeat);
     }

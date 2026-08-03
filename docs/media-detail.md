@@ -86,9 +86,12 @@ first complete render.
 - **Rewatch tracking** - a genuine rewatch (a webhook playback event for an
   already-watched item on a later UTC calendar day; see [webhooks.md](webhooks.md#rewatch-detection))
   adds a new watch record instead of being dropped as a duplicate. A bare
-  played-flag event never counts as a rewatch. Movies and
-  episodes with more than one recorded watch show a "Watch History" list (date +
-  source app for every play) in place of the single watched-date line.
+  played-flag event never counts as a rewatch. Same-event propagation echoes
+  inside the ten-minute duplicate window are removed from displayed history, so
+  movie/episode cards and show summaries count actual watches only. Movies and
+  episodes with more than one recorded watch show a "Watch History" list (date
+  + source app for every play) in place of the single watched-date line; TV show
+  and season summaries also show the total actual-watch count.
 - **Sync status** - per-platform pills from `sync_dispatch_telemetry`
   (`modules/sync.js`), with retry (`POST /api/retry-sync`).
   `POST /api/retry-sync` and `POST /api/update-watch` both take an optional
@@ -124,6 +127,13 @@ first complete render.
   series when that name differs; the dialog closes after that local update while
   progress, artwork, and metadata refresh in the background. A rename changes the
   show's route key, so the UI navigates to the new show URL.
+  Season and show date editors use `POST /api/update-watch-dates` to update the
+  selected existing rows in one transaction. The season editor can use each
+  episode's release day independently; this path never adds a watch-history row.
+  Same-event webhook/propagation echoes are removed from displayed play history,
+  while later genuine plays remain visible. Show cards, dashboard history, season
+  summaries, and episode details expose the retained actual-watch count when it is
+  greater than one.
   The artwork dialog has a match search box at the top (`GET /api/tmdb-search`):
   when a title has no automatic TMDB/TVDB match, searching and picking a result
   swaps the identifiers the picker browses with - the record itself is not

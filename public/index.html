@@ -1640,12 +1640,12 @@
 
                       <div style="margin-bottom: var(--space-1);">
                         <b style="display: block; margin-bottom: 2px;">Force Full Sync</b>
-                        <p style="margin: 0; line-height: 1.4;">Immediately triggers an end-to-end watch state reconciliation across all connected media servers, evaluating watch timestamps and play states.<br><b>When to use:</b> Use "Preview Force Sync" to simulate and inspect planned actions before writing.</p>
+                        <p style="margin: 0; line-height: 1.4;">Reconciles connected media servers from Plembfin's canonical watched/unwatched history. It respects server receive roles, fails closed if a library scan cannot complete, suppresses callback echoes, and cannot overlap a restore or another Force Sync.<br><b>When to use:</b> Use "Preview Force Sync" to inspect planned actions before writing; a preview with a failed server scan cannot be confirmed.</p>
                       </div>
 
                       <div>
                         <b style="display: block; margin-bottom: 2px;">Stop / Reset Sync</b>
-                        <p style="margin: 0; line-height: 1.4;">Cancels an in-progress Force Full Sync background job or clears an orphaned sync lock file if the server restarted mid-sync.</p>
+                        <p style="margin: 0; line-height: 1.4;">Cancels an in-progress Force Full Sync background job, marks queued cancellations terminal, or clears an orphaned operation lock if the server restarted mid-sync.</p>
                       </div>
                     </article>
                   </div>

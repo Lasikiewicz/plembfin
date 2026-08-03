@@ -8,6 +8,8 @@ const selectLogs = db.prepare("SELECT seq, timestamp, message FROM background_jo
 const insertJob = db.prepare(`INSERT INTO background_jobs
   (id,type,status,requested_at,cancel_requested,payload) VALUES (@id,@type,'queued',@requestedAt,0,@payload)`);
 
+export const BACKGROUND_JOB_STALE_MS = 90_000;
+
 function shape(row) {
   if (!row) return null;
   return {
@@ -68,20 +70,36 @@ export function appendBackgroundJobLog(id, message, now = Date.now()) {
   }).immediate();
 }
 
-export function claimNextBackgroundJob({ holderId, generation, staleAfterMs = 90_000, now = Date.now() }) {
+export function claimNextBackgroundJob({ holderId, generation, staleAfterMs = BACKGROUND_JOB_STALE_MS, now = Date.now() }) {
   return db.transaction(() => {
     const lease = db.prepare("SELECT holder_id, generation, expires_at FROM scheduler_lease WHERE id='scheduler'").get();
     if (lease?.holder_id !== holderId || Number(lease.generation) !== Number(generation) || Number(lease.expires_at) <= now) return null;
+
+    // A worker can die after an administrator presses Stop. Mark that job
+    // terminal before looking for work so a replacement worker cannot revive
+    // the cancelled operation through the stale-job reclaim path.
+    const staleBefore = now - staleAfterMs;
+    db.prepare(`UPDATE background_jobs
+      SET status='cancelled', finished_at=@now, heartbeat_at=@now,
+          result=@result, error=NULL
+      WHERE status='running' AND cancel_requested=1 AND heartbeat_at < @staleBefore`).run({
+      now,
+      staleBefore,
+      result: toJson({ success: false, aborted: true, cancelled: true, reason: "Cancellation requested while the previous worker was unavailable." }),
+    });
+
     const row = db.prepare(`SELECT * FROM background_jobs
-      WHERE status = 'queued' OR (status = 'running' AND heartbeat_at < ?)
+      WHERE (status = 'queued' AND cancel_requested = 0)
+        OR (status = 'running' AND cancel_requested = 0 AND heartbeat_at < ?)
       ORDER BY requested_at LIMIT 1`).get(now - staleAfterMs);
     if (!row) return null;
     const changed = db.prepare(`UPDATE background_jobs
       SET status='running', started_at=COALESCE(started_at, @now), heartbeat_at=@now,
           claimed_by=@holderId, claim_generation=@generation, error=NULL
-      WHERE id=@id AND (status='queued' OR (status='running' AND heartbeat_at < @staleBefore))`).run({
-        id: row.id, holderId, generation, now, staleBefore: now - staleAfterMs,
-      }).changes;
+      WHERE id=@id AND cancel_requested=0
+        AND (status='queued' OR (status='running' AND heartbeat_at < @staleBefore))`).run({
+      id: row.id, holderId, generation, now, staleBefore: now - staleAfterMs,
+    }).changes;
     return changed === 1 ? shape(selectJob.get(row.id)) : null;
   }).immediate();
 }
@@ -105,9 +123,17 @@ export function requestBackgroundJobCancellation(id, now = Date.now()) {
     const job = shape(selectJob.get(id));
     if (!job) return null;
     if (job.status === "queued") {
-      db.prepare("UPDATE background_jobs SET status='cancelled', cancel_requested=1, finished_at=? WHERE id=? AND status='queued'").run(now, id);
+      db.prepare(`UPDATE background_jobs
+        SET status='cancelled', cancel_requested=1, finished_at=?, heartbeat_at=?,
+            result=?, error=NULL
+        WHERE id=? AND status='queued'`).run(
+        now,
+        now,
+        toJson({ success: false, aborted: true, cancelled: true, reason: "Queued force sync cancelled." }),
+        id,
+      );
     } else if (job.status === "running") {
-      db.prepare("UPDATE background_jobs SET cancel_requested=1 WHERE id=? AND status='running'").run(id);
+      db.prepare("UPDATE background_jobs SET cancel_requested=1, heartbeat_at=? WHERE id=? AND status='running'").run(now, id);
     }
     return shape(selectJob.get(id));
   }).immediate();

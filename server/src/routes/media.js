@@ -10,13 +10,14 @@ import { createLoopStore } from "../utils/loopStore.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
 import { runForceSync, runScheduledSync } from "../scheduled.js";
-import { appendSyncHistory, clearRestoreSyncState, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, RESTORE_KIND_FULL_SYNC, setRuntimeState, appendRuntimeLog } from "../utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, claimSyncOperation, clearRestoreSyncState, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, releaseSyncOperation, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, RESTORE_KIND_FULL_SYNC, setRuntimeState, appendRuntimeLog, touchSyncOperation } from "../utils/configStore.js";
 import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes } from "../utils/plexClient.js";
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
 import { getTargetsForSource, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
@@ -35,6 +36,7 @@ import {
   getWatchDatesForRecord,
   addWatchDate,
   deleteWatchDate,
+  updateWatchDates,
   mergeShows,
   getWatchRecordById,
   getWatchRecordByIdLight,
@@ -349,11 +351,11 @@ export async function handleShow(req, res) {
   return sendJson(res, { show }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=300", Vary: "Authorization" });
 }
 
-function configuredRestoreTargets(config = {}) {
+function configuredRestoreTargets(config = {}, stateType = "watched") {
   const targets = [];
-  if (!config.plex?.disabled && config.plex?.baseUrl && config.plex?.token) targets.push("plex");
-  if (!config.emby?.disabled && config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId) targets.push("emby");
-  if (!config.jellyfin?.disabled && config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId) targets.push("jellyfin");
+  if (!config.plex?.disabled && config.plex?.baseUrl && config.plex?.token && canReceiveState(config, "plex", stateType)) targets.push("plex");
+  if (!config.emby?.disabled && config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId && canReceiveState(config, "emby", stateType)) targets.push("emby");
+  if (!config.jellyfin?.disabled && config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId && canReceiveState(config, "jellyfin", stateType)) targets.push("jellyfin");
   return targets;
 }
 
@@ -403,6 +405,11 @@ async function beginFullSyncRestore(runId, phase, requestedSnapshotAt, phaseStar
   const runtime = await loadRuntimeState();
   const active = restoreRuntimeIsFresh(runtime, now);
   const activeRunId = validFullSyncRunId(runtime.restoreSyncRunId);
+  const operation = activeSyncOperation(runtime);
+
+  if (operation && (operation.kind !== RESTORE_KIND_FULL_SYNC || operation.ownerId !== runId)) {
+    return { conflict: true, active: operation };
+  }
 
   if (active && activeRunId !== runId) {
     return { conflict: true };
@@ -413,7 +420,7 @@ async function beginFullSyncRestore(runId, phase, requestedSnapshotAt, phaseStar
   }
 
   if (!active && runtime.restoreSyncActive === true) {
-    await setRuntimeState({ restoreSyncActive: false, restoreSyncRunId: "" }).catch(() => null);
+    await setRuntimeState({ restoreSyncActive: false, restoreSyncRunId: "", syncOperation: null }).catch(() => null);
   }
 
   const requested = Number(requestedSnapshotAt);
@@ -424,17 +431,23 @@ async function beginFullSyncRestore(runId, phase, requestedSnapshotAt, phaseStar
     ? Number(runtime.restoreSyncStartedAt || now)
     : now;
 
-  await setRuntimeState({
-    restoreSyncActive: true,
-    restoreSyncRunId: runId,
-    restoreSyncKind: RESTORE_KIND_FULL_SYNC,
-    restoreSyncCancelRequested: false,
-    restoreSyncPhase: phase,
-    restoreSyncStartedAt: startedAt,
-    restoreSyncHeartbeat: now,
-    restoreSyncSnapshotAt: snapshotAt,
-    restoreSyncResult: null,
+  const claim = await claimSyncOperation({
+    kind: RESTORE_KIND_FULL_SYNC,
+    ownerId: runId,
+    activeField: "restoreSyncActive",
+    startedAt,
+    values: {
+      restoreSyncRunId: runId,
+      restoreSyncKind: RESTORE_KIND_FULL_SYNC,
+      restoreSyncCancelRequested: false,
+      restoreSyncPhase: phase,
+      restoreSyncStartedAt: startedAt,
+      restoreSyncHeartbeat: now,
+      restoreSyncSnapshotAt: snapshotAt,
+      restoreSyncResult: null,
+    },
   });
+  if (!claim?.ok) return { conflict: true, active: claim?.active || null };
 
   return { conflict: false, snapshotAt };
 }
@@ -442,20 +455,28 @@ async function beginFullSyncRestore(runId, phase, requestedSnapshotAt, phaseStar
 async function finishFullSyncRestore(runId, result = {}) {
   const runtime = await loadRuntimeState();
   if (validFullSyncRunId(runtime.restoreSyncRunId) !== runId) return;
-  await setRuntimeState({
-    restoreSyncActive: false,
-    restoreSyncRunId: "",
-    restoreSyncKind: "",
-    restoreSyncCancelRequested: Boolean(result.cancelled),
-    restoreSyncHeartbeat: Date.now(),
-    restoreSyncResult: { ...result, finishedAt: Date.now() },
+  await releaseSyncOperation({
+    kind: RESTORE_KIND_FULL_SYNC,
+    ownerId: runId,
+    values: {
+      restoreSyncActive: false,
+      restoreSyncRunId: "",
+      restoreSyncKind: "",
+      restoreSyncCancelRequested: Boolean(result.cancelled),
+      restoreSyncHeartbeat: Date.now(),
+      restoreSyncResult: { ...result, finishedAt: Date.now() },
+    },
   }).catch(() => null);
 }
 
 async function touchFullSyncRestore(runId) {
   const runtime = await loadRuntimeState().catch(() => ({}));
   if (runtime.restoreSyncActive !== true || validFullSyncRunId(runtime.restoreSyncRunId) !== runId) return;
-  await setRuntimeState({ restoreSyncHeartbeat: Date.now() }).catch(() => null);
+  await touchSyncOperation({
+    kind: RESTORE_KIND_FULL_SYNC,
+    ownerId: runId,
+    values: { restoreSyncHeartbeat: Date.now() },
+  }).catch(() => null);
 }
 
 function emptyRestoreSummary(targets = []) {
@@ -500,11 +521,17 @@ export async function handleFullSyncWatchstates(req, res) {
   if (action === "reset") {
     const runtime = await loadRuntimeState();
     const restoreKind = String(runtime.restoreSyncKind || "");
-    if (restoreKind && restoreKind !== RESTORE_KIND_FULL_SYNC) {
+    const operation = activeSyncOperation(runtime);
+    const legacyFullSync = runtime.restoreSyncActive === true
+      && !restoreKind
+      && validFullSyncRunId(runtime.restoreSyncRunId);
+    if ((restoreKind && restoreKind !== RESTORE_KIND_FULL_SYNC)
+      || (operation && operation.kind !== RESTORE_KIND_FULL_SYNC && !legacyFullSync)) {
       return sendJson(res, { error: "Another restore is currently active. Stop it from its owning tool first." }, 409);
     }
     const result = await clearRestoreSyncState({
       reason: "Full Sync Watchstates was reset by an administrator.",
+      expectedKind: legacyFullSync ? "" : RESTORE_KIND_FULL_SYNC,
     });
     const message = result.reset
       ? "Full Sync Watchstates was stopped and its restore lock was cleared."
@@ -543,7 +570,7 @@ export async function handleFullSyncWatchstates(req, res) {
   const limit = Math.min(Math.max(Number(body.limit || 25), 1), 100);
   const phaseStart = body.start === true || String(body.start || "").toLowerCase() === "true";
   const config = await loadMediaConfig();
-  const targets = configuredRestoreTargets(config);
+  const targets = configuredRestoreTargets(config, phase);
   const summary = emptyRestoreSummary(targets);
   const errors = [];
   const loopStore = createLoopStore();
@@ -559,6 +586,7 @@ export async function handleFullSyncWatchstates(req, res) {
       error: "Another restore is currently active.",
       restore: {
         runId: validFullSyncRunId(runtime.restoreSyncRunId),
+        kind: String(runtime.restoreSyncKind || restoreState.active?.kind || RESTORE_KIND_FULL_SYNC),
         phase: String(runtime.restoreSyncPhase || "watched"),
         startedAt: Number(runtime.restoreSyncStartedAt || 0),
         heartbeat: Number(runtime.restoreSyncHeartbeat || 0),
@@ -770,6 +798,20 @@ export async function handleDeleteWatchDate(req, res) {
   if (!result.ok) return sendJson(res, { error: result.error }, 400);
   writeAuditLog("media.watch_date_deleted", { ip: req.ip || req.socket?.remoteAddress, detail: { id } });
   return sendJson(res, { ok: true });
+}
+
+// Updates existing watch rows only. Season/show date edits use this bulk path
+// so each selected episode can receive its own release date without the
+// single-row editor's same-day duplicate propagation or any history inserts.
+export async function handleUpdateWatchDates(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST" && req.method !== "PATCH") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const result = await updateWatchDates(body.updates);
+  if (!result.ok) return sendJson(res, { error: result.error }, 400);
+  return sendJson(res, result);
 }
 
 export async function handleUpdateWatch(req, res) {

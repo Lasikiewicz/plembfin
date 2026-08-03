@@ -111,6 +111,12 @@
 Force Sync can be previewed before writes, with scoped libraries/media types, typed
 additive or destructive actions, stale-plan protection, and verified pre-run watch-history
 snapshots. Server roles can be bidirectional, source-only, destination-only, or monitor-only.
+Plembfin history remains authoritative: remote-only watches are ignored, failed server
+scans fail closed instead of looking like empty libraries, and Force Sync cannot overlap
+Full Sync Watchstates or a backup restore. A stopped queued job is terminal and cannot be
+resurrected by stale-worker recovery; inbound callbacks are suppressed during authoritative
+operations, while scheduled-sync callbacks remain eligible for normal echo-ledger checks.
+Outbound unplayed writes have their own echo ledger.
 Outbound requests use shared per-destination pacing and cooldown telemetry, while
 **Settings → Advanced → System integrity check** reports current history scale, matching
 failures, and upstream pressure. See

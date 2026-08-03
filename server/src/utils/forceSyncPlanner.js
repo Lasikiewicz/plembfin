@@ -294,7 +294,10 @@ export async function collectServerWatchedItems(config, { scope: rawScope, logge
         logger(`${label} ERROR: failed to fetch watched items: ${error.message}`);
         itemsByServer[server] = [];
         fingerprints[server] = { rawCount: 0, itemCount: 0, maxWatchedAt: 0, fetchError: error.message };
-        scannedServers.push(server);
+        // An unavailable server must never be treated as an empty library.
+        // Keep it out of the executable target set and surface the failure in
+        // the plan so confirmation can fail closed.
+        scopeErrors.push({ server, missing: [], error: error.message });
       }
     });
 
@@ -305,7 +308,7 @@ export async function collectServerWatchedItems(config, { scope: rawScope, logge
 
 // Cheap per-server watched-item counts, used to detect a stale plan before
 // execution without repeating the full library scan.
-export async function collectServerFingerprintCounts(config, { scope: rawScope, clients: clientOverrides } = {}) {
+export async function collectServerFingerprintCounts(config, { scope: rawScope, clients: clientOverrides, onError = () => {} } = {}) {
   const scope = normalizeScope(rawScope);
   const clients = { ...DEFAULT_CLIENTS, ...(clientOverrides || {}) };
   const counts = {};
@@ -319,9 +322,12 @@ export async function collectServerFingerprintCounts(config, { scope: rawScope, 
         jellyfin: clients.countJellyfinWatchedItems,
       }[server];
       try {
-        counts[server] = await countFn(config[server], { libraryIds });
-      } catch {
-        counts[server] = null; // unknown - treated as "cannot verify", not stale
+        const count = await countFn(config[server], { libraryIds });
+        if (!Number.isFinite(Number(count)) || Number(count) < 0) throw new Error("server returned an invalid watched-item count");
+        counts[server] = Number(count);
+      } catch (error) {
+        counts[server] = null; // unknown - execution treats this as a failed verification
+        onError(server, error);
       }
     }),
   );

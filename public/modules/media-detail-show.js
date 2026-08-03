@@ -358,6 +358,33 @@ function watchedEpisodeFor(watchedMap, seasonNumber, episodeNumber) {
   return null;
 }
 
+// The server removes same-event propagation echoes before it builds
+// playHistory. Keep the UI defensive for older cached rows, and always count a
+// missing history array as one watch rather than zero.
+function actualWatchHistory(watched = {}) {
+  const raw = Array.isArray(watched?.playHistory) ? watched.playHistory : [];
+  const entries = raw
+    .map((entry) => (typeof entry === "string" ? { watched_at: entry } : entry))
+    .filter((entry) => entry?.watched_at);
+  if (!entries.length && watched?.watched_at) {
+    return [{ id: watched.id, watched_at: watched.watched_at, source: watched.source }];
+  }
+  const seen = new Set();
+  return entries.filter((entry) => {
+    const key = entry.id || `${entry.watched_at}|${entry.source || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function watchSummaryForRows(rows = []) {
+  const watchedRows = rows.filter((row) => row?.watched);
+  const totalWatches = watchedRows.reduce((total, row) => total + actualWatchHistory(row.watched).length, 0);
+  const rewatchedEpisodes = watchedRows.filter((row) => actualWatchHistory(row.watched).length > 1).length;
+  return { totalWatches, rewatchedEpisodes };
+}
+
 function playbackProgressTitle(row = {}) {
   return showTitleFrom(row.show_title || row.grandparent_title || row.series_title || row.title || "");
 }
@@ -651,7 +678,7 @@ function episodeReleaseLabel(airDate) {
 // recorded watch - see playHistory ({ id, watched_at, source }[]) built
 // server-side in dedupeHistory (server/src/utils/dataRepo.js).
 function episodeWatchHistoryHtml(watched) {
-  const history = Array.isArray(watched?.playHistory) ? watched.playHistory : [];
+  const history = actualWatchHistory(watched);
   if (history.length < 2) return "";
   const rows = [...history]
     .sort((a, b) => String(b.watched_at).localeCompare(String(a.watched_at)))
@@ -665,7 +692,7 @@ function episodeWatchHistoryHtml(watched) {
   return `
     <div class="episode-watch-history">
       <div class="episode-watch-history-head">
-        <span class="rewatch-badge" title="Watched ${history.length} times">&#8635; Watch History &times;${history.length}</span>
+        <span class="rewatch-badge" title="${history.length} actual watches">&#8635; Watch History &times;${history.length}</span>
         <button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch dates" data-edit-id="${escapeAttribute(watched.id)}" data-watched-at="${escapeAttribute(watched.watched_at || "")}">✎</button>
       </div>
       <ul class="episode-watch-history-list">${rows}</ul>
@@ -713,6 +740,7 @@ function seasonEpisodeTotal(seasonNumber, seasonEpisodes, season, seasonDetailsB
 
 function showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle = "", tmdbData = null, seasonDetailsByNumber = null) {
   const watchedInSeason = seasonEpisodes.filter((episode) => episode.watched).length;
+  const watchSummary = watchSummaryForRows(seasonEpisodes);
   const seasonTotal = seasonEpisodeTotal(seasonNumber, seasonEpisodes, season, seasonDetailsByNumber);
   const today = toDateInputValue(new Date());
   let nextAiring = seasonEpisodes
@@ -734,7 +762,7 @@ function showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle = "",
   const nextAiringText = nextAiring
     ? `Next Airing ${formatLongAiringDate(nextAiring.airDate)} (${formatEpisodeAirtime(nextAiring, showTitle)})`
     : "";
-  return { watchedInSeason, seasonTotal, nextAiring, nextAiringText };
+  return { ...watchSummary, watchedInSeason, seasonTotal, nextAiring, nextAiringText };
 }
 
 function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, isSaving, isUnreleased, loading) {
@@ -745,10 +773,13 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
   const seasonUnwatched = seasonEpisodes.filter((episode) => !episode.watched && !isUnreleased(episode));
   const seasonSummary = showSeasonSummary(seasonNumber, seasonEpisodes, seasonRecord, showTitle, tmdbData, seasonDetailsByNumber);
   const seasonSeerrControls = renderSeasonSeerrControls(tvSeerrTmdbId, seasonNumber, tvSeerrStatus);
+  const seasonWatchCount = seasonSummary.totalWatches > seasonSummary.watchedInSeason
+    ? ` · ${seasonSummary.totalWatches} actual watches`
+    : "";
   return `
     <section class="show-season-block" id="showSeason${seasonNumber}">
       <div class="show-season-head">
-        <span class="show-season-label">${seasonSummary.watchedInSeason} of ${seasonSummary.seasonTotal || "?"} episodes watched</span>
+        <span class="show-season-label">${seasonSummary.watchedInSeason} of ${seasonSummary.seasonTotal || "?"} episodes watched${seasonWatchCount}</span>
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
           ${seasonSeerrControls}
           ${seasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${seasonNumber}" ${isSaving ? "disabled" : ""}>Edit season date</button>` : ""}
@@ -762,7 +793,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
     const isHighlighted = (Number(episode.seasonNumber) === Number(seasonNumber)) && (Number(episode.episodeNumber) === Number(state.activeShowModalEpisode));
     const syncStatusDotHtml = episode.watched ? renderSyncStatusDot(episode.watched) : "";
     const episodeIsUnreleased = isUnreleased(episode);
-    const playHistory = Array.isArray(episode.watched?.playHistory) ? episode.watched.playHistory : [];
+    const playHistory = actualWatchHistory(episode.watched);
     const hasWatchHistory = playHistory.length > 1;
     return `
             <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
@@ -829,9 +860,14 @@ export function renderShowModalContent(show, {
   const episodeRows = buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, tmdbData?.id || show.tmdb_id || "", tmdbData);
   const regularEpisodeRows = episodeRows.filter((episode) => Number(episode.seasonNumber) > 0);
   const watchedRows = regularEpisodeRows.filter((episode) => episode.watched);
+  const showWatchSummary = watchSummaryForRows(regularEpisodeRows);
   const metadataEpisodeCount = regularSeasonsList.reduce((total, season) => total + Number(season.episode_count || 0), 0);
   const totalCount = Math.max(regularEpisodeRows.length, metadataEpisodeCount, watchedRows.length, 1);
   const watchedCount = watchedRows.length || [...watchedEpisodesByKey(show).keys()].length;
+  const totalWatches = Math.max(showWatchSummary.totalWatches, watchedCount);
+  const watchHistoryLabel = totalWatches > watchedCount
+    ? ` · ${totalWatches} actual watches`
+    : "";
   const progressPercent = Math.max(0, Math.min(100, Math.round((watchedCount / totalCount) * 100)));
   const representative = representativeEpisode(seasonsMap);
   const backdropUrl = show.backdrop_url || tmdbData?.cached_backdrop_url || tmdbImage(tmdbData?.backdrop_path, "original");
@@ -899,7 +935,7 @@ export function renderShowModalContent(show, {
     tmdbData,
     posterUrl,
     overview,
-    summary: { watchedCount, totalCount, progressPercent },
+    summary: { watchedCount, totalCount, progressPercent, totalWatches, rewatchedEpisodes: showWatchSummary.rewatchedEpisodes },
     records: episodeRows.map((episode) => episode.watched).filter(Boolean),
   });
 
@@ -927,11 +963,13 @@ export function renderShowModalContent(show, {
   const seasonsAccordionHtml = seasonsList.map((season) => {
     const seasonNumber = Number(season.season_number);
     const seasonEpisodes = episodeRows.filter((episode) => episode.seasonNumber === seasonNumber);
-    const { watchedInSeason, seasonTotal, nextAiringText } = showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle, tmdbData, seasonDetailsByNumber);
+    const { watchedInSeason, seasonTotal, nextAiringText, totalWatches } = showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle, tmdbData, seasonDetailsByNumber);
     const isActive = allSeasonsExpanded || seasonNumber === selectedSeasonNumber;
     const panelId = `seasonAccordionPanel${seasonNumber}`;
     const episodeCountText = `${seasonTotal || "?"} episode${seasonTotal === 1 ? "" : "s"}`;
-    const watchedText = watchedInSeason ? `${watchedInSeason} watched` : "";
+    const watchedText = watchedInSeason
+      ? `${watchedInSeason} watched${totalWatches > watchedInSeason ? ` · ${totalWatches} plays` : ""}`
+      : "";
     const seasonAvailabilityHtml = tvSeasonAvailabilityHtml(tvSeerrStatus, seasonNumber, watchedInSeason);
     return `
       <article class="season-accordion ${isActive ? "is-open" : ""}">
@@ -1047,7 +1085,7 @@ export function renderShowModalContent(show, {
               ${localEvidence}
               <section class="progress-section" style="border: 0; padding: 0; margin-top: 0.5rem; width: 100%;">
                 <div class="progress-label-row">
-                  <span>${watchedCount} of ${totalCount} episodes watched</span>
+                  <span>${watchedCount} of ${totalCount} episodes watched${watchHistoryLabel}</span>
                   <span>${progressPercent}% complete</span>
                 </div>
                 <div class="progress-bar-track">
@@ -1094,7 +1132,7 @@ export function renderShowModalContent(show, {
 
               <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
                 <div class="progress-label-row">
-                  <span>${watchedCount} of ${totalCount} episodes watched</span>
+                  <span>${watchedCount} of ${totalCount} episodes watched${watchHistoryLabel}</span>
                   <span>${progressPercent}% complete</span>
                 </div>
                 <div class="progress-bar-track">
@@ -1161,7 +1199,16 @@ function mergeShowWithLoadedHistory(show = {}) {
     const key = showEpisodeKey(row.season, row.episode);
     const existing = byEpisode.get(key);
     if (!existing || String(row.watched_at || "") >= String(existing.watched_at || "")) {
-      byEpisode.set(key, { ...row, show_title: rowShowTitle });
+      // The dashboard/history preview is intentionally compact and does not
+      // carry playHistory. Do not let that lightweight row replace the full
+      // detail row and hide genuine repeated watches in the show modal.
+      const existingHistory = Array.isArray(existing?.playHistory) ? existing.playHistory : [];
+      const incomingHistory = Array.isArray(row.playHistory) ? row.playHistory : [];
+      byEpisode.set(key, {
+        ...row,
+        show_title: rowShowTitle,
+        ...(existingHistory.length > incomingHistory.length ? { playHistory: existingHistory } : {}),
+      });
     }
   }
   const episodes = [...byEpisode.values()].sort((a, b) => Number(b.season || 0) - Number(a.season || 0) || Number(b.episode || 0) - Number(a.episode || 0));

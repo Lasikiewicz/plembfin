@@ -1115,7 +1115,7 @@ function updateSyncProgressFromLine(line, mode) {
 
     const stages = [
       ["loading media configuration", "Loading media configuration", 8],
-      ["active media targets resolved", "Media servers connected", 15],
+      ["receiving targets resolved", "Media servers connected", 15],
       ["querying watched libraries", "Scanning watched libraries", 24],
       ["collected ", "Watched libraries scanned", 38],
       ["loading plembfin watchhistory", "Loading Plembfin history", 45],
@@ -1257,77 +1257,99 @@ export async function triggerStopSync() {
   }
 }
 
-export async function triggerForceSync() {
+export async function triggerForceSync({ planId = "", confirmed = false } = {}) {
   const button = elements.forceSyncButton;
   const terminal = elements.forceSyncTerminal;
   if (!button) return;
 
-  _cb.showConfirmModal?.(
-    "Are you sure you want to run Force Sync?\n\nThis will check all configured media servers (Plex, Emby, Jellyfin) and resolve their watched/unwatched states based on the newest timestamp. It may take some time.",
-    async () => {
-      if (terminal) { terminal.classList.remove("hidden"); terminal.textContent = "Force Sync starting...\n"; }
-      beginSyncProgress("Preparing force sync");
-      const originalText = button.textContent;
-      button.disabled = true;
-      button.textContent = "Syncing...";
-      button.classList.add("hidden");
+  const startForceSyncJob = async () => {
+    if (terminal) { terminal.classList.remove("hidden"); terminal.textContent = "Force Sync starting...\n"; }
+    beginSyncProgress(planId ? "Preparing confirmed Force Sync plan" : "Preparing force sync");
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Syncing...";
+    button.classList.add("hidden");
 
-      try {
-        const startResponse = await fetch("/api/force-sync", { method: "POST", headers: authHeaders() });
-        if (!startResponse.ok) {
-          const body = await startResponse.json().catch(() => ({}));
-          throw new Error(body.error || `Force sync failed with HTTP ${startResponse.status}`);
-        }
-
-        let seenLines = 0;
-        let finalResult = null;
-        let pollActive = true;
-
-        while (pollActive) {
-          await new Promise((r) => setTimeout(r, 2000));
-          let statusBody;
-          try {
-            const statusRes = await fetch("/api/force-sync", { headers: authHeaders(), cache: "no-store" });
-            statusBody = await statusRes.json();
-          } catch (err) { continue; }
-
-          const log = Array.isArray(statusBody.log) ? statusBody.log : [];
-          for (let i = seenLines; i < log.length; i++) {
-            const line = log[i];
-            if (line && line.startsWith("RESULT: ")) {
-              try { finalResult = JSON.parse(line.substring(8)); } catch (_) { }
-            } else if (terminal && line) {
-              terminal.textContent += `${line}\n`;
-              terminal.scrollTop = terminal.scrollHeight;
-            }
-            updateSyncProgressFromLine(line, "force");
-          }
-          seenLines = log.length;
-          if (!statusBody.active) { finalResult = finalResult || statusBody.result; pollActive = false; }
-        }
-
-        if (finalResult && finalResult.success) {
-          const stats = finalResult.stats || {};
-          const detail = finalResult.aborted
-            ? `Force Sync stopped! Found: ${stats.totalWatchedFoundAcrossServers ?? 0}, added: ${stats.addedToHistory ?? 0}, deleted: ${stats.deletedFromHistory ?? 0}, propagated: ${stats.propagatedUpdates ?? 0}`
-            : `Force Sync complete! Targets: ${(finalResult.activeTargets || []).join(", ") || "none"}. Found: ${stats.totalWatchedFoundAcrossServers ?? 0}, added: ${stats.addedToHistory ?? 0}, deleted: ${stats.deletedFromHistory ?? 0}, propagated: ${stats.propagatedUpdates ?? 0}`;
-          _cb.showToast?.(detail);
-          if (terminal) { terminal.textContent += `\n${finalResult.aborted ? "ABORTED" : "SUCCESS"}: ${detail}\n`; terminal.scrollTop = terminal.scrollHeight; }
-          finishSyncProgress(finalResult.aborted ? "stopped" : "complete", finalResult.aborted ? "Force sync stopped" : "Force sync complete");
-        } else if (finalResult) {
-          throw new Error(finalResult.error || "Force Sync ended with an unknown error.");
-        }
-
-        await Promise.all([_cb.loadSyncJobs?.({ force: true }), _cb.loadSyncHistory?.({ force: true })]);
-      } catch (error) {
-        _cb.showToast?.(`Error: ${error.message}`);
-        if (terminal) { terminal.textContent += `\nERROR: ${error.message}\n`; terminal.scrollTop = terminal.scrollHeight; }
-        finishSyncProgress("error", "Force sync failed");
-      } finally {
-        button.disabled = false;
-        button.textContent = originalText;
-        button.classList.remove("hidden");
+    try {
+      const startResponse = await fetch("/api/force-sync", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(planId ? { planId } : {}),
+      });
+      if (!startResponse.ok) {
+        const body = await startResponse.json().catch(() => ({}));
+        throw new Error(body.error || `Force sync failed with HTTP ${startResponse.status}`);
       }
+
+      let seenLines = 0;
+      let finalResult = null;
+      let pollActive = true;
+
+      while (pollActive) {
+        await new Promise((r) => setTimeout(r, 2000));
+        let statusBody;
+        try {
+          const statusRes = await fetch("/api/force-sync", { headers: authHeaders(), cache: "no-store" });
+          statusBody = await statusRes.json();
+        } catch (err) { continue; }
+
+        const log = Array.isArray(statusBody.log) ? statusBody.log : [];
+        for (let i = seenLines; i < log.length; i++) {
+          const line = log[i];
+          if (line && line.startsWith("RESULT: ")) {
+            try { finalResult = JSON.parse(line.substring(8)); } catch (_) { }
+          } else if (terminal && line) {
+            terminal.textContent += `${line}\n`;
+            terminal.scrollTop = terminal.scrollHeight;
+          }
+          updateSyncProgressFromLine(line, "force");
+        }
+        seenLines = log.length;
+        if (!statusBody.active) {
+          finalResult = finalResult || statusBody.result;
+          if (!finalResult && statusBody.status === "cancelled") {
+            finalResult = { success: false, aborted: true, cancelled: true, error: "Force Sync was cancelled." };
+          } else if (!finalResult && statusBody.status === "failed") {
+            finalResult = { success: false, error: "Force Sync failed without a result." };
+          }
+          pollActive = false;
+        }
+      }
+
+      if (!finalResult) throw new Error("No final result returned from server");
+
+      const stopped = Boolean(finalResult.aborted || finalResult.cancelled);
+      if (stopped) {
+        const detail = finalResult.error || "Force Sync stopped.";
+        _cb.showToast?.(detail);
+        if (terminal) { terminal.textContent += `\nABORTED: ${detail}\n`; terminal.scrollTop = terminal.scrollHeight; }
+        finishSyncProgress("stopped", "Force sync stopped");
+      } else if (finalResult.success) {
+        const stats = finalResult.stats || {};
+        const scanErrorCount = Object.keys(stats.scanErrors || {}).length;
+        const detail = `Force Sync complete! Targets: ${(finalResult.activeTargets || []).join(", ") || "none"}. Found: ${stats.totalWatchedFoundAcrossServers ?? 0}, added: ${stats.addedToHistory ?? 0}, deleted: ${stats.deletedFromHistory ?? 0}, propagated: ${stats.propagatedUpdates ?? 0}${scanErrorCount ? `; ${scanErrorCount} server scan${scanErrorCount === 1 ? "" : "s"} failed` : ""}`;
+        _cb.showToast?.(detail);
+        if (terminal) { terminal.textContent += `\nSUCCESS: ${detail}\n`; terminal.scrollTop = terminal.scrollHeight; }
+        finishSyncProgress("complete", "Force sync complete");
+      } else {
+        throw new Error(finalResult.error || "Force Sync ended with an unknown error.");
+      }
+
+      await Promise.all([_cb.loadSyncJobs?.({ force: true }), _cb.loadSyncHistory?.({ force: true })]);
+    } catch (error) {
+      _cb.showToast?.(`Error: ${error.message}`);
+      if (terminal) { terminal.textContent += `\nERROR: ${error.message}\n`; terminal.scrollTop = terminal.scrollHeight; }
+      finishSyncProgress("error", "Force sync failed");
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+      button.classList.remove("hidden");
     }
+  };
+
+  if (confirmed) return startForceSyncJob();
+  _cb.showConfirmModal?.(
+    "Are you sure you want to run Force Sync?\n\nThis checks configured media servers and repairs their watched/unwatched states from Plembfin's canonical history. It may take some time.",
+    startForceSyncJob,
   );
 }

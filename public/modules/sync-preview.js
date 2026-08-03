@@ -3,7 +3,7 @@ import { buildAuthHeaders } from "./auth.js";
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const esc = (value) => String(value ?? "").replace(/[&<>\"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 
-export function initSyncPreview({ button, panel, token, onToast = () => {} } = {}) {
+export function initSyncPreview({ button, panel, token, onToast = () => {}, onExecute = null } = {}) {
   if (!button || !panel) return;
   const headers = () => buildAuthHeaders(token?.() || "");
   const setPanel = (html) => { panel.innerHTML = html; panel.classList.remove("hidden"); };
@@ -37,15 +37,20 @@ export function initSyncPreview({ button, panel, token, onToast = () => {} } = {
         <div class="sync-preview-metrics"><span><b>${plan.summary.totalActions}</b> planned changes</span><span><b>${plan.summary.additive}</b> additive</span><span><b>${plan.summary.destructive}</b> destructive</span><span><b>${plan.summary.outboundWrites}</b> outbound writes</span></div>
         ${plan.summary.scopeErrors?.length ? `<p class="sync-preview-warning">Scope review required: ${esc(plan.summary.scopeErrors.map((item) => item.server).join(", "))}</p>` : ""}
         <details open><summary>First actions</summary><div class="sync-preview-actions">${(actions.actions || []).map((action) => `<div class="sync-preview-action"><span class="sync-preview-risk ${action.risk}">${esc(action.risk)}</span><span>${esc(action.kind.replaceAll("_", " "))}</span><span>${esc(action.media?.title || "Unknown title")}</span><small>${esc(action.target || action.reason || "")}</small></div>`).join("") || "<p>No writes are planned.</p>"}</div></details>
-        <div class="sync-preview-footer"><span>Plan expires ${new Date(plan.expiresAt).toLocaleTimeString()}</span><button type="button" class="button-primary sync-preview-confirm" ${plan.status === "blocked_over_limit" ? "disabled" : ""}>Confirm plan</button></div>`);
+        <div class="sync-preview-footer"><span>Plan expires ${new Date(plan.expiresAt).toLocaleTimeString()}</span><button type="button" class="button-primary sync-preview-confirm" ${["blocked_over_limit", "blocked_scan_error"].includes(plan.status) ? "disabled" : ""}>Confirm plan</button></div>`);
       panel.querySelector(".sync-preview-close")?.addEventListener("click", () => panel.classList.add("hidden"));
       panel.querySelector(".sync-preview-confirm")?.addEventListener("click", async () => {
         const confirm = await fetch(`/api/force-sync/plan/${encodeURIComponent(planId)}`, { method: "POST", headers: headers() });
         const body = await confirm.json().catch(() => ({}));
         if (!confirm.ok) throw new Error(body.error || "Could not confirm plan");
-        const execute = await fetch("/api/force-sync", { method: "POST", headers: { ...headers(), "Content-Type": "application/json" }, body: JSON.stringify({ planId }) });
-        if (!execute.ok) throw new Error((await execute.json().catch(() => ({}))).error || "Could not execute plan");
-        onToast("Force Sync plan confirmed and queued.");
+        panel.classList.add("hidden");
+        if (typeof onExecute === "function") {
+          void onExecute(planId);
+        } else {
+          const execute = await fetch("/api/force-sync", { method: "POST", headers: { ...headers(), "Content-Type": "application/json" }, body: JSON.stringify({ planId }) });
+          if (!execute.ok) throw new Error((await execute.json().catch(() => ({}))).error || "Could not execute plan");
+          onToast("Force Sync plan confirmed and queued.");
+        }
       });
     } catch (error) {
       setPanel(`<div class="sync-preview-state error">${esc(error.message)}</div>`);

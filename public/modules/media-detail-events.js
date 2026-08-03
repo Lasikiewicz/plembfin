@@ -484,7 +484,9 @@ export function attachMediaDetailEvents() {
     if (editSeasonDateBtn) {
       const seasonNum = Number(editSeasonDateBtn.dataset.editSeasonDate);
       const seasonEpisodes = state.showModalEpisodes.filter((ep) => ep.seasonNumber === seasonNum);
-      const watchedEpisodes = seasonEpisodes.map((ep) => ep.watched).filter(Boolean);
+      const watchedEpisodes = seasonEpisodes
+        .filter((ep) => ep.watched)
+        .map((ep) => ({ ...ep.watched, release_date: ep.airDate || "" }));
       if (!watchedEpisodes.length) {
         setMessage("No watched episodes in this season to update.", "error");
         return;

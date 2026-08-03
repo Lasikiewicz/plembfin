@@ -1,10 +1,11 @@
+import crypto from "node:crypto";
 import { fetchWithTimeout } from "./utils/outbound.js";
 import { watchedThresholdPercent } from "./utils/tuning.js";
-import { recordOutboundPlayedMarks, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
+import { recordOutboundPlayedMarks, recordOutboundUnplayedMarks, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { parsePlexGuids } from "./utils/parsers.js";
 import { findPlexItem, plexAuthHeaders, resolvePlexAccountId } from "./utils/plexClient.js";
 import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/liveSessions.js";
-import { appendSyncHistory, loadMediaConfig, loadRuntimeState, setRuntimeState } from "./utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, clearSyncOperation, claimSyncOperation, loadMediaConfig, loadRuntimeState, releaseSyncOperation, setRuntimeState, touchSyncOperation, RESTORE_KIND_BACKUP, RESTORE_KIND_FULL_SYNC, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
 import { createLoopStore } from "./utils/loopStore.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { isCronSyncPaused, loadWatchBackupRuntime } from "./utils/watchHistoryBackups.js";
@@ -13,6 +14,7 @@ import { watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./utils/watchDat
 import { isVerboseLogging } from "./utils/logVerbose.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./utils/watchAudit.js";
+import { canReceiveState } from "./utils/syncRoles.js";
 export { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
 import {
   deleteLiveTrackingCacheRows,
@@ -1324,7 +1326,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
   return syncedCount;
 }
 
-export async function runScheduledSync(logger = console.log, { forceCatchup = false } = {}) {
+async function runScheduledSyncCore(logger = console.log, { forceCatchup = false } = {}) {
   if (isCronSyncPaused()) {
     logger("Scheduled Sync: skipped because cron sync is paused (likely due to restore in progress).");
     return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true };
@@ -1340,31 +1342,13 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
   trace("Scheduled Sync: starting background sync workflow...");
   const runtime = await loadRuntimeState();
   
-  const FORCE_SYNC_HEARTBEAT_STALE_MS = 3 * 60 * 1000;
-  const forceSyncHeartbeat = Number(runtime.forceSyncHeartbeat || runtime.forceSyncStartedAt || 0);
-  const isForceSyncStale = !forceSyncHeartbeat || forceSyncHeartbeat < Date.now() - FORCE_SYNC_HEARTBEAT_STALE_MS;
-
-  if (runtime.forceSyncActive === true && isForceSyncStale) {
-    logger("Scheduled Sync: force-sync heartbeat is cold (>3m); resetting stale forceSyncActive flag...");
-    await setRuntimeState({ forceSyncActive: false, forceSyncCancelRequested: false }).catch(() => null);
-    runtime.forceSyncActive = false;
-  }
-
-  // Only reset the restore-reconcile flag if the job's heartbeat has gone cold (i.e. the process
-  // actually died mid-job). A long-but-alive restore refreshes restoreSyncHeartbeat continuously,
+  // Stale operation recovery happens before the scheduler claims this lock.
+  // Once this wrapper owns the scheduled marker, the core must not clear
+  // another operation's state directly.
   // so it is NEVER un-blocked here â€” that prevents the cron from running mid-push and re-importing
-  // freshly-pushed items as watched-today. (Do NOT use restoreSyncStartedAt: a big push runs far
-  // longer than any fixed timeout.)
-  const RESTORE_HEARTBEAT_STALE_MS = 3 * 60 * 1000;
-  const restoreHeartbeat = Number(runtime.restoreSyncHeartbeat || runtime.restoreSyncStartedAt || 0);
-  const isRestoreSyncStale = !restoreHeartbeat || restoreHeartbeat < Date.now() - RESTORE_HEARTBEAT_STALE_MS;
-  if (runtime.restoreSyncActive === true && isRestoreSyncStale) {
-    logger("Scheduled Sync: restore heartbeat is cold (>3m); resetting stale restoreSyncActive flag...");
-    await setRuntimeState({ restoreSyncActive: false }).catch(() => null);
-    runtime.restoreSyncActive = false;
-  }
-
-  if (runtime.rebuildActive === true || runtime.forceSyncActive === true || runtime.restoreSyncActive === true) {
+  const operation = activeSyncOperation(runtime);
+  const blockingOperation = operation && operation.kind !== SYNC_OPERATION_SCHEDULED;
+  if (runtime.rebuildActive === true || runtime.forceSyncActive === true || runtime.restoreSyncActive === true || blockingOperation) {
     logger("Scheduled Sync: skipped because a database rebuild, force sync, or authoritative restore is currently active.");
     return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true };
   }
@@ -1537,6 +1521,75 @@ export async function runScheduledSync(logger = console.log, { forceCatchup = fa
   };
 }
 
+// Scheduled polling also participates in the shared operation lock. Without
+// this boundary a Force Sync could claim the lock while a scheduler tick that
+// started a moment earlier was still dispatching a watchstate write.
+export async function runScheduledSync(logger = console.log, options = {}) {
+  const ownerId = `scheduled:${process.env.PLEMBFIN_INSTANCE_ID || process.pid}:${Date.now()}`;
+  const staleBefore = Date.now() - 3 * 60 * 1000;
+  let runtime = await loadRuntimeState().catch(() => ({}));
+  let existing = activeSyncOperation(runtime);
+  if (existing && existing.heartbeat < staleBefore) {
+    const staleValues = existing.kind === SYNC_OPERATION_FORCE
+      ? {
+        forceSyncActive: false,
+        forceSyncCancelRequested: true,
+        forceSyncHeartbeat: Date.now(),
+        forceSyncResult: { success: false, aborted: true, cancelled: true, reset: true, reason: "Stale Force Sync was recovered by the scheduler." },
+      }
+      : [RESTORE_KIND_FULL_SYNC, RESTORE_KIND_BACKUP, "restore"].includes(existing.kind)
+        ? {
+          restoreSyncActive: false,
+          restoreSyncRunId: "",
+          restoreSyncKind: "",
+          restoreSyncCancelRequested: true,
+          restoreSyncHeartbeat: Date.now(),
+          restoreSyncResult: { success: false, aborted: true, cancelled: true, reset: true, reason: "Stale restore was recovered by the scheduler." },
+        }
+        : { scheduledSyncActive: false, scheduledSyncHeartbeat: Date.now() };
+    logger(`Scheduled Sync: clearing stale ${existing.kind} operation marker...`);
+    const cleared = await clearSyncOperation({ kind: existing.kind, values: staleValues }).catch(() => ({ ok: false }));
+    if (cleared.ok) {
+      runtime = await loadRuntimeState().catch(() => ({}));
+      existing = activeSyncOperation(runtime);
+    }
+  }
+
+  const claim = await claimSyncOperation({
+    kind: SYNC_OPERATION_SCHEDULED,
+    ownerId,
+    activeField: "scheduledSyncActive",
+    startedAt: Date.now(),
+    values: {
+      scheduledSyncStartedAt: Date.now(),
+      scheduledSyncHeartbeat: Date.now(),
+    },
+  });
+  if (!claim?.ok) {
+    logger(`Scheduled Sync: skipped because ${claim?.active?.kind || "another sync operation"} is active.`);
+    return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true, reason: "sync-operation-active" };
+  }
+
+  const heartbeat = setInterval(() => {
+    touchSyncOperation({
+      kind: SYNC_OPERATION_SCHEDULED,
+      ownerId,
+      values: { scheduledSyncHeartbeat: Date.now() },
+    }).catch(() => null);
+  }, 30_000);
+  heartbeat.unref?.();
+  try {
+    return await runScheduledSyncCore(logger, options);
+  } finally {
+    clearInterval(heartbeat);
+    await releaseSyncOperation({
+      kind: SYNC_OPERATION_SCHEDULED,
+      ownerId,
+      values: { scheduledSyncActive: false, scheduledSyncHeartbeat: Date.now() },
+    }).catch(() => null);
+  }
+}
+
 async function runWithConcurrency(items, concurrency, handler) {
   let nextIndex = 0;
   const workerCount = Math.min(Math.max(Number(concurrency) || 1, 1), items.length || 1);
@@ -1550,7 +1603,12 @@ async function runWithConcurrency(items, concurrency, handler) {
   await Promise.all(workers);
 }
 
-export async function runForceSync(logger = console.log, { lockAlreadyClaimed = false, concurrency = 1, planId = "" } = {}) {
+export async function runForceSync(logger = console.log, {
+  concurrency = 1,
+  planId = "",
+  operationOwnerId = "",
+  isCancelled = async () => false,
+} = {}) {
   if (!watchedPlayedSyncEnabled()) {
     logger("Force Sync skipped because watched/played syncing is disabled.");
     return {
@@ -1562,23 +1620,35 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
     };
   }
 
-  if (!lockAlreadyClaimed) {
-    logger("Force Sync: checking if another sync job is already running...");
-    const runtime = await loadRuntimeState();
-    const FORCE_SYNC_HEARTBEAT_STALE_MS = 3 * 60 * 1000;
-    const heartbeat = Number(runtime.forceSyncHeartbeat || runtime.forceSyncStartedAt || 0);
-    const stale = !heartbeat || heartbeat < Date.now() - FORCE_SYNC_HEARTBEAT_STALE_MS;
-
-    if (runtime.forceSyncActive === true && !stale) {
-      logger("Force Sync ERROR: Another force sync job is already running.");
-      throw new Error("Another force sync job is already running.");
-    }
-
-    await setRuntimeState({ forceSyncActive: true, forceSyncStartedAt: Date.now(), forceSyncHeartbeat: Date.now(), forceSyncCancelRequested: false });
+  const ownerId = String(operationOwnerId || crypto.randomUUID());
+  const startedAt = Date.now();
+  logger("Force Sync: claiming the shared sync-operation lock...");
+  const claim = await claimSyncOperation({
+    kind: SYNC_OPERATION_FORCE,
+    ownerId,
+    activeField: "forceSyncActive",
+    startedAt,
+    values: {
+      forceSyncRunId: ownerId,
+      forceSyncStartedAt: startedAt,
+      forceSyncHeartbeat: startedAt,
+      forceSyncCancelRequested: false,
+      forceSyncResult: null,
+    },
+  });
+  if (!claim?.ok) {
+    const active = claim?.active;
+    const label = active?.kind === SYNC_OPERATION_FORCE ? "another Force Sync" : `another sync operation (${active?.kind || "unknown"})`;
+    logger(`Force Sync ERROR: ${label} is already active.`);
+    throw new Error(`${label.charAt(0).toUpperCase()}${label.slice(1)} is already active.`);
   }
 
   const heartbeatTimer = setInterval(() => {
-    setRuntimeState({ forceSyncHeartbeat: Date.now() }).catch(() => null);
+    touchSyncOperation({
+      kind: SYNC_OPERATION_FORCE,
+      ownerId,
+      values: { forceSyncHeartbeat: Date.now() },
+    }).catch(() => null);
   }, 30_000);
   heartbeatTimer.unref?.();
 
@@ -1586,7 +1656,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
     logger("Force Sync: loading media configuration...");
     const config = await loadMediaConfig();
     if (planId) {
-      return await executeForceSyncPlan(planId, config, logger);
+      return await executeForceSyncPlan(planId, config, logger, { shouldCancel: isCancelled });
     }
     const loopStore = createLoopStore();
 
@@ -1594,17 +1664,27 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
   const hasEmby = !config.emby?.disabled && Boolean(config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId);
   const hasJellyfin = !config.jellyfin?.disabled && Boolean(config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId);
 
-  const activeTargets = [];
-  if (hasPlex) activeTargets.push("plex");
-  if (hasEmby) activeTargets.push("emby");
-  if (hasJellyfin) activeTargets.push("jellyfin");
+  const configuredServers = [
+    hasPlex ? "plex" : "",
+    hasEmby ? "emby" : "",
+    hasJellyfin ? "jellyfin" : "",
+  ].filter(Boolean);
+  const watchedTargets = configuredServers.filter((server) => canReceiveState(config, server, "watched"));
+  const unwatchedTargets = configuredServers.filter((server) => canReceiveState(config, server, "unwatched"));
+  const activeTargets = [...new Set([...watchedTargets, ...unwatchedTargets])];
 
-  if (activeTargets.length === 0) {
+  if (configuredServers.length === 0) {
     logger("Force Sync: no active media servers are configured or enabled. Aborting.");
     return { success: true, activeTargets, stats: { totalWatchedFoundAcrossServers: 0, addedToHistory: 0, deletedFromHistory: 0, propagatedUpdates: 0 } };
   }
 
-  logger(`Force Sync: active media targets resolved: ${activeTargets.join(", ")}`);
+  if (activeTargets.length === 0) {
+    logger("Force Sync: all configured servers are source-only or disabled for receiving state; no remote writes are permitted.");
+    return { success: true, activeTargets, stats: { totalWatchedFoundAcrossServers: 0, addedToHistory: 0, deletedFromHistory: 0, propagatedUpdates: 0 } };
+  }
+
+  logger(`Force Sync: receiving targets resolved: ${activeTargets.join(", ")}`);
+  const scanFailures = new Map();
 
   // 1. Fetch watched items in parallel
   logger("Force Sync: querying watched libraries from servers...");
@@ -1647,6 +1727,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
         });
       })().catch((err) => {
         logger(`Plex ERROR: failed to fetch watched items: ${err.message}`);
+        scanFailures.set("plex", err.message || String(err));
         return [];
       })
     );
@@ -1680,6 +1761,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
         });
       })().catch((err) => {
         logger(`Emby ERROR: failed to fetch watched items: ${err.message}`);
+        scanFailures.set("emby", err.message || String(err));
         return [];
       })
     );
@@ -1713,6 +1795,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
         });
       })().catch((err) => {
         logger(`Jellyfin ERROR: failed to fetch watched items: ${err.message}`);
+        scanFailures.set("jellyfin", err.message || String(err));
         return [];
       })
     );
@@ -1723,6 +1806,11 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
   const [plexResults, embyResults, jellyfinResults] = await Promise.all(fetchPromises);
   const allWatchedItems = [...plexResults, ...embyResults, ...jellyfinResults];
   logger(`Force Sync: collected ${allWatchedItems.length} total watched items across all platforms.`);
+  const healthyWatchedTargets = watchedTargets.filter((target) => !scanFailures.has(target));
+  const healthyUnwatchedTargets = unwatchedTargets.filter((target) => !scanFailures.has(target));
+  if (scanFailures.size) {
+    logger(`Force Sync: ${scanFailures.size} server scan${scanFailures.size === 1 ? "" : "s"} failed; those servers are excluded from all remote writes.`);
+  }
 
   // 2. Fetch Plembfin watchHistory to resolve conflicts
   logger("Database: loading Plembfin watchHistory records...");
@@ -1845,25 +1933,26 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
     success: true,
     activeTargets,
     aborted: true,
+    cancelled: true,
     stats: {
       totalWatchedFoundAcrossServers: watchedMap.size,
       addedToHistory: addedToHistoryCount,
       deletedFromHistory: deletedFromHistoryCount,
-      propagatedUpdates: propagatedCount
+      propagatedUpdates: propagatedCount,
+      processed: processedCount,
+      scanErrors: Object.fromEntries(scanFailures),
     }
   });
 
+  const checkEvery = reconciliationConcurrency > 1 ? 20 : 5;
+  let cancellationChecks = 0;
   async function shouldAbort() {
     if (abortResult) return true;
-    processedCount += 1;
-    const checkEvery = reconciliationConcurrency > 1 ? 20 : 5;
-    const reportEvery = Math.max(checkEvery, Math.ceil(consideredKeys.length / 100));
-    if (processedCount === 1 || processedCount === consideredKeys.length || processedCount % reportEvery === 0) {
-      logger(`Force Sync progress: ${processedCount}/${consideredKeys.length} items.`);
-    }
-    if (processedCount % checkEvery !== 0) return false;
+    cancellationChecks += 1;
+    if (cancellationChecks !== 1 && cancellationChecks % checkEvery !== 0) return false;
     const currentRuntime = await loadRuntimeState();
-    if (currentRuntime.forceSyncCancelRequested === true) {
+    const requested = await isCancelled().catch(() => false);
+    if (requested || currentRuntime.forceSyncCancelRequested === true) {
       logger("Force Sync: stop request detected. Aborting sync...");
       abortResult = abortSummary();
       return true;
@@ -1871,34 +1960,43 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
     return false;
   }
 
+  function reportProgress() {
+    const reportEvery = Math.max(checkEvery, Math.ceil(consideredKeys.length / 100));
+    if (processedCount === 1 || processedCount === consideredKeys.length || processedCount % reportEvery === 0) {
+      logger(`Force Sync progress: ${processedCount}/${consideredKeys.length} items.`);
+    }
+  }
+
   async function markPlayedTarget(target, mediaObj) {
     if (target === "plex") {
       const { markPlexPlayed } = await import("./utils/plexClient.js");
-      await markPlexPlayed(config.plex, mediaObj);
+      return markPlexPlayed(config.plex, mediaObj);
     } else if (target === "emby") {
       const { markEmbyPlayed } = await import("./utils/embyClient.js");
-      await markEmbyPlayed(config.emby, mediaObj);
+      return markEmbyPlayed(config.emby, mediaObj);
     } else if (target === "jellyfin") {
       const { markJellyfinPlayed } = await import("./utils/jellyfinClient.js");
-      await markJellyfinPlayed(config.jellyfin, mediaObj);
+      return markJellyfinPlayed(config.jellyfin, mediaObj);
     }
+    return null;
   }
 
   async function markUnplayedTarget(target, mediaObj) {
     if (target === "plex") {
       const { markPlexUnplayed } = await import("./utils/plexClient.js");
-      await markPlexUnplayed(config.plex, mediaObj);
+      return markPlexUnplayed(config.plex, mediaObj);
     } else if (target === "emby") {
       const { markEmbyUnplayed } = await import("./utils/embyClient.js");
-      await markEmbyUnplayed(config.emby, mediaObj);
+      return markEmbyUnplayed(config.emby, mediaObj);
     } else if (target === "jellyfin") {
       const { markJellyfinUnplayed } = await import("./utils/jellyfinClient.js");
-      await markJellyfinUnplayed(config.jellyfin, mediaObj);
+      return markJellyfinUnplayed(config.jellyfin, mediaObj);
     }
+    return null;
   }
 
   async function processConsideredKey(key) {
-    if (await shouldAbort()) return;
+    if (await shouldAbort()) return false;
 
     const serverWatchedEntry = watchedMap.get(key);
     const historyRecords = historyMap.get(key) || [];
@@ -1934,7 +2032,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
       };
     }
 
-    if (!mediaObj) return;
+    if (!mediaObj) return true;
 
     if (newestState === "watched") {
       const inHistory = historyRecords.some(r => r.syncAction === "watched");
@@ -1948,14 +2046,25 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
         }
       }
 
-      for (const target of activeTargets) {
+      for (const target of healthyWatchedTargets) {
         if (!serverWatchedOn.has(target)) {
           logger(`Propagating: marking played "${mediaObj.title}" on ${target}`);
           try {
             await recordOutboundPlayedMarks(mediaObj, [target], loopStore).catch(() => null);
-            await markPlayedTarget(target, mediaObj);
-            await recordOutboundPlayedMarks(mediaObj, [target], loopStore).catch(() => null);
-            propagatedCount++;
+            const result = await markPlayedTarget(target, mediaObj);
+            if (result?.status !== "not_found") {
+              const itemIds = Array.isArray(result?.itemIds) && result.itemIds.length
+                ? result.itemIds
+                : result?.itemId
+                  ? [result.itemId]
+                  : [];
+              if (itemIds.length) {
+                await Promise.all(itemIds.map((itemId) => recordOutboundPlayedMarks({ ...mediaObj, itemId }, [target], loopStore).catch(() => null)));
+              } else {
+                await recordOutboundPlayedMarks(mediaObj, [target], loopStore).catch(() => null);
+              }
+            }
+            if (result?.status !== "not_found") propagatedCount++;
           } catch (err) {
             logger(`Error: failed to mark played for "${mediaObj.title}" on ${target}: ${err.message}`);
           }
@@ -1966,25 +2075,49 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
       // not delete or recreate local history based on a remote discrepancy.
       logger(`Plembfin is canonical for "${mediaObj.title}"; only repairing remote played flags.`);
 
-      for (const target of activeTargets) {
+      for (const target of healthyUnwatchedTargets) {
         if (serverWatchedOn.has(target)) {
           logger(`Propagating: marking unplayed "${mediaObj.title}" on ${target}`);
           try {
-            await markUnplayedTarget(target, mediaObj);
-            propagatedCount++;
+            await recordOutboundUnplayedMarks(mediaObj, [target], loopStore).catch(() => null);
+            const result = await markUnplayedTarget(target, mediaObj);
+            if (result?.status !== "not_found") {
+              const itemIds = Array.isArray(result?.itemIds) && result.itemIds.length
+                ? result.itemIds
+                : result?.itemId
+                  ? [result.itemId]
+                  : [];
+              if (itemIds.length) {
+                await Promise.all(itemIds.map((itemId) => recordOutboundUnplayedMarks({ ...mediaObj, itemId }, [target], loopStore).catch(() => null)));
+              } else {
+                await recordOutboundUnplayedMarks(mediaObj, [target], loopStore).catch(() => null);
+              }
+            }
+            if (result?.status !== "not_found") propagatedCount++;
           } catch (err) {
             logger(`Error: failed to mark unwatched for "${mediaObj.title}" on ${target}: ${err.message}`);
           }
         }
       }
     }
+    return true;
   }
 
   if (reconciliationConcurrency > 1) {
-    await runWithConcurrency(consideredKeys, reconciliationConcurrency, processConsideredKey);
+    await runWithConcurrency(consideredKeys, reconciliationConcurrency, async (key) => {
+      const completed = await processConsideredKey(key);
+      if (completed) {
+        processedCount += 1;
+        reportProgress();
+      }
+    });
   } else {
     for (const key of consideredKeys) {
-      await processConsideredKey(key);
+      const completed = await processConsideredKey(key);
+      if (completed) {
+        processedCount += 1;
+        reportProgress();
+      }
       if (abortResult) break;
     }
   }
@@ -1999,12 +2132,22 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
       totalWatchedFoundAcrossServers: watchedMap.size,
       addedToHistory: addedToHistoryCount,
       deletedFromHistory: deletedFromHistoryCount,
-      propagatedUpdates: propagatedCount
+      propagatedUpdates: propagatedCount,
+      processed: processedCount,
+      scanErrors: Object.fromEntries(scanFailures),
     }
   };
   } finally {
     clearInterval(heartbeatTimer);
     await invalidateHistoryDerivedCaches().catch(() => null);
-    await setRuntimeState({ forceSyncActive: false, forceSyncCancelRequested: false, forceSyncHeartbeat: Date.now() }).catch(() => null);
+    await releaseSyncOperation({
+      kind: SYNC_OPERATION_FORCE,
+      ownerId,
+      values: {
+        forceSyncActive: false,
+        forceSyncCancelRequested: false,
+        forceSyncHeartbeat: Date.now(),
+      },
+    }).catch(() => null);
   }
 }

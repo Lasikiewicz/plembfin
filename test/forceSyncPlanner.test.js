@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildForceSyncPlan,
+  collectServerWatchedItems,
   normalizeScope,
   planStaleness,
   summarizePlan,
@@ -110,4 +111,54 @@ test("summary classifies large destructive plans for strong confirmation", () =>
   });
   assert.equal(summary.requiresStrongConfirmation, true);
   assert.equal(summary.snapshotRequired, true);
+});
+
+test("a failed server scan is not treated as an empty library or write target", async () => {
+  const config = {
+    plex: { baseUrl: "http://plex", token: "token", disabled: false },
+    emby: { disabled: true },
+    jellyfin: { disabled: true },
+  };
+  const collected = await collectServerWatchedItems(config, {
+    clients: {
+      fetchPlexWatchedItems: async () => { throw new Error("Plex unavailable"); },
+    },
+  });
+
+  assert.deepEqual(collected.scannedServers, []);
+  assert.equal(collected.scopeErrors[0].server, "plex");
+  assert.match(collected.scopeErrors[0].error, /Plex unavailable/);
+
+  const plan = buildForceSyncPlan({
+    ...collected,
+    config,
+    historyRows: [{
+      id: "arrival-history",
+      media_key: mediaKeyFor({ title: "Arrival", type: "movie" }),
+      title: "Arrival",
+      media_type: "movie",
+      sync_action: "watched",
+      watched_at: "2026-07-18T12:00:00.000Z",
+    }],
+  });
+  assert.equal(plan.summary.scopeErrors.length, 1);
+  assert.equal(plan.actions.length, 0);
+});
+
+test("Force Sync target generation respects receive roles", () => {
+  const local = movie("Arrival", "plex");
+  const key = mediaKeyFor({ title: local.title, type: local.type });
+  const config = {
+    plex: { sync: { preset: "source_only" } },
+    emby: { sync: { preset: "destination_only" } },
+    jellyfin: { sync: { preset: "monitor" } },
+  };
+  const plan = buildForceSyncPlan({
+    config,
+    itemsByServer: { plex: [local], emby: [], jellyfin: [] },
+    scannedServers: ["plex", "emby", "jellyfin"],
+    historyRows: [{ id: "arrival-history", media_key: key, title: local.title, media_type: local.type, sync_action: "watched", watched_at: "2026-07-18T12:00:00.000Z" }],
+  });
+
+  assert.deepEqual(plan.actions.map((action) => action.target), ["emby"]);
 });

@@ -543,8 +543,8 @@ in `dataRepo.js`:
 
 | Field | Meaning |
 | --- | --- |
-| `sameEventDuplicateRows` | Rows restating a play already recorded for the same `media_key` within 10 minutes - what Clean Duplicate History Rows would delete |
-| `rewatchedItems` | Items with one `media_key` and watches further apart than that window; separate viewings, deliberately kept. Only a true rewatch count once `sameEventDuplicateRows` is zero |
+| `sameEventDuplicateRows` | Rows restating a play already recorded for the same viewing within 10 minutes; these are excluded from displayed play history |
+| `rewatchedItems` | Items with at least two retained actual viewing events after same-event echoes are removed; separate viewings are deliberately kept |
 | `nullSeasonEpisodeRows` | Episode rows with no season number, which cannot match reliably for sync or count toward show progress |
 | `opaqueShowTitleRows` | Rows storing a provider URI (`plex://…`) in `show_title`, so episode totals cannot be resolved |
 

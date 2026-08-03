@@ -2,7 +2,7 @@ import { getCachedHistory, deleteWatchRecordById, insertWatchRecord, mediaToWatc
 import { markPlexPlayed, markPlexUnplayed } from "./plexClient.js";
 import { markEmbyPlayed, markEmbyUnplayed } from "./embyClient.js";
 import { markJellyfinPlayed, markJellyfinUnplayed } from "./jellyfinClient.js";
-import { recordOutboundPlayedMarks } from "./syncOrchestrator.js";
+import { recordOutboundPlayedMarks, recordOutboundUnplayedMarks } from "./syncOrchestrator.js";
 import { createLoopStore } from "./loopStore.js";
 import { collectServerFingerprintCounts, planStaleness } from "./forceSyncPlanner.js";
 import { finishSyncPlan, getSyncPlanFull, setSyncPlanSnapshot, setSyncPlanStatus } from "./syncPlans.js";
@@ -14,14 +14,36 @@ const unplayed = { plex: markPlexUnplayed, emby: markEmbyUnplayed, jellyfin: mar
 async function remoteWrite(action, config) {
   const fn = action.kind === "mark_played" ? played[action.target] : unplayed[action.target];
   if (!fn) throw new Error(`Unsupported Force Sync target ${action.target}`);
-  await fn(config[action.target], action.media);
+  return fn(config[action.target], action.media);
 }
 
-export async function executeForceSyncPlan(id, config, logger = () => {}, { signal } = {}) {
+export async function executeForceSyncPlan(id, config, logger = () => {}, { signal, shouldCancel = async () => false } = {}) {
   const plan = getSyncPlanFull(id);
   if (!plan) return { success: false, error: "Plan not found.", planId: id };
   if (plan.status !== "confirmed") return { success: false, error: `Plan is ${plan.status} and is not confirmed.`, planId: id };
-  const counts = await collectServerFingerprintCounts(config, { scope: plan.scope });
+  if (plan.summary?.scopeErrors?.length) {
+    setSyncPlanStatus(id, "blocked_scan_error");
+    return {
+      success: false,
+      planId: id,
+      error: "The plan cannot execute because one or more configured servers were not scanned successfully.",
+      scopeErrors: plan.summary.scopeErrors,
+    };
+  }
+  const fingerprintErrors = [];
+  const counts = await collectServerFingerprintCounts(config, {
+    scope: plan.scope,
+    onError: (server, error) => fingerprintErrors.push({ server, error: error?.message || String(error) }),
+  });
+  if (fingerprintErrors.length) {
+    setSyncPlanStatus(id, "blocked_scan_error");
+    return {
+      success: false,
+      planId: id,
+      error: "The plan could not verify every configured server before execution; no remote writes were sent.",
+      scopeErrors: fingerprintErrors,
+    };
+  }
   const freshness = planStaleness(plan, { counts, config });
   if (freshness.stale) {
     setSyncPlanStatus(id, "expired");
@@ -44,15 +66,30 @@ export async function executeForceSyncPlan(id, config, logger = () => {}, { sign
     }
     const result = { success: true, planId: id, snapshot, plannedActions: plan.actions.length, completedActions: 0, failedActions: 0, scope: plan.scope };
     for (const action of plan.actions) {
-      if (signal?.aborted) throw new Error("Force Sync cancelled");
+      if (signal?.aborted || await shouldCancel()) {
+        result.success = false;
+        result.aborted = true;
+        result.cancelled = true;
+        result.error = "Force Sync cancelled";
+        finishSyncPlan(id, "cancelled", result);
+        return result;
+      }
       try {
         if (action.kind === "mark_played" || action.kind === "mark_unplayed") {
-          if (action.kind === "mark_played") {
-            await recordOutboundPlayedMarks(action.media, [action.target], loopStore).catch(() => null);
-          }
-          await remoteWrite(action, config);
-          if (action.kind === "mark_played") {
-            await recordOutboundPlayedMarks(action.media, [action.target], loopStore).catch(() => null);
+          const marker = action.kind === "mark_played" ? recordOutboundPlayedMarks : recordOutboundUnplayedMarks;
+          await marker(action.media, [action.target], loopStore).catch(() => null);
+          const remoteResult = await remoteWrite(action, config);
+          if (remoteResult?.status !== "not_found") {
+            const itemIds = Array.isArray(remoteResult?.itemIds) && remoteResult.itemIds.length
+              ? remoteResult.itemIds
+              : remoteResult?.itemId
+                ? [remoteResult.itemId]
+                : [];
+            if (itemIds.length) {
+              await Promise.all(itemIds.map((itemId) => marker({ ...action.media, itemId }, [action.target], loopStore).catch(() => null)));
+            } else {
+              await marker(action.media, [action.target], loopStore).catch(() => null);
+            }
           }
         }
         else if (["remove_unwatched_marker", "delete_history_rows"].includes(action.kind)) for (const rowId of action.historyRowIds || []) await deleteWatchRecordById(rowId, { skipInvalidate: true });

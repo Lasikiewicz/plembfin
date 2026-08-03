@@ -2118,6 +2118,8 @@ function initialize() {
   initEditDialogs({
     setMessage,
     clearDerivedUiCaches,
+    loadHistory,
+    renderExplorer,
     renderImmersiveShowModal,
     openShowImmersiveModalByTmdbId,
     navigateTo,
@@ -2163,7 +2165,13 @@ function initialize() {
     showToast,
     showConfirmModal,
   });
-  initSyncPreview({ button: elements.previewForceSyncButton, panel: elements.forceSyncPreviewPanel, token: () => state.token, onToast: showToast });
+  initSyncPreview({
+    button: elements.previewForceSyncButton,
+    panel: elements.forceSyncPreviewPanel,
+    token: () => state.token,
+    onToast: showToast,
+    onExecute: (planId) => triggerForceSync({ planId, confirmed: true }),
+  });
   initDashboard({
     setMessage,
     fetchTmdbDetails,

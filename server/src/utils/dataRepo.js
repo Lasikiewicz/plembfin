@@ -756,6 +756,8 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
       poster_url: posterUrl || null,
       episode_count: group.episode_count,
       season_count: group.season_count,
+      total_watches: group.total_watches,
+      rewatched_episode_count: group.rewatched_episode_count,
       latest_watched_at: group.latest_watched_at,
       earliest_watched_at: group.earliest_watched_at,
       representative_episode: compactEpisode(group.representative_episode),
@@ -1311,7 +1313,7 @@ function relatedTrackedWatchRowsForDateEdit(existing = {}) {
 export async function getWatchDatesForRecord(id) {
   const existing = selectByIdStmt.get(String(id));
   if (!existing) return null;
-  const rows = [existing, ...siblingWatchRowsFor(existing)]
+  const rows = filterSameEventDuplicateRows([existing, ...siblingWatchRowsFor(existing)])
     .map((row) => ({ id: row.id, watched_at: row.watched_at }))
     .sort((a, b) => String(a.watched_at || "").localeCompare(String(b.watched_at || "")));
   return {
@@ -1678,7 +1680,7 @@ export const SAME_EVENT_WINDOW_MS = 10 * 60 * 1000;
 
 const selectWatchedStampsStmt = db.prepare(
   `SELECT id, title, title_lower, media_type, watched_at, sync_action,
-          imdb_id, tmdb_id, tvdb_id, season, episode, media_key, show_title
+          sync_dispatch_telemetry, imdb_id, tmdb_id, tvdb_id, season, episode, media_key, show_title
      FROM watch_history
     WHERE watched_at IS NOT NULL
       AND (sync_action IS NULL OR LOWER(sync_action) NOT IN ('unwatched', 'unplayed'))`,
@@ -1730,34 +1732,41 @@ export function backfillWatchRecordIdsAndKeys() {
 // chain into one viewing while each is within the window of the one before it,
 // and the earliest row of each chain is the one kept.
 export function sameEventDuplicateIds(windowMs = SAME_EVENT_WINDOW_MS) {
-  const allWatched = selectWatchedStampsStmt.all();
+  return sameEventDuplicateIdsForRows(selectWatchedStampsStmt.all().filter(isPlembfinTrackedWatchRow), windowMs);
+}
+
+function sameEventKey(row = {}) {
+  const type = normalizeMediaType(row.media_type);
+  // Episodes are the important cross-key case: Plex, Emby, Jellyfin, and
+  // imports can use different provider IDs for the same show episode. The
+  // show/season/episode identity is stable, while provider IDs are not.
+  // Movies intentionally remain provider-ID-first so two films with the
+  // same title are never collapsed merely because their titles match.
+  if (type === "episode") {
+    const show = canonicalTitleKey(row.show_title || showTitleFrom(row.title));
+    const season = row.season ?? "unknown";
+    const episode = row.episode ?? "unknown";
+    return show && season !== "unknown" && episode !== "unknown"
+      ? `episode|show:${show}|s:${season}|e:${episode}`
+      : mediaKeyFor(row);
+  }
+  if (type === "movie") {
+    return row.imdb_id
+      ? `movie|imdb:${normalizeKeyPart(row.imdb_id)}`
+      : row.tmdb_id
+        ? `movie|tmdb:${normalizeKeyPart(row.tmdb_id)}`
+        : row.tvdb_id
+          ? `movie|tvdb:${normalizeKeyPart(row.tvdb_id)}`
+          : `movie|title:${canonicalTitleKey(row.title)}`;
+  }
+  return mediaKeyFor(row);
+}
+
+function sameEventDuplicateIdsForRows(rows = [], windowMs = SAME_EVENT_WINDOW_MS) {
+  const allWatched = rows.filter((row) => row?.watched_at && isWatchedAction(row));
   const byKey = new Map();
   for (const row of allWatched) {
-    const type = normalizeMediaType(row.media_type);
-    // Episodes are the important cross-key case: Plex, Emby, Jellyfin, and
-    // imports can use different provider IDs for the same show episode. The
-    // show/season/episode identity is stable, while provider IDs are not.
-    // Movies intentionally remain provider-ID-first so two films with the
-    // same title are never collapsed merely because their titles match.
-    let key;
-    if (type === "episode") {
-      const show = canonicalTitleKey(row.show_title || showTitleFrom(row.title));
-      const season = row.season ?? "unknown";
-      const episode = row.episode ?? "unknown";
-      key = show && season !== "unknown" && episode !== "unknown"
-        ? `episode|show:${show}|s:${season}|e:${episode}`
-        : mediaKeyFor(row);
-    } else if (type === "movie") {
-      key = row.imdb_id
-        ? `movie|imdb:${normalizeKeyPart(row.imdb_id)}`
-        : row.tmdb_id
-          ? `movie|tmdb:${normalizeKeyPart(row.tmdb_id)}`
-          : row.tvdb_id
-            ? `movie|tvdb:${normalizeKeyPart(row.tvdb_id)}`
-            : `movie|title:${canonicalTitleKey(row.title)}`;
-    } else {
-      key = mediaKeyFor(row);
-    }
+    const key = sameEventKey(row);
     if (!byKey.has(key)) byKey.set(key, []);
     byKey.get(key).push(row);
   }
@@ -1775,16 +1784,15 @@ export function sameEventDuplicateIds(windowMs = SAME_EVENT_WINDOW_MS) {
   }
   return duplicates;
 }
-// Rows sharing a media_key but with different watched_at values are separate
-// viewings. Reported so the number is visible; it is only a true rewatch count
-// once sameEventDuplicateRows is zero, because a duplicate that landed a few
-// seconds after the original also counts as a distinct watched_at here.
-const countRewatchedItemsStmt = db.prepare(
-  `SELECT COUNT(*) AS c FROM (
-     SELECT media_key FROM watch_history
-     GROUP BY media_key HAVING COUNT(DISTINCT watched_at) > 1
-   )`
-);
+
+// Return only rows representing real viewing events. A webhook echo or a
+// server-to-server propagation can produce several rows within the same
+// viewing window; those rows must not become phantom rewatches in cards,
+// details, or playHistory.
+function filterSameEventDuplicateRows(rows = []) {
+  const duplicateIds = new Set(sameEventDuplicateIdsForRows(rows));
+  return rows.filter((row) => !row?.id || !duplicateIds.has(row.id));
+}
 const countNullSeasonEpisodesStmt = db.prepare(
   "SELECT COUNT(*) AS c FROM watch_history WHERE media_type = 'episode' AND season IS NULL"
 );
@@ -1793,7 +1801,8 @@ const countOpaqueShowTitlesStmt = db.prepare(
 );
 
 export function countRewatchedItems() {
-  return countRewatchedItemsStmt.get().c || 0;
+  const rows = selectWatchedStampsStmt.all().filter(isPlembfinTrackedWatchRow);
+  return dedupeHistory(rows).filter((row) => Array.isArray(row.playHistory) && row.playHistory.length > 1).length;
 }
 
 export function watchHistoryQualityCounts() {
@@ -1920,7 +1929,7 @@ function playHistoryEntry(row = {}) {
 
 function dedupeHistory(rows) {
   const map = new Map();
-  for (const row of rows) {
+  for (const row of filterSameEventDuplicateRows(rows)) {
     const key = historyDedupeKey(row);
     if (map.has(key)) {
       const existing = map.get(key);
@@ -2067,6 +2076,7 @@ function compactHistoryPreviewRow(row = {}) {
     sync_action: row.sync_action,
     sync_dispatch_telemetry: row.sync_dispatch_telemetry,
     watch_provenance: row.watch_provenance,
+    watch_count: Array.isArray(row.playHistory) && row.playHistory.length ? row.playHistory.length : 1,
     media_key: row.media_key,
     show_title: row.show_title,
     episode_title: row.episode_title,
@@ -2363,11 +2373,11 @@ export async function getWatchRecordById(id) {
   if (!row) return null;
   if (row.media_key) {
     const allRows = await getCachedHistory();
-    const matches = allRows.filter((r) => r.media_key === row.media_key && isPlembfinTrackedWatchRow(r));
+    const matches = filterSameEventDuplicateRows(allRows.filter((r) => r.media_key === row.media_key && isPlembfinTrackedWatchRow(r)));
     row.playHistory = matches.map(playHistoryEntry).filter((entry) => entry.watched_at);
     row.playHistory.sort((a, b) => a.watched_at.localeCompare(b.watched_at));
   } else {
-    row.playHistory = [row.watched_at];
+    row.playHistory = [playHistoryEntry(row)].filter((entry) => entry.watched_at);
   }
   return row;
 }
@@ -2458,6 +2468,87 @@ export async function updateWatchRecord(id, fields = {}) {
   }
   await invalidateHistoryDerivedCaches();
   return { ok: true };
+}
+
+// Update a set of existing watch rows in one transaction. This is deliberately
+// separate from updateWatchRecord: the single-row editor keeps same-day episode
+// echo rows synchronized, while a season/show edit must stamp exactly the rows
+// the caller selected. In particular, a release-date season edit can assign a
+// different date to every episode without rewriting another genuine watch or
+// creating a new history row.
+export async function updateWatchDates(updates = []) {
+  if (!Array.isArray(updates) || !updates.length) {
+    return { ok: false, error: "updates is required" };
+  }
+  if (updates.length > 500) {
+    return { ok: false, error: "Too many watch dates in one update" };
+  }
+
+  const resolved = [];
+  const seenIds = new Set();
+  for (const update of updates) {
+    const requestedId = String(update?.id || "").trim();
+    const requestedMediaKey = String(update?.media_key || "").trim();
+    const existing = requestedId
+      ? selectByIdStmt.get(requestedId)
+      : requestedMediaKey
+        ? selectByMediaKeyStmt.all(requestedMediaKey)
+          .filter(isPlembfinTrackedWatchRow)
+          .sort((a, b) => String(b.watched_at || "").localeCompare(String(a.watched_at || "")))[0]
+        : null;
+    if (!existing) return { ok: false, error: `Watch record not found${requestedId ? `: ${requestedId}` : ""}` };
+    if (!isPlembfinTrackedWatchRow(existing)) return { ok: false, error: "Only watched records can be date-edited" };
+    if (seenIds.has(existing.id)) return { ok: false, error: `Duplicate watch record: ${existing.id}` };
+
+    const date = new Date(update?.watched_at);
+    if (!update?.watched_at || Number.isNaN(date.getTime())) {
+      return { ok: false, error: `Invalid watched_at value for ${existing.id}` };
+    }
+
+    seenIds.add(existing.id);
+    resolved.push({ existing, watchedAt: date.toISOString() });
+  }
+
+  const updatedAt = Date.now();
+  const mediaKeys = new Set(resolved.map(({ existing }) => existing.media_key).filter(Boolean));
+  for (const { existing } of resolved) queueProgressUpdateForRecord(existing);
+
+  transaction(() => {
+    for (const { existing, watchedAt } of resolved) {
+      updateWatchRowWatchedAtStmt.run(watchedAt, updatedAt, existing.id);
+      recordWatchAuditEvent({
+        eventType: "history_record_updated",
+        timestamp: updatedAt,
+        action: existing.sync_action || "watched",
+        watchRecordId: existing.id,
+        mediaKey: existing.media_key,
+        mediaType: existing.media_type,
+        title: existing.title,
+        showTitle: existing.show_title,
+        source: "manual",
+        ids: { imdb: existing.imdb_id, tmdb: existing.tmdb_id, tvdb: existing.tvdb_id },
+        season: existing.season,
+        episode: existing.episode,
+        status: "updated",
+        details: "Stored watch history date updated by a season/show date edit.",
+        payload: { previousWatchedAt: existing.watched_at, watchedAt, operation: "bulk_watch_date_update" },
+      });
+    }
+
+    // Keep the canonical playstate pointer at the latest remaining real watch
+    // for each media key, even when the edit moves the representative row
+    // earlier than an older or repeated viewing.
+    for (const mediaKey of mediaKeys) {
+      const remaining = selectByMediaKeyStmt.all(mediaKey).filter(isPlembfinTrackedWatchRow);
+      const latest = remaining.reduce((best, row) => (
+        String(row.watched_at || "") > String(best?.watched_at || "") ? row : best
+      ), null);
+      if (latest) updatePlaystateWatchedAtStmt.run(latest.watched_at, updatedAt, mediaKey);
+    }
+  });
+
+  await invalidateHistoryDerivedCaches();
+  return { ok: true, updated_ids: resolved.map(({ existing }) => existing.id) };
 }
 
 // Fix Match operates at show scope. Performing one update-watch request per
@@ -2967,18 +3058,19 @@ export async function queryMovies({ search = "", sort = "title_asc", limit = 100
 // newest watched record as the base, every play date gathered into playHistory,
 // and any missing id/poster backfilled from a sibling row.
 function collapseMovieCluster(clusterRows = []) {
+  const viewingRows = filterSameEventDuplicateRows(clusterRows);
   const playHistoryByDate = new Map();
-  for (const row of clusterRows) {
+  for (const row of viewingRows) {
     if (row.watched_at && !playHistoryByDate.has(row.watched_at)) {
       playHistoryByDate.set(row.watched_at, playHistoryEntry(row));
     }
   }
   const playHistory = [...playHistoryByDate.values()].sort((a, b) => String(a.watched_at).localeCompare(String(b.watched_at)));
-  const newest = clusterRows
+  const newest = viewingRows
     .slice()
     .sort((a, b) => String(a.watched_at || "").localeCompare(String(b.watched_at || "")))
     .pop();
-  const base = { ...newest, playHistory };
+  const base = { ...(newest || clusterRows[0] || {}), playHistory };
   for (const row of clusterRows) {
     if (!base.imdb_id && row.imdb_id) base.imdb_id = row.imdb_id;
     if (!base.tmdb_id && row.tmdb_id) base.tmdb_id = row.tmdb_id;
@@ -3099,19 +3191,29 @@ function groupShowRows(rows = []) {
     }
     groups.set(key, group);
   });
-  return [...groups.values()].map((group) => ({
-    ...group,
-    season_count: group.seasons.size,
-    seasons: undefined,
-    poster_url: group.poster_url || group.representative_episode?.poster_url || null,
-    logo_url: group.logo_url || group.representative_episode?.logo_url || null,
-    backdrop_url: group.backdrop_url || group.representative_episode?.backdrop_url || null,
-    tmdb_id: group.tmdb_id || group.representative_episode?.tmdb_id || null,
-    representative_episode: group.representative_episode ? { ...group.representative_episode, show_title: group.title } : null,
-    episodes: group.episodes
-      .map((episode) => ({ ...episode, show_title: group.title }))
-      .sort((a, b) => Number(a.season || 0) - Number(b.season || 0) || Number(a.episode || 0) - Number(b.episode || 0)),
-  }));
+  return [...groups.values()].map((group) => {
+    const totalWatches = group.episodes.reduce((total, episode) => (
+      total + (Array.isArray(episode.playHistory) && episode.playHistory.length ? episode.playHistory.length : 1)
+    ), 0);
+    const rewatchedEpisodeCount = group.episodes.filter((episode) => (
+      Array.isArray(episode.playHistory) && episode.playHistory.length > 1
+    )).length;
+    return {
+      ...group,
+      season_count: group.seasons.size,
+      seasons: undefined,
+      total_watches: totalWatches,
+      rewatched_episode_count: rewatchedEpisodeCount,
+      poster_url: group.poster_url || group.representative_episode?.poster_url || null,
+      logo_url: group.logo_url || group.representative_episode?.logo_url || null,
+      backdrop_url: group.backdrop_url || group.representative_episode?.backdrop_url || null,
+      tmdb_id: group.tmdb_id || group.representative_episode?.tmdb_id || null,
+      representative_episode: group.representative_episode ? { ...group.representative_episode, show_title: group.title } : null,
+      episodes: group.episodes
+        .map((episode) => ({ ...episode, show_title: group.title }))
+        .sort((a, b) => Number(a.season || 0) - Number(b.season || 0) || Number(a.episode || 0) - Number(b.episode || 0)),
+    };
+  });
 }
 
 function dedupeShowSummaries(shows = []) {
@@ -3131,6 +3233,8 @@ function dedupeShowSummaries(shows = []) {
         ...show,
         episode_count: Math.max(Number(existing.episode_count || 0), Number(show.episode_count || 0)),
         season_count: Math.max(Number(existing.season_count || 0), Number(show.season_count || 0)),
+        total_watches: Math.max(Number(existing.total_watches || 0), Number(show.total_watches || 0)),
+        rewatched_episode_count: Math.max(Number(existing.rewatched_episode_count || 0), Number(show.rewatched_episode_count || 0)),
       });
     }
   }

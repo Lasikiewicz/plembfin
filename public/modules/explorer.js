@@ -742,13 +742,21 @@ export function resolvedTmdbCache(mediaType, tmdbId, title) {
   return null;
 }
 // ---------------------------------------------------------------------------
-// Rewatch badge - shown wherever a card/row has a playHistory of more than
-// one watched_at entry (see collapseMovieCluster / dedupeHistory server-side).
+// Rewatch badge - shown wherever a card/row has more than one actual watch.
+// Dashboard preview rows carry watch_count rather than the full playHistory;
+// detail/history rows carry the full list.
 // ---------------------------------------------------------------------------
+function actualWatchCount(entry = {}) {
+  const explicit = Number(entry.watch_count ?? entry.total_watches);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const historyCount = Array.isArray(entry.playHistory) ? entry.playHistory.length : 0;
+  return historyCount || (entry.watched_at ? 1 : 0);
+}
+
 function rewatchBadge(entry) {
-  const count = Array.isArray(entry?.playHistory) ? entry.playHistory.length : 0;
+  const count = actualWatchCount(entry);
   if (count < 2) return "";
-  return `<span class="rewatch-badge" title="Watched ${count} times">&#8635; &times;${count}</span>`;
+  return `<span class="rewatch-badge" title="${count} actual watches">&#8635; &times;${count}</span>`;
 }
 // ---------------------------------------------------------------------------
 // Movie cards
@@ -956,7 +964,7 @@ function renderHistoryGridCard(entry) {
       <div class="history-grid-copy">
         <b title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</b>
         <span>${escapeHtml(isEpisode ? epTitle : mediaLabel)}</span>
-        <small>${formatDate(entry.watched_at)} ${renderSyncStatusDot(entry, "margin-left: 0.35rem;")}</small>
+        <small>${formatDate(entry.watched_at)} ${rewatchBadge(entry)} ${renderSyncStatusDot(entry, "margin-left: 0.35rem;")}</small>
       </div>
     </a>
   `;
@@ -969,7 +977,7 @@ function renderHistoryListRow(entry) {
       <span class="history-list-title" title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</span>
       <span class="history-list-col" title="${escapeAttribute(epTitle || mediaLabel)}">${escapeHtml(epTitle || mediaLabel)}</span>
       <span class="history-list-col">${escapeHtml(seasonEpisode || mediaLabel)}</span>
-      <span class="history-list-col">${formatDate(entry.watched_at)}</span>
+      <span class="history-list-col">${formatDate(entry.watched_at)} ${rewatchBadge(entry)}</span>
       <span class="history-list-source">${sourceBadge}${renderSyncStatusDot(entry, "margin-left: 0.35rem;")}</span>
     </a>
   `;
@@ -1007,7 +1015,7 @@ function renderHistoryPageCard(entry) {
           ` : ""}
           <div class="history-card-meta-row">
             <span class="meta-label">Last Played:</span>
-            <span class="meta-value">${formatDate(entry.watched_at)}</span>
+            <span class="meta-value">${formatDate(entry.watched_at)} ${rewatchBadge(entry)}</span>
           </div>
         </div>
         <div class="history-card-footer">
@@ -1151,7 +1159,7 @@ export async function loadExplorerShows() {
     const cacheKey = url.toString();
     let body = cachedExplorerPage(cacheKey);
     if (!body) {
-      const res = await fetch(url, { headers: authHeaders() });
+      const res = await fetch(url, { headers: authHeaders(), cache: "no-store" });
       body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Shows load failed ${res.status}`);
       rememberExplorerPage(cacheKey, body);
@@ -1312,6 +1320,8 @@ export function renderShowRecord(show = {}) {
   const seasons = Array.isArray(show.episodes) && show.episodes.length ? seasonsFromShowRecord(show) : null;
   const episodeCount = show.episode_count || (seasons ? allSeasonEpisodes(seasons).length : 0);
   const seasonCount = show.season_count || (seasons ? seasons.size : 0);
+  const totalWatches = Math.max(Number(show.total_watches || 0), Number(episodeCount || 0));
+  const actualWatchText = totalWatches > episodeCount ? ` · ${totalWatches} actual watches` : "";
   const latestEpisode = seasons ? representativeEpisode(seasons) : representative;
   const tmdbId = show.tmdb_id || "";
   if (currentExplorerView() === "list") {
@@ -1321,8 +1331,8 @@ export function renderShowRecord(show = {}) {
     const nextAiring = nextAiringCell(tmdbShow || show);
     const pct = totalEps ? Math.round((episodeCount / totalEps) * 100) : null;
     const episodeProgressHtml = totalEps
-      ? `<div class="list-eps-progress" data-list-eps data-watched="${episodeCount}" data-total="${totalEps}"><div class="list-eps-bar-track"><div class="list-eps-bar-fill" style="width:${pct}%"></div></div><span class="list-eps-label">${episodeCount} / ${totalEps}</span></div>`
-      : `<span class="list-card-col" data-list-eps data-watched="${episodeCount}" data-total="0">${episodeCount}</span>`;
+      ? `<div class="list-eps-progress" data-list-eps data-watched="${episodeCount}" data-total="${totalEps}"><div class="list-eps-bar-track"><div class="list-eps-bar-fill" style="width:${pct}%"></div></div><span class="list-eps-label">${episodeCount} / ${totalEps}${actualWatchText}</span></div>`
+      : `<span class="list-card-col" data-list-eps data-watched="${episodeCount}" data-total="0">${episodeCount}${actualWatchText}</span>`;
     const sourceEl = latestEpisode?.source ? `<span class="source-badge ${sourceClass(latestEpisode.source)}">${escapeHtml(platformBadge(latestEpisode.source))}</span>` : "";
     return `
       <article class="explorer-list-card explorer-list-show-card" data-show-key="${escapeAttribute(showKey)}" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
@@ -1350,7 +1360,7 @@ export function renderShowRecord(show = {}) {
           <div class="overview-card-header">
             <button class="folder-trigger overview-show-title-btn" type="button" data-show-key="${escapeAttribute(showKey)}" style="border:0;background:transparent;padding:0;text-align:left;cursor:pointer;"><b>${escapeHtml(displayTitle)}</b></button>
           </div>
-          <div class="overview-card-attrs" data-overview-attrs>${[firstYear, genres].filter(Boolean).join(" &middot; ")}${episodeCount ? `${firstYear || genres ? " &middot; " : ""}${episodeCount} ep${episodeCount !== 1 ? "s" : ""}` : ""}</div>
+          <div class="overview-card-attrs" data-overview-attrs>${[firstYear, genres].filter(Boolean).join(" &middot; ")}${episodeCount ? `${firstYear || genres ? " &middot; " : ""}${episodeCount} ep${episodeCount !== 1 ? "s" : ""}` : ""}${actualWatchText}</div>
           <div class="overview-card-text-wrap"><p class="overview-card-text" data-overview-text>${escapeHtml(overview)}</p></div>
         </div>
       </article>
@@ -1367,7 +1377,7 @@ export function renderShowRecord(show = {}) {
         ${posterMarkup(latestEpisode, "explorer-folder-poster")}
         <div class="movie-card-body" style="margin-top: 0.5rem;">
           <b>${escapeHtml(displayTitle)}</b>
-          <span>${episodeCount}/${totalEps || "?"} watched</span>
+          <span>${episodeCount}/${totalEps || "?"} watched${actualWatchText}</span>
           ${latestWatchedAt ? `<span>${formatDate(latestWatchedAt)}</span>` : ""}
         </div>
       </a>
@@ -1392,12 +1402,14 @@ export function renderSeasonFolder(showKey, season, episodes) {
   const seasonKey = `${showKey}:s${season}`;
   const expanded = state.expandedSeasons.has(seasonKey);
   const sortedEpisodes = sortExplorerItems(episodes, currentExplorerSort());
+  const totalWatches = episodes.reduce((total, episode) => total + actualWatchCount(episode), 0);
+  const actualWatchText = totalWatches > episodes.length ? ` · ${totalWatches} actual watches` : "";
   return `
     <article class="season-card">
       <button class="season-trigger" type="button" data-season-key="${seasonKey}" aria-expanded="${expanded}">
         <span class="accordion-chevron ${expanded ? "expanded" : ""}">▼</span>
         <b>Season ${String(season || "?").padStart(2, "0")}</b>
-        <span>${episodes.length} watched episodes</span>
+        <span>${episodes.length} watched episodes${actualWatchText}</span>
       </button>
       <div class="episode-list ${expanded ? "" : "hidden"}">
         ${sortedEpisodes

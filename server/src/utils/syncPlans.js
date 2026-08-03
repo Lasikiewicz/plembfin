@@ -3,7 +3,7 @@
 // Status lifecycle:
 //   draft → confirmed → executing → completed
 // with terminal/side states: superseded, expired, blocked_over_limit,
-// blocked_snapshot_failed. Plans are pruned after PLAN_RETENTION_MS; snapshot
+// blocked_scan_error, blocked_snapshot_failed. Plans are pruned after PLAN_RETENTION_MS; snapshot
 // files referenced by unpruned plans are protected from backup retention
 // (see watchHistoryBackups.js).
 
@@ -56,7 +56,13 @@ export function createSyncPlanRecord(plan, { status } = {}) {
     insertPlan.run({
       id,
       createdAt: plan.createdAt || now,
-      status: status || (plan.summary?.overLimit ? "blocked_over_limit" : "draft"),
+      status: status || (
+        plan.summary?.overLimit
+          ? "blocked_over_limit"
+          : plan.summary?.scopeErrors?.length
+            ? "blocked_scan_error"
+            : "draft"
+      ),
       scope: toJson(plan.scope || {}),
       summary: toJson(plan.summary || {}),
       actions: toJson(plan.actions || []),
@@ -112,6 +118,9 @@ export function confirmSyncPlan(id) {
   if (!plan) return { ok: false, error: "Plan not found." };
   if (plan.status === "blocked_over_limit") {
     return { ok: false, error: "This plan exceeds its maximum-change limit and cannot be confirmed. Narrow the scope and plan again." };
+  }
+  if (plan.status === "blocked_scan_error") {
+    return { ok: false, error: "This plan cannot be confirmed because one or more configured servers could not be scanned. Restore connectivity and create a fresh preview." };
   }
   if (!["draft", "confirmed"].includes(plan.status)) {
     return { ok: false, error: `Plan is ${plan.status} and can no longer be confirmed.` };

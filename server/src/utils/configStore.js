@@ -371,6 +371,154 @@ const upsertRuntimeStmt = db.prepare(
 
 export const RESTORE_KIND_FULL_SYNC = "full_sync_watchstates";
 export const RESTORE_KIND_BACKUP = "backup_restore";
+export const SYNC_OPERATION_FORCE = "force_sync";
+export const SYNC_OPERATION_REBUILD = "rebuild";
+export const SYNC_OPERATION_SCHEDULED = "scheduled_sync";
+
+function operationMatches(runtime = {}) {
+  const stored = runtime.syncOperation && typeof runtime.syncOperation === "object"
+    ? runtime.syncOperation
+    : null;
+  if (stored?.kind && stored.active !== false) {
+    return {
+      kind: String(stored.kind),
+      ownerId: String(stored.ownerId || ""),
+      startedAt: Number(stored.startedAt || 0),
+      heartbeat: Number(stored.heartbeat || 0),
+    };
+  }
+
+  // Compatibility for locks written before the shared operation marker was
+  // introduced. These fields remain in runtime_state because the UI and the
+  // restore recovery path still expose them directly.
+  if (runtime.restoreSyncActive === true) {
+    return {
+      kind: String(runtime.restoreSyncKind || "restore"),
+      ownerId: String(runtime.restoreSyncRunId || ""),
+      startedAt: Number(runtime.restoreSyncStartedAt || 0),
+      heartbeat: Number(runtime.restoreSyncHeartbeat || runtime.restoreSyncStartedAt || 0),
+    };
+  }
+  if (runtime.forceSyncActive === true) {
+    return {
+      kind: SYNC_OPERATION_FORCE,
+      ownerId: String(runtime.forceSyncRunId || ""),
+      startedAt: Number(runtime.forceSyncStartedAt || 0),
+      heartbeat: Number(runtime.forceSyncHeartbeat || runtime.forceSyncStartedAt || 0),
+    };
+  }
+  if (runtime.rebuildActive === true) {
+    return {
+      kind: SYNC_OPERATION_REBUILD,
+      ownerId: String(runtime.rebuildRunId || ""),
+      startedAt: Number(runtime.rebuildStartedAt || 0),
+      heartbeat: Number(runtime.rebuildHeartbeat || runtime.rebuildStartedAt || 0),
+    };
+  }
+  return null;
+}
+
+export function activeSyncOperation(runtime = {}) {
+  return operationMatches(runtime);
+}
+
+export function syncOperationIsFresh(runtime = {}, now = Date.now(), staleMs = 3 * 60 * 1000) {
+  const operation = operationMatches(runtime);
+  return Boolean(operation?.heartbeat && operation.heartbeat >= now - staleMs);
+}
+
+function sameOperationOwner(active, kind, ownerId) {
+  return Boolean(active)
+    && active.kind === kind
+    && String(active.ownerId || "") !== ""
+    && String(ownerId || "") !== ""
+    && active.ownerId === String(ownerId);
+}
+
+// Runtime state is stored in SQLite, so claiming the shared operation marker
+// in the same immediate transaction as the legacy active flag gives all web
+// and worker processes one compare-and-set boundary. The owner id makes batch
+// requests re-entrant while preventing a second operation of the same kind
+// from stealing the first one's lock.
+export async function claimSyncOperation({ kind, ownerId = "", activeField, startedAt = Date.now(), values = {} } = {}) {
+  if (!kind || !activeField) throw new Error("kind and activeField are required to claim a sync operation");
+  let result;
+  db.transaction(() => {
+    const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+    const active = operationMatches(current);
+    if (active && !sameOperationOwner(active, kind, ownerId)) {
+      result = { ok: false, active };
+      return;
+    }
+    const now = Date.now();
+    const operation = {
+      active: true,
+      kind: String(kind),
+      ownerId: String(ownerId || ""),
+      startedAt: Number(startedAt || now),
+      heartbeat: now,
+    };
+    const merged = {
+      ...current,
+      ...values,
+      [activeField]: true,
+      syncOperation: operation,
+      updatedAt: now,
+    };
+    upsertRuntimeStmt.run(RUNTIME_ID, toJson(merged), now);
+    result = { ok: true, operation };
+  }).immediate();
+  return result;
+}
+
+export async function touchSyncOperation({ kind, ownerId = "", values = {} } = {}) {
+  if (!kind) return false;
+  let touched = false;
+  db.transaction(() => {
+    const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+    const active = operationMatches(current);
+    if (!sameOperationOwner(active, kind, ownerId)) return;
+    const now = Date.now();
+    const operation = { ...current.syncOperation, active: true, heartbeat: now };
+    const merged = { ...current, ...values, syncOperation: operation, updatedAt: now };
+    upsertRuntimeStmt.run(RUNTIME_ID, toJson(merged), now);
+    touched = true;
+  }).immediate();
+  return touched;
+}
+
+export async function releaseSyncOperation({ kind, ownerId = "", values = {} } = {}) {
+  if (!kind) return false;
+  let released = false;
+  db.transaction(() => {
+    const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+    const active = operationMatches(current);
+    if (active && !sameOperationOwner(active, kind, ownerId)) return;
+    const now = Date.now();
+    const merged = { ...current, ...values, syncOperation: null, updatedAt: now };
+    upsertRuntimeStmt.run(RUNTIME_ID, toJson(merged), now);
+    released = true;
+  }).immediate();
+  return released;
+}
+
+// Used only by an administrator/recovery path after a heartbeat has gone cold.
+// It is deliberately kind-scoped so resetting a stale Force Sync cannot clear
+// an unrelated restore or rebuild operation that started in the meantime.
+export async function clearSyncOperation({ kind = "", values = {} } = {}) {
+  let result = { ok: false, active: null };
+  db.transaction(() => {
+    const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+    const active = operationMatches(current);
+    result = { ok: false, active };
+    if (!active || (kind && active.kind !== kind)) return;
+    const now = Date.now();
+    const merged = { ...current, ...values, syncOperation: null, updatedAt: now };
+    upsertRuntimeStmt.run(RUNTIME_ID, toJson(merged), now);
+    result = { ok: true, active };
+  }).immediate();
+  return result;
+}
 
 export async function setRuntimeState(values = {}) {
   db.transaction(() => {
@@ -390,11 +538,15 @@ export async function loadRuntimeState() {
 // accepting another batch under the old run id.
 export async function clearRestoreSyncState({ reason = "Restore lock cleared.", expectedKind = "" } = {}) {
   const runtime = await loadRuntimeState();
-  const kind = String(runtime.restoreSyncKind || "");
+  const operation = operationMatches(runtime);
+  const kind = String(runtime.restoreSyncKind || operation?.kind || "");
   if (expectedKind && kind !== expectedKind) return { reset: false, skipped: true, kind, runId: String(runtime.restoreSyncRunId || "") };
 
   const runId = String(runtime.restoreSyncRunId || "");
-  const wasActive = runtime.restoreSyncActive === true || Boolean(runId) || runtime.restoreSyncCancelRequested === true;
+  const wasActive = runtime.restoreSyncActive === true
+    || Boolean(runId)
+    || runtime.restoreSyncCancelRequested === true
+    || Boolean(operation && (!expectedKind || operation.kind === expectedKind));
   if (!wasActive) return { reset: false, skipped: false, kind, runId };
 
   const finishedAt = Date.now();
@@ -404,6 +556,7 @@ export async function clearRestoreSyncState({ reason = "Restore lock cleared.", 
     restoreSyncKind: "",
     restoreSyncCancelRequested: true,
     restoreSyncHeartbeat: finishedAt,
+    syncOperation: null,
     restoreSyncResult: {
       success: false,
       cancelled: true,

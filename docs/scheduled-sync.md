@@ -27,14 +27,26 @@ Force Sync also supports an opt-in read-only preview. `POST /api/force-sync/plan
 the preview and returns a job id. Once the job result contains a `planId`,
 `GET /api/force-sync/plan/:id` returns the summary and paged action details, while
 `POST /api/force-sync/plan/:id` confirms a draft. Plans expire after 15 minutes and a
-plan over its configured maximum-change limit cannot be confirmed. The existing
-`POST /api/force-sync` path retains its current behavior for unplanned runs.
+plan over its configured maximum-change limit cannot be confirmed. A preview with
+an incomplete server scan is also blocked: an unavailable server is never treated
+as an empty library and cannot become a write target. The normal and preview-backed
+paths share the same operation lock, role-aware destination filtering, and
+restart-safe cancellation behavior.
 
 After confirmation, `POST /api/force-sync` with `{ "planId": "..." }` rechecks the
 server fingerprints and configuration revision. Any drift expires the plan before writes.
 Destructive plans create and checksum-verify a local Plembfin watch-history snapshot first;
 snapshot failure blocks execution. This snapshot covers Plembfin watch history, playstate,
 and resume progress, not the databases owned by Plex, Emby, or Jellyfin.
+
+Force Sync is a canonical replay from Plembfin history. It never imports a watched item
+that exists only on a connected server, and it never writes to a server whose watched
+library scan failed. Source-only and monitor-only sync roles are scanned for information
+but are excluded from outbound writes. Force Sync, Full Sync Watchstates, backup restore,
+and rebuild operations use one owner-scoped SQLite operation marker, so they cannot run
+concurrently. Inbound callbacks received during an authoritative operation are suppressed
+as echoes; scheduled-sync callbacks remain eligible for normal echo-ledger checks. Delayed
+unplayed callbacks are additionally matched against a 14-day outbound unmark ledger.
 
 ## Plembfin is the watched-state authority
 

@@ -146,6 +146,26 @@ export async function recordOutboundPlayedMarks(media, targets = [], kv) {
   }
 }
 
+// Unplayed callbacks do not carry a reliable timestamp on every server, so
+// keep a separate ledger for outbound unscrobble/delete-played writes. This
+// prevents a target's acknowledgement from being interpreted as a new source
+// event and also covers the direct Force Sync path.
+const OUTBOUND_UNPLAYED_MARK_PREFIX = "unmark";
+
+export async function recordOutboundUnplayedMarks(media, targets = [], kv) {
+  if (!kv || !targets.length) return;
+  const now = Date.now();
+  for (const target of targets) {
+    for (const key of targetCacheKeys(media, target, OUTBOUND_UNPLAYED_MARK_PREFIX)) {
+      try {
+        await kv.put(key, now, { expirationTtl: OUTBOUND_MARK_TTL_SECONDS });
+      } catch (error) {
+        console.error("Failed to record outbound unplayed mark", { target, error });
+      }
+    }
+  }
+}
+
 // Newest time plembfin itself marked `media` played on `target`, or 0.
 export async function lastOutboundPlayedMarkAt(media, target, kv) {
   if (!kv) return 0;
@@ -159,6 +179,30 @@ export async function lastOutboundPlayedMarkAt(media, target, kv) {
     }
   }
   return newest;
+}
+
+export async function lastOutboundUnplayedMarkAt(media, target, kv) {
+  if (!kv) return 0;
+  let newest = 0;
+  for (const key of targetCacheKeys(media, target, OUTBOUND_UNPLAYED_MARK_PREFIX)) {
+    try {
+      const value = Number(await kv.get(key));
+      if (Number.isFinite(value) && value > newest) newest = value;
+    } catch (error) {
+      console.error("Failed to read outbound unplayed mark", { target, error });
+    }
+  }
+  return newest;
+}
+
+export async function isRecentOutboundUnplayedFlagEcho(media, target, kv, {
+  now = Date.now(),
+  windowMs = 10 * 60 * 1000,
+} = {}) {
+  const ownMarkAt = await lastOutboundUnplayedMarkAt(media, target, kv);
+  if (!ownMarkAt) return false;
+  const receivedAt = Number(now);
+  return Number.isFinite(receivedAt) && receivedAt >= ownMarkAt && receivedAt - ownMarkAt <= windowMs;
 }
 
 // A played-flag callback is not evidence of a new viewing. It is also what
@@ -424,6 +468,10 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
     ids: media.ids,
   });
 
+  // Prime before the DELETE/unscrobble requests because some servers emit the
+  // callback before the outbound request resolves.
+  await recordOutboundUnplayedMarks(media, targets, kv);
+
   const jobs = targets.map((target) => {
     const run = clientUnplayedFor(target, config, media);
     return run();
@@ -431,6 +479,10 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
 
   const results = await Promise.allSettled(jobs);
   const summary = summarizeResults(targets, results);
+  const successfulTargets = summary.targetStates
+    .filter((state) => state.status === "success")
+    .map((state) => state.target);
+  await recordOutboundUnplayedMarks(media, successfulTargets, kv);
   console.log("Sync unplayed dispatch completed", {
     source: media.source,
     results: results.map((result, index) => ({

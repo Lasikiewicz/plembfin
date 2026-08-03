@@ -1,12 +1,12 @@
 import { createLoopStore } from "./utils/loopStore.js";
-import { appendSyncHistory, loadMediaConfig, setRuntimeState } from "./utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, loadMediaConfig, setRuntimeState, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
 import { createPlexNotificationListener } from "./utils/plexNotificationListener.js";
 import { fetchPlexMetadataItem } from "./utils/plexClient.js";
 import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { runScheduledSync } from "./scheduled.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
-import { lastOutboundPlayedMarkAt, syncCanonicalPlaystate, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
+import { isRecentOutboundUnplayedFlagEcho, lastOutboundPlayedMarkAt, syncCanonicalPlaystate, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
 import { getTmdbDetails, prewarmTmdbLibrary } from "./utils/tmdbGateway.js";
 import { cachedNextAiringFor, mergeNextAiringCacheEntries, nextAiringCacheEntryStale, nextAiringCacheKey, readNextAiringCache } from "./utils/nextAiringCache.js";
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
@@ -153,9 +153,9 @@ async function handlePlexLibraryItemChange(ratingKey) {
   if (!watchedPlayedSyncEnabled()) return;
 
   const restoreRuntime = await loadRuntimeState().catch(() => ({}));
-  const restoreHeartbeat = Number(restoreRuntime.restoreSyncHeartbeat || restoreRuntime.restoreSyncStartedAt || 0);
-  if (restoreRuntime.restoreSyncActive === true && restoreHeartbeat >= Date.now() - 3 * 60 * 1000) {
-    console.log("Plex notifications: ignored library change during authoritative restore", { ratingKey });
+  const activeOperation = activeSyncOperation(restoreRuntime);
+  if (activeOperation && activeOperation.kind !== SYNC_OPERATION_SCHEDULED) {
+    console.log("Plex notifications: ignored library change during sync operation", { ratingKey, operation: activeOperation.kind });
     return;
   }
 
@@ -279,6 +279,13 @@ async function handlePlexLibraryItemChange(ratingKey) {
   });
 
   const loopStore = createLoopStore();
+  if (viewCount === 0) {
+    const ownUnplayedEcho = await isRecentOutboundUnplayedFlagEcho({ ...media, itemId: ratingKey }, "plex", loopStore).catch(() => false);
+    if (ownUnplayedEcho) {
+      console.log("Plex notifications: ignored outbound unplayed echo", { ratingKey, title: media.title });
+      return;
+    }
+  }
   try {
     const summary = await syncCanonicalPlaystate(media, config, loopStore);
     await deletePlaybackProgress(media).catch(() => null);

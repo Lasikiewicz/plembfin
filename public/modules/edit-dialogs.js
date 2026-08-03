@@ -13,6 +13,8 @@ let _renderImmersiveShowModal = async () => {};
 let _openShowImmersiveModalByTmdbId = async () => {};
 let _navigateTo = () => {};
 let _openConfirmDialog = async () => false;
+let _loadHistory = async () => {};
+let _renderExplorer = () => {};
 
 export function initEditDialogs(callbacks) {
   if (callbacks.setMessage) _setMessage = callbacks.setMessage;
@@ -21,6 +23,8 @@ export function initEditDialogs(callbacks) {
   if (callbacks.openShowImmersiveModalByTmdbId) _openShowImmersiveModalByTmdbId = callbacks.openShowImmersiveModalByTmdbId;
   if (callbacks.navigateTo) _navigateTo = callbacks.navigateTo;
   if (callbacks.openConfirmDialog) _openConfirmDialog = callbacks.openConfirmDialog;
+  if (callbacks.loadHistory) _loadHistory = callbacks.loadHistory;
+  if (callbacks.renderExplorer) _renderExplorer = callbacks.renderExplorer;
 }
 
 function authHeaders() {
@@ -36,8 +40,19 @@ function authHeaders() {
 export async function apiUpdateWatch(id, fields, mediaKey = "") {
   const res = await fetch("/api/update-watch", {
     method: "PATCH",
-    headers: authHeaders(),
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({ id, ...(mediaKey ? { media_key: mediaKey } : {}), ...fields }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body;
+}
+
+async function apiUpdateWatchDates(updates = []) {
+  const res = await fetch("/api/update-watch-dates", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ updates }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
@@ -414,12 +429,8 @@ export function openEditShowDateDialog(showTitle, watchedRows = []) {
     saveButton.disabled = true;
     status.textContent = `Saving 0/${rows.length}...`;
     try {
-      let saved = 0;
-      for (const row of rows) {
-        await apiUpdateWatch(row.id, { watched_at });
-        saved += 1;
-        status.textContent = `Saving ${saved}/${rows.length}...`;
-      }
+      await apiUpdateWatchDates(rows.map((row) => ({ id: row.id, media_key: row.media_key, watched_at })));
+      status.textContent = `Saving ${rows.length}/${rows.length}...`;
 
       for (const row of rows) row.watched_at = watched_at;
       const showKey = slug(showTitle);
@@ -434,7 +445,11 @@ export function openEditShowDateDialog(showTitle, watchedRows = []) {
       }
 
       _clearDerivedUiCaches({ resetExplorer: false });
-      if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
+      await Promise.all([
+        _loadHistory({ force: true }).catch(() => null),
+        showTitle ? refreshShowAfterManualWatch(showTitle).catch(() => null) : Promise.resolve(),
+      ]);
+      _renderExplorer();
       if (state.activeShowModalKey) {
         _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
       } else if (state.activeShowTmdbId) {
@@ -455,12 +470,21 @@ export function openEditShowDateDialog(showTitle, watchedRows = []) {
 // ── Edit season date dialog ────────────────────────────────────────────────
 
 export function openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes = []) {
-  if (!watchedEpisodes.length) {
+  const rows = [...new Map((watchedEpisodes || [])
+    .filter((row) => row?.id || row?.media_key)
+    .map((row) => [String(row.id || row.media_key), row])).values()];
+  if (!rows.length) {
     _setMessage("There are no watched episodes in this season to update.", "error");
     return;
   }
 
-  const latest = watchedEpisodes.reduce((value, row) => row.watched_at > value ? row.watched_at : value, watchedEpisodes[0].watched_at || "");
+  const releaseDateFor = (row) => {
+    const value = String(row?.release_date || row?.air_date || row?.airDate || "").slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+  };
+  const releaseRows = rows.map((row) => ({ row, releaseDate: releaseDateFor(row) }));
+  const missingReleaseDates = releaseRows.filter(({ releaseDate }) => !releaseDate).length;
+  const latest = rows.reduce((value, row) => String(row.watched_at || "") > value ? String(row.watched_at || "") : value, "");
   document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
 
   const overlay = document.createElement("div");
@@ -469,7 +493,18 @@ export function openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes =
   overlay.innerHTML = `
     <div class="edit-dialog glass-panel edit-dialog--watch-date">
       <h3>Edit Season Watch Date</h3>
-      <p class="muted-copy">Updates ${watchedEpisodes.length} watched episode date${watchedEpisodes.length === 1 ? "" : "s"} for Season ${seasonNum} of ${escapeHtml(showTitle || "this show")}.</p>
+      <p class="muted-copy">Updates ${rows.length} existing watched episode record${rows.length === 1 ? "" : "s"} for Season ${seasonNum} of ${escapeHtml(showTitle || "this show")}. This never adds another watch.</p>
+      <div class="watch-date-section-label">Quick choices</div>
+      <div class="watch-date-options season-watch-date-options">
+        <button class="watch-date-pick season-date-choice" type="button" data-season-date-choice="release" aria-pressed="false"${missingReleaseDates ? " disabled" : ""}>
+          <span class="watch-date-pick-title">Use episode release dates</span>
+          <span class="watch-date-pick-sub">${missingReleaseDates ? `${missingReleaseDates} episode${missingReleaseDates === 1 ? "" : "s"} has no release date` : "Each episode uses its own release day"}</span>
+        </button>
+        <button class="watch-date-pick season-date-choice is-selected" type="button" data-season-date-choice="shared" aria-pressed="true">
+          <span class="watch-date-pick-title">Use one date for all</span>
+          <span class="watch-date-pick-sub">Use the date and time selected below</span>
+        </button>
+      </div>
       <div class="watch-date-calendar-slot"></div>
       <div class="edit-dialog-actions">
         <button class="button-primary edit-dialog-save" type="button">Save</button>
@@ -480,45 +515,82 @@ export function openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes =
   `;
 
   const pickerState = calendarStateFromIso(latest);
-  mountCalendarPicker(overlay.querySelector(".watch-date-calendar-slot"), pickerState, { showConfirm: false });
+  const calendarSlot = overlay.querySelector(".watch-date-calendar-slot");
+  let releaseChoiceSelected = false;
+  const setChoice = (choice) => {
+    releaseChoiceSelected = choice === "release";
+    overlay.querySelectorAll("[data-season-date-choice]").forEach((button) => {
+      const selected = button.dataset.seasonDateChoice === choice;
+      button.classList.toggle("is-selected", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+  };
+  overlay.querySelectorAll("[data-season-date-choice]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!button.disabled) setChoice(button.dataset.seasonDateChoice);
+    });
+  });
+  calendarSlot.addEventListener("click", (event) => {
+    if (event.target.closest("[data-wd-day], [data-wd-nav], [data-wd-month-toggle]")) setChoice("shared");
+  });
+  calendarSlot.addEventListener("change", (event) => {
+    if (event.target.closest("[data-wd-hour], [data-wd-minute], [data-wd-month-select], [data-wd-year-select]")) setChoice("shared");
+  });
+  mountCalendarPicker(calendarSlot, pickerState, { showConfirm: false });
 
   overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
   overlay.querySelector(".edit-dialog-save").addEventListener("click", async () => {
     const status = overlay.querySelector(".edit-dialog-status");
     const saveButton = overlay.querySelector(".edit-dialog-save");
 
-    const watched_at = pickerState.selected.toISOString();
-    saveButton.disabled = true;
-    status.textContent = `Saving 0/${watchedEpisodes.length}...`;
-    try {
-      let saved = 0;
-      for (const row of watchedEpisodes) {
-        await apiUpdateWatch(row.id, { watched_at });
-        saved += 1;
-        status.textContent = `Saving ${saved}/${watchedEpisodes.length}...`;
-      }
+    if (releaseChoiceSelected && missingReleaseDates) {
+      status.textContent = "Release dates are missing for one or more watched episodes.";
+      return;
+    }
 
-      for (const row of watchedEpisodes) row.watched_at = watched_at;
+    const updates = releaseChoiceSelected
+      ? releaseRows.map(({ row, releaseDate }) => ({ id: row.id, media_key: row.media_key, watched_at: dateAtMiddayIso(releaseDate) }))
+      : rows.map((row) => ({ id: row.id, media_key: row.media_key, watched_at: pickerState.selected.toISOString() }));
+    saveButton.disabled = true;
+    status.textContent = `Saving 0/${rows.length}...`;
+    try {
+      await apiUpdateWatchDates(updates);
+      status.textContent = `Saving ${rows.length}/${rows.length}...`;
+
+      const updatedAtById = new Map(updates.map((update) => [String(update.id || update.media_key), update.watched_at]));
+      for (const row of rows) row.watched_at = updatedAtById.get(String(row.id || row.media_key)) || row.watched_at;
       const showKey = slug(showTitle);
       const show = state.showsRaw.find((item) => slug(item.title) === showKey);
       if (show?.episodes) {
-        const ids = new Set(watchedEpisodes.map((row) => row.id));
+        const ids = new Set(rows.map((row) => String(row.id || "")).filter(Boolean));
         for (const episode of show.episodes) {
-          if (ids.has(episode.id)) episode.watched_at = watched_at;
+          if (ids.has(String(episode.id || ""))) {
+            const updatedAt = updatedAtById.get(String(episode.id));
+            if (updatedAt) episode.watched_at = updatedAt;
+          }
         }
         show.latest_watched_at = show.episodes.reduce((value, episode) => episode.watched_at > value ? episode.watched_at : value, "");
         show.earliest_watched_at = show.episodes.reduce((value, episode) => !value || episode.watched_at < value ? episode.watched_at : value, "");
       }
 
       _clearDerivedUiCaches({ resetExplorer: false });
-      if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
+      await Promise.all([
+        _loadHistory({ force: true }).catch(() => null),
+        showTitle ? refreshShowAfterManualWatch(showTitle).catch(() => null) : Promise.resolve(),
+      ]);
+      _renderExplorer();
       if (state.activeShowModalKey) {
         _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
       } else if (state.activeShowTmdbId) {
         await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
       }
       overlay.remove();
-      _setMessage(`Updated ${watchedEpisodes.length} episode date${watchedEpisodes.length === 1 ? "" : "s"} for Season ${seasonNum}.`, "success");
+      _setMessage(
+        releaseChoiceSelected
+          ? `Updated ${rows.length} Season ${seasonNum} watch date${rows.length === 1 ? "" : "s"} using each episode's release day.`
+          : `Updated ${rows.length} existing episode date${rows.length === 1 ? "" : "s"} for Season ${seasonNum}.`,
+        "success",
+      );
     } catch (error) {
       saveButton.disabled = false;
       _setMessage(`Season watch date update failed: ${error.message}`, "error");

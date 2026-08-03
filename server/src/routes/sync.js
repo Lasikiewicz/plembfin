@@ -9,7 +9,7 @@ import { db, parseJson, toJson, writeAuditLog } from "../db.js";
 import { createLoopStore } from "../utils/loopStore.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
-import { appendSyncHistory, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "../utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, clearSyncOperation, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
 import { forceSyncStopAction } from "../utils/forceSyncControl.js";
 import { getSyncPlanActionsPage, getSyncPlanSummary, confirmSyncPlan } from "../utils/syncPlans.js";
 import {
@@ -19,13 +19,14 @@ import {
   getLatestBackgroundJob,
   requestBackgroundJobCancellation,
   workerAvailable,
+  BACKGROUND_JOB_STALE_MS,
 } from "../utils/backgroundJobs.js";
 import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes, listPlexLibraries } from "../utils/plexClient.js";
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
-import { getTargetsForSource, isRecentOutboundPlayedFlagEcho, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { provenanceTelemetryLines } from "../utils/watchProvenance.js";
@@ -1133,6 +1134,7 @@ export async function handleForceSync(req, res) {
     if (!(await requireAdmin(req, res))) return;
     const job = getLatestBackgroundJob("force_sync");
     if (job) {
+      const runtime = await loadRuntimeState();
       return sendJson(res, {
         active: ["queued", "running"].includes(job.status),
         log: getBackgroundJobLogs(job.id).map((entry) => entry.message),
@@ -1141,6 +1143,7 @@ export async function handleForceSync(req, res) {
         jobId: job.id,
         status: job.status,
         workerAvailable: workerAvailable(),
+        operation: activeSyncOperation(runtime),
       });
     }
     const runtime = await loadRuntimeState();
@@ -1152,6 +1155,7 @@ export async function handleForceSync(req, res) {
       jobId: null,
       status: runtime.forceSyncActive === true ? "running" : "idle",
       workerAvailable: workerAvailable(),
+      operation: activeSyncOperation(runtime),
     });
   }
 
@@ -1165,6 +1169,16 @@ export async function handleForceSync(req, res) {
     const plan = getSyncPlanSummary(planId);
     if (!plan) return sendJson(res, { ok: false, error: "Plan not found." }, 404);
     if (plan.status !== "confirmed") return sendJson(res, { ok: false, error: `Plan is ${plan.status}; confirm it before execution.` }, 409);
+  }
+  const runtime = await loadRuntimeState();
+  const operation = activeSyncOperation(runtime);
+  if (operation) {
+    const operationLabel = operation.kind === SYNC_OPERATION_FORCE ? "another Force Sync" : `another sync operation (${operation.kind})`;
+    return sendJson(res, {
+      ok: false,
+      error: `${operationLabel} is already active. Stop/reset it before starting Force Sync.`,
+      operation,
+    }, 409);
   }
   const existingJob = getLatestBackgroundJob("force_sync");
   if (["queued", "running"].includes(existingJob?.status)) {
@@ -1236,7 +1250,29 @@ export async function handleStopForceSync(req, res) {
   const job = getLatestBackgroundJob("force_sync");
   if (job && ["queued", "running"].includes(job.status)) {
     const updated = requestBackgroundJobCancellation(job.id);
-    if (job.status === "running") await setRuntimeState({ forceSyncCancelRequested: true });
+    const runtime = await loadRuntimeState();
+    const stale = job.status === "running"
+      && Number(job.heartbeatAt || 0) > 0
+      && Number(job.heartbeatAt) < Date.now() - BACKGROUND_JOB_STALE_MS;
+    if (job.status === "running" && !stale && activeSyncOperation(runtime)?.kind === SYNC_OPERATION_FORCE) {
+      await setRuntimeState({ forceSyncCancelRequested: true });
+    }
+    if (stale) {
+      const cleared = await clearSyncOperation({
+        kind: SYNC_OPERATION_FORCE,
+        values: {
+          forceSyncActive: false,
+          forceSyncCancelRequested: true,
+          forceSyncHeartbeat: Date.now(),
+          forceSyncResult: { success: true, aborted: true, cancelled: true, reset: true, reason: "Stale Force Sync was stopped by an administrator." },
+        },
+      });
+      const message = cleared.ok
+        ? "Stale Force Sync cancelled and its operation lock was cleared."
+        : "The stale Force Sync job was marked cancelled; no matching active lock was found.";
+      await appendRuntimeLog("forceSyncLog", [`RESET: ${message}`]).catch(() => null);
+      return sendJson(res, { ok: true, active: false, reset: true, jobId: job.id, message });
+    }
     return sendJson(res, {
       ok: true,
       active: updated?.status === "running",
@@ -1248,14 +1284,17 @@ export async function handleStopForceSync(req, res) {
 
   try {
     const runtime = await loadRuntimeState();
+    const operation = activeSyncOperation(runtime);
     const action = forceSyncStopAction({
       workerRunning: false,
-      runtimeActive: runtime.forceSyncActive === true,
+      runtimeActive: runtime.forceSyncActive === true || operation?.kind === SYNC_OPERATION_FORCE,
       cancelRequested: runtime.forceSyncCancelRequested === true,
     });
 
     if (action === "cancel") {
-      await setRuntimeState({ forceSyncCancelRequested: true });
+      if (operation?.kind === SYNC_OPERATION_FORCE || runtime.forceSyncActive === true) {
+        await setRuntimeState({ forceSyncCancelRequested: true });
+      }
       return sendJson(res, { ok: true, active: true, reset: false, message: "Cancellation request sent to the running force sync." });
     }
 
@@ -1264,13 +1303,18 @@ export async function handleStopForceSync(req, res) {
       ? "Orphaned force-sync lock cleared. Recent-item repair can run now."
       : "No force sync was active. The sync lock is already clear.";
 
-    if (reset) await appendRuntimeLog("forceSyncLog", [`RESET: ${message}`]).catch(() => null);
-    await setRuntimeState({
-      forceSyncActive: false,
-      forceSyncCancelRequested: false,
-      forceSyncHeartbeat: Date.now(),
-      ...(reset ? { forceSyncResult: { success: true, aborted: true, reset: true, reason: message } } : {}),
-    });
+    if (reset) {
+      await appendRuntimeLog("forceSyncLog", [`RESET: ${message}`]).catch(() => null);
+      await clearSyncOperation({
+        kind: SYNC_OPERATION_FORCE,
+        values: {
+          forceSyncActive: false,
+          forceSyncCancelRequested: false,
+          forceSyncHeartbeat: Date.now(),
+          forceSyncResult: { success: true, aborted: true, reset: true, reason: message },
+        },
+      });
+    }
     return sendJson(res, { ok: true, active: false, reset, message });
   } catch (error) {
     return sendJson(res, { ok: false, error: error.message }, 500);
@@ -1376,20 +1420,20 @@ export async function handleWebhook(req, res) {
   // webhooks â€” they are the apps echoing our own marks back and would re-record as
   // watched-today. Real user plays resume the moment the restore job finishes.
   const restoreRuntime = await loadRuntimeState();
-  const restoreHeartbeat = Number(restoreRuntime.restoreSyncHeartbeat || restoreRuntime.restoreSyncStartedAt || 0);
-  const restoreIsFresh = restoreHeartbeat > 0 && restoreHeartbeat >= Date.now() - 3 * 60 * 1000;
-  if (restoreRuntime.restoreSyncActive === true && restoreIsFresh) {
-    console.log("Webhook ignored: authoritative restore in progress (suppressing app echo)", {
+  const activeOperation = activeSyncOperation(restoreRuntime);
+  if (activeOperation && activeOperation.kind !== SYNC_OPERATION_SCHEDULED) {
+    console.log("Webhook ignored: sync operation in progress (suppressing app echo)", {
       source: media.source,
       title: media.title,
       phase: media.phase,
+      operation: activeOperation.kind,
     });
     await recordSyncHistory(media, {
       status: "skipped",
-      details: "Webhook ignored: authoritative restore in progress",
+      details: `Webhook ignored: ${activeOperation.kind} in progress`,
       targetStates: [],
     }, media.phase || "webhook").catch(() => null);
-    return sendJson(res, { ok: true, inserted: false, skipped: true, reason: "Authoritative restore in progress" });
+    return sendJson(res, { ok: true, inserted: false, skipped: true, reason: "Sync operation in progress" });
   }
 
   const config = await loadMediaConfig();
@@ -1428,6 +1472,25 @@ export async function handleWebhook(req, res) {
         targetStates: [],
       }, media.phase || "webhook").catch(() => null);
       return sendJson(res, { ok: true, ignored: true, reason: "User mismatch" });
+    }
+  }
+
+  if (media.phase === "unplayed") {
+    const ownUnplayedEcho = await isRecentOutboundUnplayedFlagEcho(media, media.source, loopStore).catch(() => false);
+    if (ownUnplayedEcho) {
+      console.log("Webhook: skipped outbound unplayed echo", {
+        source: media.source,
+        title: media.title,
+        event: media.event,
+      });
+      await deleteActiveSession(media).catch(() => null);
+      await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+      return sendJson(res, {
+        ok: true,
+        inserted: false,
+        skipped: true,
+        reason: "Unplayed callback followed Plembfin outbound mark",
+      });
     }
   }
 
