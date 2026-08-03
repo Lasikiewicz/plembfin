@@ -1,7 +1,17 @@
 {
-  "version": "0.6.66",
-  "updatedAt": "2026-08-03T10:26:00+01:00",
+  "version": "0.6.67",
+  "updatedAt": "2026-08-03T11:19:16+01:00",
   "entries": [
+    {
+      "version": "0.6.67",
+      "date": "2026-08-03T11:19:16+01:00",
+      "commit": "a035da8be41775016706a0c9ce7408ed91214469",
+      "message": "Feature - Make Plembfin canonical for watch state",
+      "author": "Lasikiewicz",
+      "details": [
+        "Plembfin now reasserts its watched state across configured apps without turning sync callbacks into duplicate watches."
+      ]
+    },
     {
       "version": "0.6.66",
       "date": "2026-08-03T10:26:00+01:00",
