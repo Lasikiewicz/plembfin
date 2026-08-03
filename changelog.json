@@ -1,7 +1,18 @@
 {
-  "version": "0.6.63",
-  "updatedAt": "2026-07-31T16:50:30+01:00",
+  "version": "0.6.64",
+  "updatedAt": "2026-08-03T01:17:54+01:00",
   "entries": [
+    {
+      "version": "0.6.64",
+      "date": "2026-08-03T01:17:54+01:00",
+      "commit": "7b95d5bb2a22374ca0f0ae277e48e12cbd01b213",
+      "message": "Fix - Record watch ingest provenance",
+      "author": "Lasikiewicz",
+      "details": [
+        "Preserve the source event and ingest path for every new watched entry.",
+        "Show legacy provenance gaps explicitly in history diagnostics."
+      ]
+    },
     {
       "version": "0.6.63",
       "date": "2026-07-31T16:50:30+01:00",
