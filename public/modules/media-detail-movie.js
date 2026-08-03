@@ -2,9 +2,9 @@ import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils.js";
 import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
-import { fetchTmdbDetails } from "./tmdb.js?v=20260736";
+import { fetchTmdbDetails } from "./tmdb.js?v=20260803";
 import { renderWatchDatePrompt } from "./watch-action.js";
-import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260806";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
@@ -236,6 +236,15 @@ function _renderWatchedMovieContent(root, movie, {
               ${!allSynced ? `<button class="retry-sync-btn action-pill" type="button" ${isSaving ? "disabled" : ""} data-retry-sync-id="${escapeAttribute(movie.id)}" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Retry Sync</button>` : ""}
             </div>
   ` : "";
+  setMediaInfoContext({
+    mediaType: "movie",
+    media: movie,
+    tmdbData,
+    posterUrl: posterUrl || localPoster,
+    overview,
+    summary: { watchedCount: 1, totalCount: 1, progressPercent: 100 },
+    records: [movie],
+  });
   const eyeSlashIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 4 8 4c2.12 0 3.879.668 5.168 1.957A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12 8 12c-2.12 0-3.879-.668-5.168-1.957A13.133 13.133 0 0 1 1.172 8z"/><path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/></svg>`;
   const imageIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/><path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12z"/></svg>`;
   const searchIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>`;
@@ -250,6 +259,7 @@ function _renderWatchedMovieContent(root, movie, {
     : "";
 
   setMediaDetailActions(`
+    ${mediaInfoActionHtml()}
     <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
       ${eyeSlashIcon}
       <span>Mark <br>Unwatched</span>
@@ -397,6 +407,14 @@ export function patchMovieWatchedState(movie) {
               ${!allSynced ? `<button class="retry-sync-btn action-pill" type="button" data-retry-sync-id="${escapeAttribute(movie.id)}" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Retry Sync</button>` : ""}
             </div>
   ` : "";
+  if (state.activeMediaInfo?.mediaType === "movie") {
+    setMediaInfoContext({
+      ...state.activeMediaInfo,
+      media: movie,
+      records: [movie],
+      summary: { watchedCount: 1, totalCount: 1, progressPercent: 100 },
+    });
+  }
   const ratingsRow = page.querySelector(".ratings-row");
   if (ratingsRow && syncStatusBlockHtml && !ratingsRow.querySelector("[data-sync-status-dot]")) {
     ratingsRow.insertAdjacentHTML("beforeend", syncStatusBlockHtml);
@@ -416,6 +434,7 @@ export function patchMovieWatchedState(movie) {
     : "";
 
   setMediaDetailActions(`
+    ${mediaInfoActionHtml()}
     <button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
       ${eyeSlashIcon}
       <span>Mark <br>Unwatched</span>
@@ -526,6 +545,16 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   const recommendations = rankedRecommendations(tmdbData, "movie");
   const logoUrl = proxiedArtworkUrl(bestTmdbLogo(tmdbData), "logo");
   const ratingBadgeHtml = rating !== "N/A" ? `${renderExternalRatingPills("movie", tmdbData, movieTitle, rating)}` : "";
+  setMediaInfoContext({
+    mediaType: "movie",
+    media: { title: movieTitle, media_type: "movie", tmdb_id: tmdbData.id },
+    tmdbData,
+    posterUrl,
+    overview,
+    summary: { watchedCount: 0, totalCount: 1, progressPercent: 0 },
+    records: [],
+  });
+  setMediaDetailActions(mediaInfoActionHtml());
 
   const buildUnwatchedHtml = (tvRecommendations = []) => `
     <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl)}');"></div>

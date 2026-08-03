@@ -161,6 +161,7 @@ export const state = {
   savingWatchAction: null,
   activeMovieModalId: null,
   activeMovieTmdbId: null,
+  activeMediaInfo: null,
   activeHelpTopic: "getting-started",
   importRecords: [],
   importFileNames: [],

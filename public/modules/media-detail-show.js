@@ -3,9 +3,9 @@ import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTit
 import { posterUrlFor, isCachedStorageImageUrl, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260736";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260803";
 import { renderWatchDatePrompt } from "./watch-action.js";
-import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js";
+import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260806";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
@@ -893,6 +893,16 @@ export function renderShowModalContent(show, {
   };
   const unwatchedRows = episodeRows.filter((episode) => !episode.watched && !isUnreleased(episode));
 
+  setMediaInfoContext({
+    mediaType: "tv",
+    media: show,
+    tmdbData,
+    posterUrl,
+    overview,
+    summary: { watchedCount, totalCount, progressPercent },
+    records: episodeRows.map((episode) => episode.watched).filter(Boolean),
+  });
+
   // Normally only the selected season's episode list is built/rendered - the
   // rest stay collapsed and unbuilt. "Expand all" (state.showModalAllSeasonsExpanded)
   // builds a panel for every season instead, so the accordion below can render
@@ -966,6 +976,7 @@ export function renderShowModalContent(show, {
   ` : "";
 
   setMediaDetailActions(`
+    ${mediaInfoActionHtml()}
     <button class="action-pill" type="button" data-watch-scope="show" ${(unwatchedRows.length && !isSaving) ? "" : "disabled"}>
       ${checkIcon}
       <span>${isSavingShow ? "Saving..." : "Mark <br>Watched"}</span>

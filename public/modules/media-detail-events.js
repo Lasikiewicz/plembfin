@@ -33,7 +33,8 @@ import {
   renderShowModalContent,
   renderMovieImmersiveModalContent,
   openHistoryDebugModal,
-} from "./media-detail.js?v=20260736";
+  openMediaInfoModal,
+} from "./media-detail.js?v=20260807";
 import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
@@ -109,6 +110,13 @@ export function attachMediaDetailEvents() {
     const retryBtn = event.target.closest("[data-retry-sync-id]");
     if (retryBtn) {
       triggerRetrySync(retryBtn.dataset.retrySyncId, retryBtn).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
+    const mediaInfoTrigger = event.target.closest("[data-media-info]");
+    if (mediaInfoTrigger) {
+      event.preventDefault();
+      openMediaInfoModal();
       return;
     }
 

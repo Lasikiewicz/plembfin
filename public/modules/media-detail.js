@@ -6,11 +6,12 @@ import {
   initMediaDetail, authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions,
   prepareInlineMediaDetail, syncMediaActionsMenuState, syncTopbarControlsMenuState,
   openDebugModal, closeDebugModal, clearMediaDetailState, closeMediaDetail,
-} from "./media-detail-context.js";
+  openMediaInfoModal, closeMediaInfoModal,
+} from "./media-detail-context.js?v=20260806";
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent,
-} from "./media-detail-show.js?v=20260736";
+} from "./media-detail-show.js?v=20260803";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
 } from "./media-detail-movie.js";
@@ -23,6 +24,8 @@ export {
   syncMediaActionsMenuState,
   syncTopbarControlsMenuState,
   closeDebugModal,
+  openMediaInfoModal,
+  closeMediaInfoModal,
   clearMediaDetailState,
   closeMediaDetail,
   openShowInlineDetail,
