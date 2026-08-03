@@ -1,7 +1,17 @@
 {
-  "version": "0.6.67",
-  "updatedAt": "2026-08-03T11:19:16+01:00",
+  "version": "0.6.68",
+  "updatedAt": "2026-08-03T12:04:16+01:00",
   "entries": [
+    {
+      "version": "0.6.68",
+      "date": "2026-08-03T12:04:16+01:00",
+      "commit": "7ca6663bf7dc6f476cf97f5bd3ace34704995765",
+      "message": "Fix - Harden full watchstate restore",
+      "author": "Lasikiewicz",
+      "details": [
+        "Prevents restore echo watches and adds progress, throughput, ETA, and cancellation controls."
+      ]
+    },
     {
       "version": "0.6.67",
       "date": "2026-08-03T11:19:16+01:00",
