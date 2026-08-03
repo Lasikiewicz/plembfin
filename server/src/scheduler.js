@@ -3,6 +3,7 @@ import { appendSyncHistory, loadMediaConfig, setRuntimeState } from "./utils/con
 import { createPlexNotificationListener } from "./utils/plexNotificationListener.js";
 import { fetchPlexMetadataItem } from "./utils/plexClient.js";
 import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
+import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { runScheduledSync } from "./scheduled.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { lastOutboundPlayedMarkAt, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
@@ -162,7 +163,7 @@ async function handlePlexLibraryItemChange(ratingKey) {
   if (!metadata) return;
 
   // Only movies and episodes carry a watch state we sync.
-  const media = buildPlexMediaFromMetadata(metadata);
+  const media = buildPlexMediaFromMetadata(metadata, { phase: Number(metadata.viewCount || 0) > 0 ? "completed" : "unplayed" });
   if (!media?.isValid || !["movie", "episode"].includes(media.type)) return;
 
   // Still watched or only partially watched â†’ this isn't an unwatch event.
@@ -179,6 +180,11 @@ async function handlePlexLibraryItemChange(ratingKey) {
       await deletePlaybackProgress(media).catch(() => null);
       return;
     }
+
+    media.watchProvenance = buildWatchProvenance(
+      { source: "plex", event: "notification.viewstate", phase: "completed", itemId: ratingKey },
+      { ingestPath: "plex_notification", sourceTimestamp: watchedAt },
+    );
 
     const loopStore = createLoopStore();
     const isNewerWatch = playstate?.watched_at && new Date(watchedAt).getTime() > new Date(playstate.watched_at).getTime() + 10000;
@@ -207,7 +213,12 @@ async function handlePlexLibraryItemChange(ratingKey) {
     const watchRecord = mediaToWatchRecord(media, "plex");
     watchRecord.watched_at = watchedAt;
     watchRecord.sync_action = "watched";
-    watchRecord.sync_dispatch_telemetry = "Origin: plex\nDispatch status: pending\nDetails: Plex library watch-state notification received.";
+    watchRecord.sync_dispatch_telemetry = [
+      "Origin: plex",
+      "Dispatch status: pending",
+      "Details: Plex library watch-state notification received.",
+      ...provenanceTelemetryLines(media.watchProvenance),
+    ].join("\n");
 
     console.log("Plex notifications: item marked watched, storing and propagating", {
       title: media.title,
@@ -227,6 +238,7 @@ async function handlePlexLibraryItemChange(ratingKey) {
       "Origin: plex",
       `Dispatch status: ${summary.status || "unknown"}`,
       `Details: ${summary.details || "Plex library watch-state notification processed."}`,
+      ...provenanceTelemetryLines(media.watchProvenance),
       ...(summary.targetStates || []).map((state) => `Target ${state.target} status: ${state.status}${state.detail ? ` - ${state.detail}` : ""}`),
     ].join("\n");
     await updateWatchTelemetry(result.id, telemetry, { skipInvalidate: true });
@@ -238,7 +250,7 @@ async function handlePlexLibraryItemChange(ratingKey) {
       details: summary.details,
       action: "watched",
       targetStates: summary.targetStates || [],
-      rawPayloadDebug: { ratingKey, ids: media.ids || {} },
+      rawPayloadDebug: { ratingKey, ids: media.ids || {}, provenance: media.watchProvenance || null },
     }).catch(() => null);
     await deletePlaybackProgress(media).catch(() => null);
     await result.assetPrefetch?.catch(() => null);

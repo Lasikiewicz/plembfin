@@ -4,6 +4,7 @@ import { loadMediaConfig } from "./configStore.js";
 import { fetchPosterFromTmdb } from "./tmdbClient.js";
 import { getTmdbDetails, getTmdbSeason } from "./tmdbGateway.js";
 import { cachedNextAiringFor, readNextAiringCache } from "./nextAiringCache.js";
+import { buildWatchProvenance, normalizeWatchProvenance } from "./watchProvenance.js";
 import {
   initShowProgressCache,
   getCachedShowProgress,
@@ -40,7 +41,7 @@ const WATCH_COLUMNS = [
   "id", "title", "title_lower", "media_type", "watched_at", "source",
   "imdb_id", "tmdb_id", "tvdb_id", "season", "episode", "poster_url", "logo_url",
   "backdrop_url", "youtube_url", "sync_action", "sync_dispatch_telemetry", "media_key",
-  "show_title", "show_title_lower", "episode_title", "created_at", "updated_at",
+  "watch_provenance", "show_title", "show_title_lower", "episode_title", "created_at", "updated_at",
 ];
 
 const insertWatchStmt = db.prepare(
@@ -326,6 +327,17 @@ export function normalizeWatchRecord(record = {}, fallbackSource = "trakt_import
     poster_url: emptyToNull(record.poster_url || record.posterUrl),
     sync_action: cleanString(record.sync_action || record.syncAction || record.action) || "watched",
     sync_dispatch_telemetry: emptyToNull(record.sync_dispatch_telemetry || record.syncDispatchTelemetry),
+    watch_provenance: normalizeWatchProvenance(
+      record.watch_provenance || record.watchProvenance || record.provenance,
+    ) || buildWatchProvenance({
+      source: cleanString(record.source || fallbackSource) || fallbackSource,
+      event: record.event,
+      phase: record.phase,
+      itemId: record.itemId,
+      sessionId: record.sessionId,
+      user: record.user,
+      playedAt: record.playedAt,
+    }),
     episode_title: emptyToNull(record.episode_title || record.episodeTitle || record.episode?.title),
   };
   return normalized;
@@ -346,6 +358,7 @@ export function mediaToWatchRecord(media, source = media?.source || "webhook") {
       poster_url: media?.posterUrl || media?.poster_url,
       sync_action: media?.syncAction || media?.sync_action || "watched",
       sync_dispatch_telemetry: media?.syncDispatchTelemetry,
+      watch_provenance: media?.watchProvenance || media?.watch_provenance || media?.provenance,
       episode_title: media?.episodeTitle || media?.episode_title,
     },
     source,
@@ -413,6 +426,7 @@ function watchRowParams(record) {
     youtube_url: null,
     sync_action: record.sync_action || "watched",
     sync_dispatch_telemetry: record.sync_dispatch_telemetry || null,
+    watch_provenance: toJson(record.watch_provenance || buildWatchProvenance({ source: record.source })),
     media_key: mediaKeyFor(record),
     show_title: showTitle,
     show_title_lower: showTitle ? showTitle.toLowerCase() : null,
@@ -467,6 +481,7 @@ function rowToWatch(row) {
     youtube_url: row.youtube_url || null,
     sync_action: row.sync_action || "watched",
     sync_dispatch_telemetry: row.sync_dispatch_telemetry || null,
+    watch_provenance: normalizeWatchProvenance(row.watch_provenance),
     sync_retry_count: Number(row.sync_retry_count || 0),
     sync_next_retry_at: Number(row.sync_next_retry_at || 0),
     media_key: row.media_key || null,
@@ -1808,6 +1823,7 @@ function compactHistoryPreviewRow(row = {}) {
     poster_url: row.poster_url,
     sync_action: row.sync_action,
     sync_dispatch_telemetry: row.sync_dispatch_telemetry,
+    watch_provenance: row.watch_provenance,
     media_key: row.media_key,
     show_title: row.show_title,
     episode_title: row.episode_title,
@@ -2105,8 +2121,8 @@ export async function getWatchRecordById(id) {
   if (row.media_key) {
     const allRows = await getCachedHistory();
     const matches = allRows.filter((r) => r.media_key === row.media_key && isPlembfinTrackedWatchRow(r));
-    row.playHistory = matches.map((r) => r.watched_at).filter(Boolean);
-    row.playHistory.sort((a, b) => a.localeCompare(b));
+    row.playHistory = matches.map(playHistoryEntry).filter((entry) => entry.watched_at);
+    row.playHistory.sort((a, b) => a.watched_at.localeCompare(b.watched_at));
   } else {
     row.playHistory = [row.watched_at];
   }

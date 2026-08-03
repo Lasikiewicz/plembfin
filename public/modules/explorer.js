@@ -956,7 +956,7 @@ function renderHistoryGridCard(entry) {
       <div class="history-grid-copy">
         <b title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</b>
         <span>${escapeHtml(isEpisode ? epTitle : mediaLabel)}</span>
-        <small>${formatDate(entry.watched_at)}</small>
+        <small>${formatDate(entry.watched_at)} ${renderSyncStatusDot(entry, "margin-left: 0.35rem;")}</small>
       </div>
     </a>
   `;
@@ -970,7 +970,7 @@ function renderHistoryListRow(entry) {
       <span class="history-list-col" title="${escapeAttribute(epTitle || mediaLabel)}">${escapeHtml(epTitle || mediaLabel)}</span>
       <span class="history-list-col">${escapeHtml(seasonEpisode || mediaLabel)}</span>
       <span class="history-list-col">${formatDate(entry.watched_at)}</span>
-      <span class="history-list-source">${sourceBadge}</span>
+      <span class="history-list-source">${sourceBadge}${renderSyncStatusDot(entry, "margin-left: 0.35rem;")}</span>
     </a>
   `;
 }
@@ -1013,6 +1013,7 @@ function renderHistoryPageCard(entry) {
         <div class="history-card-footer">
           <span class="meta-label">App Used:</span>
           ${sourceBadge}
+          ${renderSyncStatusDot(entry, "margin-left: 0.35rem;")}
         </div>
       </div>
     </a>

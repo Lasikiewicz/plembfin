@@ -17,9 +17,12 @@ function plexForm(event, metadata = {}) {
 }
 
 test("parsePlexWebhook derives completed, ended, active, and ignored phases", async () => {
-  const scrobble = await parsePlexWebhook(plexForm("media.scrobble", { guid: "tmdb://329865" }));
+  const scrobble = await parsePlexWebhook(plexForm("media.scrobble", { guid: "tmdb://329865", ratingKey: "plex-329865" }));
   assert.equal(scrobble.phase, "completed");
   assert.equal(scrobble.isValid, true);
+  assert.equal(scrobble.watchProvenance.ingest_path, "plex_webhook");
+  assert.equal(scrobble.watchProvenance.event, "media.scrobble");
+  assert.equal(scrobble.watchProvenance.item_id, "plex-329865");
 
   const stopEarly = await parsePlexWebhook(plexForm("media.stop", { duration: 100_000, viewOffset: 89_000 }));
   assert.equal(stopEarly.phase, "ended");
@@ -156,6 +159,8 @@ test("played-flag events are tagged and dated from the server's own played times
   assert.equal(embyMarkPlayed.phase, "completed");
   assert.equal(embyMarkPlayed.playedFlagOnly, true);
   assert.equal(embyMarkPlayed.playedAt, "2026-07-25T20:15:47.000Z");
+  assert.equal(embyMarkPlayed.watchProvenance.ingest_path, "emby_webhook");
+  assert.equal(embyMarkPlayed.watchProvenance.event, "item.markplayed");
 
   const embyUserData = parseEmbyWebhook({
     Event: "user.datasaved",
@@ -174,6 +179,8 @@ test("played-flag events are tagged and dated from the server's own played times
   });
   assert.equal(jellyfinMarkPlayed.playedFlagOnly, true);
   assert.equal(jellyfinMarkPlayed.playedAt, "2026-07-25T20:15:47.000Z");
+  assert.equal(jellyfinMarkPlayed.watchProvenance.ingest_path, "jellyfin_webhook");
+  assert.equal(jellyfinMarkPlayed.watchProvenance.event, "ItemMarkPlayed");
 });
 
 test("real playback events are not treated as bare played-flag events", async () => {

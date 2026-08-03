@@ -387,7 +387,7 @@ export async function pushBackupToRemotes(localAbsolutePath, filename, retention
 function essentialWatchHistory() {
   return db.prepare(`
     SELECT id, title, title_lower, media_type, watched_at, source, imdb_id, tmdb_id,
-      tvdb_id, season, episode, sync_action, media_key, show_title,
+      tvdb_id, season, episode, sync_action, sync_dispatch_telemetry, watch_provenance, media_key, show_title,
       show_title_lower, episode_title, created_at, updated_at
     FROM watch_history ORDER BY id
   `).all();
@@ -554,11 +554,11 @@ function restoreSummary(document, mode) {
 const insertWatch = db.prepare(`
   INSERT INTO watch_history (
     id,title,title_lower,media_type,watched_at,source,imdb_id,tmdb_id,tvdb_id,
-    season,episode,sync_action,media_key,show_title,show_title_lower,episode_title,
+    season,episode,sync_action,sync_dispatch_telemetry,watch_provenance,media_key,show_title,show_title_lower,episode_title,
     created_at,updated_at
   ) VALUES (
     @id,@title,@title_lower,@media_type,@watched_at,@source,@imdb_id,@tmdb_id,@tvdb_id,
-    @season,@episode,@sync_action,@media_key,@show_title,@show_title_lower,@episode_title,
+    @season,@episode,@sync_action,@sync_dispatch_telemetry,@watch_provenance,@media_key,@show_title,@show_title_lower,@episode_title,
     @created_at,@updated_at
   ) ON CONFLICT(id) DO UPDATE SET
     title=excluded.title,title_lower=excluded.title_lower,media_type=excluded.media_type,
@@ -566,7 +566,8 @@ const insertWatch = db.prepare(`
     tmdb_id=excluded.tmdb_id,tvdb_id=excluded.tvdb_id,season=excluded.season,
     episode=excluded.episode,sync_action=excluded.sync_action,media_key=excluded.media_key,
     show_title=excluded.show_title,show_title_lower=excluded.show_title_lower,
-    episode_title=excluded.episode_title,created_at=excluded.created_at,updated_at=excluded.updated_at
+    episode_title=excluded.episode_title,sync_dispatch_telemetry=excluded.sync_dispatch_telemetry,
+    watch_provenance=excluded.watch_provenance,created_at=excluded.created_at,updated_at=excluded.updated_at
   WHERE COALESCE(excluded.updated_at,0) >= COALESCE(watch_history.updated_at,0)
 `);
 const insertPlaystate = db.prepare(`
@@ -611,7 +612,13 @@ export function restoreWatchHistoryBackup(filename, { mode = "merge", dryRun = f
       db.prepare("DELETE FROM playstate").run();
       db.prepare("DELETE FROM playback_progress").run();
     }
-    for (const row of document.data.watchHistory) insertWatch.run(row);
+    for (const row of document.data.watchHistory) {
+      insertWatch.run({
+        ...row,
+        sync_dispatch_telemetry: row.sync_dispatch_telemetry || null,
+        watch_provenance: row.watch_provenance || null,
+      });
+    }
     for (const row of document.data.playstate) insertPlaystate.run(row);
     for (const row of document.data.playbackProgress) insertProgress.run(row);
   })();

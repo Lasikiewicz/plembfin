@@ -656,6 +656,13 @@ export function attachMediaDetailEvents() {
       return;
     }
 
+    const provenanceTrigger = event.target.closest("[data-history-debug-id]");
+    if (provenanceTrigger) {
+      event.preventDefault();
+      openHistoryDebugModal(provenanceTrigger.dataset.historyDebugId).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
     const historyRow = event.target.closest("[data-history-id]");
     if (historyRow) {
       if (event.target.closest("[data-sync-status-dot]")) {

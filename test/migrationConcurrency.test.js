@@ -33,9 +33,9 @@ test("legacy schema migration is idempotent under concurrent process startup", a
     await Promise.all([run(), run()]);
     const upgraded = new Database(dbPath, { readonly: true });
     const columns = new Set(upgraded.pragma("table_info(watch_history)").map((column) => column.name));
-    for (const name of ["logo_url", "backdrop_url", "sync_retry_count", "sync_next_retry_at"]) assert.ok(columns.has(name));
+    for (const name of ["logo_url", "backdrop_url", "sync_retry_count", "sync_next_retry_at", "watch_provenance"]) assert.ok(columns.has(name));
     assert.equal(upgraded.prepare("SELECT id FROM watch_history WHERE id='legacy-row'").get()?.id, "legacy-row");
-    assert.deepEqual(upgraded.prepare("SELECT id FROM schema_migrations ORDER BY id").all().map((row) => row.id), [1, 2, 3, 4, 5]);
+    assert.deepEqual(upgraded.prepare("SELECT id FROM schema_migrations ORDER BY id").all().map((row) => row.id), [1, 2, 3, 4, 5, 6]);
     upgraded.close();
   } finally {
     fs.rmSync(dataDir, { recursive: true, force: true });

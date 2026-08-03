@@ -11,6 +11,7 @@ import { isCronSyncPaused, loadWatchBackupRuntime } from "./utils/watchHistoryBa
 import { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
 import { watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./utils/watchDates.js";
 import { isVerboseLogging } from "./utils/logVerbose.js";
+import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 export { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
 import {
   deleteLiveTrackingCacheRows,
@@ -103,6 +104,7 @@ function buildProgressTelemetry(media, summary) {
     `Loop-check: ${summary?.skipped ? "Skipped propagation" : "Passed"}`,
     `Dispatch status: ${summary?.status || "unknown"}`,
     `Details: ${summary?.details || "No dispatch details returned"}`,
+    ...provenanceTelemetryLines(media.watchProvenance || media.watch_provenance),
     ...targetStates.map((targetState) => `Target ${targetState.target} progress status: ${targetState.status}${targetState.detail ? ` - ${targetState.detail}` : ""}`),
   ].join("\n");
 }
@@ -316,6 +318,7 @@ async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
       episode: media.episode ?? null,
       progress: media.progress ?? null,
       offsetMs: media.offsetMs ?? media.positionMs ?? null,
+      provenance: media.watchProvenance || media.watch_provenance || null,
     },
   }).catch((error) => console.error("Failed to append scheduled sync history", error));
 }
@@ -348,6 +351,7 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
         },
         season: record.season,
         episode: record.episode,
+        watchProvenance: record.watch_provenance || null,
       };
 
       const plexItem = await findPlexItem(config.plex, media);
@@ -418,6 +422,18 @@ async function processCompletedSession(row, config, loopStore) {
       episode: media.episode,
       posterUrl: media.posterUrl,
       watched_at: lastSeenAt > 0 ? new Date(lastSeenAt).toISOString() : undefined,
+      watchProvenance: buildWatchProvenance(
+        {
+          source: media.source,
+          event: media.event || "playback.complete",
+          phase: "completed",
+          sessionId: row.session_id,
+        },
+        {
+          ingestPath: "live_session",
+          sourceTimestamp: lastSeenAt > 0 ? new Date(lastSeenAt).toISOString() : "",
+        },
+      ),
     },
     media.source,
   );
@@ -791,6 +807,10 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       }
 
       media.watched_at = watchedAt;
+      media.watchProvenance = buildWatchProvenance(
+        { source: "plex", event: "library_history", phase: "completed", itemId: item.ratingKey, user: username },
+        { ingestPath: "plex_scheduled_library_history", sourceTimestamp: watchedAt },
+      );
       if (!scheduledMediaInScope(config, media)) continue;
 
       const playstate = await getPlaystateForMedia(media).catch(() => null);
@@ -894,6 +914,11 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
 
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
 
+      media.watchProvenance = buildWatchProvenance(
+        { source: "emby", event: "library_history", phase: "completed", itemId: item.Id, user: config.emby.userId },
+        { ingestPath: "emby_scheduled_library_history", sourceTimestamp: watchedAt },
+      );
+
       if (!watchedAt) {
         // "marked without playback" means we (or another tool) set the played
         // flag over the API, so there is nothing to ingest and nothing wrong.
@@ -996,6 +1021,11 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       if (!scheduledMediaInScope(config, media)) continue;
 
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
+
+      media.watchProvenance = buildWatchProvenance(
+        { source: "jellyfin", event: "library_history", phase: "completed", itemId: item.Id, user: config.jellyfin.userId },
+        { ingestPath: "jellyfin_scheduled_library_history", sourceTimestamp: watchedAt },
+      );
 
       if (!watchedAt) {
         if (watchedAtReason === "marked without playback") skippedApiMarked++;
@@ -1132,6 +1162,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         title: row.title,
         type: row.media_type,
         source: row.source,
+        watchProvenance: row.watch_provenance || null,
         isValid: true,
         ids: {
           imdb: row.imdb_id || undefined,
@@ -1156,6 +1187,7 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         `Loop-check: Passed`,
         `Dispatch status: ${summary.status}`,
         `Details: Manual watch state propagated; sync completed.`,
+        ...provenanceTelemetryLines(media.watchProvenance || media.watch_provenance),
         ...(summary.targetStates || []).map(
           (t) => `Target ${t.target} status: ${t.status}${t.detail ? ` - ${t.detail}` : ""}`
         ),

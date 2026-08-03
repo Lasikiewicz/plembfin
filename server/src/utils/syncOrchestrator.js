@@ -75,6 +75,11 @@ function mediaCacheParts(media) {
     normalizeCachePart(media.episode),
   ].join(":");
 
+  // Emby/Jellyfin can send a played callback without provider ids. Their
+  // native item id is still stable across the outbound mark and the callback,
+  // so keep it alongside the provider/title fallbacks for echo detection.
+  const itemKey = media.itemId ? `${coordinates}:item:${normalizeCachePart(media.itemId)}` : "";
+
   const providerKeys = Object.entries(media.ids || {})
     .filter(([, value]) => Boolean(value))
     .map(([provider, value]) => `${coordinates}:${normalizeCachePart(provider)}:${normalizeCachePart(value)}`);
@@ -86,8 +91,7 @@ function mediaCacheParts(media) {
   // share, the echo reads as a fresh event and the state bounces between
   // platforms until something else stops it.
   const titleKey = media.title ? `${coordinates}:title:${normalizeCachePart(media.title)}` : "";
-  if (!providerKeys.length) return titleKey ? [titleKey] : [];
-  return titleKey ? [...providerKeys, titleKey] : providerKeys;
+  return [...new Set([itemKey, ...providerKeys, titleKey].filter(Boolean))];
 }
 
 function targetCacheKeys(media, target, prefix = "loop") {
@@ -155,6 +159,26 @@ export async function lastOutboundPlayedMarkAt(media, target, kv) {
     }
   }
   return newest;
+}
+
+// A played-flag callback is not evidence of a new viewing. It is also what
+// Jellyfin emits after Plembfin marks a newly re-added item watched. The
+// callback can arrive with stale LastPlayedDate data, so use its arrival time
+// as a short-window fallback after checking the persisted outbound marker.
+export async function isRecentOutboundPlayedFlagEcho(media, target, kv, {
+  now = Date.now(),
+  windowMs = 10 * 60 * 1000,
+} = {}) {
+  if (!media?.playedFlagOnly) return false;
+
+  const ownMarkAt = await lastOutboundPlayedMarkAt(media, target, kv);
+  if (!ownMarkAt) return false;
+
+  const receivedAt = Number(now);
+  const playedAt = Date.parse(String(media.playedAt || media.watched_at || ""));
+  if (Number.isFinite(playedAt) && Math.abs(playedAt - ownMarkAt) <= windowMs) return true;
+
+  return Number.isFinite(receivedAt) && receivedAt >= ownMarkAt && receivedAt - ownMarkAt <= windowMs;
 }
 
 function summarizeResults(targets, results) {

@@ -47,9 +47,38 @@ export function currentMediaRenderToken() {
   return _mediaRenderToken;
 }
 
+function provenanceForEntry(entry = {}) {
+  const raw = entry.watch_provenance || entry.watchProvenance;
+  if (raw && typeof raw === "object") return raw;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {
+      // Fall through to the explicit legacy state below.
+    }
+  }
+  return {
+    ingest_path: "unavailable",
+    event: "",
+    item_id: "",
+    session_id: "",
+    user: "",
+    source_timestamp: "",
+    captured_at: "",
+    confidence: "source_only",
+    note: "Exact ingest path was not stored for this legacy row; only the originating platform was retained.",
+  };
+}
+
+function provenanceValue(value, fallback = "Not recorded") {
+  return value == null || value === "" ? fallback : value;
+}
+
 export function openDebugModal(entry) {
   if (!entry) return;
   const status = syncStatus(entry);
+  const provenance = provenanceForEntry(entry);
   elements.debugModal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
   document.querySelector("#debugModalTitle").textContent = entry.title || "History row";
@@ -67,6 +96,17 @@ export function openDebugModal(entry) {
       <div><span>Episode</span><b>${escapeHtml(entry.episode ?? "None")}</b></div>
       <div><span>Watched at (oldest)</span><b>${escapeHtml(formatDate(entry.watched_at))}</b></div>
       ${entry.playHistory && entry.playHistory.length > 1 ? `<div><span>Play history</span><b>${entry.playHistory.map(p => escapeHtml(`${formatDate(p.watched_at)} (${platformName(p.source)})`)).join("<br>")}</b></div>` : ""}
+    </section>
+    <section class="diagnostic-grid">
+      <div><span>Ingest path</span><b>${escapeHtml(provenanceValue(provenance.ingest_path, "Unavailable"))}</b></div>
+      <div><span>Source event</span><b>${escapeHtml(provenanceValue(provenance.event))}</b></div>
+      <div><span>Source item ID</span><b>${escapeHtml(provenanceValue(provenance.item_id))}</b></div>
+      <div><span>Source session ID</span><b>${escapeHtml(provenanceValue(provenance.session_id))}</b></div>
+      <div><span>Source user</span><b>${escapeHtml(provenanceValue(provenance.user))}</b></div>
+      <div><span>Source timestamp</span><b>${escapeHtml(provenanceValue(provenance.source_timestamp))}</b></div>
+      <div><span>Provenance captured</span><b>${escapeHtml(provenanceValue(provenance.captured_at))}</b></div>
+      <div><span>Confidence</span><b>${escapeHtml(provenanceValue(provenance.confidence))}</b></div>
+      <div style="grid-column: 1 / -1;"><span>Provenance note</span><b>${escapeHtml(provenanceValue(provenance.note))}</b></div>
     </section>
     <section class="telemetry-block">
       <p>Sync dispatch telemetry</p>

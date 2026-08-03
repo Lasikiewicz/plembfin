@@ -108,3 +108,41 @@ test("outbound played marks are keyed per target and per item", async () => {
   assert.equal(await lastOutboundPlayedMarkAt(media, "plex", kv), 0);
   assert.equal(await lastOutboundPlayedMarkAt({ ...media, episode: 4 }, "emby", kv), 0);
 });
+
+test("played-flag echoes match Jellyfin item ids even when provider ids are absent", async () => {
+  const { isRecentOutboundPlayedFlagEcho, recordOutboundPlayedMarks } = await import(
+    "../server/src/utils/syncOrchestrator.js"
+  );
+  const store = new Map();
+  const kv = {
+    async get(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    async put(key, value) {
+      store.set(key, String(value));
+    },
+  };
+
+  const outbound = {
+    isValid: true,
+    type: "episode",
+    source: "jellyfin",
+    itemId: "jellyfin-item-123",
+    season: 1,
+    episode: 4,
+    title: "Example Show - S01E04",
+    ids: { tvdb: "12345" },
+  };
+  await recordOutboundPlayedMarks(outbound, ["jellyfin"], kv);
+
+  const callback = {
+    ...outbound,
+    ids: {},
+    playedFlagOnly: true,
+    playedAt: "2026-05-31T02:53:20.048Z",
+  };
+  assert.equal(await isRecentOutboundPlayedFlagEcho(callback, "jellyfin", kv, { now: Date.now() + 1_000 }), true);
+  assert.equal(await isRecentOutboundPlayedFlagEcho(callback, "jellyfin", kv, { now: Date.now() + 11 * 60 * 1000 }), false);
+  assert.equal(await isRecentOutboundPlayedFlagEcho({ ...callback, playedFlagOnly: false }, "jellyfin", kv), false);
+  assert.equal(await isRecentOutboundPlayedFlagEcho({ ...callback, itemId: "different-item", title: "Other Show - S01E04" }, "jellyfin", kv), false);
+});

@@ -1,4 +1,5 @@
 import { watchedThresholdPercent } from "./tuning.js";
+import { buildWatchProvenance } from "./watchProvenance.js";
 
 const EMPTY_IDS = { imdb: undefined, tmdb: undefined, tvdb: undefined };
 const PLEX_ACTIVE_EVENTS = ["media.play", "media.resume", "media.progress", "media.pause"];
@@ -343,9 +344,15 @@ function buildPayload({
   episodeTitle,
   playedAt = "",
   playedFlagOnly = false,
+  ingestPath = "",
+  watchProvenance = null,
   rawPayloadDebug = {},
 }) {
   const isActionable = ["active", "completed", "ended", "unplayed", "added"].includes(phase);
+  const resolvedWatchProvenance = watchProvenance || buildWatchProvenance(
+    { source, event, phase, itemId, user, playedAt },
+    { ingestPath, sourceTimestamp: playedAt },
+  );
   return {
     playedAt,
     playedFlagOnly: Boolean(playedFlagOnly),
@@ -365,6 +372,7 @@ function buildPayload({
     poster,
     itemId,
     episodeTitle,
+    watchProvenance: resolvedWatchProvenance,
     rawPayloadDebug,
     isValid: Boolean(isActionable && type && source && title),
   };
@@ -380,6 +388,7 @@ export async function parsePlexWebhook(formData) {
         ids: EMPTY_IDS,
         title: "Plex Raw Event: missing payload",
         phase: "ignored",
+        ingestPath: "plex_webhook",
         rawPayloadDebug: { formKeys, hasPayload: false },
       });
     }
@@ -421,6 +430,7 @@ export async function parsePlexWebhook(formData) {
         durationMs,
         user,
         itemId: metadata.ratingKey,
+        ingestPath: "plex_webhook",
         poster: plexPosterInfo(metadata, type),
         episodeTitle: type === "episode" ? metadata.title : null,
         rawPayloadDebug,
@@ -441,6 +451,7 @@ export async function parsePlexWebhook(formData) {
       durationMs,
       user,
       itemId: metadata.ratingKey,
+      ingestPath: "plex_webhook",
       poster: plexPosterInfo(metadata, type),
       episodeTitle: type === "episode" ? metadata.title : null,
       rawPayloadDebug,
@@ -452,6 +463,7 @@ export async function parsePlexWebhook(formData) {
       ids: EMPTY_IDS,
       title: "Plex Raw Event: parser failure",
       phase: "ignored",
+      ingestPath: "plex_webhook",
       rawPayloadDebug: { formKeys, error: error.message },
     });
   }
@@ -477,6 +489,7 @@ export function buildPlexMediaFromMetadata(metadata = {}, { phase = "unplayed" }
     episode: metadata.index,
     event: "notification.viewstate",
     phase,
+    ingestPath: "plex_notification",
     user: "",
     itemId: metadata.ratingKey,
     poster: plexPosterInfo(metadata, type),
@@ -516,6 +529,7 @@ export function parseJellyfinWebhook(json) {
         durationMs,
         user,
         itemId: item.Id,
+        ingestPath: "jellyfin_webhook",
         poster: embyLikePosterInfo(item, type),
         episodeTitle,
         rawPayloadDebug: {
@@ -540,6 +554,7 @@ export function parseJellyfinWebhook(json) {
       durationMs,
       user,
       itemId: item.Id,
+      ingestPath: "jellyfin_webhook",
       poster: embyLikePosterInfo(item, type),
       episodeTitle,
       playedAt: playedAtFrom(item, json),
@@ -558,6 +573,7 @@ export function parseJellyfinWebhook(json) {
       ids: EMPTY_IDS,
       title: "Jellyfin Raw Event: parser failure",
       phase: "ignored",
+      ingestPath: "jellyfin_webhook",
       rawPayloadDebug: { error: error.message },
     });
   }
@@ -594,6 +610,7 @@ export function parseEmbyWebhook(json) {
         durationMs,
         user,
         itemId: item.Id,
+        ingestPath: "emby_webhook",
         poster: embyLikePosterInfo(item, type),
         episodeTitle,
         rawPayloadDebug: {
@@ -618,6 +635,7 @@ export function parseEmbyWebhook(json) {
       durationMs,
       user,
       itemId: item.Id,
+      ingestPath: "emby_webhook",
       poster: embyLikePosterInfo(item, type),
       episodeTitle,
       playedAt: playedAtFrom(item, json),
@@ -636,6 +654,7 @@ export function parseEmbyWebhook(json) {
       ids: EMPTY_IDS,
       title: "Emby Raw Event: parser failure",
       phase: "ignored",
+      ingestPath: "emby_webhook",
       rawPayloadDebug: { error: error.message },
     });
   }
@@ -665,6 +684,7 @@ export function parseCustomWebhook(json) {
     episode: json.episode != null && json.episode !== "" ? Number(json.episode) : undefined,
     event: json.event,
     phase,
+    ingestPath: "custom_webhook",
     user,
     posterUrl: json.posterUrl || json.poster_url,
     rawPayloadDebug: json,

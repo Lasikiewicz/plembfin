@@ -25,9 +25,10 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
-import { getTargetsForSource, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { getTargetsForSource, isRecentOutboundPlayedFlagEcho, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
+import { provenanceTelemetryLines } from "../utils/watchProvenance.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, getCachedTvdbId } from "../utils/tmdbGateway.js";
@@ -222,6 +223,7 @@ function formatDispatchTelemetry(summary, media, action = "watched") {
     `Loop-check: ${summary.skipped ? "Skipped propagation" : "Passed"}`,
     `Dispatch status: ${summary.status || "unknown"}`,
     `Details: ${summary.details || "No details"}`,
+    ...provenanceTelemetryLines(media.watchProvenance || media.watch_provenance),
   ];
   for (const state of summary.targetStates || []) {
     lines.push(`${platformLabel(state.target)} status: ${state.status}${state.detail ? ` - ${state.detail}` : ""}`);
@@ -263,6 +265,7 @@ async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
       episode: media.episode ?? null,
       progress: media.progress ?? null,
       offsetMs: media.offsetMs ?? media.positionMs ?? null,
+      provenance: media.watchProvenance || media.watch_provenance || null,
       // Keep whatever the parser worked out about an unrecognised request. For a
       // rejected webhook this is the only record of which server sent it and in
       // what format, and without it the entry is an unattributable dead end.
@@ -307,6 +310,7 @@ function manualWatchMediaFromRecord(record = {}) {
     season: record.season == null ? undefined : Number(record.season),
     episode: record.episode == null ? undefined : Number(record.episode),
     posterUrl: record.poster_url || undefined,
+    watchProvenance: record.watch_provenance || null,
     isValid: Boolean(record.title && ["movie", "episode"].includes(record.media_type)),
   };
 }
@@ -361,6 +365,7 @@ function mediaFromWatchRecord(record) {
     season: record.season == null ? undefined : Number(record.season),
     episode: record.episode == null ? undefined : Number(record.episode),
     posterUrl: record.poster_url || undefined,
+    watchProvenance: record.watch_provenance || null,
     isValid: Boolean(record.title && ["movie", "episode"].includes(record.media_type)),
   };
 }
@@ -532,6 +537,11 @@ export async function applyWatchedStateToNewItem(media, loadedConfig = null) {
   const loopStore = createLoopStore();
   let summary;
   try {
+    // Prime the durable echo ledger before the media-server request. Jellyfin
+    // can deliver UserDataSaved synchronously while the mark-played request is
+    // still in flight; writing only after the request leaves a race where the
+    // callback is recorded as a fresh watch.
+    await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);
     if (target === "plex") await markPlexPlayed(config.plex, media);
     if (target === "emby") await markEmbyPlayed(config.emby, media);
     if (target === "jellyfin") await markJellyfinPlayed(config.jellyfin, media);
@@ -1335,6 +1345,9 @@ export async function handleWebhook(req, res) {
             event: media.event,
             phase: media.phase,
             user: media.user,
+            watchProvenance: media.watchProvenance || media.watch_provenance
+              ? { ...(media.watchProvenance || media.watch_provenance), item_id: ep.Id || (media.watchProvenance || media.watch_provenance).item_id }
+              : null,
             isValid: true,
           };
           episodeMedia.posterUrl = posterPathFromMedia(episodeMedia);
@@ -1490,6 +1503,31 @@ export async function handleWebhook(req, res) {
       positionMs: media.positionMs,
     });
     await deleteActiveSession(media);
+
+    // Re-adding a library item causes Plembfin to mark it watched from its
+    // existing history. Jellyfin then emits a played-flag webhook for that
+    // write. The item may have no provider IDs and its LastPlayedDate may be
+    // stale, so the normal playstate lookup is not sufficient to identify the
+    // callback as our own outbound action.
+    if (["emby", "jellyfin"].includes(String(media.source || "").toLowerCase())) {
+      const ownPlayedEcho = await isRecentOutboundPlayedFlagEcho(media, media.source, loopStore).catch(() => false);
+      if (ownPlayedEcho) {
+        console.log("Webhook: skipped outbound played echo", {
+          source: media.source,
+          title: media.title,
+          event: media.event,
+          reason: "played-flag callback followed Plembfin outbound mark",
+        });
+        await deletePlaybackProgress(media).catch(() => null);
+        await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+        return sendJson(res, {
+          ok: true,
+          inserted: false,
+          skipped: true,
+          reason: "Played flag callback followed Plembfin outbound mark",
+        });
+      }
+    }
 
     // A played-flag event says nothing about *when* the play happened and can be
     // delivered hours late, so trust the server's own played timestamp over

@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS watch_history (
   youtube_url TEXT,
   sync_action TEXT,
   sync_dispatch_telemetry TEXT,
+  watch_provenance TEXT,
   sync_retry_count INTEGER DEFAULT 0,
   sync_next_retry_at INTEGER DEFAULT 0,
   media_key TEXT,

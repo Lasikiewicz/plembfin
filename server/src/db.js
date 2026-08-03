@@ -88,6 +88,13 @@ const migrations = [
       }
     },
   },
+  {
+    id: 6,
+    up(database) {
+      const watchCols = database.pragma("table_info(watch_history)").map((column) => column.name);
+      if (!watchCols.includes("watch_provenance")) database.exec("ALTER TABLE watch_history ADD COLUMN watch_provenance TEXT");
+    },
+  },
 ];
 
 function runSchemaMigrations() {
@@ -117,6 +124,7 @@ try {
   const watchCols = db.pragma("table_info(watch_history)").map(c => c.name);
   if (!watchCols.includes("logo_url")) db.exec("ALTER TABLE watch_history ADD COLUMN logo_url TEXT");
   if (!watchCols.includes("backdrop_url")) db.exec("ALTER TABLE watch_history ADD COLUMN backdrop_url TEXT");
+  if (!watchCols.includes("watch_provenance")) db.exec("ALTER TABLE watch_history ADD COLUMN watch_provenance TEXT");
 } catch { /* column already exists */ }
 
 // ---------------------------------------------------------------------------
