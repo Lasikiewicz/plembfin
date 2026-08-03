@@ -36,6 +36,20 @@ Destructive plans create and checksum-verify a local Plembfin watch-history snap
 snapshot failure blocks execution. This snapshot covers Plembfin watch history, playstate,
 and resume progress, not the databases owned by Plex, Emby, or Jellyfin.
 
+## Plembfin is the watched-state authority
+
+For watched and unwatched state, Plembfin's local `playstate`/watch-history decision
+is canonical. Connected servers are destinations, not conflict authorities. A watched
+state imported from Trakt or another Plembfin source is written to `playstate` and put
+on the outbound queue; older imported rows that predate this queue are also picked up
+when their target telemetry is missing.
+
+If Plex, Emby, or Jellyfin reports an item as unwatched while Plembfin still says
+watched, the event is treated as drift: Plembfin reasserts watched on every configured
+destination that contains the item. It does not delete the local watch. An explicit
+manual unwatch in Plembfin changes the canonical state to unwatched and then propagates
+that decision outward.
+
 Implementation lives in `server/src/scheduled.js`.
 
 ## What it does each run
@@ -49,7 +63,8 @@ Implementation lives in `server/src/scheduled.js`.
      watch** (`processCompletedSession` → inserts history + propagates). Sessions
      that vanish below the threshold are marked/cleared as stale.
 2. **Manual dispatch queue** - **runs every minute**:
-   - `syncPendingManualDispatches` processes anything queued by the UI (manual mark-watched, retries).
+   - `syncPendingManualDispatches` processes anything queued by the UI or an import
+     (manual mark-watched, Trakt history, retries).
    - Records whose targets keep failing are retried with **exponential backoff**
      (1 m → 5 m → 15 m → 1 h → 6 h, tracked in the `sync_retry_count` /
      `sync_next_retry_at` columns on `watch_history`). After 10 failed attempts a
@@ -63,7 +78,10 @@ Implementation lives in `server/src/scheduled.js`.
 3. **Catch-up library sync** - **runs every 15 minutes** (configurable via `CATCHUP_SYNC_INTERVAL_MS` env variable) to avoid heavy redundant API queries:
    - Pulls recently-watched and continue-watching (resumable) items from each active server: `syncRecentlyWatchedFromPlex`/`syncRecentlyResumableFromPlex` (and Emby/Jellyfin equivalents) in `scheduled.js`.
    - Emby/Jellyfin episode resume rows retain series provider IDs so the corresponding SxxExx item can be found on another server. Resume and playstate records sharing any IMDb, TMDB, or TVDB ID are treated as one media item even when app titles differ.
-   - Propagates playstate changes that were missed by webhooks. Each is wrapped in try/catch so one platform failing doesn't abort the run.
+   - Propagates playstate changes that were missed by webhooks. A server-side unwatch
+     that conflicts with Plembfin's watched state is repaired instead of imported as a
+     local unwatch. Each platform check is wrapped in try/catch so one failure doesn't
+     abort the run.
 
 This is how a play that finishes without a final scrobble webhook still gets
 recorded: the poller sees it hit the watched threshold (90% by default), then
@@ -106,10 +124,11 @@ Three mechanisms keep inbound state honest:
   watch for the same play.
 - **Played-flag rule** - a bare "marked played" webhook never opens a rewatch for an
   item already watched; see [webhooks.md](webhooks.md#rewatch-detection).
-- **Idempotent unwatch** - marking an item unwatched when it is already recorded that
-  way is a no-op: the record stands and nothing is propagated. An echo that arrives
-  after the 15-second loop window closes therefore ends there instead of starting
-  another round trip.
+- **Canonical unwatch handling** - an explicit Plembfin unwatch is propagated and an
+  echo that arrives after the 15-second loop window closes is already represented as
+  unwatched, so it is a no-op. If a platform reports unwatched while Plembfin still
+  says watched, the event takes the repair path and re-marks the item watched on the
+  configured destinations.
 
 Completed sessions flushed from `live_tracking_cache` are dated from when the session
 was last seen playing, not from the tick that noticed it had gone, so a session that

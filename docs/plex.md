@@ -78,11 +78,13 @@ stuck indefinitely.
 
 The callback (`handlePlexLibraryItemChange` in `server/src/scheduler.js`) fetches the
 item's metadata and checks its actual view state. A watched transition is recorded in
-Plembfin history and propagated to Emby/Jellyfin; an unwatched transition runs the same
-unwatch propagation as the dashboard action. This channel covers library UI changes
-that Plex webhooks do not reliably report, including unwatching. Either transition also
-bumps the `nowPlayingRefresh` runtime-state signal (same as the webhook route), which is
-what tells any open Plembfin browser tab to refresh - see
+Plembfin history and propagated to Emby/Jellyfin. If Plex reports unwatched while the
+canonical Plembfin state is watched, the callback reasserts watched on every configured
+destination instead of deleting Plembfin history. An explicit unwatch made in Plembfin
+still propagates unwatched outward. This channel covers library UI changes that Plex
+webhooks do not reliably report, including unwatching. Either transition also bumps the
+`nowPlayingRefresh` runtime-state signal (same as the webhook route), which is what tells
+any open Plembfin browser tab to refresh - see
 [now-playing.md](now-playing.md) for how the frontend consumes that signal.
 
 The listener is started by `server.js` at boot (`startPlexNotificationListener`) and
@@ -105,7 +107,9 @@ Every minute the scheduler (`scheduled.js`) polls `/status/sessions` via
 
 Every 6 hours, **unwatched reconciliation** (`checkPlexUnwatchedStatus`) verifies items
 Plembfin thinks are watched are still watched on Plex, as a backstop for unwatches
-missed while the WebSocket listener was disconnected.
+missed while the WebSocket listener was disconnected. A mismatch reasserts the
+Plembfin watched state; it never removes the local watch because Plex is not the
+canonical authority.
 
 ## Outbound operations (`plexClient.js`)
 

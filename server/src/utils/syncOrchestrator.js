@@ -339,6 +339,12 @@ export async function syncMediaPlaystate(media, config, kv) {
     ids: media.ids,
   });
 
+  // Prime the echo ledger before making any remote calls. Plex can emit its
+  // played notification while the request is still in flight; recording only
+  // after the calls complete leaves a small window where our own write could
+  // be mistaken for a new watch.
+  await recordOutboundPlayedMarks(media, targets, kv);
+
   const jobs = targets.map((target) => {
     const run = clientFor(target, config, media);
     return run();
@@ -367,6 +373,24 @@ export async function syncMediaPlaystate(media, config, kv) {
   });
 
   return { ...summary, skipped: false, results };
+}
+
+// Plembfin is the canonical watched-state store.  Use a synthetic manual
+// source when replaying that state so every configured destination is
+// considered, including the platform that originally reported the drift.
+// This is intentionally separate from syncMediaPlaystate: normal inbound
+// events still fan out only to the other platforms, while canonical repair
+// must be able to put the reporting platform back into agreement too.
+export async function syncCanonicalPlaystate(media, config, kv, state = "watched") {
+  const canonicalMedia = {
+    ...media,
+    source: "manual",
+    isValid: media?.isValid !== false,
+  };
+  if (String(state).toLowerCase() === "unwatched" || String(state).toLowerCase() === "unplayed") {
+    return syncMediaUnplayedPlaystate(canonicalMedia, config, kv);
+  }
+  return syncMediaPlaystate(canonicalMedia, config, kv);
 }
 
 export async function syncMediaUnplayedPlaystate(media, config, kv) {

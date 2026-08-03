@@ -36,7 +36,7 @@
 
 | | |
 |---|---|
-| **Bi-directional sync** | Watched/unwatched states stay in sync across Plex, Emby, and Jellyfin automatically |
+| **Plembfin-canonical sync** | Plembfin's watched/unwatched state is pushed to every connected app that contains the media; platform drift is repaired automatically |
 | **New media arrives watched** | Add a film or show you have already seen and it is marked watched on that server as it appears - no re-watching prompts on a rebuilt library, no manual catch-up. Applies an existing watch only; it never invents one |
 | **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |
 | **Rewatch tracking** | Watching a movie or episode again logs a new watch instead of overwriting the old one; detail pages show a full watch history with the date and app for every play. The duplicate-cleanup tool only removes rows recording the same watch event, so rewatches are never collapsed |
@@ -300,7 +300,7 @@ Plembfin runs automated daily backups; each backup type has its own schedule tim
 ### Trakt Watch History Import
 1. Download a JSON watch history export of your Trakt profile.
 2. Go to **Settings → Import** (`/settings/import`), upload the JSON, and start the import.
-3. Once completed, use **Settings → Tools → Full Sync Watchstates** (`/settings/full-sync-watchstates`) to propagate the Trakt watch history to all connected Plex, Emby, and Jellyfin servers.
+3. Imported watches are queued and propagated automatically. Use **Settings → Tools → Full Sync Watchstates** (`/settings/full-sync-watchstates`) to replay the complete Plembfin archive immediately, for example after connecting a new server or rebuilding a library.
 
 ---
 

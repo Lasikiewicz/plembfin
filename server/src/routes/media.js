@@ -430,6 +430,9 @@ export async function handleFullSyncWatchstates(req, res) {
         continue;
       }
       try {
+        if (phase === "watched") {
+          await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);
+        }
         const result = await restoreClientFor(target, phase, config, media)();
         if (phase === "watched" && result?.status !== "not_found") {
           await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);

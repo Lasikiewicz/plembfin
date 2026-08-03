@@ -25,7 +25,7 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
-import { getTargetsForSource, isRecentOutboundPlayedFlagEcho, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { getTargetsForSource, isRecentOutboundPlayedFlagEcho, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { provenanceTelemetryLines } from "../utils/watchProvenance.js";
@@ -81,6 +81,7 @@ import {
   getCachedMovies,
   getCachedHistory,
   findExistingWatch,
+  getCanonicalWatchState,
   findWatchedByAnyMediaKey,
   getPlaystateForMedia,
   countMissingPosterTraktRows,
@@ -357,6 +358,18 @@ async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
   }).catch((error) => console.error("Failed to append sync history", error));
 }
 
+async function reassertCanonicalWatchedState(media, config, loopStore) {
+  const summary = await syncCanonicalPlaystate(media, config, loopStore).catch((error) => ({
+    skipped: false,
+    status: "error",
+    details: `Canonical watched-state repair failed: ${error.message || String(error)}`,
+    targetStates: [],
+  }));
+  await deletePlaybackProgress(media).catch(() => null);
+  await recordSyncHistory(media, summary, "watched");
+  return summary;
+}
+
 function platformLabel(value) {
   const text = String(value || "unknown");
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -466,6 +479,21 @@ export async function applyManualUnwatch(media, config, loopStore, recordId = ""
   const existingRecord = recordId
     ? await getWatchRecordByIdLight(recordId).catch(() => null)
     : await getWatchRecordByMediaKey(mediaKeyFor(media)).catch(() => null);
+  const canonicalState = await getPlaystateForMedia(media).catch(() => null);
+  if (!existingWatched && canonicalState?.state === "unwatched") {
+    console.log("Unwatch skipped: Plembfin is already canonical-unwatched", { title: media.title, source: media.source });
+    return {
+      wasDeleted: false,
+      id: existingRecord?.id || "",
+      alreadyUnwatched: true,
+      summary: {
+        skipped: true,
+        status: "skipped",
+        details: "Already unwatched; no change to propagate",
+        targetStates: [],
+      },
+    };
+  }
   if (!existingWatched && existingRecord && existingRecord.sync_action === "unwatched") {
     console.log("Unwatch skipped: record is already unwatched", { title: media.title, source: media.source });
     return {
@@ -1473,6 +1501,18 @@ export async function handleWebhook(req, res) {
 
           if (media.phase === "unplayed") {
             await deleteActiveSession(episodeMedia).catch(() => null);
+            const canonicalState = await getCanonicalWatchState(episodeMedia).catch(() => null);
+            if (canonicalState === "watched") {
+              const summary = await reassertCanonicalWatchedState(episodeMedia, config, loopStore);
+              results.push({
+                episodeId: ep.Id,
+                title: episodeMedia.title,
+                success: summary.status === "success" || summary.status === "partial",
+                reasserted: true,
+                reason: "Plembfin kept the item watched",
+              });
+              return;
+            }
             const wasDeleted = await deleteWatchRecord(episodeMedia, { skipInvalidate: true }).catch((error) => {
               console.error("Failed to delete watch record", error);
               return false;
@@ -1600,6 +1640,20 @@ export async function handleWebhook(req, res) {
       });
       await deleteActiveSession(media);
       await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+      const canonicalState = await getCanonicalWatchState(media).catch(() => null);
+      if (canonicalState === "watched") {
+        const summary = await reassertCanonicalWatchedState(media, config, loopStore);
+        return sendJson(res, {
+          ok: true,
+          deleted: false,
+          unplayed: true,
+          inserted: false,
+          reasserted: true,
+          status: summary.status,
+          targetStates: summary.targetStates || [],
+          reason: "Plembfin is authoritative and kept the item watched",
+        });
+      }
       const { wasDeleted, id, alreadyUnwatched } = await applyManualUnwatch(media, config, loopStore);
       console.log("Webhook: unwatched sync completed", {
         source: media.source,

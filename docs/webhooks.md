@@ -40,7 +40,7 @@ object. The crucial output is `media.phase`, derived per platform by
 | `active` | Currently playing (play/resume/progress) | `upsertActiveSession()` → writes `active_sessions` row (5-minute TTL by default), bumps `runtimeState.nowPlayingRefresh`. **No history insert.** |
 | `completed` | Watched (scrobble, mark-played, or stop at the watched threshold, 90% by default) | Inserts/updates a `watch_history` record + propagates *watched* to the other platforms. |
 | `ended` | Stopped below the watched threshold | Deletes active session; if resume is actionable, stores/propagates resume progress to `playback_progress`. |
-| `unplayed` | Marked unwatched/unplayed | Deletes active session, deletes the watch record, inserts an `unwatched` row, and propagates *unwatched* to the other platforms. An item already recorded as unwatched is left alone and nothing is propagated. |
+| `unplayed` | Marked unwatched/unplayed | Deletes the active session. If Plembfin is already canonical-watched, the event is treated as platform drift and watched is reasserted on every configured destination; otherwise it records/propagates the canonical unwatched state. |
 | `added` | New item appeared in a library (`library.new`, `item.added`, `ItemAdded`) | Looks for an existing watched record for that media. If one exists, marks the item watched **on that server only**; writes no history. Nothing happens when there is no watched record. |
 | `ignored` | Not actionable | Dropped early. |
 
@@ -57,10 +57,12 @@ record a watched item.
 
 ## Propagation (sync)
 
-For watched/unwatched events, `syncMediaPlaystate()` (and the unplayed/progress
-variants) in `server/src/utils/syncOrchestrator.js` propagate the change to the
-**other two** platforms via their clients (`plexClient.js`, `embyClient.js`,
-`jellyfinClient.js`).
+For a new watched event, `syncMediaPlaystate()` propagates to the **other two**
+platforms via their clients (`plexClient.js`, `embyClient.js`, `jellyfinClient.js`).
+When Plembfin repairs a platform-side unwatch, it uses the canonical replay path,
+which targets every configured platform so all copies converge on Plembfin's watched
+state. An explicit manual unwatch in Plembfin remains the operation that changes the
+canonical state and propagates unplayed.
 
 **Loop detection:** when Plembfin writes a state to (say) Emby, Emby fires its own
 webhook back. `loopStore` (`server/src/utils/loopStore.js`) tracks
@@ -81,10 +83,10 @@ holds no provider ids for dispatches under its title key, while the echo the
 target server sends back carries that server's own imdb/tmdb/tvdb ids. Sharing
 the title key is what lets the second half of that trip recognise the first.
 
-Unwatch handling is also idempotent as a second line of defence. Marking an item
-unwatched when it is already recorded that way changes nothing, so the record is
-left as it stands and no propagation is dispatched - an echo that outlives the
-loop window cannot restart the cycle.
+Unwatch handling is also canonical and idempotent as a second line of defence. An
+echo of an explicit Plembfin unwatch finds the item already unwatched and changes
+nothing. A platform-side unwatch for an item Plembfin still considers watched never
+deletes that local record; it dispatches a watched repair instead.
 
 ## Catching up newly added media
 

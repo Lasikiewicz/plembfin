@@ -28,7 +28,7 @@ import {
   fetchJellyfinWatchedItems,
   listJellyfinLibraries,
 } from "./jellyfinClient.js";
-import { canReceiveState, canSendState, conflictAuthority, syncRolesRevision } from "./syncRoles.js";
+import { canReceiveState, syncRolesRevision } from "./syncRoles.js";
 
 export const SYNC_SERVERS = ["plex", "emby", "jellyfin"];
 export const PLAN_TTL_MS = 15 * 60 * 1000;
@@ -411,13 +411,13 @@ export function buildForceSyncPlan({
   now = Date.now(),
 } = {}) {
   const scope = normalizeScope(rawScope);
-  const authority = conflictAuthority(config);
+  // Force Sync is a canonical replay from Plembfin. Connected servers are
+  // inspected only to find destinations that are out of date; they never win
+  // a conflict or create/delete Plembfin history here.
+  const authority = { conflictPolicy: "plembfin", server: "" };
 
   // Which servers may receive each state type (per-server direction, M4).
   const writeTargetsFor = (stateType) => scannedServers.filter((server) => canReceiveState(config, server, stateType));
-
-  // Which servers' watched evidence may originate propagation.
-  const sendingServers = new Set(scannedServers.filter((server) => canSendState(config, server, "watched")));
 
   const allWatchedItems = SYNC_SERVERS.flatMap((server) => itemsByServer[server] || []);
   const groups = groupWatchedItems(allWatchedItems);
@@ -459,7 +459,7 @@ export function buildForceSyncPlan({
     records.sort((a, b) => new Date(b.watchedAt) - new Date(a.watchedAt));
   }
 
-  const allConsideredKeys = new Set([...watchedMap.keys(), ...historyMap.keys()]);
+  const allConsideredKeys = new Set(historyMap.keys());
   const actions = [];
   const skipped = [];
   let seq = 0;
@@ -469,6 +469,15 @@ export function buildForceSyncPlan({
     actions.push({ seq, ...action });
   };
 
+  for (const [key, entry] of watchedMap.entries()) {
+    if (historyMap.has(key)) continue;
+    skipped.push({
+      mediaKey: key,
+      title: entry.media.title,
+      reason: "Watched on a server but absent from Plembfin history; the server-only state was not imported because Plembfin is canonical.",
+    });
+  }
+
   for (const key of allConsideredKeys) {
     const serverWatchedEntry = watchedMap.get(key);
     const historyRecords = historyMap.get(key) || [];
@@ -476,12 +485,12 @@ export function buildForceSyncPlan({
 
     let newestState = "unwatched";
     let newestTime = 0;
-    let decidedBy = { policy: "newest_timestamp", evidence: "no history" };
+    let decidedBy = { policy: "plembfin", evidence: "no history" };
 
     if (lastHistoryRecord) {
       newestState = lastHistoryRecord.syncAction === "unwatched" ? "unwatched" : "watched";
       newestTime = new Date(lastHistoryRecord.watchedAt).getTime();
-      decidedBy = { policy: "newest_timestamp", evidence: "history", timestamp: newestTime };
+      decidedBy = { policy: "plembfin", evidence: "Plembfin history", timestamp: newestTime };
     }
 
     let serverWatchedOn = new Set();
@@ -489,32 +498,6 @@ export function buildForceSyncPlan({
 
     if (serverWatchedEntry) {
       serverWatchedOn = serverWatchedEntry.group.watchedOn;
-      // Servers not allowed to send watched state contribute status only -
-      // their evidence never bumps the resolved state (M4).
-      const sendingWatchedOn = new Set([...serverWatchedOn].filter((server) => sendingServers.has(server)));
-      const serverWatchedTime = serverWatchedEntry.group.timestamp
-        ? new Date(serverWatchedEntry.group.timestamp).getTime()
-        : 0;
-      if (sendingWatchedOn.size && serverWatchedTime > newestTime) {
-        newestTime = serverWatchedTime;
-        newestState = "watched";
-        decidedBy = { policy: "newest_timestamp", evidence: `watched on ${[...sendingWatchedOn].join(", ")}`, timestamp: newestTime };
-      }
-    }
-
-    // Authoritative-server conflict policy (M4): when the authoritative server
-    // was scanned, its state wins over timestamps.
-    if (authority.conflictPolicy === "server" && authority.server && scannedServers.includes(authority.server)) {
-      const authorityWatched = serverWatchedOn.has(authority.server);
-      const resolved = authorityWatched ? "watched" : "unwatched";
-      if (resolved !== newestState) {
-        newestState = resolved;
-        decidedBy = {
-          policy: "authoritative_server",
-          evidence: `${authority.server} reports ${resolved}`,
-          server: authority.server,
-        };
-      }
     }
 
     if (!mediaObj && lastHistoryRecord) {
@@ -538,14 +521,7 @@ export function buildForceSyncPlan({
     const base = { mediaKey: key, media: mediaObj, matchBasis, decidedBy };
 
     if (newestState === "watched") {
-      const inHistory = historyRecords.some((r) => r.syncAction === "watched");
-      if (!inHistory) {
-        skipped.push({
-          mediaKey: key,
-          title: mediaObj.title,
-          reason: "Watched on a server but has no Plembfin history row; server-only state is never trusted as a new record.",
-        });
-      } else if (lastHistoryRecord && lastHistoryRecord.syncAction === "unwatched") {
+      if (lastHistoryRecord && lastHistoryRecord.syncAction === "unwatched") {
         const unwatchedIds = historyRecords.filter((r) => r.syncAction === "unwatched").map((r) => r.id);
         pushAction({
           ...base,
@@ -556,37 +532,20 @@ export function buildForceSyncPlan({
         });
       }
 
-      if (inHistory) {
-        for (const target of writeTargetsFor("watched")) {
-          if (!serverWatchedOn.has(target)) {
-            pushAction({
-              ...base,
-              kind: "mark_played",
-              target,
-              risk: "additive",
-              reason: `Watched per ${decidedBy.evidence}; ${target} does not have it marked played.`,
-            });
-          }
+      for (const target of writeTargetsFor("watched")) {
+        if (!serverWatchedOn.has(target)) {
+          pushAction({
+            ...base,
+            kind: "mark_played",
+            target,
+            risk: "additive",
+            reason: `Watched in Plembfin; ${target} does not have it marked played.`,
+          });
         }
       }
     } else {
-      const hasWatchedRecord = historyRecords.some((r) => r.syncAction === "watched");
-      if (hasWatchedRecord) {
-        pushAction({
-          ...base,
-          kind: "delete_history_rows",
-          risk: "destructive",
-          historyRowIds: historyRecords.map((r) => r.id),
-          reason: "Resolved state is unwatched; stored watch records will be removed.",
-        });
-        pushAction({
-          ...base,
-          kind: "insert_unwatched_record",
-          risk: "destructive",
-          resolvedAt: newestTime > 0 ? new Date(newestTime).toISOString() : "",
-          reason: "Records the resolved unwatched state so later syncs respect it.",
-        });
-      }
+      // Plembfin's unwatched marker is already canonical. Never delete or
+      // recreate local history because a remote server reports played.
 
       for (const target of writeTargetsFor("unwatched")) {
         if (serverWatchedOn.has(target)) {
@@ -595,7 +554,7 @@ export function buildForceSyncPlan({
             kind: "mark_unplayed",
             target,
             risk: "destructive",
-            reason: `Resolved state is unwatched per ${decidedBy.evidence}; ${target} still has it marked played.`,
+            reason: `Unwatched in Plembfin; ${target} still has it marked played.`,
           });
         }
       }
@@ -637,7 +596,7 @@ export function summarizePlan(input = {}) {
     totalWatchedFoundAcrossServers = 0,
     consideredKeys = 0,
     historyRowCount = 0,
-    authority = { conflictPolicy: "newest_timestamp", server: "" },
+    authority = { conflictPolicy: "plembfin", server: "" },
   } = Array.isArray(input) ? { actions: input } : input;
   const scope = normalizeScope(rawScope);
   const byKind = {};

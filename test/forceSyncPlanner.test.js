@@ -55,6 +55,45 @@ test("scope filters media types and blocks plans over maxChanges", () => {
   assert.equal(plan.actions.length, 2);
 });
 
+test("Force Sync treats Plembfin history as canonical when servers disagree", () => {
+  const local = movie("Fallout", "plex");
+  const localKey = mediaKeyFor({ title: local.title, type: local.type });
+  const remoteOnly = movie("Only on Plex", "plex");
+  const plan = buildForceSyncPlan({
+    itemsByServer: { plex: [local, remoteOnly], emby: [], jellyfin: [] },
+    scannedServers: ["plex", "emby", "jellyfin"],
+    historyRows: [{
+      id: "fallout-history",
+      media_key: localKey,
+      title: local.title,
+      media_type: local.type,
+      sync_action: "watched",
+      watched_at: "2026-07-18T12:00:00.000Z",
+    }],
+  });
+
+  assert.deepEqual(plan.actions.filter((action) => action.kind === "mark_played").map((action) => action.target), ["emby", "jellyfin"]);
+  assert.equal(plan.actions.some((action) => action.media.title === remoteOnly.title), false);
+  assert.equal(plan.summary.conflictPolicy, "plembfin");
+});
+
+test("Force Sync repairs a remote played flag without deleting Plembfin history", () => {
+  const local = movie("Canonical Unwatched", "plex");
+  const key = mediaKeyFor({ title: local.title, type: local.type });
+  const plan = buildForceSyncPlan({
+    itemsByServer: { plex: [local], emby: [], jellyfin: [] },
+    scannedServers: ["plex"],
+    historyRows: [
+      { id: "watched-history", media_key: key, title: local.title, media_type: local.type, sync_action: "watched", watched_at: "2026-07-17T12:00:00.000Z" },
+      { id: "unwatched-marker", media_key: key, title: local.title, media_type: local.type, sync_action: "unwatched", watched_at: "2026-07-18T12:00:00.000Z" },
+    ],
+  });
+
+  assert.deepEqual(plan.actions.map((action) => action.kind), ["mark_unplayed"]);
+  assert.equal(plan.actions[0].target, "plex");
+  assert.equal(plan.actions.some((action) => ["delete_history_rows", "insert_unwatched_record"].includes(action.kind)), false);
+});
+
 test("staleness detects TTL and changed watched counts", () => {
   const createdAt = 1_000_000;
   const plan = { createdAt, fingerprints: { plex: { rawCount: 4 } } };

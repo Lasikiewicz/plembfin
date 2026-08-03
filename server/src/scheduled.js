@@ -1,6 +1,6 @@
 import { fetchWithTimeout } from "./utils/outbound.js";
 import { watchedThresholdPercent } from "./utils/tuning.js";
-import { recordOutboundPlayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
+import { recordOutboundPlayedMarks, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { parsePlexGuids } from "./utils/parsers.js";
 import { findPlexItem, plexAuthHeaders, resolvePlexAccountId } from "./utils/plexClient.js";
 import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/liveSessions.js";
@@ -21,6 +21,7 @@ import {
   findExistingWatch,
   findWatchedByAnyMediaKey,
   findWatchedByMediaKey,
+  getCanonicalWatchState,
   getCachedHistory,
   getPlaybackProgressForMedia,
   getPlaystateForMedia,
@@ -380,13 +381,7 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
   const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
   const records = (await listRecentTrackedWatchRows({ limit: 100 })).filter(
     (record) =>
-      record.watched_at < threeMinutesAgo &&
-      // Source originated on Plex, OR a previous sync successfully marked Plex watched.
-      // Telemetry is written in two formats ("Target plex status: success" by the cron,
-      // "Plex status: success" by the webhook path), so match case-insensitively on the
-      // common "plex status: success" suffix rather than a single exact string.
-      (["plex", "plex_initial_sync"].includes(record.source) ||
-        String(record.sync_dispatch_telemetry || "").toLowerCase().includes("plex status: success")),
+      record.watched_at < threeMinutesAgo,
   ).slice(0, 30);
 
   for (const record of records) {
@@ -394,6 +389,8 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
       const media = {
         title: record.title,
         type: record.media_type,
+        source: "plex",
+        isValid: true,
         ids: {
           imdb: record.imdb_id || undefined,
           tmdb: record.tmdb_id || undefined,
@@ -408,23 +405,15 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
       if (plexItem) {
         const isWatched = Boolean(plexItem.viewCount && Number(plexItem.viewCount) > 0);
         if (!isWatched) {
-          console.log("Cron detected Plex item marked unwatched: deleting watch history and syncing", { title: record.title });
-          await deleteWatchRecordById(record.id, { skipInvalidate: true });
-          const unplayedMedia = { ...media, isValid: true, source: "plex" };
-          const unplayedRecord = mediaToWatchRecord({ ...unplayedMedia, syncAction: "unwatched" }, "plex");
-          unplayedRecord.sync_action = "unwatched";
-          unplayedRecord.sync_dispatch_telemetry = buildTelemetry(unplayedMedia, {
-            skipped: false,
-            status: "pending",
-            details: "Plex unwatched propagation queued",
-            targetStates: [],
-          });
-          const inserted = await insertWatchRecord(unplayedRecord, { skipInvalidate: true });
-          await upsertPlaystateForMedia(unplayedMedia, "unwatched", inserted.record.watched_at, { skipInvalidate: true });
-          await deletePlaybackProgress(unplayedMedia).catch(() => null);
-          const summary = await syncMediaUnplayedPlaystate(unplayedMedia, config, loopStore);
-          await updateWatchTelemetry(inserted.id, buildTelemetry(unplayedMedia, summary), { skipInvalidate: true });
-          await recordSyncHistory(unplayedMedia, summary, "unwatched");
+          const canonicalState = await getCanonicalWatchState(media).catch(() => null);
+          if (canonicalState !== "watched") continue;
+
+          console.log("Cron detected Plex drift: reasserting Plembfin watched state", { title: record.title });
+          const canonicalMedia = { ...media, isValid: true, source: "manual" };
+          await deletePlaybackProgress(media).catch(() => null);
+          const summary = await syncCanonicalPlaystate(canonicalMedia, config, loopStore);
+          await updateWatchTelemetry(record.id, buildTelemetry(media, summary), { skipInvalidate: true });
+          await recordSyncHistory(media, summary, "watched");
           await invalidateHistoryDerivedCaches().catch(() => null);
         }
       }
@@ -1230,7 +1219,10 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
   }
   let syncedCount = 0;
   try {
-    const rows = (await getCachedHistory()).slice(0, 200);
+    // History is already cached in memory. Inspect the complete canonical set
+    // so older imports are repaired too; the outbound batch limit below still
+    // keeps each scheduler tick bounded.
+    const rows = await getCachedHistory();
 
     const activeTargets = getActiveTargetsForConfig(config);
     const toRetry = [];
@@ -1827,9 +1819,11 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
     watchedMap.set(key, { media: mediaObj, group });
   }
 
-  // 5. Build union of all items to consider
-  const allConsideredKeys = new Set([...watchedMap.keys(), ...historyMap.keys()]);
-  logger(`Force Sync: resolving watched state for ${allConsideredKeys.size} distinct items...`);
+  // 5. Plembfin history is the canonical set of items to consider. Remote-only
+  // watched items are deliberately ignored; a platform cannot manufacture a
+  // new canonical watch during Force Sync.
+  const allConsideredKeys = new Set(historyMap.keys());
+  logger(`Force Sync: resolving Plembfin-canonical watched state for ${allConsideredKeys.size} distinct items...`);
 
   let propagatedCount = 0;
   let addedToHistoryCount = 0;
@@ -1919,16 +1913,10 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
     }
 
     let serverWatchedOn = new Set();
-    let serverWatchedTime = 0;
     let mediaObj = serverWatchedEntry ? serverWatchedEntry.media : null;
 
     if (serverWatchedEntry) {
       serverWatchedOn = serverWatchedEntry.group.watchedOn;
-      serverWatchedTime = serverWatchedEntry.group.timestamp ? new Date(serverWatchedEntry.group.timestamp).getTime() : 0;
-      if (serverWatchedTime > newestTime) {
-        newestTime = serverWatchedTime;
-        newestState = "watched";
-      }
     }
 
     if (!mediaObj && lastHistoryRecord) {
@@ -1964,6 +1952,7 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
         if (!serverWatchedOn.has(target)) {
           logger(`Propagating: marking played "${mediaObj.title}" on ${target}`);
           try {
+            await recordOutboundPlayedMarks(mediaObj, [target], loopStore).catch(() => null);
             await markPlayedTarget(target, mediaObj);
             await recordOutboundPlayedMarks(mediaObj, [target], loopStore).catch(() => null);
             propagatedCount++;
@@ -1973,26 +1962,9 @@ export async function runForceSync(logger = console.log, { lockAlreadyClaimed = 
         }
       }
     } else {
-      const hasWatchedRecord = historyRecords.some(r => r.syncAction === "watched");
-      if (hasWatchedRecord) {
-        logger(`Deleting watched records and marking unwatched for "${mediaObj.title}"`);
-        for (const docRec of historyRecords) {
-          await deleteWatchRecordById(docRec.id, { skipInvalidate: true });
-          deletedFromHistoryCount++;
-        }
-        const unwatchedRecord = mediaToWatchRecord(mediaObj, "force_sync");
-        unwatchedRecord.sync_action = "unwatched";
-        unwatchedRecord.sync_dispatch_telemetry = [
-          `Origin: force_sync`,
-          `Loop-check: Passed`,
-          `Dispatch status: success`,
-          `Details: Force Sync resolved status to unwatched. Newest timestamp: ${new Date(newestTime).toISOString()}`,
-          ...activeTargets.map(t => `Target ${t.charAt(0).toUpperCase() + t.slice(1)} status: success`)
-        ].join("\n");
-        if (newestTime > 0) unwatchedRecord.watched_at = new Date(newestTime).toISOString();
-        const inserted = await insertWatchRecord(unwatchedRecord, { skipInvalidate: true });
-        await upsertPlaystateForMedia({ ...mediaObj, source: "force_sync", isValid: true }, "unwatched", inserted.record.watched_at, { skipInvalidate: true });
-      }
+      // The unwatched marker is already the canonical Plembfin decision. Do
+      // not delete or recreate local history based on a remote discrepancy.
+      logger(`Plembfin is canonical for "${mediaObj.title}"; only repairing remote played flags.`);
 
       for (const target of activeTargets) {
         if (serverWatchedOn.has(target)) {

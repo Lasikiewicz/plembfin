@@ -47,6 +47,9 @@ export async function executeForceSyncPlan(id, config, logger = () => {}, { sign
       if (signal?.aborted) throw new Error("Force Sync cancelled");
       try {
         if (action.kind === "mark_played" || action.kind === "mark_unplayed") {
+          if (action.kind === "mark_played") {
+            await recordOutboundPlayedMarks(action.media, [action.target], loopStore).catch(() => null);
+          }
           await remoteWrite(action, config);
           if (action.kind === "mark_played") {
             await recordOutboundPlayedMarks(action.media, [action.target], loopStore).catch(() => null);

@@ -134,7 +134,7 @@ export function plexWebhookSetup() {
       <ul style="padding-left: 1.2rem; margin: var(--space-1) 0 0; display: grid; gap: 4px; font-size: 0.82rem; color: var(--text);">
         <li>Go to Plex Web ➔ <b>Account Settings ➔ Webhooks</b> and click <b>Add Webhook</b>. Paste the URL above (requires Plex Pass).</li>
         <li><b>Automatic Event Delivery:</b> Plex automatically sends all playback events (play, pause, resume, stop, scrobble) to the webhook URL - no individual event selection is required.</li>
-        <li><b>Library Watch-State Sync (built-in):</b> Plembfin automatically connects to your Plex Media Server via its WebSocket notification channel to capture watched and unwatched library changes in real time.</li>
+        <li><b>Library Watch-State Sync (built-in):</b> Plembfin automatically connects to your Plex Media Server via its WebSocket notification channel to capture watched and unwatched library changes in real time. Plembfin remains the canonical watched-state source, so a Plex-side unwatch is repaired when Plembfin still says watched.</li>
         <li><b>Per-Minute Synchronization:</b> The internal scheduler runs every minute to evaluate playback progress against your watched threshold (90%) and dispatch cross-platform sync.</li>
       </ul>
     </div>
@@ -197,7 +197,7 @@ export function webhookWarning() {
         <ul style="padding-left: 1.2rem; margin: 0; display: grid; gap: 4px;">
           <li>Plex does not support sending unwatched (unscrobble) events via native webhooks or Tautulli.</li>
           <li>For resume sync, Plex webhook traffic must include playback lifecycle events such as <code>media.play</code>, <code>media.resume</code>, <code>media.pause</code>, <code>media.stop</code>, and <code>media.scrobble</code>. Plembfin reads <code>viewOffset</code> and <code>duration</code> when Plex provides them.</li>
-          <li><b>Real-time Sync (Built-in):</b> Plembfin's server includes a built-in Plex notification listener. It connects to your Plex Media Server via the WebSocket notification channel (configured automatically from your Plex URL and token in Settings → Media Servers), records watched library changes, and forwards unwatched changes directly - no external script or daemon is required.</li>
+          <li><b>Real-time Sync (Built-in):</b> Plembfin's server includes a built-in Plex notification listener. It connects to your Plex Media Server via the WebSocket notification channel (configured automatically from your Plex URL and token in Settings → Media Servers), records watched library changes, and repairs a Plex-side unwatch when Plembfin still says watched - no external script or daemon is required.</li>
           <li><b>Per-Minute Scheduler:</b> Plembfin's background worker runs every minute to process playback sessions, evaluate watched thresholds, and dispatch sync actions.</li>
           <li>For general playback events, set up webhooks according to the <a href="https://support.plex.tv/articles/115002267687-webhooks/?utm_campaign=Plex%20Apps&utm_medium=Plex%20Web&utm_source=Plex%20Apps" target="_blank" rel="noopener noreferrer" style="color: #4b96e6; text-decoration: underline;">Plex Webhook Documentation</a>.</li>
         </ul>
@@ -265,7 +265,7 @@ export function cronSyncGuide() {
 
 X-Api-Key: <your-api-key>`, "http")}
       <h3>What this runs</h3>
-      <p>The worker writes a heartbeat timestamp, polls Plex, Emby, and Jellyfin for active playback, updates live-session cache rows, detects completed sessions at the watched threshold (90% by default), writes completed watches to <code>watch_history</code>, dispatches outbound watched-state sync, checks recent Plex items for unwatched removals, maintains <code>data/next-airing-cache.json</code>, and progressively stores month results in <code>data/upcoming-calendar-cache.json</code>.</p>
+      <p>The worker writes a heartbeat timestamp, polls Plex, Emby, and Jellyfin for active playback, updates live-session cache rows, detects completed sessions at the watched threshold (90% by default), writes completed watches to <code>watch_history</code>, dispatches outbound watched-state sync, repairs platform drift against Plembfin's canonical watched state, maintains <code>data/next-airing-cache.json</code>, and progressively stores month results in <code>data/upcoming-calendar-cache.json</code>.</p>
     </section>
   `;
 }
@@ -304,7 +304,7 @@ function rebuildPlaystateGuide() {
 
 function exportPlexHistoryGuide() {
   return `
-          <p><b>scripts/exportPlexHistory.js</b> reads your full Plex play history and streams it into the local SQLite database via the import API. Use it once to seed historical watch data that webhooks and live session polling would otherwise miss (they only capture future activity).</p>
+          <p><b>scripts/exportPlexHistory.js</b> reads your full Plex play history and streams it into the local SQLite database via the import API. Imported rows become canonical Plembfin playstate and are queued for outbound sync, so use the full-sync tool only when you want an immediate complete replay.</p>
           <p>Use it once when you want to bootstrap a fresh deployment, or again if you are migrating an existing Plex library and need the cloud history to reflect years of prior viewing. The script does not need the browser open after launch; it reads the local configuration block, streams rows to the import API in batches, and finishes with a deterministic summary.</p>
           <section class="guide-callout">
             <b>Token discovery walkthrough</b>

@@ -6,7 +6,7 @@ import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { runScheduledSync } from "./scheduled.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
-import { lastOutboundPlayedMarkAt, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
+import { lastOutboundPlayedMarkAt, syncCanonicalPlaystate, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
 import { getTmdbDetails, prewarmTmdbLibrary } from "./utils/tmdbGateway.js";
 import { cachedNextAiringFor, mergeNextAiringCacheEntries, nextAiringCacheEntryStale, nextAiringCacheKey, readNextAiringCache } from "./utils/nextAiringCache.js";
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
@@ -15,7 +15,7 @@ import { runScheduledPlembfinBackup } from "./utils/plembfinBackups.js";
 import { pruneSyncPlans } from "./utils/syncPlans.js";
 import {
   deletePlaybackProgress,
-  findWatchedByAnyMediaKey,
+  getCanonicalWatchState,
   getCachedShows,
   getPlaystateForMedia,
   insertWatchRecord,
@@ -25,7 +25,6 @@ import {
   upsertPlaystateForMedia,
 } from "./utils/dataRepo.js";
 import { watchedAtForPlexItem } from "./utils/watchDates.js";
-import { applyManualUnwatch } from "./routes/sync.js";
 
 const NEXT_AIRING_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 const UPCOMING_CALENDAR_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
@@ -198,7 +197,7 @@ async function handlePlexLibraryItemChange(ratingKey) {
     const isOwnMarkEcho =
       ownMarkAt > 0 && Math.abs(new Date(watchedAt).getTime() - ownMarkAt) <= 10 * 60 * 1000;
 
-    if (playstate?.state === "watched" && (!isNewerWatch || isOwnMarkEcho)) {
+    if (isOwnMarkEcho || (playstate?.state === "watched" && !isNewerWatch)) {
       if (isOwnMarkEcho) {
         console.log("Plex notifications: ignored view timestamp from our own played mark", {
           title: media.title,
@@ -260,18 +259,13 @@ async function handlePlexLibraryItemChange(ratingKey) {
   }
   if (viewOffset > 0) return;
 
-  // Only propagate if our store currently considers this item watched. This avoids
-  // reacting to items we never tracked and short-circuits the echo when an unwatch that
-  // originated on Emby/Jellyfin was just propagated *into* Plex (the originating flow has
-  // already flipped our playstate to "unwatched").
-  const playstate = await getPlaystateForMedia(media).catch(() => null);
-  if (playstate?.state === "unwatched") return;
-  if (playstate?.state !== "watched") {
-    const watched = await findWatchedByAnyMediaKey({ ...media, syncAction: "watched" }).catch(() => null);
-    if (!watched) return;
-  }
+  // A Plex-side unwatch is platform drift when Plembfin still says watched.
+  // Reassert the canonical state to every configured platform instead of
+  // deleting Plembfin's watched record.
+  const canonicalState = await getCanonicalWatchState(media).catch(() => null);
+  if (canonicalState !== "watched") return;
 
-  console.log("Plex notifications: item marked unwatched, propagating to Emby/Jellyfin", {
+  console.log("Plex notifications: item marked unwatched, reasserting Plembfin watched state", {
     title: media.title,
     ratingKey,
     type: media.type,
@@ -279,9 +273,20 @@ async function handlePlexLibraryItemChange(ratingKey) {
 
   const loopStore = createLoopStore();
   try {
-    await applyManualUnwatch(media, config, loopStore);
+    const summary = await syncCanonicalPlaystate(media, config, loopStore);
+    await deletePlaybackProgress(media).catch(() => null);
+    await appendSyncHistory({
+      mediaType: media.type,
+      title: media.title,
+      source: media.source,
+      status: summary.status,
+      details: summary.details,
+      action: "watched",
+      targetStates: summary.targetStates || [],
+      rawPayloadDebug: { ratingKey, canonicalRepair: true, ids: media.ids || {} },
+    }).catch(() => null);
   } catch (error) {
-    console.error(`Plex notification unwatch propagation failed for "${media.title}"`, error);
+    console.error(`Plex notification canonical watched-state repair failed for "${media.title}"`, error);
   } finally {
     await invalidateHistoryDerivedCaches().catch(() => null);
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);

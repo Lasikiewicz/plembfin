@@ -916,6 +916,16 @@ export async function getPlaystateForMedia(media) {
   return row ? playstateFromRow(row) : null;
 }
 
+// The playstate table is the current canonical pointer.  The history fallback
+// keeps older databases (including imports created before playstate rows were
+// written) authoritative until their next dispatch repairs that pointer.
+export async function getCanonicalWatchState(media) {
+  const playstate = await getPlaystateForMedia(media);
+  if (playstate?.state === "watched" || playstate?.state === "unwatched") return playstate.state;
+  const watched = await findWatchedByAnyMediaKey(media).catch(() => null);
+  return watched ? "watched" : null;
+}
+
 export async function listWatchedPlaystateRowsForReplay({ limit = 25, offset = 0 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
   const safeOffset = Math.max(Number(offset) || 0, 0);
@@ -1088,12 +1098,9 @@ function defaultTelemetry(record) {
   if (String(source).includes("import")) {
     return [
       `Origin: ${source}`,
-      `Loop-check: Skipped propagation`,
-      `Dispatch status: skipped`,
-      `Details: Historical import stored locally without outbound sync`,
-      `Target plex status: not attempted`,
-      `Target emby status: not attempted`,
-      `Target jellyfin status: not attempted`,
+      `Loop-check: Pending`,
+      `Dispatch status: pending`,
+      `Details: Historical import stored in Plembfin and queued for canonical outbound sync`,
     ].join("\n");
   }
   return [`Origin: ${source}`, `Loop-check: Pending`, `Dispatch status: pending`, `Details: Awaiting outbound sync telemetry`].join("\n");
@@ -1139,6 +1146,7 @@ export async function batchInsertWatchRecords(records) {
 
   if (toInsert.length) {
     const insertedAuditEvents = [];
+    const insertedRecords = [];
     transaction(() => {
       for (const normalized of toInsert) {
         // Queue show progress update
@@ -1150,6 +1158,7 @@ export async function batchInsertWatchRecords(records) {
         });
         const storedAt = Date.now();
         insertWatchStmt.run({ id, ...params, created_at: storedAt, updated_at: storedAt });
+        insertedRecords.push({ id, ...normalized, watched_at: params.watched_at, media_key: params.media_key });
         insertedAuditEvents.push({
           eventType: isWatchedAction(normalized) ? "history_added" : "history_state_recorded",
           timestamp: storedAt,
@@ -1173,18 +1182,37 @@ export async function batchInsertWatchRecords(records) {
           deviceId: normalized.watch_provenance?.device_id,
           client: normalized.watch_provenance?.client,
           clientVersion: normalized.watch_provenance?.client_version,
-          details: "Watch record imported into Plembfin history; no outbound sync was initiated by the import.",
+          details: "Watch record imported into Plembfin history and queued for canonical outbound sync.",
           payload: { record: normalized, import: true, storedAt },
         });
       }
     });
     recordWatchAuditEvents(insertedAuditEvents);
+    for (const normalized of insertedRecords) {
+      if (isWatchedAction(normalized)) {
+        await upsertPlaystateForMedia({
+          title: normalized.title,
+          type: normalized.media_type,
+          source: normalized.source,
+          ids: {
+            imdb: normalized.imdb_id || undefined,
+            tmdb: normalized.tmdb_id || undefined,
+            tvdb: normalized.tvdb_id || undefined,
+          },
+          season: normalized.season,
+          episode: normalized.episode,
+          posterUrl: normalized.poster_url || undefined,
+          isValid: true,
+        }, "watched", normalized.watched_at, { skipInvalidate: true });
+      }
+    }
     for (const normalized of toInsert) {
       if (isWatchedAction(normalized) && (normalized.tmdb_id || normalized.title)) {
         prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
       }
     }
     await invalidateHistoryDerivedCaches();
+    return { inserted, updated: 0, skipped, rejected };
   }
   return { inserted, updated: 0, skipped, rejected };
 }
