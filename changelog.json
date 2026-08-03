@@ -1,7 +1,19 @@
 {
-  "version": "0.6.65",
-  "updatedAt": "2026-08-03T01:51:51+01:00",
+  "version": "0.6.66",
+  "updatedAt": "2026-08-03T10:26:00+01:00",
   "entries": [
+    {
+      "version": "0.6.66",
+      "date": "2026-08-03T10:26:00+01:00",
+      "commit": "df64611cbf5483b08d37ea91a9392021f1fc37ca",
+      "message": "Feature - Add detailed media audit trail",
+      "author": "Lasikiewicz",
+      "details": [
+        "Capture and display detailed watch provenance, event timelines, and per-record audit information.",
+        "Add audit export and clearer legacy-history coverage.",
+        "Keep audit details available from movie and TV show information views."
+      ]
+    },
     {
       "version": "0.6.65",
       "date": "2026-08-03T01:51:51+01:00",
