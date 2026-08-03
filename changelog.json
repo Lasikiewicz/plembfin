@@ -1,7 +1,19 @@
 {
-  "version": "0.6.64",
-  "updatedAt": "2026-08-03T01:17:54+01:00",
+  "version": "0.6.65",
+  "updatedAt": "2026-08-03T01:51:51+01:00",
   "entries": [
+    {
+      "version": "0.6.65",
+      "date": "2026-08-03T01:51:51+01:00",
+      "commit": "14a84f8730f3f395d4b507921aa47a5c3bc35a64",
+      "message": "Feature - Add complete media information panel",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add Info actions to movie and TV detail topbars.",
+        "Present metadata, watch history, provenance, and sync telemetry in one readable panel.",
+        "Keep the panel responsive and preserve detail-page Escape behavior."
+      ]
+    },
     {
       "version": "0.6.64",
       "date": "2026-08-03T01:17:54+01:00",
