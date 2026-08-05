@@ -1,7 +1,17 @@
 {
-  "version": "0.6.74",
-  "updatedAt": "2026-08-05T20:39:16+01:00",
+  "version": "0.6.75",
+  "updatedAt": "2026-08-05T21:04:32+01:00",
   "entries": [
+    {
+      "version": "0.6.75",
+      "date": "2026-08-05T21:04:32+01:00",
+      "commit": "97e55b92d2244137420853e72127ab21ae66d087",
+      "message": "Fix - Refine TV show library filters",
+      "author": "Lasikiewicz",
+      "details": [
+        "Searches can find fully watched shows and the A-Z rail follows the selected sort order."
+      ]
+    },
     {
       "version": "0.6.74",
       "date": "2026-08-05T20:39:16+01:00",
