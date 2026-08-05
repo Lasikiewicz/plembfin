@@ -4806,8 +4806,11 @@ details.sync-tool-details[open] > summary {
 }
 
 .media-force-sync-modal {
-  width: min(760px, 92vw);
-  max-height: min(860px, 92vh);
+  width: min(1080px, 94vw);
+  min-height: min(600px, 76vh);
+  max-height: min(900px, 92vh);
+  padding: var(--space-4);
+  gap: var(--space-4);
 }
 
 .media-force-sync-body {
@@ -4862,7 +4865,7 @@ details.sync-tool-details[open] > summary {
 .media-force-sync-choice-copy strong,
 .media-force-sync-target-copy label {
   color: var(--text);
-  font-size: 0.78rem;
+  font-size: inherit;
   font-weight: 700;
 }
 
@@ -4870,14 +4873,14 @@ details.sync-tool-details[open] > summary {
 .media-force-sync-target-copy small {
   max-width: 60ch;
   color: var(--muted);
-  font-size: 0.74rem;
+  font-size: inherit;
   line-height: 1.45;
 }
 
 .media-force-sync-choice-arrow {
   flex: 0 0 auto;
   color: var(--blue);
-  font-size: 0.72rem;
+  font-size: inherit;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -4900,13 +4903,19 @@ details.sync-tool-details[open] > summary {
 }
 
 .media-force-sync-activity .import-terminal {
-  min-height: 13rem;
-  max-height: 22rem;
+  min-height: 20rem;
+  max-height: 32rem;
   color: var(--text);
   background: var(--panel-3);
 }
 
 @media (max-width: 680px) {
+  .media-force-sync-modal {
+    min-height: 0;
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+
   .media-force-sync-target-row {
     grid-template-columns: 1fr;
   }

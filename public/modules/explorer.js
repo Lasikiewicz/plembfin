@@ -405,9 +405,12 @@ export function renderExplorer() {
 }
 export function explorerQueryKey(mode) {
   if (mode === "shows") {
-    return [mode, currentExplorerSort(), state.explorerSearch, state.hideWatchedShows, state.hideEndedShows].join("|");
+    return [mode, currentExplorerSort(), state.explorerSearch, shouldHideWatchedShows(), state.hideEndedShows].join("|");
   }
   return [mode, currentExplorerSort(), state.explorerSearch].join("|");
+}
+export function shouldHideWatchedShows(search = state.explorerSearch, hideWatched = state.hideWatchedShows) {
+  return Boolean(hideWatched && !String(search || "").trim());
 }
 // ---------------------------------------------------------------------------
 // Alpha filter
@@ -419,10 +422,13 @@ function firstAlphaLetter(title) {
   return /[A-Z]/.test(ch) ? ch : "#";
 }
 const ALPHA_LETTERS = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")];
+export function isAlphabeticalExplorerSort(sortMode = currentExplorerSort()) {
+  return sortMode === "title_asc" || sortMode === "title_desc";
+}
 export function updateAlphaFilter() {
   const nav = elements.alphaFilterNav;
   if (!nav) return;
-  if (state.mediaDetailInline || state.activeView !== "explorer") {
+  if (state.mediaDetailInline || state.activeView !== "explorer" || !isAlphabeticalExplorerSort()) {
     nav.classList.add("hidden");
     return;
   }
@@ -1154,7 +1160,7 @@ export async function loadExplorerShows() {
     url.searchParams.set("offset", String(state.showsOffset));
     url.searchParams.set("sort", state.explorerSortShows);
     if (state.explorerSearch) url.searchParams.set("search", state.explorerSearch);
-    if (state.hideWatchedShows) url.searchParams.set("hideWatched", "true");
+    if (shouldHideWatchedShows()) url.searchParams.set("hideWatched", "true");
     if (state.hideEndedShows) url.searchParams.set("hideEnded", "true");
     const cacheKey = url.toString();
     let body = cachedExplorerPage(cacheKey);
