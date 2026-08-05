@@ -5,7 +5,7 @@ import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260803";
 import { renderWatchDatePrompt } from "./watch-action.js";
-import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260808";
+import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260809";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
@@ -1015,6 +1015,7 @@ export function renderShowModalContent(show, {
 
   setMediaDetailActions(`
     ${mediaInfoActionHtml()}
+    ${mediaForceSyncActionHtml({ type: "show", title: showTitle, tmdbId: tmdbData?.id || show.tmdb_id || "", tvdbId: tmdbData?.external_ids?.tvdb_id || show.tvdb_id || "", imdbId: tmdbData?.external_ids?.imdb_id || show.imdb_id || "", disabled: isSaving })}
     <button class="action-pill" type="button" data-watch-scope="show" ${(unwatchedRows.length && !isSaving) ? "" : "disabled"}>
       ${checkIcon}
       <span>${isSavingShow ? "Saving..." : "Mark <br>Watched"}</span>

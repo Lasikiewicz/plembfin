@@ -18,6 +18,9 @@ The same logic runs on demand via:
   or session cookie).
 - `POST /api/force-sync` - queues durable worker work for the dashboard to poll;
   `POST /api/stop-force-sync` cancels queued or running work.
+- `POST /api/force-sync/media` - an authenticated, title-scoped detail-page action
+  that explicitly imports watched state for the selected movie or show before
+  replaying it to configured destinations.
 
 Manual cron and force-sync requests are stored in `background_jobs`; their ordered
 logs live in `background_job_logs`. The web process relays logs while the leaseholder
@@ -47,6 +50,12 @@ and rebuild operations use one owner-scoped SQLite operation marker, so they can
 concurrently. Inbound callbacks received during an authoritative operation are suppressed
 as echoes; scheduled-sync callbacks remain eligible for normal echo-ledger checks. Delayed
 unplayed callbacks are additionally matched against a 14-day outbound unmark ledger.
+
+The detail-page endpoint is deliberately separate from that library-wide policy. It is a
+user-requested repair for one title: configured servers are queried for that title, any
+watched movie or episode found there is imported into Plembfin, and the imported state is
+then propagated canonically. It does not change the behavior or safety guarantees of the
+library-wide `/api/force-sync` planner and executor.
 
 ## Plembfin is the watched-state authority
 

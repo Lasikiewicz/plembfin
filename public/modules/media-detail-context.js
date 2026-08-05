@@ -97,6 +97,34 @@ export function mediaInfoActionHtml() {
   `;
 }
 
+export function mediaForceSyncActionHtml({
+  type = "movie",
+  title = "",
+  tmdbId = "",
+  tvdbId = "",
+  imdbId = "",
+  disabled = false,
+} = {}) {
+  return `
+    <button class="action-pill action-pill-ghost media-force-sync-btn" type="button" ${disabled ? "disabled" : ""}
+      data-media-force-sync
+      data-force-sync-type="${escapeAttribute(type)}"
+      data-force-sync-title="${escapeAttribute(title)}"
+      data-force-sync-tmdb-id="${escapeAttribute(tmdbId)}"
+      data-force-sync-tvdb-id="${escapeAttribute(tvdbId)}"
+      data-force-sync-imdb-id="${escapeAttribute(imdbId)}"
+      title="Import watched state from connected media servers">
+      <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M13.5 5.5A5.5 5.5 0 0 0 3.2 4L2 6" />
+        <path d="M2 2.5V6h3.5" />
+        <path d="M2.5 10.5A5.5 5.5 0 0 0 12.8 12l1.2-2" />
+        <path d="M14 13.5V10h-3.5" />
+      </svg>
+      <span>Force <br>Sync</span>
+    </button>
+  `;
+}
+
 export function setMediaInfoContext(context = null) {
   state.activeMediaInfo = context && typeof context === "object" ? context : null;
 }

@@ -3,7 +3,7 @@ import { escapeHtml, escapeAttribute, slug, movieHref, showTitleFrom, showEpisod
 import { tmdbProfile, tmdbPoster, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260803";
-import { movieBySlugOrId, clearMediaDetailState, mediaDetailRoot, mediaDetailLoaderHtml } from "./media-detail.js?v=20260807";
+import { movieBySlugOrId, clearMediaDetailState, mediaDetailRoot, mediaDetailLoaderHtml } from "./media-detail.js?v=20260809";
 import { FILMOGRAPHY_PAGE_SIZE, resolvedTmdbCache } from "./explorer.js";
 
 let _cb = {};

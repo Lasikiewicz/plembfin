@@ -4,7 +4,7 @@ import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePoste
 import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260803";
 import { renderWatchDatePrompt } from "./watch-action.js";
-import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260808";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260809";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
@@ -259,6 +259,14 @@ function _renderWatchedMovieContent(root, movie, {
 
   setMediaDetailActions(`
     ${mediaInfoActionHtml()}
+    ${mediaForceSyncActionHtml({
+      type: "movie",
+      title: movieTitle,
+      tmdbId: tmdbData?.id || movie.tmdb_id || "",
+      tvdbId: movie.tvdb_id || "",
+      imdbId: tmdbData?.imdb_id || movie.imdb_id || "",
+      disabled: isSaving,
+    })}
     <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
       ${eyeSlashIcon}
       <span>Mark <br>Unwatched</span>
@@ -433,6 +441,13 @@ export function patchMovieWatchedState(movie) {
 
   setMediaDetailActions(`
     ${mediaInfoActionHtml()}
+    ${mediaForceSyncActionHtml({
+      type: "movie",
+      title: movie.title,
+      tmdbId: movie.tmdb_id || "",
+      tvdbId: movie.tvdb_id || "",
+      imdbId: movie.imdb_id || "",
+    })}
     <button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
       ${eyeSlashIcon}
       <span>Mark <br>Unwatched</span>
@@ -552,7 +567,11 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
     summary: { watchedCount: 0, totalCount: 1, progressPercent: 0 },
     records: [],
   });
-  setMediaDetailActions(mediaInfoActionHtml());
+  setMediaDetailActions(`${mediaInfoActionHtml()}${mediaForceSyncActionHtml({
+    type: "movie",
+    title: movieTitle,
+    tmdbId: tmdbData.id,
+  })}`);
 
   const buildUnwatchedHtml = (tvRecommendations = []) => `
     <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl)}');"></div>

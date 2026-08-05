@@ -34,8 +34,8 @@ import {
   renderMovieImmersiveModalContent,
   openHistoryDebugModal,
   openMediaInfoModal,
-} from "./media-detail.js?v=20260807";
-import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js";
+} from "./media-detail.js?v=20260809";
+import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=20260809";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};
@@ -70,6 +70,98 @@ async function refreshActiveShowAfterDateEdit(entry = null) {
   await refreshShowAfterManualWatch(showTitle);
   if (state.activeShowModalKey) {
     await renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+  }
+}
+
+function mediaForceSyncPayload(button) {
+  const payload = {
+    type: button.dataset.forceSyncType || "movie",
+    title: button.dataset.forceSyncTitle || "",
+    tmdb_id: button.dataset.forceSyncTmdbId || "",
+    tvdb_id: button.dataset.forceSyncTvdbId || "",
+    imdb_id: button.dataset.forceSyncImdbId || "",
+  };
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== ""));
+}
+
+function mergeForceSyncRecords(records = []) {
+  if (!Array.isArray(records) || !records.length) return;
+  const historyById = new Map((state.history || []).filter((row) => row?.id).map((row) => [String(row.id), row]));
+  for (const record of records) {
+    if (record?.id) historyById.set(String(record.id), record);
+  }
+  state.history = [...historyById.values()];
+}
+
+async function refreshMediaAfterForceSync(payload, body) {
+  const records = Array.isArray(body.records) ? body.records : [];
+  if (payload.type === "show") {
+    if (state.activeShowModalKey) {
+      await renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason, state.activeShowModalEpisode);
+    } else if (state.activeShowRenderContext?.show) {
+      renderShowModalContent(state.activeShowRenderContext.show, {
+        ...state.activeShowRenderContext,
+        activeSeasonNum: state.activeShowModalSeason,
+      });
+    }
+    return;
+  }
+
+  const movieRecord = records.find((record) => record?.media_type === "movie")
+    || state.history.find((record) => record?.media_type === "movie" && (
+      (payload.tmdb_id && String(record.tmdb_id || "") === String(payload.tmdb_id))
+      || (payload.title && String(record.title || "").trim().toLowerCase() === String(payload.title).trim().toLowerCase())
+    ));
+  const tmdbId = movieRecord?.tmdb_id || payload.tmdb_id || state.activeMovieTmdbId || "";
+  if (!movieRecord && !tmdbId) return;
+  if (state.activeMovieTmdbId && tmdbId && String(state.activeMovieTmdbId) !== String(tmdbId)) return;
+  const movie = await fetchWatchedMovieByTmdb(tmdbId, movieRecord?.title || payload.title);
+  if (movie) {
+    await renderMovieImmersiveModalContent(movie);
+  } else if (movieRecord) {
+    await renderMovieImmersiveModalContent(movieRecord);
+  }
+}
+
+async function triggerMediaForceSync(button) {
+  if (!button || button.disabled) return;
+  const payload = mediaForceSyncPayload(button);
+  const label = button.querySelector("span");
+  const originalLabel = label?.innerHTML || "Force <br>Sync";
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  if (label) label.textContent = "Syncing...";
+  setMessage(`Checking connected media servers for "${payload.title}"...`, "muted");
+
+  try {
+    const response = await fetch("/api/force-sync/media", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body.ok === false) throw new Error(body.error || `Force Sync failed with ${response.status}`);
+
+    clearDerivedUiCaches({ resetExplorer: false });
+    await loadHistory({ force: true });
+    mergeForceSyncRecords(body.records);
+    await refreshMediaAfterForceSync(payload, body);
+
+    const found = Number(body.found || 0);
+    const imported = Number(body.imported || 0);
+    if (found > 0) {
+      setMessage(`Force Sync found ${found} watched item${found === 1 ? "" : "s"}; added ${imported} to Plembfin.`, "success");
+    } else {
+      setMessage(`Force Sync found no watched items for "${payload.title}" on connected media servers.`, "info");
+    }
+  } catch (error) {
+    setMessage(`Force Sync failed: ${error.message}`, "error");
+  } finally {
+    if (button.isConnected) {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      if (label) label.innerHTML = originalLabel;
+    }
   }
 }
 
@@ -110,6 +202,13 @@ export function attachMediaDetailEvents() {
     const retryBtn = event.target.closest("[data-retry-sync-id]");
     if (retryBtn) {
       triggerRetrySync(retryBtn.dataset.retrySyncId, retryBtn).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
+    const forceSyncButton = event.target.closest("[data-media-force-sync]");
+    if (forceSyncButton) {
+      event.preventDefault();
+      triggerMediaForceSync(forceSyncButton);
       return;
     }
 

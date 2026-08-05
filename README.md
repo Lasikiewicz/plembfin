@@ -37,6 +37,7 @@
 | | |
 |---|---|
 | **Plembfin-canonical sync** | Plembfin's watched/unwatched state is pushed to every connected app that contains the media; platform drift is repaired automatically |
+| **Detail-page Force Sync** | From any movie or show page, explicitly import that title's watched state from connected media servers when Plembfin is missing it, then sync the result everywhere |
 | **New media arrives watched** | Add a film or show you have already seen and it is marked watched on that server as it appears - no re-watching prompts on a rebuilt library, no manual catch-up. Applies an existing watch only; it never invents one |
 | **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |
 | **Rewatch tracking** | Watching a movie or episode again logs a new watch instead of overwriting the old one; detail pages show a full watch history with the date and app for every play. The duplicate-cleanup tool only removes rows recording the same watch event, so rewatches are never collapsed |
@@ -111,7 +112,8 @@
 Force Sync can be previewed before writes, with scoped libraries/media types, typed
 additive or destructive actions, stale-plan protection, and verified pre-run watch-history
 snapshots. Server roles can be bidirectional, source-only, destination-only, or monitor-only.
-Plembfin history remains authoritative: remote-only watches are ignored, failed server
+Plembfin history remains authoritative: library-wide Force Sync ignores remote-only watches,
+while the explicit detail-page Force Sync can import the selected title only. Failed server
 scans fail closed instead of looking like empty libraries, and Force Sync cannot overlap
 Full Sync Watchstates or a backup restore. A stopped queued job is terminal and cannot be
 resurrected by stale-worker recovery; inbound callbacks are suppressed during authoritative

@@ -29,6 +29,7 @@ import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyf
 import { getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
+import { forceSyncMediaState } from "../utils/mediaForceSync.js";
 import { provenanceTelemetryLines } from "../utils/watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "../utils/watchAudit.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
@@ -716,6 +717,28 @@ export async function handleSyncHistory(req, res) {
   if (!(await requireAdmin(req, res))) return;
   const history = await getSyncHistory(req.query.limit || 100);
   return sendJson(res, { history }, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
+}
+
+// Explicit detail-page repair. This is intentionally separate from the
+// library-wide /api/force-sync route: the latter is a canonical replay and
+// must continue to ignore server-only watches, while this user-requested
+// title-scoped action is allowed to import watched state for the selected item.
+export async function handleMediaForceSync(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  try {
+    const body = await readJson(req);
+    const result = await forceSyncMediaState(body, {
+      config: await loadMediaConfig(),
+      logger: (message) => console.log(message),
+    });
+    return sendJson(res, result, 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    console.error("Detail-page Force Sync failed", error);
+    return sendJson(res, { ok: false, error: error.message || "Detail-page Force Sync failed" }, 400);
+  }
 }
 
 export async function handleManualUnwatch(req, res) {
