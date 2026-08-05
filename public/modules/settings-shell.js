@@ -65,21 +65,15 @@ const SECTIONS = {
   },
   "sync-tools": {
     label: "Sync Tools",
-    description: "Repair recent items, full sync watchstates, and force full sync",
+    description: "Repair recent items and force sync",
     panel: "sync",
     subPanels: ["sync-tools"],
     subSections: [
       { id: "sync-tools-repair", label: "Repair Recent Items", description: "Check recent watched items for missing records" },
-      { id: "full-sync-watchstates", label: "Full Sync Watchstates", description: "Push your entire watched archive back to media server lists" },
-      { id: "sync-tools-force", label: "Force Full Sync", description: "Full Sync, Push To, and Pull From for the full library" },
+      { id: "sync-tools-force", label: "Full Sync", description: "Pull watched state from connected servers and push it to eligible destinations" },
+      { id: "sync-tools-push", label: "Push To", description: "Send watched status and resume positions to one server or all connected servers" },
+      { id: "sync-tools-pull", label: "Pull From", description: "Import watched status from one server or all connected servers" },
     ],
-    isDisplayOnly: true,
-  },
-  "full-sync-watchstates": {
-    label: "Full Sync Watchstates",
-    description: "Push your entire watched archive back to media server lists",
-    panel: "sync",
-    subPanels: ["sync-tools"],
     isDisplayOnly: true,
   },
   seerr: {

@@ -267,7 +267,8 @@ function forceSyncConfirmation(mode, session, elements) {
     return `This will pull watched state from all connected servers, reconcile ${title} in Plembfin, and push the resulting state to every eligible destination. Continue?`;
   }
   if (mode === "push") {
-    return `This will push Plembfin's canonical watched state for ${title} to ${mediaForceSyncServerLabel(elements.pushTarget?.value || "all")}. Continue?`;
+    const progress = session.payload.type === "library" ? " and saved resume positions" : "";
+    return `This will push Plembfin's canonical watched state${progress} for ${title} to ${mediaForceSyncServerLabel(elements.pushTarget?.value || "all")}. Continue?`;
   }
   return `This will pull watched state for ${title} from ${mediaForceSyncServerLabel(elements.pullSource?.value || "all")} into Plembfin. It will not send changes to media servers. Continue?`;
 }
@@ -364,7 +365,10 @@ async function finishMediaForceSyncOperation(payload, activity, error = "") {
   if (payload.mode === "pull") {
     setMessage(`Pull completed: found ${Number(result.found || 0)} watched item${Number(result.found || 0) === 1 ? "" : "s"}; added ${Number(result.imported || 0)} to Plembfin.`, "success");
   } else if (payload.mode === "push") {
-    setMessage(`Push completed to ${mediaForceSyncServerLabel(payload.push_to || "all")}: ${Number(result.synced || 0)} item${Number(result.synced || 0) === 1 ? "" : "s"} processed.`, "success");
+    const progressMessage = payload.type === "library" && Number(result.progressSynced || 0) > 0
+      ? ` ${Number(result.progressSynced)} resume position${Number(result.progressSynced) === 1 ? "" : "s"} also sent.`
+      : "";
+    setMessage(`Push completed to ${mediaForceSyncServerLabel(payload.push_to || "all")}: ${Number(result.synced || 0)} item${Number(result.synced || 0) === 1 ? "" : "s"} processed.${progressMessage}`, "success");
   } else {
     setMessage(`Full Sync completed: found ${Number(result.found || 0)} watched item${Number(result.found || 0) === 1 ? "" : "s"}; added ${Number(result.imported || 0)} to Plembfin.`, "success");
   }

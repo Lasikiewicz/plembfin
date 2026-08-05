@@ -45,7 +45,7 @@
     <link rel="modulepreload" href="/modules/media-lightbox.js" />
     <link rel="modulepreload" href="/modules/media-detail-events.js?v=20260812" />
     <link rel="modulepreload" href="/modules/app-events.js?v=20260812" />
-    <link rel="stylesheet" href="/styles.css?v=20260812" />
+    <link rel="stylesheet" href="/styles.css?v=20260813" />
   </head>
   <body>
     <div class="app-chassis">
@@ -630,8 +630,8 @@
                       </div>
 
                       <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-                        <details id="webhook-listener-endpoint" class="sync-tool-details">
-                          <summary class="accordion-header">
+                        <details id="webhook-listener-endpoint" class="sync-tool-details settings-static-details" open>
+                          <summary class="accordion-header" tabindex="-1">
                             <div class="sync-tool-summary-title">
                               <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
                               <b>Webhook Listener Endpoint</b>
@@ -656,8 +656,8 @@
                           </div>
                         </details>
 
-                        <details id="background-scheduler-endpoint" class="sync-tool-details">
-                          <summary class="accordion-header">
+                        <details id="background-scheduler-endpoint" class="sync-tool-details settings-static-details" open>
+                          <summary class="accordion-header" tabindex="-1">
                             <div class="sync-tool-summary-title">
                               <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
                               <b>Background Scheduler Endpoint</b>
@@ -762,8 +762,8 @@
 
                       <div id="refreshMetadataContent" style="display: flex; flex-direction: column; gap: var(--space-3);">
                         <!-- Inner Box 1: TMDB -->
-                        <details id="refresh-tmdb-metadata" class="sync-tool-details">
-                          <summary class="accordion-header">
+                        <details id="refresh-tmdb-metadata" class="sync-tool-details settings-static-details" open>
+                          <summary class="accordion-header" tabindex="-1">
                             <div class="sync-tool-summary-title">
                               <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
                               <b>Refresh All TMDB Metadata</b>
@@ -780,8 +780,8 @@
                         </details>
 
                         <!-- Inner Box 2: TVDB -->
-                        <details id="refresh-tvdb-metadata" class="sync-tool-details">
-                          <summary class="accordion-header">
+                        <details id="refresh-tvdb-metadata" class="sync-tool-details settings-static-details" open>
+                          <summary class="accordion-header" tabindex="-1">
                             <div class="sync-tool-summary-title">
                               <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
                               <b>Refresh All TVDB Metadata</b>
@@ -1104,8 +1104,8 @@
                       <div style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
                         <!-- Nested Section Box 1: Local Backups -->
                         <div id="backup-settings-local" style="display: flex; flex-direction: column; gap: var(--space-3);">
-                          <details class="sync-tool-details">
-                            <summary class="accordion-header">
+                          <details class="sync-tool-details settings-static-details" open>
+                            <summary class="accordion-header" tabindex="-1">
                               <div class="sync-tool-summary-title">
                                 <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
                                 <b>Local Watch History Backups</b>
@@ -1142,8 +1142,8 @@
                             </div>
                           </details>
 
-                          <details class="sync-tool-details">
-                            <summary class="accordion-header">
+                          <details class="sync-tool-details settings-static-details" open>
+                            <summary class="accordion-header" tabindex="-1">
                               <div class="sync-tool-summary-title">
                                 <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
                                 <b>Local Plembfin Backups</b>
@@ -1210,8 +1210,8 @@
                             </div>
                           </details>
 
-                          <details class="sync-tool-details">
-                            <summary class="accordion-header">
+                          <details class="sync-tool-details settings-static-details" open>
+                            <summary class="accordion-header" tabindex="-1">
                               <div class="sync-tool-summary-title">
                                 <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
                                 <b>Remote Watch History Backups</b>
@@ -1248,8 +1248,8 @@
                             </div>
                           </details>
 
-                          <details class="sync-tool-details">
-                            <summary class="accordion-header">
+                          <details class="sync-tool-details settings-static-details" open>
+                            <summary class="accordion-header" tabindex="-1">
                               <div class="sync-tool-summary-title">
                                 <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
                                 <b>Remote Plembfin Backups</b>
@@ -1517,70 +1517,21 @@
                         <div class="sync-heading-title">
                           <p style="margin: 0;">Sync Tools</p>
                         </div>
-                          <span>Sync actions</span>
+                          <span>Repair recent items, then pull, combine, and push watched status across your connected servers</span>
                       </div>
 
-                      <div id="syncToolsContent" style="display: flex; flex-direction: column; gap: var(--space-3);">
-                        <!-- Inner Box 1: Repair Recent Items -->
-                        <details id="sync-tools-repair" class="sync-tool-details">
-                          <summary class="accordion-header">
-                            <div class="sync-tool-summary-title">
-                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
-                              <b>Repair Recent Items</b>
-                            </div>
-                            <span>Check recent watched and part-watched items on each server</span>
-                          </summary>
-                          <div class="tool-item-row">
-                            <div class="settings-actions" style="margin-top: var(--space-2);">
-                              <button id="runCronSyncButton" class="button-primary sync-action-btn" type="button" title="Check recent watched and part-watched items for missing Plembfin records">Repair Recent Items</button>
-                            </div>
-                          </div>
-                        </details>
+                      <div id="syncToolsContent" class="media-force-sync-options sync-tools-content">
+                        <!-- Sync Tool: Repair Recent Items -->
+                        <div id="sync-tools-repair" class="media-force-sync-choice">
+                          <span class="media-force-sync-choice-copy">
+                            <strong>Repair Recent Items</strong>
+                            <small>Scans recent watch activity and active sessions across Plex, Emby, and Jellyfin.<br>Checks for missing recent records without scanning the full libraries.<br><span class="sync-tools-when-to-use"><strong>When to use:</strong> Run this when a recent watch was not picked up automatically.</span></small>
+                          </span>
+                          <button id="runCronSyncButton" class="button-primary sync-action-btn sync-tool-button" type="button" title="Check recent watched and part-watched items for missing Plembfin records">Repair Recent Items</button>
+                        </div>
 
-                        <!-- Inner Box 2: Full Sync Watchstates -->
-                        <details id="full-sync-watchstates" class="sync-tool-details">
-                          <summary class="accordion-header">
-                            <div class="sync-tool-summary-title">
-                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
-                              <b>Full Sync Watchstates</b>
-                              <span id="fullSyncStatus" class="status-pill status-muted">Idle</span>
-                            </div>
-                            <span>Push your entire watched archive back to media server lists</span>
-                          </summary>
-                          <div class="tool-item-row">
-                            <div id="fullSyncProgress" class="sync-progress full-sync-progress hidden" role="group" aria-label="Full sync watchstate progress">
-                              <div class="sync-progress-summary">
-                                <strong id="fullSyncProgressLabel" aria-live="polite">Preparing restore</strong>
-                                <span id="fullSyncProgressMeta">0% · Calculating archive size</span>
-                              </div>
-                              <div id="fullSyncProgressTrack" class="sync-progress-track" role="progressbar" aria-label="Full sync watchstate progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                                <span id="fullSyncProgressFill" class="sync-progress-fill"></span>
-                              </div>
-                              <div class="full-sync-progress-details" aria-live="polite">
-                                <span id="fullSyncProgressCount">0 rows processed</span>
-                                <span id="fullSyncProgressRate">Rate —</span>
-                                <span id="fullSyncProgressEta">ETA —</span>
-                              </div>
-                            </div>
-                            <pre id="fullSyncLog" class="import-terminal compact-terminal hidden" aria-live="polite" style="margin-top: var(--space-2);">[idle] Waiting for restore request.</pre>
-                            <div class="settings-actions" style="margin-top: var(--space-2);">
-                              <button id="fullSyncButton" class="button-ghost" type="button">Full Sync Watchstates</button>
-                              <button id="cancelFullSyncButton" class="button-danger hidden" type="button" title="Stop sending new restore batches">Stop Restore</button>
-                              <button id="resetFullSyncButton" class="button-danger" type="button" title="Clear a Full Sync Watchstates lock left by a stopped or restarted server">Reset Restore Lock</button>
-                            </div>
-                          </div>
-                        </details>
-
-                        <!-- Inner Box 3: Force Full Sync -->
-                        <details id="sync-tools-force" class="sync-tool-details">
-                          <summary class="accordion-header">
-                            <div class="sync-tool-summary-title">
-                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
-                              <b>Force Full Sync</b>
-                            </div>
-                            <span>Pull watched state from connected servers, then choose how to replay the full library</span>
-                          </summary>
-                          <div class="tool-item-row">
+                        <!-- Force Sync actions -->
+                        <div id="settingsForceSyncPanel" class="settings-force-sync-panel" aria-label="Force Sync options">
                             <div id="forceSyncPreviewPanel" class="sync-preview-panel hidden" aria-live="polite"></div>
                             <div class="activity-log hidden" style="margin-top: var(--space-3);">
                               <div class="activity-log-header">
@@ -1606,25 +1557,23 @@
                               </div>
                               <pre id="forceSyncTerminal" class="import-terminal compact-terminal hidden" aria-live="polite">[idle] Waiting for force sync.</pre>
                             </div>
-                            <div class="settings-actions" style="margin-top: var(--space-3);">
+                            <div class="settings-actions hidden" style="margin-top: var(--space-3);">
                               <button id="previewForceSyncButton" class="button-ghost sync-action-btn hidden" type="button" title="Inspect planned Force Sync changes before writing">Preview Force Sync</button>
-                              <button id="stopSyncButton" class="button-danger hidden" type="button" title="Cancel a running force sync or clear a sync lock left behind by a server restart">Stop / Reset Sync</button>
+                              <button id="stopSyncButton" class="button-danger sync-tools-cancel-button hidden" type="button" title="Cancel a running force sync or clear a sync lock left behind by a server restart">Stop / Reset Sync</button>
                               <button id="forceSyncButton" class="button-primary sync-action-btn hidden" type="button" title="Open Full Sync, Push To, and Pull From options">Force Sync Options</button>
                             </div>
-                            <div id="settingsForceSyncPanel" class="media-force-sync-body settings-force-sync-panel" aria-label="Force Sync options">
-                              <div class="media-force-sync-options">
-                                <div class="media-force-sync-choice">
+                            <div id="sync-tools-force" class="media-force-sync-choice">
                                   <span class="media-force-sync-choice-copy">
                                     <strong>Full Sync</strong>
-                                    <small>Pull watched state from connected servers, reconcile Plembfin, then push the full library to every eligible destination.</small>
+                                    <small>Collects watched status from every connected Plex, Emby, and Jellyfin server.<br>Combines the results in Plembfin, then sends the final status to every eligible destination.<br><span class="sync-tools-when-to-use"><strong>When to use:</strong> Run this after repairing a library or when every connected app needs the same watched status.</span></small>
                                   </span>
-                                  <button class="button-primary media-force-sync-run" type="button" data-library-force-sync-run="full" aria-label="Run Full Sync">Run</button>
+                                  <button class="button-primary media-force-sync-run sync-tool-button" type="button" data-library-force-sync-run="full" aria-label="Run Full Sync">Run</button>
                                 </div>
 
-                                <div class="media-force-sync-target-row">
-                                  <div class="media-force-sync-target-copy">
-                                    <label for="settingsForceSyncPushTarget">Push To</label>
-                                    <small>Send Plembfin’s canonical state to one destination or all of them.</small>
+          <div id="sync-tools-push" class="media-force-sync-target-row">
+            <div class="media-force-sync-target-copy">
+              <label for="settingsForceSyncPushTarget">Push To</label>
+                                    <small>Sends Plembfin's watched status and saved resume positions to the selected server or all connected servers.<br><span class="sync-tools-when-to-use"><strong>When to use:</strong> Use this when Plembfin has the correct state and you need to send it to other servers.</span></small>
                                   </div>
                                   <select id="settingsForceSyncPushTarget" class="field media-force-sync-select">
                                     <option value="plex">Plex</option>
@@ -1632,13 +1581,13 @@
                                     <option value="jellyfin">Jellyfin</option>
                                     <option value="all">All connected servers</option>
                                   </select>
-                                  <button class="button-primary" type="button" data-library-force-sync-run="push">Push state</button>
+                                  <button class="button-primary sync-tool-button" type="button" data-library-force-sync-run="push">Push state</button>
                                 </div>
 
-                                <div class="media-force-sync-target-row">
-                                  <div class="media-force-sync-target-copy">
-                                    <label for="settingsForceSyncPullSource">Pull From</label>
-                                    <small>Import watched state from one server or all connected servers into Plembfin.</small>
+          <div id="sync-tools-pull" class="media-force-sync-target-row">
+            <div class="media-force-sync-target-copy">
+              <label for="settingsForceSyncPullSource">Pull From</label>
+                                    <small>Imports watched status from the selected server or all connected servers into Plembfin.<br>Does not send changes to the other servers.<br><span class="sync-tools-when-to-use"><strong>When to use:</strong> Use this when you need to import watched status from a server without updating the others.</span></small>
                                   </div>
                                   <select id="settingsForceSyncPullSource" class="field media-force-sync-select">
                                     <option value="plex">Plex</option>
@@ -1646,9 +1595,8 @@
                                     <option value="jellyfin">Jellyfin</option>
                                     <option value="all">All connected servers</option>
                                   </select>
-                                  <button class="button-ghost" type="button" data-library-force-sync-run="pull">Pull state</button>
+                                  <button class="button-primary sync-tool-button" type="button" data-library-force-sync-run="pull">Pull state</button>
                                 </div>
-                              </div>
 
                               <div id="settingsForceSyncActivity" class="activity-log media-force-sync-activity hidden">
                                 <div class="activity-log-header">
@@ -1661,7 +1609,7 @@
                                   </div>
                                   <div class="media-force-sync-activity-actions">
                                     <span id="settingsForceSyncActivityState" class="activity-log-state">Ready</span>
-                                    <button id="settingsForceSyncCancelButton" class="button-danger media-force-sync-cancel hidden" type="button" data-force-sync-cancel>Cancel operation</button>
+                                    <button id="settingsForceSyncCancelButton" class="button-danger sync-tools-cancel-button media-force-sync-cancel hidden" type="button" data-force-sync-cancel>Cancel operation</button>
                                   </div>
                                 </div>
                                 <div id="settingsForceSyncProgress" class="sync-progress hidden" role="group" aria-label="Library Force Sync progress">
@@ -1676,9 +1624,6 @@
                                 <pre id="settingsForceSyncTerminal" class="import-terminal compact-terminal" aria-live="polite"></pre>
                               </div>
                             </div>
-                            <p class="muted-copy" style="margin: var(--space-2) 0 0;">Full Sync pulls watched state from all connected servers, reconciles the union in Plembfin, and pushes it back out. Push To and Pull From run only the selected direction.</p>
-                          </div>
-                        </details>
                       </div>
                     </article>
                   </div>
@@ -1692,27 +1637,17 @@
 
                       <div style="margin-bottom: var(--space-1);">
                         <b style="display: block; margin-bottom: 2px;">Repair Recent Items</b>
-                        <p style="margin: 0; line-height: 1.4;">Performs a rapid incremental scan of recent watch activity and active sessions across Plex, Emby, and Jellyfin.<br><b>When to use:</b> If a recent watch wasn't automatically picked up, run this for a quick fix without waiting or scanning full libraries.</p>
+                        <p style="margin: 0; line-height: 1.4;">Performs a rapid incremental scan of recent watch activity and active sessions across Plex, Emby, and Jellyfin.</p>
                       </div>
 
                       <div style="margin-bottom: var(--space-1);">
-                        <b style="display: block; margin-bottom: 2px;">Full Sync Watchstates</b>
-                        <p style="margin: 0; line-height: 1.4;">Scans the complete recorded Plembfin watch archive and pushes all historical watched events back into configured Plex, Emby, and Jellyfin watchlists. The progress panel shows rows processed, live rate, and an ETA; inbound app callbacks are ignored as restore echoes while the run is active.<br><b>When to use:</b> Essential after connecting a new server, rebuilding a library, or restoring watch history from a backup. Avoid watching media until it finishes.</p>
-                      </div>
-
-                      <div style="margin-bottom: var(--space-1);">
-                        <b style="display: block; margin-bottom: 2px;">Reset Restore Lock</b>
-                        <p style="margin: 0; line-height: 1.4;">Stops a Full Sync Watchstates run that cannot continue because its browser or server restarted. Use only when no other Full Sync restore should remain active; the action asks for confirmation.</p>
-                      </div>
-
-                      <div style="margin-bottom: var(--space-1);">
-                        <b style="display: block; margin-bottom: 2px;">Force Full Sync</b>
-                        <p style="margin: 0; line-height: 1.4;">The Force Full Sync box contains the shared Full Sync, Push To, and Pull From controls with live terminal output. Full Sync pulls watched state from connected Plex, Emby, and Jellyfin servers into Plembfin, then replays the union to every eligible destination. Push To sends Plembfin's canonical watched state to one destination or all of them; Pull From imports from one server or all servers without outbound writes.<br><b>When to use:</b> Run it after repairing a library or when the same watched state needs to be reconciled across every app.</p>
+                        <b style="display: block; margin-bottom: 2px;">Full Sync</b>
+                        <p style="margin: 0; line-height: 1.4;">Collects watched status from connected Plex, Emby, and Jellyfin servers, combines it in Plembfin, and sends the result to every eligible destination.<br>Push To sends Plembfin's watched status and saved resume positions to the selected server or all servers.<br>Pull From imports watched status from the selected server or all servers into Plembfin.</p>
                       </div>
 
                       <div>
                         <b style="display: block; margin-bottom: 2px;">Stop / Reset Sync</b>
-                        <p style="margin: 0; line-height: 1.4;">Cancels an in-progress Force Full Sync background job, marks queued cancellations terminal, or clears an orphaned operation lock if the server restarted mid-sync.</p>
+                        <p style="margin: 0; line-height: 1.4;">Cancels an in-progress Force Sync background job, marks queued cancellations terminal, or clears an orphaned operation lock if the server restarted mid-sync.</p>
                       </div>
                     </article>
                   </div>
@@ -1722,11 +1657,14 @@
                 <div class="settings-row hidden" data-sub-panel="sync-issues">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section sync-panel">
-                      <div class="section-heading sync-heading" style="display: flex !important; justify-content: space-between !important; align-items: center !important; flex-direction: row !important; width: 100%;">
-                        <div style="display: flex; align-items: center; gap: var(--space-2);">
-                          <p style="margin: 0;">Sync Issues</p>
-                          <span id="syncSummary" class="status-pill status-muted">Loading...</span>
+                      <div class="section-heading sync-heading sync-static-heading">
+                        <div>
+                          <div class="sync-heading-title">
+                            <p style="margin: 0;">Sync Issues</p>
+                            <span id="syncSummary" class="status-pill status-muted">Loading...</span>
+                          </div>
                         </div>
+                        <span>Review unresolved watched-state and cross-platform match issues.</span>
                       </div>
                       <div id="syncIssuesContent" style="margin-top: var(--space-3);">
                         <div id="syncIssuesContainer" aria-live="polite"></div>
@@ -1836,7 +1774,7 @@
                           When you mark something as watched (on any platform), Plembfin automatically propagates that state to your other configured servers every 60 seconds.
                         </p>
                         <p style="margin: 0; line-height: 1.4;">
-                          Resume positions sync similarly. Use the controls in the Force Full Sync box when you need a library-wide Full Sync, Push To, or Pull From operation with live terminal output.
+                          Resume positions sync similarly. Use the controls in the Force Sync box when you need a library-wide Full Sync, Push To, or Pull From operation with live terminal output.
                         </p>
                       </div>
                     </article>
@@ -1848,7 +1786,7 @@
                 <div class="settings-row">
                   <div class="settings-row-main">
                     <section class="glass-panel p-section logs-panel">
-                      <div class="section-heading">
+                      <div class="section-heading sync-static-heading">
                         <div>
                           <p>Server Logs</p>
                           <span>Terminal output from local server and background worker processes</span>

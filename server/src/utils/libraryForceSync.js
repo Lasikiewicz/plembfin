@@ -9,13 +9,16 @@ import {
   collectServerWatchedItems,
   configuredSyncServers,
 } from "./forceSyncPlanner.js";
-import { syncCanonicalPlaystate } from "./syncOrchestrator.js";
+import { syncCanonicalPlaystate, syncMediaProgress } from "./syncOrchestrator.js";
 import {
   countWatchedPlaystateRows,
   findWatchedByAnyMediaKey,
   insertWatchRecord,
   invalidateHistoryDerivedCaches,
+  listPlaybackProgressRowsForReplay,
   listWatchedPlaystateRowsForReplay,
+  progressRowToMedia,
+  updatePlaybackProgressTelemetry,
   updateWatchTelemetry,
   upsertPlaystateForMedia,
   watchRowToMedia,
@@ -120,6 +123,21 @@ async function listCanonicalWatchedItems(logger = () => {}, isCancelled = () => 
   return items;
 }
 
+async function listCanonicalProgressItems(logger = () => {}, isCancelled = () => false) {
+  const items = [];
+  let offset = 0;
+  while (!isCancelled()) {
+    const rows = await listPlaybackProgressRowsForReplay({ limit: CANONICAL_PAGE_SIZE, offset });
+    items.push(...rows
+      .map((row) => progressRowToMedia(row, "manual"))
+      .filter((item) => item.isValid && ["movie", "episode"].includes(item.type)));
+    if (rows.length < CANONICAL_PAGE_SIZE) break;
+    offset += rows.length;
+  }
+  logger(`Plembfin: loaded ${items.length} canonical resume position${items.length === 1 ? "" : "s"}.`);
+  return items;
+}
+
 function sourcePriority(sources = []) {
   return MEDIA_SERVERS.find((source) => sources.includes(source)) || "manual";
 }
@@ -202,8 +220,10 @@ async function collectLibraryItems(config, requested, now, logger, isCancelled =
 
 async function collectPushItems(logger, now, isCancelled = () => false) {
   const canonicalItems = await listCanonicalWatchedItems(logger, isCancelled);
+  const progressItems = await listCanonicalProgressItems(logger, isCancelled);
   return {
     items: canonicalItems.map((item) => plannerMediaToSyncMedia(item, now, "manual")),
+    progressItems,
     sourceResults: [{ source: "plembfin", status: canonicalItems.length ? "success" : "not_watched", watchedCount: canonicalItems.length }],
     scanErrors: [],
   };
@@ -235,6 +255,23 @@ function completedTelemetry(media, summary, requested) {
   return lines.join("\n");
 }
 
+function completedProgressTelemetry(media, summary, requested) {
+  const positionMs = Number(media.positionMs ?? media.offsetMs ?? 0);
+  const lines = [
+    `Origin: ${media.source || "manual"}`,
+    `Action: ${modeLabel(requested.mode)}`,
+    `Media: ${media.title || "unknown"}`,
+    `Resume position: ${Math.round(positionMs / 1000)}s`,
+    `Progress: ${Number(media.progress || 0).toFixed(1)}%`,
+    `Dispatch status: ${summary.status || "unknown"}`,
+    `Details: ${summary.details || "No details"}`,
+  ];
+  for (const state of summary.targetStates || []) {
+    lines.push(`${String(state.target || "Target").replace(/^./, (char) => char.toUpperCase())} progress status: ${state.status}${state.detail ? ` - ${state.detail}` : ""}`);
+  }
+  return lines.join("\n");
+}
+
 async function appendLibraryForceSyncHistory(media, summary, requested) {
   await appendSyncHistory({
     mediaType: media.type,
@@ -250,6 +287,29 @@ async function appendLibraryForceSyncHistory(media, summary, requested) {
       mode: requested.mode,
       target: requested.target || "all",
       pullFrom: requested.source || "all",
+      season: media.season ?? null,
+      episode: media.episode ?? null,
+    },
+  }).catch(() => null);
+}
+
+async function appendLibraryForceSyncProgressHistory(media, summary, requested) {
+  await appendSyncHistory({
+    mediaType: media.type,
+    title: media.title,
+    source: media.source,
+    status: summary.status || "unknown",
+    details: `Settings ${modeLabel(requested.mode)} resume progress: ${summary.details || "completed"}`,
+    action: "progress",
+    targetStates: summary.targetStates || [],
+    rawPayloadDebug: {
+      event: "library_force_sync",
+      phase: "progress",
+      mode: requested.mode,
+      target: requested.target || "all",
+      positionMs: media.positionMs ?? media.offsetMs ?? null,
+      durationMs: media.durationMs ?? null,
+      progress: media.progress ?? null,
       season: media.season ?? null,
       episode: media.episode ?? null,
     },
@@ -293,6 +353,17 @@ async function syncOneLibraryItem(media, requested, config, loopStore, logger) {
     logger(`[${requested.mode}] ${media.title}: ${target.target || "target"} -> ${target.status}${target.detail ? ` (${target.detail})` : ""}.`);
   }
   return { record, inserted, summary };
+}
+
+async function syncOneLibraryProgressItem(media, requested, config, loopStore, logger) {
+  const syncMedia = requested.target ? { ...media, syncTargets: [requested.target] } : media;
+  const positionMs = Number(media.positionMs ?? media.offsetMs ?? 0);
+  logger(`[${requested.mode}] ${media.title}: sending resume position ${Math.round(positionMs / 1000)}s to ${requested.target || "all connected servers"}.`);
+  const summary = await syncMediaProgress(syncMedia, config, loopStore);
+  for (const target of summary.targetStates || []) {
+    logger(`[${requested.mode}] ${media.title}: ${target.target || "target"} resume -> ${target.status}${target.detail ? ` (${target.detail})` : ""}.`);
+  }
+  return summary;
 }
 
 export async function forceSyncLibraryState(input, { config = null, now = Date.now(), logger = () => {}, isCancelled = () => false } = {}) {
@@ -350,6 +421,49 @@ export async function forceSyncLibraryState(input, { config = null, now = Date.n
     }
   }
 
+  if (requested.mode === "push" && !cancelled) {
+    for (const media of collection.progressItems || []) {
+      if (isCancelled()) {
+        cancelled = true;
+        logger(`[${requested.mode}] Cancellation acknowledged; stopping before remaining resume positions.`);
+        break;
+      }
+      try {
+        const summary = await syncOneLibraryProgressItem(media, requested, resolvedConfig, loopStore, logger);
+        await updatePlaybackProgressTelemetry(media, completedProgressTelemetry(media, summary, requested));
+        await appendLibraryForceSyncProgressHistory(media, summary, requested);
+        results.push({
+          title: media.title,
+          type: media.type,
+          season: media.season,
+          episode: media.episode,
+          source: media.source,
+          id: media.media_key || "",
+          action: "progress",
+          positionMs: media.positionMs ?? media.offsetMs ?? 0,
+          durationMs: media.durationMs ?? null,
+          progress: media.progress ?? 0,
+          status: summary.status || "unknown",
+          targetStates: summary.targetStates || [],
+        });
+      } catch (error) {
+        const message = error.message || String(error);
+        logger(`[${requested.mode}] ${media.title}: RESUME ERROR — ${message}`);
+        results.push({
+          title: media.title,
+          type: media.type,
+          season: media.season,
+          episode: media.episode,
+          source: media.source,
+          action: "progress",
+          status: "error",
+          targetStates: [],
+          error: message,
+        });
+      }
+    }
+  }
+
   cancelled = cancelled || Boolean(isCancelled());
   await invalidateHistoryDerivedCaches().catch(() => null);
   logger(cancelled
@@ -363,10 +477,13 @@ export async function forceSyncLibraryState(input, { config = null, now = Date.n
     target: requested.target || "all",
     pullFrom: requested.source || "all",
     found: collection.items.length,
+    progressFound: collection.progressItems?.length || 0,
+    processed: results.length,
     imported: results.filter((result) => result.inserted).length,
     existing: results.filter((result) => !result.inserted).length,
     pulled: results.filter((result) => result.status === "pulled").length,
     synced: requested.mode === "pull" ? 0 : results.filter((result) => ["success", "partial", "skipped"].includes(result.status)).length,
+    progressSynced: results.filter((result) => result.action === "progress" && ["success", "partial", "skipped"].includes(result.status)).length,
     errors: results.filter((result) => result.status === "error").length,
     sourceResults: collection.sourceResults,
     scanErrors: collection.scanErrors,

@@ -518,7 +518,7 @@ export async function syncMediaProgress(media, config, kv) {
   if (!["manual", "force_sync", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "progress")) {
     return { skipped: true, status: "skipped", details: "Source is not allowed to send progress", targetStates: [], results: [] };
   }
-  const targets = getTargetsForSource(media.source, config, "progress");
+  const targets = targetsForMedia(media, config, "progress");
   if (checkAndClaimLoop(media, media.source, targets, kv, "progress_loop")) {
     console.log("Sync progress skipped: echo loop detected", { source: media.source, title: media.title });
     return {

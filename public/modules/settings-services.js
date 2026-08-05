@@ -221,7 +221,7 @@ export function renderSyncTuningCard() {
   const form = document.querySelector("#syncTuningForm");
   if (!fieldsContainer || !form) return;
   const tuning = state.savedConfig?.tuning || {};
-  fieldsContainer.innerHTML = syncTuningFieldSpecs(tuning).map((field) => renderFieldRow(field, { asAccordion: true })).join("");
+  fieldsContainer.innerHTML = syncTuningFieldSpecs(tuning).map((field) => renderFieldRow(field)).join("");
 
   if (form.dataset.bound) return;
   form.dataset.bound = "true";

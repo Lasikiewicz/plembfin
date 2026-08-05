@@ -573,8 +573,8 @@ export function renderSyncJobs() {
 
   if (!hasIssues) {
     container.innerHTML = `
-      <details id="sync-issues-status" class="sync-tool-details">
-        <summary class="accordion-header">
+      <details id="sync-issues-status" class="sync-tool-details settings-static-details" open>
+        <summary class="accordion-header" tabindex="-1">
           <div class="sync-tool-summary-title">
             <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
             <b>No sync issues</b>

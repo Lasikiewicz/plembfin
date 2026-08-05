@@ -50,7 +50,7 @@ export function renderFieldRow(field, options = {}) {
 
   if (field.type === "checkbox") {
     return `
-      <label class="settings-modal-field settings-modal-field--checkbox" data-field-key="${escapeAttribute(field.key)}">
+      <label id="${escapeAttribute(field.id || `sync-field-${field.key}`)}" class="settings-modal-field settings-modal-field--checkbox" data-field-key="${escapeAttribute(field.key)}">
         <span class="settings-modal-field-label">
           <span class="settings-modal-field-title">${escapeHtml(field.label)}</span>
           ${help}
@@ -62,7 +62,7 @@ export function renderFieldRow(field, options = {}) {
     `;
   }
   return `
-    <label class="settings-modal-field" data-field-key="${escapeAttribute(field.key)}">
+    <label id="${escapeAttribute(field.id || `sync-field-${field.key}`)}" class="settings-modal-field" data-field-key="${escapeAttribute(field.key)}">
       <span class="settings-modal-field-label">
         <span class="settings-modal-field-title">${escapeHtml(field.label)}${optionalTag}</span>
         ${help}

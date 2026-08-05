@@ -4321,6 +4321,121 @@ details.sync-tool-details {
   overflow: hidden !important;
 }
 
+.settings-force-sync-panel {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.settings-pane .sync-tools-content .settings-actions.hidden {
+  display: none !important;
+}
+
+/* Default settings main-card shell: the Sync Tools layout is the canonical
+   structure for every settings page's primary content panel. */
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel) {
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow: hidden;
+  border-color: var(--line-strong);
+  background: var(--panel-2);
+}
+
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel) > .section-heading {
+  margin: 0 !important;
+  padding: var(--space-3) !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel) > :not(.section-heading) {
+  margin-top: 0 !important;
+  padding: var(--space-3) !important;
+}
+
+.settings-pane .sync-tools-content {
+  gap: var(--space-2) !important;
+}
+
+/* Keep the outer Repair Recent Items row aligned with the standard spacing
+   already used between the individual Force Sync rows. */
+.settings-pane #syncToolsContent {
+  row-gap: var(--space-2) !important;
+}
+
+/* A hidden action row must not leave an empty grid track between boxes. */
+.settings-pane #settingsForceSyncPanel > .settings-actions.hidden {
+  display: none !important;
+}
+
+.settings-pane .sync-tools-content .sync-tool-button,
+.settings-pane .sync-tools-content .sync-tools-cancel-button {
+  font-size: 0.78rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+}
+
+.settings-pane .sync-tools-content .sync-tools-cancel-button {
+  border-color: color-mix(in oklch, var(--red) 55%, var(--line-strong)) !important;
+  background: color-mix(in oklch, var(--red) 14%, var(--panel-2)) !important;
+  color: var(--red) !important;
+}
+
+.settings-pane .sync-tools-content .sync-tools-cancel-button:hover:not(:disabled) {
+  border-color: color-mix(in oklch, var(--red) 75%, var(--line-strong)) !important;
+  background: color-mix(in oklch, var(--red) 22%, var(--panel-2)) !important;
+  color: var(--red) !important;
+}
+
+.settings-pane .media-force-sync-choice-copy small,
+.settings-pane .media-force-sync-target-copy small {
+  max-width: none;
+}
+
+.settings-pane .sync-tools-when-to-use strong {
+  color: var(--text);
+}
+
+/* Sync Tuning uses the same static action-row treatment as Sync Tools. */
+#syncTuningFields {
+  gap: var(--space-2) !important;
+}
+
+#syncTuningFields > .settings-modal-field {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 13rem) !important;
+  align-items: center;
+  gap: var(--space-3) !important;
+  padding: var(--space-3) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius) !important;
+  background: var(--panel-2) !important;
+}
+
+#syncTuningFields > .settings-modal-field .settings-modal-field-label {
+  display: grid !important;
+  align-items: start !important;
+  justify-content: initial !important;
+  gap: 0.25rem !important;
+  padding-top: 0 !important;
+  text-align: left !important;
+}
+
+#syncTuningFields > .settings-modal-field .settings-field-help {
+  margin-left: 0 !important;
+  text-align: left !important;
+  line-height: 1.45 !important;
+}
+
+#syncTuningFields > .settings-modal-field .settings-modal-field-control {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  #syncTuningFields > .settings-modal-field {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 details.sync-tool-details > summary {
   display: flex;
   align-items: center;
@@ -4833,6 +4948,7 @@ details.sync-tool-details[open] > summary {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel-2);
+  transition: border-color 160ms ease, background 160ms ease;
 }
 
 .media-force-sync-choice {
@@ -4849,7 +4965,9 @@ details.sync-tool-details[open] > summary {
 }
 
 .media-force-sync-choice:hover,
-.media-force-sync-choice:focus-visible {
+.media-force-sync-choice:focus-visible,
+.media-force-sync-target-row:hover,
+.media-force-sync-target-row:focus-within {
   border-color: var(--blue);
   background: var(--panel-3);
 }
@@ -18242,5 +18360,385 @@ body.bio-media-layout .media-detail-page {
   .media-detail-bio-left .immersive-poster-img {
     width: min(100%, 350px);
     align-self: center;
+  }
+}
+
+/* Shared settings row treatment ------------------------------------------
+   Keep every settings tool panel on the same visual system as Sync Tools:
+   compact sibling spacing, bordered rows, left-aligned descriptions, and
+   controls/content that use the full available width. */
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel) > div:has(details.sync-tool-details),
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel) > div:has(details.sync-match-report) {
+  gap: var(--space-2) !important;
+}
+
+/* Older page-specific rules reset these content wrappers to zero padding.
+   Restore the shared Sync Tools inset and compact row rhythm. */
+.settings-pane .settings-row-main #refreshMetadataContent,
+.settings-pane .settings-row-main #diagnosticsContent,
+.settings-pane .settings-row-main #migrationContent,
+.settings-pane .settings-row-main #databaseRepairsContent,
+.settings-pane .settings-row-main #rebuildsContent,
+.settings-pane .settings-row-main #syncIssuesContent,
+.settings-pane .settings-row-main #syncHistoryContent {
+  margin-top: 0 !important;
+  padding: var(--space-3) !important;
+  gap: var(--space-2) !important;
+}
+
+.settings-pane .settings-row-main #syncIssuesContainer {
+  gap: var(--space-2) !important;
+}
+
+.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category) {
+  gap: 0 !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius) !important;
+  background: var(--panel-2) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category):hover,
+.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category):focus-within {
+  border-color: var(--blue) !important;
+  background: var(--panel-3) !important;
+}
+
+.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category) > summary {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-rows: auto auto;
+  align-items: center !important;
+  gap: 0.25rem var(--space-3) !important;
+  min-width: 0;
+  padding: var(--space-3) !important;
+  cursor: pointer !important;
+  list-style: none !important;
+}
+
+.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category) > summary::-webkit-details-marker {
+  display: none !important;
+}
+
+.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category) > summary > :first-child {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category) > summary > span {
+  grid-column: 1;
+  grid-row: 2;
+  max-width: none !important;
+  color: var(--muted) !important;
+  font-size: 0.78rem !important;
+  line-height: 1.45;
+  text-align: left !important;
+}
+
+.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category) > summary:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
+}
+
+.settings-pane .settings-row-main details.sync-tool-details[open] > summary,
+.settings-pane .settings-row-main details.sync-match-report[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-pane .settings-row-main details.sync-tool-details > .tool-item-row,
+.settings-pane .settings-row-main details.sync-match-report > #syncMatchReportContainer,
+.settings-pane .settings-row-main details.issue-category > :not(summary) {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-3) !important;
+}
+
+.settings-pane .settings-row-main details.sync-tool-details > .tool-item-row {
+  border-bottom: 0 !important;
+}
+
+.settings-pane .settings-row-main :is(#backup-settings-local, #backup-settings-remote, #restore-local, #restore-remote) {
+  gap: var(--space-2) !important;
+}
+
+.settings-pane .settings-row-main details.settings-static-details > summary {
+  pointer-events: none;
+  cursor: default !important;
+}
+
+.settings-pane .settings-row-main details.settings-static-details > summary .accordion-chevron {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  .settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category) > summary {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Canonical settings layout ----------------------------------------------
+   Sync Tools is the reference for every settings page. Keep the shell,
+   headings, content insets, controls, and interactive rows consistent while
+   allowing genuinely long result/list panels to remain expandable. */
+.settings-pane .settings-row {
+  align-items: stretch;
+}
+
+.settings-pane .settings-row-main,
+.settings-pane .settings-row-help {
+  gap: var(--space-2) !important;
+}
+
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0;
+  width: 100%;
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: var(--radius) !important;
+  background: var(--panel) !important;
+  box-shadow: none !important;
+}
+
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading {
+  display: flex !important;
+  flex: 0 0 auto;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: var(--space-3) !important;
+  margin: 0 !important;
+  padding: var(--space-3) !important;
+  border-bottom: 1px solid var(--line) !important;
+  background: transparent !important;
+}
+
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading > div,
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading > .sync-heading-title {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading.sync-static-heading > div:first-child {
+  width: auto !important;
+}
+
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading > span,
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading > div > span {
+  min-width: 0;
+  max-width: none !important;
+  color: var(--muted) !important;
+  font-size: 0.78rem !important;
+  font-weight: 500;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  margin-top: 0 !important;
+  padding: var(--space-3) !important;
+  /* Use the same measured sibling gap as the Sync Tools boxes everywhere. */
+  gap: var(--space-2) !important;
+}
+
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) > .settings-card-grid,
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) > form,
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) > .settings-actions {
+  min-width: 0;
+}
+
+/* Help cards use the same heading boundary and panel tokens, but retain a
+   normal content inset because their prose is not an action-row list. */
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) {
+  min-width: 0;
+  width: 100%;
+  padding: var(--space-3) !important;
+  gap: var(--space-3) !important;
+  justify-content: flex-start !important;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: var(--radius) !important;
+  background: var(--panel) !important;
+  box-shadow: none !important;
+}
+
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: wrap;
+  gap: var(--space-3) !important;
+  margin: calc(var(--space-3) * -1) calc(var(--space-3) * -1) 0 !important;
+  padding: var(--space-3) !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading p,
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading h2 {
+  margin: 0 !important;
+}
+
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading > span {
+  min-width: 0;
+  color: var(--muted) !important;
+  font-size: 0.78rem !important;
+  line-height: 1.45;
+  text-align: right;
+}
+
+/* Account fields are action rows like Sync Tuning, rather than a three-column
+   form that compresses as the main settings column narrows. */
+.settings-pane #adminCredentialsForm {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--space-2) !important;
+}
+
+.settings-pane #syncTuningForm {
+  gap: var(--space-2) !important;
+}
+
+.settings-pane #adminCredentialsForm > .field-label,
+.settings-pane #adminCredentialsForm .admin-credentials-grid > .field-label {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 18rem) !important;
+  align-items: center !important;
+  gap: var(--space-3) !important;
+  min-width: 0;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: var(--space-3) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius) !important;
+  background: var(--panel-2) !important;
+}
+
+.settings-pane #adminCredentialsForm .admin-credentials-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: var(--space-2) !important;
+  min-width: 0;
+  width: 100%;
+}
+
+.settings-pane #adminCredentialsForm .admin-credentials-grid .field,
+.settings-pane #adminCredentialsForm > .field-label .field {
+  width: 100% !important;
+  min-width: 0;
+  margin: 0 !important;
+}
+
+.settings-pane #adminCredentialsStatus {
+  margin: 0 !important;
+  padding: var(--space-1) 0 !important;
+}
+
+/* Service cards, log filters, and backup destinations are all sibling rows in
+   the Sync Tools visual system. */
+.settings-pane .settings-card-grid {
+  gap: var(--space-2) !important;
+}
+
+.settings-pane .settings-card-grid .service-card {
+  min-height: 6rem;
+  padding: var(--space-3) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius) !important;
+  background: var(--panel-2) !important;
+  transition: border-color 160ms ease, background 160ms ease !important;
+  transform: none !important;
+}
+
+.settings-pane .settings-card-grid .service-card:hover,
+.settings-pane .settings-card-grid .service-card:focus-visible {
+  border-color: var(--blue) !important;
+  background: var(--panel-3) !important;
+  transform: none !important;
+}
+
+.settings-pane .settings-card-grid .service-card b {
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.settings-pane #logsCategoryFilter {
+  display: flex !important;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) !important;
+  margin: 0 !important;
+  padding: var(--space-3) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius) !important;
+  background: var(--panel-2) !important;
+}
+
+.settings-pane #logsTerminal {
+  margin-top: var(--space-2) !important;
+  padding: var(--space-3) !important;
+  border-radius: var(--radius) !important;
+}
+
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel) > .settings-actions,
+.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel) .settings-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap;
+  gap: var(--space-2) !important;
+  margin: 0 !important;
+}
+
+/* Keep the shared button scale and make destructive cancellation readable in
+   both themes without introducing a second button language. */
+.settings-pane .settings-row-main button:not(.accordion-header),
+.settings-pane .settings-row-help button:not(.accordion-header) {
+  min-height: 2.05rem !important;
+  height: auto !important;
+  border-radius: 4px !important;
+  padding: 0.45rem 0.72rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 760px) {
+  .settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading,
+  .settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+
+  .settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading > span,
+  .settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading > div > span,
+  .settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading > span {
+    width: 100%;
+    text-align: left;
+  }
+
+  .settings-pane #adminCredentialsForm > .field-label,
+  .settings-pane #adminCredentialsForm .admin-credentials-grid > .field-label {
+    grid-template-columns: 1fr !important;
+    align-items: stretch !important;
+  }
+
+  .settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel) .settings-actions {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  .settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel) .settings-actions > button {
+    width: 100%;
   }
 }
