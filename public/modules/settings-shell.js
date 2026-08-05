@@ -8,9 +8,9 @@ const SECTIONS = {
   // Parent groups show all their child sections on one page
   general: {
     label: "General",
-    description: "Account configuration",
+    description: "Account configuration, system integrity diagnostics, and image cache",
     panel: "general",
-    subPanels: ["general-login"],
+    subPanels: ["general-login", "tools-diagnostics", "cache"],
   },
   "media-servers": {
     label: "Media servers",
@@ -134,7 +134,7 @@ const SECTIONS = {
   },
   "sync-issues": {
     label: "Sync issues",
-    description: "Unresolved sync issues between your media servers",
+    description: "Shows problems propagating watched states between media servers. Click an issue to view telemetry, retry sync, or fix matches",
     panel: "sync",
     subPanels: ["sync-issues"],
     subSections: [
@@ -182,8 +182,12 @@ const SECTIONS = {
   health: {
     label: "System integrity check",
     description: "Connection diagnostics and system integrity checks",
-    panel: "tools",
+    panel: "general",
     subPanels: ["tools-diagnostics"],
+    subSections: [
+      { id: "sync-health-box", label: "Refresh Sync Health", description: "Loads a fast snapshot of database row counts, disk storage usage, and outbound media server request pressure." },
+      { id: "system-diagnostic-box", label: "Run System Diagnostic", description: "Runs nine live diagnostic checks in sequence and provides actionable fix recommendations for any warnings or errors." },
+    ],
     isDisplayOnly: true,
   },
   logs: {
@@ -195,7 +199,8 @@ const SECTIONS = {
   storage: {
     label: "Storage & cache",
     description: "Artwork and metadata cache usage",
-    panel: "cache",
+    panel: "general",
+    subPanels: ["cache"],
     isDisplayOnly: true,
   },
   "database-repairs": {
@@ -241,8 +246,8 @@ const SECTION_GROUPS = [
   {
     id: "general",
     label: "General",
-    sections: ["account"],
-    displayOnly: ["account"],
+    sections: ["account", "health", "storage"],
+    displayOnly: ["account", "health", "storage"],
   },
   {
     id: "media-servers",
@@ -279,12 +284,6 @@ const SECTION_GROUPS = [
     label: "Tools",
     sections: ["database-repairs", "library-rebuilds"],
     displayOnly: ["database-repairs", "library-rebuilds"],
-  },
-  {
-    id: "advanced",
-    label: "Advanced",
-    sections: ["health", "storage"],
-    displayOnly: ["health", "storage"],
   },
   {
     id: "logs",
@@ -697,7 +696,7 @@ export function applySettingsRoute(route) {
   document.querySelectorAll("[data-settings-subsection]").forEach((button) => {
     const parentSection = button.dataset.settingsParentSection;
     const parentGroup = SECTION_GROUPS.find((g) => g.sections.includes(parentSection));
-    const isParentActive = route.kind === "task" && (route.group === parentGroup?.id || (parentSection && SECTIONS[parentSection]?.panel === route.panel));
+    const isParentActive = route.kind === "task" && route.group === parentGroup?.id;
     button.classList.toggle("hidden", !isParentActive);
 
     const hash = window.location.hash.slice(1);

@@ -341,14 +341,14 @@ export async function runSystemIntegrityCheck() {
     }
 
     return `
-      <div class="ranking-row" style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3); width: 100%;">
-        <div style="display: grid; gap: 2px;">
-          <b>${escapeHtml(res.name)}</b>
-          <span style="font-size: 0.8rem; color: var(--muted);">${escapeHtml(res.detail)}</span>
-          ${fixInstruction ? `<span style="font-size: 0.8rem; color: var(--text);">${escapeHtml(fixInstruction)}</span>` : ""}
-          ${settingsPath ? `<button type="button" data-settings-path="${escapeAttribute(settingsPath)}" style="width: fit-content; border: 1px solid var(--line); background: var(--panel-3); color: var(--text); border-radius: 6px; padding: 0.25rem 0.5rem; font-size: 0.78rem; font-weight: 800;">Open settings</button>` : ""}
+      <div class="diagnostic-result-card">
+        <div style="display: grid; gap: 4px;">
+          <b style="color: var(--text); font-weight: 700; font-size: 0.88rem;">${escapeHtml(res.name)}</b>
+          <span style="font-size: 0.8rem; color: var(--muted); line-height: 1.4;">${escapeHtml(res.detail)}</span>
+          ${fixInstruction ? `<span style="font-size: 0.8rem; color: var(--text); margin-top: 2px;">${escapeHtml(fixInstruction)}</span>` : ""}
+          ${settingsPath ? `<button type="button" data-settings-path="${escapeAttribute(settingsPath)}" class="button-ghost sync-action-btn sync-tool-button" style="width: fit-content; margin-top: 4px;">Open settings</button>` : ""}
         </div>
-        <span class="target-pill" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; border: 1px solid; border-radius: 999px; ${pillStyle}">${statusLabel}</span>
+        <span class="target-pill" style="padding: 0.25rem 0.6rem; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; border: 1px solid; border-radius: 999px; white-space: nowrap; ${pillStyle}">${statusLabel}</span>
       </div>
     `;
   }).join("");

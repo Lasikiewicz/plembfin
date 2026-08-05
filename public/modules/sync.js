@@ -495,19 +495,17 @@ export function renderIssueCategory(categoryName, jobs = [], helpText = "") {
 
   return `
     <details class="issue-category">
-      <summary class="accordion-header" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; list-style: none;">
-        <div style="display: flex; align-items: center; gap: var(--space-2);">
+      <summary class="accordion-header">
+        <div class="sync-tool-summary-title">
           <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
           <b>${titles[categoryName] || categoryName}</b>
           <span class="status-pill status-muted">${jobs.length} issue${jobs.length !== 1 ? "s" : ""}</span>
         </div>
+        <span>${escapeHtml(helpText)}</span>
       </summary>
       <div style="padding: var(--space-3); border-top: 1px solid var(--line);">
-        <div style="background: rgba(0,0,0,0.05); padding: var(--space-2); border-radius: var(--radius-sm); margin-bottom: var(--space-3); font-size: 0.9rem;">
-          ${helpText}
-        </div>
         <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-3);">
-          ${categoryName === 'missingTelemetry' ? `<button class="button-primary sync-action-btn" type="button" data-action="clearMissingTelemetry">Clear ${jobs.length} Records</button>` : `<button class="button-primary sync-action-btn" type="button" data-action="retryAllCategory" data-category="${categoryName}">Retry All ${jobs.length}</button>`}
+          ${categoryName === 'missingTelemetry' ? `<button class="button-primary sync-action-btn sync-tool-button" type="button" data-action="clearMissingTelemetry">Clear ${jobs.length} Records</button>` : `<button class="button-primary sync-action-btn sync-tool-button" type="button" data-action="retryAllCategory" data-category="${categoryName}">Retry All ${jobs.length}</button>`}
         </div>
         <div style="display: grid; gap: var(--space-2);">
           ${jobs.map(job => {

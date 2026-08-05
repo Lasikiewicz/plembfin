@@ -2,130 +2,138 @@
 
 These are the default visual and structural rules for Plembfin settings pages.
 The Sync Tools section is the reference implementation for the primary settings
-card shell.
+card shell, with Sync Tuning, Sync Issues, and Sync History sharing the exact same
+layout system, spacing, and styling rules.
 
 ## Page structure
 
-Each settings page uses this hierarchy:
+Each settings page uses this canonical DOM hierarchy:
 
-```text
-.settings-pane
-└── .settings-row
-    ├── .settings-row-main
-    │   └── primary settings card
-    │       ├── .section-heading
-    │       └── content wrapper
-    └── .settings-row-help
-        └── help card
+```html
+<div class="settings-pane">
+  <div class="settings-row" data-sub-panel="[panel-id]">
+    <div class="settings-row-main">
+      <article class="glass-panel p-section settings-card tool-section-card">
+        <div class="section-heading sync-heading sync-static-heading">
+          <div class="sync-heading-title">
+            <p style="margin: 0;">[Title]</p>
+            <!-- Optional status pill -->
+            <span class="status-pill status-muted">Ready</span>
+          </div>
+          <span>[Description / Subtitle]</span>
+        </div>
+        <div class="media-force-sync-options sync-tools-content">
+          <!-- Content rows / forms / action items -->
+        </div>
+      </article>
+    </div>
+    <div class="settings-row-help">
+      <article class="glass-panel p-section settings-card">
+        <div class="section-heading">
+          <p>[Help Title]</p>
+          <span>[Help Subtitle]</span>
+        </div>
+        <!-- Help sections -->
+      </article>
+    </div>
+  </div>
+</div>
 ```
 
-The main column is the working area. The help column explains the working area
-and may be shorter or collapsed when the main content is taller.
+The main column (`.settings-row-main`) is the primary working area (~2.2fr flex ratio). The help column (`.settings-row-help`) explains the working area (~1fr flex ratio, ~320px fixed reference) and collapses below `900px`.
 
-The shared default applies to all settings panels: Account, Media Servers,
-Seerr, Webhooks, Metadata Providers, Refresh Metadata, System Integrity,
-Trakt Importer, Database Repairs, Rebuilds, Backups, Restore, Sync Tuning,
-Sync Tools, Sync Issues, Sync History, Server Logs, Changelog, and Image Cache.
+This layout standard applies across all settings panels: Account, Media Servers, Seerr, Webhooks, Metadata Providers, Refresh Metadata, System Integrity, Trakt Importer, Database Repairs, Rebuilds, Backups, Restore, Sync Tuning, Sync Tools, Sync Issues, Sync History, Server Logs, Changelog, and Image Cache.
 
 ## Main settings card
 
-The primary card follows the Sync Tools shell:
+The primary card follows the canonical Sync Tools shell:
 
-- Use a full-width `.glass-panel p-section settings-card` (or the equivalent
-  `sync-panel` / `logs-panel` class) inside `.settings-row-main`.
-- Remove outer card padding with `padding: 0`.
-- Use `gap: 0` on the outer card so the heading and content form one continuous
-  panel.
+- Use a full-width `<article class="glass-panel p-section settings-card tool-section-card">` inside `.settings-row-main`.
+- Remove outer card padding with `padding: 0 !important`.
+- Use `gap: 0 !important` on the outer card so the heading and content form one continuous panel.
 - Use `overflow: hidden` so the header border and rounded corners stay clean.
-- Use `border-color: var(--line-strong)` and `background: var(--panel)` for the
-  outer card surface.
-- Keep the shared `border-radius: var(--radius)`.
+- Use `border: 1px solid var(--line-strong)` and `background: var(--panel)` for the outer card surface.
+- Use `border-radius: var(--radius)` (8px default).
 
 ## Card heading
 
-The first direct child is the card heading:
+The first direct child is the section heading:
 
-- Use `.section-heading sync-static-heading` for a non-collapsible heading.
-- Keep the title on the left and the supporting description on the right.
-- Use `padding: var(--space-3)`.
-- Use `margin: 0` and a bottom border of `1px solid var(--line)`.
-- Keep titles at the shared settings heading size and weight.
-- Supporting text uses `var(--muted)`, approximately `0.78rem`, and stays
-  right-aligned on wide screens.
-- Headings must remain readable when the description wraps; do not use fixed
-  heights.
+- Use `<div class="section-heading sync-heading sync-static-heading">`.
+- Group the title and optional status pill on the left inside `<div class="sync-heading-title">`.
+- Keep the supporting description text `<span>` on the right.
+- Use `padding: var(--space-3) !important` (16px / `1rem`).
+- Use `margin: 0 !important` and a bottom border of `1px solid var(--line) !important`.
+- Title text uses `<p style="margin: 0;">` with `font-weight: 700` / bold styling.
+- Supporting subtitle `<span>` uses `var(--muted)`, `0.78rem` (`font-weight: 500`), and stays right-aligned on wide screens.
+- Accordion header toggles (e.g. Sync History) use `<button class="section-heading sync-heading sync-static-heading accordion-header" type="button">` with `background: transparent; border: none; width: 100%; cursor: pointer;`.
 
 ## Card content
 
-Every direct child after the heading is a content wrapper:
+Every content wrapper immediately following the heading follows these rules:
 
-- Use `padding: var(--space-3)`.
-- Remove inherited top margins so spacing comes from the card layout.
-- Use `gap: var(--space-2)` for compact, related controls.
-- Keep larger separations between distinct content groups at
-  `var(--space-3)` or `var(--space-5)`.
-- Do not add per-page margin hacks to compensate for the shared shell.
+- Use `<div class="media-force-sync-options sync-tools-content">`.
+- Use `padding: var(--space-3) !important` (16px).
+- Spacing between child rows uses `gap: var(--space-2) !important` (12px / `0.75rem`).
+- Content elements have `margin-top: 0 !important` to avoid doubling the flex gap.
 
-## Action rows and controls
+## Action rows, fields, and controls
 
-Action rows inside a settings card should use the Sync Tools treatment:
+Action rows, tuning fields, issue items, match reports, and history cards use the standard Sync Tools treatment:
 
 - Use a full border of `1px solid var(--line)`.
-- Use `border-radius: var(--radius)` and `background: var(--panel-2)`.
-- Use `padding: var(--space-3)`.
-- Keep descriptions left-aligned and let them use the available width before
-  wrapping.
-- Align selects and action buttons to the right on wide screens.
-- Static settings fields, such as Sync Tuning, use the same bordered card rows:
-  descriptive content on the left and the control on the right.
-- Keep field descriptions visible by default; routine settings guidance should
-  not be hidden inside collapsible accordions.
-- Keep short settings actions and forms permanently visible.
-- Reserve collapsible boxes for genuinely long lists, result sets, logs, or
-  detailed instructions that would otherwise make the page unwieldy.
-- Tool panels that need progressive disclosure still use the same bordered row,
-  spacing, hover, focus, heading, and description treatment as Sync Tools.
-- Use the shared settings button height, padding, `0.78rem` text size, and
-  bold weight.
-- Use the primary blue treatment for normal actions.
-- Use the red treatment only for Cancel or Stop actions, with sufficient text
-  contrast in both themes.
-- Provide hover and keyboard-focus states without moving the layout.
+- Use `border-radius: var(--radius)` (8px) and `background: var(--panel-2)`.
+- Use `padding: var(--space-3)` (16px).
+- Provide smooth hover and focus-within states:
+  - `:hover` and `:focus-within` change border to `var(--blue)` and background to `var(--panel-3)` with `transition: border-color 160ms ease, background 160ms ease`.
+- Keep descriptions left-aligned and let them use the available width before wrapping.
 
-Service cards, account fields, backup destinations, log filters, and metadata
-cards use the same bordered `var(--panel-2)` row treatment as action rows.
-They use compact `var(--space-2)` sibling spacing and do not translate on
-hover.
+### Field Layout & Multi-line Help Formatting (Sync Tuning)
+
+- Settings input fields (e.g. Sync Tuning) use a 2-column CSS Grid:
+  - `display: grid; grid-template-columns: minmax(0, 1fr) minmax(10rem, 13rem); align-items: center; gap: var(--space-3);`
+  - Below `760px`, collapse to a single column (`grid-template-columns: 1fr`).
+- **Field Title**: `color: var(--text)`, `font-weight: 700`.
+- **Field Help Text**: Multi-line help formatting uses explicit `<br>` line breaks separating the description from default value and valid range, with `helpIsHtml: true`:
+  ```html
+  <span class="settings-field-help">
+    [Description].<br>
+    Default: [default value]. Valid range: [min]-[max].
+  </span>
+  ```
+  - Color: `var(--muted)`, `font-size: inherit`, `line-height: 1.45`, `max-width: none`.
+
+### Buttons
+
+- Buttons (`.sync-tool-button`, `.button-primary`, `.button-ghost`, `.sync-action-btn`):
+  - Height: `min-height: 2.05rem !important` (~33px).
+  - Padding: `0.45rem 0.72rem !important`.
+  - Typography: `font-size: 0.78rem !important`, `font-weight: 800 !important`, `letter-spacing: 0 !important`.
+  - Border Radius: `4px !important`.
+  - Box Shadow: `none !important`.
+- **Primary Actions**: Use `.button-primary` with blue accent.
+- **Cancel / Stop Actions**: Use `.sync-tools-cancel-button` or `.button-danger` with red OKLCH tinting:
+  - Border: `color-mix(in oklch, var(--red) 55%, var(--line-strong))`
+  - Background: `color-mix(in oklch, var(--red) 14%, var(--panel-2))`
+  - Color: `var(--red)`
 
 ## Spacing defaults
 
-- `.settings-pane` between stacked rows: `var(--space-5)`.
-- `.settings-row` column gap: `var(--space-3)`.
-- `.settings-row-main` and `.settings-row-help` internal stack gap:
-  `var(--space-2)`.
-- Main card heading and content padding: `var(--space-3)`.
-- Related action rows: `var(--space-2)` gap.
-
-Use the existing spacing tokens rather than introducing one-off pixel values.
+- `.settings-pane` vertical gap between stacked rows: `var(--space-5)` (24px).
+- `.settings-row` column gap: `var(--space-3)` (16px).
+- `.settings-row-main` and `.settings-row-help` internal stack gap: `var(--space-2)` (12px).
+- Main card heading and content padding: `var(--space-3)` (16px).
+- Related action rows & fields gap: `var(--space-2)` (12px).
 
 ## Responsive behavior
 
-- At widths below `900px`, stack `.settings-row-main` above
-  `.settings-row-help` at full width.
-- Action rows should switch to a single column when their controls no longer
-  fit comfortably.
-- Keep buttons and fields usable on touch screens; do not hide required
-  actions.
-- Preserve the same heading, border, background, and padding hierarchy in both
-  dark and light themes.
-
-Short forms, actions, and endpoint/configuration details stay open and visible
-by default. Only long lists, result sets, logs, previews, restore inventories,
-or detailed setup instructions use a collapsible disclosure.
+- At widths below `900px`, stack `.settings-row-main` above `.settings-row-help` at full width.
+- At widths below `760px`:
+  - Section headings align vertically (`flex-direction: column`, `align-items: flex-start`), subtitle text aligns left.
+  - Action buttons stack (`flex-direction: column`, `width: 100%`).
+  - Grid rows (target rows, tuning fields) collapse to a single column (`grid-template-columns: 1fr`).
+- Preserve the same heading, border, background, and padding hierarchy in both dark and light themes.
 
 ## Implementation rule
 
-When adding a new settings page, use the shared main-card selectors and the
-Sync Tools structure first. Add a component-specific rule only when the content
-cannot fit the standard heading/content/action-row pattern, and document the
-exception beside the component styles.
+When adding or updating a settings page, use the shared main-card shell (`article.glass-panel.p-section.settings-card.tool-section-card`) and the Sync Tools structure first. Add a component-specific rule only when the content cannot fit the standard heading/content/action-row pattern, and document the exception beside the component styles.

@@ -1,5 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
+import { escapeHtml } from "./utils.js";
 
 export function initHealthTools() {
   const button = document.querySelector("#refreshSyncHealthButton");
@@ -10,7 +11,7 @@ export function initHealthTools() {
 export async function loadSyncHealth(panel = document.querySelector("#syncHealthPanel"), button = document.querySelector("#refreshSyncHealthButton")) {
   if (!panel) return;
   if (button) button.disabled = true;
-  panel.innerHTML = "<p>Loading sync health…</p>";
+  panel.innerHTML = "<p style='color: var(--muted); padding: var(--space-2);'>Loading sync health…</p>";
   try {
     const response = await fetch("/api/health/sync", { headers: buildAuthHeaders(state.token), cache: "no-store" });
     const body = await response.json().catch(() => ({}));
@@ -18,7 +19,49 @@ export async function loadSyncHealth(panel = document.querySelector("#syncHealth
     const health = body.health || {};
     const counts = health.counts || {};
     const destinations = health.outbound?.destinations || [];
-    panel.innerHTML = `<div class="sync-health-grid">${Object.entries(counts).map(([key, item]) => { const value = typeof item === "object" ? item.value : item; const status = typeof item === "object" ? item.status : "normal"; return `<div class="sync-health-metric"><span>${key.replaceAll(/([A-Z])/g, " $1")}</span><strong>${Number(value || 0).toLocaleString()}</strong><small>${status}</small></div>`; }).join("")}</div><h4>Outbound pressure</h4>${destinations.length ? `<div class="sync-health-destinations">${destinations.map((item) => `<div><b>${item.host}</b><span>${item.requests} requests · ${item.throttled} throttled · ${item.cooldowns} cooldowns</span></div>`).join("")}</div>` : "<p>No paced destinations recorded yet.</p>"}${(health.recommendations || []).map((item) => `<p class="sync-preview-warning">${item}</p>`).join("")}`;
-  } catch (error) { panel.innerHTML = `<p class="sync-preview-state error">${error.message}</p>`; }
-  finally { if (button) button.disabled = false; }
+    panel.innerHTML = `
+      <div class="sync-health-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3);">
+        ${Object.entries(counts).map(([key, item]) => {
+          const value = typeof item === "object" ? item.value : item;
+          const status = typeof item === "object" ? item.status : "normal";
+          const formattedKey = key.replaceAll(/([A-Z])/g, " $1");
+          return `
+            <div class="sync-health-metric">
+              <div style="display: grid; gap: 2px;">
+                <span style="font-size: 0.78rem; color: var(--muted); text-transform: capitalize;">${escapeHtml(formattedKey)}</span>
+                <strong style="font-size: 1.15rem; color: var(--text); font-weight: 800;">${Number(value || 0).toLocaleString()}</strong>
+                <small style="font-size: 0.75rem; color: var(--muted);">${escapeHtml(status)}</small>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+      ${destinations.length ? `
+        <div style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2);">
+          <b style="font-size: 0.85rem; color: var(--text); font-weight: 700;">Outbound pressure</b>
+          <div class="sync-health-destinations" style="display: flex; flex-direction: column; gap: var(--space-2);">
+            ${destinations.map((item) => `
+              <div class="sync-health-dest-row">
+                <b style="color: var(--text); font-weight: 700; font-size: 0.88rem;">${escapeHtml(item.host)}</b>
+                <span style="color: var(--muted); font-size: 0.8rem;">${item.requests} requests · ${item.throttled} throttled · ${item.cooldowns} cooldowns</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      ` : ""}
+      ${(health.recommendations || []).length ? `
+        <div style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2);">
+          ${health.recommendations.map((item) => `
+            <div class="sync-preview-warning-card">
+              <span style="color: var(--text); font-size: 0.82rem; line-height: 1.45;">${escapeHtml(item)}</span>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+    `;
+  } catch (error) {
+    panel.innerHTML = `<p class="sync-preview-state error" style="color: var(--red); padding: var(--space-2);">${escapeHtml(error.message)}</p>`;
+  } finally {
+    if (button) button.disabled = false;
+  }
 }

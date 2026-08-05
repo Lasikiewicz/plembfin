@@ -4400,7 +4400,8 @@ details.sync-tool-details {
   gap: var(--space-2) !important;
 }
 
-#syncTuningFields > .settings-modal-field {
+#syncTuningFields > .settings-modal-field,
+#diagnosticsContent > .settings-modal-field {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) minmax(10rem, 13rem) !important;
   align-items: center;
@@ -4409,9 +4410,19 @@ details.sync-tool-details {
   border: 1px solid var(--line) !important;
   border-radius: var(--radius) !important;
   background: var(--panel-2) !important;
+  transition: border-color 160ms ease, background 160ms ease !important;
 }
 
-#syncTuningFields > .settings-modal-field .settings-modal-field-label {
+#syncTuningFields > .settings-modal-field:hover,
+#syncTuningFields > .settings-modal-field:focus-within,
+#diagnosticsContent > .settings-modal-field:hover,
+#diagnosticsContent > .settings-modal-field:focus-within {
+  border-color: var(--blue) !important;
+  background: var(--panel-3) !important;
+}
+
+#syncTuningFields > .settings-modal-field .settings-modal-field-label,
+#diagnosticsContent > .settings-modal-field .settings-modal-field-label {
   display: grid !important;
   align-items: start !important;
   justify-content: initial !important;
@@ -4420,20 +4431,58 @@ details.sync-tool-details {
   text-align: left !important;
 }
 
-#syncTuningFields > .settings-modal-field .settings-field-help {
-  margin-left: 0 !important;
-  text-align: left !important;
-  line-height: 1.45 !important;
+#syncTuningFields > .settings-modal-field .settings-modal-field-title,
+#diagnosticsContent > .settings-modal-field .settings-modal-field-title {
+  color: var(--text) !important;
+  font-size: inherit !important;
+  font-weight: 700 !important;
 }
 
-#syncTuningFields > .settings-modal-field .settings-modal-field-control {
+#syncTuningFields > .settings-modal-field .settings-field-help,
+#diagnosticsContent > .settings-modal-field .settings-field-help {
+  margin-left: 0 !important;
+  color: var(--muted) !important;
+  font-size: inherit !important;
+  line-height: 1.45 !important;
+  text-align: left !important;
+  max-width: none !important;
+}
+
+#syncTuningFields > .settings-modal-field .settings-modal-field-control,
+#diagnosticsContent > .settings-modal-field .settings-modal-field-control {
   min-width: 0;
 }
 
 @media (max-width: 760px) {
-  #syncTuningFields > .settings-modal-field {
+  #syncTuningFields > .settings-modal-field,
+  #diagnosticsContent > .settings-modal-field {
     grid-template-columns: 1fr !important;
   }
+}
+
+.sync-health-metric,
+.sync-health-dest-row,
+.sync-preview-warning-card,
+.diagnostic-result-card {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: var(--space-3) !important;
+  padding: var(--space-3) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius) !important;
+  background: var(--panel-2) !important;
+  transition: border-color 160ms ease, background 160ms ease !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+}
+
+.sync-health-metric:hover,
+.sync-health-dest-row:hover,
+.sync-preview-warning-card:hover,
+.diagnostic-result-card:hover {
+  border-color: var(--blue) !important;
+  background: var(--panel-3) !important;
 }
 
 details.sync-tool-details > summary {
@@ -18386,11 +18435,13 @@ body.bio-media-layout .media-detail-page {
   gap: var(--space-2) !important;
 }
 
-.settings-pane .settings-row-main #syncIssuesContainer {
+.settings-pane .settings-row-main #syncIssuesContainer,
+.settings-pane .settings-row-main #syncHistoryPanel {
+  display: grid !important;
   gap: var(--space-2) !important;
 }
 
-.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category) {
+.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category, .sync-history-card) {
   gap: 0 !important;
   border: 1px solid var(--line) !important;
   border-radius: var(--radius) !important;
@@ -18400,8 +18451,8 @@ body.bio-media-layout .media-detail-page {
   transition: border-color 160ms ease, background 160ms ease;
 }
 
-.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category):hover,
-.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category):focus-within {
+.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category, .sync-history-card):hover,
+.settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category, .sync-history-card):focus-within {
   border-color: var(--blue) !important;
   background: var(--panel-3) !important;
 }
@@ -18621,14 +18672,29 @@ body.bio-media-layout .media-detail-page {
   border: 1px solid var(--line) !important;
   border-radius: var(--radius) !important;
   background: var(--panel-2) !important;
+  transition: border-color 160ms ease, background 160ms ease !important;
+}
+
+.settings-pane #adminCredentialsForm > .field-label:hover,
+.settings-pane #adminCredentialsForm > .field-label:focus-within,
+.settings-pane #adminCredentialsForm .admin-credentials-grid > .field-label:hover,
+.settings-pane #adminCredentialsForm .admin-credentials-grid > .field-label:focus-within {
+  border-color: var(--blue) !important;
+  background: var(--panel-3) !important;
 }
 
 .settings-pane #adminCredentialsForm .admin-credentials-grid {
   display: grid !important;
-  grid-template-columns: 1fr !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: var(--space-2) !important;
   min-width: 0;
   width: 100%;
+}
+
+@media (max-width: 900px) {
+  .settings-pane #adminCredentialsForm .admin-credentials-grid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 .settings-pane #adminCredentialsForm .admin-credentials-grid .field,

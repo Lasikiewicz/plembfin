@@ -197,8 +197,9 @@ function syncTuningFieldSpecs(tuning = {}) {
       type: "number",
       value: info.overridden ? info.value : "",
       placeholder: info.default != null ? String(info.default) : "",
-      optional: true,
-      help: `${field.help} Default: ${info.default}${field.unit || ""}. Valid range: ${info.min}-${info.max}.`,
+      optional: false,
+      help: `${field.help}<br>Default: ${info.default}${field.unit || ""}. Valid range: ${info.min}-${info.max}.`,
+      helpIsHtml: true,
     };
   });
 }
