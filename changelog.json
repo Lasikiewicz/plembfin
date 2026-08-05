@@ -1,7 +1,18 @@
 {
-  "version": "0.6.73",
-  "updatedAt": "2026-08-05T20:30:07+01:00",
+  "version": "0.6.74",
+  "updatedAt": "2026-08-05T20:39:16+01:00",
   "entries": [
+    {
+      "version": "0.6.74",
+      "date": "2026-08-05T20:39:16+01:00",
+      "commit": "e6da9da6ec7c0560a1199a6c762a03216bbd4523",
+      "message": "Fix - Sync all Emby episode copies",
+      "author": "Lasikiewicz",
+      "details": [
+        "Mark every matching Emby episode quality copy as watched, including 1080p and 4K versions.",
+        "Add regression coverage for duplicate Emby episode entries."
+      ]
+    },
     {
       "version": "0.6.73",
       "date": "2026-08-05T20:30:07+01:00",
