@@ -1,7 +1,17 @@
 {
-  "version": "0.6.76",
-  "updatedAt": "2026-08-05T22:01:26+01:00",
+  "version": "0.6.77",
+  "updatedAt": "2026-08-06T00:21:33+01:00",
   "entries": [
+    {
+      "version": "0.6.77",
+      "date": "2026-08-06T00:21:33+01:00",
+      "commit": "fcb5b5dab1e90314bafa45d2f0fc5f1a2a73e88e",
+      "message": "Feature - Standardize settings page layouts",
+      "author": "Lasikiewicz",
+      "details": [
+        "Aligns settings sections and internal action boxes with the Sync Tools spacing and layout."
+      ]
+    },
     {
       "version": "0.6.76",
       "date": "2026-08-05T22:01:26+01:00",
