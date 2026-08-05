@@ -1,7 +1,17 @@
 {
-  "version": "0.6.72",
-  "updatedAt": "2026-08-05T19:58:20+01:00",
+  "version": "0.6.73",
+  "updatedAt": "2026-08-05T20:30:07+01:00",
   "entries": [
+    {
+      "version": "0.6.73",
+      "date": "2026-08-05T20:30:07+01:00",
+      "commit": "1dc38a8516bd61b087ffe2550e56dea031d09217",
+      "message": "Feature - Refine media info sync summary",
+      "author": "Lasikiewicz",
+      "details": [
+        "Show watched-at, source, playback, and target sync details with per-episode collapsed diagnostics and healthy sync highlighting."
+      ]
+    },
     {
       "version": "0.6.72",
       "date": "2026-08-05T19:58:20+01:00",
