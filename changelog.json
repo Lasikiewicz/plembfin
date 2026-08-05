@@ -1,7 +1,17 @@
 {
-  "version": "0.6.70",
-  "updatedAt": "2026-08-03T19:07:27+01:00",
+  "version": "0.6.71",
+  "updatedAt": "2026-08-05T19:06:36+01:00",
   "entries": [
+    {
+      "version": "0.6.71",
+      "date": "2026-08-05T19:06:36+01:00",
+      "commit": "faba0f07c6bcefda70922e5ae3abc650e5064e43",
+      "message": "Feature - Add detail-page force sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added a Force Sync action on media detail pages to recover watched state from connected servers."
+      ]
+    },
     {
       "version": "0.6.70",
       "date": "2026-08-03T19:07:27+01:00",
