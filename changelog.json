@@ -1,7 +1,19 @@
 {
-  "version": "0.6.75",
-  "updatedAt": "2026-08-05T21:04:32+01:00",
+  "version": "0.6.76",
+  "updatedAt": "2026-08-05T22:01:26+01:00",
   "entries": [
+    {
+      "version": "0.6.76",
+      "date": "2026-08-05T22:01:26+01:00",
+      "commit": "4482cd727baf16ced0d460b2410f042f29fb0a5e",
+      "message": "Feature - Add cancellable library force sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add inline Full Sync, Push To, and Pull From controls with live activity output",
+        "Confirm start actions and support cooperative cancellation for media and library runs",
+        "Document and test the shared Force Sync workflow"
+      ]
+    },
     {
       "version": "0.6.75",
       "date": "2026-08-05T21:04:32+01:00",
