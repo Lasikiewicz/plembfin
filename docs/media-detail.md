@@ -94,12 +94,18 @@ first complete render.
   and season summaries also show the total actual-watch count.
 - **Sync status** - per-platform pills from `sync_dispatch_telemetry`
   (`modules/sync.js`), with retry (`POST /api/retry-sync`). Detail pages also
-  expose **Force Sync** for movies and shows. It checks the selected title (or
-  every episode of the selected show) on configured Plex, Emby, and Jellyfin
-  servers, imports watched items that are missing from Plembfin, and replays the
-  resulting canonical state to the other destinations via `POST /api/force-sync/media`.
-  This is an explicit, title-scoped exception to the library-wide Force Sync
-  rule that ignores remote-only watches.
+  expose **Force Sync** for movies and shows. Its dialog offers **Full Sync** for
+  that title, **Push To** a selected destination (or all), and **Pull From** a
+  selected server (or all). Full Sync checks every configured Plex, Emby, and
+  Jellyfin server, imports watched items that are missing from Plembfin, and
+  replays the resulting canonical state to the selected destinations. Pull only
+  imports state; Push only replays Plembfin's canonical state. The asynchronous
+  `POST /api/force-sync/media` operation is followed through
+  `GET /api/force-sync/media/status?id=...`, and the dialog shows its detailed
+  live terminal output until completion. This is an explicit, title-scoped
+  exception to the library-wide Force Sync rule that ignores remote-only watches.
+  Jellyfin episode matching keeps every same-season/episode copy, so separate
+  1080p and 4K items can both receive the watched or unwatched state.
   `POST /api/retry-sync` and `POST /api/update-watch` both take an optional
   `media_key` next to `id`, and fall back to it when the id names no row. A
   record can be superseded between the moment a caller reads its id and the

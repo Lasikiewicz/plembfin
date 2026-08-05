@@ -176,20 +176,16 @@ async function findEpisode(config, media) {
 
     try {
       const body = await fetchJson(url, config);
-      const episode = body?.Items?.find(
-        (item) =>
-          Number(item.ParentIndexNumber) === Number(season) &&
-          Number(item.IndexNumber) === Number(episodeNum),
-      );
+      const episodes = body?.Items?.filter((item) => jellyfinEpisodeMatchesCoordinates(item, season, episodeNum)) || [];
 
-      if (episode?.Id) {
+      if (episodes.length) {
         console.log("Jellyfin episode matched from series children", {
           seriesId: series.Id,
-          itemId: episode.Id,
+          itemIds: episodes.map((item) => item.Id),
           season,
           episode: episodeNum,
         });
-        matchedEpisodes.push(episode);
+        matchedEpisodes.push(...episodes);
       }
     } catch (error) {
       console.error(`Failed to fetch episodes for series ${series.Id}`, error);
@@ -197,6 +193,10 @@ async function findEpisode(config, media) {
   }
 
   return matchedEpisodes;
+}
+
+export function jellyfinEpisodeMatchesCoordinates(item = {}, season, episode) {
+  return Number(item.ParentIndexNumber) === Number(season) && Number(item.IndexNumber) === Number(episode);
 }
 
 export async function findJellyfinItems(config, media) {

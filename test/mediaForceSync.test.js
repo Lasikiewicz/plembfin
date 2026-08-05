@@ -5,6 +5,7 @@ import {
   remoteItemIsWatched,
   remoteItemToMedia,
 } from "../server/src/utils/mediaForceSync.js";
+import { jellyfinEpisodeMatchesCoordinates } from "../server/src/utils/jellyfinClient.js";
 
 test("normalizes a show detail Force Sync request and provider ids", () => {
   assert.deepEqual(
@@ -20,9 +21,40 @@ test("normalizes a show detail Force Sync request and provider ids", () => {
       ids: { imdb: "", tmdb: "4194", tvdb: "41077" },
       season: null,
       episode: null,
+      mode: "full",
       source: "",
+      target: "",
     },
   );
+});
+
+test("Jellyfin episode matching keeps duplicate quality copies", () => {
+  const candidates = [
+    { Id: "1080p-copy", ParentIndexNumber: 1, IndexNumber: 2 },
+    { Id: "4k-copy", ParentIndexNumber: 1, IndexNumber: 2 },
+    { Id: "other-episode", ParentIndexNumber: 1, IndexNumber: 3 },
+  ];
+  assert.deepEqual(
+    candidates.filter((item) => jellyfinEpisodeMatchesCoordinates(item, 1, 2)).map((item) => item.Id),
+    ["1080p-copy", "4k-copy"],
+  );
+});
+
+test("normalizes target-specific push and pull operations", () => {
+  assert.deepEqual(
+    normalizeMediaForceSyncRequest({ title: "The Acolyte", type: "show", mode: "push_to", push_to: "jellyfin" }),
+    {
+      title: "The Acolyte",
+      type: "show",
+      ids: { imdb: "", tmdb: "", tvdb: "" },
+      season: null,
+      episode: null,
+      mode: "push",
+      source: "",
+      target: "jellyfin",
+    },
+  );
+  assert.equal(normalizeMediaForceSyncRequest({ title: "The Acolyte", type: "show", mode: "pull_from", pull_from: "plex" }).mode, "pull");
 });
 
 test("maps a watched Plex episode into a canonical Plembfin record", () => {

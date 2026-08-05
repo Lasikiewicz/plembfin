@@ -29,7 +29,8 @@ import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyf
 import { getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
-import { forceSyncMediaState } from "../utils/mediaForceSync.js";
+import { forceSyncMediaState, normalizeMediaForceSyncRequest } from "../utils/mediaForceSync.js";
+import { appendMediaForceSyncActivity, createMediaForceSyncActivity, finishMediaForceSyncActivity, getMediaForceSyncActivity } from "../utils/mediaForceSyncActivity.js";
 import { provenanceTelemetryLines } from "../utils/watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "../utils/watchAudit.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
@@ -730,15 +731,46 @@ export async function handleMediaForceSync(req, res) {
 
   try {
     const body = await readJson(req);
-    const result = await forceSyncMediaState(body, {
-      config: await loadMediaConfig(),
-      logger: (message) => console.log(message),
+    const requested = normalizeMediaForceSyncRequest(body);
+    const operationId = createMediaForceSyncActivity({
+      title: requested.title,
+      type: requested.type,
+      mode: requested.mode,
+      target: requested.target || "all",
+      pullFrom: requested.source || "all",
     });
-    return sendJson(res, result, 200, { "Cache-Control": "no-store" });
+    void (async () => {
+      try {
+        const result = await forceSyncMediaState(requested, {
+          config: await loadMediaConfig(),
+          logger: (message) => {
+            appendMediaForceSyncActivity(operationId, message, "info");
+            console.log(`[Media Force Sync ${operationId}] ${message}`);
+          },
+        });
+        finishMediaForceSyncActivity(operationId, result);
+      } catch (error) {
+        console.error("Detail-page Force Sync failed", error);
+        finishMediaForceSyncActivity(operationId, null, error.message || "Detail-page Force Sync failed");
+      }
+    })();
+    return sendJson(res, { ok: true, operationId, status: "running", ...requested, title: requested.title }, 202, { "Cache-Control": "no-store" });
   } catch (error) {
     console.error("Detail-page Force Sync failed", error);
     return sendJson(res, { ok: false, error: error.message || "Detail-page Force Sync failed" }, 400);
   }
+}
+
+export async function handleMediaForceSyncStatus(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const operationId = String(req.query.id || "").trim();
+  if (!operationId) return sendJson(res, { ok: false, error: "id is required" }, 400);
+  const activity = getMediaForceSyncActivity(operationId);
+  if (!activity) return sendJson(res, { ok: false, error: "Force Sync operation not found" }, 404);
+  return sendJson(res, { ok: true, ...activity }, 200, { "Cache-Control": "no-store" });
 }
 
 export async function handleManualUnwatch(req, res) {

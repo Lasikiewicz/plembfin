@@ -4,8 +4,8 @@ import { posterUrlFor, isCachedStorageImageUrl, tmdbImage, tmdbPoster, bestTmdbL
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260803";
-import { renderWatchDatePrompt } from "./watch-action.js";
-import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260809";
+import { renderWatchDatePrompt } from "./watch-action.js?v=20260810";
+import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260810";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,

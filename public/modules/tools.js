@@ -1,7 +1,7 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normalizeHeader, episodeCode } from "./utils.js";
-import { initBackupTools } from "./tools-backups.js?v=20260809";
+import { initBackupTools } from "./tools-backups.js?v=20260810";
 import { initMaintenanceTools } from "./tools-maintenance.js";
 import { initHealthTools } from "./tools-health.js";
 // Callbacks injected by app.js at startup to avoid circular imports.
@@ -69,7 +69,7 @@ export {
   setBackupTransferState,
   updatePlembfinButtonsState,
   uploadWatchBackupFile,
-} from "./tools-backups.js?v=20260809";
+} from "./tools-backups.js?v=20260810";
 export { loadCacheStats, renderCachePanel, resetFullSyncWatchstates } from "./tools-maintenance.js";
 export { loadSyncHealth } from "./tools-health.js";
 // ── Trakt / CSV import ─────────────────────────────────────────────────────

@@ -796,7 +796,7 @@ export async function confirmAndMarkUnwatched(button) {
 
     _clearDerivedUiCaches({ resetExplorer: kind === "movie" });
     _setMessage(`Marked "${label}" unwatched; pushed unplayed to media apps.`, "success");
-    await _loadHistory().catch(() => null);
+    await _loadHistory({ force: true }).catch(() => null);
 
     if (kind === "episode" && (state.activeShowModalKey || state.activeShowTmdbId)) {
       if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
@@ -864,7 +864,7 @@ export async function confirmAndDeleteMedia(button) {
 
     _clearDerivedUiCaches({ resetExplorer: true });
     _setMessage(`Deleted "${label}" and its history (${result.deleted || 0} record${result.deleted === 1 ? "" : "s"}).`, "success");
-    await _loadHistory().catch(() => null);
+    await _loadHistory({ force: true }).catch(() => null);
     _closeMediaDetail();
   } catch (error) {
     button.disabled = false;

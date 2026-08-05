@@ -18,9 +18,11 @@ The same logic runs on demand via:
   or session cookie).
 - `POST /api/force-sync` - queues durable worker work for the dashboard to poll;
   `POST /api/stop-force-sync` cancels queued or running work.
-- `POST /api/force-sync/media` - an authenticated, title-scoped detail-page action
-  that explicitly imports watched state for the selected movie or show before
-  replaying it to configured destinations.
+- `POST /api/force-sync/media` - an authenticated, title-scoped detail-page action.
+  Its `mode` is `full`, `push`, or `pull`; `push_to` and `pull_from` optionally
+  select one of Plex, Emby, or Jellyfin. The response returns an operation id,
+  and `GET /api/force-sync/media/status?id=...` exposes live log lines and the
+  final result for the popup terminal.
 
 Manual cron and force-sync requests are stored in `background_jobs`; their ordered
 logs live in `background_job_logs`. The web process relays logs while the leaseholder
@@ -52,10 +54,13 @@ as echoes; scheduled-sync callbacks remain eligible for normal echo-ledger check
 unplayed callbacks are additionally matched against a 14-day outbound unmark ledger.
 
 The detail-page endpoint is deliberately separate from that library-wide policy. It is a
-user-requested repair for one title: configured servers are queried for that title, any
-watched movie or episode found there is imported into Plembfin, and the imported state is
-then propagated canonically. It does not change the behavior or safety guarantees of the
-library-wide `/api/force-sync` planner and executor.
+user-requested repair for one title: Full Sync queries configured servers for that title,
+imports any watched movie or episode found there into Plembfin, and propagates the
+imported state canonically. Pull mode performs only the import, while Push mode replays
+Plembfin's existing canonical state to the selected destination(s). It does not change
+the behavior or safety guarantees of the library-wide `/api/force-sync` planner and
+executor. Jellyfin episode lookups return every matching season/episode item so duplicate
+quality copies are marked consistently.
 
 ## Plembfin is the watched-state authority
 

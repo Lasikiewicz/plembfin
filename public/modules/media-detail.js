@@ -7,14 +7,14 @@ import {
   prepareInlineMediaDetail, syncMediaActionsMenuState, syncTopbarControlsMenuState,
   openDebugModal, closeDebugModal, clearMediaDetailState, closeMediaDetail,
   openMediaInfoModal, closeMediaInfoModal,
-} from "./media-detail-context.js?v=20260809";
+} from "./media-detail-context.js?v=20260810";
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent,
-} from "./media-detail-show.js?v=20260809";
+} from "./media-detail-show.js?v=20260810";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
-} from "./media-detail-movie.js?v=20260809";
+} from "./media-detail-movie.js?v=20260810";
 import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js";
 
 export {

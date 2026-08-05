@@ -15,15 +15,19 @@ import { appendSyncHistory, loadMediaConfig } from "./configStore.js";
 import { createLoopStore } from "./loopStore.js";
 import { syncCanonicalPlaystate } from "./syncOrchestrator.js";
 import {
+  getCanonicalWatchState,
   findWatchedByAnyMediaKey,
   getWatchRecordById,
   insertWatchRecord,
   invalidateHistoryDerivedCaches,
+  queryShowDetail,
   updateWatchTelemetry,
   upsertPlaystateForMedia,
+  watchRowToMedia,
 } from "./dataRepo.js";
 
 const MEDIA_SERVERS = ["plex", "emby", "jellyfin"];
+const FORCE_SYNC_MODES = ["full", "push", "pull"];
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -64,13 +68,20 @@ export function normalizeMediaForceSyncRequest(input = {}) {
   const title = clean(input.title || input.name);
   const season = numberOrNull(input.season);
   const episode = numberOrNull(input.episode);
-  const source = clean(input.source).toLowerCase();
+  const rawMode = clean(input.mode || input.action || "full").toLowerCase();
+  const mode = rawMode === "full_sync" || rawMode === "fullsync" ? "full" : rawMode === "push_to" ? "push" : rawMode === "pull_from" ? "pull" : rawMode;
+  const sourceValue = clean(input.pull_from || input.pullFrom || input.source).toLowerCase();
+  const targetValue = clean(input.push_to || input.pushTo || input.target).toLowerCase();
+  const source = sourceValue === "all" ? "" : sourceValue;
+  const target = targetValue === "all" ? "" : targetValue;
 
   if (!title) throw new Error("title is required");
   if (!["movie", "show", "episode"].includes(type)) throw new Error("type must be movie, show, or episode");
+  if (!FORCE_SYNC_MODES.includes(mode)) throw new Error("mode must be full, push, or pull");
   if (source && !MEDIA_SERVERS.includes(source)) throw new Error("source must be plex, emby, or jellyfin");
+  if (target && !MEDIA_SERVERS.includes(target)) throw new Error("target must be plex, emby, or jellyfin");
 
-  return { title, type, ids, season, episode, source };
+  return { title, type, ids, season, episode, mode, source, target };
 }
 
 function sourceTitle(item = {}, source = "") {
@@ -218,6 +229,61 @@ async function collectSourceItems(config, requested, source, now) {
     .filter((media) => mediaMatchesRequest(media, requested));
 }
 
+function sourceLabel(source = "") {
+  return source ? source.charAt(0).toUpperCase() + source.slice(1) : "all connected servers";
+}
+
+function modeLabel(mode = "full") {
+  if (mode === "push") return "Push To";
+  if (mode === "pull") return "Pull From";
+  return "Full Sync";
+}
+
+async function collectLocalCanonicalItems(requested, { logger = () => {} } = {}) {
+  if (requested.type === "show") {
+    logger(`[push] Plembfin: loading canonical watched episodes for "${requested.title}".`);
+    const show = await queryShowDetail({ title: requested.title });
+    const items = (show?.episodes || [])
+      .map((row) => ({
+        ...watchRowToMedia(row, "manual"),
+        show_title: row.show_title || undefined,
+        episode_title: row.episode_title || undefined,
+        canonicalState: "watched",
+        isValid: true,
+      }))
+      .filter((media) => mediaMatchesRequest(media, requested));
+    logger(`[push] Plembfin: found ${items.length} canonical watched episode${items.length === 1 ? "" : "s"}.`);
+    return {
+      items,
+      sourceResults: [{ source: "plembfin", status: items.length ? "success" : "not_watched", watchedCount: items.length }],
+    };
+  }
+
+  const probe = {
+    title: requested.title,
+    type: requested.type,
+    ids: requested.ids,
+    season: requested.season,
+    episode: requested.episode,
+    isValid: true,
+  };
+  const canonicalState = await getCanonicalWatchState(probe).catch(() => null);
+  if (!canonicalState) {
+    logger(`[push] Plembfin: no canonical state exists for "${requested.title}".`);
+    return { items: [], sourceResults: [{ source: "plembfin", status: "not_watched", watchedCount: 0 }] };
+  }
+
+  const row = await findWatchedByAnyMediaKey(probe).catch(() => null);
+  const media = row
+    ? { ...watchRowToMedia(row, "manual"), canonicalState, isValid: true }
+    : { ...probe, source: "manual", canonicalState, watched_at: "" };
+  logger(`[push] Plembfin: canonical state for "${media.title}" is ${canonicalState}.`);
+  return {
+    items: [media],
+    sourceResults: [{ source: "plembfin", status: "success", watchedCount: 1, state: canonicalState }],
+  };
+}
+
 export async function collectMediaForceSyncItems(config = {}, requested, { now = Date.now(), logger = () => {} } = {}) {
   const sources = requested.source ? [requested.source] : MEDIA_SERVERS;
   const sourceResults = [];
@@ -225,12 +291,15 @@ export async function collectMediaForceSyncItems(config = {}, requested, { now =
 
   await Promise.all(sources.map(async (source) => {
     if (!sourceConfigured(config, source)) {
+      logger(`[pull] ${source}: not configured; skipped.`);
       sourceResults.push({ source, status: "not_configured", watchedCount: 0 });
       return;
     }
+    logger(`[pull] ${source}: looking for watched state for "${requested.title}".`);
     try {
       const items = await collectSourceItems(config, requested, source, now);
       collected.push(...items);
+      logger(`[pull] ${source}: found ${items.length} watched item${items.length === 1 ? "" : "s"}.`);
       sourceResults.push({ source, status: items.length ? "success" : "not_watched", watchedCount: items.length });
     } catch (error) {
       logger(`Detail Force Sync: ${source} lookup failed: ${error.message || String(error)}`);
@@ -242,21 +311,23 @@ export async function collectMediaForceSyncItems(config = {}, requested, { now =
   return { items: dedupeMedia(collected), sourceResults };
 }
 
-function pendingTelemetry(media) {
+function pendingTelemetry(media, requested) {
+  const action = requested.mode === "pull" ? "Pulled Watched" : requested.mode === "push" ? "Pushed Canonical State" : "Force Synced Watched";
   return [
     `Origin: ${media.source}`,
-    "Action: Force Synced Watched",
+    `Action: ${action}`,
     `Media: ${media.title}`,
     "Loop-check: Passed",
     "Dispatch status: pending",
-    "Details: Detail-page Force Sync imported watched state and queued canonical propagation.",
+    `Details: Detail-page ${modeLabel(requested.mode)} operation queued for this media item.`,
   ].join("\n");
 }
 
-function completedTelemetry(media, summary) {
+function completedTelemetry(media, summary, requested) {
+  const action = requested.mode === "pull" ? "Pulled Watched" : requested.mode === "push" ? "Pushed Canonical State" : "Force Synced Watched";
   const lines = [
     `Origin: ${media.source}`,
-    "Action: Force Synced Watched",
+    `Action: ${action}`,
     `Media: ${media.title}`,
     "Loop-check: Passed",
     `Dispatch status: ${summary.status || "unknown"}`,
@@ -268,18 +339,21 @@ function completedTelemetry(media, summary) {
   return lines.join("\n");
 }
 
-async function appendForceSyncHistory(media, summary) {
+async function appendForceSyncHistory(media, summary, requested) {
   await appendSyncHistory({
     mediaType: media.type,
     title: media.title,
     source: media.source,
     status: summary.status || "unknown",
-    details: `Detail-page Force Sync: ${summary.details || "completed"}`,
+    details: `Detail-page ${modeLabel(requested.mode)}: ${summary.details || "completed"}`,
     action: "watched",
     targetStates: summary.targetStates || [],
     rawPayloadDebug: {
       event: "media_force_sync",
       phase: "completed",
+      mode: requested.mode,
+      target: requested.target || "all",
+      pullFrom: requested.source || "all",
       ids: media.ids || {},
       season: media.season ?? null,
       episode: media.episode ?? null,
@@ -290,19 +364,23 @@ async function appendForceSyncHistory(media, summary) {
 export async function forceSyncMediaState(input, { config = null, now = Date.now(), logger = () => {} } = {}) {
   const requested = normalizeMediaForceSyncRequest(input);
   const resolvedConfig = config || await loadMediaConfig();
-  const collection = await collectMediaForceSyncItems(resolvedConfig, requested, { now, logger });
+  logger(`[${requested.mode}] ${modeLabel(requested.mode)} started for "${requested.title}".`);
+  const collection = requested.mode === "push"
+    ? await collectLocalCanonicalItems(requested, { logger })
+    : await collectMediaForceSyncItems(resolvedConfig, requested, { now, logger });
   const loopStore = createLoopStore();
   const results = [];
   const records = [];
 
   for (const media of collection.items) {
+    const canonicalState = media.canonicalState || "watched";
     let record = await findWatchedByAnyMediaKey(media).catch(() => null);
     let inserted = false;
-    if (!record) {
+    if (requested.mode !== "push" && !record) {
       const insertedResult = await insertWatchRecord({
         ...media,
         sync_action: "watched",
-        sync_dispatch_telemetry: pendingTelemetry(media),
+        sync_dispatch_telemetry: pendingTelemetry(media, requested),
       }, { skipInvalidate: true });
       record = insertedResult.record;
       record.id = insertedResult.id;
@@ -310,41 +388,69 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
       await insertedResult.assetPrefetch?.catch(() => null);
     }
 
-    await upsertPlaystateForMedia(media, "watched", media.watched_at, { skipInvalidate: true });
+    await upsertPlaystateForMedia(media, canonicalState, media.watched_at, { skipInvalidate: true });
 
-    const summary = await syncCanonicalPlaystate(media, resolvedConfig, loopStore).catch((error) => ({
-      skipped: false,
-      status: "error",
-      details: `Canonical propagation failed: ${error.message || String(error)}`,
-      targetStates: [],
-    }));
-    await updateWatchTelemetry(record.id, completedTelemetry(media, summary), { skipInvalidate: true });
-    await appendForceSyncHistory(media, summary);
+    let summary;
+    if (requested.mode === "pull") {
+      summary = {
+        skipped: false,
+        status: "success",
+        details: "Watched state pulled into Plembfin; no outbound targets selected.",
+        targetStates: [],
+      };
+      logger(`[pull] ${media.title}: imported ${canonicalState} state into Plembfin.`);
+    } else {
+      const syncMedia = requested.target ? { ...media, syncTargets: [requested.target] } : media;
+      logger(`[${requested.mode}] ${media.title}: sending ${canonicalState} state to ${sourceLabel(requested.target)}.`);
+      summary = await syncCanonicalPlaystate(syncMedia, resolvedConfig, loopStore, canonicalState).catch((error) => ({
+        skipped: false,
+        status: "error",
+        details: `Canonical propagation failed: ${error.message || String(error)}`,
+        targetStates: [],
+      }));
+    }
 
-    const freshRecord = await getWatchRecordById(record.id).catch(() => null);
+    for (const target of summary.targetStates || []) {
+      logger(`[${requested.mode}] ${media.title}: ${target.target || "target"} -> ${target.status}${target.detail ? ` (${target.detail})` : ""}.`);
+    }
+
+    if (record?.id) {
+      await updateWatchTelemetry(record.id, completedTelemetry(media, summary, requested), { skipInvalidate: true });
+      await appendForceSyncHistory(media, summary, requested);
+    }
+
+    const freshRecord = record?.id ? await getWatchRecordById(record.id).catch(() => null) : null;
     if (freshRecord) records.push(freshRecord);
+    const operationStatus = requested.mode === "pull" ? "pulled" : summary.status || "unknown";
+    logger(`[${requested.mode}] ${media.title}: ${operationStatus} — ${summary.details || "complete"}`);
     results.push({
       title: media.title,
       type: media.type,
       season: media.season,
       episode: media.episode,
       source: media.source,
-      id: record.id,
+      id: record?.id || "",
       inserted,
-      status: summary.status || "unknown",
+      status: operationStatus,
+      canonicalState,
       targetStates: summary.targetStates || [],
     });
   }
 
   await invalidateHistoryDerivedCaches().catch(() => null);
+  logger(`[${requested.mode}] ${modeLabel(requested.mode)} finished: ${results.length} item${results.length === 1 ? "" : "s"}.`);
   return {
     ok: true,
     title: requested.title,
     type: requested.type,
+    mode: requested.mode,
+    target: requested.target || "all",
+    pullFrom: requested.source || "all",
     found: collection.items.length,
     imported: results.filter((result) => result.inserted).length,
     existing: results.filter((result) => !result.inserted).length,
-    synced: results.filter((result) => ["success", "partial", "skipped"].includes(result.status)).length,
+    pulled: results.filter((result) => result.status === "pulled").length,
+    synced: requested.mode === "pull" ? 0 : results.filter((result) => ["success", "partial", "skipped"].includes(result.status)).length,
     sourceResults: collection.sourceResults,
     results,
     records,

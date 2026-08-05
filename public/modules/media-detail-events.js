@@ -10,7 +10,7 @@ import {
   openEditSeasonDateDialog,
   applyWatchedAtToLocalWatchRecord,
   editDateOptionsFromButton,
-} from "./edit-dialogs.js";
+} from "./edit-dialogs.js?v=20260810";
 import {
   openWatchDatePrompt,
   closeWatchDatePrompt,
@@ -22,7 +22,7 @@ import {
   applyWatchDateChoice,
   confirmAndMarkUnwatched,
   confirmAndDeleteMedia,
-} from "./watch-action.js";
+} from "./watch-action.js?v=20260810";
 import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup } from "./sync.js";
 import { renderExplorer, renderHistoryView } from "./explorer.js";
 import {
@@ -34,8 +34,8 @@ import {
   renderMovieImmersiveModalContent,
   openHistoryDebugModal,
   openMediaInfoModal,
-} from "./media-detail.js?v=20260809";
-import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=20260809";
+} from "./media-detail.js?v=20260810";
+import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=20260810";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};
@@ -84,6 +84,208 @@ function mediaForceSyncPayload(button) {
   return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== ""));
 }
 
+let mediaForceSyncSession = null;
+
+function mediaForceSyncElements() {
+  return {
+    modal: document.querySelector("#mediaForceSyncModal"),
+    title: document.querySelector("#mediaForceSyncModalTitle"),
+    description: document.querySelector("#mediaForceSyncModalDescription"),
+    close: document.querySelector("#closeMediaForceSyncModalButton"),
+    activity: document.querySelector("#mediaForceSyncActivity"),
+    activityState: document.querySelector("#mediaForceSyncActivityState"),
+    terminal: document.querySelector("#mediaForceSyncTerminal"),
+    progress: document.querySelector("#mediaForceSyncProgress"),
+    progressLabel: document.querySelector("#mediaForceSyncProgressLabel"),
+    progressMeta: document.querySelector("#mediaForceSyncProgressMeta"),
+    progressTrack: document.querySelector("#mediaForceSyncProgressTrack"),
+    progressFill: document.querySelector("#mediaForceSyncProgressFill"),
+    pushTarget: document.querySelector("#mediaForceSyncPushTarget"),
+    pullSource: document.querySelector("#mediaForceSyncPullSource"),
+  };
+}
+
+function mediaForceSyncModeLabel(mode = "full") {
+  return mode === "push" ? "Push To" : mode === "pull" ? "Pull From" : "Full Sync";
+}
+
+function mediaForceSyncServerLabel(server = "all") {
+  if (server === "all" || !server) return "all connected servers";
+  return server.charAt(0).toUpperCase() + server.slice(1);
+}
+
+function resetMediaForceSyncActivity(elements) {
+  elements.activity?.classList.add("hidden");
+  if (elements.terminal) elements.terminal.textContent = "";
+  if (elements.activityState) elements.activityState.textContent = "Ready";
+  elements.progress?.classList.add("hidden");
+  if (elements.progressLabel) elements.progressLabel.textContent = "Preparing operation";
+  if (elements.progressMeta) elements.progressMeta.textContent = "";
+  if (elements.progressTrack) elements.progressTrack.setAttribute("aria-valuenow", "0");
+  if (elements.progressFill) elements.progressFill.style.transform = "scaleX(0)";
+}
+
+function setMediaForceSyncControlsBusy(elements, busy) {
+  elements.modal?.querySelectorAll("[data-media-force-sync-run], select").forEach((control) => {
+    control.disabled = busy;
+  });
+  if (elements.close) {
+    elements.close.textContent = busy ? "Running…" : "Close";
+    elements.close.setAttribute("aria-disabled", String(busy));
+  }
+}
+
+function renderMediaForceSyncActivity(activity) {
+  const elements = mediaForceSyncElements();
+  if (!activity) return;
+  elements.activity?.classList.remove("hidden");
+  const lines = (activity.lines || []).map((line) => {
+    const stamp = line.at ? new Date(line.at).toLocaleTimeString() : "--:--:--";
+    const level = String(line.level || "info").toUpperCase().padEnd(7, " ");
+    return `[${stamp}] ${level} ${line.text || ""}`;
+  });
+  if (elements.terminal) {
+    elements.terminal.textContent = lines.join("\n");
+    elements.terminal.scrollTop = elements.terminal.scrollHeight;
+  }
+
+  const status = activity.status || "running";
+  const statusLabel = status === "completed" ? "Complete" : status === "error" ? "Failed" : "Live output";
+  if (elements.activityState) elements.activityState.textContent = statusLabel;
+  if (elements.progressLabel) {
+    elements.progressLabel.textContent = status === "running"
+      ? `${mediaForceSyncModeLabel(activity.meta?.mode)} in progress`
+      : status === "completed" ? "Operation complete" : "Operation stopped with an error";
+  }
+  if (elements.progressMeta) elements.progressMeta.textContent = `${lines.length} log line${lines.length === 1 ? "" : "s"}`;
+  elements.progress?.classList.remove("hidden");
+  elements.progress?.setAttribute("data-status", status);
+  const progressValue = status === "completed" ? 100 : status === "error" ? 100 : 18;
+  if (elements.progressTrack) elements.progressTrack.setAttribute("aria-valuenow", String(progressValue));
+  if (elements.progressFill) elements.progressFill.style.transform = `scaleX(${progressValue / 100})`;
+}
+
+function waitForMediaForceSyncPoll() {
+  return new Promise((resolve) => setTimeout(resolve, 650));
+}
+
+function closeMediaForceSyncDialog() {
+  const elements = mediaForceSyncElements();
+  if (mediaForceSyncSession?.running) return;
+  elements.modal?.classList.add("hidden");
+}
+
+function openMediaForceSyncDialog(button) {
+  if (mediaForceSyncSession?.running) return;
+  const elements = mediaForceSyncElements();
+  if (!elements.modal) {
+    setMessage("Force Sync options are unavailable until the page finishes loading.", "error");
+    return;
+  }
+  const payload = mediaForceSyncPayload(button);
+  mediaForceSyncSession = { button, payload, running: false, operationId: "" };
+  if (elements.title) elements.title.textContent = `Force Sync · ${payload.title}`;
+  if (elements.description) elements.description.textContent = `${payload.type === "show" ? "TV show" : payload.type === "episode" ? "Episode" : "Movie"} · this operation is limited to the selected media item.`;
+  if (elements.pushTarget) elements.pushTarget.value = "all";
+  if (elements.pullSource) elements.pullSource.value = "all";
+  resetMediaForceSyncActivity(elements);
+  setMediaForceSyncControlsBusy(elements, false);
+  elements.modal.classList.remove("hidden");
+  elements.modal.querySelector("[data-media-force-sync-run=full]")?.focus();
+}
+
+async function finishMediaForceSyncOperation(payload, activity, error = "") {
+  const session = mediaForceSyncSession;
+  if (!session) return;
+  session.running = false;
+  const elements = mediaForceSyncElements();
+  renderMediaForceSyncActivity(activity);
+  setMediaForceSyncControlsBusy(elements, false);
+  if (session.button?.isConnected) {
+    session.button.disabled = false;
+    session.button.removeAttribute("aria-busy");
+  }
+  if (error || activity?.status === "error") {
+    setMessage(`Force Sync failed: ${error || activity?.error || "operation failed"}`, "error");
+    return;
+  }
+
+  const result = activity?.result || {};
+  clearDerivedUiCaches({ resetExplorer: false });
+  await loadHistory({ force: true }).catch(() => null);
+  mergeForceSyncRecords(result.records);
+  await refreshMediaAfterForceSync(payload, result);
+
+  if (payload.mode === "pull") {
+    setMessage(`Pull completed: found ${Number(result.found || 0)} watched item${Number(result.found || 0) === 1 ? "" : "s"}; added ${Number(result.imported || 0)} to Plembfin.`, "success");
+  } else if (payload.mode === "push") {
+    setMessage(`Push completed to ${mediaForceSyncServerLabel(payload.push_to || "all")}: ${Number(result.synced || 0)} item${Number(result.synced || 0) === 1 ? "" : "s"} processed.`, "success");
+  } else {
+    setMessage(`Full Sync completed: found ${Number(result.found || 0)} watched item${Number(result.found || 0) === 1 ? "" : "s"}; added ${Number(result.imported || 0)} to Plembfin.`, "success");
+  }
+}
+
+async function pollMediaForceSync(operationId, payload) {
+  let missingAttempts = 0;
+  while (mediaForceSyncSession?.operationId === operationId) {
+    const response = await fetch(`/api/force-sync/media/status?id=${encodeURIComponent(operationId)}`, { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (response.status === 404 && missingAttempts < 5) {
+      missingAttempts += 1;
+      await waitForMediaForceSyncPoll();
+      continue;
+    }
+    if (!response.ok || body.ok === false) throw new Error(body.error || `Force Sync status failed with ${response.status}`);
+    missingAttempts = 0;
+    renderMediaForceSyncActivity(body);
+    if (body.status === "completed" || body.status === "error") {
+      await finishMediaForceSyncOperation(payload, body, body.error || "");
+      return;
+    }
+    await waitForMediaForceSyncPoll();
+  }
+}
+
+async function runMediaForceSync(mode) {
+  const session = mediaForceSyncSession;
+  if (!session || session.running) return;
+  const elements = mediaForceSyncElements();
+  const payload = { ...session.payload, mode };
+  const pushTarget = elements.pushTarget?.value || "all";
+  const pullSource = elements.pullSource?.value || "all";
+  if (mode === "push" && pushTarget !== "all") payload.push_to = pushTarget;
+  if (mode === "pull" && pullSource !== "all") payload.pull_from = pullSource;
+  session.running = true;
+  setMediaForceSyncControlsBusy(elements, true);
+  if (session.button) {
+    session.button.disabled = true;
+    session.button.setAttribute("aria-busy", "true");
+  }
+  elements.activity?.classList.remove("hidden");
+  if (elements.terminal) elements.terminal.textContent = `[client] Starting ${mediaForceSyncModeLabel(mode)} for ${payload.title}…`;
+  if (elements.activityState) elements.activityState.textContent = "Starting";
+  setMessage(`${mediaForceSyncModeLabel(mode)} ${payload.title}…`, "muted");
+
+  try {
+    const response = await fetch("/api/force-sync/media", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body.ok === false) throw new Error(body.error || `Force Sync failed with ${response.status}`);
+    session.operationId = body.operationId;
+    await pollMediaForceSync(body.operationId, payload);
+  } catch (error) {
+    const message = error.message || String(error);
+    await finishMediaForceSyncOperation(payload, {
+      status: "error",
+      error: message,
+      lines: [{ at: Date.now(), level: "error", text: message }],
+    }, message);
+  }
+}
+
 function mergeForceSyncRecords(records = []) {
   if (!Array.isArray(records) || !records.length) return;
   const historyById = new Map((state.history || []).filter((row) => row?.id).map((row) => [String(row.id), row]));
@@ -120,48 +322,6 @@ async function refreshMediaAfterForceSync(payload, body) {
     await renderMovieImmersiveModalContent(movie);
   } else if (movieRecord) {
     await renderMovieImmersiveModalContent(movieRecord);
-  }
-}
-
-async function triggerMediaForceSync(button) {
-  if (!button || button.disabled) return;
-  const payload = mediaForceSyncPayload(button);
-  const label = button.querySelector("span");
-  const originalLabel = label?.innerHTML || "Force <br>Sync";
-  button.disabled = true;
-  button.setAttribute("aria-busy", "true");
-  if (label) label.textContent = "Syncing...";
-  setMessage(`Checking connected media servers for "${payload.title}"...`, "muted");
-
-  try {
-    const response = await fetch("/api/force-sync/media", {
-      method: "POST",
-      headers: { ...authHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok || body.ok === false) throw new Error(body.error || `Force Sync failed with ${response.status}`);
-
-    clearDerivedUiCaches({ resetExplorer: false });
-    await loadHistory({ force: true });
-    mergeForceSyncRecords(body.records);
-    await refreshMediaAfterForceSync(payload, body);
-
-    const found = Number(body.found || 0);
-    const imported = Number(body.imported || 0);
-    if (found > 0) {
-      setMessage(`Force Sync found ${found} watched item${found === 1 ? "" : "s"}; added ${imported} to Plembfin.`, "success");
-    } else {
-      setMessage(`Force Sync found no watched items for "${payload.title}" on connected media servers.`, "info");
-    }
-  } catch (error) {
-    setMessage(`Force Sync failed: ${error.message}`, "error");
-  } finally {
-    if (button.isConnected) {
-      button.disabled = false;
-      button.removeAttribute("aria-busy");
-      if (label) label.innerHTML = originalLabel;
-    }
   }
 }
 
@@ -205,10 +365,29 @@ export function attachMediaDetailEvents() {
       return;
     }
 
+    const forceSyncRunButton = event.target.closest("[data-media-force-sync-run]");
+    if (forceSyncRunButton) {
+      event.preventDefault();
+      runMediaForceSync(forceSyncRunButton.dataset.mediaForceSyncRun).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
+    const forceSyncCloseButton = event.target.closest("#closeMediaForceSyncModalButton");
+    if (forceSyncCloseButton) {
+      event.preventDefault();
+      closeMediaForceSyncDialog();
+      return;
+    }
+
+    if (event.target === document.querySelector("#mediaForceSyncModal")) {
+      closeMediaForceSyncDialog();
+      return;
+    }
+
     const forceSyncButton = event.target.closest("[data-media-force-sync]");
     if (forceSyncButton) {
       event.preventDefault();
-      triggerMediaForceSync(forceSyncButton);
+      openMediaForceSyncDialog(forceSyncButton);
       return;
     }
 

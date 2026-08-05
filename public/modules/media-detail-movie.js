@@ -3,8 +3,8 @@ import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils
 import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260803";
-import { renderWatchDatePrompt } from "./watch-action.js";
-import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260809";
+import { renderWatchDatePrompt } from "./watch-action.js?v=20260810";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260810";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,

@@ -139,7 +139,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `backups.js` | Backup API handlers for portable import/export (`/api/import`, `/api/backup/export`, `/api/backup/import`), encrypted full backups (`/api/plembfin-backups`), and watch-history backup actions (`/api/watch-backups`). |
 | `media.js` | Library and history handlers: history, movies, shows/show detail, delete/update watch records, transactional show rematching, merge shows, full watchstate replay, and missing-telemetry clearing. |
 | `metadata.js` | Poster proxy and metadata/search handlers: TMDB details/search/season/images/person/poster/profile, the remote-artwork caching proxy, TVDB search/images, Fanart images, media search, Upcoming episodes, YouTube metadata, and OMDb ratings. |
-| `sync.js` | Sync/runtime handlers: webhook ingestion, manual watch/unwatch, playback progress, retry sync, sync job/history listing, Now Playing, active sessions, cron sync, library-wide force sync, title-scoped detail-page Force Sync, and stop-force-sync. |
+| `sync.js` | Sync/runtime handlers: webhook ingestion, manual watch/unwatch, playback progress, retry sync, sync job/history listing, Now Playing, active sessions, cron sync, library-wide force sync, title-scoped detail-page Force Sync modes and status polling, and stop-force-sync. |
 | `maintenance.js` | Maintenance/admin utility handlers: ping, changelog/update check, diagnostic logs, cross-platform match reporting, backfill/repair/dedup/rematch, cache stats, and cache clearing. |
 
 ### `server/src/utils/`
@@ -150,12 +150,13 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `parsers.js` | Webhook normalization: `parsePlexWebhook` (multipart), `parseEmbyWebhook`, `parseJellyfinWebhook`, `parseCustomWebhook` → a unified `media` object with a `phase` field (`active`/`completed`/`ended`/`unplayed`/`ignored`). Also `parsePlexGuids`, `normalizeProviderIds`, `decodeHtmlEntities`, `buildPlexMediaFromMetadata`. See [webhooks.md](webhooks.md). |
 | `syncOrchestrator.js` | Cross-platform propagation: `syncMediaPlaystate` / `syncMediaUnplayedPlaystate` / `syncMediaProgress` fan out normal events to the other platforms' clients, while `syncCanonicalPlaystate` replays Plembfin's state to every configured destination; all use `TARGETS_BY_SOURCE` routing, echo-loop detection via `loopStore.checkAndClaim`, and result summaries written to telemetry. |
 | `syncMatchReport.js` | Pure aggregation of current watch-history telemetry into per-platform unmatched-media counts, movie/episode splits, and bounded samples for Settings → Sync → Sync Issues. |
-| `mediaForceSync.js` | Detail-page Force Sync: title-scoped Plex/Emby/Jellyfin watched-state lookup, explicit import of remote-only records, provenance/telemetry, and canonical propagation. The library-wide Force Sync planner remains remote-only-safe. |
+| `mediaForceSync.js` | Detail-page Force Sync: title-scoped Plex/Emby/Jellyfin watched-state lookup, Full Sync/Push/Pull modes, explicit import of remote-only records, provenance/telemetry, and target-filtered canonical propagation. The library-wide Force Sync planner remains remote-only-safe. |
+| `mediaForceSyncActivity.js` | Bounded in-memory activity ledger used by the detail-page Force Sync status endpoint to stream operation lines and final results to the UI. |
 | `tuning.js` | Import-free runtime accessors for watched threshold, minimum resume position, active-session TTL, and outbound timeout; reads environment defaults and applies validated Settings overrides. |
 | `plexClient.js` | Plex HTTP client: find items by GUID/title, mark played/unplayed, set resume progress, fetch watched/resumable/metadata/episodes; username→accountID resolution with memoization. Token always sent as `X-Plex-Token` header. See [plex.md](plex.md). |
 | `plexNotificationListener.js` | Plex real-time WebSocket listener (`/:/websockets/notifications`): detects watched/unwatched changes the webhook can never deliver, reconnects with backoff, debounces per ratingKey; plus `probePlexNotificationSocket` for the System Integrity Check. |
 | `embyClient.js` | Emby HTTP client (same operation set as Plex client, `X-Emby-Token` auth, provider-ID `AnyProviderIdEquals` lookups). See [emby.md](emby.md). |
-| `jellyfinClient.js` | Jellyfin HTTP client (same shape as Emby client; sends both `X-Emby-Token` and `X-MediaBrowser-Token`). See [jellyfin.md](jellyfin.md). |
+| `jellyfinClient.js` | Jellyfin HTTP client (same shape as Emby client; sends both `X-Emby-Token` and `X-MediaBrowser-Token`); episode coordinate lookups retain duplicate quality copies so all matching items receive playstate. See [jellyfin.md](jellyfin.md). |
 | `liveSessions.js` | Polls Plex/Emby/Jellyfin `sessions` endpoints for what's playing now (`fetchLiveSessions`), normalizes them (`buildCacheRow`, `sessionIdentity`, `hydrateCachedSession`) for `live_tracking_cache`. Feeds Now Playing and completed-session detection. |
 | `activeSessions.js` | The `active_sessions` table (webhook `active`-phase sessions, configurable 5-minute TTL by default, enforced on read). |
 | `loopStore.js` | SQLite-backed loop-detection KV (`loop_keys` table) with TTL; `checkAndClaim` runs check+claim in one transaction so concurrent webhooks can't both pass. |
@@ -220,7 +221,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `media-detail-shared.js` | Shared TMDB/Seerr rendering fragments: rating pills, availability labels, Seerr request pills/controls, external ratings, app links. |
 | `media-detail-show.js` | TV show detail rendering: seasons/episodes accordion, show modal, per-episode actions. |
 | `media-detail-movie.js` | Movie detail rendering + watched-state patching. |
-| `media-detail-events.js` | Click delegation inside the detail modal (cast, trailers, poster edit, watch actions, title-scoped Force Sync, card navigation). |
+| `media-detail-events.js` | Click delegation inside the detail modal (cast, trailers, poster edit, watch actions, title-scoped Force Sync dialog with live activity polling, card navigation). |
 | `media-person.js` | Person profile pages: bio, filmography with watch badges. |
 | `media-lightbox.js` | Trailer playback (YouTube embed) and photo lightbox. |
 | `calendar-picker.js` | Shared calendar + time picker (month/year quick-select, fixed-height day grid) used by every date/time picker in the app - the edit-date dialogs and the mark-watched date prompts - so they all look and behave identically. No global state; each mount owns its own picker instance. |
@@ -259,7 +260,7 @@ server modules.
 | `parsers.test.js` | Webhook normalization (Plex/Emby/Jellyfin/custom payload parsing, phases, GUID extraction). |
 | `mediaKey.test.js` | Canonical `mediaKeyFor`/`canonicalTitleKey` derivation and specials (season 0) normalization in watch records. |
 | `syncOrchestrator.test.js` | Target routing, resume-progress actionability, loop-store echo detection. |
-| `mediaForceSync.test.js` | Title-scoped Force Sync request normalization and watched Plex/Emby item shaping. |
+| `mediaForceSync.test.js` | Title-scoped Force Sync mode/target normalization, watched Plex/Emby item shaping, and duplicate-quality Jellyfin episode matching. |
 | `syncRetry.test.js` | Scheduled-dispatch retry backoff schedule/eligibility, retry columns, `sync_history` retention pruning. |
 | `metadataCaches.test.js` | Fanart response cache (hits and negative misses), TMDB details cache freshness, light-vs-full cache row semantics. |
 | `exportPlexHistory.test.js` | The standalone Plex history export script's episode-record shaping (specials season zero). |
@@ -328,8 +329,9 @@ The same logic runs on demand via:
 - `POST /api/cron-sync` - streams a text log of what the tick did.
 - `POST /api/force-sync` - runs and stores progress in `runtime_state` for the
   dashboard to poll; `stop-force-sync` cancels.
-- `POST /api/force-sync/media` - imports watched state for one movie or show from
-  connected servers when explicitly requested from its detail page.
+- `POST /api/force-sync/media` - runs a title-scoped Full Sync, Push, or Pull
+  operation from the detail page; `GET /api/force-sync/media/status?id=...`
+  returns its live activity and final result.
 
 The tick also runs the scheduled watch-history backup and encrypted backup jobs
 ([backups.md](backups.md)), maintains `data/next-airing-cache.json`, and progressively

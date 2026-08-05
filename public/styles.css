@@ -4805,6 +4805,118 @@ details.sync-tool-details[open] > summary {
   gap: var(--space-3);
 }
 
+.media-force-sync-modal {
+  width: min(760px, 92vw);
+  max-height: min(860px, 92vh);
+}
+
+.media-force-sync-body {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.media-force-sync-subtitle {
+  max-width: 58ch;
+  margin: 0.35rem 0 0;
+}
+
+.media-force-sync-options {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.media-force-sync-choice,
+.media-force-sync-target-row {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.media-force-sync-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.media-force-sync-choice:hover,
+.media-force-sync-choice:focus-visible {
+  border-color: var(--blue);
+  background: var(--panel-3);
+  transform: translateY(-1px);
+}
+
+.media-force-sync-choice-copy,
+.media-force-sync-target-copy {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.media-force-sync-choice-copy strong,
+.media-force-sync-target-copy label {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.media-force-sync-choice-copy small,
+.media-force-sync-target-copy small {
+  max-width: 60ch;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.media-force-sync-choice-arrow {
+  flex: 0 0 auto;
+  color: var(--blue);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.media-force-sync-target-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 13rem) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.media-force-sync-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.media-force-sync-activity {
+  margin-top: 0;
+}
+
+.media-force-sync-activity .import-terminal {
+  min-height: 13rem;
+  max-height: 22rem;
+  color: var(--text);
+  background: var(--panel-3);
+}
+
+@media (max-width: 680px) {
+  .media-force-sync-target-row {
+    grid-template-columns: 1fr;
+  }
+
+  .media-force-sync-target-row .button-primary,
+  .media-force-sync-target-row .button-ghost {
+    width: 100%;
+  }
+}
+
 .confirm-modal-media {
   display: flex;
   align-items: center;

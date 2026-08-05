@@ -10,7 +10,7 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#05080c" />
     <link rel="preconnect" href="https://image.tmdb.org" />
-    <link rel="modulepreload" href="/app.js?v=20260809" />
+    <link rel="modulepreload" href="/app.js?v=20260810" />
     <link rel="modulepreload" href="/modules/auth.js" />
     <link rel="modulepreload" href="/modules/logs.js" />
     <link rel="modulepreload" href="/modules/settings.js" />
@@ -21,8 +21,8 @@
     <link rel="modulepreload" href="/modules/utils.js" />
     <link rel="modulepreload" href="/modules/help-content.js" />
     <link rel="modulepreload" href="/modules/images.js" />
-    <link rel="modulepreload" href="/modules/tools.js?v=20260809" />
-    <link rel="modulepreload" href="/modules/tools-backups.js?v=20260809" />
+    <link rel="modulepreload" href="/modules/tools.js?v=20260810" />
+    <link rel="modulepreload" href="/modules/tools-backups.js?v=20260810" />
     <link rel="modulepreload" href="/modules/tools-maintenance.js" />
     <link rel="modulepreload" href="/modules/tools-health.js" />
     <link rel="modulepreload" href="/modules/sync.js" />
@@ -32,18 +32,18 @@
     <link rel="modulepreload" href="/modules/upcoming.js" />
     <link rel="modulepreload" href="/modules/explorer.js" />
     <link rel="modulepreload" href="/modules/calendar-picker.js" />
-    <link rel="modulepreload" href="/modules/edit-dialogs.js" />
-    <link rel="modulepreload" href="/modules/watch-action.js" />
+    <link rel="modulepreload" href="/modules/edit-dialogs.js?v=20260810" />
+    <link rel="modulepreload" href="/modules/watch-action.js?v=20260810" />
     <link rel="modulepreload" href="/modules/tmdb.js?v=20260803" />
-    <link rel="modulepreload" href="/modules/media-detail-context.js?v=20260809" />
+    <link rel="modulepreload" href="/modules/media-detail-context.js?v=20260810" />
     <link rel="modulepreload" href="/modules/media-detail-shared.js" />
-    <link rel="modulepreload" href="/modules/media-detail-show.js?v=20260809" />
-    <link rel="modulepreload" href="/modules/media-detail-movie.js?v=20260809" />
-    <link rel="modulepreload" href="/modules/media-detail.js?v=20260809" />
-    <link rel="modulepreload" href="/modules/media-person.js?v=20260809" />
+    <link rel="modulepreload" href="/modules/media-detail-show.js?v=20260810" />
+    <link rel="modulepreload" href="/modules/media-detail-movie.js?v=20260810" />
+    <link rel="modulepreload" href="/modules/media-detail.js?v=20260810" />
+    <link rel="modulepreload" href="/modules/media-person.js?v=20260810" />
     <link rel="modulepreload" href="/modules/media-lightbox.js" />
-    <link rel="modulepreload" href="/modules/media-detail-events.js?v=20260809" />
-    <link rel="modulepreload" href="/modules/app-events.js?v=20260809" />
+    <link rel="modulepreload" href="/modules/media-detail-events.js?v=20260810" />
+    <link rel="modulepreload" href="/modules/app-events.js?v=20260810" />
     <link rel="stylesheet" href="/styles.css?v=20260808.1" />
   </head>
   <body>
@@ -1993,6 +1993,80 @@
       </article>
     </div>
 
+    <div id="mediaForceSyncModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="mediaForceSyncModalTitle" aria-describedby="mediaForceSyncModalDescription">
+      <article class="modal-panel glass-panel media-force-sync-modal">
+        <div class="modal-head">
+          <div>
+            <h2 id="mediaForceSyncModalTitle">Force Sync</h2>
+            <p id="mediaForceSyncModalDescription" class="muted-copy media-force-sync-subtitle"></p>
+          </div>
+          <button id="closeMediaForceSyncModalButton" class="button-ghost" type="button">Close</button>
+        </div>
+        <div class="modal-body media-force-sync-body">
+          <div class="media-force-sync-options" aria-label="Force Sync options">
+            <button class="media-force-sync-choice" type="button" data-media-force-sync-run="full">
+              <span class="media-force-sync-choice-copy">
+                <strong>Full Sync</strong>
+                <small>Pull watched state from connected servers, reconcile Plembfin, then push this media item to every eligible destination.</small>
+              </span>
+              <span class="media-force-sync-choice-arrow" aria-hidden="true">Run&nbsp; →</span>
+            </button>
+
+            <div class="media-force-sync-target-row">
+              <div class="media-force-sync-target-copy">
+                <label for="mediaForceSyncPushTarget">Push To</label>
+                <small>Send Plembfin’s canonical state to one destination or all of them.</small>
+              </div>
+              <select id="mediaForceSyncPushTarget" class="field media-force-sync-select">
+                <option value="plex">Plex</option>
+                <option value="emby">Emby</option>
+                <option value="jellyfin">Jellyfin</option>
+                <option value="all">All connected servers</option>
+              </select>
+              <button class="button-primary" type="button" data-media-force-sync-run="push">Push state</button>
+            </div>
+
+            <div class="media-force-sync-target-row">
+              <div class="media-force-sync-target-copy">
+                <label for="mediaForceSyncPullSource">Pull From</label>
+                <small>Import watched state from one server without sending it elsewhere.</small>
+              </div>
+              <select id="mediaForceSyncPullSource" class="field media-force-sync-select">
+                <option value="plex">Plex</option>
+                <option value="emby">Emby</option>
+                <option value="jellyfin">Jellyfin</option>
+                <option value="all">All connected servers</option>
+              </select>
+              <button class="button-ghost" type="button" data-media-force-sync-run="pull">Pull state</button>
+            </div>
+          </div>
+
+          <div id="mediaForceSyncActivity" class="activity-log media-force-sync-activity hidden">
+            <div class="activity-log-header">
+              <div class="activity-log-heading">
+                <svg class="activity-log-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h9" /></svg>
+                <span class="activity-log-copy">
+                  <strong>Sync activity</strong>
+                  <small>Live server output for this media item</small>
+                </span>
+              </div>
+              <span id="mediaForceSyncActivityState" class="activity-log-state">Ready</span>
+            </div>
+            <div id="mediaForceSyncProgress" class="sync-progress hidden" role="group" aria-label="Media Force Sync progress">
+              <div class="sync-progress-summary">
+                <strong id="mediaForceSyncProgressLabel">Preparing operation</strong>
+                <span id="mediaForceSyncProgressMeta"></span>
+              </div>
+              <div id="mediaForceSyncProgressTrack" class="sync-progress-track" role="progressbar" aria-label="Media Force Sync progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <span id="mediaForceSyncProgressFill" class="sync-progress-fill"></span>
+              </div>
+            </div>
+            <pre id="mediaForceSyncTerminal" class="import-terminal compact-terminal" aria-live="polite"></pre>
+          </div>
+        </div>
+      </article>
+    </div>
+
     <div id="terminalModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="terminalModalTitle">
       <article class="modal-panel glass-panel" style="max-width: 700px; width: 90%;">
         <div class="modal-head">
@@ -2024,6 +2098,6 @@
 
     <div id="copyToast" class="copy-toast hidden" role="status" aria-live="polite">Copied!</div>
 
-    <script type="module" src="/app.js?v=20260809"></script>
+    <script type="module" src="/app.js?v=20260810"></script>
   </body>
 </html>

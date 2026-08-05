@@ -37,7 +37,7 @@
 | | |
 |---|---|
 | **Plembfin-canonical sync** | Plembfin's watched/unwatched state is pushed to every connected app that contains the media; platform drift is repaired automatically |
-| **Detail-page Force Sync** | From any movie or show page, explicitly import that title's watched state from connected media servers when Plembfin is missing it, then sync the result everywhere |
+| **Detail-page Force Sync** | From any movie or show page, choose Full Sync, Push To, or Pull From for that title; follow detailed live operation output, including duplicate-quality Jellyfin episode copies |
 | **New media arrives watched** | Add a film or show you have already seen and it is marked watched on that server as it appears - no re-watching prompts on a rebuilt library, no manual catch-up. Applies an existing watch only; it never invents one |
 | **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |
 | **Rewatch tracking** | Watching a movie or episode again logs a new watch instead of overwriting the old one; detail pages show a full watch history with the date and app for every play. The duplicate-cleanup tool only removes rows recording the same watch event, so rewatches are never collapsed |

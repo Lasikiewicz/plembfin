@@ -31,6 +31,13 @@ export function getTargetsForSource(source = "manual", config = {}, stateType = 
   return targets.filter((t) => !config[t]?.disabled && canReceiveState(config, t, stateType));
 }
 
+function targetsForMedia(media, config, stateType) {
+  const targets = getTargetsForSource(media.source, config, stateType);
+  if (!Array.isArray(media.syncTargets)) return targets;
+  const requested = new Set(media.syncTargets.map((target) => String(target).trim().toLowerCase()).filter(Boolean));
+  return targets.filter((target) => requested.has(target));
+}
+
 function clientFor(target, config, media) {
   if (target === "plex") return () => markPlexPlayed(config.plex, media);
   if (target === "emby") return () => markEmbyPlayed(config.emby, media);
@@ -363,7 +370,7 @@ export async function syncMediaPlaystate(media, config, kv) {
     return { skipped: true, status: "skipped", details: "Source is not allowed to send watched state", targetStates: [], results: [] };
   }
 
-  const targets = getTargetsForSource(media.source, config, "watched");
+  const targets = targetsForMedia(media, config, "watched");
   if (checkAndClaimLoop(media, media.source, targets, kv)) {
     console.log("Sync playstate skipped: echo loop detected", { source: media.source, title: media.title });
     return {
@@ -450,7 +457,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
   if (!["manual", "force_sync", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "unwatched")) {
     return { skipped: true, status: "skipped", details: "Source is not allowed to send unwatched state", targetStates: [], results: [] };
   }
-  const targets = getTargetsForSource(media.source, config, "unwatched");
+  const targets = targetsForMedia(media, config, "unwatched");
   if (checkAndClaimLoop(media, media.source, targets, kv, "unplayed_loop")) {
     return {
       skipped: true,
