@@ -5,6 +5,7 @@ import {
   remoteItemIsWatched,
   remoteItemToMedia,
 } from "../server/src/utils/mediaForceSync.js";
+import { embyEpisodeMatchesCoordinates } from "../server/src/utils/embyClient.js";
 import { jellyfinEpisodeMatchesCoordinates } from "../server/src/utils/jellyfinClient.js";
 
 test("normalizes a show detail Force Sync request and provider ids", () => {
@@ -36,6 +37,18 @@ test("Jellyfin episode matching keeps duplicate quality copies", () => {
   ];
   assert.deepEqual(
     candidates.filter((item) => jellyfinEpisodeMatchesCoordinates(item, 1, 2)).map((item) => item.Id),
+    ["1080p-copy", "4k-copy"],
+  );
+});
+
+test("Emby episode matching keeps duplicate quality copies", () => {
+  const candidates = [
+    { Id: "1080p-copy", ParentIndexNumber: 1, IndexNumber: 2 },
+    { Id: "4k-copy", ParentIndexNumber: 1, IndexNumber: 2 },
+    { Id: "other-episode", ParentIndexNumber: 1, IndexNumber: 3 },
+  ];
+  assert.deepEqual(
+    candidates.filter((item) => embyEpisodeMatchesCoordinates(item, 1, 2)).map((item) => item.Id),
     ["1080p-copy", "4k-copy"],
   );
 });
