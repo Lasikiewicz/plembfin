@@ -1,7 +1,17 @@
 {
-  "version": "0.6.71",
-  "updatedAt": "2026-08-05T19:06:36+01:00",
+  "version": "0.6.72",
+  "updatedAt": "2026-08-05T19:58:20+01:00",
   "entries": [
+    {
+      "version": "0.6.72",
+      "date": "2026-08-05T19:58:20+01:00",
+      "commit": "6beef97f67de0201ca97aca43fa64da99a8eaae6",
+      "message": "Feature - Add scoped media sync controls",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add Full Sync, Push To, and Pull From controls with live operation output and duplicate-quality Jellyfin handling."
+      ]
+    },
     {
       "version": "0.6.71",
       "date": "2026-08-05T19:06:36+01:00",
