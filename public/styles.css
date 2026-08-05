@@ -5091,9 +5091,7 @@ details.sync-tool-details[open] > summary {
 .media-info-subhead > span {
   color: var(--muted);
   font-size: 0.7rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 700;
 }
 
 .media-info-title-block h2 {
@@ -5150,6 +5148,343 @@ details.sync-tool-details[open] > summary {
   border-bottom: 1px solid var(--line);
   border-radius: 0;
   background: transparent;
+}
+
+.media-info-watch-list,
+.media-info-season-list {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.media-info-watch-card {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.media-info-watch-card--success {
+  border-color: color-mix(in oklch, var(--green) 58%, var(--line-strong));
+  background: color-mix(in oklch, var(--green) 7%, var(--panel-2));
+}
+
+.media-info-watch-card--error {
+  border-color: color-mix(in oklch, var(--red) 62%, var(--line-strong));
+  background: color-mix(in oklch, var(--red) 7%, var(--panel-2));
+}
+
+.media-info-watch-card--pending {
+  border-color: color-mix(in oklch, var(--yellow) 62%, var(--line-strong));
+  background: color-mix(in oklch, var(--yellow) 7%, var(--panel-2));
+}
+
+.media-info-watch-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.media-info-watch-card-head > div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.media-info-watch-card-head strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.media-info-watch-card-head span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.media-info-watch-lines {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.media-info-watch-line {
+  display: grid;
+  grid-template-columns: minmax(105px, max-content) auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 0.55rem var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-3);
+}
+
+.media-info-watch-line > strong {
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.media-info-watch-line > span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.media-info-watch-line > b {
+  min-width: 0;
+  color: var(--soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.media-info-watch-line--sync {
+  align-items: center;
+}
+
+.media-info-watch-line--sync .media-info-sync-targets {
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.media-info-watch-state {
+  flex: 0 0 auto;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid color-mix(in oklch, var(--green) 45%, var(--line));
+  border-radius: 999px;
+  color: var(--green) !important;
+  font-size: 0.75rem !important;
+  font-weight: 700;
+}
+
+.media-info-sync-targets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.media-info-sync-target,
+.media-info-sync-none {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.media-info-sync-none--success {
+  border-color: color-mix(in oklch, var(--green) 42%, var(--line));
+  color: var(--green);
+}
+
+.media-info-sync-none--error {
+  border-color: color-mix(in oklch, var(--red) 55%, var(--line));
+  color: var(--red);
+}
+
+.media-info-sync-none--pending {
+  border-color: color-mix(in oklch, var(--yellow) 55%, var(--line));
+  color: var(--yellow);
+}
+
+.media-info-sync-target b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.media-info-sync-target--success {
+  border-color: color-mix(in oklch, var(--green) 42%, var(--line));
+  color: var(--green);
+}
+
+.media-info-sync-target--error {
+  border-color: color-mix(in oklch, var(--red) 55%, var(--line));
+  color: var(--red);
+}
+
+.media-info-sync-target--pending {
+  border-color: color-mix(in oklch, var(--yellow) 55%, var(--line));
+  color: var(--yellow);
+}
+
+.media-info-season-group,
+.media-info-episode-group {
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.media-info-episode-group {
+  border-color: var(--line);
+  background: var(--panel-3);
+}
+
+.media-info-episode-group--success {
+  border-color: color-mix(in oklch, var(--green) 58%, var(--line-strong));
+  background: color-mix(in oklch, var(--green) 6%, var(--panel-2));
+}
+
+.media-info-episode-group--error {
+  border-color: color-mix(in oklch, var(--red) 62%, var(--line-strong));
+  background: color-mix(in oklch, var(--red) 6%, var(--panel-2));
+}
+
+.media-info-episode-group--pending {
+  border-color: color-mix(in oklch, var(--yellow) 62%, var(--line-strong));
+  background: color-mix(in oklch, var(--yellow) 6%, var(--panel-2));
+}
+
+.media-info-season-group > summary,
+.media-info-episode-group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  cursor: pointer;
+  list-style: none;
+  padding: var(--space-3) var(--space-4);
+}
+
+.media-info-season-group > summary::-webkit-details-marker,
+.media-info-episode-group > summary::-webkit-details-marker,
+.media-info-debug-section > summary::-webkit-details-marker,
+.media-info-record-debug > summary::-webkit-details-marker {
+  display: none;
+}
+
+.media-info-season-group > summary::after,
+.media-info-episode-group > summary::after,
+.media-info-debug-section > summary::after,
+.media-info-record-debug > summary::after {
+  flex: 0 0 auto;
+  color: var(--muted);
+  content: "+";
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.media-info-season-group[open] > summary,
+.media-info-episode-group[open] > summary,
+.media-info-debug-section[open] > summary,
+.media-info-record-debug[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.media-info-season-group[open] > summary::after,
+.media-info-episode-group[open] > summary::after,
+.media-info-debug-section[open] > summary::after,
+.media-info-record-debug[open] > summary::after {
+  content: "-";
+}
+
+.media-info-disclosure-title {
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.media-info-disclosure-meta {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+.media-info-episode-list {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.media-info-episode-body {
+  padding: var(--space-3);
+}
+
+.media-info-episode-body .media-info-watch-card {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.media-info-debug-section {
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.media-info-debug-section > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  cursor: pointer;
+  list-style: none;
+  padding: var(--space-4);
+}
+
+.media-info-debug-summary {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.media-info-debug-summary strong {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.media-info-debug-summary span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.media-info-debug-body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.media-info-record-debug {
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: color-mix(in oklch, var(--panel-3) 70%, transparent);
+}
+
+.media-info-record-debug > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  cursor: pointer;
+  list-style: none;
+  padding: var(--space-3);
+  color: var(--soft);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.media-info-record-debug > summary span:last-child {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.media-info-record-debug-body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-top: 1px solid var(--line);
 }
 
 .media-info-section {
@@ -5683,10 +6018,8 @@ details.sync-tool-details[open] > summary {
 
 .media-info-audit-record-number {
   color: var(--muted);
-  font-size: 0.68rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .media-info-audit-record-head strong {
@@ -5710,11 +6043,10 @@ details.sync-tool-details[open] > summary {
   border-radius: 999px;
   color: var(--muted);
   font-size: 0.68rem;
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1.25;
   overflow-wrap: anywhere;
   text-align: center;
-  text-transform: uppercase;
 }
 
 .media-info-audit-record-details {
@@ -5727,9 +6059,7 @@ details.sync-tool-details[open] > summary {
 .media-info-audit-record-details > span {
   color: var(--muted);
   font-size: 0.7rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 700;
 }
 
 .media-info-audit-record-details > p {
@@ -5834,6 +6164,10 @@ details.sync-tool-details[open] > summary {
     grid-template-columns: 1fr;
   }
 
+  .media-info-sync-targets {
+    justify-content: flex-start;
+  }
+
   .media-info-field--wide {
     grid-column: auto;
   }
@@ -5849,7 +6183,10 @@ details.sync-tool-details[open] > summary {
   }
 
   .media-info-detail-section > summary,
-  .media-info-detail-record > summary {
+  .media-info-detail-record > summary,
+  .media-info-season-group > summary,
+  .media-info-episode-group > summary,
+  .media-info-debug-section > summary {
     align-items: flex-start;
     flex-wrap: wrap;
   }

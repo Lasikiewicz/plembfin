@@ -179,6 +179,7 @@ When adding frontend code, place it in the most specific existing module that ow
 | Upcoming page (scrolling month calendar of upcoming episode air dates) | `modules/upcoming.js` |
 | TV/movie detail entry points, lookups, modal-close routing | `modules/media-detail.js` |
 | Detail-modal shell/context: callbacks, `authHeaders`, modal DOM root, render-token, debug modal | `modules/media-detail-context.js` |
+| Detail-page watch and sync info summary rendering | `modules/media-info-summary.js` |
 | Shared TMDB/Seerr rendering fragments (cast, trailers, images, ratings, recommendations) | `modules/media-detail-shared.js` |
 | TV show detail rendering (seasons, episodes, show modal) | `modules/media-detail-show.js` |
 | Movie detail rendering | `modules/media-detail-movie.js` |

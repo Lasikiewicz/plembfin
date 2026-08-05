@@ -3,6 +3,7 @@ import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, platformName, formatDate } from "./utils.js";
 import { historyAction, syncStatus, telemetryLineValue } from "./sync.js";
 import { syncInlineMediaDetailHeading } from "./explorer.js";
+import { auditEventsForRecord, infoSyncSummary, infoSyncTargetStates, infoWatchDetails, mediaInfoGlanceEntries, renderInfoWatchSync } from "./media-info-summary.js";
 
 let _cb = {};
 let _mediaRenderToken = 0;
@@ -87,7 +88,7 @@ let _mediaInfoRequestToken = 0;
 
 export function mediaInfoActionHtml() {
   return `
-    <button class="action-pill media-info-btn" type="button" data-media-info title="Show all information for this media">
+    <button class="action-pill media-info-btn" type="button" data-media-info title="Show watch and sync information">
       <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
         <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5" />
         <path d="M8 7.1v4.15M8 4.75h.01" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
@@ -242,7 +243,7 @@ function renderInfoWatchRecord(record, context, index) {
   const playHistory = Array.isArray(record.playHistory) ? [...record.playHistory].sort((a, b) => String(b.watched_at).localeCompare(String(a.watched_at))) : [];
   const recordId = record.id || `record-${index}`;
   return `
-    <details class="media-info-detail-record"${context.mediaType !== "tv" ? " open" : ""}>
+    <details class="media-info-detail-record">
       <summary>
         <span class="media-info-record-title">${escapeHtml(infoRecordTitle(record, context))}</span>
         <span class="media-info-record-meta">Open details</span>
@@ -300,17 +301,24 @@ function renderInfoWatchRecord(record, context, index) {
   `;
 }
 
-function mediaInfoGlanceEntries({ isTv, records, watchedCount, totalCount, progress, sources, targets, watchDates }) {
-  return [
-    ["Media type", isTv ? "TV show" : "Movie"],
-    ["Watch status", records.length ? "Watched" : "Not watched"],
-    [isTv ? "Episodes watched" : "Watch records", isTv ? `${watchedCount} of ${infoValue(totalCount, "?")}` : records.length],
-    ["Completion", `${progress}%`],
-    ["Source platforms", sources.length ? sources : "Not recorded"],
-    ["Push destinations", targets.length ? targets : "Not recorded"],
-    ["Latest watched", infoDate(watchDates.at(-1))],
-    ["Earliest watched", infoDate(watchDates[0])],
-  ];
+function renderInfoRecordDebug(record, context, index, events = []) {
+  const exactEventCount = events.filter((event) => event.eventType !== "legacy_record").length;
+  const legacyEventCount = events.length - exactEventCount;
+  const timeline = events.length
+    ? renderInfoAuditTimeline(events, { eventCount: events.length, exactEventCount, legacyEventCount })
+    : "";
+  return `
+    <details class="media-info-record-debug">
+      <summary>
+        <span>Debug details</span>
+        <span>${events.length} audit event${events.length === 1 ? "" : "s"}</span>
+      </summary>
+      <div class="media-info-record-debug-body">
+        ${timeline}
+        ${renderInfoWatchRecord(record, context, index)}
+      </div>
+    </details>
+  `;
 }
 
 function mediaInfoAuditQuery(context = {}) {
@@ -805,14 +813,17 @@ export async function openMediaInfoModal() {
   const isTv = activeContext.mediaType === "tv";
   const title = metadata.name || metadata.title || media.title || "Media information";
   const records = infoRecords(activeContext);
-  const watchDates = records.map((record) => record.watched_at).filter(Boolean).sort();
-  const sources = [...new Set([
-    ...records.map((record) => platformName(record.source)),
-    ...auditEvents.map((event) => platformName(event.source)),
-  ].filter((source) => source && source !== "Unknown"))];
-  const targets = [...new Set(
-    auditEvents.map((event) => platformName(event.target)).filter((target) => target && target !== "Unknown"),
-  )];
+  const recordAuditEvents = records.map((record) => auditEventsForRecord(record, auditEvents, activeContext));
+  const watchDates = records.map((record, index) => infoWatchDetails(record, recordAuditEvents[index], provenanceForEntry).watchedAt).filter(Boolean).sort();
+  const targetStates = records.flatMap((record, index) => infoSyncTargetStates(record, recordAuditEvents[index]));
+  const targets = [...new Set([
+    ...targetStates.map((state) => platformName(state.target)),
+    ...auditEvents.filter((event) => event.target).map((event) => platformName(event.target)),
+  ].filter((target) => target && target !== "Unknown"))];
+  const syncProblemCount = records.reduce((count, record, index) => {
+    const summary = infoSyncSummary(record, infoSyncTargetStates(record, recordAuditEvents[index]));
+    return count + (summary.tone === "error" ? Math.max(summary.problems.length, 1) : 0);
+  }, 0);
   const watchedCount = isTv
     ? (activeContext.summary?.watchedCount ?? records.length)
     : (records.length ? 1 : 0);
@@ -820,14 +831,23 @@ export async function openMediaInfoModal() {
   const progress = isTv ? (activeContext.summary?.progressPercent ?? (totalCount ? Math.round((watchedCount / totalCount) * 100) : 0)) : records.length ? 100 : 0;
   const poster = activeContext.posterUrl || media.poster_url || metadata.cached_poster_url || "";
   const infoId = `mediaInfoTitle-${Date.now()}`;
-  const glanceEntries = mediaInfoGlanceEntries({ isTv, records, watchedCount, totalCount, progress, sources, targets, watchDates });
-  const detailedRecordsBody = records.map((record, index) => renderInfoWatchRecord(record, activeContext, index)).join("");
+  const glanceEntries = mediaInfoGlanceEntries({ isTv, records, watchedCount, totalCount, targets, watchDates, syncProblemCount });
+  const renderDebug = (record, events) => renderInfoRecordDebug(record, activeContext, records.indexOf(record), events);
+  const watchAndSyncBody = renderInfoWatchSync(records, activeContext, auditEvents, provenanceForEntry, renderDebug);
+  const matchedAuditEvents = new Set(recordAuditEvents.flat());
+  const debugEvents = records.length ? auditEvents.filter((event) => !matchedAuditEvents.has(event)) : auditEvents;
+  const debugCoverage = {
+    eventCount: debugEvents.length,
+    exactEventCount: debugEvents.filter((event) => event.eventType !== "legacy_record").length,
+    legacyEventCount: debugEvents.filter((event) => event.eventType === "legacy_record").length,
+  };
   const summaryText = isTv
     ? `${watchedCount} of ${infoValue(totalCount, "?")} episodes watched · ${progress}% complete`
     : (records.length ? `Watched · ${infoDate(watchDates.at(-1))}` : "Not watched in Plembfin");
   const exportText = mediaInfoExportText({ context: activeContext, title, summaryText, isTv, records, glanceEntries, auditEvents, auditCoverage });
-  const auditTimeline = renderInfoAuditTimeline(auditEvents, auditCoverage);
+  const auditTimeline = debugEvents.length ? renderInfoAuditTimeline(debugEvents, debugCoverage) : "";
   const auditErrorHtml = auditError ? `<div class="media-info-audit-error"><strong>Audit timeline unavailable</strong><span>${escapeHtml(auditError)}</span></div>` : "";
+  const hasGlobalDebug = Boolean(auditError || debugEvents.length);
 
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay media-info-overlay";
@@ -856,24 +876,25 @@ export async function openMediaInfoModal() {
       </header>
       <div class="media-info-content">
         <div class="media-info-glance">
-          ${infoSection("Audit summary", `
+          ${infoSection("Watch and sync", `
             <div class="media-info-fields">
               ${glanceEntries.map(([label, value]) => infoField(label, value)).join("")}
             </div>
+            ${watchAndSyncBody}
           `)}
         </div>
-        ${(records.length || auditEvents.length || auditError) ? `
-          <details class="media-info-detail-section" open>
+        ${hasGlobalDebug ? `
+          <details class="media-info-debug-section">
             <summary>
-              <div class="media-info-detail-summary">
-                <h3>Audit trail</h3>
+              <div class="media-info-debug-summary">
+                <strong>Other debug details</strong>
+                <span>Audit data not tied to an episode</span>
               </div>
-              <span class="media-info-detail-count">${records.length} record${records.length === 1 ? "" : "s"} · ${escapeHtml(auditEventCountText(auditEvents, auditCoverage))}</span>
+              <span class="media-info-detail-count">${escapeHtml(auditEventCountText(debugEvents, debugCoverage))}</span>
             </summary>
-            <div class="media-info-detail-section-body">
+            <div class="media-info-debug-body">
               ${auditErrorHtml}
               ${auditTimeline}
-              ${detailedRecordsBody}
             </div>
           </details>
         ` : ""}
