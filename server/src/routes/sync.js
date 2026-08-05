@@ -30,7 +30,8 @@ import { getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundUn
 import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { forceSyncMediaState, normalizeMediaForceSyncRequest } from "../utils/mediaForceSync.js";
-import { appendMediaForceSyncActivity, createMediaForceSyncActivity, finishMediaForceSyncActivity, getMediaForceSyncActivity } from "../utils/mediaForceSyncActivity.js";
+import { forceSyncLibraryState, normalizeLibraryForceSyncRequest } from "../utils/libraryForceSync.js";
+import { appendMediaForceSyncActivity, createMediaForceSyncActivity, finishMediaForceSyncActivity, getMediaForceSyncActivity, isMediaForceSyncCancellationRequested, requestMediaForceSyncCancellation } from "../utils/mediaForceSyncActivity.js";
 import { provenanceTelemetryLines } from "../utils/watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "../utils/watchAudit.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
@@ -743,6 +744,7 @@ export async function handleMediaForceSync(req, res) {
       try {
         const result = await forceSyncMediaState(requested, {
           config: await loadMediaConfig(),
+          isCancelled: () => isMediaForceSyncCancellationRequested(operationId),
           logger: (message) => {
             appendMediaForceSyncActivity(operationId, message, "info");
             console.log(`[Media Force Sync ${operationId}] ${message}`);
@@ -771,6 +773,73 @@ export async function handleMediaForceSyncStatus(req, res) {
   const activity = getMediaForceSyncActivity(operationId);
   if (!activity) return sendJson(res, { ok: false, error: "Force Sync operation not found" }, 404);
   return sendJson(res, { ok: true, ...activity }, 200, { "Cache-Control": "no-store" });
+}
+
+// Settings uses the same Full Sync / Push To / Pull From activity surface as
+// the detail page, but its operation is library-wide rather than title-scoped.
+export async function handleLibraryForceSync(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  try {
+    const body = await readJson(req);
+    const requested = normalizeLibraryForceSyncRequest(body);
+    const operationId = createMediaForceSyncActivity({
+      title: requested.title,
+      type: requested.type,
+      mode: requested.mode,
+      target: requested.target || "all",
+      pullFrom: requested.source || "all",
+    });
+    void (async () => {
+      try {
+        const result = await forceSyncLibraryState(requested, {
+          config: await loadMediaConfig(),
+          isCancelled: () => isMediaForceSyncCancellationRequested(operationId),
+          logger: (message) => {
+            appendMediaForceSyncActivity(operationId, message, "info");
+            console.log(`[Library Force Sync ${operationId}] ${message}`);
+          },
+        });
+        finishMediaForceSyncActivity(operationId, result);
+      } catch (error) {
+        console.error("Library Force Sync failed", error);
+        finishMediaForceSyncActivity(operationId, null, error.message || "Library Force Sync failed");
+      }
+    })();
+    return sendJson(res, { ok: true, operationId, status: "running", ...requested }, 202, { "Cache-Control": "no-store" });
+  } catch (error) {
+    console.error("Library Force Sync failed", error);
+    return sendJson(res, { ok: false, error: error.message || "Library Force Sync failed" }, 400);
+  }
+}
+
+export async function handleLibraryForceSyncStatus(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const operationId = String(req.query.id || "").trim();
+  if (!operationId) return sendJson(res, { ok: false, error: "id is required" }, 400);
+  const activity = getMediaForceSyncActivity(operationId);
+  if (!activity) return sendJson(res, { ok: false, error: "Force Sync operation not found" }, 404);
+  return sendJson(res, { ok: true, ...activity }, 200, { "Cache-Control": "no-store" });
+}
+
+export async function handleForceSyncCancellation(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  let body = {};
+  try { body = await readJson(req); } catch { body = {}; }
+  const operationId = String(body.id || req.query.id || "").trim();
+  if (!operationId) return sendJson(res, { ok: false, error: "id is required" }, 400);
+
+  const result = requestMediaForceSyncCancellation(operationId);
+  if (!result.found) return sendJson(res, { ok: false, error: "Force Sync operation not found" }, 404);
+  return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
 }
 
 export async function handleManualUnwatch(req, res) {

@@ -5,6 +5,8 @@ import {
   remoteItemIsWatched,
   remoteItemToMedia,
 } from "../server/src/utils/mediaForceSync.js";
+import { normalizeLibraryForceSyncRequest } from "../server/src/utils/libraryForceSync.js";
+import { createMediaForceSyncActivity, finishMediaForceSyncActivity, getMediaForceSyncActivity, isMediaForceSyncCancellationRequested, requestMediaForceSyncCancellation } from "../server/src/utils/mediaForceSyncActivity.js";
 import { embyEpisodeMatchesCoordinates } from "../server/src/utils/embyClient.js";
 import { jellyfinEpisodeMatchesCoordinates } from "../server/src/utils/jellyfinClient.js";
 
@@ -68,6 +70,29 @@ test("normalizes target-specific push and pull operations", () => {
     },
   );
   assert.equal(normalizeMediaForceSyncRequest({ title: "The Acolyte", type: "show", mode: "pull_from", pull_from: "plex" }).mode, "pull");
+});
+
+test("normalizes the Settings library Force Sync options", () => {
+  assert.deepEqual(
+    normalizeLibraryForceSyncRequest({ mode: "full_sync" }),
+    { title: "All media", type: "library", mode: "full", source: "", target: "" },
+  );
+  assert.equal(
+    normalizeLibraryForceSyncRequest({ mode: "pull_from", pull_from: "jellyfin" }).source,
+    "jellyfin",
+  );
+  assert.equal(
+    normalizeLibraryForceSyncRequest({ mode: "push_to", push_to: "emby" }).target,
+    "emby",
+  );
+});
+
+test("Force Sync activity records a user cancellation", () => {
+  const operationId = createMediaForceSyncActivity({ mode: "full", type: "library" });
+  assert.equal(requestMediaForceSyncCancellation(operationId).status, "cancellation_requested");
+  assert.equal(isMediaForceSyncCancellationRequested(operationId), true);
+  finishMediaForceSyncActivity(operationId, { cancelled: true, results: [] });
+  assert.equal(getMediaForceSyncActivity(operationId).status, "cancelled");
 });
 
 test("maps a watched Plex episode into a canonical Plembfin record", () => {

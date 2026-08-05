@@ -4844,15 +4844,14 @@ details.sync-tool-details[open] > summary {
   padding: var(--space-3);
   color: var(--text);
   text-align: left;
-  cursor: pointer;
-  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  cursor: default;
+  transition: border-color 160ms ease, background 160ms ease;
 }
 
 .media-force-sync-choice:hover,
 .media-force-sync-choice:focus-visible {
   border-color: var(--blue);
   background: var(--panel-3);
-  transform: translateY(-1px);
 }
 
 .media-force-sync-choice-copy,
@@ -4877,12 +4876,8 @@ details.sync-tool-details[open] > summary {
   line-height: 1.45;
 }
 
-.media-force-sync-choice-arrow {
+.media-force-sync-run {
   flex: 0 0 auto;
-  color: var(--blue);
-  font-size: inherit;
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 .media-force-sync-target-row {
@@ -4900,6 +4895,18 @@ details.sync-tool-details[open] > summary {
 
 .media-force-sync-activity {
   margin-top: 0;
+}
+
+.media-force-sync-activity-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.media-force-sync-cancel {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.85rem;
 }
 
 .media-force-sync-activity .import-terminal {

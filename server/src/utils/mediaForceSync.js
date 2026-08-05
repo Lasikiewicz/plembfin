@@ -361,7 +361,7 @@ async function appendForceSyncHistory(media, summary, requested) {
   }).catch(() => null);
 }
 
-export async function forceSyncMediaState(input, { config = null, now = Date.now(), logger = () => {} } = {}) {
+export async function forceSyncMediaState(input, { config = null, now = Date.now(), logger = () => {}, isCancelled = () => false } = {}) {
   const requested = normalizeMediaForceSyncRequest(input);
   const resolvedConfig = config || await loadMediaConfig();
   logger(`[${requested.mode}] ${modeLabel(requested.mode)} started for "${requested.title}".`);
@@ -371,8 +371,14 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
   const loopStore = createLoopStore();
   const results = [];
   const records = [];
+  let cancelled = Boolean(isCancelled());
 
   for (const media of collection.items) {
+    if (isCancelled()) {
+      cancelled = true;
+      logger(`[${requested.mode}] Cancellation acknowledged; stopping before remaining items.`);
+      break;
+    }
     const canonicalState = media.canonicalState || "watched";
     let record = await findWatchedByAnyMediaKey(media).catch(() => null);
     let inserted = false;
@@ -437,8 +443,11 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
     });
   }
 
+  cancelled = cancelled || Boolean(isCancelled());
   await invalidateHistoryDerivedCaches().catch(() => null);
-  logger(`[${requested.mode}] ${modeLabel(requested.mode)} finished: ${results.length} item${results.length === 1 ? "" : "s"}.`);
+  logger(cancelled
+    ? `[${requested.mode}] ${modeLabel(requested.mode)} cancelled after ${results.length} item${results.length === 1 ? "" : "s"}.`
+    : `[${requested.mode}] ${modeLabel(requested.mode)} finished: ${results.length} item${results.length === 1 ? "" : "s"}.`);
   return {
     ok: true,
     title: requested.title,
@@ -452,6 +461,7 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
     pulled: results.filter((result) => result.status === "pulled").length,
     synced: requested.mode === "pull" ? 0 : results.filter((result) => ["success", "partial", "skipped"].includes(result.status)).length,
     sourceResults: collection.sourceResults,
+    cancelled,
     results,
     records,
   };

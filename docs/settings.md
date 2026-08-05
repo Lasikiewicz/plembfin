@@ -24,12 +24,18 @@ The left sidebar navigation displays parent menu groups by default, collapsing c
 
 Full Sync Watchstates replays Plembfin's canonical watched and resume rows in two phases. It takes a fixed snapshot for each phase, temporarily suppresses inbound media-server callbacks and scheduled catch-up work, and shows rows processed, throughput, and an estimated remaining time. The shared sync-operation lock prevents it from overlapping Force Sync or a backup restore. The Stop Restore control cancels future batches; already completed batches remain applied. Reset Restore Lock is an administrator-confirmed recovery action for a run abandoned by a browser or server restart; it stops any in-flight restore before allowing another run to start.
 
-Force Full Sync is the repair tool for platform drift. It uses Plembfin history as the
-source of truth, respects each server's receive role, and fails closed when a library
-scan or pre-run fingerprint check cannot complete. Use **Preview Force Sync** first for
-the typed action list; a preview with a failed server scan cannot be confirmed. The
-normal run and a confirmed preview use the same progress panel, ETA, cancellation path,
-and restart-safe background job.
+Force Full Sync contains the same Full Sync / Push To / Pull From controls and live activity
+terminal used by media detail pages. The controls stay inline in the Force Full Sync box.
+Each action asks for confirmation before it starts, and the activity header exposes
+**Cancel operation** while a run is in progress. Cancellation stops before the next
+library item; writes already completed remain applied.
+Full Sync scans the configured Plex, Emby, and
+Jellyfin libraries for watched items, unions those results with Plembfin's watched
+playstate, and replays the resulting watched state to every eligible destination. Push To
+replays Plembfin's watched playstate to one destination or all destinations. Pull From
+imports watched state from one server or all configured servers without outbound writes.
+The operation is library-wide, and its status is polled through the shared Force Sync
+activity ledger until it completes.
 
 ## Multi-view aggregation
 

@@ -86,23 +86,38 @@ function mediaForceSyncPayload(button) {
 
 let mediaForceSyncSession = null;
 
-function mediaForceSyncElements() {
+function forceSyncElements(scope = "media") {
+  const library = scope === "library";
+  const prefix = library ? "settingsForceSync" : "mediaForceSync";
+  const id = (suffix) => `#${prefix}${suffix}`;
   return {
-    modal: document.querySelector("#mediaForceSyncModal"),
-    title: document.querySelector("#mediaForceSyncModalTitle"),
-    description: document.querySelector("#mediaForceSyncModalDescription"),
-    close: document.querySelector("#closeMediaForceSyncModalButton"),
-    activity: document.querySelector("#mediaForceSyncActivity"),
-    activityState: document.querySelector("#mediaForceSyncActivityState"),
-    terminal: document.querySelector("#mediaForceSyncTerminal"),
-    progress: document.querySelector("#mediaForceSyncProgress"),
-    progressLabel: document.querySelector("#mediaForceSyncProgressLabel"),
-    progressMeta: document.querySelector("#mediaForceSyncProgressMeta"),
-    progressTrack: document.querySelector("#mediaForceSyncProgressTrack"),
-    progressFill: document.querySelector("#mediaForceSyncProgressFill"),
-    pushTarget: document.querySelector("#mediaForceSyncPushTarget"),
-    pullSource: document.querySelector("#mediaForceSyncPullSource"),
+    scope,
+    container: document.querySelector(library ? "#settingsForceSyncPanel" : "#mediaForceSyncModal"),
+    modal: library ? null : document.querySelector("#mediaForceSyncModal"),
+    title: library ? null : document.querySelector("#mediaForceSyncModalTitle"),
+    description: library ? null : document.querySelector("#mediaForceSyncModalDescription"),
+    close: library ? null : document.querySelector("#closeMediaForceSyncModalButton"),
+    activity: document.querySelector(id("Activity")),
+    activityState: document.querySelector(id("ActivityState")),
+    terminal: document.querySelector(id("Terminal")),
+    progress: document.querySelector(id("Progress")),
+    progressLabel: document.querySelector(id("ProgressLabel")),
+    progressMeta: document.querySelector(id("ProgressMeta")),
+    progressTrack: document.querySelector(id("ProgressTrack")),
+    progressFill: document.querySelector(id("ProgressFill")),
+    pushTarget: document.querySelector(id("PushTarget")),
+    pullSource: document.querySelector(id("PullSource")),
+    cancel: document.querySelector(id("CancelButton")),
+    runSelector: library ? "[data-library-force-sync-run]" : "[data-media-force-sync-run]",
   };
+}
+
+function mediaForceSyncElements() {
+  return forceSyncElements("media");
+}
+
+function libraryForceSyncElements() {
+  return forceSyncElements("library");
 }
 
 function mediaForceSyncModeLabel(mode = "full") {
@@ -114,6 +129,11 @@ function mediaForceSyncServerLabel(server = "all") {
   return server.charAt(0).toUpperCase() + server.slice(1);
 }
 
+function mediaForceSyncEndpoint(payload = {}, status = false) {
+  const scope = payload.type === "library" ? "library" : "media";
+  return status ? `/api/force-sync/${scope}/status` : `/api/force-sync/${scope}`;
+}
+
 function resetMediaForceSyncActivity(elements) {
   elements.activity?.classList.add("hidden");
   if (elements.terminal) elements.terminal.textContent = "";
@@ -123,20 +143,34 @@ function resetMediaForceSyncActivity(elements) {
   if (elements.progressMeta) elements.progressMeta.textContent = "";
   if (elements.progressTrack) elements.progressTrack.setAttribute("aria-valuenow", "0");
   if (elements.progressFill) elements.progressFill.style.transform = "scaleX(0)";
+  if (elements.cancel) {
+    elements.cancel.classList.add("hidden");
+    elements.cancel.disabled = false;
+    elements.cancel.textContent = "Cancel operation";
+    elements.cancel.removeAttribute("aria-busy");
+  }
 }
 
 function setMediaForceSyncControlsBusy(elements, busy) {
-  elements.modal?.querySelectorAll("[data-media-force-sync-run], select").forEach((control) => {
+  const root = elements.container || elements.modal;
+  const runSelector = elements.runSelector || "[data-media-force-sync-run]";
+  root?.querySelectorAll(`${runSelector}, select`).forEach((control) => {
     control.disabled = busy;
   });
   if (elements.close) {
     elements.close.textContent = busy ? "Running…" : "Close";
     elements.close.setAttribute("aria-disabled", String(busy));
   }
+  if (elements.cancel) {
+    elements.cancel.classList.toggle("hidden", !busy);
+    elements.cancel.disabled = false;
+    elements.cancel.textContent = "Cancel operation";
+    elements.cancel.removeAttribute("aria-busy");
+  }
 }
 
-function renderMediaForceSyncActivity(activity) {
-  const elements = mediaForceSyncElements();
+function renderMediaForceSyncActivity(activity, targetElements = null) {
+  const elements = targetElements || mediaForceSyncElements();
   if (!activity) return;
   elements.activity?.classList.remove("hidden");
   const lines = (activity.lines || []).map((line) => {
@@ -150,17 +184,17 @@ function renderMediaForceSyncActivity(activity) {
   }
 
   const status = activity.status || "running";
-  const statusLabel = status === "completed" ? "Complete" : status === "error" ? "Failed" : "Live output";
+  const statusLabel = status === "completed" ? "Complete" : status === "cancelled" ? "Cancelled" : status === "error" ? "Failed" : "Live output";
   if (elements.activityState) elements.activityState.textContent = statusLabel;
   if (elements.progressLabel) {
     elements.progressLabel.textContent = status === "running"
       ? `${mediaForceSyncModeLabel(activity.meta?.mode)} in progress`
-      : status === "completed" ? "Operation complete" : "Operation stopped with an error";
+      : status === "completed" ? "Operation complete" : status === "cancelled" ? "Operation cancelled" : "Operation stopped with an error";
   }
   if (elements.progressMeta) elements.progressMeta.textContent = `${lines.length} log line${lines.length === 1 ? "" : "s"}`;
   elements.progress?.classList.remove("hidden");
   elements.progress?.setAttribute("data-status", status);
-  const progressValue = status === "completed" ? 100 : status === "error" ? 100 : 18;
+  const progressValue = ["completed", "cancelled", "error"].includes(status) ? 100 : 18;
   if (elements.progressTrack) elements.progressTrack.setAttribute("aria-valuenow", String(progressValue));
   if (elements.progressFill) elements.progressFill.style.transform = `scaleX(${progressValue / 100})`;
 }
@@ -183,7 +217,7 @@ function openMediaForceSyncDialog(button) {
     return;
   }
   const payload = mediaForceSyncPayload(button);
-  mediaForceSyncSession = { button, payload, running: false, operationId: "" };
+  mediaForceSyncSession = { button, payload, elements, running: false, operationId: "", cancelRequested: false, cancelling: false };
   if (elements.title) elements.title.textContent = `Force Sync · ${payload.title}`;
   if (elements.description) elements.description.textContent = `${payload.type === "show" ? "TV show" : payload.type === "episode" ? "Episode" : "Movie"} · this operation is limited to the selected media item.`;
   if (elements.pushTarget) elements.pushTarget.value = "all";
@@ -194,12 +228,118 @@ function openMediaForceSyncDialog(button) {
   elements.modal.querySelector("[data-media-force-sync-run=full]")?.focus();
 }
 
+function prepareLibraryForceSyncSession() {
+  if (mediaForceSyncSession?.running) return mediaForceSyncSession;
+  const elements = libraryForceSyncElements();
+  if (!elements.container) {
+    setMessage("Force Sync options are unavailable until the page finishes loading.", "error");
+    return null;
+  }
+  if (mediaForceSyncSession?.payload?.type === "library" && mediaForceSyncSession.elements?.container === elements.container) {
+    return mediaForceSyncSession;
+  }
+  const payload = { type: "library", title: "All media" };
+  mediaForceSyncSession = { button: null, payload, elements, running: false, operationId: "", cancelRequested: false, cancelling: false };
+  if (elements.pushTarget) elements.pushTarget.value = "all";
+  if (elements.pullSource) elements.pullSource.value = "all";
+  resetMediaForceSyncActivity(elements);
+  setMediaForceSyncControlsBusy(elements, false);
+  return mediaForceSyncSession;
+}
+
+export function initLibraryForceSyncPanel() {
+  const elements = libraryForceSyncElements();
+  if (!elements.container || elements.container.dataset.bound === "1") return;
+  elements.container.dataset.bound = "1";
+  prepareLibraryForceSyncSession();
+  elements.container.addEventListener("click", (event) => {
+    const button = event.target.closest(elements.runSelector);
+    if (!button || mediaForceSyncSession?.running) return;
+    event.preventDefault();
+    prepareLibraryForceSyncSession();
+    confirmAndRunMediaForceSync(button.dataset.libraryForceSyncRun).catch((error) => setMessage(error.message, "error"));
+  });
+}
+
+function forceSyncConfirmation(mode, session, elements) {
+  const title = session.payload.type === "library" ? "the full library" : `"${session.payload.title}"`;
+  if (mode === "full") {
+    return `This will pull watched state from all connected servers, reconcile ${title} in Plembfin, and push the resulting state to every eligible destination. Continue?`;
+  }
+  if (mode === "push") {
+    return `This will push Plembfin's canonical watched state for ${title} to ${mediaForceSyncServerLabel(elements.pushTarget?.value || "all")}. Continue?`;
+  }
+  return `This will pull watched state for ${title} from ${mediaForceSyncServerLabel(elements.pullSource?.value || "all")} into Plembfin. It will not send changes to media servers. Continue?`;
+}
+
+async function confirmAndRunMediaForceSync(mode) {
+  const session = mediaForceSyncSession;
+  if (!session || session.running || session.confirming) return;
+  const elements = session.elements || mediaForceSyncElements();
+  session.confirming = true;
+  try {
+    const confirmed = await openConfirmDialog({
+      title: `Confirm ${mediaForceSyncModeLabel(mode)}`,
+      body: forceSyncConfirmation(mode, session, elements),
+      confirmLabel: "Start",
+      cancelLabel: "Cancel",
+    });
+    if (!confirmed || mediaForceSyncSession !== session) return;
+    await runMediaForceSync(mode);
+  } finally {
+    session.confirming = false;
+  }
+}
+
+async function sendMediaForceSyncCancellation(session) {
+  const response = await fetch(`${mediaForceSyncEndpoint(session.payload)}/cancel`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ id: session.operationId }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.ok === false) throw new Error(body.error || `Cancellation failed with ${response.status}`);
+  return body;
+}
+
+async function cancelMediaForceSync() {
+  const session = mediaForceSyncSession;
+  if (!session?.running || session.cancelling) return;
+  const elements = session.elements || mediaForceSyncElements();
+  session.cancelRequested = true;
+  session.cancelling = true;
+  if (elements.cancel) {
+    elements.cancel.disabled = true;
+    elements.cancel.textContent = "Cancelling...";
+    elements.cancel.setAttribute("aria-busy", "true");
+  }
+  if (!session.operationId) {
+    setMessage("Cancellation requested; waiting for the operation to start...", "muted");
+    return;
+  }
+  try {
+    await sendMediaForceSyncCancellation(session);
+    setMessage("Cancellation requested...", "muted");
+  } catch (error) {
+    session.cancelRequested = false;
+    session.cancelling = false;
+    if (elements.cancel) {
+      elements.cancel.disabled = false;
+      elements.cancel.textContent = "Cancel operation";
+      elements.cancel.removeAttribute("aria-busy");
+    }
+    setMessage(`Unable to cancel Force Sync: ${error.message || String(error)}`, "error");
+  }
+}
+
 async function finishMediaForceSyncOperation(payload, activity, error = "") {
   const session = mediaForceSyncSession;
   if (!session) return;
   session.running = false;
-  const elements = mediaForceSyncElements();
-  renderMediaForceSyncActivity(activity);
+  session.cancelling = false;
+  session.cancelRequested = false;
+  const elements = session.elements || mediaForceSyncElements();
+  renderMediaForceSyncActivity(activity, elements);
   setMediaForceSyncControlsBusy(elements, false);
   if (session.button?.isConnected) {
     session.button.disabled = false;
@@ -216,6 +356,11 @@ async function finishMediaForceSyncOperation(payload, activity, error = "") {
   mergeForceSyncRecords(result.records);
   await refreshMediaAfterForceSync(payload, result);
 
+  if (activity?.status === "cancelled" || result.cancelled) {
+    setMessage(`${mediaForceSyncModeLabel(payload.mode)} cancelled after ${Number(result.results?.length || 0)} item${Number(result.results?.length || 0) === 1 ? "" : "s"}.`, "muted");
+    return;
+  }
+
   if (payload.mode === "pull") {
     setMessage(`Pull completed: found ${Number(result.found || 0)} watched item${Number(result.found || 0) === 1 ? "" : "s"}; added ${Number(result.imported || 0)} to Plembfin.`, "success");
   } else if (payload.mode === "push") {
@@ -228,7 +373,7 @@ async function finishMediaForceSyncOperation(payload, activity, error = "") {
 async function pollMediaForceSync(operationId, payload) {
   let missingAttempts = 0;
   while (mediaForceSyncSession?.operationId === operationId) {
-    const response = await fetch(`/api/force-sync/media/status?id=${encodeURIComponent(operationId)}`, { headers: authHeaders(), cache: "no-store" });
+    const response = await fetch(`${mediaForceSyncEndpoint(payload, true)}?id=${encodeURIComponent(operationId)}`, { headers: authHeaders(), cache: "no-store" });
     const body = await response.json().catch(() => ({}));
     if (response.status === 404 && missingAttempts < 5) {
       missingAttempts += 1;
@@ -237,8 +382,8 @@ async function pollMediaForceSync(operationId, payload) {
     }
     if (!response.ok || body.ok === false) throw new Error(body.error || `Force Sync status failed with ${response.status}`);
     missingAttempts = 0;
-    renderMediaForceSyncActivity(body);
-    if (body.status === "completed" || body.status === "error") {
+    renderMediaForceSyncActivity(body, mediaForceSyncSession?.elements);
+    if (["completed", "cancelled", "error"].includes(body.status)) {
       await finishMediaForceSyncOperation(payload, body, body.error || "");
       return;
     }
@@ -249,7 +394,7 @@ async function pollMediaForceSync(operationId, payload) {
 async function runMediaForceSync(mode) {
   const session = mediaForceSyncSession;
   if (!session || session.running) return;
-  const elements = mediaForceSyncElements();
+  const elements = session.elements || mediaForceSyncElements();
   const payload = { ...session.payload, mode };
   const pushTarget = elements.pushTarget?.value || "all";
   const pullSource = elements.pullSource?.value || "all";
@@ -267,7 +412,7 @@ async function runMediaForceSync(mode) {
   setMessage(`${mediaForceSyncModeLabel(mode)} ${payload.title}…`, "muted");
 
   try {
-    const response = await fetch("/api/force-sync/media", {
+    const response = await fetch(mediaForceSyncEndpoint(payload), {
       method: "POST",
       headers: { ...authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -275,6 +420,20 @@ async function runMediaForceSync(mode) {
     const body = await response.json().catch(() => ({}));
     if (!response.ok || body.ok === false) throw new Error(body.error || `Force Sync failed with ${response.status}`);
     session.operationId = body.operationId;
+    if (session.cancelRequested) {
+      try {
+        await sendMediaForceSyncCancellation(session);
+      } catch (error) {
+        session.cancelRequested = false;
+        session.cancelling = false;
+        if (elements.cancel) {
+          elements.cancel.disabled = false;
+          elements.cancel.textContent = "Cancel operation";
+          elements.cancel.removeAttribute("aria-busy");
+        }
+        setMessage(`Unable to cancel Force Sync: ${error.message || String(error)}`, "error");
+      }
+    }
     await pollMediaForceSync(body.operationId, payload);
   } catch (error) {
     const message = error.message || String(error);
@@ -296,6 +455,7 @@ function mergeForceSyncRecords(records = []) {
 }
 
 async function refreshMediaAfterForceSync(payload, body) {
+  if (payload.type === "library") return;
   const records = Array.isArray(body.records) ? body.records : [];
   if (payload.type === "show") {
     if (state.activeShowModalKey) {
@@ -365,10 +525,17 @@ export function attachMediaDetailEvents() {
       return;
     }
 
+    const forceSyncCancelButton = event.target.closest("[data-force-sync-cancel]");
+    if (forceSyncCancelButton) {
+      event.preventDefault();
+      cancelMediaForceSync().catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
     const forceSyncRunButton = event.target.closest("[data-media-force-sync-run]");
     if (forceSyncRunButton) {
       event.preventDefault();
-      runMediaForceSync(forceSyncRunButton.dataset.mediaForceSyncRun).catch((error) => setMessage(error.message, "error"));
+      confirmAndRunMediaForceSync(forceSyncRunButton.dataset.mediaForceSyncRun).catch((error) => setMessage(error.message, "error"));
       return;
     }
 

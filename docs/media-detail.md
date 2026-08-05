@@ -102,8 +102,13 @@ first complete render.
   imports state; Push only replays Plembfin's canonical state. The asynchronous
   `POST /api/force-sync/media` operation is followed through
   `GET /api/force-sync/media/status?id=...`, and the dialog shows its detailed
-  live terminal output until completion. This is an explicit, title-scoped
-  exception to the library-wide Force Sync rule that ignores remote-only watches.
+  live terminal output until completion. Every action asks for confirmation before it
+  starts, and the activity header exposes **Cancel operation** while it is running.
+  Settings → Sync → Sync Tools → Force Full Sync
+  keeps the same controls and live terminal inline in the Force Full Sync box for the
+  complete library: its Full Sync unions watched state from
+  connected servers with Plembfin's watched playstate before replaying it to eligible
+  destinations.
   Jellyfin episode matching keeps every same-season/episode copy, so separate
   1080p and 4K items can both receive the watched or unwatched state.
   `POST /api/retry-sync` and `POST /api/update-watch` both take an optional

@@ -71,7 +71,7 @@ const SECTIONS = {
     subSections: [
       { id: "sync-tools-repair", label: "Repair Recent Items", description: "Check recent watched items for missing records" },
       { id: "full-sync-watchstates", label: "Full Sync Watchstates", description: "Push your entire watched archive back to media server lists" },
-      { id: "sync-tools-force", label: "Force Full Sync", description: "Force an immediate sync of pending watched states" },
+      { id: "sync-tools-force", label: "Force Full Sync", description: "Full Sync, Push To, and Pull From for the full library" },
     ],
     isDisplayOnly: true,
   },

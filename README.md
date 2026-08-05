@@ -38,6 +38,7 @@
 |---|---|
 | **Plembfin-canonical sync** | Plembfin's watched/unwatched state is pushed to every connected app that contains the media; platform drift is repaired automatically |
 | **Detail-page Force Sync** | From any movie or show page, choose Full Sync, Push To, or Pull From for that title; follow detailed live operation output, including duplicate-quality Jellyfin episode copies |
+| **Library-wide Force Sync** | From Settings → Sync Tools, use the same Full Sync, Push To, and Pull From options for the complete library with a live terminal; Full Sync unions watched state from connected apps with Plembfin and replays it to eligible destinations |
 | **New media arrives watched** | Add a film or show you have already seen and it is marked watched on that server as it appears - no re-watching prompts on a rebuilt library, no manual catch-up. Applies an existing watch only; it never invents one |
 | **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |
 | **Rewatch tracking** | Watching a movie or episode again logs a new watch instead of overwriting the old one; detail pages show a full watch history with the date and app for every play. The duplicate-cleanup tool only removes rows recording the same watch event, so rewatches are never collapsed |
@@ -109,15 +110,17 @@
 
 ## Sync safety and operations
 
-Force Sync can be previewed before writes, with scoped libraries/media types, typed
-additive or destructive actions, stale-plan protection, and verified pre-run watch-history
-snapshots. Server roles can be bidirectional, source-only, destination-only, or monitor-only.
-Plembfin history remains authoritative: library-wide Force Sync ignores remote-only watches,
-while the explicit detail-page Force Sync can import the selected title only. Failed server
-scans fail closed instead of looking like empty libraries, and Force Sync cannot overlap
-Full Sync Watchstates or a backup restore. A stopped queued job is terminal and cannot be
-resurrected by stale-worker recovery; inbound callbacks are suppressed during authoritative
-operations, while scheduled-sync callbacks remain eligible for normal echo-ledger checks.
+The Settings Force Full Sync box and detail-page Force Sync dialog offer Full Sync, Push To,
+and Pull From with live activity output. Each action is confirmed before it starts, and a
+running operation can be cancelled from its activity header. Settings Full Sync scans connected Plex, Emby, and Jellyfin
+libraries, unions watched items with Plembfin's watched playstate, and replays the result
+to eligible destinations; Pull From imports without outbound writes, while Push To only
+replays Plembfin's canonical watched state. The separate planner endpoint still provides
+scoped, typed actions with stale-plan protection and verified pre-run snapshots for
+automation and compatibility. Server roles can be bidirectional, source-only,
+destination-only, or monitor-only. Failed server scans are reported in the terminal rather
+than treated as empty libraries, and inbound callbacks are handled through the existing
+sync echo protections.
 Outbound unplayed writes have their own echo ledger.
 Outbound requests use shared per-destination pacing and cooldown telemetry, while
 **Settings → Advanced → System integrity check** reports current history scale, matching

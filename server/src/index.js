@@ -5,7 +5,7 @@ import { runScheduledTick, startPlexNotificationListener, stopPlexNotificationLi
 import { handleBackupExport, handleBackupImport, handleImport, handlePlembfinBackups, handleWatchBackups } from "./routes/backups.js";
 import { handleAppearance, handleConfig, handleMediaAppLinks, handleSeerrMediaStatus, handleSeerrRequest, handleSeerrStatus, handleTestConnection, handleTestPlexNotifications } from "./routes/admin.js";
 import { handleAddWatchDate, handleClearMissingTelemetry, handleDeleteHistoryRecord, handleDeleteMedia, handleDeleteWatchDate, handleFullSyncWatchstates, handleHistory, handleHistoryAudit, handleMergeShows, handleMovies, handleRematchShow, handleShow, handleShows, handleUpdateWatch, handleUpdateWatchDates, handleWatchDates } from "./routes/media.js";
-import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleForceSyncPlan, handleManualUnwatch, handleMediaForceSync, handleMediaForceSyncStatus, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleRetrySync, handleStopForceSync, handleSyncHistory, handleSyncJobs, handleSyncLibraries, handleWebhook } from "./routes/sync.js";
+import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleForceSyncPlan, handleForceSyncCancellation, handleLibraryForceSync, handleLibraryForceSyncStatus, handleManualUnwatch, handleMediaForceSync, handleMediaForceSyncStatus, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleRetrySync, handleStopForceSync, handleSyncHistory, handleSyncJobs, handleSyncLibraries, handleWebhook } from "./routes/sync.js";
 import { handleFanartImages, handleMediaSearch, handleOmdbRating, handlePoster, handleRemoteArtwork, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleYoutubeMeta } from "./routes/metadata.js";
 import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRefreshTvdbMetadata, handleRematchTvShows, handleSyncHealth, handleSyncMatchReport, handlePhantomWatchAudit, handlePhantomWatchRepair } from "./routes/maintenance.js";
 
@@ -66,6 +66,9 @@ async function dispatch(req, res) {
     if (path === "active-sessions") return handleActiveSessions(req, res);
     if (path === "cron-sync") return handleCronSync(req, res);
     if (path === "cron-sync/status") return handleCronSyncStatus(req, res);
+    if (path === "force-sync/library/cancel" || path === "force-sync/media/cancel") return handleForceSyncCancellation(req, res);
+    if (path === "force-sync/library/status") return handleLibraryForceSyncStatus(req, res);
+    if (path === "force-sync/library") return handleLibraryForceSync(req, res);
     if (path === "force-sync/media/status") return handleMediaForceSyncStatus(req, res);
     if (path === "force-sync/media") return handleMediaForceSync(req, res);
     if (path === "force-sync") return handleForceSync(req, res);

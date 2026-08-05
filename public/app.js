@@ -19,7 +19,7 @@ import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb }
 import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260810";
 import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js?v=20260810";
 import { initMediaLightbox } from "./modules/media-lightbox.js";
-import { initAppEvents } from "./modules/app-events.js?v=20260810";
+import { initAppEvents } from "./modules/app-events.js?v=20260812";
 
 if (localStorage.getItem("plembfin_bio_media_layout") === "1") {
   document.body.classList.add("bio-media-layout");

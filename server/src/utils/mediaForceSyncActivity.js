@@ -23,6 +23,7 @@ function activitySnapshot(activity) {
     lines: activity.lines.map((line) => ({ ...line })),
     meta: { ...activity.meta },
     result: activity.result || null,
+    cancellationRequested: Boolean(activity.cancellationRequested),
   };
 }
 
@@ -38,6 +39,7 @@ export function createMediaForceSyncActivity(meta = {}) {
     lines: [],
     result: null,
     error: "",
+    cancellationRequested: false,
   };
   activities.set(activity.id, activity);
   appendMediaForceSyncActivity(activity.id, "Operation started.", "info");
@@ -53,14 +55,30 @@ export function appendMediaForceSyncActivity(id, text, level = "info") {
   return true;
 }
 
+export function requestMediaForceSyncCancellation(id) {
+  const activity = activities.get(String(id || ""));
+  if (!activity) return { found: false, status: "not_found" };
+  if (activity.status !== "running") return { found: true, requested: false, status: activity.status };
+  if (!activity.cancellationRequested) {
+    activity.cancellationRequested = true;
+    appendMediaForceSyncActivity(id, "Cancellation requested by the user.", "warning");
+  }
+  return { found: true, requested: true, status: "cancellation_requested" };
+}
+
+export function isMediaForceSyncCancellationRequested(id) {
+  return Boolean(activities.get(String(id || ""))?.cancellationRequested);
+}
+
 export function finishMediaForceSyncActivity(id, result, error = "") {
   const activity = activities.get(String(id));
   if (!activity) return false;
-  activity.status = error ? "error" : "completed";
+  const cancelled = Boolean(result?.cancelled);
+  activity.status = error ? "error" : cancelled ? "cancelled" : "completed";
   activity.error = String(error || "");
   activity.result = result || null;
   activity.updatedAt = Date.now();
-  appendMediaForceSyncActivity(id, error || "Operation completed.", error ? "error" : "success");
+  appendMediaForceSyncActivity(id, error || (cancelled ? "Operation cancelled." : "Operation completed."), error ? "error" : cancelled ? "warning" : "success");
   return true;
 }
 
