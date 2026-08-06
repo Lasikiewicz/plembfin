@@ -1,7 +1,21 @@
 {
-  "version": "0.6.78",
-  "updatedAt": "2026-08-06T01:02:07+01:00",
+  "version": "0.6.79",
+  "updatedAt": "2026-08-06T02:01:12+01:00",
   "entries": [
+    {
+      "version": "0.6.79",
+      "date": "2026-08-06T02:01:12+01:00",
+      "commit": "04203960b8cc8f5b79b86db5d71f23c43f527c5c",
+      "message": "Fix - Expand people results in search",
+      "author": "Lasikiewicz",
+      "details": [
+        "Search people through TMDB's dedicated people catalogue instead of mixed results",
+        "Add paginated loading for the full people result set",
+        "Keep search panels bounded with independent scrolling and compact artwork",
+        "Make local media badges readable with a light-green treatment",
+        "Add artwork fallbacks when remote search images fail"
+      ]
+    },
     {
       "version": "0.6.78",
       "date": "2026-08-06T01:02:07+01:00",
