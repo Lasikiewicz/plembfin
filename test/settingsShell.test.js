@@ -8,7 +8,7 @@ test("settings routes resolve flat sections and panels", () => {
   assert.equal(parseSettingsRoute("/settings/media-servers").group, "media-servers");
   assert.equal(parseSettingsRoute("/settings/media-servers").panel, "apps");
   assert.equal(parseSettingsRoute("/settings/metadata").panel, "api-keys");
-  assert.equal(parseSettingsRoute("/settings/storage").panel, "cache");
+  assert.equal(parseSettingsRoute("/settings/storage").panel, "general");
   assert.equal(parseSettingsRoute("/settings/restore").backupTab, "restore");
   assert.deepEqual(parseSettingsRoute("/settings/account").subPanels, ["general-login"]);
   assert.equal(parseSettingsRoute("/settings/sync-issues").path, "/settings/sync-issues");
@@ -21,6 +21,7 @@ test("every section produces a routable canonical path with visible content", ()
   // resolves to one of these panels but lists no subPanels shows a blank page.
   const subPanelPanels = new Set(["general", "sync", "tools"]);
   for (const id of Object.keys(SETTINGS_SECTIONS)) {
+    if (id === "advanced") continue; // legacy redirect section
     const route = parseSettingsRoute(`/settings/${id}`);
     assert.equal(route.kind, "task");
     assert.equal(route.section, id);
@@ -36,7 +37,7 @@ test("every section produces a routable canonical path with visible content", ()
 });
 
 test("parent group routes aggregate every child's panel into one view list", () => {
-  // Media Servers, Backup/Restore, and Advanced fan their children out across
+  // Media Servers and Backup/Restore fan their children out across
   // different underlying panels (or backup tabs) - the parent route must
   // reveal all of them, not just the first.
   const mediaServers = parseSettingsRoute("/settings/media-servers");
@@ -52,10 +53,7 @@ test("parent group routes aggregate every child's panel into one view list", () 
   );
 
   const advanced = parseSettingsRoute("/settings/advanced");
-  assert.deepEqual(
-    advanced.views.map((v) => v.panel),
-    ["tools", "cache"],
-  );
+  assert.equal(advanced.path, "/settings/general");
 
   const tools = parseSettingsRoute("/settings/tools");
   assert.deepEqual(

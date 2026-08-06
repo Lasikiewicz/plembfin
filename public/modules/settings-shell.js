@@ -40,7 +40,9 @@ const SECTIONS = {
   advanced: {
     label: "Advanced",
     description: "Advanced settings",
-    views: [{ panel: "tools", subPanels: ["tools-diagnostics"] }, { panel: "cache" }],
+    panel: "general",
+    subPanels: ["tools-diagnostics", "cache"],
+    isDisplayOnly: true,
   },
   // Account section on the General page
   account: {
@@ -304,7 +306,8 @@ const LEGACY_PATHS = {
   "/settings/sync-group": "/settings/sync",
   "/settings/backup-restore-group": "/settings/backup-restore",
   "/settings/tools-group": "/settings/tools",
-  "/settings/advanced-group": "/settings/advanced",
+  "/settings/advanced-group": "/settings/general",
+  "/settings/advanced": "/settings/general",
   "/sync": "/settings/sync-issues",
   "/logs": "/settings/logs",
   "/settings/apps": "/settings/media-servers",
@@ -369,7 +372,7 @@ function sectionRoute(section, requestedPath) {
   const group = groupObj?.id || section;
 
   let subPanels = definition.subPanels;
-  if (groupObj && groupObj.displayOnly) {
+  if (groupObj && groupObj.displayOnly && section === group) {
     const allGroupSubPanels = groupObj.sections.flatMap((s) => SECTIONS[s]?.subPanels || []);
     if (allGroupSubPanels.length) subPanels = [...new Set(allGroupSubPanels)];
   }
