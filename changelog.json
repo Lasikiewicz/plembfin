@@ -1,7 +1,26 @@
 {
-  "version": "0.6.77",
-  "updatedAt": "2026-08-06T00:21:33+01:00",
+  "version": "0.6.78",
+  "updatedAt": "2026-08-06T01:02:07+01:00",
   "entries": [
+    {
+      "version": "0.6.78",
+      "date": "2026-08-06T01:02:07+01:00",
+      "commit": "23e4f216c7f7276949469d8d075d5a7ea91310ef",
+      "message": "Fix - Update settings shell route handling and test suite for General group aggregation",
+      "author": "Lasikiewicz",
+      "details": [
+        "Standardize card containers, headings, and field rows across all settings sub-panels to match Sync Tuning layout",
+        "Update Sync Tuning fields to display single-line default and valid range hints without optional tags",
+        "Restructure Account settings into a responsive 2x2 grid with inline status messaging",
+        "Reorganize System Integrity into dedicated Refresh Sync Health and Run System Diagnostic card boxes",
+        "Move System Integrity and Image Cache into the General settings section and update sidebar navigation tree",
+        "Standardize health metrics and diagnostic results as interactive card boxes matching settings field styling",
+        "Fix Media Servers panel enclosure regression in public HTML layout",
+        "Ensure child section routes scope subPanels to their own definition rather than all parent group panels",
+        "Update test/settingsShell.test.js assertions for storage panel and advanced legacy redirect",
+        "Pass all 177 automated unit tests"
+      ]
+    },
     {
       "version": "0.6.77",
       "date": "2026-08-06T00:21:33+01:00",
