@@ -563,7 +563,7 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
 }
 
 export async function searchTmdb({ query, page = 1, mediaType = "multi" }) {
-  const type = ["movie", "tv"].includes(mediaType) ? mediaType : "multi";
+  const type = ["movie", "tv", "person"].includes(mediaType) ? mediaType : "multi";
   const safePage = Math.min(Math.max(Number(page) || 1, 1), 500);
   const cacheKey = hash(`${type}|${canonicalTitle(query)}|${safePage}`);
   return collapse(`search:${cacheKey}`, async () => {

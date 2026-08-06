@@ -12,7 +12,7 @@ import {
   movieHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
   computeProgress, sanitizeTitle, episodeTitle, episodeCode,
 } from "./utils.js";
-import { posterMarkup, hydratePosters, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js";
+import { posterMarkup, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js";
 import {
   historySyncPill, renderSyncStatusDot, renderMediaSyncPills,
   renderAvailabilityPills, renderShowAvailabilityPills, showAvailIssuePopup,
@@ -26,6 +26,7 @@ import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } f
 let _cb = {};
 const searchResultsCache = new Map();
 let searchRequestId = 0;
+let searchPeopleRequestId = 0;
 export function initExplorer(callbacks) {
   _cb = callbacks;
 }
@@ -108,12 +109,51 @@ function comparableTitle(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+function normalizeTmdbSearchResult(item = {}, mediaTypeOverride = "") {
+  const mediaType = mediaTypeOverride || item.media_type || (item.title ? "movie" : "tv");
+  if (!item?.id || !["movie", "tv", "person"].includes(mediaType)) return null;
+  const title = item.title || item.name || "Unknown title";
+  const year = (item.release_date || item.first_air_date || "").slice(0, 4);
+  const overview = item.overview || (item.known_for
+    ? `Known for: ${item.known_for.map((knownFor) => knownFor.title || knownFor.name).filter(Boolean).join(", ")}`
+    : "");
+  return {
+    _type: mediaType === "person" ? "person" : (mediaType === "movie" ? "movie" : "show"),
+    id: item.id,
+    title,
+    poster: mediaType === "person"
+      ? (tmdbProfile(item.profile_path) || tmdbPoster(item.profile_path))
+      : tmdbPoster(item.poster_path, item.id, mediaType),
+    href: mediaType === "person" ? `/person/${item.id}` : (mediaType === "movie" ? `/movie/tmdb/${item.id}` : `/tvshow/tmdb/${item.id}`),
+    sub: mediaType === "person" ? "Cast Member" : `${mediaType === "movie" ? "Movie" : "TV Show"}${year ? ` (${year})` : ""} - TMDB`,
+    overview,
+    isLocal: false,
+    source: "TMDB",
+    mediaType,
+  };
+}
+
+function rememberSearchCache(query) {
+  searchResultsCache.set(query, {
+    results: state.searchResults,
+    peoplePage: state.searchPeoplePage,
+    peopleTotalPages: state.searchPeopleTotalPages,
+    peopleTotalResults: state.searchPeopleTotalResults,
+  });
+}
+
 export function triggerSearchPage(query) {
   const normalizedQuery = String(query || "").trim().toLowerCase();
   const requestId = ++searchRequestId;
+  searchPeopleRequestId += 1;
   state.searchQuery = query;
   state.searchLoading = true;
   state.searchResults = [];
+  state.searchPeoplePage = 1;
+  state.searchPeopleTotalPages = 1;
+  state.searchPeopleTotalResults = 0;
+  state.searchPeopleLoading = false;
+  state.searchPeopleError = "";
   syncPageTopbar();
   const loadingEl = document.getElementById("searchViewLoading");
   const emptyEl = document.getElementById("searchViewEmpty");
@@ -123,8 +163,12 @@ export function triggerSearchPage(query) {
   if (resultsEl) resultsEl.innerHTML = "";
   const cachedResults = searchResultsCache.get(normalizedQuery);
   if (cachedResults) {
+    const cached = Array.isArray(cachedResults) ? { results: cachedResults } : cachedResults;
     state.searchLoading = false;
-    state.searchResults = cachedResults;
+    state.searchResults = cached.results || [];
+    state.searchPeoplePage = Number(cached.peoplePage) || 1;
+    state.searchPeopleTotalPages = Math.max(state.searchPeoplePage, Number(cached.peopleTotalPages) || 1);
+    state.searchPeopleTotalResults = Number(cached.peopleTotalResults) || 0;
     renderSearchPage();
     return;
   }
@@ -137,13 +181,11 @@ export function triggerSearchPage(query) {
       if (requestId !== searchRequestId) return;
       state.searchLoading = false;
       const results = [];
-      const seenTitles = new Set();
       // Local Shows
       const localShows = body.local?.shows || [];
       for (const s of localShows) {
         const title = s.title || "";
         const slugTitle = slug(title);
-        seenTitles.add(slugTitle);
         results.push({
           _type: "show",
           id: s.id,
@@ -161,7 +203,6 @@ export function triggerSearchPage(query) {
       for (const m of localMovies) {
         const title = m.title || "";
         const slugTitle = slug(title);
-        seenTitles.add(slugTitle);
         results.push({
           _type: "movie",
           id: m.id,
@@ -174,32 +215,24 @@ export function triggerSearchPage(query) {
           mediaType: "movie"
         });
       }
-      // TMDB Discovery results (Movies, Shows, People)
-      const discovery = body.discovery?.results || [];
+      // TMDB's mixed search only has 20 slots shared across movies, shows and
+      // people. People are fetched separately from /search/person so they are
+      // not limited to whichever few names happen to fit in that mixed page.
+      const discovery = [
+        ...(body.discovery?.results || []),
+        ...(body.people?.results || []).map((item) => ({ ...item, media_type: "person" })),
+      ];
       for (const item of discovery) {
-        const mediaType = item.media_type || (item.title ? "movie" : "tv");
-        if (!["movie", "tv", "person"].includes(mediaType)) continue;
-        const title = item.title || item.name || "Unknown title";
-        const slugTitle = slug(title);
-        const overview = item.overview || (item.known_for ? `Known for: ${item.known_for.map(x => x.title || x.name).filter(Boolean).join(", ")}` : "");
-        const existing = results.find((result) => result.mediaType === mediaType && comparableTitle(result.title) === comparableTitle(title));
+        const normalized = normalizeTmdbSearchResult(item);
+        if (!normalized) continue;
+        const existing = results.find((result) => result.mediaType === normalized.mediaType && comparableTitle(result.title) === comparableTitle(normalized.title));
         if (existing) {
-          if (!existing.overview && overview) {
-            existing.overview = overview;
+          if (!existing.overview && normalized.overview) {
+            existing.overview = normalized.overview;
           }
           continue;
         }
-        const year = (item.release_date || item.first_air_date || "").slice(0, 4);
-        results.push({
-          _type: mediaType === "person" ? "person" : (mediaType === "movie" ? "movie" : "show"),
-          title,
-          poster: mediaType === "person" ? (tmdbProfile(item.profile_path) || tmdbPoster(item.profile_path)) : tmdbPoster(item.poster_path, item.id, mediaType),
-          href: mediaType === "person" ? `/person/${item.id}` : (mediaType === "movie" ? `/movie/tmdb/${item.id}` : `/tvshow/tmdb/${item.id}`),
-          sub: mediaType === "person" ? "Cast Member" : `${mediaType === "movie" ? "Movie" : "TV Show"}${year ? ` · ${year}` : ""} · TMDB`,
-          overview,
-          isLocal: false,
-          mediaType
-        });
+        results.push(normalized);
       }
       // TVDB series results, searched alongside TMDB. Any series already listed
       // locally or by TMDB is dropped here so a show never appears twice.
@@ -232,8 +265,11 @@ export function triggerSearchPage(query) {
         if (!aIsPersonPartial && bIsPersonPartial) return 1;
         return 0; // Maintain original order
       });
-      searchResultsCache.set(normalizedQuery, results);
       state.searchResults = results;
+      state.searchPeoplePage = Number(body.people?.page) || 1;
+      state.searchPeopleTotalPages = Math.max(state.searchPeoplePage, Number(body.people?.total_pages) || 1);
+      state.searchPeopleTotalResults = Number(body.people?.total_results) || 0;
+      rememberSearchCache(normalizedQuery);
       renderSearchPage();
     })
     .catch((error) => {
@@ -245,6 +281,74 @@ export function triggerSearchPage(query) {
       if (emptyEl) emptyEl.textContent = `Search failed: ${error.message}`;
     });
 }
+
+export function loadMoreSearchPeople() {
+  const query = String(state.searchQuery || "").trim();
+  const normalizedQuery = query.toLowerCase();
+  const nextPage = Number(state.searchPeoplePage || 1) + 1;
+  if (!query || state.searchPeopleLoading || nextPage > Number(state.searchPeopleTotalPages || 1)) return;
+
+  const requestId = ++searchPeopleRequestId;
+  state.searchPeopleLoading = true;
+  state.searchPeopleError = "";
+  renderSearchPage();
+
+  fetch(`/api/tmdb-search?query=${encodeURIComponent(query)}&mediaType=person&page=${nextPage}`, { headers: authHeaders() })
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then((body) => {
+      if (requestId !== searchPeopleRequestId || normalizedQuery !== String(state.searchQuery || "").trim().toLowerCase()) return;
+      const existingPeople = new Set(
+        state.searchResults
+          .filter((result) => result.mediaType === "person")
+          .map((result) => result.id != null ? `id:${result.id}` : `title:${comparableTitle(result.title)}`),
+      );
+      for (const item of (body.results || [])) {
+        const normalized = normalizeTmdbSearchResult(item, "person");
+        if (!normalized) continue;
+        const key = normalized.id != null ? `id:${normalized.id}` : `title:${comparableTitle(normalized.title)}`;
+        if (existingPeople.has(key)) continue;
+        existingPeople.add(key);
+        state.searchResults.push(normalized);
+      }
+      state.searchPeoplePage = Number(body.page) || nextPage;
+      state.searchPeopleTotalPages = Math.max(state.searchPeoplePage, Number(body.total_pages) || state.searchPeopleTotalPages);
+      state.searchPeopleTotalResults = Number(body.total_results) || state.searchPeopleTotalResults;
+      state.searchPeopleLoading = false;
+      rememberSearchCache(normalizedQuery);
+      renderSearchPage();
+    })
+    .catch((error) => {
+      if (requestId !== searchPeopleRequestId) return;
+      state.searchPeopleLoading = false;
+      state.searchPeopleError = error.message || "Unable to load more people";
+      renderSearchPage();
+    });
+}
+
+function renderSearchPeoplePager() {
+  const canLoadMore = Number(state.searchPeoplePage || 1) < Number(state.searchPeopleTotalPages || 1);
+  if (!canLoadMore && !state.searchPeopleError) return "";
+  const peopleShown = (state.searchResults || []).filter((result) => result.mediaType === "person").length;
+  const totalLabel = state.searchPeopleTotalResults
+    ? `<span class="search-people-count">Showing ${peopleShown.toLocaleString()} of ${Number(state.searchPeopleTotalResults).toLocaleString()} people</span>`
+    : "";
+  const errorLabel = state.searchPeopleError
+    ? `<span class="search-people-error" role="status">${escapeHtml(state.searchPeopleError)}</span>`
+    : "";
+  return `
+    <div class="search-people-pager">
+      ${totalLabel}
+      <button class="button-ghost search-load-more-people" type="button" data-search-load-more-people ${state.searchPeopleLoading ? "disabled" : ""}>
+        ${state.searchPeopleLoading ? "Loading people…" : "Load more people"}
+      </button>
+      ${errorLabel}
+    </div>
+  `;
+}
+
 export function renderSearchPage() {
   syncPageTopbar();
   const loadingEl = document.getElementById("searchViewLoading");
@@ -268,14 +372,14 @@ export function renderSearchPage() {
     const posterHtml = r.isLocal
       ? posterMarkup({ id: r.id, poster_url: r.poster, title: r.title }, "overview-thumb-poster")
       : (r.poster
-        ? `<img src="${escapeAttribute(r.poster)}" alt="" class="overview-thumb-poster" loading="lazy">`
-        : `<div class="overview-thumb-poster poster-fallback" style="display: flex; align-items: center; justify-content: center; color: var(--muted); height: 100%; min-height: 160px;"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg></div>`);
+        ? `<img src="${escapeAttribute(r.poster)}" alt="${escapeAttribute(r.title)} poster" class="overview-thumb-poster poster-img search-result-poster" loading="lazy" decoding="async" fetchpriority="auto" referrerpolicy="no-referrer">`
+        : `<span class="overview-thumb-poster poster-fallback" aria-hidden="true"></span>`);
     const badgesHtml = r.isLocal
       ? `<span class="status-pill status-success" style="font-size: 0.65rem; padding: 0.1rem 0.3rem;">Local</span>`
       : `<span class="status-pill status-muted" style="font-size: 0.65rem; padding: 0.1rem 0.3rem;">${escapeHtml(r.source || "TMDB")}</span>`;
     return `
       <article class="explorer-overview-card" data-href="${escapeAttribute(r.href)}">
-        <div style="width: 100%; height: 100%; position: relative;">
+        <div class="search-card-art">
           ${posterHtml}
         </div>
         <div class="overview-card-meta">
@@ -296,7 +400,7 @@ export function renderSearchPage() {
     const shows = allResults.filter(r => r.mediaType === "tv");
     const people = allResults.filter(r => r.mediaType === "person");
     if (resultsEl) {
-      resultsEl.className = ""; // clear default grid class for flex columns
+      resultsEl.className = "search-results-view";
       resultsEl.innerHTML = `
         <div class="search-columns">
           <div class="search-column">
@@ -315,6 +419,7 @@ export function renderSearchPage() {
             <h3 class="search-column-title">People (${people.length})</h3>
             <div class="search-column-grid">
               ${people.length ? people.map(renderCard).join("") : '<div class="gsd-column-empty">No matching people</div>'}
+              ${renderSearchPeoplePager()}
             </div>
           </div>
         </div>
@@ -335,11 +440,16 @@ export function renderSearchPage() {
       return;
     }
     if (resultsEl) {
-      resultsEl.className = "explorer-overview-view"; // restore default grid layout
-      resultsEl.innerHTML = filtered.map(renderCard).join("");
+      resultsEl.className = "search-results-view explorer-overview-view";
+      resultsEl.innerHTML = `${filtered.map(renderCard).join("")}${state.searchFilter === "people" ? renderSearchPeoplePager() : ""}`;
     }
   }
-  if (resultsEl) hydratePosters(resultsEl);
+  if (resultsEl) {
+    hydratePosters(resultsEl);
+    for (const image of resultsEl.querySelectorAll("img.search-result-poster")) {
+      bindPosterImageErrorHandler(image);
+    }
+  }
 }
 // ---------------------------------------------------------------------------
 // Explorer top-level render

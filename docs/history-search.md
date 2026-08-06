@@ -75,6 +75,10 @@ Behavior:
 - Local results match the watch history/library caches; remote results come from TMDB
   search (debounced - `state.globalSearchRemoteTimer`), merged and de-duplicated with
   local items marked as in-library.
+- People use TMDB's dedicated `search/person` endpoint rather than competing with
+  movies and shows for the 20 mixed-search result slots. The page initially shows
+  the first person page and **Load more people** fetches later pages up to TMDB's
+  reported result count.
 - TMDB's TV catalogue does not list every series TVDB does, so TVDB is searched in
   parallel with TMDB rather than after it, and its series appear as quickly as any
   other result, marked with a `TVDB` badge. Search result lists from TVDB are cached

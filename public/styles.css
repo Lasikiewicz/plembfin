@@ -1777,6 +1777,7 @@ h2 {
 }
 
 .status-ready,
+.status-success,
 .target-pill[data-status="success"] {
   border-color: rgba(16, 185, 129, 0.48);
   background: rgba(16, 185, 129, 0.12);
@@ -9597,13 +9598,14 @@ h1 {
 .search-columns {
   display: flex;
   gap: var(--space-3);
-  align-items: stretch;
+  align-items: flex-start;
   width: 100%;
 }
 
 .search-column {
   flex: 1;
   min-width: 0;
+  align-self: flex-start;
   display: flex;
   flex-direction: column;
   /* Theme tokens, not a fixed dark wash: a hardcoded dark panel reads as a
@@ -9631,35 +9633,129 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  flex: 0 0 auto;
+}
+
+/* Search cards use a compact art rail so poster proportions do not dictate a
+   full-width, full-height card. The wrapper also gives failed images a stable
+   fallback box instead of collapsing the card. */
+.search-results-view .explorer-overview-card {
+  grid-template-columns: clamp(96px, 30%, 138px) minmax(0, 1fr);
+  align-items: start;
+}
+
+.search-results-view .search-card-art {
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: var(--panel-3);
+}
+
+.search-results-view .search-card-art .overview-thumb-poster {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+}
+
+.search-results-view .search-card-art .overview-thumb-poster.poster-fallback {
+  min-height: 0;
+}
+
+.search-people-pager {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.search-people-count,
+.search-people-error {
+  color: var(--muted);
+  font-size: 0.74rem;
+  text-align: center;
+}
+
+.search-people-error {
+  color: var(--red);
+}
+
+.search-load-more-people {
+  width: 100%;
+  justify-content: center;
+}
+
+.search-results-view.explorer-overview-view > .search-people-pager {
+  grid-column: 1 / -1;
 }
 
 @media (min-width: 1201px) {
-  /* Capped, not fixed: a `height` here stretched all three columns to the full
-     viewport whatever they held, so a single result sat in three tall empty
-     panels. Long lists still scroll inside their own column. */
-  .search-columns {
-    max-height: calc(100vh - 160px);
+  /* Keep the search workspace inside the viewport. Each category gets its own
+     scroll area, so a long TV list cannot push the other columns off-screen. */
+  .page-shell[data-active-view="search"] {
+    overflow-y: hidden;
   }
-  .search-column {
+
+  .page-shell[data-active-view="search"] .view-panel[data-view-panel="search"] {
+    padding-top: 0;
+    height: calc(100vh - var(--right-topbar-height) - var(--space-2) - var(--control-inline-padding));
     min-height: 0;
   }
+
+  .page-shell[data-active-view="search"] .view-panel[data-view-panel="search"] > .glass-panel {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .page-shell[data-active-view="search"] #searchViewResults {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-top: 0 !important;
+    overflow: hidden;
+  }
+
+  .search-columns {
+    height: 100%;
+    min-height: 0;
+    align-items: flex-start;
+  }
+
+  .search-column {
+    align-self: flex-start;
+    height: fit-content;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   .search-column-grid {
-    flex: 1;
+    flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    padding-right: var(--space-2);
     scrollbar-width: thin;
     scrollbar-color: var(--line-strong) transparent;
-    padding-right: var(--space-2);
   }
+
   .search-column-grid > * {
     flex-shrink: 0;
   }
+
   .search-column-grid::-webkit-scrollbar {
     width: 6px;
   }
+
   .search-column-grid::-webkit-scrollbar-track {
     background: transparent;
   }
+
   .search-column-grid::-webkit-scrollbar-thumb {
     background: var(--line-strong);
     border-radius: 4px;
@@ -9667,11 +9763,25 @@ h1 {
 }
 
 @media (max-width: 1200px) {
+  .page-shell[data-active-view="search"] #searchViewResults {
+    margin-top: 0 !important;
+  }
+
   .search-columns {
     flex-direction: column;
   }
   .search-column {
     width: 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  .search-results-view.explorer-overview-view {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .search-results-view .explorer-overview-card {
+    grid-template-columns: 96px minmax(0, 1fr);
   }
 }
 
@@ -15310,10 +15420,17 @@ html.light-mode .watched-pill {
 }
 
 html.light-mode .status-ready,
+html.light-mode .status-success,
 html.light-mode .target-pill[data-status="success"] {
   border-color: rgba(5, 150, 105, 0.25);
   background: rgba(5, 150, 105, 0.08);
   color: var(--green);
+}
+
+html.light-mode .status-success {
+  border-color: #86efac;
+  background: #dcfce7;
+  color: #166534;
 }
 
 html.light-mode .status-error,

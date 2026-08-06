@@ -299,6 +299,44 @@ the live tracking cache, checks whether active sessions crossed the "watched" th
 propagates outstanding sync jobs. Force sync (`/api/force-sync`) runs the same logic on demand
 and stores progress in `runtime_state` for polling.
 
+### Sync and episode-query troubleshooting
+
+When a watch looks unexpected, start with the show's **Info** export (the data behind
+`/api/history-audit`) rather than the displayed timestamp alone. Compare these fields:
+
+- `watch_provenance.source`, `ingest_path`, `event`, `phase`, `source_timestamp`,
+  `captured_at`, `item_id`, `user`, `session_id`, `device`, and `client`.
+- `sync_dispatch_telemetry`, then the `watch_audit_events` entries for `source_event`,
+  `history_added`, `sync_dispatch`, and `sync_target`.
+- A `library_history` event with no session/device/client is a scheduled media-server
+  library-state import, not proof that playback occurred. An `item.markplayed` event is an
+  explicit played-state change; compare the raw server payload's played date and play count.
+  A successful `200` target result confirms propagation, not that the source watch was valid.
+
+Trace sync issues in this order:
+
+1. `server/src/scheduled.js` (`syncRecentlyWatchedFromPlex`, `syncRecentlyWatchedFromEmby`,
+   `syncRecentlyWatchedFromJellyfin`) and `server/src/utils/watchDates.js` for catch-up
+   polling, source played dates, and API-marked items.
+2. `server/src/routes/sync.js` and `server/src/utils/parsers.js` for webhook normalization,
+   phases, and source-event handling.
+3. `server/src/utils/syncOrchestrator.js`, `loopStore.js`, and `syncRoles.js` for target
+   selection, outbound results, and echo-loop suppression. Use `docs/scheduled-sync.md`,
+   `docs/webhooks.md`, and the relevant platform doc alongside the code.
+4. `server/src/utils/watchAudit.js`, `server/src/routes/media.js` (`handleHistoryAudit`),
+   and `server/src/utils/dataRepo.js` for the persisted audit trail, watch-history rows,
+   playstate, and telemetry.
+
+For episode queries, identity mismatches, or duplicate show episodes, check
+`server/src/utils/dataRepo.js` first: `mediaKeyFor`, `findWatchedByAnyMediaKey`,
+`queryShowDetail`, and `queryWatchHistory`. Then trace `handleShow`/`handleHistory` in
+`server/src/routes/media.js`, the episode fetchers (`fetchPlexSeriesEpisodes`,
+`fetchEmbySeriesEpisodes`, `fetchJellyfinSeriesEpisodes`) in the three platform clients,
+and the renderer in `public/modules/media-detail-show.js`. Always compare title, show title,
+season/episode coordinates, all provider IDs, and `media_key`; `mediaKeyFor` prefers IMDb,
+then TMDB, then TVDB, while `findWatchedByAnyMediaKey` also checks alternate IDs and the
+coordinate fallback.
+
 ### Poster pipeline
 
 1. **Frontend** (`posterMarkup` / `hydratePosterFallbacks` in `modules/images.js`): renders a `poster-fallback` span if no URL is known, then calls `/api/poster?id=<watchRecordId>`. The TMDB prefetch observer (`observeExplorerTmdbPrefetch`) short-circuits this for explorer cards.

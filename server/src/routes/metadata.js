@@ -653,13 +653,14 @@ export async function handleMediaSearch(req, res) {
   if (query.length < 2) return sendJson(res, { error: "A search query of at least two characters is required" }, 400);
   try {
     const localLimit = Math.min(Math.max(Number(req.query.limit || req.query.localLimit || 50), 1), 250);
-    const [movies, shows, discovery, tvdbShows] = await Promise.all([
+    const [movies, shows, discovery, people, tvdbShows] = await Promise.all([
       queryMovies({ search: query, limit: localLimit }),
       queryShows({ search: query, limit: localLimit }),
       searchTmdb({ query, page: req.query.page, mediaType: req.query.mediaType || "multi" }),
+      searchTmdb({ query, page: req.query.peoplePage || 1, mediaType: "person" }),
       searchTvdbSeries(query),
     ]);
-    return sendJson(res, { local: { movies, shows }, discovery, tvdb: { shows: tvdbShows } }, 200, {
+    return sendJson(res, { local: { movies, shows }, discovery, people, tvdb: { shows: tvdbShows } }, 200, {
       "Cache-Control": "private, max-age=60, stale-while-revalidate=900",
       Vary: "Authorization",
     });
