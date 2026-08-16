@@ -77,7 +77,7 @@ function parseShowTitle(title) {
 
 async function searchJellyfinFallback(config, media, targetType) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
-  const url = new URL(`${baseUrl}/Items`);
+  const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
 
   const parsed = parseShowTitle(media.title);
   const queryTitle = (targetType === "Series" || targetType === "show") ? parsed.title : media.title;
@@ -85,6 +85,7 @@ async function searchJellyfinFallback(config, media, targetType) {
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("IncludeItemTypes", targetType);
   url.searchParams.set("SearchTerm", queryTitle);
+  url.searchParams.set("Fields", "ProviderIds,UserData");
   url.searchParams.set("api_key", jellyfinApiKey(config));
 
   console.log("Jellyfin search fallback started", { query: queryTitle, targetType });
@@ -113,10 +114,10 @@ async function findByProviderIds(config, media, itemTypes) {
   const allMatched = new Map();
 
   for (const providerTerm of providerTerms(media.ids)) {
-    const url = new URL(`${baseUrl}/Items`);
+    const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
     url.searchParams.set("Recursive", "true");
     url.searchParams.set("IncludeItemTypes", itemTypes);
-    url.searchParams.set("Fields", "ProviderIds");
+    url.searchParams.set("Fields", "ProviderIds,UserData");
     url.searchParams.set("AnyProviderIdEquals", providerTerm);
     url.searchParams.set("api_key", jellyfinApiKey(config));
 
@@ -164,14 +165,14 @@ async function findEpisode(config, media) {
   const season = media.season ?? parsed.season;
   const episodeNum = media.episode ?? parsed.episode;
 
-  const matchedEpisodes = [];
+  const matchedEpisodes = new Map();
 
   for (const series of seriesList) {
-    const url = new URL(`${baseUrl}/Items`);
+    const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
     url.searchParams.set("ParentId", series.Id);
     url.searchParams.set("Recursive", "true");
     url.searchParams.set("IncludeItemTypes", "Episode");
-    url.searchParams.set("Fields", "ProviderIds");
+    url.searchParams.set("Fields", "ProviderIds,UserData");
     url.searchParams.set("api_key", jellyfinApiKey(config));
 
     try {
@@ -185,14 +186,16 @@ async function findEpisode(config, media) {
           season,
           episode: episodeNum,
         });
-        matchedEpisodes.push(...episodes);
+        for (const episode of episodes) {
+          if (episode?.Id) matchedEpisodes.set(String(episode.Id), episode);
+        }
       }
     } catch (error) {
       console.error(`Failed to fetch episodes for series ${series.Id}`, error);
     }
   }
 
-  return matchedEpisodes;
+  return [...matchedEpisodes.values()];
 }
 
 export function jellyfinEpisodeMatchesCoordinates(item = {}, season, episode) {

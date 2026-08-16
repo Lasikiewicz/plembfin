@@ -8,6 +8,8 @@ services:
       - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET must be set for split mode}
       - API_KEY=${API_KEY:?API_KEY must be set for split mode}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:?WEBHOOK_SECRET must be set for split mode}
+      - TRAKT_CLIENT_ID=${TRAKT_CLIENT_ID:-}
+      - TRAKT_CLIENT_SECRET=${TRAKT_CLIENT_SECRET:-}
 
   worker:
     build: .
@@ -19,6 +21,8 @@ services:
       - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET must be set for split mode}
       - API_KEY=${API_KEY:?API_KEY must be set for split mode}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:?WEBHOOK_SECRET must be set for split mode}
+      - TRAKT_CLIENT_ID=${TRAKT_CLIENT_ID:-}
+      - TRAKT_CLIENT_SECRET=${TRAKT_CLIENT_SECRET:-}
     volumes:
       - ./data:/data
     security_opt:

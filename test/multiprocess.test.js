@@ -45,6 +45,28 @@ function startProcess(role, port) {
       PLEMBFIN_TEST_FIRST_TICK_MS: "5000",
       PLEMBFIN_TEST_TICK_MS: "5000",
       PLEMBFIN_TEST_JOB_POLL_MS: "50",
+      // The child server loads the repository .env. Pin every external
+      // integration off so this remains a hermetic multiprocess test even when
+      // the developer's real services are reachable.
+      PLEX_ENABLED: "false",
+      PLEX_SERVER_URL: "",
+      PLEX_TOKEN: "",
+      PLEX_USERNAME: "",
+      EMBY_ENABLED: "false",
+      EMBY_SERVER_URL: "",
+      EMBY_API_KEY: "",
+      EMBY_USER_ID: "",
+      JELLYFIN_ENABLED: "false",
+      JELLYFIN_SERVER_URL: "",
+      JELLYFIN_API_KEY: "",
+      JELLYFIN_USER_ID: "",
+      TMDB_API_KEY: "",
+      TVDB_API_KEY: "",
+      FANART_API_KEY: "",
+      OMDB_API_KEY: "",
+      YOUTUBE_API_KEY: "",
+      TRAKT_CLIENT_ID: "",
+      TRAKT_CLIENT_SECRET: "",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -62,6 +84,11 @@ async function waitFor(predicate, message, timeoutMs = 8_000) {
     if (value) return value;
     await delay(50);
   }
+  // Under a fully parallel test run the parent event loop can be starved past
+  // the nominal deadline while the child processes finish successfully. Check
+  // the observable state once more before declaring a coordination failure.
+  const finalValue = await predicate();
+  if (finalValue) return finalValue;
   throw new Error(message);
 }
 
@@ -141,7 +168,7 @@ test("real web replicas and workers coordinate through an isolated local server"
   const completed = await waitFor(async () => {
     const body = await (await api(webPortB, "/api/force-sync")).json();
     return ["succeeded", "failed", "cancelled"].includes(body.status) ? body : null;
-  }, "force sync did not complete in worker", 8_000);
+  }, "force sync did not complete in worker", 15_000);
   assert.ok(completed.log.some((line) => line.includes("Force Sync started")));
 
   const logs = await (await api(webPortA, "/api/diagnostic-logs?limit=1000")).json();

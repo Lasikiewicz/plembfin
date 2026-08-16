@@ -8,6 +8,9 @@ import { handleAddWatchDate, handleClearMissingTelemetry, handleDeleteHistoryRec
 import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleForceSyncPlan, handleForceSyncCancellation, handleLibraryForceSync, handleLibraryForceSyncStatus, handleManualUnwatch, handleMediaForceSync, handleMediaForceSyncStatus, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleRetrySync, handleStopForceSync, handleSyncHistory, handleSyncJobs, handleSyncLibraries, handleWebhook } from "./routes/sync.js";
 import { handleFanartImages, handleMediaSearch, handleOmdbRating, handlePoster, handleRemoteArtwork, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleYoutubeMeta } from "./routes/metadata.js";
 import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRefreshTvdbMetadata, handleRematchTvShows, handleSyncHealth, handleSyncMatchReport, handlePhantomWatchAudit, handlePhantomWatchRepair } from "./routes/maintenance.js";
+import { handleEmbyLikeAuth, handleEmbyLikeConnection, handlePlexAuth, handlePlexConnection } from "./routes/mediaAuth.js";
+import { handleTrackerAuth, handleTrackerConnections } from "./routes/trackerAuth.js";
+import { handleLiveUpdates } from "./routes/liveUpdates.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -18,6 +21,7 @@ async function dispatch(req, res) {
   try {
     const path = routePath(req);
     if (path === "ping") return handlePing(req, res);
+    if (path === "live-updates") return handleLiveUpdates(req, res);
     if (path === "changelog") return handleChangelog(req, res);
     if (path === "diagnostic-logs") return handleDiagnosticLogs(req, res);
     if (path === "login") return handleLogin(req, res);
@@ -27,6 +31,13 @@ async function dispatch(req, res) {
     if (path === "auth/webhook-secret") return handleAuthWebhookSecret(req, res);
     if (path === "auth/sessions/revoke-all") return handleRevokeAllSessions(req, res);
     if (path === "auth/credentials") return handleAuthCredentials(req, res);
+    if (path === "media-auth/plex/start" || /^media-auth\/plex\/[a-f\d-]+\/(?:status|server)$/i.test(path)) return handlePlexAuth(req, res, path);
+    if (path === "media-connections/plex") return handlePlexConnection(req, res);
+    if (path === "media-auth/emby/login" || path === "media-auth/jellyfin/login" || path === "media-auth/jellyfin/quick-connect/start" || /^media-auth\/jellyfin\/quick-connect\/[a-f\d-]+\/status$/i.test(path)) return handleEmbyLikeAuth(req, res, path);
+    if (path === "media-connections/emby") return handleEmbyLikeConnection(req, res, "emby");
+    if (path === "media-connections/jellyfin") return handleEmbyLikeConnection(req, res, "jellyfin");
+    if (path === "tracker-auth/trakt/start" || /^tracker-auth\/trakt\/[a-f\d-]+\/status$/i.test(path)) return handleTrackerAuth(req, res, path);
+    if (path === "tracker-connections" || path === "tracker-connections/trakt") return handleTrackerConnections(req, res, path);
     if (path === "config") return handleConfig(req, res);
     if (path === "appearance") return handleAppearance(req, res);
     if (path === "history") return handleHistory(req, res);
@@ -113,7 +124,7 @@ async function dispatch(req, res) {
   } catch (error) {
     console.error("API route failed", error);
     const status = Number(error?.status);
-    if (Number.isInteger(status) && status >= 400 && status < 500) {
+    if (Number.isInteger(status) && status >= 400 && (status < 500 || error?.expose)) {
       return sendJson(res, { error: error.message || "Request failed" }, status);
     }
     return sendJson(res, { error: "API route failed" }, 500);

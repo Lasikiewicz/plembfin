@@ -190,6 +190,8 @@ When adding frontend code, place it in the most specific existing module that ow
 | TMDB detail/season/person enrichment helpers | `modules/tmdb.js` |
 | Trailer playback and photo lightbox | `modules/media-lightbox.js` |
 | Trakt/CSV import and settings tools bridge | `modules/tools.js` |
+| Live Trakt connection and initial-sync controls | `modules/tracker-settings.js` |
+| Authenticated live watch-state refresh stream | `modules/live-updates.js` |
 | Backup and appearance tools | `modules/tools-backups.js` |
 | Maintenance diagnostics, cache tools, sync repair tools, and sync health | `modules/tools-maintenance.js`, `modules/tools-health.js` |
 | Auth, session, tokens | `modules/auth.js` |
@@ -233,6 +235,9 @@ If a new feature area doesn't fit any existing module and would exceed 150 lines
 | API area | Module |
 | --- | --- |
 | Config, appearance, Seerr/app links, connection tests | `server/src/routes/admin.js` |
+| Plex, Emby, and Jellyfin account connection flows | `server/src/routes/mediaAuth.js` |
+| Trakt device authorization and connection management | `server/src/routes/trackerAuth.js` |
+| Authenticated browser watch-state update stream | `server/src/routes/liveUpdates.js` |
 | Portable, watch-history, and encrypted backup APIs | `server/src/routes/backups.js` |
 | History, library, and watch-record edits | `server/src/routes/media.js` |
 | TMDB/TVDB/Fanart/OMDb/YouTube metadata and image APIs | `server/src/routes/metadata.js` |
@@ -242,24 +247,24 @@ If a new feature area doesn't fit any existing module and would exceed 150 lines
 
 ## Architecture
 
-This is a **self-hosted, single-process app** in the style of Sonarr/Radarr/Jellyseerr.
-One long-running Node process serves the web UI, the `/api/*` surface, and an in-process
-per-minute scheduler. All state lives in a local **SQLite** database and a local **media
-folder** under `data/`.
+This is a **self-hosted app** in the style of Sonarr/Radarr/Jellyseerr. The default
+`ROLE=all` process serves the web UI, the `/api/*` surface, and the per-minute scheduler;
+split deployments use `web` and `worker` roles against the same local **SQLite** database
+and **media folder** under `data/`.
 
 ### Process layout
 
 **Entrypoint** (`server/server.js`) - an Express app that:
 - static-serves `public/` (the SPA) and `data/media` (cached artwork at `/media/...`)
 - mounts the API router at `/api/*` (raw body captured so webhook/JSON handlers parse it themselves)
-- runs `setInterval(runScheduledTick, 60000)` for the per-minute scheduler
+- runs the per-minute scheduler when its role is `all` or `worker`; a SQLite lease elects one owner
 - falls back to `index.html` for client-side routes
 
 **API** (`server/src/index.js`) - a manual `dispatch()` router that strips the `/api/`
 prefix and routes to `handleWebhook`, `handleHistory`, `handleMovies`, etc. `dispatch` is
 imported and mounted by `server.js`.
 
-**Frontend** (`public/`) - a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/` (`state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `settings-ui.js`, `settings-services.js`, `settings-shell.js`, `help-content.js`, `sync.js`, `dashboard.js`, `stats.js`, `explorer.js`, `tools.js`, `tools-backups.js`, `tools-maintenance.js`, `media-detail.js`, `media-person.js`, `media-lightbox.js`, `edit-dialogs.js`, `watch-action.js`, `tmdb.js`, `app-events.js`). No framework, bundler, or TypeScript.
+**Frontend** (`public/`) - a plain ES module SPA with no build step. `app.js` is the orchestrator (routing, startup, event wiring); feature logic lives in `public/modules/`, including the account/tracker settings and authenticated live-update stream. No framework, bundler, or TypeScript.
 
 ### Data layer (`server/src/db.js` + `schema.sql`)
 
@@ -267,9 +272,9 @@ imported and mounted by `server.js`.
 repo modules (`dataRepo.js`, `configStore.js`, `posterCache.js`, `activeSessions.js`,
 `loopStore.js`, `tmdbGateway.js`) use prepared SQL statements.
 
-Derived caches use **in-process memoization** keyed by an in-memory `dataVersion` integer
+Derived caches use **in-process memoization** keyed by a shared SQLite history version
 (`getDataVersion()` / `bumpDataVersion()` in `db.js`). `invalidateHistoryDerivedCaches()`
-just bumps the version; the in-memory `historyCache`/`movieCache`/`showCache`/
+bumps the shared version; each process observes it and reloads the in-memory `historyCache`/`movieCache`/`showCache`/
 `scheduledShowCache`/`statsCache` reload on the next read. `getCachedShows()` keeps two
 slots because its `includeScheduledLibraryHistory` variant returns a different show set -
 both must be memoized or that variant recomputes from the full watch history on every call.

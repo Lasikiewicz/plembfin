@@ -195,7 +195,7 @@ export async function handleConfig(req, res) {
 
   if (req.method === "GET") {
     const runtime = await loadRuntimeState();
-    const storedConfig = await loadMediaConfig();
+    const storedConfig = await loadMediaConfig({ resolveConnections: false });
     return sendJson(res, {
       config: publicMediaConfig(storedConfig),
       history: await getSyncHistory(),
@@ -219,7 +219,7 @@ export async function handleConfig(req, res) {
     if (errors.length) return sendJson(res, { error: "Invalid configuration", details: errors }, 400);
     await saveMediaConfig(config);
     writeAuditLog("settings.saved", { ip: req.ip || req.socket?.remoteAddress });
-    const storedConfig = await loadMediaConfig();
+    const storedConfig = await loadMediaConfig({ resolveConnections: false });
     return sendJson(res, { ok: true, config: publicMediaConfig(storedConfig) });
   }
 
@@ -876,7 +876,12 @@ export async function handleTestConnection(req, res) {
   // The browser never receives stored secrets, so the settings form may submit a
   // blank token for an already-configured server â€” fall back to the saved credential.
   if (!token && ["plex", "emby", "jellyfin"].includes(type)) {
-    const config = await loadMediaConfig().catch(() => null);
+    let config;
+    try {
+      config = await loadMediaConfig();
+    } catch (error) {
+      return sendJson(res, { ok: false, error: `${type === "plex" ? "Plex account" : type} credential unavailable: ${error.message || error}` }, 502);
+    }
     token = type === "plex" ? String(config?.plex?.token || "") : String(config?.[type]?.apiKey || "");
   }
   if (!type || !baseUrl || !token) return sendJson(res, { ok: false, error: "type, url, and token are required" }, 400);
@@ -920,18 +925,20 @@ export async function handleTestPlexNotifications(req, res) {
   const body = await readJson(req).catch(() => ({}));
   let baseUrl = String(body.url || body.baseUrl || "").replace(/\/+$/, "");
   let token = String(body.token || body.apiKey || "");
+  let clientIdentifier = "";
 
   if (!baseUrl || !token) {
     const config = await loadMediaConfig().catch(() => null);
     baseUrl = baseUrl || config?.plex?.baseUrl || "";
     token = token || config?.plex?.token || "";
+    clientIdentifier = config?.plex?.clientIdentifier || "";
   }
 
   if (!baseUrl || !token) {
     return sendJson(res, { ok: false, error: "Plex URL and token are required" }, 400);
   }
 
-  const result = await probePlexNotificationSocket({ baseUrl, token });
+  const result = await probePlexNotificationSocket({ baseUrl, token, clientIdentifier });
   return sendJson(res, result, result.ok ? 200 : 502);
 }
 

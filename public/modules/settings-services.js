@@ -8,6 +8,7 @@ import { state } from "./state.js";
 import { buildAuthHeaders } from "./auth.js";
 import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues } from "./settings-ui.js";
 import { prepareHelpReadMore } from "./settings-shell.js";
+import { escapeAttribute, escapeHtml } from "./utils.js";
 import {
   plexCredentialGuide,
   embyCredentialGuide,
@@ -55,11 +56,12 @@ const CONNECTION_SERVICES = {
     description: "Sync watch history with a Plex server",
     fields: (config) => [
       { key: "enabled", label: "Enable", type: "checkbox", value: !config.disabled },
-      { key: "baseUrl", label: "Server URL", type: "url", value: config.baseUrl || config.url || "", placeholder: "http://127.0.0.1:32400", help: "Address Plembfin uses to reach Plex." },
-      { key: "token", label: "Token", secret: true, configured: config.configured, configuredPlaceholder: "Configured - enter a new token to replace it", placeholder: "Plex token" },
-      { key: "username", label: "Username", value: config.username || "", optional: true, help: "Plex account name used to match webhook events." },
+      { key: "manualMode", label: "Use manual token setup", type: "checkbox", value: config.authMode === "manual", optionalGroup: true, help: "Turns off verified account mode. Only one Plex authentication mode is active at a time." },
+      { key: "baseUrl", label: "Server URL", type: "url", value: config.baseUrl || config.url || "", placeholder: "http://127.0.0.1:32400", help: "Address Plembfin uses to reach Plex.", optionalGroup: true },
+      { key: "token", label: "Token", secret: true, configured: config.configured, configuredPlaceholder: "Configured - enter a new token to replace it", placeholder: "Plex token", optionalGroup: true },
+      { key: "username", label: "Username", value: config.username || "", optional: true, help: "Plex account name used to match webhook events.", optionalGroup: true },
     ],
-    payload: (v) => ({ baseUrl: v.baseUrl, token: v.token, username: v.username, disabled: !v.enabled }),
+    payload: (v) => ({ baseUrl: v.baseUrl, token: v.token, username: v.username, disabled: !v.enabled, authMode: v.manualMode ? "manual" : "account" }),
     testPayload: (v) => ({ type: "plex", url: v.baseUrl, token: v.token }),
     help: () => plexCredentialGuide() + savedCredentialNote(),
   },
@@ -69,10 +71,13 @@ const CONNECTION_SERVICES = {
     fields: (config) => [
       { key: "enabled", label: "Enable", type: "checkbox", value: !config.disabled },
       { key: "baseUrl", label: "Server URL", type: "url", value: config.baseUrl || config.url || "", placeholder: "http://127.0.0.1:8096", help: "Address Plembfin uses to reach Emby." },
-      { key: "apiKey", label: "API Key", secret: true, configured: config.configured, placeholder: "Emby API key" },
-      { key: "userId", label: "User ID", value: config.userId || "", help: "The Emby user whose playstate is synchronized." },
+      { key: "accountUsername", label: "Emby username", value: "", autocomplete: "username", help: "Used once to obtain a user-scoped access token." },
+      { key: "accountPassword", label: "Emby password", secret: true, value: "", autocomplete: "current-password", placeholder: "Not stored by Plembfin" },
+      { key: "manualMode", label: "Use manual API key setup", type: "checkbox", value: config.authMode === "manual", optionalGroup: true, help: "Turns off verified account mode. Only one Emby authentication mode is active at a time." },
+      { key: "apiKey", label: "API Key", secret: true, configured: config.configured, placeholder: "Emby API key", optionalGroup: true },
+      { key: "userId", label: "User ID", value: config.userId || "", help: "The Emby user whose playstate is synchronized.", optionalGroup: true },
     ],
-    payload: (v) => ({ baseUrl: v.baseUrl, apiKey: v.apiKey, userId: v.userId, disabled: !v.enabled }),
+    payload: (v) => ({ baseUrl: v.baseUrl, apiKey: v.apiKey, userId: v.userId, disabled: !v.enabled, authMode: v.manualMode ? "manual" : "account" }),
     testPayload: (v) => ({ type: "emby", url: v.baseUrl, token: v.apiKey }),
     help: () => embyCredentialGuide() + savedCredentialNote(),
   },
@@ -82,10 +87,13 @@ const CONNECTION_SERVICES = {
     fields: (config) => [
       { key: "enabled", label: "Enable", type: "checkbox", value: !config.disabled },
       { key: "baseUrl", label: "Server URL", type: "url", value: config.baseUrl || config.url || "", placeholder: "http://127.0.0.1:8096", help: "Address Plembfin uses to reach Jellyfin." },
-      { key: "apiKey", label: "API Key", secret: true, configured: config.configured, placeholder: "Jellyfin API key" },
-      { key: "userId", label: "User ID", value: config.userId || "", help: "The Jellyfin user whose playstate is synchronized." },
+      { key: "accountUsername", label: "Fallback username", value: "", autocomplete: "username", optional: true, help: "Only used if Quick Connect is disabled." },
+      { key: "accountPassword", label: "Fallback password", secret: true, value: "", autocomplete: "current-password", placeholder: "Not stored by Plembfin", optional: true },
+      { key: "manualMode", label: "Use manual API key setup", type: "checkbox", value: config.authMode === "manual", optionalGroup: true, help: "Turns off verified account mode. Only one Jellyfin authentication mode is active at a time." },
+      { key: "apiKey", label: "API Key", secret: true, configured: config.configured, placeholder: "Jellyfin API key", optionalGroup: true },
+      { key: "userId", label: "User ID", value: config.userId || "", help: "The Jellyfin user whose playstate is synchronized.", optionalGroup: true },
     ],
-    payload: (v) => ({ baseUrl: v.baseUrl, apiKey: v.apiKey, userId: v.userId, disabled: !v.enabled }),
+    payload: (v) => ({ baseUrl: v.baseUrl, apiKey: v.apiKey, userId: v.userId, disabled: !v.enabled, authMode: v.manualMode ? "manual" : "account" }),
     testPayload: (v) => ({ type: "jellyfin", url: v.baseUrl, token: v.apiKey }),
     help: () => jellyfinCredentialGuide() + savedCredentialNote(),
   },
@@ -250,15 +258,203 @@ export function renderSyncTuningCard() {
 }
 
 function connectionTouched(config) {
-  return Boolean(config && (config.configured || config.baseUrl || config.url || config.disabled === true));
+  return Boolean(config && (config.connection || config.configured || config.baseUrl || config.url || config.disabled === true));
 }
 
 function connectionBadges(config = {}) {
-  const badges = config.disabled ? [{ label: "Disabled", tone: "muted" }] : config.configured ? [{ label: "Enabled", tone: "ready" }] : [{ label: "Not configured", tone: "warning" }];
+  const verified = config.connection;
+  const manualMode = config.authMode === "manual";
+  const badges = manualMode && config.configured
+    ? [{ label: "Manual setup active", tone: "warning" }]
+    : verified?.status === "connected"
+    ? [{ label: "Account connected", tone: "ready" }]
+    : verified?.status === "reauth_required"
+      ? [{ label: "Reconnect required", tone: "warning" }]
+      : config.configured
+        ? [{ label: "Legacy credentials", tone: "warning" }]
+        : [{ label: "Not configured", tone: "warning" }];
+  if (manualMode && verified) badges.push({ label: "Account available", tone: "muted" });
+  if (config.disabled) badges.push({ label: "Disabled", tone: "muted" });
   const roleLabels = { bidirectional: "Source + Destination", source_only: "Source only", destination_only: "Destination only", monitor: "Monitor only" };
   const role = roleLabels[config.sync?.preset];
   if (role) badges.push({ label: role, tone: role === "Monitor only" ? "muted" : "ready" });
   return badges;
+}
+
+function connectionDescription(id, config = {}) {
+  const connection = config.connection;
+  if (!connection || config.authMode === "manual") return CONNECTION_SERVICES[id].description;
+  const identity = connection.remoteUsername || connection.remoteUserId || "Verified user";
+  const server = connection.serverName || connection.serverId || CONNECTION_SERVICES[id].name;
+  return `${server} · ${identity}`;
+}
+
+async function reloadSettingsConfig() {
+  const response = await fetch("/api/config", { headers: authHeaders() });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Configuration refresh failed with ${response.status}`);
+  state.savedConfig = body.config || {};
+  state.configLoaded = true;
+  applyConfigToSettingsUi(state.savedConfig);
+  clearDerivedUiCaches();
+  renderDashboard();
+  renderActiveSessions();
+  return state.savedConfig;
+}
+
+function renderPlexServerPicker(ui, flowId, account, servers = []) {
+  const fields = ui.dialog.querySelector(".settings-modal-fields");
+  if (!fields) throw new Error("Plex server selection is unavailable");
+  fields.innerHTML = `
+    <div class="plex-account-summary">
+      <b>${escapeHtml(account?.username || "Plex account")}</b>
+      <span>Choose the server Plembfin should synchronize.</span>
+    </div>
+    <div class="settings-card-grid plex-server-picker">
+      ${servers.map((server) => `
+        <button class="service-card" type="button" data-plex-machine="${escapeAttribute(server.machineIdentifier)}">
+          <b>${escapeHtml(server.name || "Plex Media Server")}</b>
+          <span class="service-card-desc">${server.owned ? "Owned server" : "Shared server"}</span>
+        </button>
+      `).join("")}
+    </div>
+  `;
+  if (!servers.length) throw new Error("This Plex account has no accessible media servers.");
+  ui.setStatus("Plex account verified. Choose a server.", "success");
+  fields.querySelectorAll("[data-plex-machine]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      ui.setBusy(true);
+      ui.setStatus("Verifying the selected server...", "muted");
+      try {
+        const response = await fetch(`/api/media-auth/plex/${encodeURIComponent(flowId)}/server`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ machineIdentifier: button.dataset.plexMachine }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || !body.ok) throw new Error(body.error || "Plex server verification failed");
+        await reloadSettingsConfig();
+        ui.close();
+        setMessage(`Connected Plex as ${body.connection?.remoteUsername || "the verified account"}.`, "success");
+      } catch (error) {
+        ui.setStatus(error?.message || "Plex server verification failed.", "error");
+      } finally {
+        ui.setBusy(false);
+      }
+    });
+  });
+}
+
+async function connectPlexAccount(ui) {
+  const popup = window.open("about:blank", "_blank");
+  if (!popup) throw new Error("Allow pop-ups for Plembfin, then try again.");
+  popup.document.title = "Opening Plex";
+  popup.document.body.textContent = "Opening Plex sign-in...";
+  ui.setStatus("Starting secure Plex sign-in...", "muted");
+  let start;
+  try {
+    const response = await fetch("/api/media-auth/plex/start", { method: "POST", headers: authHeaders(), body: "{}" });
+    start = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(start.error || "Could not start Plex sign-in");
+    if (start.status === "authorised" && start.resumed) popup.close();
+    else popup.location.replace(start.authUrl);
+  } catch (error) {
+    popup.close();
+    throw error;
+  }
+
+  ui.setStatus(start.resumed ? "Resuming your completed Plex sign-in..." : "Finish signing in with Plex. This window will update automatically.", "muted");
+  while (Date.now() < Number(start.expiresAt || 0)) {
+    if (!start.resumed) await new Promise((resolve) => setTimeout(resolve, 2000));
+    start.resumed = false;
+    const response = await fetch(`/api/media-auth/plex/${encodeURIComponent(start.flowId)}/status`, { headers: authHeaders() });
+    const body = await response.json().catch(() => ({}));
+    if (response.status === 410 || body.status === "expired") throw new Error("Plex sign-in expired. Start again.");
+    if (!response.ok) throw new Error(body.error || "Plex sign-in check failed");
+    if (body.status === "authorised") {
+      renderPlexServerPicker(ui, start.flowId, body.account, body.servers);
+      return;
+    }
+  }
+  throw new Error("Plex sign-in expired. Start again.");
+}
+
+async function disconnectPlexAccount() {
+  const response = await fetch("/api/media-connections/plex", { method: "DELETE", headers: authHeaders() });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || "Plex disconnect failed");
+  await reloadSettingsConfig();
+  setMessage(body.guidance || "Plex account disconnected.", "success");
+}
+
+function confirmInsecureCredentialSubmit(baseUrl, provider) {
+  let url;
+  try { url = new URL(baseUrl); } catch { throw new Error(`Enter a valid ${provider} server URL first.`); }
+  if (url.protocol === "https:" || ["localhost", "127.0.0.1", "::1"].includes(url.hostname)) return true;
+  return window.confirm(`${provider} will receive your password over an unencrypted HTTP connection. Continue only if this is a trusted local network.`);
+}
+
+async function loginEmbyLikeAccount(ui, provider, values = ui.collect()) {
+  const name = provider === "emby" ? "Emby" : "Jellyfin";
+  if (!values.baseUrl) throw new Error(`Enter the ${name} server URL first.`);
+  if (!values.accountUsername) throw new Error(`Enter your ${name} username.`);
+  if (!confirmInsecureCredentialSubmit(values.baseUrl, name)) return;
+  ui.setStatus(`Signing in to ${name} and verifying the user...`, "muted");
+  const response = await fetch(`/api/media-auth/${provider}/login`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ baseUrl: values.baseUrl, username: values.accountUsername, password: values.accountPassword || "" }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.ok) throw new Error(body.error || `${name} sign-in failed`);
+  await reloadSettingsConfig();
+  ui.close();
+  setMessage(`Connected ${name} as ${body.connection?.remoteUsername || "the verified account"}.`, "success");
+}
+
+async function connectJellyfinAccount(ui) {
+  const values = ui.collect();
+  if (!values.baseUrl) throw new Error("Enter the Jellyfin server URL first.");
+  ui.setStatus("Requesting a Jellyfin Quick Connect code...", "muted");
+  const response = await fetch("/api/media-auth/jellyfin/quick-connect/start", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ baseUrl: values.baseUrl }),
+  });
+  const start = await response.json().catch(() => ({}));
+  if (response.status === 409 && start.code === "quick_connect_disabled") {
+    if (!values.accountUsername) {
+      throw new Error("Quick Connect is disabled. Enter the fallback username and password above, then choose Connect Jellyfin again.");
+    }
+    return loginEmbyLikeAccount(ui, "jellyfin", values);
+  }
+  if (!response.ok) throw new Error(start.error || "Could not start Jellyfin Quick Connect");
+  ui.setStatus(`In Jellyfin, open Settings → Quick Connect and enter ${start.code}. Waiting for approval...`, "muted");
+  const fields = ui.dialog.querySelector(".settings-modal-fields");
+  fields?.insertAdjacentHTML("afterbegin", `<div class="plex-account-summary jellyfin-quick-connect-code"><span>Jellyfin Quick Connect code</span><b>${escapeHtml(start.code)}</b><small>Approve this code in an already signed-in Jellyfin app.</small></div>`);
+  while (Date.now() < Number(start.expiresAt || 0)) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const check = await fetch(`/api/media-auth/jellyfin/quick-connect/${encodeURIComponent(start.flowId)}/status`, { headers: authHeaders() });
+    const body = await check.json().catch(() => ({}));
+    if (check.status === 410 || body.status === "expired") throw new Error("Jellyfin Quick Connect expired. Start again.");
+    if (!check.ok) throw new Error(body.error || "Jellyfin Quick Connect check failed");
+    if (body.status === "authorised" && body.ok) {
+      await reloadSettingsConfig();
+      ui.close();
+      setMessage(`Connected Jellyfin as ${body.connection?.remoteUsername || "the verified account"}.`, "success");
+      return;
+    }
+  }
+  throw new Error("Jellyfin Quick Connect expired. Start again.");
+}
+
+async function disconnectEmbyLikeAccount(provider) {
+  const name = provider === "emby" ? "Emby" : "Jellyfin";
+  const response = await fetch(`/api/media-connections/${provider}`, { method: "DELETE", headers: authHeaders() });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `${name} disconnect failed`);
+  await reloadSettingsConfig();
+  setMessage(body.guidance || `${name} account disconnected.`, "success");
 }
 
 function metadataVisible(id, config) {
@@ -280,7 +476,10 @@ async function saveServiceConfig(section, sectionPayload) {
     body: JSON.stringify({ [section]: sectionPayload }),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `Save failed with ${response.status}`);
+  if (!response.ok) {
+    const detail = Array.isArray(body.details) && body.details.length ? `: ${body.details.join("; ")}` : "";
+    throw new Error(`${body.error || `Save failed with ${response.status}`}${detail}`);
+  }
 
   const savedSectionConfig = body.config?.[section];
   const previousSectionConfig = state.savedConfig?.[section] || {};
@@ -340,7 +539,7 @@ async function testServiceConnection(section, values) {
   }
 
   const payload = def.testPayload(values);
-  if (!payload.url || (!payload.token && !state.savedConfig?.[section]?.configured)) {
+  if (!payload.url || (!payload.token && !state.savedConfig?.[section]?.configured && !state.savedConfig?.[section]?.connection)) {
     throw new Error("Server URL and token are required.");
   }
   const response = await fetch("/api/test-connection", {
@@ -375,6 +574,20 @@ export function openServiceEditModal(serviceId) {
         help: def.keyHelp,
       }];
 
+  const accountFlow = ["plex", "emby", "jellyfin"].includes(serviceId) && state.savedConfig?.mediaAuthEnabled;
+  const accountAction = serviceId === "plex"
+    ? connectPlexAccount
+    : serviceId === "jellyfin"
+      ? connectJellyfinAccount
+      : serviceId === "emby"
+        ? (ui) => loginEmbyLikeAccount(ui, "emby")
+        : undefined;
+  const disconnectAction = serviceId === "plex"
+    ? disconnectPlexAccount
+    : ["emby", "jellyfin"].includes(serviceId)
+      ? () => disconnectEmbyLikeAccount(serviceId)
+      : undefined;
+  const connectLabel = serviceId === "plex" ? "Connect Plex account" : serviceId === "emby" ? "Connect Emby" : "Connect Jellyfin";
   openSettingsEditModal({
     title: `${connectionTouched(config) || config.configured ? "Edit" : "Add"} ${def.name}`,
     fields,
@@ -382,7 +595,12 @@ export function openServiceEditModal(serviceId) {
     saveDisabledLabel: connection ? "Save & disable" : "",
     onSave: (values) => saveServiceConfig(serviceId, connection ? def.payload(values) : { apiKey: values.apiKey }),
     onTest: connection ? (values) => testServiceConnection(serviceId, values) : undefined,
-    helpHtml: def.help?.() || "",
+    onDelete: config.connection && disconnectAction ? async () => disconnectAction() : undefined,
+    deleteLabel: "Disconnect account",
+    leadingAction: accountFlow ? { label: config.connection ? `Reconnect ${def.name}` : connectLabel, onClick: accountAction } : undefined,
+    saveLabel: "Save",
+    optionalFieldsLabel: accountFlow ? "Optional manual credential setup" : "",
+    helpHtml: `${accountFlow ? `<p class="tool-accordion-desc"><b>Recommended:</b> Connect ${serviceId === "emby" ? "an" : "a"} ${def.name} account to verify the remote user. Manual credentials below are a legacy compatibility option and do not prove user isolation.</p>` : ""}${def.help?.() || ""}`,
   });
 }
 
@@ -414,7 +632,7 @@ export function renderMediaServerCards() {
       items: visible.map((id) => ({
         id,
         name: CONNECTION_SERVICES[id].name,
-        description: CONNECTION_SERVICES[id].description,
+        description: connectionDescription(id, config[id]),
         badges: connectionBadges(config[id]),
       })),
       onSelect: openServiceEditModal,

@@ -62,19 +62,20 @@ the behavior or safety guarantees of the library-wide `/api/force-sync` planner 
 executor. Jellyfin episode lookups return every matching season/episode item so duplicate
 quality copies are marked consistently.
 
-## Plembfin is the watched-state authority
+## One canonical state, input from every connected service
 
-For watched and unwatched state, Plembfin's local `playstate`/watch-history decision
-is canonical. Connected servers are destinations, not conflict authorities. A watched
-state imported from Trakt or another Plembfin source is written to `playstate` and put
-on the outbound queue; older imported rows that predate this queue are also picked up
-when their target telemetry is missing.
+Plembfin stores the canonical `playstate`/watch-history decision, but accepts explicit
+watched and unwatched actions from Plembfin, Plex, Emby, Jellyfin, and a connected Trakt
+account. Each accepted transition is committed locally and distributed to every other
+eligible destination. Trakt is read as a complete snapshot each minute: additions become
+watches, removals become unwatches, and a changed watched timestamp becomes a rewatch.
+Persisted tracker state and echo markers prevent Plembfin's own outbound write from being
+read back as a second user action.
 
-If Plex, Emby, or Jellyfin reports an item as unwatched while Plembfin still says
-watched, the event is treated as drift: Plembfin reasserts watched on every configured
-destination that contains the item. It does not delete the local watch. An explicit
-manual unwatch in Plembfin changes the canonical state to unwatched and then propagates
-that decision outward.
+An explicit unplayed webhook/notification or Trakt snapshot removal changes the canonical
+state to unwatched and propagates it. Polling remains conservative when a server scan is
+unavailable or incomplete: absence from a failed/partial scan is never interpreted as an
+unwatch.
 
 Implementation lives in `server/src/scheduled.js`.
 
@@ -101,7 +102,12 @@ Implementation lives in `server/src/scheduled.js`.
      Targets that answer "No matching item found" are recorded in the row's
      telemetry and aggregated per platform by the Cross-Platform Match Report
      (Settings → Sync → Sync Issues, backed by `GET /api/sync-match-report`).
-3. **Catch-up library sync** - **runs every 15 minutes** (configurable via `CATCHUP_SYNC_INTERVAL_MS` env variable) to avoid heavy redundant API queries:
+3. **Trakt snapshot sync** - **runs every minute when connected**:
+   - Refreshes OAuth tokens when required and reads every watched movie and episode page.
+   - Applies additions, removals, and rewatch timestamp changes with bounded concurrency.
+   - Dispatches accepted transitions to media servers and signals the authenticated
+     browser update stream after each committed item.
+4. **Catch-up library sync** - **runs every 15 minutes** (configurable via `CATCHUP_SYNC_INTERVAL_MS` env variable) to avoid heavy redundant API queries:
    - Pulls recently-watched and continue-watching (resumable) items from each active server: `syncRecentlyWatchedFromPlex`/`syncRecentlyResumableFromPlex` (and Emby/Jellyfin equivalents) in `scheduled.js`.
    - Emby/Jellyfin episode resume rows retain series provider IDs so the corresponding SxxExx item can be found on another server. Resume and playstate records sharing any IMDb, TMDB, or TVDB ID are treated as one media item even when app titles differ.
    - Propagates playstate changes that were missed by webhooks. A server-side unwatch
@@ -113,7 +119,7 @@ This is how a play that finishes without a final scrobble webhook still gets
 recorded: the poller sees it hit the watched threshold (90% by default), then
 disappear, and completes it.
 
-4. **TV next-airing cache** - `runScheduledTick()` maintains
+5. **TV next-airing cache** - `runScheduledTick()` maintains
    `data/next-airing-cache.json`. To prevent timing out, the cache is
    built and refreshed in small batches (default 40 shows per 30-minute tick)
    sorted by the oldest update times. Each show is looked up through the regular
@@ -122,7 +128,7 @@ disappear, and completes it.
    allows the TV Shows page to sort by upcoming episode date without querying
    TMDB for every row, while avoiding timeouts on large libraries.
 
-5. **Upcoming calendar cache** - every 10 minutes the scheduler processes one month
+6. **Upcoming calendar cache** - every 10 minutes the scheduler processes one month
    in `data/upcoming-calendar-cache.json`. It builds the previous 24 months once and
    checks the current month plus the next 12 months every 6 hours. Future checks only
    rewrite stored data when episode results changed; historical months are not refreshed.

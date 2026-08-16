@@ -65,10 +65,11 @@ pointed at the relevant file instead of re-deriving the architecture from the so
 
 ## The most important mental model
 
-This is a **single-process, self-hosted Node.js application**. There are no separate
-runtimes, no cloud functions, no external databases, and no background services.
-Everything - the web UI, the API, and the per-minute scheduler - runs in one
-`node server/server.js` process, backed by a local SQLite file at `data/plembfin.db`.
+This is a **self-hosted Node.js application** with no cloud functions or external
+database. The default `ROLE=all` deployment runs the web UI, API, and per-minute
+scheduler in one `node server/server.js` process. The split Compose profile can run
+separate `web` and `worker` roles against the same local SQLite file and media volume;
+a SQLite lease elects exactly one scheduler owner.
 
 Data written to the database is always in the same file regardless of where you run
 the app. There is no "works locally but not in production" because there is no

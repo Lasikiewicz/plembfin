@@ -106,8 +106,10 @@ export function openSettingsEditModal({
   saveLabel = "Save",
   saveDisabledLabel = "",
   testLabel = "Test",
+  leadingAction,
   enabledKey = "",
   helpHtml = "",
+  optionalFieldsLabel = "",
 } = {}) {
   closeSettingsModals();
   const overlay = document.createElement("div");
@@ -120,7 +122,11 @@ export function openSettingsEditModal({
       </header>
       <div class="settings-modal-body">
         <div class="settings-modal-fields">
-          ${fields.map(renderFieldRow).join("")}
+          ${fields.filter((field) => !field.optionalGroup).map(renderFieldRow).join("")}
+          ${optionalFieldsLabel ? `<details class="sync-tool-details settings-modal-optional-fields">
+            <summary class="accordion-header"><div class="sync-tool-summary-title"><svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg><b>${escapeHtml(optionalFieldsLabel)}</b></div></summary>
+            <div class="settings-modal-optional-fields-body">${fields.filter((field) => field.optionalGroup).map(renderFieldRow).join("")}</div>
+          </details>` : fields.filter((field) => field.optionalGroup).map(renderFieldRow).join("")}
         </div>
         ${helpHtml ? `
           <aside class="settings-modal-help">
@@ -136,6 +142,7 @@ export function openSettingsEditModal({
       <footer class="settings-modal-foot">
         ${onDelete ? `<button class="button-danger settings-modal-delete" type="button">${escapeHtml(deleteLabel)}</button>` : ""}
         <div class="settings-modal-actions">
+          ${leadingAction ? `<button class="button-primary settings-modal-leading-action" type="button">${escapeHtml(leadingAction.label || "Continue")}</button>` : ""}
           ${onTest ? `<button class="button-ghost settings-modal-test" type="button">${escapeHtml(testLabel)}</button>` : ""}
           <button class="button-ghost settings-modal-cancel" type="button">Cancel</button>
           <button class="button-primary settings-modal-save" type="button">${escapeHtml(saveLabel)}</button>
@@ -149,6 +156,7 @@ export function openSettingsEditModal({
   const saveButton = overlay.querySelector(".settings-modal-save");
   const testButton = overlay.querySelector(".settings-modal-test");
   const deleteButton = overlay.querySelector(".settings-modal-delete");
+  const leadingButton = overlay.querySelector(".settings-modal-leading-action");
 
   const onKeydown = (event) => {
     if (event.key === "Escape") close();
@@ -164,11 +172,11 @@ export function openSettingsEditModal({
     statusEl.className = `settings-modal-status message ${tone}`;
   };
   const setBusy = (busy) => {
-    [saveButton, testButton, deleteButton].forEach((button) => {
+    [saveButton, testButton, deleteButton, leadingButton].forEach((button) => {
       if (button) button.disabled = busy;
     });
   };
-  const ui = { close, setStatus, collect: () => collectValues(dialog) };
+  const ui = { close, setStatus, setBusy, dialog, collect: () => collectValues(dialog) };
 
   const syncEnabledState = () => {
     if (!enabledKey) return;
@@ -213,6 +221,17 @@ export function openSettingsEditModal({
       setStatus(message || "✔ Connection OK", "success");
     } catch (error) {
       setStatus(`✘ ${error?.message || "Connection failed."}`, "error");
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  leadingButton?.addEventListener("click", async () => {
+    setBusy(true);
+    try {
+      await leadingAction.onClick(ui);
+    } catch (error) {
+      setStatus(error?.message || "Action failed.", "error");
     } finally {
       setBusy(false);
     }

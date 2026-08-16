@@ -400,3 +400,65 @@ CREATE TABLE IF NOT EXISTS sync_plans (
   updated_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_sync_plans_created ON sync_plans(created_at DESC);
+
+-- External watch trackers (Trakt first; provider-neutral for future adapters).
+CREATE TABLE IF NOT EXISTS tracker_connections (
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL CHECK (status IN ('connected', 'reauth_required', 'disabled')),
+  remote_user_id TEXT,
+  remote_username TEXT,
+  client_id TEXT NOT NULL,
+  client_secret_ciphertext TEXT NOT NULL,
+  client_secret_iv TEXT NOT NULL,
+  client_secret_tag TEXT NOT NULL,
+  access_token_ciphertext TEXT NOT NULL,
+  access_token_iv TEXT NOT NULL,
+  access_token_tag TEXT NOT NULL,
+  refresh_token_ciphertext TEXT NOT NULL,
+  refresh_token_iv TEXT NOT NULL,
+  refresh_token_tag TEXT NOT NULL,
+  token_version INTEGER NOT NULL DEFAULT 1,
+  access_token_expires_at INTEGER,
+  initial_sync_mode TEXT NOT NULL DEFAULT 'baseline' CHECK (initial_sync_mode IN ('baseline', 'import')),
+  baseline_complete INTEGER NOT NULL DEFAULT 0,
+  last_polled_at INTEGER,
+  last_validated_at INTEGER,
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS tracker_auth_flows (
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  client_secret_ciphertext TEXT NOT NULL,
+  client_secret_iv TEXT NOT NULL,
+  client_secret_tag TEXT NOT NULL,
+  device_code_ciphertext TEXT NOT NULL,
+  device_code_iv TEXT NOT NULL,
+  device_code_tag TEXT NOT NULL,
+  key_version INTEGER NOT NULL DEFAULT 1,
+  user_code TEXT NOT NULL,
+  verification_url TEXT NOT NULL,
+  interval_seconds INTEGER NOT NULL,
+  initial_sync_mode TEXT NOT NULL DEFAULT 'baseline',
+  status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'expired', 'denied')),
+  expires_at INTEGER NOT NULL,
+  last_polled_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tracker_auth_flows_expiry ON tracker_auth_flows(expires_at);
+
+CREATE TABLE IF NOT EXISTS tracker_item_state (
+  provider TEXT NOT NULL,
+  media_key TEXT NOT NULL,
+  media_json TEXT NOT NULL,
+  remote_watched_at INTEGER,
+  last_seen_at INTEGER NOT NULL,
+  last_outbound_state TEXT CHECK (last_outbound_state IN ('watched', 'unwatched')),
+  last_outbound_at INTEGER,
+  PRIMARY KEY(provider, media_key)
+);

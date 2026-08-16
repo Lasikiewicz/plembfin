@@ -4,6 +4,7 @@ import { markJellyfinPlayed, markJellyfinUnplayed, setJellyfinProgress } from ".
 import { watchedPlayedSyncEnabled } from "./syncFlags.js";
 import { minResumePositionMs, watchedThresholdPercent } from "./tuning.js";
 import { canReceiveState, canSendState } from "./syncRoles.js";
+import { dispatchTrackerWatchState } from "./trackerDispatcher.js";
 
 const LOOP_CACHE_TTL_SECONDS = 60;
 const LOOP_WINDOW_MS = 15_000;
@@ -355,6 +356,24 @@ function formatTargets(targets) {
   return `${labels.slice(0, -1).join(", ")} & ${labels.at(-1)}`;
 }
 
+async function includeTrackerDispatch(summary, media, state) {
+  const trackerStates = (await dispatchTrackerWatchState(media, state)).filter((entry) => entry.status !== "skipped");
+  if (!trackerStates.length) return summary;
+  const normalized = trackerStates.map((entry) => ({ ...entry, status: entry.status === "failed" ? "error" : entry.status === "not_found" ? "skipped" : entry.status }));
+  const targetStates = [...(summary.targetStates || []), ...normalized];
+  const successes = targetStates.filter((entry) => entry.status === "success").map((entry) => entry.target);
+  const failures = targetStates.filter((entry) => entry.status === "error").map((entry) => entry.target);
+  const skipped = targetStates.filter((entry) => entry.status === "skipped").map((entry) => entry.target);
+  return {
+    ...summary,
+    targetStates,
+    status: failures.length ? (successes.length ? "partial" : "error") : skipped.length ? (successes.length ? "partial" : "skipped") : "success",
+    details: failures.length
+      ? `Synced to ${formatTargets(successes)}; failed ${formatTargets(failures)}`
+      : skipped.length ? `Synced to ${formatTargets(successes)}; no match on ${formatTargets(skipped)}` : `Successfully synced to ${formatTargets(successes)}`,
+  };
+}
+
 export async function syncMediaPlaystate(media, config, kv) {
   if (!watchedPlayedSyncEnabled()) {
     console.log("Sync playstate skipped: watched/played syncing is disabled");
@@ -366,7 +385,7 @@ export async function syncMediaPlaystate(media, config, kv) {
     return { skipped: true, status: "skipped", details: "Invalid normalized media payload", results: [] };
   }
 
-  if (!["manual", "force_sync", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "watched")) {
+  if (!["manual", "force_sync", "trakt", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "watched")) {
     return { skipped: true, status: "skipped", details: "Source is not allowed to send watched state", targetStates: [], results: [] };
   }
 
@@ -402,7 +421,7 @@ export async function syncMediaPlaystate(media, config, kv) {
   });
 
   const results = await Promise.allSettled(jobs);
-  const summary = summarizeResults(targets, results);
+  let summary = summarizeResults(targets, results);
 
   // Remember which servers we just stamped so a played flag read back from them
   // later is recognised as our own write rather than a fresh play.
@@ -423,6 +442,7 @@ export async function syncMediaPlaystate(media, config, kv) {
     })),
   });
 
+  summary = await includeTrackerDispatch(summary, media, "watched");
   return { ...summary, skipped: false, results };
 }
 
@@ -454,7 +474,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
     return { skipped: true, status: "skipped", details: "Invalid normalized media payload", results: [] };
   }
 
-  if (!["manual", "force_sync", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "unwatched")) {
+  if (!["manual", "force_sync", "trakt", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "unwatched")) {
     return { skipped: true, status: "skipped", details: "Source is not allowed to send unwatched state", targetStates: [], results: [] };
   }
   const targets = targetsForMedia(media, config, "unwatched");
@@ -485,7 +505,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
   });
 
   const results = await Promise.allSettled(jobs);
-  const summary = summarizeResults(targets, results);
+  let summary = summarizeResults(targets, results);
   const successfulTargets = summary.targetStates
     .filter((state) => state.status === "success")
     .map((state) => state.target);
@@ -499,6 +519,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
     })),
   });
 
+  summary = await includeTrackerDispatch(summary, media, "unwatched");
   return { ...summary, skipped: false, results };
 }
 

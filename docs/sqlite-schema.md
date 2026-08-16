@@ -18,6 +18,12 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `scheduler_lease` | Current worker leader, fencing generation, heartbeat and tick time | worker coordinator | health and worker coordination |
 | `background_jobs` / `background_job_logs` | Durable cron/force-sync queue, state, results and ordered logs | web enqueues; leader claims | sync APIs and worker |
 | `settings` | Single-row JSON blob - Plex/Emby/Jellyfin/TMDB/TVDB connection settings | config endpoint | everything that talks to servers |
+| `media_auth_devices` | Stable per-provider client identities used by managed account connections | media auth routes | Plex/Emby/Jellyfin authentication clients |
+| `media_auth_flows` | Expiring, browser-bound account authorization attempts | media auth routes | media auth polling/completion |
+| `media_connections` | Active encrypted provider token and verified remote identity | media auth routes | runtime media-server config adapter |
+| `tracker_connections` | Encrypted Trakt OAuth connection plus initial-sync policy/cursor state | tracker auth routes | scheduled tracker sync and outbound dispatcher |
+| `tracker_auth_flows` | Expiring Trakt device-code authorization attempts | tracker auth routes | tracker auth polling/completion |
+| `tracker_item_state` | Last observed Trakt state/timestamp and echo-suppression markers per canonical item | tracker sync/dispatcher | Trakt change detection |
 | `loop_keys` | Loop-detection KV with TTL | sync orchestrator | sync orchestrator |
 | `poster_cache` | Cached artwork metadata (binaries in `data/media/`) | poster handler | poster resolution |
 | `tmdb_metadata_cache` | Movie details (pure TMDB) or TV show details (TVDB structure + TMDB extras merged), key `${mediaType}_${tmdbId}` (or `tv_tvdb_${tvdbId}` if no TMDB match) | tmdb-details handler | detail pages, prefetch |
@@ -76,9 +82,11 @@ JSON blob with:
 
 ## `settings` (single row)
 
-JSON blob with the full connection configuration: Plex URL/token, Emby/Jellyfin
-URL/API key/user ID, TMDB key, Fanart.tv key, YouTube key, OMDb key, and Seerr credentials. Written by
-`POST /api/config`, read by everything that calls the media server APIs.
+JSON blob with provider mode and non-secret connection configuration, legacy manual
+Plex URL/token, Emby/Jellyfin URL/API key/user ID, TMDB key, Fanart.tv key, YouTube key,
+OMDb key, and Seerr credentials. Managed account and Trakt tokens live encrypted in their
+dedicated connection tables and are adapted into runtime configuration only in memory.
+Written by `POST /api/config`, read by everything that calls the media server APIs.
 
 ## `watch_history` artwork columns
 

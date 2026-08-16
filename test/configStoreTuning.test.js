@@ -5,7 +5,7 @@ import { makeTempDataDir } from "./helpers.js";
 
 makeTempDataDir("plembfin-config-tuning-test-");
 
-const { loadMediaConfig, saveMediaConfig, validateConfig, mergeIncomingConfig, publicMediaConfig } = await import("../server/src/utils/configStore.js");
+const { loadMediaConfig, saveMediaConfig, validateConfig, mergeIncomingConfig, publicMediaConfig, mediaAccountAuthEnabled } = await import("../server/src/utils/configStore.js");
 const { applyTuningConfig, watchedThresholdPercent, resetTuningForTests } = await import("../server/src/utils/tuning.js");
 const { listActiveSessions, upsertActiveSession } = await import("../server/src/utils/activeSessions.js");
 const { db } = await import("../server/src/db.js");
@@ -36,6 +36,21 @@ test("publicMediaConfig reports overridden vs default tuning fields", async () =
   assert.equal(pub.tuning.outboundTimeoutSec.value, 10);
   assert.equal(pub.tuning.outboundTimeoutSec.default, 10);
   assert.deepEqual([pub.tuning.outboundTimeoutSec.min, pub.tuning.outboundTimeoutSec.max], [2, 120]);
+});
+
+test("media account setup defaults on and supports an explicit manual-only opt-out", () => {
+  const previous = process.env.PLEMBFIN_MEDIA_AUTH_ENABLED;
+  try {
+    delete process.env.PLEMBFIN_MEDIA_AUTH_ENABLED;
+    assert.equal(mediaAccountAuthEnabled(), true);
+    process.env.PLEMBFIN_MEDIA_AUTH_ENABLED = "false";
+    assert.equal(mediaAccountAuthEnabled(), false);
+    process.env.PLEMBFIN_MEDIA_AUTH_ENABLED = "true";
+    assert.equal(mediaAccountAuthEnabled(), true);
+  } finally {
+    if (previous === undefined) delete process.env.PLEMBFIN_MEDIA_AUTH_ENABLED;
+    else process.env.PLEMBFIN_MEDIA_AUTH_ENABLED = previous;
+  }
 });
 
 test("validateConfig rejects out-of-range tuning fields", async () => {

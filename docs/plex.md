@@ -16,9 +16,14 @@ one outbound client. Read [architecture.md](architecture.md) first for the big p
 
 ## Configuration
 
-Settings → Media Servers → Plex needs three values (stored in the `settings` SQLite row via
-`configStore.js`; env vars `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` act as
-defaults):
+Settings → Media Servers → Plex uses **Connect Plex account** by default. Plembfin opens
+Plex authorization, verifies the signed-in account, discovers its servers, and stores the
+selected server plus encrypted managed account/server tokens. Tokens are refreshed or
+recovered before clients receive runtime configuration.
+
+Manual setup remains optional; its values are stored in the `settings` SQLite row via
+`configStore.js`, and env vars `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` act as
+defaults:
 
 - **baseUrl** - reachable *from the Plembfin server machine*, not just the browser
 - **token** - an X-Plex-Token
@@ -26,7 +31,9 @@ defaults):
   `owner` maps to account ID 1; any other name is resolved against `/accounts` and
   memoized (`resolvePlexAccountId` in `plexClient.js`, 10-min TTL, 1-min negative TTL)
 
-`validateConfig` requires all three when Plex is enabled. Test the connection with
+`validateConfig` requires all three when Plex is enabled in manual mode. Only one mode is
+active: completing account setup removes the stored manual token, while saving manual
+setup switches Plex back to manual mode. Test the connection with
 Open the Plex card under **Settings → Media Servers** and select **Test**
 (`POST /api/test-connection`).
 

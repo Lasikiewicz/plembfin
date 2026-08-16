@@ -23,6 +23,9 @@ services:
       # - WEBHOOK_SECRET=your-long-random-secret
       # Optional: pin the session signing secret (otherwise auto-generated).
       # - SESSION_SECRET=your-long-random-secret
+      # Optional: official Plembfin Trakt OAuth app. Values remain server-side.
+      - TRAKT_CLIENT_ID=${TRAKT_CLIENT_ID:-}
+      - TRAKT_CLIENT_SECRET=${TRAKT_CLIENT_SECRET:-}
     security_opt:
       - no-new-privileges:true
     deploy:

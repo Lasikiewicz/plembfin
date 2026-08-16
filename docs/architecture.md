@@ -6,7 +6,7 @@ feature doc that covers the area you are touching. If you only read one doc, rea
 
 ## The big picture
 
-Plembfin is a **self-hosted, single-process Node.js app** in the style of Sonarr/Radarr/
+Plembfin is a **self-hosted Node.js app** in the style of Sonarr/Radarr/
 Jellyseerr. One long-running `node server/server.js` process serves:
 
 - the **web UI** - a plain ES-module SPA in `public/` with no framework, bundler, or build step
@@ -141,6 +141,9 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `metadata.js` | Poster proxy and metadata/search handlers: TMDB details/search/season/images/person/poster/profile, the remote-artwork caching proxy, TVDB search/images, Fanart images, media search, Upcoming episodes, YouTube metadata, and OMDb ratings. |
 | `sync.js` | Sync/runtime handlers: webhook ingestion, manual watch/unwatch, playback progress, retry sync, sync job/history listing, Now Playing, active sessions, cron sync, library-wide planner Force Sync, Settings library Force Sync modes and status polling, title-scoped detail-page Force Sync modes and status polling, and stop-force-sync. |
 | `maintenance.js` | Maintenance/admin utility handlers: ping, changelog/update check, diagnostic logs, cross-platform match reporting, backfill/repair/dedup/rematch, cache stats, and cache clearing. |
+| `mediaAuth.js` | Browser-session-only Plex account, Emby account, and Jellyfin Quick Connect/account flows; verifies identities and persists encrypted managed connections. |
+| `trackerAuth.js` | Trakt device authorization, initial-state policy, connection status/disconnect, and manual tracker synchronization. |
+| `liveUpdates.js` | Authenticated streaming endpoint that emits shared history-version changes so open pages refresh as watch-state commits land. |
 
 ### `server/src/utils/`
 
@@ -149,6 +152,18 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `dataRepo.js` | **The data repository** - pure SQLite. All prepared-statement CRUD for watch history, playstate, playback progress, live tracking cache; the memoized derived caches (`getCachedHistory/Movies/Shows`, `getWatchStats`); `mediaKeyFor` canonical keys; query functions behind `/api/history`, `/api/movies`, `/api/shows`, `/api/show`; dedup/merge/rematch/backfill helpers. |
 | `parsers.js` | Webhook normalization: `parsePlexWebhook` (multipart), `parseEmbyWebhook`, `parseJellyfinWebhook`, `parseCustomWebhook` → a unified `media` object with a `phase` field (`active`/`completed`/`ended`/`unplayed`/`ignored`). Also `parsePlexGuids`, `normalizeProviderIds`, `decodeHtmlEntities`, `buildPlexMediaFromMetadata`. See [webhooks.md](webhooks.md). |
 | `syncOrchestrator.js` | Cross-platform propagation: `syncMediaPlaystate` / `syncMediaUnplayedPlaystate` / `syncMediaProgress` fan out normal events to the other platforms' clients, while `syncCanonicalPlaystate` replays Plembfin's state to every configured destination; all use `TARGETS_BY_SOURCE` routing, echo-loop detection via `loopStore.checkAndClaim`, and result summaries written to telemetry. |
+| `traktAppConfig.js` | Supplies the bundled Plembfin Trakt device application, applies optional `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` overrides, validates the personal-app fallback, and hydrates runtime requests without persisting application credentials in tracker records. |
+| `credentialVault.js` | AES-256-GCM envelope for provider credentials, backed by `PLEMBFIN_CREDENTIAL_KEY` or the generated `data/credential.key`. |
+| `mediaConnectionRepo.js` | CRUD and runtime adaptation for encrypted Plex/Emby/Jellyfin account connections. |
+| `embyLikeAuth.js` | Emby/Jellyfin authentication exchange and verified user identity helpers. |
+| `plexAuth.js` | Plex PIN authorization, account verification, resource discovery, and server selection. |
+| `plexFetch.js` | Plex-account HTTP boundary with Plex client identity headers and structured failures. |
+| `plexTokenManager.js` | Managed Plex account/server-token validity checks and refresh/recovery. |
+| `trackerConnectionRepo.js` | Encrypted tracker connection and expiring device-flow persistence. |
+| `trackerDispatcher.js` | Sends canonical watched/unwatched/rewatch changes to active trackers with echo suppression. |
+| `trackerSync.js` | Compares complete Trakt watched snapshots with stored tracker state and feeds additions, removals, and changed timestamps into canonical transitions. |
+| `traktClient.js` | Trakt device OAuth, refresh, paged watched-history reads, and watched-history write client. |
+| `watchStateTransitions.js` | Shared transactional watched/unwatched transition boundary used by tracker and media-server inputs. |
 | `syncMatchReport.js` | Pure aggregation of current watch-history telemetry into per-platform unmatched-media counts, movie/episode splits, and bounded samples for Settings → Sync → Sync Issues. |
 | `mediaForceSync.js` | Detail-page Force Sync: title-scoped Plex/Emby/Jellyfin watched-state lookup, Full Sync/Push/Pull modes, explicit import of remote-only records, provenance/telemetry, and target-filtered canonical propagation. The library-wide Force Sync planner remains remote-only-safe. |
 | `libraryForceSync.js` | Settings Force Sync: library-wide Full Sync/Push/Pull operations, remote watched-state collection, union with Plembfin's watched playstate, and target-filtered canonical propagation. |
@@ -210,6 +225,8 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `settings-ui.js` | Reusable settings edit dialog, provider picker, and status-card grid primitives. |
 | `settings-services.js` | Media-server and metadata-provider card grids, edit dialogs, config saves, connection tests, and the inline Sync Tuning form. |
 | `settings-shell.js` | Owns hierarchical settings routes (parent groups + child sections), multi-view panel aggregation, legacy aliases, the landing list, sidebar/mobile navigation, section-scoped scrolling, and tools disclosures. |
+| `tracker-settings.js` | Trakt device-code connection, initial baseline/import policy, connection state, personal-app fallback, and Sync Now controls. |
+| `live-updates.js` | Authenticated watch-state version stream, reconnect/backoff, and debounced active-view refresh. |
 | `logs.js` | Frontend debug-log store (localStorage ring buffer) + fetching backend diagnostic logs. |
 | `images.js` | Poster/artwork frontend: `posterMarkup` (with its loading skeleton), `hydratePosterFallbacks`, `/api/poster` lookups with a persistent cache, TMDB image URL builders, `proxiedArtworkUrl`, `isCachedStorageImageUrl`. See [posters-artwork.md](posters-artwork.md). |
 | `sync.js` | Now Playing polling + rendering, sync-status pills/telemetry parsing, sync jobs + sync history panels, cron/force-sync triggers. |
@@ -291,6 +308,12 @@ browser ──/changelog.json▶ Express ──▶ bundled changelog.json
    (`mergeIncomingConfig` in `configStore.js`); entering a new value replaces it.
    Test-connection endpoints fall back to the stored credential when the request
    body omits the token.
+   The live Trakt connection ships a device application in the same model as the
+   Jellyfin Trakt plugin. `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` can replace it for
+   rotation or private deployment; the browser receives only an `appConfigured`
+   capability flag. Application credentials are not copied into tracker connection,
+   authentication-flow, or backup rows. A personal Trakt app entered through the
+   advanced fallback is encrypted in SQLite.
 5. Outbound HTTP: every server-side call to an external service goes through
    `fetchWithTimeout` (`server/src/utils/outbound.js`, configurable 10s default; backup
    transfers use 60s). The helper validates initial and redirected URLs, blocks
@@ -515,6 +538,10 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `API_KEY` - pin the webhook/integration key
 - `WEBHOOK_SECRET` - pin the webhook secret used by header/Bearer auth and the compatibility `?token=` URL
 - `SESSION_SECRET` - pin the session signing secret
+- `PLEMBFIN_CREDENTIAL_KEY` - optional external credential-vault key; otherwise `data/credential.key` is generated
+- `PLEMBFIN_PUBLIC_URL` - fixed public origin for provider return links
+- `PLEMBFIN_MEDIA_AUTH_ENABLED` - account-connection routes, enabled by default; set `false` for manual-only setup
+- `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` - optional replacement for the bundled Trakt device application
 - `COOKIE_SECURE` - set to `true` when behind an HTTPS reverse proxy
 - `LOG_VERBOSE` - set to `true` to include per-request tracing (Plex GUID lookups, search fallbacks, per-phase scheduled-sync narration) in the logs. Off by default; errors and warnings are always logged.
 - `WATCHED_PLAYED_SYNC_ENABLED` - set to `false`/`0`/`off` to disable all watched/played propagation (recording still happens)

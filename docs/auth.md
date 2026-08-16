@@ -1,7 +1,8 @@
 # Authentication & Secrets
 
 Local single-admin auth: username/password login, a signed session cookie, an API key
-for integrations, and a separate webhook secret. No external identity provider.
+for integrations, and a separate webhook secret. Provider account connections are
+outbound authorizations managed by that administrator; they do not replace Plembfin login.
 
 ## Files
 
@@ -11,6 +12,9 @@ for integrations, and a separate webhook secret. No external identity provider.
 | `server/src/utils/auth.js` | Session cookie sign/verify, `requireAdmin`, all `/api/auth/*` + `/api/login|logout` handlers |
 | `public/modules/auth.js` | Frontend: sign in/out, `onAuthChange`, credential updates, webhook-secret rotation |
 | `server/src/db.js` | `writeAuditLog` - security event log |
+| `server/src/utils/credentialVault.js` | AES-256-GCM encryption for media-server and tracker tokens |
+| `server/src/routes/mediaAuth.js` | Plex, Emby, and Jellyfin account authorization routes |
+| `server/src/routes/trackerAuth.js` | Trakt device authorization and token lifecycle routes |
 
 ## The four credentials
 
@@ -42,6 +46,19 @@ server logs a `[security]` notice if those env vars are set but inactive; remove
 - Revocation is global-only: rotating `sessionSecret` invalidates every cookie.
   `POST /api/auth/sessions/revoke-all` does exactly that, then issues the caller a
   fresh cookie so they stay signed in.
+
+## Provider credentials
+
+Media-server and Trakt access/refresh tokens are encrypted with AES-256-GCM before they
+enter SQLite. Plembfin uses `PLEMBFIN_CREDENTIAL_KEY` when provided; otherwise it creates
+`data/credential.key`. The generated key is not included in database or application
+backups, so a restore containing encrypted provider connections also needs the original
+key. Passwords entered for Emby or Jellyfin are used only for the authorization request
+and are never persisted.
+
+Account and tracker authorization routes require an authenticated browser session and
+same-origin requests. Short-lived authorization-flow rows are bound to that browser and
+expire automatically. API-key callers cannot initiate those interactive flows.
 
 ## Request authentication
 

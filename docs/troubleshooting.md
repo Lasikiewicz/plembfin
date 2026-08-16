@@ -99,6 +99,29 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
 - In Docker, confirm the volume is mounted: `docker exec plembfin ls /data`.
 - `data/config.json` must be writable for credential/secret persistence.
 
+## "A media account connection fails or becomes invalid"
+
+- Account setup is enabled by default. If it is missing, remove
+  `PLEMBFIN_MEDIA_AUTH_ENABLED=false` (or set it to `true`) and restart.
+- Plex must be able to reach Plex account services and the selected server from the
+  Plembfin host. Emby/Jellyfin server URLs must also be reachable from that host.
+- Jellyfin Quick Connect must be enabled on Jellyfin; otherwise use the account fallback.
+- Managed tokens require the same `PLEMBFIN_CREDENTIAL_KEY` or `data/credential.key` that
+  encrypted them. Restore that key after a migration, then restart; reconnecting a provider
+  also creates ciphertext for the current key.
+
+## "Trakt changes do not appear everywhere"
+
+- Confirm Settings → Import shows Trakt connected, then choose **Sync Now**. Normal polling
+  runs once a minute, so allow one full tick before treating it as missed.
+- Disable/de-authorize the Emby and Jellyfin Trakt plugins. Two live Trakt writers can echo
+  stale state back after Plembfin has applied the user's action.
+- Check Settings → Logs for Trakt authorization, pagination, match, or destination errors.
+  A title absent from a media-server library is recorded locally and skipped only there.
+- An open Plembfin page should refresh through `/api/live-updates`. If it does not, verify
+  the browser session is signed in and that a reverse proxy does not buffer streaming API
+  responses; reloading once re-establishes the stream.
+
 ## "The Logs panel doesn't show enough detail"
 
 Per-request tracing - Plex ID lookups, search fallbacks, and the per-phase narration of

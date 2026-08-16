@@ -12,18 +12,25 @@ process.env.DATA_DIR = dataDir;
 
 const {
   mediaFromEmbyLikeResumableItem,
+  plexHistoryItemMatchesConfiguredUser,
+  recentUnwatchBlocksLibraryImport,
   syncRetryDelayMs,
   syncRetryEligible,
   SYNC_RETRY_MAX_ATTEMPTS,
 } = await import("../server/src/scheduled.js");
 const { appendSyncHistory, pruneSyncHistory, getSyncHistory } = await import("../server/src/utils/configStore.js");
 const {
+  findWatchedByAnyMediaKey,
   getPlaybackProgressForMedia,
   getPlaystateForMedia,
+  insertWatchRecord,
+  mediaToWatchRecord,
   upsertPlaybackProgress,
   upsertPlaystateForMedia,
 } = await import("../server/src/utils/dataRepo.js");
 const { normalizeProviderIds } = await import("../server/src/utils/parsers.js");
+const { createLoopStore } = await import("../server/src/utils/loopStore.js");
+const { applyUnwatchedTransition } = await import("../server/src/utils/watchStateTransitions.js");
 const { db } = await import("../server/src/db.js");
 
 test("syncRetryDelayMs follows the backoff schedule and repeats the last step", () => {
@@ -52,6 +59,52 @@ test("syncRetryEligible respects backoff windows and the terminal attempt cap", 
   // Terminal: retry budget exhausted, never eligible regardless of timestamp.
   assert.equal(syncRetryEligible({ sync_retry_count: SYNC_RETRY_MAX_ATTEMPTS, sync_next_retry_at: 0 }, now), false);
   assert.equal(syncRetryEligible({ sync_retry_count: SYNC_RETRY_MAX_ATTEMPTS + 5, sync_next_retry_at: 0 }, now), false);
+});
+
+test("Plex account-scoped library rows are accepted without weakening explicit identity checks", () => {
+  const options = { username: "lasikie", accountId: 42, accountScoped: true };
+  assert.equal(plexHistoryItemMatchesConfiguredUser({ ratingKey: "43532" }, options), true);
+  assert.equal(plexHistoryItemMatchesConfiguredUser({ ratingKey: "43532" }, { ...options, accountScoped: false }), false);
+  assert.equal(plexHistoryItemMatchesConfiguredUser({ accountID: 99 }, options), false);
+  assert.equal(plexHistoryItemMatchesConfiguredUser({ User: { title: "someone-else" } }, options), false);
+  assert.equal(plexHistoryItemMatchesConfiguredUser({ accountID: 42 }, options), true);
+});
+
+test("scheduled watched imports cannot bounce a recent explicit unwatch", () => {
+  const now = 10_000_000;
+  assert.equal(recentUnwatchBlocksLibraryImport({ state: "unwatched", updated_at: now - 1_000 }, now), true);
+  assert.equal(recentUnwatchBlocksLibraryImport({ state: "unwatched", updated_at: now - 6 * 60_000 }, now), false);
+  assert.equal(recentUnwatchBlocksLibraryImport({ state: "watched", updated_at: now }, now), false);
+});
+
+test("an explicit unwatched transition supersedes watched state and is idempotent", async () => {
+  const media = {
+    title: "Reacher - S01E01",
+    type: "episode",
+    source: "plex",
+    ids: { tvdb: "366924" },
+    season: 1,
+    episode: 1,
+    isValid: true,
+  };
+  const watched = mediaToWatchRecord(media, "plex");
+  watched.sync_action = "watched";
+  const inserted = await insertWatchRecord(watched);
+  await upsertPlaystateForMedia(media, "watched", inserted.record.watched_at);
+
+  const config = {
+    plex: { disabled: true },
+    emby: { disabled: true },
+    jellyfin: { disabled: true },
+  };
+  const first = await applyUnwatchedTransition(media, config, createLoopStore(), { recordId: inserted.id });
+  assert.equal(first.alreadyUnwatched, false);
+  assert.equal((await getPlaystateForMedia(media))?.state, "unwatched");
+  assert.equal(await findWatchedByAnyMediaKey(media), null);
+
+  const second = await applyUnwatchedTransition(media, config, createLoopStore());
+  assert.equal(second.alreadyUnwatched, true);
+  assert.equal(second.id, first.id);
 });
 
 test("watch_history carries sync retry columns with zero defaults", () => {

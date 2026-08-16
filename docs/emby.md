@@ -15,15 +15,21 @@ polling. Read [architecture.md](architecture.md) first for the big picture.
 
 ## Configuration
 
-Settings → Media Servers → Emby needs three values (stored in the `settings` SQLite row; env
-vars `EMBY_SERVER_URL` / `EMBY_API_KEY` / `EMBY_USER_ID` act as defaults):
+Settings → Media Servers → Emby uses account setup by default. Plembfin sends the server
+URL, username, and password directly to that Emby server, verifies the returned user, and
+stores only the encrypted user-scoped token. The password is never persisted.
+
+Manual setup remains optional; its values are stored in the `settings` SQLite row and env
+vars `EMBY_SERVER_URL` / `EMBY_API_KEY` / `EMBY_USER_ID` act as defaults:
 
 - **baseUrl** - reachable *from the Plembfin server machine*
 - **apiKey** - an Emby API key (Dashboard → Advanced → API Keys)
 - **userId** - the Emby user whose watch state is tracked and written
 
-All three are required when Emby is enabled (`validateConfig`). Requests authenticate
-with the `X-Emby-Token` header.
+All three are required when Emby is enabled in manual mode (`validateConfig`). Only one
+mode is active: completing account setup removes the stored manual key, while saving
+manual setup switches Emby back to manual mode. Requests authenticate with the
+`X-Emby-Token` header.
 
 ## Inbound: webhooks
 

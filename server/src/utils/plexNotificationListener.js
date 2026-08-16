@@ -28,7 +28,7 @@ const WATCHDOG_CHECK_INTERVAL_MS = 30_000;
 const WATCHABLE_TIMELINE_TYPES = new Set([1, 4]);
 const LIBRARY_IDENTIFIER = "com.plexapp.plugins.library";
 
-function buildNotificationsUrl(baseUrl, token) {
+function buildNotificationsUrl(baseUrl, token, clientIdentifier = "") {
   const url = new URL(baseUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.pathname = "/:/websockets/notifications";
@@ -37,6 +37,7 @@ function buildNotificationsUrl(baseUrl, token) {
   // stay in the URL here: the WebSocket handshake API offers no way to set custom
   // headers, and Plex's notification socket only reads the query parameter.
   url.searchParams.set("X-Plex-Token", token);
+  if (clientIdentifier) url.searchParams.set("X-Plex-Client-Identifier", clientIdentifier);
   return url.toString();
 }
 
@@ -44,14 +45,14 @@ function buildNotificationsUrl(baseUrl, token) {
 // socket exactly the way the listener does and resolves as soon as it connects - proving
 // the full path works end to end (including any reverse proxy / Cloudflare WebSocket
 // upgrade in front of Plex). Never throws; always resolves to a result object.
-export async function probePlexNotificationSocket({ baseUrl, token, timeoutMs = 8000 } = {}) {
+export async function probePlexNotificationSocket({ baseUrl, token, clientIdentifier = "", timeoutMs = 8000 } = {}) {
   if (!baseUrl || !token) {
     return { ok: false, error: "Plex URL or token not provided" };
   }
 
   let wsUrl;
   try {
-    wsUrl = buildNotificationsUrl(baseUrl, token);
+    wsUrl = buildNotificationsUrl(baseUrl, token, clientIdentifier);
   } catch (error) {
     return { ok: false, error: `Invalid Plex URL: ${error?.message || error}` };
   }
@@ -240,7 +241,7 @@ function handleFrame(raw) {
 
     let ws;
     try {
-      ws = new WebSocket(buildNotificationsUrl(config.baseUrl, config.token));
+      ws = new WebSocket(buildNotificationsUrl(config.baseUrl, config.token, config.clientIdentifier));
     } catch (error) {
       logger(`Plex notifications: failed to open socket: ${error?.message || error}`);
       scheduleReconnect();

@@ -116,6 +116,47 @@ export function jellyfinCredentialGuide() {
   `;
 }
 
+export function traktBridgeGuide() {
+  return `
+    <div class="credential-guide" style="display: grid; gap: var(--space-3);">
+      <div class="guide-callout">
+        <b>Let Plembfin be the only Trakt bridge</b>
+        <p style="margin: var(--space-1) 0 0;">The live connection reads and writes Trakt directly. A watched or unwatched change made in Trakt, Plex, Emby, Jellyfin, or Plembfin is then distributed to every other connected service. Running an Emby or Jellyfin Trakt plugin at the same time creates a second writer and can restore stale state.</p>
+      </div>
+
+      <details class="sync-tool-details" open>
+        <summary class="accordion-header">
+          <div class="sync-tool-summary-title"><b>Connect Trakt directly</b></div>
+          <span>Use the server app and approve the device code</span>
+        </summary>
+        <div class="tool-item-row" style="display: grid; gap: var(--space-2);">
+          <ol>
+            <li>Choose <b>Connect Trakt</b>. Plembfin uses its built-in Trakt device application, so normal users do not need Trakt VIP or their own API application.</li>
+            <li>Visit the displayed Trakt activation link, enter the device code, and approve access. Plembfin encrypts your access and refresh tokens at rest.</li>
+            <li>A server administrator can replace the built-in application with <code>TRAKT_CLIENT_ID</code> and <code>TRAKT_CLIENT_SECRET</code>. If it is unavailable, a Trakt VIP developer can expand <b>Use a personal Trakt app</b>.</li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="sync-tool-details">
+        <summary class="accordion-header">
+          <div class="sync-tool-summary-title"><b>Disable the old media-server bridges</b></div>
+          <span>Prevent duplicate writers and authority loops</span>
+        </summary>
+        <div class="tool-item-row" style="display: grid; gap: var(--space-2);">
+          <ul>
+            <li><b>Emby:</b> disable the Trakt plugin or remove its authorization, then disable every Trakt scheduled task. Turning off only scheduled history is insufficient because realtime scrobbling can still write.</li>
+            <li><b>Jellyfin:</b> choose <b>De-authorize Device</b> in the Trakt plugin, or disable the plugin. At minimum turn off live scrobbling, instant watched/unwatched, and both watched-state scheduled tasks.</li>
+            <li>Plex needs no plugin. Plembfin sends Plex changes to Trakt itself.</li>
+          </ul>
+        </div>
+      </details>
+
+      <p class="tool-accordion-desc" style="margin: 0;"><b>First connection:</b> “Start from current state” records a safe baseline without changing other apps. “Import all existing Trakt watched state” deliberately treats every current Trakt watch as input. After that baseline, the complete snapshot is checked each minute; additions become watched actions and removals become unwatched actions.</p>
+    </div>
+  `;
+}
+
 export function buildWebhookUrl() {
   const token = getWebhookToken();
   const base = `${window.location.origin}/api/webhook`;
@@ -441,6 +482,10 @@ export function renderSettingsInlineHelp() {
   if (migrationHelp) {
     migrationHelp.innerHTML = `
       <p class="tool-accordion-desc"><b>Trakt Importer:</b> Drag and drop CSV or JSON logs exported from Trakt.tv to populate your local database in bulk.</p>
+      <details style="margin-top: var(--space-3);" open>
+        <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Live Trakt Sync Without Watch-State Loops</summary>
+        <div style="margin-top: var(--space-2);">${traktBridgeGuide()}</div>
+      </details>
       <details style="margin-top: var(--space-3);" open>
         <summary style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text); padding: var(--space-1) 0;">Export Plex History Guide</summary>
         <div style="margin-top: var(--space-2);">${exportPlexHistoryGuide()}</div>

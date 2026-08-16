@@ -1,5 +1,6 @@
 import { loadLiveTrackingCache as loadLiveTrackingCacheFromDb } from "./dataRepo.js";
 import { fetchWithTimeout } from "./outbound.js";
+import { fetchPlexWithRefresh } from "./plexFetch.js";
 import { decodeHtmlEntities } from "./parsers.js";
 
 function trimTrailingSlash(value = "") {
@@ -284,7 +285,9 @@ async function fetchJson(url, headers) {
     }
     return response.json();
   } catch (error) {
-    console.error("Live session fetch failed", { url: String(url), error: error?.message || String(error) });
+    let safeUrl = String(url);
+    try { const parsed = new URL(safeUrl); parsed.search = ""; safeUrl = parsed.toString(); } catch { /* keep non-URL diagnostic */ }
+    console.error("Live session fetch failed", { url: safeUrl, error: error?.message || String(error) });
     return null;
   }
 }
@@ -294,7 +297,7 @@ async function fetchPlexSessions(config) {
   const url = new URL(`${config.plex.baseUrl}/status/sessions`);
 
   try {
-    const response = await fetchWithTimeout(url, { headers: { Accept: "application/xml, text/xml, application/json", "X-Plex-Token": config.plex.token } });
+    const response = await fetchPlexWithRefresh(config.plex, url, { headers: { Accept: "application/xml, text/xml, application/json" } });
     if (!response.ok) throw new Error(`Request failed with ${response.status}`);
     const text = await response.text();
     const sessions = parsePlexSessions(text, config.plex);

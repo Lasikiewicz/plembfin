@@ -17942,6 +17942,57 @@ html.light-mode .settings-modal-foot {
   line-height: 1.5;
 }
 
+.plex-account-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.plex-account-summary b {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.plex-account-summary span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.jellyfin-quick-connect-code {
+  text-align: center;
+}
+
+.jellyfin-quick-connect-code b {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 1.75rem;
+  letter-spacing: 0.16em;
+}
+
+.jellyfin-quick-connect-code small {
+  color: var(--muted);
+}
+
+.plex-server-picker {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.settings-modal-optional-fields {
+  margin-top: var(--space-2);
+}
+
+.settings-modal-optional-fields-body {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.plex-server-picker .service-card {
+  min-height: 5rem;
+}
+
 .settings-modal-field {
   display: flex;
   flex-direction: column;

@@ -2,6 +2,8 @@ import { db, parseJson, toJson } from "../db.js";
 import { assertSafeOutboundUrl, normalizeHttpUrl, configureOutboundGovernor } from "./outbound.js";
 import { applyTuningConfig, normalizeTuningSection, tuningClamps, tuningEnvDefaults } from "./tuning.js";
 import { normalizeSyncRoles, validateSyncRolesSection, normalizeAuthority } from "./syncRoles.js";
+import { getMediaConnection, resolveConnectedProviderConfig } from "./mediaConnectionRepo.js";
+import { getValidPlexServerToken, getValidPlexToken } from "./plexTokenManager.js";
 
 const SETTINGS_ID = "mediaConfig";
 const RUNTIME_ID = "main";
@@ -16,6 +18,10 @@ function envValue(...names) {
     if (value !== undefined && String(value).trim() !== "") return String(value).trim();
   }
   return "";
+}
+
+export function mediaAccountAuthEnabled() {
+  return !new Set(["false", "0", "off", "no"]).has(String(process.env.PLEMBFIN_MEDIA_AUTH_ENABLED || "").trim().toLowerCase());
 }
 
 function envEnabled(name) {
@@ -83,6 +89,17 @@ function envMediaConfig() {
   });
 }
 
+export function normalizePublicBaseUrl(value = "") {
+  const input = String(value || "").trim();
+  if (!input) return "";
+  const url = new URL(input);
+  if (!new Set(["http:", "https:"]).has(url.protocol)) throw new Error("publicBaseUrl must use http or https");
+  if (url.username || url.password) throw new Error("publicBaseUrl must not contain embedded credentials");
+  if (url.search || url.hash) throw new Error("publicBaseUrl must not contain a query or fragment");
+  if (url.pathname && url.pathname !== "/") throw new Error("publicBaseUrl must be an origin without a path");
+  return url.origin;
+}
+
 function hasConfiguredFields(section = {}) {
   return Object.entries(section).some(([key, value]) => !["disabled", "sync"].includes(key) && String(value || "").trim() !== "");
 }
@@ -90,13 +107,14 @@ function hasConfiguredFields(section = {}) {
 function mergeEnvDefaults(stored = {}) {
   const normalized = normalizeStoredConfig(stored);
   const defaults = envMediaConfig();
-  const merged = {};
+  const merged = { publicBaseUrl: normalized.publicBaseUrl };
 
   for (const section of ["plex", "emby", "jellyfin", "tmdb", "fanart", "tvdb", "youtube", "omdb"]) {
     merged[section] = { ...defaults[section], ...normalized[section] };
     for (const [key, value] of Object.entries(defaults[section])) {
       if (key === "disabled") continue;
-      if (!String(merged[section][key] || "").trim() && String(value || "").trim()) {
+      const credentialField = (section === "plex" && key === "token") || (["emby", "jellyfin"].includes(section) && key === "apiKey");
+      if (!String(merged[section][key] || "").trim() && String(value || "").trim() && !(credentialField && normalized[section].legacyFallbackDisabled)) {
         merged[section][key] = value;
       }
     }
@@ -123,10 +141,13 @@ function mergeEnvDefaults(stored = {}) {
 
 export function normalizeStoredConfig(stored = {}) {
   return {
+    publicBaseUrl: normalizePublicBaseUrl(stored.publicBaseUrl || ""),
     plex: {
       baseUrl: trimTrailingSlash(stored.plex?.baseUrl || stored.plex?.url || ""),
       token: String(stored.plex?.token || stored.plex?.apiKey || "").trim(),
       username: String(stored.plex?.username || "").trim(),
+      legacyFallbackDisabled: Boolean(stored.plex?.legacyFallbackDisabled),
+      authMode: stored.plex?.authMode === "manual" ? "manual" : "account",
       disabled: Boolean(stored.plex?.disabled),
       sync: normalizeSyncRoles(stored.plex?.sync || {}),
     },
@@ -134,6 +155,8 @@ export function normalizeStoredConfig(stored = {}) {
       baseUrl: trimTrailingSlash(stored.emby?.baseUrl || stored.emby?.url || ""),
       apiKey: String(stored.emby?.apiKey || stored.emby?.api_key || "").trim(),
       userId: String(stored.emby?.userId || "").trim(),
+      legacyFallbackDisabled: Boolean(stored.emby?.legacyFallbackDisabled),
+      authMode: stored.emby?.authMode === "manual" || (!stored.emby?.authMode && Boolean(stored.emby?.apiKey || stored.emby?.api_key)) ? "manual" : "account",
       disabled: Boolean(stored.emby?.disabled),
       sync: normalizeSyncRoles(stored.emby?.sync || {}),
     },
@@ -141,6 +164,8 @@ export function normalizeStoredConfig(stored = {}) {
       baseUrl: trimTrailingSlash(stored.jellyfin?.baseUrl || stored.jellyfin?.url || ""),
       apiKey: String(stored.jellyfin?.apiKey || stored.jellyfin?.api_key || "").trim(),
       userId: String(stored.jellyfin?.userId || "").trim(),
+      legacyFallbackDisabled: Boolean(stored.jellyfin?.legacyFallbackDisabled),
+      authMode: stored.jellyfin?.authMode === "manual" || (!stored.jellyfin?.authMode && Boolean(stored.jellyfin?.apiKey || stored.jellyfin?.api_key)) ? "manual" : "account",
       disabled: Boolean(stored.jellyfin?.disabled),
       sync: normalizeSyncRoles(stored.jellyfin?.sync || {}),
     },
@@ -179,9 +204,23 @@ const upsertSettingsStmt = db.prepare(
    ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
 );
 
-export async function loadMediaConfig() {
+export async function loadMediaConfig({ resolveConnections = true } = {}) {
   const row = selectSettingsStmt.get(SETTINGS_ID);
   const merged = mergeEnvDefaults(parseJson(row?.data, {}) || {});
+  merged.publicBaseUrl = normalizePublicBaseUrl(envValue("PLEMBFIN_PUBLIC_URL") || merged.publicBaseUrl);
+  if (resolveConnections) {
+    const plexConnection = getMediaConnection("plex");
+    if (merged.plex.authMode === "account" && ["plex_jwt", "plex_managed_jwt"].includes(plexConnection?.authKind)) {
+      // Proactive refresh and expired-token cold-start recovery happen before
+      // the first caller receives a Plex client configuration.
+      await getValidPlexToken();
+      await getValidPlexServerToken();
+    }
+    for (const provider of ["plex", "emby", "jellyfin"]) {
+      if (merged[provider].authMode === "manual") continue;
+      merged[provider] = resolveConnectedProviderConfig(provider, merged[provider]);
+    }
+  }
   applyTuningConfig(merged.tuning);
   configureOutboundGovernor(merged.pacing.profile);
   return merged;
@@ -193,26 +232,34 @@ export async function loadMediaConfig() {
 export function publicMediaConfig(config = {}) {
   const normalized = normalizeStoredConfig(config);
   return {
+    mediaAuthEnabled: mediaAccountAuthEnabled(),
+    publicBaseUrl: normalized.publicBaseUrl,
     plex: {
       configured: Boolean(normalized.plex.token),
       baseUrl: normalized.plex.baseUrl,
       username: normalized.plex.username,
+      authMode: normalized.plex.authMode,
       disabled: normalized.plex.disabled,
       sync: normalized.plex.sync,
+      connection: getMediaConnection("plex"),
     },
     emby: {
       configured: Boolean(normalized.emby.apiKey),
       baseUrl: normalized.emby.baseUrl,
       userId: normalized.emby.userId,
+      authMode: normalized.emby.authMode,
       disabled: normalized.emby.disabled,
       sync: normalized.emby.sync,
+      connection: getMediaConnection("emby"),
     },
     jellyfin: {
       configured: Boolean(normalized.jellyfin.apiKey),
       baseUrl: normalized.jellyfin.baseUrl,
       userId: normalized.jellyfin.userId,
+      authMode: normalized.jellyfin.authMode,
       disabled: normalized.jellyfin.disabled,
       sync: normalized.jellyfin.sync,
+      connection: getMediaConnection("jellyfin"),
     },
     seerr: {
       configured: Boolean(normalized.seerr.apiKey && normalized.seerr.baseUrl && !normalized.seerr.disabled),
@@ -269,11 +316,14 @@ function mergeSection(existing = {}, incoming, secretFields = []) {
 // without persisting. handleConfig validates this merged shape so a save that
 // omits an already-stored credential still passes required-field checks.
 export async function mergeIncomingConfig(config = {}) {
-  const existing = await loadMediaConfig().catch(() => normalizeStoredConfig({}));
+  // Never merge from the runtime adapter: it contains a decrypted connection
+  // token and would copy that token back into the general settings JSON.
+  const existing = await loadMediaConfig({ resolveConnections: false }).catch(() => normalizeStoredConfig({}));
   return normalizeStoredConfig({
-    plex: mergeSection(existing.plex, config.plex, ["token"]),
-    emby: mergeSection(existing.emby, config.emby, ["apiKey"]),
-    jellyfin: mergeSection(existing.jellyfin, config.jellyfin, ["apiKey"]),
+    publicBaseUrl: config.publicBaseUrl ?? existing.publicBaseUrl,
+    plex: { ...mergeSection(existing.plex, config.plex, ["token"]), ...(String(config.plex?.token || "").trim() ? { legacyFallbackDisabled: false } : {}) },
+    emby: { ...mergeSection(existing.emby, config.emby, ["apiKey"]), ...(String(config.emby?.apiKey || "").trim() ? { legacyFallbackDisabled: false } : {}) },
+    jellyfin: { ...mergeSection(existing.jellyfin, config.jellyfin, ["apiKey"]), ...(String(config.jellyfin?.apiKey || "").trim() ? { legacyFallbackDisabled: false } : {}) },
     seerr: mergeSection(existing.seerr, config.seerr, ["apiKey"]),
     tmdb: mergeSection(existing.tmdb, config.tmdb, ["apiKey"]),
     fanart: mergeSection(existing.fanart, config.fanart, ["apiKey"]),
@@ -293,8 +343,29 @@ export async function saveMediaConfig(config) {
   applyTuningConfig(normalized.tuning);
 }
 
+export function disableStoredLegacyCredential(provider, connectionId = "", { authMode = "account", activate = false } = {}) {
+  if (!["plex", "emby", "jellyfin"].includes(provider)) throw new Error("Unsupported media provider");
+  db.transaction(() => {
+    const stored = parseJson(selectSettingsStmt.get(SETTINGS_ID)?.data, {}) || {};
+    const section = { ...(stored[provider] || {}), legacyFallbackDisabled: true, connectionId: String(connectionId || ""), authMode, ...(activate ? { disabled: false } : {}) };
+    if (provider === "plex") {
+      delete section.token;
+      delete section.apiKey;
+    } else {
+      delete section.apiKey;
+      delete section.api_key;
+    }
+    upsertSettingsStmt.run(SETTINGS_ID, toJson({ ...stored, [provider]: section }), Date.now());
+  }).immediate();
+}
+
 export function validateConfig(config = {}) {
   const errors = [];
+  const connected = (provider) => {
+    const connection = getMediaConnection(provider);
+    return connection?.status === "connected" ? connection : null;
+  };
+  try { normalizePublicBaseUrl(config.publicBaseUrl || ""); } catch (error) { errors.push(error.message); }
   const validateBaseUrl = (value, label) => {
     if (!value) return;
     try {
@@ -310,30 +381,36 @@ export function validateConfig(config = {}) {
   if (config.plex) {
     const plexEnabled = !config.plex.disabled;
     if (plexEnabled) {
-      if (!config.plex.baseUrl) errors.push("plex.baseUrl is required when Plex is enabled");
-      validateBaseUrl(config.plex.baseUrl, "plex.baseUrl");
-      if (!config.plex.token) errors.push("plex.token is required when Plex is enabled");
-      if (!config.plex.username) errors.push("plex.username is required when Plex is enabled");
+      const connection = config.plex.authMode === "manual" ? null : connected("plex");
+      const baseUrl = config.plex.baseUrl || connection?.baseUrl;
+      if (!baseUrl) errors.push("plex.baseUrl is required when Plex is enabled");
+      validateBaseUrl(baseUrl, "plex.baseUrl");
+      if (!config.plex.token && !connection) errors.push("plex.token is required when Plex is enabled");
+      if (!config.plex.username && !connection?.remoteUsername) errors.push("plex.username is required when Plex is enabled");
     }
   }
 
   if (config.emby) {
     const embyEnabled = !config.emby.disabled;
     if (embyEnabled) {
-      if (!config.emby.baseUrl) errors.push("emby.baseUrl is required when Emby is enabled");
-      validateBaseUrl(config.emby.baseUrl, "emby.baseUrl");
-      if (!config.emby.apiKey) errors.push("emby.apiKey is required when Emby is enabled");
-      if (!config.emby.userId) errors.push("emby.userId is required when Emby is enabled");
+      const connection = config.emby.authMode === "manual" ? null : connected("emby");
+      const baseUrl = config.emby.baseUrl || connection?.baseUrl;
+      if (!baseUrl) errors.push("emby.baseUrl is required when Emby is enabled");
+      validateBaseUrl(baseUrl, "emby.baseUrl");
+      if (!config.emby.apiKey && !connection) errors.push("emby.apiKey is required when Emby is enabled");
+      if (!config.emby.userId && !connection?.remoteUserId) errors.push("emby.userId is required when Emby is enabled");
     }
   }
 
   if (config.jellyfin) {
     const jellyfinEnabled = !config.jellyfin.disabled;
     if (jellyfinEnabled) {
-      if (!config.jellyfin.baseUrl) errors.push("jellyfin.baseUrl is required when Jellyfin is enabled");
-      validateBaseUrl(config.jellyfin.baseUrl, "jellyfin.baseUrl");
-      if (!config.jellyfin.apiKey) errors.push("jellyfin.apiKey is required when Jellyfin is enabled");
-      if (!config.jellyfin.userId) errors.push("jellyfin.userId is required when Jellyfin is enabled");
+      const connection = config.jellyfin.authMode === "manual" ? null : connected("jellyfin");
+      const baseUrl = config.jellyfin.baseUrl || connection?.baseUrl;
+      if (!baseUrl) errors.push("jellyfin.baseUrl is required when Jellyfin is enabled");
+      validateBaseUrl(baseUrl, "jellyfin.baseUrl");
+      if (!config.jellyfin.apiKey && !connection) errors.push("jellyfin.apiKey is required when Jellyfin is enabled");
+      if (!config.jellyfin.userId && !connection?.remoteUserId) errors.push("jellyfin.userId is required when Jellyfin is enabled");
     }
   }
 

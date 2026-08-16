@@ -10,6 +10,10 @@ export const BACKUP_COLLECTIONS = [
   "liveTrackingCache",
   "syncHistory",
   "watchAuditEvents",
+  "mediaAuthDevices",
+  "mediaConnections",
+  "trackerConnections",
+  "trackerItemState",
   "settings",
   "runtimeState",
   "loopKeys",
@@ -176,6 +180,10 @@ const collections = {
       };
     },
   },
+  mediaAuthDevices: simpleCollection("media_auth_devices", "id", (r) => ({ provider: r.provider, deviceIdentifier: r.device_identifier, deviceName: r.device_name, publicJwk: parseJson(r.public_jwk), privateKeyCiphertext: r.private_key_ciphertext, privateKeyIv: r.private_key_iv, privateKeyTag: r.private_key_tag, keyVersion: r.key_version, retiredAt: r.retired_at, replacementDeviceId: r.replacement_device_id, createdAt: r.created_at, updatedAt: r.updated_at }), "INSERT OR REPLACE INTO media_auth_devices (id,provider,device_identifier,device_name,public_jwk,private_key_ciphertext,private_key_iv,private_key_tag,key_version,retired_at,replacement_device_id,created_at,updated_at) VALUES (@id,@provider,@device_identifier,@device_name,@public_jwk,@private_key_ciphertext,@private_key_iv,@private_key_tag,@key_version,@retired_at,@replacement_device_id,@created_at,@updated_at)", (id, d) => ({ id, provider: d.provider, device_identifier: d.deviceIdentifier, device_name: d.deviceName, public_jwk: toJson(d.publicJwk), private_key_ciphertext: d.privateKeyCiphertext || null, private_key_iv: d.privateKeyIv || null, private_key_tag: d.privateKeyTag || null, key_version: d.keyVersion || 1, retired_at: toMs(d.retiredAt), replacement_device_id: d.replacementDeviceId || null, created_at: toMs(d.createdAt), updated_at: toMs(d.updatedAt) })),
+  mediaConnections: simpleCollection("media_connections", "id", (r) => ({ provider: r.provider, baseUrl: r.base_url, serverId: r.server_id, serverName: r.server_name, authDeviceId: r.auth_device_id, remoteUserId: r.remote_user_id, remoteUsername: r.remote_username, authKind: r.auth_kind, credentialCiphertext: r.credential_ciphertext, credentialIv: r.credential_iv, credentialTag: r.credential_tag, tokenVersion: r.token_version, serverCredentialCiphertext: r.server_credential_ciphertext, serverCredentialIv: r.server_credential_iv, serverCredentialTag: r.server_credential_tag, serverTokenVersion: r.server_token_version, accessTokenExpiresAt: r.access_token_expires_at, lastRefreshedAt: r.last_refreshed_at, refreshFailureCount: r.refresh_failure_count, status: r.status, lastValidatedAt: r.last_validated_at, createdAt: r.created_at, updatedAt: r.updated_at }), "INSERT OR REPLACE INTO media_connections (id,provider,base_url,server_id,server_name,auth_device_id,remote_user_id,remote_username,auth_kind,credential_ciphertext,credential_iv,credential_tag,token_version,server_credential_ciphertext,server_credential_iv,server_credential_tag,server_token_version,access_token_expires_at,last_refreshed_at,refresh_failure_count,status,last_validated_at,created_at,updated_at) VALUES (@id,@provider,@base_url,@server_id,@server_name,@auth_device_id,@remote_user_id,@remote_username,@auth_kind,@credential_ciphertext,@credential_iv,@credential_tag,@token_version,@server_credential_ciphertext,@server_credential_iv,@server_credential_tag,@server_token_version,@access_token_expires_at,@last_refreshed_at,@refresh_failure_count,@status,@last_validated_at,@created_at,@updated_at)", (id, d) => ({ id, provider: d.provider, base_url: d.baseUrl, server_id: d.serverId, server_name: d.serverName || null, auth_device_id: d.authDeviceId, remote_user_id: d.remoteUserId, remote_username: d.remoteUsername || null, auth_kind: d.authKind, credential_ciphertext: d.credentialCiphertext, credential_iv: d.credentialIv, credential_tag: d.credentialTag, token_version: d.tokenVersion || 1, server_credential_ciphertext: d.serverCredentialCiphertext || null, server_credential_iv: d.serverCredentialIv || null, server_credential_tag: d.serverCredentialTag || null, server_token_version: d.serverTokenVersion || 1, access_token_expires_at: toMs(d.accessTokenExpiresAt), last_refreshed_at: toMs(d.lastRefreshedAt), refresh_failure_count: d.refreshFailureCount || 0, status: d.status, last_validated_at: toMs(d.lastValidatedAt), created_at: toMs(d.createdAt), updated_at: toMs(d.updatedAt) })),
+  trackerConnections: rawCollection("tracker_connections", "id", ["provider","status","remote_user_id","remote_username","client_id","client_secret_ciphertext","client_secret_iv","client_secret_tag","access_token_ciphertext","access_token_iv","access_token_tag","refresh_token_ciphertext","refresh_token_iv","refresh_token_tag","token_version","access_token_expires_at","initial_sync_mode","baseline_complete","last_polled_at","last_validated_at","last_error","created_at","updated_at"]),
+  trackerItemState: rawCollection("tracker_item_state", "media_key", ["provider","media_json","remote_watched_at","last_seen_at","last_outbound_state","last_outbound_at"]),
   settings: jsonCollection("settings"),
   runtimeState: jsonCollection("runtime_state"),
   loopKeys: simpleCollection("loop_keys", "id", (r) => ({ key: r.key || "", value: r.value || "", createdAt: r.created_at, expireAt: r.expire_at }), "INSERT OR REPLACE INTO loop_keys (id,key,value,created_at,expire_at) VALUES (@id,@key,@value,@created_at,@expire_at)", (id, d) => ({ id, key: d.key || "", value: d.value || "", created_at: toMs(d.createdAt), expire_at: toMs(d.expireAt) })),
@@ -188,6 +196,17 @@ const collections = {
 
 function simpleCollection(table, key, rowToData, sql, dataToRow) {
   return { table, key, rowToData, insert: db.prepare(sql), dataToRow };
+}
+
+function rawCollection(table, key, columns) {
+  const all = [key, ...columns];
+  return simpleCollection(
+    table,
+    key,
+    (row) => Object.fromEntries(columns.map((column) => [column, row[column]])),
+    `INSERT OR REPLACE INTO ${table} (${all.join(",")}) VALUES (${all.map((column) => `@${column}`).join(",")})`,
+    (id, data) => ({ [key]: id, ...Object.fromEntries(columns.map((column) => [column, data[column] ?? null])) }),
+  );
 }
 
 function jsonCollection(table) {
@@ -207,7 +226,7 @@ export function backupManifest(origin = "") {
     source: { app: "plembfin", storage: "sqlite", origin },
     collections: BACKUP_COLLECTIONS,
     notes: [
-      "This backup can contain media-server URLs, usernames, tokens, and API keys.",
+      "This backup can contain encrypted media credentials and plaintext legacy credentials in settings. Restoring encrypted connections requires the original credential.key or PLEMBFIN_CREDENTIAL_KEY.",
       "Artwork binaries, poster cache rows, and TMDB metadata cache rows are not included.",
     ],
   };

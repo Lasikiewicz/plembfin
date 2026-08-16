@@ -10,7 +10,7 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#05080c" />
     <link rel="preconnect" href="https://image.tmdb.org" />
-    <link rel="modulepreload" href="/app.js?v=20260810" />
+    <link rel="modulepreload" href="/app.js?v=20260816" />
     <link rel="modulepreload" href="/modules/auth.js" />
     <link rel="modulepreload" href="/modules/logs.js" />
     <link rel="modulepreload" href="/modules/settings.js" />
@@ -932,6 +932,52 @@
                       </div>
 
                       <div id="migrationContent" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <details class="sync-tool-details settings-static-details" open>
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Live Trakt Connection</b>
+                              <span id="traktConnectionStatus" class="status-pill status-muted">Checking</span>
+                            </div>
+                            <span>Keep watched and unwatched state synchronized in both directions</span>
+                          </summary>
+                          <div class="tool-item-row trakt-connection-panel">
+                            <div id="traktConnectedSummary" class="plex-account-summary hidden"></div>
+                            <form id="traktConnectForm" class="sync-tuning-form">
+                              <div class="sync-tuning-fields media-force-sync-options sync-tools-content">
+                                <label class="field-label">First connection
+                                  <select id="traktInitialSyncMode" class="field">
+                                    <option value="baseline">Start from current state (recommended)</option>
+                                    <option value="import">Import all existing Trakt watched state</option>
+                                  </select>
+                                </label>
+                                <p id="traktAppStatus" class="muted-copy" style="margin: 0;">Checking the Plembfin Trakt app…</p>
+                                <details id="traktPersonalAppFields" class="sync-tool-details settings-static-details">
+                                  <summary class="accordion-header">
+                                    <div class="sync-tool-summary-title"><b>Use a personal Trakt app</b></div>
+                                    <span>Advanced fallback for Trakt VIP developers</span>
+                                  </summary>
+                                  <div class="tool-item-row sync-tuning-form">
+                                    <label class="field-label">Trakt Client ID
+                                      <input id="traktClientId" class="field" autocomplete="off" spellcheck="false" />
+                                    </label>
+                                    <label class="field-label">Trakt Client Secret
+                                      <input id="traktClientSecret" class="field" type="password" autocomplete="new-password" />
+                                    </label>
+                                  </div>
+                                </details>
+                              </div>
+                              <p class="muted-copy" style="margin: var(--space-2) 0 0;">Plembfin will show a device code. OAuth tokens are encrypted at rest.</p>
+                              <p id="traktConnectMessage" class="message" role="status" aria-live="polite" style="display:none;"></p>
+                              <div id="traktDeviceCode" class="plex-account-summary hidden"></div>
+                              <div class="settings-actions" style="margin-top: var(--space-3);">
+                                <button id="traktConnectButton" class="button-primary sync-action-btn sync-tool-button" type="submit">Connect Trakt</button>
+                                <button id="traktSyncNowButton" class="button-ghost sync-action-btn sync-tool-button hidden" type="button">Sync Now</button>
+                                <button id="traktDisconnectButton" class="button-danger sync-tools-cancel-button hidden" type="button">Disconnect</button>
+                              </div>
+                            </form>
+                          </div>
+                        </details>
                         <details class="sync-tool-details">
                           <summary class="accordion-header">
                             <div class="sync-tool-summary-title">
@@ -2089,6 +2135,6 @@
 
     <div id="copyToast" class="copy-toast hidden" role="status" aria-live="polite">Copied!</div>
 
-    <script type="module" src="/app.js?v=20260812"></script>
+    <script type="module" src="/app.js?v=20260816"></script>
   </body>
 </html>

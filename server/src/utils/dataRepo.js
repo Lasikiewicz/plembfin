@@ -37,6 +37,14 @@ export async function getHistoryCacheVersion() {
   return getDataVersion();
 }
 
+// Advance the browser-facing change contract without flushing expensive
+// derived show metadata. Batch importers use this after each committed item so
+// open pages can update immediately, then perform one full derived-cache flush
+// when the batch is complete.
+export function signalHistoryDataChanged() {
+  return bumpDataVersion();
+}
+
 // --- Watch history row mapping --------------------------------------------
 const WATCH_COLUMNS = [
   "id", "title", "title_lower", "media_type", "watched_at", "source",
@@ -1979,10 +1987,13 @@ function historyDedupeKey(row = {}) {
   return `${mediaType || "unknown"}|${canonicalTitleKey(row.title)}|${row.watched_at || ""}`;
 }
 
-export async function listRecentTrackedWatchRows({ limit = 100, scanLimit = 400 } = {}) {
+export async function listRecentTrackedWatchRows({ limit = 100, scanLimit = 400, includeScheduled = false } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
   const safeScanLimit = Math.min(Math.max(Number(scanLimit) || safeLimit * 4, safeLimit), 2000);
-  const rows = selectRecentStmt.all(safeScanLimit).map(rowToWatch).filter(isPlembfinTrackedWatchRow);
+  const rows = selectRecentStmt
+    .all(safeScanLimit)
+    .map(rowToWatch)
+    .filter((row) => isWatchedAction(row) && (includeScheduled || !isScheduledLibraryHistoryRow(row)));
   return dedupeHistory(rows).slice(0, safeLimit);
 }
 

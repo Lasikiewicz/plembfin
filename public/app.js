@@ -16,10 +16,12 @@ import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, 
 import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js?v=20260810";
 import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js?v=20260810";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=20260803";
-import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260810";
+import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderShowModalContent, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260810";
 import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js?v=20260810";
 import { initMediaLightbox } from "./modules/media-lightbox.js";
 import { initAppEvents } from "./modules/app-events.js?v=20260812";
+import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=20260816";
+import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=20260816";
 
 if (localStorage.getItem("plembfin_bio_media_layout") === "1") {
   document.body.classList.add("bio-media-layout");
@@ -1776,6 +1778,68 @@ function clearDerivedUiCaches({ resetExplorer = true } = {}) {
   }
 }
 
+let liveHistoryRefreshTimer = null;
+let liveHistoryRefreshActive = false;
+let liveHistoryRefreshQueued = false;
+
+function queueLiveHistoryRefresh() {
+  liveHistoryRefreshQueued = true;
+  if (liveHistoryRefreshTimer || liveHistoryRefreshActive) return;
+  liveHistoryRefreshTimer = window.setTimeout(() => {
+    liveHistoryRefreshTimer = null;
+    refreshLiveHistoryView().catch((error) => logDebug(`Live history refresh failed: ${error.message}`));
+  }, 150);
+}
+
+async function refreshLiveHistoryView() {
+  if (liveHistoryRefreshActive) return;
+  liveHistoryRefreshActive = true;
+  liveHistoryRefreshQueued = false;
+  try {
+    clearDerivedUiCaches({ resetExplorer: false });
+    await loadHistory({ force: true });
+    resetPartWatchedView("default");
+    renderPartWatched();
+
+    if (state.mediaDetailInline && state.activeShowRenderContext?.show) {
+      const context = state.activeShowRenderContext;
+      const currentShow = context.show;
+      const url = new URL("/api/show", window.location.origin);
+      if (currentShow.id) url.searchParams.set("id", currentShow.id);
+      if (currentShow.title) url.searchParams.set("title", currentShow.title);
+      const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
+      const body = await response.json().catch(() => ({}));
+      const freshShow = response.ok && body.show
+        ? mergeShowDetail(body.show)
+        : mergeShowDetail({ ...currentShow, episodes: [], episode_count: 0, latest_watched_at: "", earliest_watched_at: "" });
+      if (freshShow && state.mediaDetailInline && state.activeShowRenderContext?.show === currentShow) {
+        renderShowModalContent(freshShow, {
+          ...context,
+          activeSeasonNum: state.activeShowModalSeason,
+        });
+      }
+      return;
+    }
+
+    if (state.mediaDetailInline && state.activeMovieTmdbId) {
+      await openMovieImmersiveModalByTmdbId(state.activeMovieTmdbId);
+      return;
+    }
+
+    if (state.activeView === "explorer") {
+      if (state.explorerMode === "shows") resetShowExplorer();
+      else resetMovieExplorer();
+      renderExplorer();
+    } else if (state.activeView === "history") {
+      resetHistoryView();
+      renderHistoryView();
+    }
+  } finally {
+    liveHistoryRefreshActive = false;
+    if (liveHistoryRefreshQueued) queueLiveHistoryRefresh();
+  }
+}
+
 function renderDbStatus(isOnline) {
   if (!elements.dbStatus) return;
   elements.dbStatus.innerHTML = `
@@ -2072,6 +2136,7 @@ function initialize() {
     renderDashboard,
     renderActiveSessions,
   });
+  initTrackerSettings({ authHeaders });
   initTools({
     setMessage,
     openConfirmDialog,
@@ -2260,6 +2325,12 @@ function initialize() {
     state.currentUser = user || undefined;
     state.token = token || "";
     if (user && token) {
+      startLiveUpdates({
+        authHeaders,
+        onHistoryVersion: queueLiveHistoryRefresh,
+        onError: (error) => logDebug(`Live update connection interrupted: ${error.message}`),
+      });
+      refreshTrackerSettings().catch(() => { });
       for (const [key, value] of state.posterLookupCache.entries()) {
         if (!value) state.posterLookupCache.delete(key);
       }
@@ -2321,6 +2392,7 @@ function initialize() {
         applyActiveView();
       }
     } else if (!user) {
+      stopLiveUpdates();
       setUnlocked(false);
     }
   });

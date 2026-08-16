@@ -152,6 +152,10 @@ app.use("/api/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHea
 app.use("/api/webhook", rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/tmdb-poster", rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/tmdb-profile", rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
+app.use("/api/media-auth", rateLimit({ windowMs: 10 * 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false }));
+app.use("/api/media-connections", rateLimit({ windowMs: 10 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
+app.use("/api/tracker-auth", rateLimit({ windowMs: 10 * 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false }));
+app.use("/api/tracker-connections", rateLimit({ windowMs: 10 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
 // Destructive/expensive admin actions - several of these paths also serve a
 // cheap GET status/poll (e.g. force-sync progress), so only the mutating
 // request is throttled; GET/HEAD/OPTIONS pass through untouched.
@@ -208,6 +212,10 @@ app.use("/media", express.static(MEDIA_DIR, { maxAge: "365d", immutable: true })
 
 app.get("/changelog.json", (_req, res) => {
   res.sendFile(path.resolve(PUBLIC_DIR, "..", "changelog.json"));
+});
+
+app.get("/auth/plex/return", (_req, res) => {
+  res.type("html").send("<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Plex connected</title></head><body><main><h1>Return to Plembfin</h1><p>Plembfin is verifying the connection in the original tab. You can close this tab.</p></main></body></html>");
 });
 
 // Health check - must be above the SPA fallback.

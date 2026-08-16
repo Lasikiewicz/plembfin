@@ -17,6 +17,7 @@ export const WATCH_HISTORY_BACKUPS_DIR = path.join(BACKUPS_DIR, "watch-history")
 export const FULL_BACKUPS_DIR = path.join(BACKUPS_DIR, "plembfin");
 export const DB_PATH = path.join(DATA_DIR, "plembfin.db");
 export const CONFIG_PATH = path.join(DATA_DIR, "config.json");
+export const CREDENTIAL_KEY_PATH = path.join(DATA_DIR, "credential.key");
 export const PUBLIC_DIR = path.join(repoRoot, "public");
 
 export function ensureDataDirs() {

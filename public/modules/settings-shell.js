@@ -176,7 +176,7 @@ const SECTIONS = {
   },
   import: {
     label: "Trakt",
-    description: "Bring watch history in from Trakt or CSV exports",
+    description: "Connect live two-way watched sync or import Trakt exports",
     panel: "tools",
     subPanels: ["tools-migration"],
     isDisplayOnly: true,

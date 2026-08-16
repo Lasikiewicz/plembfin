@@ -21,6 +21,29 @@ Desktop renders the grouped sidebar; mobile uses the **Settings section** select
 
 The left sidebar navigation displays parent menu groups by default, collapsing child sections and sub-sections until that parent section page is active. Every child section is display-only: its sidebar button navigates to the parent group's path with the section id appended as a URL hash (`#health`), then scrolls that specific section into view. The parent's page always renders every child's content stacked together - clicking a child is a same-page jump, not a different screen. Logs is a single-child group of its own (promoted to a top-level sidebar entry, since its content shares no panel with Health or Storage & Cache). Use the parent-and-hash routes above when documenting or linking to a child tool; for example, Full Sync Watchstates is `/settings/sync#full-sync-watchstates`.
 
+The Import page also owns the live bidirectional Trakt connection. Plembfin ships a
+device application in the same model as the Jellyfin Trakt plugin, so the normal flow
+asks only for the initial-sync policy and then displays a Trakt authorization code.
+`TRAKT_CLIENT_ID` and `TRAKT_CLIENT_SECRET` can override the bundled application for
+rotation or a private deployment. The advanced personal-app fields remain a fallback
+for Trakt VIP developers and their values are encrypted at rest.
+
+Media Servers uses account setup by default and keeps manual credentials as an optional
+fallback. Plex signs in through Plex, verifies the selected server, and maintains an
+encrypted account/server token pair. Emby exchanges a server URL, username, and password
+for an encrypted user-scoped token without storing the password. Jellyfin prefers Quick
+Connect and also supports a one-time username/password exchange when Quick Connect is
+disabled. Manual mode accepts the traditional token/API-key fields. Each provider has
+exactly one active mode: completing account setup removes its stored manual secret, and
+saving manual setup changes that provider back to manual mode.
+
+After its initial baseline or full-history import, the Trakt connection reads the complete
+watched snapshot every minute. Added watches, timestamp changes (rewatches), and removed
+watches enter the same synchronization pipeline as media-server and Plembfin actions, so
+watched and unwatched state converges everywhere. Emby and Jellyfin Trakt plugins should
+be disabled to keep Plembfin as the sole Trakt bridge. The browser subscribes to an
+authenticated update stream and refreshes the active page as imported changes commit.
+
 Full Sync Watchstates replays Plembfin's canonical watched and resume rows in two phases. It takes a fixed snapshot for each phase, temporarily suppresses inbound media-server callbacks and scheduled catch-up work, and shows rows processed, throughput, and an estimated remaining time. The shared sync-operation lock prevents it from overlapping Force Sync or a backup restore. The Stop Restore control cancels future batches; already completed batches remain applied. Reset Restore Lock is an administrator-confirmed recovery action for a run abandoned by a browser or server restart; it stops any in-flight restore before allowing another run to start.
 
 Force Full Sync contains the same Full Sync / Push To / Pull From controls and live activity

@@ -1,0 +1,59 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import { createPlexPin, decodeJwtClaims, plexAuthUrl, plexClientHeaders, refreshPlexJwt, signPlexDeviceJwt } from "../server/src/utils/plexAuth.js";
+
+function fixtureDevice() {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
+  const jwk = publicKey.export({ format: "jwk" });
+  return { device: { deviceIdentifier: "stable-device", publicJwk: { ...jwk, kid: "key-id", alg: "EdDSA", use: "sig" } }, privateKey };
+}
+
+function jsonResponse(body, status = 200) {
+  return { ok: status >= 200 && status < 300, status, json: async () => body };
+}
+
+test("Plex device JWT is Ed25519-signed with bounded claims", () => {
+  const { device, privateKey } = fixtureDevice();
+  const token = signPlexDeviceJwt({ device, privateKey, nonce: "nonce-1", now: 1_700_000_000_000 });
+  const [encodedHeader, encodedClaims, encodedSignature] = token.split(".");
+  assert.deepEqual(JSON.parse(Buffer.from(encodedHeader, "base64url")), { kid: "key-id", alg: "EdDSA", typ: "JWT" });
+  assert.equal(decodeJwtClaims(token).nonce, "nonce-1");
+  assert.equal(decodeJwtClaims(token).exp - decodeJwtClaims(token).iat, 300);
+  assert.equal(crypto.verify(null, Buffer.from(`${encodedHeader}.${encodedClaims}`), crypto.createPublicKey(privateKey), Buffer.from(encodedSignature, "base64url")), true);
+});
+
+test("Plex PIN creation binds the JWK in the single strong-PIN request", async () => {
+  const { device } = fixtureDevice();
+  let request;
+  const pin = await createPlexPin(device, { fetchImpl: async (url, options) => { request = { url: String(url), options }; return jsonResponse({ id: 42, code: "ABCD", expiresIn: 60 }); } });
+  assert.equal(request.url, "https://clients.plex.tv/api/v2/pins");
+  assert.deepEqual(JSON.parse(request.options.body), { strong: true, jwk: device.publicJwk });
+  assert.equal(pin.id, "42");
+});
+
+test("Plex cloud requests carry the stable device identity and access token", () => {
+  const { device } = fixtureDevice();
+  const headers = plexClientHeaders(device, { token: "account-token" });
+  assert.equal(headers["X-Plex-Client-Identifier"], "stable-device");
+  assert.equal(headers["X-Plex-Product"], "Plembfin");
+  assert.equal(headers["X-Plex-Token"], "account-token");
+});
+
+test("Plex auth URL only includes a configured public return origin", () => {
+  const { device } = fixtureDevice();
+  assert.doesNotMatch(plexAuthUrl({ device, code: "ABCD" }), /forwardUrl/);
+  assert.match(plexAuthUrl({ device, code: "ABCD", publicBaseUrl: "https://media.example" }), /forwardUrl=https%3A%2F%2Fmedia.example%2Fauth%2Fplex%2Freturn/);
+});
+
+test("Plex refresh obtains a nonce and exchanges a signed device JWT", async () => {
+  const { device, privateKey } = fixtureDevice();
+  const accessClaims = Buffer.from(JSON.stringify({ exp: 1_800_000_000 })).toString("base64url");
+  const accessToken = `e30.${accessClaims}.signature`;
+  const calls = [];
+  const result = await refreshPlexJwt({ device, privateKey, fetchImpl: async (url, options) => { calls.push({ url: String(url), options }); return calls.length === 1 ? jsonResponse({ nonce: "fresh" }) : jsonResponse({ auth_token: accessToken }); } });
+  assert.equal(calls[0].url, "https://clients.plex.tv/api/v2/auth/nonce");
+  assert.equal(calls[1].url, "https://clients.plex.tv/api/v2/auth/token");
+  assert.equal(decodeJwtClaims(JSON.parse(calls[1].options.body).jwt).nonce, "fresh");
+  assert.equal(result.expiresAt, 1_800_000_000_000);
+});

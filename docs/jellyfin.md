@@ -17,14 +17,21 @@ fork and keeps most of the API surface) with a few differences noted below. Read
 
 ## Configuration
 
-Settings → Media Servers → Jellyfin needs three values (stored in the `settings` SQLite row; env
-vars `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` act as defaults):
+Settings → Media Servers → Jellyfin uses Quick Connect by default: enter the server URL,
+start the flow, and approve the displayed code from a signed-in Jellyfin client. A direct
+username/password exchange is available when Quick Connect is disabled. Both flows verify
+the user and store only the encrypted user-scoped token; passwords are never persisted.
+
+Manual setup remains optional; its values are stored in the `settings` SQLite row and env
+vars `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` act as defaults:
 
 - **baseUrl** - reachable *from the Plembfin server machine*
 - **apiKey** - a Jellyfin API key (Dashboard → API Keys)
 - **userId** - the Jellyfin user whose watch state is tracked and written
 
-All three are required when Jellyfin is enabled (`validateConfig`). Requests send both
+All three are required when Jellyfin is enabled in manual mode (`validateConfig`). Only
+one mode is active: completing account setup removes the stored manual key, while saving
+manual setup switches Jellyfin back to manual mode. Requests send both
 `X-Emby-Token` and `X-MediaBrowser-Token` headers so every Jellyfin version accepts
 them.
 

@@ -45,7 +45,7 @@
 | **Now Playing dashboard** | Real-time active sessions, weekly charts, and recent watch history |
 | **Stats** | All-time and per-period reports with top shows, platform breakdowns, and watch trends |
 | **Upcoming episodes** | Scrolling month calendar of historical and future TV air dates that opens with the current week on top and scrolls freely into the past or future, plus a mobile agenda layout and a dedicated search results view spanning all cached months. The calendar is served from a persistent server-side cache and refreshed in the background, so it renders immediately on every visit |
-| **Trakt import** | Import your full Trakt history and push it out to all connected servers |
+| **Live Trakt sync** | Mark an item watched or unwatched in Trakt, Plex, Emby, Jellyfin, or Plembfin and distribute that state to every connected service; one-time Trakt exports remain available for bulk imports |
 | **Seerr integration** | Request movies and shows from detail pages via Overseerr or Jellyseerr |
 | **Movie collections** | Movie pages show a poster row of other films in the same franchise (sequels, prequels, spin-offs) |
 | **Open-in-app links** | Detail pages and Part Watched cards link straight to the item in Plex, Emby, or Jellyfin when it exists in that server's library |
@@ -208,22 +208,21 @@ Go to **Settings → Media Servers**. Select an existing card to edit it, or use
 Save and Test actions:
 
 #### Plex Integration
-*   Enable Plex.
-*   **Plex Server URL**: Your Plex server network address (e.g., `http://192.168.1.100:32400`).
-*   **Plex Token**: Your Plex authentication token ([How to find your Plex Token](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)).
-*   **Plex Username**: Your Plex account username.
+*   Choose **Connect Plex account**, approve the Plex sign-in, then select the server Plembfin should synchronize.
+*   Plembfin verifies the account and server, encrypts the managed tokens at rest, and refreshes them when required.
+*   **Manual setup** is optional for installations that need to enter a server URL, token, and username directly.
 
 #### Emby Integration
-*   Enable Emby.
-*   **Emby Server URL**: Your Emby server address (e.g., `http://192.168.1.100:8096`).
-*   **Emby API Key**: Generate an API key in Emby Settings → API Keys.
-*   **Emby User ID**: The unique ID of the user whose playback you want to track (can be grabbed from the URL when viewing the user profile in Emby dashboard).
+*   Enter the Emby server URL, username, and password under **Account setup**. The password is used only to obtain a user-scoped access token and is never stored.
+*   Plembfin verifies the selected identity and encrypts the resulting token at rest.
+*   **Manual setup** is optional and accepts an API key plus user ID.
 
 #### Jellyfin Integration
-*   Enable Jellyfin.
-*   **Jellyfin Server URL**: Your Jellyfin server address (e.g., `http://192.168.1.100:8096`).
-*   **Jellyfin API Key**: Generate an API key in Jellyfin Dashboard → API Keys.
-*   **Jellyfin User ID**: The unique ID of your user (copied from the URL when viewing user options in Jellyfin settings).
+*   Enter the Jellyfin server URL and use **Quick Connect** to authorize the displayed code from a signed-in Jellyfin client.
+*   Username/password account setup is available when Quick Connect is disabled; the password is used only during sign-in and is never stored.
+*   **Manual setup** is optional and accepts an API key plus user ID.
+
+Only one connection mode is active for each media server. Completing account setup disables and removes that provider's stored manual credential; saving manual setup switches the provider back to manual mode.
 
 #### TMDB (Metadata & Posters)
 *   **TMDB API Key**: Obtain a free API key from [TheMovieDB](https://www.themoviedb.org/documentation/api) and paste it here. This enables search capability on the dashboard, rich cast lists, trailers, recommendations, and poster fallbacks. Movies are sourced entirely from TMDB.
@@ -314,6 +313,19 @@ Plembfin runs automated daily backups; each backup type has its own schedule tim
 2. Go to **Settings → Import** (`/settings/import`), upload the JSON, and start the import.
 3. Imported watches are queued and propagated automatically. Use **Settings → Sync → Sync Tools → Full Sync Watchstates** (`/settings/sync#full-sync-watchstates`) to replay the complete Plembfin archive immediately, for example after connecting a new server or rebuilding a library. If a browser or server restart leaves a restore lock behind, use **Reset Restore Lock** in the same tool after confirming no other restore should continue.
 
+### Live Trakt Sync
+
+Plembfin includes its official Trakt device application, so users can choose **Connect
+Trakt** under **Settings → Import**, enter the displayed device code, and authorize
+their account without Trakt VIP or personal API credentials. OAuth access and refresh
+tokens are encrypted at rest. `TRAKT_CLIENT_ID` and `TRAKT_CLIENT_SECRET` can replace
+the bundled application when a maintainer needs to rotate it. At connection time, choose
+whether to record the current Trakt state as a baseline or import all existing watched
+items. Plembfin then checks Trakt each minute and distributes watched, unwatched, and
+rewatch changes in both directions. Disable Emby and Jellyfin Trakt plugins so Plembfin
+is the only Trakt writer and cannot compete with a second authority loop. Open Plembfin
+pages refresh automatically as imported watch-state changes are processed.
+
 ---
 
 ## System Diagnostics & Logs
@@ -342,7 +354,11 @@ The following environment variables can be set in your system or defined in `doc
 | `API_KEY` | _generated_ | Security token used to authorize incoming webhooks and API calls. |
 | `WEBHOOK_SECRET` | _generated_ | Secret used by webhook header/Bearer auth and the compatibility `?token=` URL. Rotatable independently of the API key. |
 | `SESSION_SECRET` | _generated_ | Signing secret for the dashboard session cookie. |
+| `PLEMBFIN_CREDENTIAL_KEY` | _generated file_ | Optional external AES-256 credential-vault key (64 hex characters or base64url). Keep it with disaster-recovery material; the generated `data/credential.key` is intentionally excluded from backups. |
+| `PLEMBFIN_PUBLIC_URL` | _none_ | Fixed public origin used for provider return links. It must be an `http` or `https` origin without a path. |
+| `PLEMBFIN_MEDIA_AUTH_ENABLED` | `true` | Account setup for Plex, Emby, and Jellyfin. Set to `false` only to expose manual setup exclusively. |
 | `COOKIE_SECURE` | `false` | Set to `true` when the app is served behind an HTTPS reverse proxy - enables `Secure` cookie flag and `Strict-Transport-Security` header. |
+| `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` | _built-in_ | Optional replacement for Plembfin's bundled Trakt device application, for credential rotation or private deployments. Both values must be set together. |
 | `LOG_VERBOSE` | `false` | Set to `true` to add per-request tracing (Plex ID lookups, search fallbacks, per-phase scheduled-sync steps) to Settings → Logs. Useful when diagnosing a specific match failure. Errors and warnings are logged either way. |
 | `FANART_API_KEY` | _none_ | Optional personal Fanart.tv API key for higher rate limits. A built-in project key is used when this is unset. |
 | `TVDB_API_KEY` | _none_ | Optional personal TheTVDB API key for a higher personal rate limit. A built-in project key is used when this is unset. |
@@ -368,11 +384,13 @@ A commented template of every variable is provided in [`.env.example`](.env.exam
 
 ## Architecture & Under the Hood
 
-Plembfin runs as a single-process Node application:
+Plembfin runs as a self-hosted Node application. The default `ROLE=all` process contains
+the complete app; larger installations can run separate `web` and `worker` roles against
+the same local SQLite data volume:
 *   **Web Server**: Powered by Express (`server/server.js`), static-serving the SPA interface (`public/`) and poster binaries (`data/media`).
 *   **Manual Router**: A lightweight dispatcher routing API endpoints to specific controllers.
 *   **Database**: Uses `better-sqlite3` in WAL mode for rapid reading/writing and locks safety.
-*   **Scheduler**: Runs in-process on a `setInterval` timer (no crontab required). It executes once per minute to reconcile active play states, check sync queues, maintain the TV next-airing cache, and perform nightly backups. Failed sync dispatches are retried with exponential backoff (up to 10 attempts) rather than every minute, so an offline media server never gets hammered.
+*   **Scheduler**: Runs in the elected `all` or `worker` process on a per-minute timer (no crontab required). A SQLite lease prevents duplicate workers. It reconciles active play states, checks media servers and Trakt, maintains caches, and performs nightly backups. Failed sync dispatches use exponential backoff (up to 10 attempts), so an offline service is not hammered.
 *   **Pre-push build check**: Before code is deployed or pushed, `npm run build` is run automatically. This checks JavaScript syntax and boots the server temporarily in a clean directory on port 0 to verify startup health.
 
 For the full technical reference - a complete map of every file in the repository, a task router, and per-feature deep dives (Plex/Emby/Jellyfin integrations, dashboard, libraries, upcoming episodes, media detail, backups, metadata, posters, auth) - start at [`docs/architecture.md`](docs/architecture.md) and the [docs index](docs/README.md).

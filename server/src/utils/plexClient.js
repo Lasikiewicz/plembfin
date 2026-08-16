@@ -1,10 +1,10 @@
-import { fetchWithTimeout } from "./outbound.js";
 import { traceLog } from "./logVerbose.js";
+import { fetchPlexWithRefresh, plexRequestHeaders } from "./plexFetch.js";
 
 // Plex accepts the token as a header everywhere the query parameter works; the
 // header keeps it out of Plex/reverse-proxy access logs and our own error logs.
-export function plexAuthHeaders(token, accept = "application/json") {
-  return { Accept: accept, "X-Plex-Token": token };
+export function plexAuthHeaders(tokenOrConfig, accept = "application/json") {
+  return typeof tokenOrConfig === "object" ? plexRequestHeaders(tokenOrConfig, accept) : plexRequestHeaders({ token: tokenOrConfig }, accept);
 }
 
 function trimTrailingSlash(value = "") {
@@ -57,7 +57,7 @@ export async function resolvePlexAccountId(config = {}) {
 
   let accountId = null;
   try {
-    const response = await fetchWithTimeout(accountsUrl, { headers: plexAuthHeaders(config.token) });
+    const response = await fetchPlexWithRefresh(config, accountsUrl);
     if (!response.ok) {
       console.warn(`Plex account mapping failed with HTTP ${response.status}`);
     } else {
@@ -164,9 +164,7 @@ async function searchPlexFallback(config, media, targetType) {
     url.searchParams.set("query", queryTitle);
 
     traceLog("Plex search fallback started", { query: queryTitle, targetType });
-    const response = await fetchWithTimeout(url, {
-      headers: plexAuthHeaders(config.token),
-    });
+    const response = await fetchPlexWithRefresh(config, url);
 
     if (!response.ok) {
       console.error("Plex search fallback failed", { status: response.status });
@@ -247,7 +245,7 @@ async function findPlexSeries(config, media) {
       const url = new URL(`${baseUrl}/library/all`);
       url.searchParams.set("guid", guid);
       url.searchParams.set("type", "2"); // 2 is Show/Series in Plex
-      const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
+      const response = await fetchPlexWithRefresh(config, url);
       if (!response.ok) {
         console.error("Plex series lookup failed", { status: response.status, guid });
         return null;
@@ -288,7 +286,7 @@ export async function fetchPlexSeriesEpisodes(config, media) {
   url.searchParams.set("includeGuids", "1");
   url.searchParams.set("includeMedia", "1");
 
-  const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
+  const response = await fetchPlexWithRefresh(config, url);
   if (!response.ok) {
     throw new Error(`Plex allLeaves lookup failed with status ${response.status} for series ${series.ratingKey}`);
   }
@@ -307,7 +305,7 @@ async function findPlexMovie(config, media) {
       url.searchParams.set("guid", guid);
       url.searchParams.set("type", "1"); // 1 is Movie in Plex
       console.log("Plex movie lookup started", { guid });
-      const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
+      const response = await fetchPlexWithRefresh(config, url);
       if (!response.ok) {
         console.error("Plex movie lookup failed", { status: response.status, guid });
         return null;
@@ -405,7 +403,7 @@ export async function markPlexPlayed(config, media) {
     url.searchParams.set("identifier", "com.plexapp.plugins.library");
     await addConfiguredPlexAccountId(url, config);
 
-    const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
+    const response = await fetchPlexWithRefresh(config, url);
     if (!response.ok) {
       throw new Error(`Plex scrobble failed with status ${response.status}`);
     }
@@ -433,7 +431,7 @@ export async function markPlexUnplayed(config, media) {
     url.searchParams.set("identifier", "com.plexapp.plugins.library");
     await addConfiguredPlexAccountId(url, config);
 
-    const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
+    const response = await fetchPlexWithRefresh(config, url);
     if (!response.ok) {
       throw new Error(`Plex unscrobble failed with status ${response.status}`);
     }
@@ -467,7 +465,7 @@ export async function setPlexProgress(config, media) {
     unscrobbleUrl.searchParams.set("identifier", "com.plexapp.plugins.library");
     await addConfiguredPlexAccountId(unscrobbleUrl, config);
 
-    const unscrobbleResponse = await fetchWithTimeout(unscrobbleUrl, { headers: plexAuthHeaders(config.token) });
+    const unscrobbleResponse = await fetchPlexWithRefresh(config, unscrobbleUrl);
     if (!unscrobbleResponse.ok) {
       throw new Error(`Plex progress unscrobble failed with status ${unscrobbleResponse.status}`);
     }
@@ -479,7 +477,7 @@ export async function setPlexProgress(config, media) {
     url.searchParams.set("state", "stopped");
     await addConfiguredPlexAccountId(url, config);
 
-    const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
+    const response = await fetchPlexWithRefresh(config, url);
     if (!response.ok) {
       throw new Error(`Plex progress update failed with status ${response.status}`);
     }
@@ -504,7 +502,7 @@ export async function markPlexUnplayedByRatingKey(config, ratingKey) {
   url.searchParams.set("identifier", "com.plexapp.plugins.library");
   await addConfiguredPlexAccountId(url, config);
 
-  const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
+  const response = await fetchPlexWithRefresh(config, url);
   if (!response.ok) {
     throw new Error(`Plex unscrobble failed with status ${response.status} for ratingKey ${ratingKey}`);
   }
@@ -521,8 +519,9 @@ export async function fetchPlexMetadataItem(config, ratingKey) {
 
   const url = new URL(`${trimTrailingSlash(config.baseUrl)}/library/metadata/${encodeURIComponent(ratingKey)}`);
   url.searchParams.set("includeGuids", "1");
+  await addConfiguredPlexAccountId(url, config);
 
-  const response = await fetchWithTimeout(url, { headers: plexAuthHeaders(config.token) });
+  const response = await fetchPlexWithRefresh(config, url);
   if (response.status === 404) return null;
   if (!response.ok) {
     throw new Error(`Plex metadata lookup failed with status ${response.status} for ratingKey ${ratingKey}`);
@@ -534,7 +533,7 @@ export async function fetchPlexMetadataItem(config, ratingKey) {
 async function fetchPlexLibraryDirectories(config) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const sectionsUrl = new URL(`${baseUrl}/library/sections`);
-  const sectionsRes = await fetchWithTimeout(sectionsUrl, { headers: plexAuthHeaders(config.token) });
+  const sectionsRes = await fetchPlexWithRefresh(config, sectionsUrl);
   if (!sectionsRes.ok) {
     throw new Error(`Plex failed to fetch library sections: ${sectionsRes.status}`);
   }
@@ -585,11 +584,11 @@ export async function fetchPlexWatchedItems(config, { libraryIds } = {}) {
     }
 
     try {
-      const allRes = await fetchWithTimeout(allUrl, { headers: plexAuthHeaders(config.token) });
+      const allRes = await fetchPlexWithRefresh(config, allUrl);
       if (allRes.ok) {
         const allData = await allRes.json();
         const metadata = allData?.MediaContainer?.Metadata || [];
-        watchedItems.push(...metadata);
+        watchedItems.push(...metadata.filter((item) => Number(item.viewCount || 0) > 0));
       }
     } catch (err) {
       console.error(`Plex failed to fetch watched items for section ${sectionId}`, err);
@@ -616,7 +615,7 @@ export async function countPlexWatchedItems(config, { libraryIds } = {}) {
     allUrl.searchParams.set("X-Plex-Container-Start", "0");
     allUrl.searchParams.set("X-Plex-Container-Size", "0");
 
-    const allRes = await fetchWithTimeout(allUrl, { headers: plexAuthHeaders(config.token) });
+    const allRes = await fetchPlexWithRefresh(config, allUrl);
     if (!allRes.ok) throw new Error(`Plex watched count failed with status ${allRes.status} for section ${dir.key}`);
     const allData = await allRes.json();
     const container = allData?.MediaContainer || {};
@@ -631,7 +630,7 @@ export async function fetchPlexResumableItems(config, { limit = 0 } = {}) {
   const accountId = await resolvePlexAccountId(config);
 
   const sectionsUrl = new URL(`${baseUrl}/library/sections`);
-  const sectionsRes = await fetchWithTimeout(sectionsUrl, { headers: plexAuthHeaders(config.token) });
+  const sectionsRes = await fetchPlexWithRefresh(config, sectionsUrl);
   if (!sectionsRes.ok) {
     throw new Error(`Plex failed to fetch library sections: ${sectionsRes.status}`);
   }
@@ -653,7 +652,7 @@ export async function fetchPlexResumableItems(config, { limit = 0 } = {}) {
     allUrl.searchParams.set("includeGuids", "1");
 
     try {
-      const allRes = await fetchWithTimeout(allUrl, { headers: plexAuthHeaders(config.token) });
+      const allRes = await fetchPlexWithRefresh(config, allUrl);
       if (!allRes.ok) continue;
       const allData = await allRes.json();
       const metadata = allData?.MediaContainer?.Metadata || [];

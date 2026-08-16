@@ -108,6 +108,11 @@ SPA navigation via `history.pushState`:
 - Long-lived caches (explorer pages, dashboard history, poster lookups) persist to
   localStorage with TTLs and versioned keys; bump the key version when the cached
   shape changes.
+- `modules/live-updates.js` keeps an authenticated streaming `fetch` open to
+  `/api/live-updates`. A shared SQLite history version lets web and worker processes
+  announce committed watch-state changes; the client debounces bursts and reloads the
+  active library, history, dashboard, or detail page in place, then reconnects after a
+  dropped stream.
 
 ## Settings Layout & Design Standards
 

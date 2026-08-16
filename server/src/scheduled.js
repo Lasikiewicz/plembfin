@@ -1,9 +1,11 @@
 import crypto from "node:crypto";
 import { fetchWithTimeout } from "./utils/outbound.js";
 import { watchedThresholdPercent } from "./utils/tuning.js";
-import { recordOutboundPlayedMarks, recordOutboundUnplayedMarks, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
+import { lastOutboundPlayedMarkAt, recordOutboundPlayedMarks, recordOutboundUnplayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
+import { applyUnwatchedTransition } from "./utils/watchStateTransitions.js";
 import { parsePlexGuids } from "./utils/parsers.js";
-import { findPlexItem, plexAuthHeaders, resolvePlexAccountId } from "./utils/plexClient.js";
+import { findPlexItem, resolvePlexAccountId } from "./utils/plexClient.js";
+import { fetchPlexWithRefresh } from "./utils/plexFetch.js";
 import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/liveSessions.js";
 import { activeSyncOperation, appendSyncHistory, clearSyncOperation, claimSyncOperation, loadMediaConfig, loadRuntimeState, releaseSyncOperation, setRuntimeState, touchSyncOperation, RESTORE_KIND_BACKUP, RESTORE_KIND_FULL_SYNC, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
 import { createLoopStore } from "./utils/loopStore.js";
@@ -23,7 +25,6 @@ import {
   findExistingWatch,
   findWatchedByAnyMediaKey,
   findWatchedByMediaKey,
-  getCanonicalWatchState,
   getCachedHistory,
   getPlaybackProgressForMedia,
   getPlaystateForMedia,
@@ -47,6 +48,13 @@ import {
 
 const SCHEDULED_RECENT_WATCH_LIMIT = 50;
 const SCHEDULED_RESUME_LIMIT = 50;
+const RECENT_UNWATCH_IMPORT_GUARD_MS = 5 * 60 * 1000;
+
+export function recentUnwatchBlocksLibraryImport(playstate = null, now = Date.now()) {
+  return playstate?.state === "unwatched"
+    && Number(playstate.updated_at || 0) > 0
+    && now - Number(playstate.updated_at) <= RECENT_UNWATCH_IMPORT_GUARD_MS;
+}
 
 function scheduledMediaInScope(config, media) {
   const scope = config?.syncScope || {};
@@ -60,7 +68,7 @@ function scheduledMediaInScope(config, media) {
 
 // Fallback cadence for the legacy Plex unwatch poll. Primary detection is the realtime
 // notification listener; this poll only backstops events missed while the socket was down.
-const PLEX_UNWATCHED_POLL_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const PLEX_UNWATCHED_POLL_INTERVAL_MS = Number(process.env.PLEX_UNWATCHED_POLL_INTERVAL_MS || 60 * 1000);
 let lastPlexUnwatchedPollAt = 0;
 
 // Cadence for background catch-up library syncs (recently watched & continue watching lists).
@@ -287,16 +295,16 @@ function summariseTitles(titles, max = 3) {
 
 // Delegates to the memoized resolver in plexClient.js so the per-minute
 // scheduled sync and playstate operations share one cached /accounts lookup.
-async function resolvePlexTargetAccountId(baseUrl, token, username, logger = console.log) {
+async function resolvePlexTargetAccountId(plexConfig, username, logger = console.log) {
   try {
-    return await resolvePlexAccountId({ baseUrl, token, username });
+    return await resolvePlexAccountId({ ...plexConfig, username });
   } catch (error) {
     logger(`Plex account mapping failed: ${error.message}`);
     return null;
   }
 }
 
-function plexHistoryItemMatchesConfiguredUser(item = {}, { username = "", accountId = null } = {}) {
+export function plexHistoryItemMatchesConfiguredUser(item = {}, { username = "", accountId = null, accountScoped = false } = {}) {
   if (!username) return true;
 
   const itemAccountId = plexAccountIdFromItem(item);
@@ -309,7 +317,10 @@ function plexHistoryItemMatchesConfiguredUser(item = {}, { username = "", accoun
     return itemUsernames.includes(username);
   }
 
-  return false;
+  // Plex omits User/Account from library-section results, even when the
+  // request is explicitly scoped with accountID. Preserve that request
+  // provenance so a valid, server-filtered result is not discarded.
+  return accountScoped && accountId != null;
 }
 
 async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
@@ -381,9 +392,13 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
   if (!config.plex?.baseUrl || !config.plex?.token) return;
 
   const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
-  const records = (await listRecentTrackedWatchRows({ limit: 100 })).filter(
-    (record) =>
-      record.watched_at < threeMinutesAgo,
+  const plexWasConfirmedWatched = (record) => {
+    if (String(record.source || "").toLowerCase().startsWith("plex")) return true;
+    const telemetry = String(record.sync_dispatch_telemetry || "").toLowerCase();
+    return /target plex status:\s*(fulfilled|success)/.test(telemetry);
+  };
+  const records = (await listRecentTrackedWatchRows({ limit: 100, includeScheduled: true })).filter(
+    (record) => record.watched_at < threeMinutesAgo && plexWasConfirmedWatched(record),
   ).slice(0, 30);
 
   for (const record of records) {
@@ -407,15 +422,16 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
       if (plexItem) {
         const isWatched = Boolean(plexItem.viewCount && Number(plexItem.viewCount) > 0);
         if (!isWatched) {
-          const canonicalState = await getCanonicalWatchState(media).catch(() => null);
-          if (canonicalState !== "watched") continue;
+          const plexMedia = { ...media, itemId: plexItem.ratingKey || plexItem.key || undefined };
+          const ownPlayedMarkAt = await lastOutboundPlayedMarkAt(plexMedia, "plex", loopStore).catch(() => 0);
+          if (ownPlayedMarkAt > 0 && Date.now() - ownPlayedMarkAt <= 10 * 60 * 1000) {
+            console.log("Cron ignored Plex unplayed state after Plembfin's own played mark", { title: record.title });
+            continue;
+          }
 
-          console.log("Cron detected Plex drift: reasserting Plembfin watched state", { title: record.title });
-          const canonicalMedia = { ...media, isValid: true, source: "manual" };
-          await deletePlaybackProgress(media).catch(() => null);
-          const summary = await syncCanonicalPlaystate(canonicalMedia, config, loopStore);
-          await updateWatchTelemetry(record.id, buildTelemetry(media, summary), { skipInvalidate: true });
-          await recordSyncHistory(media, summary, "watched");
+          console.log("Cron detected Plex item marked unwatched; storing and propagating", { title: record.title });
+          const result = await applyUnwatchedTransition(plexMedia, config, loopStore, { recordId: record.id });
+          if (!result.alreadyUnwatched) await recordSyncHistory(plexMedia, result.summary, "unwatched");
           await invalidateHistoryDerivedCaches().catch(() => null);
         }
       }
@@ -778,11 +794,10 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
   if (!config.plex?.baseUrl || !config.plex?.token) return 0;
 
   const baseUrl = config.plex.baseUrl.replace(/\/+$/, "");
-  const token = config.plex.token;
   const username = configuredPlexUsername(config);
   let syncedCount = 0;
 
-  const targetAccountId = await resolvePlexTargetAccountId(baseUrl, token, username, logger);
+  const targetAccountId = await resolvePlexTargetAccountId(config.plex, username, logger);
   if (username && targetAccountId == null) {
     logger(`Plex: configured user "${config.plex.username}" was not resolved to an account id; rows without a matching username will be skipped.`);
   }
@@ -795,7 +810,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       historyUrl.searchParams.set("accountID", String(targetAccountId));
     }
 
-    const historyRes = await fetchWithTimeout(historyUrl, { headers: plexAuthHeaders(token) });
+    const historyRes = await fetchPlexWithRefresh(config.plex, historyUrl);
     let items = [];
     if (historyRes.ok) {
       const historyData = await historyRes.json();
@@ -807,7 +822,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
     let recentlyViewedItems = [];
     try {
       const sectionsUrl = new URL(`${baseUrl}/library/sections`);
-      const sectionsRes = await fetchWithTimeout(sectionsUrl, { headers: plexAuthHeaders(token) });
+      const sectionsRes = await fetchPlexWithRefresh(config.plex, sectionsUrl);
       if (sectionsRes.ok) {
         const sectionsData = await sectionsRes.json();
         const directories = sectionsData?.MediaContainer?.Directory || [];
@@ -840,11 +855,11 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
             sectionAllUrl.searchParams.set("type", "4"); // Episode
           }
 
-          const sectionRes = await fetchWithTimeout(sectionAllUrl, { headers: plexAuthHeaders(token) });
+          const sectionRes = await fetchPlexWithRefresh(config.plex, sectionAllUrl);
           if (sectionRes.ok) {
             const sectionData = await sectionRes.json();
             const metadata = sectionData?.MediaContainer?.Metadata || [];
-            recentlyViewedItems.push(...metadata);
+            recentlyViewedItems.push(...metadata.map((item) => ({ item, accountScoped: targetAccountId != null, kind: "section" })));
           }
         }
       } else {
@@ -855,13 +870,18 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
     }
 
     // Combine and deduplicate
-    const allItems = [...items, ...recentlyViewedItems];
+    const allItems = [
+      ...items.map((item) => ({ item, accountScoped: targetAccountId != null, kind: "history" })),
+      ...recentlyViewedItems,
+    ];
     const seenKeys = new Set();
     const uniqueItems = [];
 
-    for (const item of allItems) {
-      if (!plexHistoryItemMatchesConfiguredUser(item, { username, accountId: targetAccountId })) continue;
+    for (const candidate of allItems) {
+      const { item, accountScoped, kind } = candidate;
+      if (!plexHistoryItemMatchesConfiguredUser(item, { username, accountId: targetAccountId, accountScoped })) continue;
       if (item.type !== "movie" && item.type !== "episode") continue;
+      if (kind === "section" && Number(item.viewCount || 0) <= 0) continue;
 
       const { watchedAt } = watchedAtForPlexItem(item);
       if (!watchedAt) {
@@ -909,6 +929,10 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       if (!scheduledMediaInScope(config, media)) continue;
 
       const playstate = await getPlaystateForMedia(media).catch(() => null);
+      if (recentUnwatchBlocksLibraryImport(playstate)) {
+        logger(`Plex: ignored stale watched row immediately after unwatch: ${media.title}`);
+        continue;
+      }
       const existing = await findWatchedByAnyMediaKey(media);
 
       // Marking an item played on Plex bumps its lastViewedAt, so plembfin's own
@@ -1023,6 +1047,12 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
         continue;
       }
 
+      const playstate = await getPlaystateForMedia(media).catch(() => null);
+      if (recentUnwatchBlocksLibraryImport(playstate)) {
+        logger(`Emby: ignored stale watched row immediately after unwatch: ${media.title}`);
+        continue;
+      }
+
       const existing = await findWatchedByAnyMediaKey(media);
 
       if (!existing) {
@@ -1125,6 +1155,12 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       if (!watchedAt) {
         if (watchedAtReason === "marked without playback") skippedApiMarked++;
         else skippedNoPlayedDate.push(media.title);
+        continue;
+      }
+
+      const playstate = await getPlaystateForMedia(media).catch(() => null);
+      if (recentUnwatchBlocksLibraryImport(playstate)) {
+        logger(`Jellyfin: ignored stale watched row immediately after unwatch: ${media.title}`);
         continue;
       }
 
@@ -1369,7 +1405,8 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
 
   // Plex unwatch detection is now primarily event-driven via the notification WebSocket
   // (see startPlexNotificationListener in index.js). This poll is kept as a safety net for
-  // events missed while the socket was disconnected, throttled to once every 6 hours
+  // events missed while the socket was disconnected (and manual changes for which Plex
+  // emits no timeline event), checked once a minute with confirmed-watched gating
   // (PLEX_UNWATCHED_POLL_INTERVAL_MS) so it never drives detection or re-scans every tick.
   if (plexActive && Date.now() - lastPlexUnwatchedPollAt >= PLEX_UNWATCHED_POLL_INTERVAL_MS) {
     lastPlexUnwatchedPollAt = Date.now();

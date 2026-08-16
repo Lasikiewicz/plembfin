@@ -26,13 +26,14 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
-import { getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { forceSyncMediaState, normalizeMediaForceSyncRequest } from "../utils/mediaForceSync.js";
 import { forceSyncLibraryState, normalizeLibraryForceSyncRequest } from "../utils/libraryForceSync.js";
 import { appendMediaForceSyncActivity, createMediaForceSyncActivity, finishMediaForceSyncActivity, getMediaForceSyncActivity, isMediaForceSyncCancellationRequested, requestMediaForceSyncCancellation } from "../utils/mediaForceSyncActivity.js";
 import { provenanceTelemetryLines } from "../utils/watchProvenance.js";
+import { applyUnwatchedTransition } from "../utils/watchStateTransitions.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "../utils/watchAudit.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
@@ -85,7 +86,6 @@ import {
   getCachedMovies,
   getCachedHistory,
   findExistingWatch,
-  getCanonicalWatchState,
   findWatchedByAnyMediaKey,
   getPlaystateForMedia,
   countMissingPosterTraktRows,
@@ -362,18 +362,6 @@ async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
   }).catch((error) => console.error("Failed to append sync history", error));
 }
 
-async function reassertCanonicalWatchedState(media, config, loopStore) {
-  const summary = await syncCanonicalPlaystate(media, config, loopStore).catch((error) => ({
-    skipped: false,
-    status: "error",
-    details: `Canonical watched-state repair failed: ${error.message || String(error)}`,
-    targetStates: [],
-  }));
-  await deletePlaybackProgress(media).catch(() => null);
-  await recordSyncHistory(media, summary, "watched");
-  return summary;
-}
-
 function platformLabel(value) {
   const text = String(value || "unknown");
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -474,100 +462,9 @@ function mediaFromWatchRecord(record) {
 // unwatched record, flip the playstate cache, and propagate unplayed to the other
 // platforms. Shared by the webhook `unplayed` phase and the manual-unwatch handler.
 export async function applyManualUnwatch(media, config, loopStore, recordId = "", { includeSourcePlatform = false } = {}) {
-  // An `unplayed` webhook caused by Plembfin's own unwatch propagation arrives
-  // when the record is already unwatched. Replaying the delete/insert below
-  // would swap the row for an identical one under a new id and dispatch again,
-  // which is what turns two connected servers into an indefinite unwatch
-  // ping-pong. There is no state change here, so there is nothing to do.
-  const existingWatched = await findWatchedByAnyMediaKey(media).catch(() => null);
-  const existingRecord = recordId
-    ? await getWatchRecordByIdLight(recordId).catch(() => null)
-    : await getWatchRecordByMediaKey(mediaKeyFor(media)).catch(() => null);
-  const canonicalState = await getPlaystateForMedia(media).catch(() => null);
-  if (!existingWatched && canonicalState?.state === "unwatched") {
-    console.log("Unwatch skipped: Plembfin is already canonical-unwatched", { title: media.title, source: media.source });
-    return {
-      wasDeleted: false,
-      id: existingRecord?.id || "",
-      alreadyUnwatched: true,
-      summary: {
-        skipped: true,
-        status: "skipped",
-        details: "Already unwatched; no change to propagate",
-        targetStates: [],
-      },
-    };
-  }
-  if (!existingWatched && existingRecord && existingRecord.sync_action === "unwatched") {
-    console.log("Unwatch skipped: record is already unwatched", { title: media.title, source: media.source });
-    return {
-      wasDeleted: false,
-      id: existingRecord.id,
-      alreadyUnwatched: true,
-      summary: {
-        skipped: true,
-        status: "skipped",
-        details: "Already unwatched; no change to propagate",
-        targetStates: [],
-      },
-    };
-  }
-
-  // Reuse the identity of the row being superseded. The replacement describes
-  // the same media, and anything holding a reference to it - an open Fix Match
-  // dialog, a queued manual match, a match report row - resolves to a record
-  // that still exists instead of a deleted id.
-  const supersededId = existingWatched?.id || existingRecord?.id || "";
-
-  let wasDeleted = false;
-  if (recordId) {
-    wasDeleted = await deleteWatchRecordById(recordId, { skipInvalidate: true }).catch((error) => {
-      console.error("Failed to delete watch record by id", error);
-      return false;
-    });
-  }
-  const wasDeletedByMediaKey = await deleteWatchRecord(media, { skipInvalidate: true }).catch((error) => {
-    console.error("Failed to delete watch record", error);
-    return false;
-  });
-  wasDeleted = wasDeleted || wasDeletedByMediaKey;
-  await deletePlaybackProgress(media).catch(() => null);
-
-  const pendingSummary = { skipped: false, status: "pending", details: "Unwatched propagation queued", targetStates: [] };
-  const unplayedRecord = mediaToWatchRecord({ ...media, syncAction: "unwatched" }, media.source);
-  unplayedRecord.sync_action = "unwatched";
-  unplayedRecord.sync_dispatch_telemetry = formatDispatchTelemetry(pendingSummary, media, "unwatched");
-  // Only claim the old id once the row holding it is actually gone, so a
-  // partial delete can never collide with the primary key.
-  const reusableId = supersededId && !(await getWatchRecordByIdLight(supersededId).catch(() => null))
-    ? supersededId
-    : "";
-  const result = await insertWatchRecord(unplayedRecord, { skipInvalidate: true, id: reusableId });
-  await upsertPlaystateForMedia(media, "unwatched", result.record.watched_at, { skipInvalidate: true });
-
-  // Clear resume progress on all target platforms to prevent re-import on next sync
-  // Use direct platform calls since shouldSyncResumeProgress blocks position 0
-  const syncMedia = includeSourcePlatform ? { ...media, source: "manual" } : media;
-  const targets = getTargetsForSource(syncMedia.source, config);
-  for (const target of targets) {
-    try {
-      if (target === "plex") await setPlexProgress(config.plex, { ...media, positionMs: 0 });
-      if (target === "emby") await setEmbyProgress(config.emby, { ...media, positionMs: 0 });
-      if (target === "jellyfin") await setJellyfinProgress(config.jellyfin, { ...media, positionMs: 0 });
-    } catch (error) {
-      console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
-    }
-  }
-
-  const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore).catch((error) => ({
-    skipped: false,
-    status: "error",
-    details: `Unwatched propagation failed: ${error.message || String(error)}`,
-    targetStates: [],
-  }));
-  await updateWatchTelemetry(result.id, formatDispatchTelemetry(summary, media, "unwatched"), { skipInvalidate: true });
-  await recordSyncHistory(media, summary, "unwatched");
-  return { wasDeleted, id: result.id, summary };
+  const result = await applyUnwatchedTransition(media, config, loopStore, { recordId, includeSourcePlatform });
+  if (!result.alreadyUnwatched) await recordSyncHistory(media, result.summary, "unwatched");
+  return result;
 }
 
 // Fans a newly added show or season out to its episodes on the server that
@@ -1690,52 +1587,13 @@ export async function handleWebhook(req, res) {
 
           if (media.phase === "unplayed") {
             await deleteActiveSession(episodeMedia).catch(() => null);
-            const canonicalState = await getCanonicalWatchState(episodeMedia).catch(() => null);
-            if (canonicalState === "watched") {
-              const summary = await reassertCanonicalWatchedState(episodeMedia, config, loopStore);
-              results.push({
-                episodeId: ep.Id,
-                title: episodeMedia.title,
-                success: summary.status === "success" || summary.status === "partial",
-                reasserted: true,
-                reason: "Plembfin kept the item watched",
-              });
-              return;
-            }
-            const wasDeleted = await deleteWatchRecord(episodeMedia, { skipInvalidate: true }).catch((error) => {
-              console.error("Failed to delete watch record", error);
-              return false;
+            const result = await applyManualUnwatch(episodeMedia, config, loopStore);
+            results.push({
+              episodeId: ep.Id,
+              title: episodeMedia.title,
+              success: result.alreadyUnwatched || result.summary.status === "success" || result.summary.status === "partial",
+              skipped: Boolean(result.alreadyUnwatched),
             });
-            await deletePlaybackProgress(episodeMedia).catch(() => null);
-
-            // Clear resume progress on target platforms to prevent re-import on next sync
-            // Use direct platform calls since shouldSyncResumeProgress blocks position 0
-            const episodeTargets = getTargetsForSource(episodeMedia.source, config);
-            for (const target of episodeTargets) {
-              try {
-                if (target === "plex") await setPlexProgress(config.plex, { ...episodeMedia, positionMs: 0 });
-                if (target === "emby") await setEmbyProgress(config.emby, { ...episodeMedia, positionMs: 0 });
-                if (target === "jellyfin") await setJellyfinProgress(config.jellyfin, { ...episodeMedia, positionMs: 0 });
-              } catch (error) {
-                console.log(`Resume progress clear on ${target} during webhook unwatch failed (non-fatal)`, error.message);
-              }
-            }
-
-            const pendingSummary = { skipped: false, status: "pending", details: "Unwatched propagation queued", targetStates: [] };
-            const unplayedRecord = mediaToWatchRecord({ ...episodeMedia, syncAction: "unwatched" }, episodeMedia.source);
-            unplayedRecord.sync_action = "unwatched";
-            unplayedRecord.sync_dispatch_telemetry = formatDispatchTelemetry(pendingSummary, episodeMedia, "unwatched");
-            const dbResult = await insertWatchRecord(unplayedRecord, { skipInvalidate: true });
-            await upsertPlaystateForMedia(episodeMedia, "unwatched", dbResult.record.watched_at, { skipInvalidate: true });
-            const summary = await syncMediaUnplayedPlaystate(episodeMedia, config, loopStore).catch((error) => ({
-              skipped: false,
-              status: "error",
-              details: `Unwatched propagation failed: ${error.message || String(error)}`,
-              targetStates: [],
-            }));
-            await updateWatchTelemetry(dbResult.id, formatDispatchTelemetry(summary, episodeMedia, "unwatched"), { skipInvalidate: true });
-            await recordSyncHistory(episodeMedia, summary, "unwatched");
-            results.push({ episodeId: ep.Id, title: episodeMedia.title, success: summary.status === "success" || summary.status === "partial" });
           } else {
             await deleteActiveSession(episodeMedia).catch(() => null);
             const existingPlaystate = await getPlaystateForMedia(episodeMedia).catch(() => null);
@@ -1829,20 +1687,6 @@ export async function handleWebhook(req, res) {
       });
       await deleteActiveSession(media);
       await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
-      const canonicalState = await getCanonicalWatchState(media).catch(() => null);
-      if (canonicalState === "watched") {
-        const summary = await reassertCanonicalWatchedState(media, config, loopStore);
-        return sendJson(res, {
-          ok: true,
-          deleted: false,
-          unplayed: true,
-          inserted: false,
-          reasserted: true,
-          status: summary.status,
-          targetStates: summary.targetStates || [],
-          reason: "Plembfin is authoritative and kept the item watched",
-        });
-      }
       const { wasDeleted, id, alreadyUnwatched } = await applyManualUnwatch(media, config, loopStore);
       console.log("Webhook: unwatched sync completed", {
         source: media.source,

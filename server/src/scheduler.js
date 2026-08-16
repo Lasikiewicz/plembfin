@@ -1,12 +1,14 @@
 import { createLoopStore } from "./utils/loopStore.js";
-import { activeSyncOperation, appendSyncHistory, loadMediaConfig, setRuntimeState, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, loadMediaConfig, loadRuntimeState, setRuntimeState, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
 import { createPlexNotificationListener } from "./utils/plexNotificationListener.js";
 import { fetchPlexMetadataItem } from "./utils/plexClient.js";
 import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { runScheduledSync } from "./scheduled.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
-import { isRecentOutboundUnplayedFlagEcho, lastOutboundPlayedMarkAt, syncCanonicalPlaystate, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
+import { isRecentOutboundUnplayedFlagEcho, lastOutboundPlayedMarkAt, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
+import { applyUnwatchedTransition } from "./utils/watchStateTransitions.js";
+import { pollConnectedTrackers } from "./utils/trackerSync.js";
 import { getTmdbDetails, prewarmTmdbLibrary } from "./utils/tmdbGateway.js";
 import { cachedNextAiringFor, mergeNextAiringCacheEntries, nextAiringCacheEntryStale, nextAiringCacheKey, readNextAiringCache } from "./utils/nextAiringCache.js";
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
@@ -15,7 +17,6 @@ import { runScheduledPlembfinBackup } from "./utils/plembfinBackups.js";
 import { pruneSyncPlans } from "./utils/syncPlans.js";
 import {
   deletePlaybackProgress,
-  getCanonicalWatchState,
   getCachedShows,
   getPlaystateForMedia,
   insertWatchRecord,
@@ -114,6 +115,8 @@ export async function runScheduledTick({ isLeader = () => true } = {}) {
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   pruneSyncPlans();
   await runWithTimeBudget("Scheduled sync", () => runScheduledSync(), 50_000);
+  if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  await runWithTimeBudget("Tracker watched-state poll", () => pollConnectedTrackers(), 45_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   await runWithTimeBudget("Scheduled watch-history backup", () => runScheduledWatchBackup(), 30_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
@@ -266,18 +269,6 @@ async function handlePlexLibraryItemChange(ratingKey) {
   }
   if (viewOffset > 0) return;
 
-  // A Plex-side unwatch is platform drift when Plembfin still says watched.
-  // Reassert the canonical state to every configured platform instead of
-  // deleting Plembfin's watched record.
-  const canonicalState = await getCanonicalWatchState(media).catch(() => null);
-  if (canonicalState !== "watched") return;
-
-  console.log("Plex notifications: item marked unwatched, reasserting Plembfin watched state", {
-    title: media.title,
-    ratingKey,
-    type: media.type,
-  });
-
   const loopStore = createLoopStore();
   if (viewCount === 0) {
     const ownUnplayedEcho = await isRecentOutboundUnplayedFlagEcho({ ...media, itemId: ratingKey }, "plex", loopStore).catch(() => false);
@@ -286,21 +277,29 @@ async function handlePlexLibraryItemChange(ratingKey) {
       return;
     }
   }
+
+  console.log("Plex notifications: item marked unwatched, storing and propagating", {
+    title: media.title,
+    ratingKey,
+    type: media.type,
+  });
+
   try {
-    const summary = await syncCanonicalPlaystate(media, config, loopStore);
-    await deletePlaybackProgress(media).catch(() => null);
+    const result = await applyUnwatchedTransition({ ...media, itemId: ratingKey }, config, loopStore);
+    if (result.alreadyUnwatched) return;
+    const summary = result.summary;
     await appendSyncHistory({
       mediaType: media.type,
       title: media.title,
       source: media.source,
       status: summary.status,
       details: summary.details,
-      action: "watched",
+      action: "unwatched",
       targetStates: summary.targetStates || [],
-      rawPayloadDebug: { ratingKey, canonicalRepair: true, ids: media.ids || {} },
+      rawPayloadDebug: { ratingKey, ids: media.ids || {}, provenance: media.watchProvenance || null },
     }).catch(() => null);
   } catch (error) {
-    console.error(`Plex notification canonical watched-state repair failed for "${media.title}"`, error);
+    console.error(`Plex notification unwatched-state propagation failed for "${media.title}"`, error);
   } finally {
     await invalidateHistoryDerivedCaches().catch(() => null);
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
@@ -311,7 +310,7 @@ export function startPlexNotificationListener() {
   if (!plexNotificationListener) {
     plexNotificationListener = createPlexNotificationListener({
       getPlexConfig: async () => {
-        const config = await loadMediaConfig().catch(() => null);
+        const config = await loadMediaConfig();
         return config?.plex || null;
       },
       onLibraryItemChange: handlePlexLibraryItemChange,
