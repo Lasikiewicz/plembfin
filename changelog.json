@@ -1,7 +1,19 @@
 {
-  "version": "0.7.0",
-  "updatedAt": "2026-08-16T22:56:46+01:00",
+  "version": "0.7.1",
+  "updatedAt": "2026-08-16T23:03:53+01:00",
   "entries": [
+    {
+      "version": "0.7.1",
+      "date": "2026-08-16T23:03:53+01:00",
+      "commit": "41f2422ab8e7fb24831b03bd82770331112e7959",
+      "message": "Fix - Keep account authorization polling below rate limits",
+      "author": "Lasikiewicz",
+      "details": [
+        "Prevent Plex and Jellyfin authorization status polling from exhausting the account-action allowance.",
+        "Keep start, login, disconnect, and other provider mutations protected by a dedicated rate limit.",
+        "Document 429 recovery and the separate polling and mutation limits for live deployments."
+      ]
+    },
     {
       "version": "0.7.0",
       "date": "2026-08-16T22:56:46+01:00",
