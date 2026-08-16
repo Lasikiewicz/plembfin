@@ -152,10 +152,21 @@ app.use("/api/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHea
 app.use("/api/webhook", rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/tmdb-poster", rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/tmdb-profile", rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
-app.use("/api/media-auth", rateLimit({ windowMs: 10 * 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false }));
-app.use("/api/media-connections", rateLimit({ windowMs: 10 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
-app.use("/api/tracker-auth", rateLimit({ windowMs: 10 * 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false }));
-app.use("/api/tracker-connections", rateLimit({ windowMs: 10 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
+// Interactive provider flows poll read-only status endpoints every two seconds.
+// Do not charge those reads to the mutation budget: a normal authorization
+// lasting two minutes would otherwise consume all 60 requests and block the
+// next start/login attempt with 429. The general API limiter still bounds reads.
+const providerMutationLimiter = () => rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS",
+});
+app.use("/api/media-auth", providerMutationLimiter());
+app.use("/api/media-connections", providerMutationLimiter());
+app.use("/api/tracker-auth", providerMutationLimiter());
+app.use("/api/tracker-connections", providerMutationLimiter());
 // Destructive/expensive admin actions - several of these paths also serve a
 // cheap GET status/poll (e.g. force-sync progress), so only the mutating
 // request is throttled; GET/HEAD/OPTIONS pass through untouched.

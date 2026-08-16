@@ -109,6 +109,9 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
 - Managed tokens require the same `PLEMBFIN_CREDENTIAL_KEY` or `data/credential.key` that
   encrypted them. Restore that key after a migration, then restart; reconnecting a provider
   also creates ciphertext for the current key.
+- A 429 on a start/login request means too many account mutations were attempted from the
+  same address. Read-only Plex/Jellyfin authorization polling does not consume this budget;
+  wait for the `Retry-After` interval before starting another flow.
 
 ## "Trakt changes do not appear everywhere"
 

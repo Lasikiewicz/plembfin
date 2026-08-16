@@ -518,7 +518,8 @@ operators to enable it when the app is behind an HTTPS reverse proxy.
 ## Rate limiting
 
 `server.js` applies express-rate-limit tiers before any route handler: `/api/login`
-(10/15min), `/api/webhook` (60/min), TMDB image proxies (300/min), a list of
+(10/15min), `/api/webhook` (60/min), TMDB image proxies (300/min), provider account/
+tracker mutations (30/10min; read-only authorization polling is excluded), a list of
 destructive/expensive admin actions (15/min, GET/HEAD/OPTIONS exempt so status polling
 is never throttled), a general `/api` ceiling (1200/min), and a static-asset ceiling
 (2000/min).
