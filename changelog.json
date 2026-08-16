@@ -1,7 +1,19 @@
 {
-  "version": "0.7.1",
-  "updatedAt": "2026-08-16T23:03:53+01:00",
+  "version": "0.7.2",
+  "updatedAt": "2026-08-16T23:09:44+01:00",
   "entries": [
+    {
+      "version": "0.7.2",
+      "date": "2026-08-16T23:09:44+01:00",
+      "commit": "e3690420f31a57bf0689966569140310163d21f4",
+      "message": "Fix - Restore Plex account connection",
+      "author": "Lasikiewicz",
+      "details": [
+        "New Plex connections use strong PIN authorization bound to Plembfin's encrypted device identity.",
+        "Plex authorization returns refreshable account tokens without exposing the private device key.",
+        "In-progress legacy connection attempts remain compatible during upgrades."
+      ]
+    },
     {
       "version": "0.7.1",
       "date": "2026-08-16T23:03:53+01:00",
