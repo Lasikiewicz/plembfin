@@ -1,7 +1,23 @@
 {
-  "version": "0.6.79",
-  "updatedAt": "2026-08-06T02:01:12+01:00",
+  "version": "0.7.0",
+  "updatedAt": "2026-08-16T22:56:46+01:00",
   "entries": [
+    {
+      "version": "0.7.0",
+      "date": "2026-08-16T22:56:46+01:00",
+      "commit": "9fad0bfc7a7cf82eedf3480b2810fed6e3003684",
+      "message": "Feature - Unify account and tracker watch-state sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Connect Plex, Emby, and Jellyfin through verified account flows while keeping one optional manual credential mode per server.",
+        "Synchronize watched, unwatched, and rewatch changes bidirectionally with Trakt through device authorization.",
+        "Refresh open Plembfin pages automatically as imported watch-state changes are processed.",
+        "Encrypt provider tokens at rest and document the credential-key requirements for backup recovery.",
+        "Improve Plex token recovery and user-scoped Emby and Jellyfin matching for reliable propagation.",
+        "Add split web and worker coordination through shared SQLite state and an elected scheduler lease.",
+        "Release the combined connection and synchronization upgrade as version 0.7.0."
+      ]
+    },
     {
       "version": "0.6.79",
       "date": "2026-08-06T02:01:12+01:00",
