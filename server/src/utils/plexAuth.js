@@ -63,6 +63,32 @@ async function plexJson(response, operation) {
   return body;
 }
 
+function decodeXml(value) {
+  return String(value || "")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+function plexPinToken(payload) {
+  const text = String(payload || "").trim();
+  if (!text) return "";
+  if (text.startsWith("{") || text.startsWith("[")) {
+    try {
+      const body = JSON.parse(text);
+      return String(body.authToken || body.auth_token || body.accessToken || body.access_token || "");
+    } catch {
+      return "";
+    }
+  }
+  const attribute = text.match(/\b(?:authToken|auth_token|accessToken|access_token)\s*=\s*["']([^"']*)["']/i);
+  if (attribute) return decodeXml(attribute[1]);
+  const element = text.match(/<(?:authToken|auth_token|accessToken|access_token)>\s*([^<]*)\s*<\//i);
+  return element ? decodeXml(element[1]) : "";
+}
+
 export async function createPlexPin(device, { fetchImpl = fetchWithTimeout, strong = true } = {}) {
   const response = await fetchImpl(`${PLEX_CLIENTS_ORIGIN}/api/v2/pins`, {
     method: "POST",
@@ -91,9 +117,19 @@ export function plexAuthUrl({ device, code, publicBaseUrl = "" }) {
 export async function pollPlexPin({ device, privateKey, pinId, strong = true, fetchImpl = fetchWithTimeout }) {
   const url = new URL(`${PLEX_CLIENTS_ORIGIN}/api/v2/pins/${encodeURIComponent(pinId)}`);
   if (strong) url.searchParams.set("deviceJWT", signPlexDeviceJwt({ device, privateKey, scope: "" }));
-  const response = await fetchImpl(url, { headers: plexClientHeaders(device) });
-  const body = await plexJson(response, "Plex PIN poll");
-  return { authorised: Boolean(body.authToken || body.auth_token), token: String(body.authToken || body.auth_token || "") };
+  const headers = plexClientHeaders(device);
+  if (strong) headers.Accept = "application/xml";
+  const response = await fetchImpl(url, { headers });
+  const payload = typeof response.text === "function"
+    ? await response.text()
+    : JSON.stringify(await response.json().catch(() => ({})));
+  if (!response.ok) {
+    const error = new Error(`Plex PIN poll failed with HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  const token = plexPinToken(payload);
+  return { authorised: Boolean(token), token };
 }
 
 export async function refreshPlexJwt({ device, privateKey, fetchImpl = fetchWithTimeout, now = Date.now() }) {

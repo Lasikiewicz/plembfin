@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { createPlexPin, decodeJwtClaims, plexAuthUrl, plexClientHeaders, refreshPlexJwt, signPlexDeviceJwt } from "../server/src/utils/plexAuth.js";
+import { createPlexPin, decodeJwtClaims, plexAuthUrl, plexClientHeaders, pollPlexPin, refreshPlexJwt, signPlexDeviceJwt } from "../server/src/utils/plexAuth.js";
 
 function fixtureDevice() {
   const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
@@ -11,6 +11,10 @@ function fixtureDevice() {
 
 function jsonResponse(body, status = 200) {
   return { ok: status >= 200 && status < 300, status, json: async () => body };
+}
+
+function textResponse(body, status = 200) {
+  return { ok: status >= 200 && status < 300, status, text: async () => body };
 }
 
 test("Plex device JWT is Ed25519-signed with bounded claims", () => {
@@ -44,6 +48,35 @@ test("Plex auth URL only includes a configured public return origin", () => {
   const { device } = fixtureDevice();
   assert.doesNotMatch(plexAuthUrl({ device, code: "ABCD" }), /forwardUrl/);
   assert.match(plexAuthUrl({ device, code: "ABCD", publicBaseUrl: "https://media.example" }), /forwardUrl=https%3A%2F%2Fmedia.example%2Fauth%2Fplex%2Freturn/);
+});
+
+test("Plex strong PIN polling requests XML and extracts the refreshable JWT", async () => {
+  const { device, privateKey } = fixtureDevice();
+  let request;
+  const result = await pollPlexPin({
+    device,
+    privateKey,
+    pinId: "42",
+    fetchImpl: async (url, options) => {
+      request = { url: String(url), options };
+      return textResponse('<pin id="42" authToken="header.claims.signature" />');
+    },
+  });
+  assert.match(request.url, /^https:\/\/clients\.plex\.tv\/api\/v2\/pins\/42\?deviceJWT=/);
+  assert.equal(request.options.headers.Accept, "application/xml");
+  assert.deepEqual(result, { authorised: true, token: "header.claims.signature" });
+});
+
+test("Plex strong PIN polling remains pending when Plex has not supplied a token", async () => {
+  const { device, privateKey } = fixtureDevice();
+  const result = await pollPlexPin({ device, privateKey, pinId: "42", fetchImpl: async () => textResponse('<pin id="42" authToken="" />') });
+  assert.deepEqual(result, { authorised: false, token: "" });
+});
+
+test("Plex legacy PIN polling still accepts JSON responses", async () => {
+  const { device } = fixtureDevice();
+  const result = await pollPlexPin({ device, privateKey: null, pinId: "42", strong: false, fetchImpl: async () => textResponse('{"authToken":"legacy-token"}') });
+  assert.deepEqual(result, { authorised: true, token: "legacy-token" });
 });
 
 test("Plex refresh obtains a nonce and exchanges a signed device JWT", async () => {

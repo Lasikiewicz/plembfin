@@ -17,9 +17,12 @@ one outbound client. Read [architecture.md](architecture.md) first for the big p
 ## Configuration
 
 Settings → Media Servers → Plex uses **Connect Plex account** by default. Plembfin opens
-Plex authorization, verifies the signed-in account, discovers its servers, and stores the
-selected server plus encrypted managed account/server tokens. Tokens are refreshed or
-recovered before clients receive runtime configuration.
+Plex authorization with a strong PIN bound to Plembfin's locally generated device key,
+verifies the signed-in account, discovers its servers, and stores the selected server plus
+encrypted managed account/server tokens. The resulting short-lived Plex JWT is refreshed
+with that private device key before clients receive runtime configuration. Plembfin never
+sends the private key to Plex. Legacy PIN flows that were already open before an upgrade
+can still complete, but every new connection uses strong PIN/JWT authorization.
 
 Manual setup remains optional; its values are stored in the `settings` SQLite row via
 `configStore.js`, and env vars `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` act as
