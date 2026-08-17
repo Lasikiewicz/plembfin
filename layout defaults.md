@@ -42,7 +42,7 @@ Each settings page uses this canonical DOM hierarchy:
 
 The main column (`.settings-row-main`) is the primary working area (~2.2fr flex ratio). The help column (`.settings-row-help`) explains the working area (~1fr flex ratio, ~320px fixed reference) and collapses below `900px`.
 
-This layout standard applies across all settings panels: Account, Media Servers, Seerr, Webhooks, Metadata Providers, Refresh Metadata, System Integrity, Trakt Importer, Database Repairs, Rebuilds, Backups, Restore, Sync Tuning, Sync Tools, Sync Issues, Sync History, Server Logs, Changelog, and Image Cache.
+This layout standard applies across all settings panels: Account, Media Servers, Seerr, Webhooks, Metadata Providers, Refresh Metadata, System Integrity, Trakt, Database Repairs, Rebuilds, Backups, Restore, Sync Tuning, Sync Tools, Sync Issues, Sync History, Server Logs, Changelog, and Image Cache.
 
 ## Main settings card
 

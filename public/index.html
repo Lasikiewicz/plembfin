@@ -926,7 +926,7 @@
                     <article class="glass-panel p-section settings-card tool-section-card">
                       <div class="section-heading sync-heading sync-static-heading">
                         <div class="sync-heading-title">
-                          <p style="margin: 0;">Trakt Importer</p>
+                          <p style="margin: 0;">Trakt</p>
                         </div>
                         <span>Bulk import watch history from Trakt.tv CSV or JSON exports</span>
                       </div>
@@ -943,6 +943,14 @@
                           </summary>
                           <div class="tool-item-row trakt-connection-panel">
                             <div id="traktConnectedSummary" class="plex-account-summary hidden"></div>
+                            <div class="guide-callout warning-callout" style="gap: var(--space-1); border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08); margin-bottom: var(--space-3);">
+                              <b style="color: var(--yellow); font-size: 0.85rem; display: block;">
+                                Disable Existing Trakt Plugins
+                              </b>
+                              <p style="margin: 0; font-size: 0.82rem; line-height: 1.4; color: var(--text-muted, var(--muted));">
+                                Disable any Trakt plugins or scheduled tasks in Emby and Jellyfin before connecting. Plembfin must be the sole Trakt bridge to prevent duplicate writers and sync loops.
+                              </p>
+                            </div>
                             <form id="traktConnectForm" class="sync-tuning-form">
                               <div class="sync-tuning-fields media-force-sync-options sync-tools-content">
                                 <label class="field-label">First connection
@@ -952,20 +960,6 @@
                                   </select>
                                 </label>
                                 <p id="traktAppStatus" class="muted-copy" style="margin: 0;">Checking the Plembfin Trakt app…</p>
-                                <details id="traktPersonalAppFields" class="sync-tool-details settings-static-details">
-                                  <summary class="accordion-header">
-                                    <div class="sync-tool-summary-title"><b>Use a personal Trakt app</b></div>
-                                    <span>Advanced fallback for Trakt VIP developers</span>
-                                  </summary>
-                                  <div class="tool-item-row sync-tuning-form">
-                                    <label class="field-label">Trakt Client ID
-                                      <input id="traktClientId" class="field" autocomplete="off" spellcheck="false" />
-                                    </label>
-                                    <label class="field-label">Trakt Client Secret
-                                      <input id="traktClientSecret" class="field" type="password" autocomplete="new-password" />
-                                    </label>
-                                  </div>
-                                </details>
                               </div>
                               <p class="muted-copy" style="margin: var(--space-2) 0 0;">Plembfin will show a device code. OAuth tokens are encrypted at rest.</p>
                               <p id="traktConnectMessage" class="message" role="status" aria-live="polite" style="display:none;"></p>
@@ -974,6 +968,30 @@
                                 <button id="traktConnectButton" class="button-primary sync-action-btn sync-tool-button" type="submit">Connect Trakt</button>
                                 <button id="traktSyncNowButton" class="button-ghost sync-action-btn sync-tool-button hidden" type="button">Sync Now</button>
                                 <button id="traktDisconnectButton" class="button-danger sync-tools-cancel-button hidden" type="button">Disconnect</button>
+                              </div>
+                            </form>
+                          </div>
+                        </details>
+                        <details id="traktPersonalAppFields" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Manual Connection</b>
+                            </div>
+                            <span>Advanced fallback using personal Trakt API credentials</span>
+                          </summary>
+                          <div class="tool-item-row sync-tuning-form">
+                            <form id="traktManualForm" style="display: flex; flex-direction: column; gap: var(--space-2); width: 100%;">
+                              <div class="sync-tuning-fields media-force-sync-options sync-tools-content">
+                                <label class="field-label">Trakt Client ID
+                                  <input id="traktClientId" class="field" autocomplete="off" spellcheck="false" />
+                                </label>
+                                <label class="field-label">Trakt Client Secret
+                                  <input id="traktClientSecret" class="field" type="password" autocomplete="new-password" />
+                                </label>
+                              </div>
+                              <div class="settings-actions" style="margin-top: var(--space-2);">
+                                <button id="traktSaveManualButton" class="button-primary sync-action-btn sync-tool-button" type="submit">Save</button>
                               </div>
                             </form>
                           </div>
@@ -1014,10 +1032,31 @@
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Migration Help</p>
-                        <span>Data Operations</span>
+                        <p>Trakt Help</p>
+                        <span>Trakt Connection</span>
                       </div>
-                      <div id="migrationHelp"></div>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Live Trakt Connection</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Enables automatic bidirectional synchronization between Trakt.tv and Plembfin. New watched items, timestamp changes (rewatches), and unwatch removals are synchronized continuously across Plex, Emby, Jellyfin, and Trakt.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">First Connection Mode</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">“Start from current state” records a safe baseline without modifying other servers. “Import all existing Trakt watched state” imports all past watches into Plembfin and queues them for synchronization.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Manual Connection</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Use custom Trakt API client credentials if you prefer a personal VIP developer application instead of Plembfin's built-in device application.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Trakt History Importer</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Bulk import watch history from Trakt.tv CSV or JSON exports into your local Plembfin database without making outbound API calls.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Single Bridge Rule</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Let Plembfin be the sole Trakt bridge. Disable the Emby or Jellyfin Trakt plugins and their scheduled tasks so secondary writers do not overwrite recent state or introduce loops.</p>
+                        </div>
+                      </div>
                     </article>
                   </div>
                 </div>

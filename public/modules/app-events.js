@@ -17,6 +17,49 @@ import { initMediaLightbox } from "./media-lightbox.js";
 import { initMediaDetailEvents, attachMediaDetailEvents, initLibraryForceSyncPanel } from "./media-detail-events.js?v=20260812";
 
 let _cb = {};
+
+function getMobileMenuElements() {
+  const hamburgerButton = document.getElementById("hamburgerButton");
+  const topnav = document.querySelector(".topnav");
+  const collapsibleRegions = topnav
+    ? [
+      topnav.querySelector(".global-search"),
+      topnav.querySelector(".sidebar-scrollable"),
+    ].filter(Boolean)
+    : [];
+  return { hamburgerButton, topnav, collapsibleRegions };
+}
+
+function syncMobileMenuAccessibility(isMobile, isOpen) {
+  const { hamburgerButton, collapsibleRegions } = getMobileMenuElements();
+  const isCollapsed = isMobile && !isOpen;
+  collapsibleRegions.forEach((region) => {
+    region.toggleAttribute("inert", isCollapsed);
+    if (isCollapsed) region.setAttribute("aria-hidden", "true");
+    else region.removeAttribute("aria-hidden");
+  });
+  hamburgerButton?.setAttribute("aria-expanded", String(isMobile && isOpen));
+}
+
+export function setMobileMenuState(isMobile, isOpen) {
+  const { hamburgerButton, topnav } = getMobileMenuElements();
+  if (!hamburgerButton || !topnav) return;
+  const shouldOpen = isMobile && isOpen;
+  topnav.classList.toggle("nav-open", shouldOpen);
+  topnav.classList.toggle("nav-closed", isMobile && !shouldOpen);
+  hamburgerButton.classList.toggle("active", shouldOpen);
+  syncMobileMenuAccessibility(isMobile, shouldOpen);
+}
+
+export function closeMobileMenu() {
+  const isMobile = window.innerWidth <= 760;
+  const { hamburgerButton, topnav } = getMobileMenuElements();
+  if (!topnav) return;
+  if (topnav.classList.contains("nav-open") || hamburgerButton?.classList.contains("active")) {
+    setMobileMenuState(isMobile, false);
+  }
+}
+
 export function initAppEvents(callbacks = {}) {
   _cb = callbacks;
   initMediaDetailEvents(callbacks);
@@ -167,37 +210,13 @@ function attachEvents() {
 
   const hamburgerButton = document.getElementById("hamburgerButton");
   const topnav = document.querySelector(".topnav");
-  const collapsibleRegions = topnav
-    ? [
-      topnav.querySelector(".global-search"),
-      topnav.querySelector(".sidebar-scrollable"),
-    ].filter(Boolean)
-    : [];
-
-  function syncMobileMenuAccessibility(isMobile, isOpen) {
-    const isCollapsed = isMobile && !isOpen;
-    collapsibleRegions.forEach((region) => {
-      region.toggleAttribute("inert", isCollapsed);
-      if (isCollapsed) region.setAttribute("aria-hidden", "true");
-      else region.removeAttribute("aria-hidden");
-    });
-    hamburgerButton?.setAttribute("aria-expanded", String(isMobile && isOpen));
-  }
-
-  function setMobileMenuState(isMobile, isOpen) {
-    if (!hamburgerButton || !topnav) return;
-    const shouldOpen = isMobile && isOpen;
-    topnav.classList.toggle("nav-open", shouldOpen);
-    topnav.classList.toggle("nav-closed", isMobile && !shouldOpen);
-    hamburgerButton.classList.toggle("active", shouldOpen);
-    syncMobileMenuAccessibility(isMobile, shouldOpen);
-  }
 
   if (hamburgerButton && topnav) {
     let lastIsMobile = window.innerWidth <= 760;
     function initMobileMenu(force = false) {
       const isMobile = window.innerWidth <= 760;
       if (force || isMobile !== lastIsMobile) {
+        const { collapsibleRegions } = getMobileMenuElements();
         if (isMobile && collapsibleRegions.some((region) => region.contains(document.activeElement))) {
           hamburgerButton.focus({ preventScroll: true });
         }
@@ -212,14 +231,6 @@ function attachEvents() {
       const isMobile = window.innerWidth <= 760;
       setMobileMenuState(isMobile, !topnav.classList.contains("nav-open"));
     });
-  }
-
-  function closeMobileMenu() {
-    if (hamburgerButton && hamburgerButton.classList.contains("active")) {
-      hamburgerButton.focus({ preventScroll: true });
-      const isMobile = window.innerWidth <= 760;
-      setMobileMenuState(isMobile, false);
-    }
   }
 
   // No scroll events or arrow click handlers needed for fixed-fit rows
@@ -287,6 +298,7 @@ function attachEvents() {
     }
     const target = event.target.closest("[data-settings-path]");
     if (!target) return;
+    closeMobileMenu();
     navigateTo(target.dataset.settingsPath);
   });
 
@@ -428,11 +440,13 @@ function attachEvents() {
   if (brandLink) {
     brandLink.addEventListener("click", (event) => {
       event.preventDefault();
+      closeMobileMenu();
       navigateTo("/");
     });
   }
 
   elements.appVersion?.addEventListener("click", () => {
+    closeMobileMenu();
     navigateTo("/settings/about");
   });
 
@@ -440,7 +454,10 @@ function attachEvents() {
     renderChangelog(true).catch(() => { });
   });
 
-  elements.lockButton.addEventListener("click", lockDashboard);
+  elements.lockButton.addEventListener("click", () => {
+    closeMobileMenu();
+    lockDashboard();
+  });
   if (elements.themeToggleButton) {
     elements.themeToggleButton.addEventListener("click", (...args) => _cb.toggleTheme?.(...args));
   }
@@ -479,6 +496,12 @@ function attachEvents() {
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      const topnav = document.querySelector(".topnav");
+      if (topnav?.classList.contains("nav-open")) {
+        closeMobileMenu();
+        document.getElementById("hamburgerButton")?.focus({ preventScroll: true });
+        return;
+      }
       if (document.querySelector(".media-info-overlay")) {
         closeMediaInfoModal();
         return;

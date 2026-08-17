@@ -258,6 +258,12 @@ const SECTION_GROUPS = [
     displayOnly: ["media-servers", "seerr", "webhooks"],
   },
   {
+    id: "connections",
+    label: "Connections",
+    sections: ["import"],
+    displayOnly: ["import"],
+  },
+  {
     id: "metadata",
     label: "Metadata",
     sections: ["metadata-providers", "refresh-metadata"],
@@ -274,12 +280,6 @@ const SECTION_GROUPS = [
     label: "Backup / restore",
     sections: ["backups", "restore"],
     displayOnly: ["backups", "restore"],
-  },
-  {
-    id: "import",
-    label: "Import",
-    sections: ["import"],
-    displayOnly: ["import"],
   },
   {
     id: "tools",

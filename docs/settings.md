@@ -11,10 +11,10 @@ Desktop renders the grouped sidebar; mobile uses the **Settings section** select
 | --- | --- | --- |
 | General | Account, System Integrity Check, Storage & Cache | `/settings/general#account`, `/settings/general#health`, `/settings/general#storage` |
 | Media Servers | Media Servers, Seerr, Webhooks | `/settings/media-servers#media-servers`, `/settings/media-servers#seerr`, `/settings/media-servers#webhooks` |
+| Connections | Trakt | `/settings/import` |
 | Metadata | Metadata Providers, Refresh Metadata (TMDB, TVDB) | `/settings/metadata#metadata-providers`, `/settings/metadata#refresh-metadata` |
 | Sync | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Full Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
 | Backup / Restore | Backup Settings (Local, Remote), Restore (Local, Remote) | `/settings/backup-restore#backups`, `/settings/backup-restore#restore` |
-| Import | Trakt | `/settings/import` |
 | Tools | Database Repairs, Library Rebuilds and Backfills | `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds` |
 | Logs | Logs | `/settings/logs` |
 | About | About | `/settings/about` |

@@ -24,6 +24,7 @@ function renderConnection(connection) {
   el("traktSyncNowButton")?.classList.toggle("hidden", !connected);
   el("traktDisconnectButton")?.classList.toggle("hidden", !connected);
   fields?.classList.toggle("hidden", connected);
+  el("traktPersonalAppFields")?.classList.toggle("hidden", connected);
   summary?.classList.toggle("hidden", !connected);
   if (!connected) {
     setStatus("Not connected", "warning");
@@ -72,18 +73,20 @@ export async function refreshTrackerSettings() {
   }
 }
 
-async function connect(event) {
-  event.preventDefault();
-  const button = el("traktConnectButton");
-  button.disabled = true;
-  setMessage("Starting Trakt device sign-in…");
+async function startTraktFlow({ clientId = "", clientSecret = "" } = {}) {
+  const isManual = Boolean(clientId || clientSecret);
+  const connectBtn = el("traktConnectButton");
+  const saveBtn = el("traktSaveManualButton");
+  if (connectBtn) connectBtn.disabled = true;
+  if (saveBtn) saveBtn.disabled = true;
+  setMessage(isManual ? "Starting Trakt device sign-in with manual credentials…" : "Starting Trakt device sign-in…");
   try {
     const start = await api("/api/tracker-auth/trakt/start", {
       method: "POST",
       body: JSON.stringify({
-        clientId: traktProvider.appConfigured ? "" : el("traktClientId").value.trim(),
-        clientSecret: traktProvider.appConfigured ? "" : el("traktClientSecret").value.trim(),
-        initialSyncMode: el("traktInitialSyncMode").value,
+        clientId: isManual ? clientId : (traktProvider.appConfigured ? "" : el("traktClientId")?.value.trim() || ""),
+        clientSecret: isManual ? clientSecret : (traktProvider.appConfigured ? "" : el("traktClientSecret")?.value.trim() || ""),
+        initialSyncMode: el("traktInitialSyncMode")?.value || "baseline",
       }),
     });
     const code = el("traktDeviceCode");
@@ -119,8 +122,25 @@ async function connect(event) {
   } catch (error) {
     setMessage(error.message || "Trakt connection failed.", "error");
   } finally {
-    button.disabled = false;
+    if (connectBtn) connectBtn.disabled = false;
+    if (saveBtn) saveBtn.disabled = false;
   }
+}
+
+async function connect(event) {
+  event.preventDefault();
+  await startTraktFlow();
+}
+
+async function saveManual(event) {
+  event.preventDefault();
+  const clientId = el("traktClientId")?.value.trim();
+  const clientSecret = el("traktClientSecret")?.value.trim();
+  if (!clientId || !clientSecret) {
+    setMessage("Please enter both Trakt Client ID and Client Secret.", "warning");
+    return;
+  }
+  await startTraktFlow({ clientId, clientSecret });
 }
 
 async function syncNow() {
@@ -150,6 +170,7 @@ export function initTrackerSettings({ authHeaders } = {}) {
   if (bound) return;
   bound = true;
   el("traktConnectForm")?.addEventListener("submit", connect);
+  el("traktManualForm")?.addEventListener("submit", saveManual);
   el("traktSyncNowButton")?.addEventListener("click", syncNow);
   el("traktDisconnectButton")?.addEventListener("click", disconnect);
 }

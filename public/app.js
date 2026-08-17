@@ -19,7 +19,7 @@ import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb }
 import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderShowModalContent, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260810";
 import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js?v=20260810";
 import { initMediaLightbox } from "./modules/media-lightbox.js";
-import { initAppEvents } from "./modules/app-events.js?v=20260812";
+import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=20260812";
 import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=20260816";
 import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=20260816";
 
@@ -1252,6 +1252,7 @@ function clearSearchInputs() {
 }
 
 function navigateTo(url) {
+  closeMobileMenu();
   const currentUrl = window.location.pathname + window.location.search + window.location.hash;
   if (currentUrl !== url) {
     const nextIndex = (history.state?.index || 0) + 1;
