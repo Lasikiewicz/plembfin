@@ -64,6 +64,10 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
   const canonicalState = await getPlaystateForMedia(media).catch(() => null);
 
   if (!existingWatched && (canonicalState?.state === "unwatched" || existingRecord?.sync_action === "unwatched")) {
+    // Canonical state is already unwatched, but a partial-progress row can still
+    // exist (e.g. a re-watch in progress after an earlier unwatch) - always clear
+    // it so "Clear Progress" removes the item from the Part Watched list.
+    await deletePlaybackProgress(media).catch(() => null);
     return {
       wasDeleted: false,
       id: existingRecord?.id || "",
