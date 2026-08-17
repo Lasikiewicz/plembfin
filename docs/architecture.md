@@ -282,6 +282,7 @@ server modules.
 | `syncRetry.test.js` | Scheduled-dispatch retry backoff schedule/eligibility, retry columns, `sync_history` retention pruning. |
 | `metadataCaches.test.js` | Fanart response cache (hits and negative misses), TMDB details cache freshness, light-vs-full cache row semantics. |
 | `exportPlexHistory.test.js` | The standalone Plex history export script's episode-record shaping (specials season zero). |
+| `trackerSettings.test.js` | Live Trakt Sync Now completion summary counts and wording. |
 
 ## Request flow
 

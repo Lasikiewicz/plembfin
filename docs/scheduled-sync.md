@@ -107,6 +107,8 @@ Implementation lives in `server/src/scheduled.js`.
    - Applies additions, removals, and rewatch timestamp changes with bounded concurrency.
    - **Sync Now** also reconciles unchanged Trakt watches against Plembfin's current
      canonical state, so it repairs drift that predates the connection baseline.
+     The connection card shows an in-progress indicator while the complete snapshot
+     is read, then reports the number of Trakt items checked and changes applied.
    - Episode writes resolve series-level provider IDs before calling Trakt. This avoids
      sending episode-level Plex/Emby/Jellyfin IDs in the show slot and lets identity-poor
      catch-up rows use the show's cached metadata.

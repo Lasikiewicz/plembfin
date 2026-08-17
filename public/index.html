@@ -942,7 +942,6 @@
                             <span>Keep watched and unwatched state synchronized in both directions</span>
                           </summary>
                           <div class="tool-item-row trakt-connection-panel">
-                            <div id="traktConnectedSummary" class="plex-account-summary hidden"></div>
                             <div class="guide-callout warning-callout" style="gap: var(--space-1); border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08); margin-bottom: var(--space-3);">
                               <b style="color: var(--yellow); font-size: 0.85rem; display: block;">
                                 Disable Existing Trakt Plugins
@@ -961,9 +960,19 @@
                                 </label>
                                 <p id="traktAppStatus" class="muted-copy" style="margin: 0;">Checking the Plembfin Trakt app…</p>
                               </div>
-                              <p class="muted-copy" style="margin: var(--space-2) 0 0;">Plembfin will show a device code. OAuth tokens are encrypted at rest.</p>
-                              <p id="traktConnectMessage" class="message" role="status" aria-live="polite" style="display:none;"></p>
+                              <p id="traktConnectHint" class="muted-copy" style="margin: var(--space-2) 0 0;">Plembfin will show a device code. OAuth tokens are encrypted at rest.</p>
                               <div id="traktDeviceCode" class="plex-account-summary hidden"></div>
+                              <div id="traktConnectedSummary" class="plex-account-summary trakt-connected-summary hidden"></div>
+                              <p id="traktConnectMessage" class="message" role="status" aria-live="polite" style="display:none;"></p>
+                              <div id="traktSyncProgress" class="trakt-sync-progress hidden" role="status" aria-live="polite">
+                                <div class="trakt-sync-progress-copy">
+                                  <b id="traktSyncProgressLabel">Reading the complete Trakt watched snapshot…</b>
+                                  <span>This can take a little while for a large history.</span>
+                                </div>
+                                <div class="trakt-sync-progress-track" role="progressbar" aria-label="Trakt synchronization in progress">
+                                  <span></span>
+                                </div>
+                              </div>
                               <div class="settings-actions" style="margin-top: var(--space-3);">
                                 <button id="traktConnectButton" class="button-primary sync-action-btn sync-tool-button" type="submit">Connect Trakt</button>
                                 <button id="traktSyncNowButton" class="button-ghost sync-action-btn sync-tool-button hidden" type="button">Sync Now</button>

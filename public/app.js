@@ -20,7 +20,7 @@ import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail
 import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js?v=20260810";
 import { initMediaLightbox } from "./modules/media-lightbox.js";
 import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=20260812";
-import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=20260816";
+import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=20260817";
 import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=20260816";
 
 if (localStorage.getItem("plembfin_bio_media_layout") === "1") {

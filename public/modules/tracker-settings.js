@@ -13,17 +13,34 @@ const setMessage = (text, tone = "muted") => {
   message.textContent = text || "";
   message.style.display = text ? "block" : "none";
   message.className = `message ${tone}`;
+  message.dataset.tone = tone;
+};
+const setSyncProgress = (active, label = "Reading the complete Trakt watched snapshot…") => {
+  const progress = el("traktSyncProgress");
+  const progressLabel = el("traktSyncProgressLabel");
+  progress?.classList.toggle("hidden", !active);
+  if (progressLabel) progressLabel.textContent = label;
 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export function traktSyncCompletionMessage(result = {}) {
+  const watched = Number(result.watched || 0);
+  const unwatched = Number(result.unwatched || 0);
+  const remoteItems = Number(result.remoteItems || 0);
+  const changes = watched + unwatched;
+  return `Trakt sync complete: ${remoteItems.toLocaleString()} item${remoteItems === 1 ? "" : "s"} checked; ${watched} watched and ${unwatched} unwatched change${changes === 1 ? "" : "s"} applied.`;
+}
 
 function renderConnection(connection) {
   const connected = connection?.status === "connected" || connection?.status === "reauth_required";
   const summary = el("traktConnectedSummary");
   const fields = el("traktConnectForm")?.querySelector(".sync-tuning-fields");
+  const connectHint = el("traktConnectHint");
   el("traktConnectButton")?.classList.toggle("hidden", connected);
   el("traktSyncNowButton")?.classList.toggle("hidden", !connected);
   el("traktDisconnectButton")?.classList.toggle("hidden", !connected);
   fields?.classList.toggle("hidden", connected);
+  connectHint?.classList.toggle("hidden", connected);
   el("traktPersonalAppFields")?.classList.toggle("hidden", connected);
   summary?.classList.toggle("hidden", !connected);
   if (!connected) {
@@ -145,15 +162,23 @@ async function saveManual(event) {
 
 async function syncNow() {
   const button = el("traktSyncNowButton");
+  if (!button || button.disabled) return;
   button.disabled = true;
-  setMessage("Reading the complete Trakt watched snapshot…");
+  button.textContent = "Syncing…";
+  button.setAttribute("aria-busy", "true");
+  setMessage("");
+  setSyncProgress(true);
   try {
     const body = await api("/api/tracker-connections/trakt", { method: "POST", body: "{}" });
     renderConnection(body.connection);
-    const result = body.result || {};
-    setMessage(`Trakt sync complete: ${result.watched || 0} watched and ${result.unwatched || 0} unwatched change${Number(result.watched || 0) + Number(result.unwatched || 0) === 1 ? "" : "s"} applied.`, "success");
+    setMessage(traktSyncCompletionMessage(body.result), "success");
   } catch (error) { setMessage(error.message, "error"); }
-  finally { button.disabled = false; }
+  finally {
+    setSyncProgress(false);
+    button.disabled = false;
+    button.textContent = "Sync Now";
+    button.removeAttribute("aria-busy");
+  }
 }
 
 async function disconnect() {

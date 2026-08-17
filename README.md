@@ -324,7 +324,9 @@ whether to record the current Trakt state as a baseline or import all existing w
 items. Plembfin then checks Trakt each minute and distributes watched, unwatched, and
 rewatch changes in both directions. **Sync Now** additionally compares the complete Trakt
 snapshot with Plembfin's current canonical state, repairing mismatches that existed before
-the connection baseline. Disable Emby and Jellyfin Trakt plugins so Plembfin
+the connection baseline. The connection card shows progress while **Sync Now** runs and
+reports the items checked and watched or unwatched changes applied. Disable Emby and
+Jellyfin Trakt plugins so Plembfin
 is the only Trakt writer and cannot compete with a second authority loop. Open Plembfin
 pages refresh automatically as imported watch-state changes are processed.
 

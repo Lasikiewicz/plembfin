@@ -17960,6 +17960,64 @@ html.light-mode .settings-modal-foot {
   font-size: 0.8rem;
 }
 
+.trakt-connected-summary {
+  margin-top: var(--space-3);
+  padding-bottom: var(--space-2);
+}
+
+.trakt-sync-progress {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: color-mix(in oklch, var(--accent) 7%, var(--panel-2));
+}
+
+.trakt-sync-progress-copy {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.trakt-sync-progress-copy b {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.trakt-sync-progress-copy span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.trakt-sync-progress-track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--accent) 13%, var(--panel));
+}
+
+.trakt-sync-progress-track span {
+  display: block;
+  width: 36%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: trakt-sync-progress-slide 1.1s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@keyframes trakt-sync-progress-slide {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(315%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trakt-sync-progress-track span {
+    width: 100%;
+    opacity: 0.7;
+    animation: none;
+  }
+}
+
 .jellyfin-quick-connect-code {
   text-align: center;
 }
