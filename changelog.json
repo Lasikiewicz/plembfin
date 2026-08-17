@@ -1,7 +1,19 @@
 {
-  "version": "0.7.5",
-  "updatedAt": "2026-08-17T10:32:33+01:00",
+  "version": "0.7.6",
+  "updatedAt": "2026-08-17T11:00:20+01:00",
   "entries": [
+    {
+      "version": "0.7.6",
+      "date": "2026-08-17T11:00:20+01:00",
+      "commit": "83139a59f978fcf192bfdc4895a988a57a6c6337",
+      "message": "Fix - Sync bulk Plex unwatched changes",
+      "author": "Lasikiewicz",
+      "details": [
+        "Propagate Plex show and season unwatches to matching episodes across eligible media servers.",
+        "Process large bulk TV state changes in bounded batches to avoid flooding connected services.",
+        "Keep Plex watch-state help and setup documentation aligned with bidirectional unwatched sync."
+      ]
+    },
     {
       "version": "0.7.5",
       "date": "2026-08-17T10:32:33+01:00",
