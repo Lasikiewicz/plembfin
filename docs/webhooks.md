@@ -40,7 +40,7 @@ object. The crucial output is `media.phase`, derived per platform by
 | `active` | Currently playing (play/resume/progress) | `upsertActiveSession()` → writes `active_sessions` row (5-minute TTL by default), bumps `runtimeState.nowPlayingRefresh`. **No history insert.** |
 | `completed` | Watched (scrobble, mark-played, or stop at the watched threshold, 90% by default) | Inserts/updates a `watch_history` record + propagates *watched* to the other platforms. |
 | `ended` | Stopped below the watched threshold | Deletes active session; if resume is actionable, stores/propagates resume progress to `playback_progress`. |
-| `unplayed` | Marked unwatched/unplayed | Deletes the active session. If Plembfin is already canonical-watched, the event is treated as platform drift and watched is reasserted on every configured destination; otherwise it records/propagates the canonical unwatched state. |
+| `unplayed` | Marked unwatched/unplayed | Deletes the active session, records the unwatched transition as the canonical state, and propagates it to the other eligible destinations. |
 | `added` | New item appeared in a library (`library.new`, `item.added`, `ItemAdded`) | Looks for an existing watched record for that media. If one exists, marks the item watched **on that server only**; writes no history. Nothing happens when there is no watched record. |
 | `ignored` | Not actionable | Dropped early. |
 
@@ -59,10 +59,9 @@ record a watched item.
 
 For a new watched event, `syncMediaPlaystate()` propagates to the **other two**
 platforms via their clients (`plexClient.js`, `embyClient.js`, `jellyfinClient.js`).
-When Plembfin repairs a platform-side unwatch, it uses the canonical replay path,
-which targets every configured platform so all copies converge on Plembfin's watched
-state. An explicit manual unwatch in Plembfin remains the operation that changes the
-canonical state and propagates unplayed.
+An explicit unwatched event from a configured source changes Plembfin's canonical state
+and propagates unplayed to the other eligible destinations. Manual unwatches in Plembfin
+follow the same transition path and include the originating platform as a destination.
 
 **Loop detection:** when Plembfin writes a state to (say) Emby, Emby fires its own
 webhook back. `loopStore` (`server/src/utils/loopStore.js`) tracks
@@ -196,5 +195,6 @@ agreement with the resume position written to each media server.
   elected scheduler worker (→ `live_tracking_cache`), not from native webhooks.
 - Plex does **not** send unwatched (unscrobble) events. Plembfin compensates via
   the built-in Plex WebSocket notification listener, which connects automatically
-  using the configured Plex URL and token.
+  using the configured Plex URL and token. Bulk show and season state changes are
+  expanded into their affected episodes before propagation.
 - The setup help in each card under Settings → Media servers documents per-server webhook configuration.

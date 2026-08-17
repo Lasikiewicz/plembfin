@@ -74,8 +74,10 @@ Two Plex-specific caveats (also in [webhooks.md](webhooks.md)):
 ## Inbound channel 2: the notification WebSocket
 
 `plexNotificationListener.js` connects to `ws(s)://<plex>/:/websockets/notifications`
-and watches `timeline` notifications for movies (type 1) and episodes (type 4) from the
-library section (supporting both array and single-object `TimelineEntry` payloads). It is pure transport: reconnect with backoff (3s → 60s), debounce per
+and watches `timeline` notifications for movies (type 1), shows (type 2), seasons
+(type 3), and episodes (type 4) from the library section (supporting both array and
+single-object `TimelineEntry` payloads). Show and season changes are expanded to their
+episodes so bulk watched/unwatched actions propagate immediately. It is pure transport: reconnect with backoff (3s → 60s), debounce per
 ratingKey (2.5s), then hand each changed ratingKey to `onLibraryItemChange`.
 
 Reverse proxies in front of Plex (Cloudflare, nginx, Traefik, etc.) commonly drop an idle
@@ -88,11 +90,10 @@ stuck indefinitely.
 
 The callback (`handlePlexLibraryItemChange` in `server/src/scheduler.js`) fetches the
 item's metadata and checks its actual view state. A watched transition is recorded in
-Plembfin history and propagated to Emby/Jellyfin. If Plex reports unwatched while the
-canonical Plembfin state is watched, the callback reasserts watched on every configured
-destination instead of deleting Plembfin history. An explicit unwatch made in Plembfin
-still propagates unwatched outward. This channel covers library UI changes that Plex
-webhooks do not reliably report, including unwatching. Either transition also bumps the
+Plembfin history and propagated to Emby/Jellyfin. An unwatched transition supersedes the
+watched state in Plembfin and propagates to the other eligible destinations. This channel
+covers library UI changes that Plex webhooks do not reliably report, including unwatching.
+Either transition also bumps the
 `nowPlayingRefresh` runtime-state signal (same as the webhook route), which is what tells
 any open Plembfin browser tab to refresh - see
 [now-playing.md](now-playing.md) for how the frontend consumes that signal.
@@ -115,11 +116,10 @@ Every minute the scheduler (`scheduled.js`) polls `/status/sessions` via
 - **Resumable items** (`fetchPlexResumableItems` → `syncRecentlyResumableFromPlex`) -
   replicates resume positions set on Plex to the other platforms.
 
-Every 6 hours, **unwatched reconciliation** (`checkPlexUnwatchedStatus`) verifies items
+Every minute, **unwatched reconciliation** (`checkPlexUnwatchedStatus`) verifies items
 Plembfin thinks are watched are still watched on Plex, as a backstop for unwatches
-missed while the WebSocket listener was disconnected. A mismatch reasserts the
-Plembfin watched state; it never removes the local watch because Plex is not the
-canonical authority.
+missed while the WebSocket listener was disconnected. A mismatch records the unwatched
+transition in Plembfin and propagates it to the other eligible destinations.
 
 ## Outbound operations (`plexClient.js`)
 

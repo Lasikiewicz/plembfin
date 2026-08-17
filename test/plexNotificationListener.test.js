@@ -71,18 +71,40 @@ test("parsePlexNotificationRatingKeys ignores bulk library refresh activity", ()
   assert.deepEqual(keys, []);
 });
 
-test("parsePlexNotificationRatingKeys ignores non-watchable timeline entries", () => {
-  const nonWatchablePayload = JSON.stringify({
+test("parsePlexNotificationRatingKeys includes show and season containers for bulk watch-state changes", () => {
+  const containerPayload = JSON.stringify({
+    NotificationContainer: {
+      type: "timeline",
+      TimelineEntry: [
+        {
+          identifier: "com.plexapp.plugins.library",
+          itemID: "998",
+          type: 2, // Show container
+        },
+        {
+          identifier: "com.plexapp.plugins.library",
+          itemID: "999",
+          type: 3, // Season container
+        },
+      ],
+    },
+  });
+
+  const keys = parsePlexNotificationRatingKeys(containerPayload);
+  assert.deepEqual(keys, ["998", "999"]);
+});
+
+test("parsePlexNotificationRatingKeys ignores timeline entries outside supported watch-state types", () => {
+  const payload = JSON.stringify({
     NotificationContainer: {
       type: "timeline",
       TimelineEntry: {
         identifier: "com.plexapp.plugins.library",
-        itemID: "999",
-        type: 2, // Show container
+        itemID: "1000",
+        type: 5,
       },
     },
   });
 
-  const keys = parsePlexNotificationRatingKeys(nonWatchablePayload);
-  assert.deepEqual(keys, []);
+  assert.deepEqual(parsePlexNotificationRatingKeys(payload), []);
 });

@@ -530,6 +530,27 @@ export async function fetchPlexMetadataItem(config, ratingKey) {
   return body?.MediaContainer?.Metadata?.[0] || null;
 }
 
+// Expands a show/season notification into the episodes whose user state Plex changed.
+// Plex emits container timeline entries for bulk "mark watched/unwatched" actions, so
+// listening only for episode entries leaves those actions invisible until fallback polling.
+export async function fetchPlexContainerEpisodes(config, ratingKey, containerType = "show") {
+  requirePlexConfig(config);
+  if (!ratingKey) return [];
+
+  const suffix = containerType === "season" ? "children" : "allLeaves";
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/library/metadata/${encodeURIComponent(ratingKey)}/${suffix}`);
+  url.searchParams.set("includeGuids", "1");
+  await addConfiguredPlexAccountId(url, config);
+
+  const response = await fetchPlexWithRefresh(config, url);
+  if (response.status === 404) return [];
+  if (!response.ok) {
+    throw new Error(`Plex ${containerType} episode lookup failed with status ${response.status} for ratingKey ${ratingKey}`);
+  }
+  const body = await response.json();
+  return (body?.MediaContainer?.Metadata || []).filter((item) => item?.type === "episode");
+}
+
 async function fetchPlexLibraryDirectories(config) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const sectionsUrl = new URL(`${baseUrl}/library/sections`);

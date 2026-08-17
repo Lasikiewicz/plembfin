@@ -8,8 +8,10 @@ import { WebSocket } from "undici";
 // actual view state with a targeted metadata lookup before propagating.
 //
 // This module is pure transport: it connects, reconnects with backoff, filters timeline
-// entries down to movies/episodes, debounces per ratingKey, and hands each changed
-// ratingKey to `onLibraryItemChange`. All DB/config/propagation logic lives in the caller.
+// entries down to watchable items and TV containers, debounces per ratingKey, and hands
+// each changed ratingKey to `onLibraryItemChange`. The caller expands show/season
+// containers into episodes before applying state. All DB/config/propagation logic lives
+// in the caller.
 //
 // Reverse proxies in front of Plex (Cloudflare, nginx, Traefik, etc.) commonly drop an
 // idle WebSocket after a timeout without ever sending a close frame - the socket then
@@ -25,7 +27,7 @@ const IDLE_WATCHDOG_MS = 5 * 60 * 1000;
 const WATCHDOG_CHECK_INTERVAL_MS = 30_000;
 
 // Plex TimelineEntry.type: 1 = movie, 2 = show, 3 = season, 4 = episode.
-const WATCHABLE_TIMELINE_TYPES = new Set([1, 4]);
+const WATCH_STATE_TIMELINE_TYPES = new Set([1, 2, 3, 4]);
 const LIBRARY_IDENTIFIER = "com.plexapp.plugins.library";
 
 function buildNotificationsUrl(baseUrl, token, clientIdentifier = "") {
@@ -125,7 +127,7 @@ export function parsePlexNotificationRatingKeys(raw) {
       : [];
     for (const entry of entries) {
       if (entry.identifier && entry.identifier !== LIBRARY_IDENTIFIER) continue;
-      if (!WATCHABLE_TIMELINE_TYPES.has(Number(entry.type))) continue;
+      if (!WATCH_STATE_TIMELINE_TYPES.has(Number(entry.type))) continue;
       const ratingKey = String(entry.itemID ?? entry.ratingKey ?? "").trim();
       if (ratingKey) keys.push(ratingKey);
     }

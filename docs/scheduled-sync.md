@@ -73,9 +73,10 @@ Persisted tracker state and echo markers prevent Plembfin's own outbound write f
 read back as a second user action.
 
 An explicit unplayed webhook/notification or Trakt snapshot removal changes the canonical
-state to unwatched and propagates it. Polling remains conservative when a server scan is
-unavailable or incomplete: absence from a failed/partial scan is never interpreted as an
-unwatch.
+state to unwatched and propagates it. Plex show and season notifications are expanded into
+their episodes so bulk library actions follow the same transition path. Polling remains
+conservative when a server scan is unavailable or incomplete: absence from a failed/partial
+scan is never interpreted as an unwatch.
 
 Implementation lives in `server/src/scheduled.js`.
 
@@ -168,9 +169,8 @@ Three mechanisms keep inbound state honest:
   item already watched; see [webhooks.md](webhooks.md#rewatch-detection).
 - **Canonical unwatch handling** - an explicit Plembfin unwatch is propagated and an
   echo that arrives after the 15-second loop window closes is already represented as
-  unwatched, so it is a no-op. If a platform reports unwatched while Plembfin still
-  says watched, the event takes the repair path and re-marks the item watched on the
-  configured destinations.
+  unwatched, so it is a no-op. An explicit unwatched event from an eligible platform
+  supersedes the watched state and propagates to the other configured destinations.
 
 Full Sync Watchstates uses a separate `restoreSyncKind` marker and heartbeat in the
 shared runtime state. A server restart cannot resume its browser-driven batch, so a

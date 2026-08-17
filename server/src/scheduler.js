@@ -1,7 +1,7 @@
 import { createLoopStore } from "./utils/loopStore.js";
 import { activeSyncOperation, appendSyncHistory, loadMediaConfig, loadRuntimeState, setRuntimeState, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
 import { createPlexNotificationListener } from "./utils/plexNotificationListener.js";
-import { fetchPlexMetadataItem } from "./utils/plexClient.js";
+import { fetchPlexContainerEpisodes, fetchPlexMetadataItem } from "./utils/plexClient.js";
 import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { runScheduledSync } from "./scheduled.js";
@@ -152,7 +152,7 @@ export async function runScheduledTick({ isLeader = () => true } = {}) {
 
 let plexNotificationListener = null;
 
-async function handlePlexLibraryItemChange(ratingKey) {
+async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
   if (!watchedPlayedSyncEnabled()) return;
 
   const restoreRuntime = await loadRuntimeState().catch(() => ({}));
@@ -165,11 +165,31 @@ async function handlePlexLibraryItemChange(ratingKey) {
   const config = await loadMediaConfig().catch(() => null);
   if (!config?.plex?.baseUrl || !config.plex.token || config.plex.disabled) return;
 
-  const metadata = await fetchPlexMetadataItem(config.plex, ratingKey).catch((error) => {
+  const metadata = metadataOverride || await fetchPlexMetadataItem(config.plex, ratingKey).catch((error) => {
     console.error(`Plex notification: metadata lookup failed for ratingKey ${ratingKey}: ${error.message}`);
     return null;
   });
   if (!metadata) return;
+
+  if (["show", "season"].includes(String(metadata.type || "").toLowerCase())) {
+    const episodes = await fetchPlexContainerEpisodes(config.plex, ratingKey, metadata.type).catch((error) => {
+      console.error(`Plex notification: failed to expand ${metadata.type} ratingKey ${ratingKey}: ${error.message}`);
+      return [];
+    });
+    console.log("Plex notifications: expanding bulk TV watch-state change", {
+      ratingKey,
+      type: metadata.type,
+      episodes: episodes.length,
+    });
+    const concurrency = 6;
+    for (let index = 0; index < episodes.length; index += concurrency) {
+      const batch = episodes.slice(index, index + concurrency);
+      await Promise.allSettled(batch.map((episode) =>
+        handlePlexLibraryItemChange(String(episode.ratingKey || ""), episode)
+      ));
+    }
+    return;
+  }
 
   // Only movies and episodes carry a watch state we sync.
   const media = buildPlexMediaFromMetadata(metadata, { phase: Number(metadata.viewCount || 0) > 0 ? "completed" : "unplayed" });
