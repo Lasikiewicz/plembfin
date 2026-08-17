@@ -758,25 +758,42 @@ export async function handleManualUnwatch(req, res) {
   if (!(await requireAdmin(req, res))) return;
 
   const body = await readJson(req);
-  const id = String(body.id || "").trim();
-  if (!id) return sendJson(res, { error: "id is required" }, 400);
+  const ids = Array.isArray(body.ids)
+    ? body.ids.map((value) => String(value || "").trim()).filter(Boolean)
+    : String(body.id || "").trim() ? [String(body.id).trim()] : [];
+  if (!ids.length) return sendJson(res, { error: "id or ids is required" }, 400);
+  if (ids.length > 100) return sendJson(res, { error: "Batch size must be 100 records or fewer" }, 413);
 
-  const record = await getWatchRecordById(id);
-  if (!record) return sendJson(res, { error: "Watch record not found" }, 404);
-
-  const media = mediaFromWatchRecord(record);
   const config = await loadMediaConfig();
   const loopStore = createLoopStore();
+  const results = [];
+  let succeeded = 0;
+  let failed = 0;
 
   try {
-    const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, id, { includeSourcePlatform: true });
-    return sendJson(res, { ok: true, id: unwatchedId, status: summary.status, targetStates: summary.targetStates || [] });
-  } catch (error) {
-    console.error("Manual unwatch failed", error);
-    return sendJson(res, { error: "Manual unwatch failed", details: error.message }, 500);
+    for (const id of ids) {
+      try {
+        const record = await getWatchRecordById(id);
+        if (!record) throw new Error("Watch record not found");
+        const media = mediaFromWatchRecord(record);
+        const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, id, { includeSourcePlatform: true });
+        succeeded += 1;
+        results.push({ id, unwatchedId, status: summary.status, targetStates: summary.targetStates || [] });
+      } catch (error) {
+        failed += 1;
+        results.push({ id, error: error.message || String(error) });
+      }
+    }
   } finally {
     await invalidateHistoryDerivedCaches().catch(() => null);
   }
+
+  if (ids.length === 1) {
+    const only = results[0];
+    if (only.error) return sendJson(res, { error: "Manual unwatch failed", details: only.error }, 500);
+    return sendJson(res, { ok: true, id: only.unwatchedId, status: only.status, targetStates: only.targetStates });
+  }
+  return sendJson(res, { ok: true, succeeded, failed, results });
 }
 
 export async function handleManualWatch(req, res) {

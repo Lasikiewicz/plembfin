@@ -968,7 +968,7 @@ export function attachMediaDetailEvents() {
       return;
     }
 
-    const unwatchButton = event.target.closest("[data-unwatch-id]");
+    const unwatchButton = event.target.closest("[data-unwatch-id], [data-unwatch-ids]");
     if (unwatchButton) {
       confirmAndMarkUnwatched(unwatchButton).catch((error) => setMessage(error.message, "error"));
       return;

@@ -4,7 +4,7 @@ import { posterUrlFor, isCachedStorageImageUrl, tmdbImage, tmdbPoster, bestTmdbL
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260803";
-import { renderWatchDatePrompt } from "./watch-action.js?v=20260810";
+import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml } from "./watch-action.js?v=20260810";
 import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260810";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
@@ -785,7 +785,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
           ${seasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${seasonNumber}" ${isSaving ? "disabled" : ""}>Edit season date</button>` : ""}
           <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${seasonNumber}" ${(seasonUnwatched.length && !isSaving) ? "" : "disabled"}>
             ${isSaving && isSaving.scope === "season" && Number(isSaving.episodes[0]?.seasonNumber) === Number(seasonNumber) ? "Saving…" : "Mark season watched"}
-          </button>
+          </button>${seasonUnwatchButtonHtml(seasonEpisodes.filter((episode) => episode.watched).map((episode) => episode.watched.id), seasonNumber, showTitle, isSaving)}
         </div>
       </div>
       <div class="show-episode-list">
@@ -1020,6 +1020,7 @@ export function renderShowModalContent(show, {
       ${checkIcon}
       <span>${isSavingShow ? "Saving..." : "Mark <br>Watched"}</span>
     </button>
+    ${showUnwatchButtonHtml(watchedRows.map((episode) => episode.watched.id), showTitle, isSaving)}
     ${watchedRows.length ? `
       <button class="action-pill media-edit-show-date-btn" type="button" ${isSaving ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">
         ${calendarIcon}

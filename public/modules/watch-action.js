@@ -767,15 +767,19 @@ export async function applyWatchDateChoice(choice) {
 // ── Confirm dialogs ────────────────────────────────────────────────────────
 
 export async function confirmAndMarkUnwatched(button) {
-  const id = button.dataset.unwatchId;
-  if (!id) return;
+  const idsJson = button.dataset.unwatchIds;
+  const ids = idsJson ? JSON.parse(idsJson) : button.dataset.unwatchId ? [button.dataset.unwatchId] : [];
+  if (!ids.length) return;
   const kind = button.dataset.unwatchKind || "item";
   const label = button.dataset.unwatchLabel || "this item";
   const showTitle = button.dataset.showTitle || "";
+  const bulk = ids.length > 1;
 
   const confirmed = await _openConfirmDialog({
     title: "Mark unwatched",
-    body: `Remove "${label}" from your watch history and mark it unplayed on Plex, Emby, and Jellyfin?`,
+    body: bulk
+      ? `Remove all ${ids.length} watched episodes of "${label}" from your watch history and mark them unplayed on Plex, Emby, and Jellyfin?`
+      : `Remove "${label}" from your watch history and mark it unplayed on Plex, Emby, and Jellyfin?`,
     confirmLabel: "Mark unwatched",
     danger: true,
   });
@@ -789,16 +793,21 @@ export async function confirmAndMarkUnwatched(button) {
     const response = await fetch("/api/manual-unwatch", {
       method: "POST",
       headers: { ...authHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify(bulk ? { ids } : { id: ids[0] }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || `Mark unwatched failed (${response.status})`);
 
     _clearDerivedUiCaches({ resetExplorer: kind === "movie" });
-    _setMessage(`Marked "${label}" unwatched; pushed unplayed to media apps.`, "success");
+    _setMessage(
+      bulk
+        ? `Marked ${result.succeeded ?? ids.length} episode${ids.length === 1 ? "" : "s"} of "${label}" unwatched; pushed unplayed to media apps.${result.failed ? ` ${result.failed} failed.` : ""}`
+        : `Marked "${label}" unwatched; pushed unplayed to media apps.`,
+      result.failed ? "error" : "success",
+    );
     await _loadHistory({ force: true }).catch(() => null);
 
-    if (kind === "episode" && (state.activeShowModalKey || state.activeShowTmdbId)) {
+    if ((kind === "episode" || kind === "season" || kind === "show") && (state.activeShowModalKey || state.activeShowTmdbId)) {
       if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
       if (state.activeShowModalKey) {
         _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
@@ -814,6 +823,19 @@ export async function confirmAndMarkUnwatched(button) {
     button.textContent = originalText;
     _setMessage(`Mark unwatched failed: ${error.message}`, "error");
   }
+}
+
+// ── Bulk unwatch buttons (season/show) ─────────────────────────────────────
+
+export function seasonUnwatchButtonHtml(ids, seasonNumber, showTitle, disabled) {
+  if (!ids.length) return "";
+  return `<button class="action-pill action-pill-ghost" type="button" ${disabled ? "disabled" : ""} data-unwatch-ids="${escapeAttribute(JSON.stringify(ids))}" data-unwatch-kind="season" data-unwatch-label="${escapeAttribute(`${showTitle} ${seasonLabel(seasonNumber)}`)}" data-show-title="${escapeAttribute(showTitle)}">Mark season unwatched</button>`;
+}
+
+export function showUnwatchButtonHtml(ids, showTitle, disabled) {
+  if (!ids.length) return "";
+  const xIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 1 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>`;
+  return `<button class="action-pill action-pill-ghost" type="button" ${disabled ? "disabled" : ""} data-unwatch-ids="${escapeAttribute(JSON.stringify(ids))}" data-unwatch-kind="show" data-unwatch-label="${escapeAttribute(showTitle)}" data-show-title="${escapeAttribute(showTitle)}">${xIcon}<span>Mark <br>Unwatched</span></button>`;
 }
 
 // Permanently delete a library item - requires three explicit confirmations.
