@@ -1,7 +1,19 @@
 {
-  "version": "0.7.6",
-  "updatedAt": "2026-08-17T11:00:20+01:00",
+  "version": "0.7.7",
+  "updatedAt": "2026-08-17T11:15:33+01:00",
   "entries": [
+    {
+      "version": "0.7.7",
+      "date": "2026-08-17T11:15:33+01:00",
+      "commit": "a6fd376ef765b4075c498fdd664966bcdc32ad84",
+      "message": "Fix - Preserve unwatched state on library additions",
+      "author": "Lasikiewicz",
+      "details": [
+        "Prevent delayed Emby and Jellyfin item-added events from restoring older watched history after a newer unwatch.",
+        "Keep the current canonical Plembfin state authoritative when newly added media is caught up.",
+        "Document the precedence rule and cover the Plex-to-media-server sequence with a regression test."
+      ]
+    },
     {
       "version": "0.7.6",
       "date": "2026-08-17T11:00:20+01:00",
