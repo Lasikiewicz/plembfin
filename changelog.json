@@ -1,7 +1,20 @@
 {
-  "version": "0.7.2",
-  "updatedAt": "2026-08-16T23:09:44+01:00",
+  "version": "0.7.3",
+  "updatedAt": "2026-08-17T09:17:36+01:00",
   "entries": [
+    {
+      "version": "0.7.3",
+      "date": "2026-08-17T09:17:36+01:00",
+      "commit": "fe311e601d60f54ad038b40d494ba40d5316d8c0",
+      "message": "Fix - Auto-close mobile navigation menu on item click",
+      "author": "Lasikiewicz",
+      "details": [
+        "Automatically close the mobile navigation drawer when selecting any Settings sub-section",
+        "Dismiss the mobile navigation drawer upon central page navigation, search result selection, brand logo, and sign out clicks",
+        "Add Escape key shortcut to close open mobile navigation menu",
+        "Clean up and organize Trakt connection settings and documentation"
+      ]
+    },
     {
       "version": "0.7.2",
       "date": "2026-08-16T23:09:44+01:00",
