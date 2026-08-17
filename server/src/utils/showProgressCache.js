@@ -8,9 +8,9 @@ const CACHE_FILE_PATH = path.join(DATA_DIR, "tv_progress_cache.json");
 
 let progressCache = {};
 const pendingShowUpdates = new Set();
-// Bump whenever the total_episodes calculation changes shape, so previously
-// cached shows are refetched instead of keeping a stale total indefinitely.
-const PROGRESS_CACHE_SCHEMA_VERSION = 2; // bumped: total_episodes now excludes specials (season 0)
+// Bump whenever progress classification or total episode calculation changes,
+// so existing shows are rebuilt instead of retaining stale counts indefinitely.
+const PROGRESS_CACHE_SCHEMA_VERSION = 3; // trusted user-scoped library-history rows now count as watched
 // How long to wait before retrying a show whose episode total could not be resolved.
 const MISSING_TOTAL_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -63,8 +63,22 @@ function isScheduledLibraryHistoryRow(row = {}) {
   return /Watch event fetched from (Plex|Emby|Jellyfin) library history/i.test(telemetry);
 }
 
+function parsedProvenance(value) {
+  if (value && typeof value === "object") return value;
+  try {
+    return value ? JSON.parse(value) : null;
+  } catch {
+    return null;
+  }
+}
+
 function isPlembfinTrackedWatchRow(row = {}) {
-  return isWatchedAction(row) && !isScheduledLibraryHistoryRow(row);
+  if (!isWatchedAction(row)) return false;
+  if (!isScheduledLibraryHistoryRow(row)) return true;
+  const provenance = parsedProvenance(row.watch_provenance);
+  return provenance?.event === "library_history"
+    && Boolean(String(provenance.user || "").trim())
+    && Boolean(String(provenance.source_timestamp || "").trim());
 }
 
 /**
@@ -74,7 +88,7 @@ function isPlembfinTrackedWatchRow(row = {}) {
  */
 function findUncachedShowTitles() {
   const rows = db.prepare(`
-    SELECT show_title, title, sync_action, sync_dispatch_telemetry
+    SELECT show_title, title, sync_action, sync_dispatch_telemetry, watch_provenance
     FROM watch_history
     WHERE media_type = 'episode'
   `).all();

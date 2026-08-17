@@ -6,6 +6,8 @@ makeTempDataDir("plembfin-canonical-watch-state-");
 
 const repo = await import("../server/src/utils/dataRepo.js");
 const runtime = await import("../server/src/utils/configStore.js");
+const { trackerMediaWithSeriesIds } = await import("../server/src/utils/trackerDispatcher.js");
+const { selectTraktWatchedTransitions } = await import("../server/src/utils/trackerSync.js");
 
 test("imported watched records become canonical playstate and remain queued for app sync", async () => {
   const result = await repo.batchInsertWatchRecords([{
@@ -52,6 +54,78 @@ test("an explicit Plembfin unwatch remains canonical over an older watched recor
   await repo.upsertPlaystateForMedia(media, "unwatched", "2026-07-18T12:00:00.000Z");
 
   assert.equal(await repo.getCanonicalWatchState(media), "unwatched");
+});
+
+test("user-scoped scheduled history is visible while unscoped scan evidence stays hidden", async () => {
+  await repo.insertWatchRecord({
+    title: "Trying - S05E05",
+    media_type: "episode",
+    season: 5,
+    episode: 5,
+    watched_at: "2026-08-17T08:14:00.000Z",
+    source: "plex",
+    sync_dispatch_telemetry: "Details: Watch event fetched from Plex library history; sync completed.",
+    watch_provenance: {
+      source: "plex",
+      ingest_path: "plex_scheduled_library_history",
+      event: "library_history",
+      phase: "completed",
+      user: "configured-user",
+      source_timestamp: "2026-08-17T08:14:00.000Z",
+      captured_at: "2026-08-17T08:15:00.000Z",
+    },
+  });
+  await repo.insertWatchRecord({
+    title: "Untrusted Scan - S01E01",
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    watched_at: "2026-08-17T08:14:00.000Z",
+    source: "plex",
+    sync_dispatch_telemetry: "Details: Watch event fetched from Plex library history; sync completed.",
+    watch_provenance: {
+      source: "plex",
+      ingest_path: "plex_scheduled_library_history",
+      event: "library_history",
+      phase: "completed",
+      source_timestamp: "2026-08-17T08:14:00.000Z",
+      captured_at: "2026-08-17T08:15:00.000Z",
+    },
+  });
+
+  const trying = await repo.queryShowDetail({ title: "Trying" });
+  assert.equal(trying?.episode_count, 1);
+  assert.equal(trying?.representative_episode?.episode, 5);
+  assert.equal(await repo.queryShowDetail({ title: "Untrusted Scan" }), null);
+});
+
+test("Trakt episode dispatch replaces episode IDs with series IDs", () => {
+  const media = trackerMediaWithSeriesIds({
+    title: "Trying - S05E05",
+    type: "episode",
+    season: 5,
+    episode: 5,
+    ids: { tmdb: "episode-tmdb", tvdb: "episode-tvdb", imdb: "episode-imdb" },
+  }, {
+    id: 98177,
+    external_ids: { tvdb_id: 375903, imdb_id: "tt10982034" },
+  });
+
+  assert.equal(media.showTitle, "Trying");
+  assert.deepEqual(media.ids, { tmdb: "98177", tvdb: "375903", imdb: "tt10982034" });
+});
+
+test("manual Trakt reconciliation replays an unchanged remote watch over local drift", () => {
+  const item = { mediaKey: "episode:tmdb:98177:s5e6", watchedAt: 100, media: { title: "Trying - S05E06" } };
+  const previous = [{ ...item, remoteWatchedAt: 100, lastOutboundState: "", lastOutboundAt: 0 }];
+
+  assert.deepEqual(selectTraktWatchedTransitions({ snapshot: [item], previous, baseline: true }), []);
+  assert.deepEqual(selectTraktWatchedTransitions({
+    snapshot: [item],
+    previous,
+    baseline: true,
+    reconcileKeys: new Set([item.mediaKey]),
+  }), [item]);
 });
 
 test("watchstate replay snapshots exclude rows written after the run began", async () => {

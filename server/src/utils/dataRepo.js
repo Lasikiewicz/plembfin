@@ -522,8 +522,17 @@ function isScheduledLibraryHistoryRow(row = {}) {
   return /Watch event fetched from (Plex|Emby|Jellyfin) library history/i.test(telemetry);
 }
 
-function isPlembfinTrackedWatchRow(row = {}) {
-  return isWatchedAction(row) && !isScheduledLibraryHistoryRow(row);
+function isTrustedScheduledLibraryHistoryRow(row = {}) {
+  if (!isScheduledLibraryHistoryRow(row)) return false;
+  const provenance = normalizeWatchProvenance(row.watch_provenance || row.watchProvenance);
+  return provenance?.event === "library_history"
+    && Boolean(String(provenance.user || "").trim())
+    && Boolean(String(provenance.source_timestamp || "").trim());
+}
+
+export function isPlembfinTrackedWatchRow(row = {}) {
+  return isWatchedAction(row)
+    && (!isScheduledLibraryHistoryRow(row) || isTrustedScheduledLibraryHistoryRow(row));
 }
 
 function createStatsPeriod(period, label) {
@@ -1993,7 +2002,7 @@ export async function listRecentTrackedWatchRows({ limit = 100, scanLimit = 400,
   const rows = selectRecentStmt
     .all(safeScanLimit)
     .map(rowToWatch)
-    .filter((row) => isWatchedAction(row) && (includeScheduled || !isScheduledLibraryHistoryRow(row)));
+    .filter((row) => isWatchedAction(row) && (includeScheduled || isPlembfinTrackedWatchRow(row)));
   return dedupeHistory(rows).slice(0, safeLimit);
 }
 
@@ -2014,7 +2023,21 @@ export async function queryWatchHistory({ search = "", mediaType = "", limit = 5
     const titleKey = titleKeySql("COALESCE(title_lower, title)");
     const where = [
       "(sync_action IS NULL OR LOWER(sync_action) NOT IN ('unwatched', 'unplayed'))",
-      "(sync_dispatch_telemetry IS NULL OR (sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Plex library history%' AND sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Emby library history%' AND sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Jellyfin library history%'))",
+      `(
+        sync_dispatch_telemetry IS NULL
+        OR (
+          sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Plex library history%'
+          AND sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Emby library history%'
+          AND sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Jellyfin library history%'
+        )
+        OR CASE
+          WHEN json_valid(COALESCE(watch_provenance, '')) THEN
+            NULLIF(json_extract(watch_provenance, '$.event'), '') = 'library_history'
+            AND NULLIF(json_extract(watch_provenance, '$.user'), '') IS NOT NULL
+            AND NULLIF(json_extract(watch_provenance, '$.source_timestamp'), '') IS NOT NULL
+          ELSE 0
+        END
+      )`,
     ];
     const params = {};
 

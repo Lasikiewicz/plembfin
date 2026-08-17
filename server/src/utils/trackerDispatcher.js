@@ -1,8 +1,44 @@
 import { getTrackerConnection, recordTrackerOutbound, updateTrackerConnectionStatus, updateTrackerTokens } from "./trackerConnectionRepo.js";
 import { refreshTraktToken, setTraktWatchState, trackerMediaKey } from "./traktClient.js";
 import { hydrateTraktAppCredentials } from "./traktAppConfig.js";
+import { getTmdbDetails } from "./tmdbGateway.js";
 
 let traktRefreshInFlight = null;
+
+function trackerShowTitle(media = {}) {
+  const explicit = String(media.showTitle || media.show_title || "").trim();
+  if (explicit) return explicit;
+  return String(media.title || "").replace(/\s+-\s+S\d{1,2}E\d{1,2}.*$/i, "").trim();
+}
+
+export function trackerMediaWithSeriesIds(media = {}, details = {}) {
+  if ((media.type || media.mediaType) !== "episode") return media;
+  const tmdb = String(details.id || details.external_ids?.tmdb_id || "").trim();
+  const tvdb = String(details.external_ids?.tvdb_id || "").trim();
+  const imdb = String(details.external_ids?.imdb_id || "").trim();
+  if (!tmdb && !tvdb && !imdb) return media;
+  return {
+    ...media,
+    showTitle: trackerShowTitle(media),
+    ids: {
+      ...(tmdb ? { tmdb } : {}),
+      ...(tvdb ? { tvdb } : {}),
+      ...(imdb ? { imdb } : {}),
+    },
+  };
+}
+
+async function hydrateTrackerMedia(media) {
+  if ((media.type || media.mediaType) !== "episode") return media;
+  const title = trackerShowTitle(media);
+  if (!title) return media;
+  try {
+    const details = await getTmdbDetails({ mediaType: "tv", title, light: true });
+    return trackerMediaWithSeriesIds(media, details);
+  } catch {
+    return media;
+  }
+}
 
 function tokenExpiry(tokens) {
   const created = Number(tokens.created_at || Math.floor(Date.now() / 1000));
@@ -34,15 +70,16 @@ async function dispatchTrakt(media, state) {
   let connection = await withFreshTraktConnection();
   if (!connection) return { target: "trakt", status: "skipped", detail: "Trakt is not connected" };
   if (String(media.source || "").toLowerCase() === "trakt") return { target: "trakt", status: "skipped", detail: "Source tracker echo suppressed" };
+  const trackerMedia = await hydrateTrackerMedia(media);
   try {
-    await setTraktWatchState(connection, media, state);
+    await setTraktWatchState(connection, trackerMedia, state);
   } catch (error) {
     if (error.status !== 401) throw error;
     connection = await withFreshTraktConnection(true);
-    await setTraktWatchState(connection, media, state);
+    await setTraktWatchState(connection, trackerMedia, state);
   }
-  const mediaKey = trackerMediaKey(media);
-  recordTrackerOutbound("trakt", mediaKey, media, state);
+  const mediaKey = trackerMediaKey(trackerMedia);
+  recordTrackerOutbound("trakt", mediaKey, trackerMedia, state);
   return { target: "trakt", status: "success", detail: `Marked ${state} on Trakt` };
 }
 

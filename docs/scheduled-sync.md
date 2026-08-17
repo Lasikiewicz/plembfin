@@ -105,10 +105,18 @@ Implementation lives in `server/src/scheduled.js`.
 3. **Trakt snapshot sync** - **runs every minute when connected**:
    - Refreshes OAuth tokens when required and reads every watched movie and episode page.
    - Applies additions, removals, and rewatch timestamp changes with bounded concurrency.
+   - **Sync Now** also reconciles unchanged Trakt watches against Plembfin's current
+     canonical state, so it repairs drift that predates the connection baseline.
+   - Episode writes resolve series-level provider IDs before calling Trakt. This avoids
+     sending episode-level Plex/Emby/Jellyfin IDs in the show slot and lets identity-poor
+     catch-up rows use the show's cached metadata.
    - Dispatches accepted transitions to media servers and signals the authenticated
      browser update stream after each committed item.
 4. **Catch-up library sync** - **runs every 15 minutes** (configurable via `CATCHUP_SYNC_INTERVAL_MS` env variable) to avoid heavy redundant API queries:
    - Pulls recently-watched and continue-watching (resumable) items from each active server: `syncRecentlyWatchedFromPlex`/`syncRecentlyResumableFromPlex` (and Emby/Jellyfin equivalents) in `scheduled.js`.
+   - A recently-watched row counts in Plembfin's visible history and show progress only
+     when it carries the configured source user and an explicit server played timestamp.
+     Unscoped library scans remain diagnostic evidence rather than asserted watches.
    - Emby/Jellyfin episode resume rows retain series provider IDs so the corresponding SxxExx item can be found on another server. Resume and playstate records sharing any IMDb, TMDB, or TVDB ID are treated as one media item even when app titles differ.
    - Propagates playstate changes that were missed by webhooks. A server-side unwatch
      that conflicts with Plembfin's watched state is repaired instead of imported as a

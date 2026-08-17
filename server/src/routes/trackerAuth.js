@@ -96,7 +96,7 @@ export async function handleTrackerConnections(req, res, path) {
   if (req.method === "POST") {
     const connection = await withFreshTraktConnection();
     if (!connection) return sendJson(res, { error: "Trakt is not connected" }, 409);
-    const result = await pollConnectedTrackers();
+    const result = await pollConnectedTrackers({ reconcile: true });
     return sendJson(res, { ok: true, result, connection: getTrackerConnection("trakt") });
   }
   return methodNotAllowed(res);

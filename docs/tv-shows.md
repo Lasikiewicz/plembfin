@@ -41,10 +41,11 @@ and [webhooks.md#rewatch-detection](webhooks.md#rewatch-detection).
 `showProgressCache.js` maintains watched-vs-total episode counts per show. Totals come
 from TVDB/TMDB details using the record's authoritative TVDB identity when present
 (specials/season 0 excluded - `PROGRESS_CACHE_SCHEMA_VERSION` is
-bumped when the calculation changes shape so stale entries refetch). Only genuine
-Plembfin-tracked watches count; rows back-filled from library history scans are
-distinguishable by their telemetry (`isScheduledLibraryHistoryRow`). Updates are queued
-(`queueShowProgressUpdate`) and flushed by the scheduler.
+bumped when the calculation changes shape so stale entries refetch). Genuine
+Plembfin-tracked watches count, including scheduled library-history detections that carry
+both the configured source user and the server's played timestamp. Unscoped scan rows
+remain excluded because they are not sufficient evidence of a user watch. Updates are
+queued (`queueShowProgressUpdate`) and flushed by the scheduler.
 
 On startup `initShowProgressCache` queues a background refresh for shows that are missing
 an episode total, carry a stale `schema_version`, or are absent from the cache entirely.
