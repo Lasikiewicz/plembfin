@@ -1,7 +1,20 @@
 {
-  "version": "0.7.3",
-  "updatedAt": "2026-08-17T09:17:36+01:00",
+  "version": "0.7.4",
+  "updatedAt": "2026-08-17T09:59:57+01:00",
   "entries": [
+    {
+      "version": "0.7.4",
+      "date": "2026-08-17T09:59:57+01:00",
+      "commit": "e8f4ad119edb9ef0982b70cbaec7b08c87600e22",
+      "message": "Fix - Reconcile Trakt and library watch state",
+      "author": "Lasikiewicz",
+      "details": [
+        "Count verified user-scoped library-history watches in Plembfin history and TV progress",
+        "Resolve series provider IDs before sending episode watch changes to Trakt",
+        "Make Sync Now repair unchanged Trakt watches that drifted across connected services",
+        "Rebuild stale show-progress caches and document the reconciliation behavior"
+      ]
+    },
     {
       "version": "0.7.3",
       "date": "2026-08-17T09:17:36+01:00",
