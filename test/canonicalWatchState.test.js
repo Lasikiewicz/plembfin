@@ -6,6 +6,7 @@ makeTempDataDir("plembfin-canonical-watch-state-");
 
 const repo = await import("../server/src/utils/dataRepo.js");
 const runtime = await import("../server/src/utils/configStore.js");
+const { applyWatchedStateToNewItem } = await import("../server/src/routes/sync.js");
 const { trackerMediaWithSeriesIds } = await import("../server/src/utils/trackerDispatcher.js");
 const { selectTraktWatchedTransitions } = await import("../server/src/utils/trackerSync.js");
 
@@ -53,6 +54,36 @@ test("an explicit Plembfin unwatch remains canonical over an older watched recor
   await repo.upsertPlaystateForMedia(media, "watched", inserted.record.watched_at);
   await repo.upsertPlaystateForMedia(media, "unwatched", "2026-07-18T12:00:00.000Z");
 
+  assert.equal(await repo.getCanonicalWatchState(media), "unwatched");
+});
+
+test("a delayed library-added event cannot revive older watched history after an unwatch", async () => {
+  const media = {
+    title: "Canonical Unwatch Show - S04E16",
+    showTitle: "Canonical Unwatch Show",
+    type: "episode",
+    season: 4,
+    episode: 16,
+    ids: { tvdb: "canonical-unwatch-episode" },
+    isValid: true,
+  };
+  const inserted = await repo.insertWatchRecord({
+    title: media.title,
+    show_title: media.showTitle,
+    media_type: "episode",
+    season: media.season,
+    episode: media.episode,
+    tvdb_id: media.ids.tvdb,
+    watched_at: "2026-07-17T12:00:00.000Z",
+    source: "plex",
+  });
+  await repo.upsertPlaystateForMedia(media, "watched", inserted.record.watched_at);
+  await repo.upsertPlaystateForMedia(media, "unwatched", "2026-07-18T12:00:00.000Z");
+
+  const result = await applyWatchedStateToNewItem({ ...media, source: "emby", itemId: "new-emby-item" }, {});
+
+  assert.equal(result.applied, false);
+  assert.match(result.reason, /canonical state is unwatched/i);
   assert.equal(await repo.getCanonicalWatchState(media), "unwatched");
 });
 

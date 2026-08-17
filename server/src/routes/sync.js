@@ -87,6 +87,7 @@ import {
   getCachedHistory,
   findExistingWatch,
   findWatchedByAnyMediaKey,
+  getCanonicalWatchState,
   getPlaystateForMedia,
   countMissingPosterTraktRows,
   listMissingPosterTraktRows,
@@ -538,9 +539,21 @@ export async function applyWatchedStateToNewItem(media, loadedConfig = null) {
     return applyWatchedStateToNewContainer(media, config, target);
   }
 
-  // findWatchedByAnyMediaKey only returns rows whose sync_action is `watched`,
-  // so an item Plembfin has no play for, or has explicitly unwatched, is left
-  // untouched on the server that just added it.
+  // Current playstate is authoritative over historical watch rows. This keeps
+  // a delayed library-added event from reviving an older watch after the user
+  // explicitly marked the item unwatched.
+  const canonicalState = await getCanonicalWatchState(media).catch(() => null);
+  if (canonicalState !== "watched") {
+    return {
+      applied: false,
+      reason: canonicalState === "unwatched"
+        ? "Current canonical state is unwatched"
+        : "No watched record for this item",
+    };
+  }
+
+  // Keep the matching history row for its original watched timestamp, which is
+  // included in the sync telemetry below.
   const existing = await findWatchedByAnyMediaKey(media).catch(() => null);
   if (!existing) {
     return { applied: false, reason: "No watched record for this item" };

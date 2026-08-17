@@ -41,7 +41,7 @@ object. The crucial output is `media.phase`, derived per platform by
 | `completed` | Watched (scrobble, mark-played, or stop at the watched threshold, 90% by default) | Inserts/updates a `watch_history` record + propagates *watched* to the other platforms. |
 | `ended` | Stopped below the watched threshold | Deletes active session; if resume is actionable, stores/propagates resume progress to `playback_progress`. |
 | `unplayed` | Marked unwatched/unplayed | Deletes the active session, records the unwatched transition as the canonical state, and propagates it to the other eligible destinations. |
-| `added` | New item appeared in a library (`library.new`, `item.added`, `ItemAdded`) | Looks for an existing watched record for that media. If one exists, marks the item watched **on that server only**; writes no history. Nothing happens when there is no watched record. |
+| `added` | New item appeared in a library (`library.new`, `item.added`, `ItemAdded`) | Checks the current canonical state for that media. If it is watched, marks the item watched **on that server only**; writes no history. A current unwatch overrides older watch history. |
 | `ignored` | Not actionable | Dropped early. |
 
 Phase determination highlights:
@@ -106,8 +106,9 @@ deliberately tight:
   otherwise read an addition as "the whole show was just watched".
 - No watch history is ever written. A library scan cannot manufacture a play -
   only an already-recorded watch is applied.
-- An item with no watched record, or one explicitly marked unwatched, is left
-  alone.
+- An item with no watched record, or one whose current canonical state is
+  unwatched, is left alone. The current unwatch takes precedence over every
+  older watched-history row.
 - The server's own sync role still applies: a platform not configured to receive
   watched state is skipped.
 - The outbound mark is written to the loop ledger, so the played event the server

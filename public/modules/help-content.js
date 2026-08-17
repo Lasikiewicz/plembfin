@@ -215,7 +215,7 @@ export function jellyfinWebhookSetup() {
         <li>Install the <b>Webhooks</b> plugin in the Jellyfin Dashboard (Plugins → Catalog).</li>
         <li>Add a new <b>Generic Webhook</b> named <code>plembfin</code> pointing to the URL above. Check <b>Enable</b>.</li>
         <li>Under <b>Notification Type</b>, check: <code>Playback Start</code>, <code>Playback Progress</code>, <code>Playback Stop</code>, <code>User Data Saved</code>, <code>Item Added</code>.</li>
-        <li><code>Item Added</code> is what lets Plembfin mark newly added media watched if you have already seen it. Leave it unticked to skip that.</li>
+        <li><code>Item Added</code> lets Plembfin mark newly added media watched when its current Plembfin state is watched. A newer unwatch overrides older watch history. Leave it unticked to skip catch-up.</li>
         <li>Under <b>Item Type</b>, select: <code>Movies</code>, <code>Episodes</code>. Leave the other notification types and item types unticked - Plembfin ignores them.</li>
         <li>Check <b>Send All Properties (ignores template)</b> so resume position fields are included.</li>
         <li>The body has to be JSON, but the content type does not matter - Jellyfin labels its payloads <code>text/plain</code> and Plembfin reads them anyway. A body that is not JSON is logged in Sync History as <code>Unsupported webhook content type</code>, along with the sender that posted it.</li>
@@ -276,7 +276,7 @@ export function webhookWarning() {
               <li><code>Playback Progress</code></li>
               <li><code>Playback Stop</code></li>
               <li><code>User Data Saved</code> <i>(Crucial: sends events when items are marked watched or unwatched)</i></li>
-              <li><code>Item Added</code> <i>(Lets Plembfin mark newly added media watched when you have already seen it)</i></li>
+              <li><code>Item Added</code> <i>(Marks newly added media watched only when its current Plembfin state is watched; a newer unwatch wins)</i></li>
             </ul>
           </li>
           <li>Under <b>Item Type</b>, select:
