@@ -1,7 +1,20 @@
 {
-  "version": "0.7.4",
-  "updatedAt": "2026-08-17T09:59:57+01:00",
+  "version": "0.7.5",
+  "updatedAt": "2026-08-17T10:32:33+01:00",
   "entries": [
+    {
+      "version": "0.7.5",
+      "date": "2026-08-17T10:32:33+01:00",
+      "commit": "4757a797a7187286537b7164d148ecdcc63a6f9f",
+      "message": "Feature - Show Trakt sync progress",
+      "author": "Lasikiewicz",
+      "details": [
+        "Show the connected Trakt account and live-sync status directly above Sync Now",
+        "Change the action to Syncing and display an accessible progress indicator during reconciliation",
+        "Report items checked plus watched and unwatched changes applied",
+        "Document the feedback and cover the completion summary with a regression test"
+      ]
+    },
     {
       "version": "0.7.4",
       "date": "2026-08-17T09:59:57+01:00",
