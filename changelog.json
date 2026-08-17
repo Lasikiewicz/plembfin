@@ -1,7 +1,18 @@
 {
-  "version": "0.7.7",
-  "updatedAt": "2026-08-17T11:15:33+01:00",
+  "version": "0.7.8",
+  "updatedAt": "2026-08-17T14:41:33+01:00",
   "entries": [
+    {
+      "version": "0.7.8",
+      "date": "2026-08-17T14:41:33+01:00",
+      "commit": "ca375bf40d8b89b2f8e83d0984c9a94e40aabf0e",
+      "message": "Fix - Clear progress button not removing part-watched items",
+      "author": "Lasikiewicz",
+      "details": [
+        "Clicking Clear Progress on a part-watched item whose canonical state was already unwatched (e.g. a re-watch in progress after an earlier unwatch) reported success but left the item stuck in the Part Watched list",
+        "The playback progress row is now always deleted, so the item is correctly removed"
+      ]
+    },
     {
       "version": "0.7.7",
       "date": "2026-08-17T11:15:33+01:00",
