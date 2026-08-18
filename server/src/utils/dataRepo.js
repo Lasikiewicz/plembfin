@@ -752,7 +752,17 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
   const __t1 = Date.now();
   const groups = groupShowRows(dedupeHistory(episodeRows));
   const __t2 = Date.now();
-  const shows = groups.map((group) => {
+  // Each show needs its own SQLite lookup + JSON parse for cached TMDB details;
+  // at library scale that's enough synchronous work in one pass to block the
+  // event loop for a second or more, which is long enough (especially when
+  // this rebuild fires repeatedly in a short window - it isn't debounced) to
+  // fail the container's health check and get restarted. Yielding every 25
+  // shows keeps any single burst small without slowing the overall rebuild.
+  const YIELD_EVERY = 25;
+  const shows = [];
+  for (let i = 0; i < groups.length; i++) {
+    if (i > 0 && i % YIELD_EVERY === 0) await new Promise((resolve) => setImmediate(resolve));
+    const group = groups[i];
     const showKey = canonicalTitleKey(group.title) || normalizeKeyPart(group.title);
     const rawShowKey = canonicalTitleKey(group.raw_title) || normalizeKeyPart(group.raw_title);
     const cachedProgress = getCachedShowProgress(showKey) || (rawShowKey !== showKey ? getCachedShowProgress(rawShowKey) : null);
@@ -771,7 +781,7 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
         console.error(`Failed to get TV show details for tv_${tmdbId}`, err);
       }
     }
-    return {
+    shows.push({
       id: showKey,
       title: group.title,
       tmdb_id: tmdbId,
@@ -786,8 +796,8 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
       earliest_watched_at: group.earliest_watched_at,
       representative_episode: compactEpisode(group.representative_episode),
       total_episodes: cachedProgress?.total_episodes || 0,
-    };
-  });
+    });
+  }
   if (includeScheduledLibraryHistory) scheduledShowCache = { version, shows };
   else showCache = { version, shows };
   console.log(`CACHEPROBE getCachedShows rebuild episodes=${episodeRows.length} groups=${groups.length} filterMs=${__t1 - __t0} dedupeMs=${__t2 - __t1} mapMs=${Date.now() - __t2}`);
