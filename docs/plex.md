@@ -93,6 +93,10 @@ item's metadata and checks its actual view state. A watched transition is record
 Plembfin history and propagated to Emby/Jellyfin. An unwatched transition supersedes the
 watched state in Plembfin and propagates to the other eligible destinations. This channel
 covers library UI changes that Plex webhooks do not reliably report, including unwatching.
+Plex's "Mark Unwatched" clears `viewCount` but can leave a stale `viewOffset` behind, and a
+lingering offset alone cannot distinguish that from a fresh in-progress first watch. The
+callback only treats a nonzero offset as a real unwatch when Plembfin already had the item
+recorded as watched; otherwise it is left alone, the same as any other watch in progress.
 Either transition also bumps the
 `nowPlayingRefresh` runtime-state signal (same as the webhook route), which is what tells
 any open Plembfin browser tab to refresh - see

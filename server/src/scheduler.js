@@ -287,7 +287,19 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
     return;
   }
-  if (viewOffset > 0) return;
+  if (viewOffset > 0) {
+    // Plex's "Mark Unwatched" clears viewCount but can leave a stale viewOffset
+    // behind, so a lingering offset alone doesn't distinguish a genuine unwatch
+    // from a fresh in-progress first watch. Only bail when we have no record of
+    // this item ever being watched - otherwise treat it as a real unwatch.
+    const priorPlaystate = await getPlaystateForMedia(media).catch(() => null);
+    if (priorPlaystate?.state !== "watched") return;
+    console.log("Plex notifications: unwatch detected despite lingering viewOffset", {
+      title: media.title,
+      ratingKey,
+      viewOffset,
+    });
+  }
 
   const loopStore = createLoopStore();
   if (viewCount === 0) {
