@@ -1,8 +1,22 @@
 {
   "baseVersion": "0.8.0",
-  "build": 11,
-  "updatedAt": "2026-08-18T16:19:11+01:00",
+  "build": 12,
+  "updatedAt": "2026-08-18T17:11:03+01:00",
   "entries": [
+    {
+      "build": 12,
+      "version": "0.8.0.12",
+      "date": "2026-08-18T17:11:03+01:00",
+      "commit": "2ad814ab5d4cb20087e7f35a3653e34dd377c093",
+      "message": "Fix - Re-enable Emby/Jellyfin unwatched-reconciliation polling by default",
+      "author": "Lasikiewicz",
+      "details": [
+        "Emby and Jellyfin unwatch backstop polling (checkEmbyUnwatchedStatus / checkJellyfinUnwatchedStatus) is on by default again, closing the coverage gap where an unwatch marked outside a webhook-reporting event could be missed on those platforms",
+        "Was disabled during a production stability investigation, but the actual crash cause was later confirmed unrelated (host-wide memory pressure from another Docker container, not plembfin's sync polling)",
+        "The concurrency concern that justified disabling it no longer applies: each platform check processes a small batch (5 items) sequentially rather than concurrently, runs at most every 5 minutes, and the last-checked cadence survives a restart instead of resetting to zero",
+        "Updated docs/architecture.md, docs/emby.md, docs/jellyfin.md, docs/scheduled-sync.md, README.md, and .env.example to describe the new enabled-by-default behavior"
+      ]
+    },
     {
       "build": 11,
       "version": "0.8.0.11",
