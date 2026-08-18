@@ -1,6 +1,22 @@
 {
   "baseVersion": "0.8.0",
-  "build": 0,
-  "updatedAt": null,
-  "entries": []
+  "build": 1,
+  "updatedAt": "2026-08-18T13:16:34+01:00",
+  "entries": [
+    {
+      "build": 1,
+      "version": "0.8.0.1",
+      "date": "2026-08-18T13:16:34+01:00",
+      "commit": "709b4b99b3b11ef15ad9702e79ee941418e0d95b",
+      "message": "Feature - Give alpha builds their own version counter and fix identical log tabs",
+      "author": "Lasikiewicz",
+      "details": [
+        "Alpha builds now show a distinct version like v0.8.0.7 alpha in the sidebar and Settings -> About, instead of always showing the same trailing version as main; the number increments on every push to the alpha branch and resets automatically the next time alpha is merged into main",
+        "Settings -> About now lists an \"Alpha builds since last merge\" changelog section separate from published releases, generated from the same commit-bullet rules as real release notes",
+        "The published alpha Docker image is now also tagged with its specific build number (alpha-<N>) alongside the existing rolling alpha tag, so a specific build can be pinned or identified",
+        "Fixed the Settings -> Logs page showing identical content on every category tab: the unfiltered browser debug log trail was being appended under every tab and tab switches auto-scroll to the bottom, so Plex WebSockets/Outbound Sync/Scheduled Polls all looked the same; that trail now only shows under All Logs and System Logs, where it is actually relevant",
+        "Documented both changes in CLAUDE.md, docs/architecture.md, docs/development.md, docs/settings.md, and the README"
+      ]
+    }
+  ]
 }
