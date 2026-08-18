@@ -274,6 +274,16 @@ server?.on("listening", async () => {
     return;
   }
   await coordinator?.start().catch((error) => console.error("Failed to start worker coordinator", error));
+
+  // TEMPORARY: diagnosing a production memory spike that kills the process
+  // within ~45-90s of every restart with no other evidence in the logs.
+  // Remove once the root cause is found - see the MEMPROBE log lines.
+  const memProbe = setInterval(() => {
+    const m = process.memoryUsage();
+    const mb = (n) => `${(n / 1024 / 1024).toFixed(1)}MB`;
+    console.log(`MEMPROBE rss=${mb(m.rss)} heapUsed=${mb(m.heapUsed)} heapTotal=${mb(m.heapTotal)} external=${mb(m.external)} arrayBuffers=${mb(m.arrayBuffers)}`);
+  }, 3000);
+  memProbe.unref?.();
 });
 
 server?.on("error", (error) => {
