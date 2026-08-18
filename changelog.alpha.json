@@ -1,8 +1,22 @@
 {
   "baseVersion": "0.8.0",
-  "build": 9,
-  "updatedAt": "2026-08-18T16:02:06+01:00",
+  "build": 10,
+  "updatedAt": "2026-08-18T16:14:19+01:00",
   "entries": [
+    {
+      "build": 10,
+      "version": "0.8.0.10",
+      "date": "2026-08-18T16:14:19+01:00",
+      "commit": "1df7362b083b99439b1280fc285c2ebe83fe2c75",
+      "message": "Chore - Add event-loop-lag and cache-rebuild timing diagnostics",
+      "author": "Lasikiewicz",
+      "details": [
+        "Docker's own health check log shows the process exits cleanly (ExitCode 0, OOMKilled false) every time it restarts - it is not crashing or being OOM-killed, something is blocking the event loop for over 5 seconds and failing the health check, which autoheal then restarts",
+        "Added LAGPROBE: a self-contained 1s timer that reports how much later than expected it fired, which reveals event-loop blocking wherever it happens, independent of what code is running",
+        "Added CACHEPROBE timing to getCachedHistory/getCachedMovies/getCachedShows, the full-table-rebuild caches already flagged in this codebase as needing indexed queries before scaling further - these are the leading suspect given today's changes added several new calls that invalidate them more often",
+        "Temporary - remove once the root cause is confirmed"
+      ]
+    },
     {
       "build": 9,
       "version": "0.8.0.9",
