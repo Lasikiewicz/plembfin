@@ -12,7 +12,9 @@ test("credential vault encrypts with unique IVs and detects tampering", () => {
   const second = encryptCredential("secret-token", { key });
   assert.notEqual(first.iv, second.iv);
   assert.equal(decryptCredential(first, { key }), "secret-token");
-  assert.throws(() => decryptCredential({ ...first, ciphertext: `${first.ciphertext.slice(0, -1)}A` }, { key }), /could not be decrypted/);
+  const lastChar = first.ciphertext.slice(-1);
+  const tamperedChar = lastChar === "A" ? "B" : "A";
+  assert.throws(() => decryptCredential({ ...first, ciphertext: `${first.ciphertext.slice(0, -1)}${tamperedChar}` }, { key }), /could not be decrypted/);
   assert.throws(() => decryptCredential(first, { key: Buffer.alloc(32, 8) }), /could not be decrypted/);
 });
 
