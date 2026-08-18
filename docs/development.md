@@ -91,11 +91,23 @@ this means every "Merge alpha with main" run, not every individual commit:
    higher `package.json` version) and appends a `changelog.json` entry - the entry's
    headline comes from the head commit's subject line (conventional-commit prefixes
    become labels: `feat:` → "Feature - …"), and its `details` are backfilled from the
-   bullet points of **every** commit in the push. User-visible `feat`, `fix`,
+   bullet points of every commit in the push, other than CI plumbing commits
+   (`isNoiseCommitMessage` in `scripts/changelog-message.js`: the bot's own
+   `chore: bump alpha build for …` / `chore: update changelog for …` commits and
+   `Merge branch/commit/pull request …` commits), which carry no user-visible content
+   of their own. When the head commit itself is one of those - routine for a
+   "Merge alpha with main" force-push, since GitHub reports the range's last commit as
+   the trigger - the headline falls back to the most recent real commit in the push
+   instead of the plumbing commit's subject line. User-visible `feat`, `fix`,
    `security`, `enhance`, `perf`, and `docs` commits are rejected unless they
    contain at least one meaningful body bullet. If a maintenance or legacy commit
    has no body, the generator derives a user-facing summary from its changed file
-   areas instead of publishing only a vague subject line
+   areas instead of publishing only a vague subject line. A release built from many
+   small iterative alpha commits (a feature added, then throttled, then disabled,
+   then re-enabled within the same day) can still read as noisy even with plumbing
+   commits excluded, since the generator has no way to know a later commit
+   supersedes an earlier one - that kind of entry may need a manual touch-up to
+   `changelog.json` after the merge.
 3. commits `changelog.json` + `package.json` + `package-lock.json` back to `main` as
    `chore: update changelog for <sha>` - the "Merge alpha with main" workflow folds
    this bump commit back into `alpha` afterward (see the "Merge alpha with main"

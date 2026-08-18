@@ -11,7 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { bulletPointsFrom, formatChangelogMessage, validateReleaseMessage } from "./changelog-message.js";
+import { bulletPointsFrom, formatChangelogMessage, isNoiseCommitMessage, validateReleaseMessage } from "./changelog-message.js";
 import { changeAreaDetails, changedFilesForCommit, commitsSinceLastEntry } from "./changelog-git-helpers.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -62,7 +62,7 @@ const lastRecordedCommit = alpha.entries[0]?.commit || "";
 const gitHistoryCommits = commitsSinceLastEntry(root, lastRecordedCommit, sourceCommit);
 const otherCommitsRaw = gitHistoryCommits.length > 0 ? gitHistoryCommits : pushedCommits;
 const otherCommits = otherCommitsRaw.filter((commit) =>
-  commit.id !== sourceCommit && !/^chore: bump alpha build for /.test(String(commit.message || "")));
+  commit.id !== sourceCommit && !isNoiseCommitMessage(commit.message));
 
 // The pre-push hook merges origin/alpha into a local push whenever the bot's
 // own build-bump commit already landed there (routine on this branch - see
@@ -71,10 +71,9 @@ const otherCommits = otherCommitsRaw.filter((commit) =>
 // own. Prefer the most recent real commit in this push's range as the
 // entry's headline instead, so the changelog reflects the actual work rather
 // than merge plumbing.
-const isAutoMergeMessage = /^Merge (branch|commit|pull request|remote-tracking branch)\b/i.test(rawMessage);
 let effectiveCommit = sourceCommit;
 let effectiveMessage = rawMessage;
-if (isAutoMergeMessage && otherCommits.length) {
+if (isNoiseCommitMessage(rawMessage) && otherCommits.length) {
   const latest = otherCommits.pop(); // git log --reverse -> oldest..newest, so the last entry is the most recent
   effectiveCommit = latest.id;
   effectiveMessage = latest.message;

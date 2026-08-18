@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   bulletPointsFrom,
   formatChangelogMessage,
+  isNoiseCommitMessage,
   validateReleaseMessage,
 } from "../scripts/changelog-message.js";
 
@@ -33,6 +34,15 @@ test("validateReleaseMessage rejects title-only release commits", () => {
     validateReleaseMessage("fix: keep controls visible\n\n- Fix - Keep controls visible").length,
     2,
   );
+});
+
+test("isNoiseCommitMessage flags CI plumbing commits", () => {
+  assert.equal(isNoiseCommitMessage("chore: bump alpha build for 2ad814a"), true);
+  assert.equal(isNoiseCommitMessage("chore: update changelog for c678878"), true);
+  assert.equal(isNoiseCommitMessage("Merge branch 'alpha' of https://github.com/Lasikiewicz/plembfin into alpha"), true);
+  assert.equal(isNoiseCommitMessage("Merge pull request #12 from foo/bar"), true);
+  assert.equal(isNoiseCommitMessage("fix: keep controls visible"), false);
+  assert.equal(isNoiseCommitMessage("chore: bump version to 0.8.0"), false);
 });
 
 test("validateReleaseMessage accepts meaningful details and maintenance commits", () => {

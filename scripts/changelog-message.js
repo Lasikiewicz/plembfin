@@ -1,5 +1,21 @@
 const RELEASE_TYPES = new Set(["feat", "fix", "security", "enhance", "perf", "docs"]);
 
+// CI plumbing commits (the bot's own build-bump commits, and the merge commits
+// the pre-push hook creates when syncing against a branch another push already
+// advanced) carry no user-visible content of their own - their subject line is
+// noise in a changelog and their absence of bullets shouldn't blank out an
+// otherwise-detailed release. Shared so both generators drop them the same way.
+const NOISE_MESSAGE_PATTERNS = [
+  /^chore: bump alpha build for /,
+  /^chore: update changelog for /,
+  /^Merge (branch|commit|pull request|remote-tracking branch)\b/i,
+];
+
+export function isNoiseCommitMessage(message) {
+  const subject = String(message || "").split(/\r?\n/, 1)[0].trim();
+  return NOISE_MESSAGE_PATTERNS.some((pattern) => pattern.test(subject));
+}
+
 export function formatChangelogMessage(message) {
   const m = String(message || "").match(/^([a-zA-Z]+)(?:\([^)]*\))?:\s*(.*)$/);
   if (!m) return message;
