@@ -347,11 +347,16 @@ function versionDisplayLabel(version, channel) {
 function updateVersionBadge(data) {
   if (!elements.appVersion || !data?.current) return;
   const label = versionDisplayLabel(data.current, data.channel);
-  elements.appVersion.textContent = data.updateAvailable
+  // Alpha's version number only bumps when it is merged into main, so an
+  // alpha build sits "behind" main's version string by design right after
+  // every release - that gap isn't a real update the user is missing, so the
+  // update-available treatment is suppressed on this channel.
+  const showUpdate = Boolean(data.updateAvailable) && data.channel !== "alpha";
+  elements.appVersion.textContent = showUpdate
     ? `v${label} - Update available`
     : `v${label}`;
-  elements.appVersion.classList.toggle("app-version-update", Boolean(data.updateAvailable));
-  elements.appVersion.title = data.updateAvailable
+  elements.appVersion.classList.toggle("app-version-update", showUpdate);
+  elements.appVersion.title = showUpdate
     ? `Update available - v${data.latest || data.current}. Open changelog`
     : "Open changelog";
 }
@@ -421,6 +426,16 @@ async function renderChangelog(force = false) {
         <div class="changelog-status changelog-status-muted">
           <b>Current version v${escapeHtml(currentLabel)}</b>
           <span>Couldn't reach GitHub to check for newer releases${data.remoteError ? ` (${escapeHtml(data.remoteError)})` : ""}.</span>
+        </div>`;
+    } else if (data.channel === "alpha") {
+      // Alpha's version number only bumps when it is merged into main, so it
+      // always trails main's version string right after a release even when
+      // this build already contains newer commits - showing that gap as an
+      // actionable "update available" would be misleading.
+      banner = `
+        <div class="changelog-status changelog-status-muted">
+          <b>Alpha channel - v${escapeHtml(currentLabel)}</b>
+          <span>Alpha is a rolling pre-release build; its version number only advances once it's merged into a release${newerCount ? `. ${newerCount} release${newerCount === 1 ? "" : "s"} listed below landed on main since this build` : ""}.</span>
         </div>`;
     } else if (data.updateAvailable) {
       banner = `

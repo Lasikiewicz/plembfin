@@ -434,8 +434,17 @@ otherwise. `current` itself always stays a plain semver string so entry-matching
 update comparisons are unaffected; the frontend appends " alpha" only where the version is
 displayed - the sidebar badge (`v0.2.15 alpha`) and Settings → About's current-version
 banner - never in the value compared against changelog entries. If GitHub is unreachable
-the bundled entries are served on their own. Settings → About renders the current version,
-an update banner, and the full release list with newer versions highlighted.
+the bundled entries are served on their own.
+
+Settings → About renders the current version, a status banner, and the full release list
+with newer versions highlighted. On the `alpha` channel the banner never shows the
+"Update available" treatment, and the sidebar badge never appends " - Update available":
+alpha's bundled version number only advances when it is merged into `main`, so it always
+trails main's latest release right after every merge even though the running alpha build
+may already contain newer commits than that release - flagging that gap as an actionable
+update would be misleading. The banner instead states that alpha is a rolling pre-release
+channel and, if `newer` is non-empty, notes how many releases have landed on `main` since
+this build for context.
 
 ## Data layer (`server/src/db.js` + `schema.sql`)
 
