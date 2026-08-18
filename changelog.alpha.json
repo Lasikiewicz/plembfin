@@ -1,8 +1,21 @@
 {
   "baseVersion": "0.8.0",
-  "build": 8,
-  "updatedAt": "2026-08-18T15:52:48+01:00",
+  "build": 9,
+  "updatedAt": "2026-08-18T16:02:06+01:00",
   "entries": [
+    {
+      "build": 9,
+      "version": "0.8.0.9",
+      "date": "2026-08-18T16:02:06+01:00",
+      "commit": "b8524a0e007c3393dcf87cd27b72f032a4b58423",
+      "message": "Chore - Add temporary memory diagnostic logging",
+      "author": "Lasikiewicz",
+      "details": [
+        "Production is spiking to multiple GB of memory and getting killed/restarted every 45-90 seconds, with no corresponding application activity visible in the logs across three different fix attempts (Emby/Jellyfin poll disabled, Plex notification concurrency capped) - none of them changed the pattern, so guessing at the cause from code review alone isn't working",
+        "Logs Node's own memory breakdown (rss, heapUsed, heapTotal, external, arrayBuffers) every 3 seconds so the next crash's logs show exactly what's growing and how fast, instead of just the absence of activity",
+        "Temporary - remove once the root cause is identified from the MEMPROBE log lines"
+      ]
+    },
     {
       "build": 8,
       "version": "0.8.0.8",
