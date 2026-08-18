@@ -123,7 +123,7 @@ export async function fetchTraktWatchedSnapshot({ clientId, accessToken }) {
 function syncPayload(media, state) {
   const ids = cleanIds(media.ids);
   if (!Object.keys(ids).length) throw Object.assign(new Error("Trakt needs a Trakt, IMDb, TMDB, or TVDB ID for this item"), { code: "not_found" });
-  const watchedAt = state === "watched" ? new Date(media.watchedAt || Date.now()).toISOString() : undefined;
+  const watchedAt = state === "watched" ? new Date(media.watched_at || media.watchedAt || Date.now()).toISOString() : undefined;
   if (media.type === "episode" || media.mediaType === "episode") {
     const episode = { number: Number(media.episode) };
     if (watchedAt) episode.watched_at = watchedAt;
