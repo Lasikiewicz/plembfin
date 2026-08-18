@@ -1,8 +1,22 @@
 {
   "baseVersion": "0.8.0",
-  "build": 2,
-  "updatedAt": "2026-08-18T13:56:14+01:00",
+  "build": 3,
+  "updatedAt": "2026-08-18T14:08:01+01:00",
   "entries": [
+    {
+      "build": 3,
+      "version": "0.8.0.3",
+      "date": "2026-08-18T14:08:01+01:00",
+      "commit": "ac7781651dbcce96790c8750d8229b0f3c569dd6",
+      "message": "Fix - Repair broken commit-message parsing in the changelog generators",
+      "author": "Lasikiewicz",
+      "details": [
+        "The alpha and main changelog generators lost the special separator characters used to split multi-commit git log output when that logic was shared into a new helper file, silently turning every commit message into a stream of single characters instead of parsing them",
+        "This made a merged alpha push record itself under the generic \"Merge branch...\" message with no real details, instead of the actual commit's summary and bullet points - visible as alpha build 2's changelog entry",
+        "The alpha changelog generator now also prefers the most recent real commit's message as the entry headline when the triggering commit is an auto-generated merge (routine on this branch, since the bot's own build-bump commit gets folded back on the next push), instead of showing merge plumbing as the changelog title",
+        "Corrected the already-published build 2 entry in changelog.alpha.json to show its real changes"
+      ]
+    },
     {
       "build": 2,
       "version": "0.8.0.2",
