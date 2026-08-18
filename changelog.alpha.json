@@ -1,176 +1,18 @@
 {
-  "baseVersion": "0.8.0",
-  "build": 12,
-  "updatedAt": "2026-08-18T17:11:03+01:00",
+  "baseVersion": "0.8.1",
+  "build": 1,
   "entries": [
     {
-      "build": 12,
-      "version": "0.8.0.12",
-      "date": "2026-08-18T17:11:03+01:00",
-      "commit": "2ad814ab5d4cb20087e7f35a3653e34dd377c093",
-      "message": "Fix - Re-enable Emby/Jellyfin unwatched-reconciliation polling by default",
-      "author": "Lasikiewicz",
-      "details": [
-        "Emby and Jellyfin unwatch backstop polling (checkEmbyUnwatchedStatus / checkJellyfinUnwatchedStatus) is on by default again, closing the coverage gap where an unwatch marked outside a webhook-reporting event could be missed on those platforms",
-        "Was disabled during a production stability investigation, but the actual crash cause was later confirmed unrelated (host-wide memory pressure from another Docker container, not plembfin's sync polling)",
-        "The concurrency concern that justified disabling it no longer applies: each platform check processes a small batch (5 items) sequentially rather than concurrently, runs at most every 5 minutes, and the last-checked cadence survives a restart instead of resetting to zero",
-        "Updated docs/architecture.md, docs/emby.md, docs/jellyfin.md, docs/scheduled-sync.md, README.md, and .env.example to describe the new enabled-by-default behavior"
-      ]
-    },
-    {
-      "build": 11,
-      "version": "0.8.0.11",
-      "date": "2026-08-18T16:19:11+01:00",
-      "commit": "8a3b6d51fbad0be1d85c3cd52762db4dbc9bed91",
-      "message": "Fix - Stop the show-cache rebuild from blocking the event loop",
-      "author": "Lasikiewicz",
-      "details": [
-        "CACHEPROBE/LAGPROBE diagnostics from the last build confirmed the actual root cause of the production instability: getCachedShows's per-show loop (a synchronous SQLite lookup plus a JSON parse of cached TMDB details for every show, ~331 shows in production) took 1.6 seconds in one unbroken burst, blocking the event loop long enough - especially when it fired more than once in a short window, which it did - to fail the container's 5-second health check and get it restarted by autoheal",
-        "This rebuild isn't debounced, and several of today's earlier fixes added new calls that invalidate it more often than before, which is why this only became severe today even though the underlying cost was always there",
-        "The loop now yields to the event loop every 25 shows instead of running straight through, so no single rebuild can monopolize it long enough to fail a health check, regardless of library size or how often the cache invalidates",
-        "getCachedHistory and getCachedMovies were measured too and are comfortably fast (a few hundred ms at this data size); only the per-show TMDB lookup needed this"
-      ]
-    },
-    {
-      "build": 10,
-      "version": "0.8.0.10",
-      "date": "2026-08-18T16:14:19+01:00",
-      "commit": "1df7362b083b99439b1280fc285c2ebe83fe2c75",
-      "message": "Chore - Add event-loop-lag and cache-rebuild timing diagnostics",
-      "author": "Lasikiewicz",
-      "details": [
-        "Docker's own health check log shows the process exits cleanly (ExitCode 0, OOMKilled false) every time it restarts - it is not crashing or being OOM-killed, something is blocking the event loop for over 5 seconds and failing the health check, which autoheal then restarts",
-        "Added LAGPROBE: a self-contained 1s timer that reports how much later than expected it fired, which reveals event-loop blocking wherever it happens, independent of what code is running",
-        "Added CACHEPROBE timing to getCachedHistory/getCachedMovies/getCachedShows, the full-table-rebuild caches already flagged in this codebase as needing indexed queries before scaling further - these are the leading suspect given today's changes added several new calls that invalidate them more often",
-        "Temporary - remove once the root cause is confirmed"
-      ]
-    },
-    {
-      "build": 9,
-      "version": "0.8.0.9",
-      "date": "2026-08-18T16:02:06+01:00",
-      "commit": "b8524a0e007c3393dcf87cd27b72f032a4b58423",
-      "message": "Chore - Add temporary memory diagnostic logging",
-      "author": "Lasikiewicz",
-      "details": [
-        "Production is spiking to multiple GB of memory and getting killed/restarted every 45-90 seconds, with no corresponding application activity visible in the logs across three different fix attempts (Emby/Jellyfin poll disabled, Plex notification concurrency capped) - none of them changed the pattern, so guessing at the cause from code review alone isn't working",
-        "Logs Node's own memory breakdown (rss, heapUsed, heapTotal, external, arrayBuffers) every 3 seconds so the next crash's logs show exactly what's growing and how fast, instead of just the absence of activity",
-        "Temporary - remove once the root cause is identified from the MEMPROBE log lines"
-      ]
-    },
-    {
-      "build": 8,
-      "version": "0.8.0.8",
-      "date": "2026-08-18T15:52:48+01:00",
-      "commit": "5fea19c97b62e092ee573279249c09d1c3c22566",
-      "message": "Fix - Cap concurrent Plex notification handlers to stop memory spikes",
-      "author": "Lasikiewicz",
-      "details": [
-        "The Plex WebSocket notification listener debounces per item, but every debounced timer fired its handler immediately with no concurrency limit at all - a burst of notifications (which can arrive right as the socket connects or reconnects, i.e. on every process restart) meant hundreds of handlers could run at once, each doing a metadata fetch, a playstate lookup, and possibly full unwatch propagation to every connected platform",
-        "This was severe enough in production to spike memory to multiple gigabytes within seconds and get the process killed by its healthcheck-driven restart policy, which explains the recurring downtime even after the Emby/Jellyfin poll was fully disabled",
-        "Handlers are now capped at 3 concurrent, with the rest queued instead of all firing at the same moment",
-        "This is the likely actual trigger for today's instability: an earlier fix this session (making the listener correctly treat more Plex changes as real unwatches instead of silently skipping them) meant more notifications now do real work instead of an early no-op, which is what exposed this pre-existing lack of a concurrency limit"
-      ]
-    },
-    {
-      "build": 7,
-      "version": "0.8.0.7",
-      "date": "2026-08-18T15:25:23+01:00",
-      "commit": "08863a31b9adaaa3082122ae81f76570aabde6d0",
-      "message": "Fix - Disable the Emby/Jellyfin unwatch backstop poll by default",
-      "author": "Lasikiewicz",
-      "details": [
-        "The previous load reduction (smaller batch, 5-minute cadence) did not actually fix the production instability: the \"last checked\" timestamp only lived in memory, so a process restart reset it to zero and made the very next tick fire the check again immediately - turning one expensive tick into a sustained restart loop instead of a rare backstop",
-        "Emby's and Jellyfin's unwatch-reconciliation poll is now disabled by default (EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED=true to opt in); their webhooks already report unwatch natively, so this was only ever meant to be a rare safety net, not something worth the repeated production instability while it gets a proper concurrency-limited rework",
-        "The restart-reset bug itself is also fixed (the timestamp now seeds to process start time instead of zero) for whenever this is re-enabled",
-        "Plex's equivalent poll is untouched and stays enabled - its lookup is a single cheap call and was never implicated"
-      ]
-    },
-    {
-      "build": 6,
-      "version": "0.8.0.6",
-      "date": "2026-08-18T15:08:54+01:00",
-      "commit": "27b2cef92320c37e698ca336b47f5f7184c7270a",
-      "message": "Fix - Stop the Emby/Jellyfin unwatch backstop poll from overloading the process",
-      "author": "Lasikiewicz",
-      "details": [
-        "The Emby and Jellyfin unwatched-reconciliation poll added earlier this session was checking a 30-item batch every minute on both platforms, and each item's lookup costs several sequential outbound requests (provider-ID searches, a title-fallback search, a full series-episode fetch) - together this could pile up 100+ outbound requests into a single scheduler tick",
-        "This was severe enough in practice to make the process unresponsive and get restarted repeatedly, causing the intermittent downtime and connection failures seen on the live site",
-        "The batch size is now 5 records and the check runs every 5 minutes instead of every 1 (configurable via EMBY_UNWATCHED_POLL_INTERVAL_MS / JELLYFIN_UNWATCHED_POLL_INTERVAL_MS), which is still comfortably enough to backstop a missed webhook without competing for the scheduler's time budget",
-        "Plex's equivalent poll is unaffected - its lookup is a single cheap call, so it keeps its original batch size and one-minute cadence"
-      ]
-    },
-    {
-      "build": 5,
-      "version": "0.8.0.5",
-      "date": "2026-08-18T14:49:09+01:00",
-      "commit": "e4b98f9604287e9ba284a83115f15ae2161da826",
-      "message": "Feature - Flag when a newer alpha build is available",
-      "author": "Lasikiewicz",
-      "details": [
-        "Settings -> About and the sidebar version badge now show a real \"Update available\" indicator on the alpha channel when a newer :alpha image has actually been published, naming the build number and prompting a pull of the latest image",
-        "This is separate from the existing release-version check: alpha's bundled semver still never flags the expected gap against main as an update, since that gap is normal and not actionable, but a genuinely newer alpha build now is",
-        "The check compares the running build's bundled changelog.alpha.json against the alpha branch's published copy on GitHub, cached for a minute the same way the main release check already works"
-      ]
-    },
-    {
-      "build": 4,
-      "version": "0.8.0.4",
-      "date": "2026-08-18T14:36:11+01:00",
-      "commit": "2093791d0854423eeb1b565738487d5d3e94a6ab",
-      "message": "Fix - Stop Trakt watch corrections from stacking duplicate history entries",
-      "author": "Lasikiewicz",
-      "details": [
-        "Force Sync and watched-date corrections were adding a brand-new Trakt history entry every time they ran, because Trakt's history is an additive play log with no update semantics - repeated corrections piled up duplicate \"watched\" entries instead of fixing the existing one",
-        "Plembfin now removes any existing Trakt plays for a title before replaying its own corrected watched state, so a correction replaces the old entry instead of stacking another one alongside it",
-        "A genuine watch reported by Plex, Emby, or Jellyfin still just adds a play, since that really is a new watch",
-        "Documented the Trakt play-log limitation and a related one: Plex/Emby/Jellyfin's own mark-played APIs don't accept a backdated date, so those servers still record the moment a correction ran rather than the corrected date itself - confirmed this cannot silently revert a corrected date in Plembfin's own history, since neither the scheduled catch-up sync nor Force Sync ever overwrites an already-recorded watch's date"
-      ]
-    },
-    {
-      "build": 3,
-      "version": "0.8.0.3",
-      "date": "2026-08-18T14:08:01+01:00",
-      "commit": "ac7781651dbcce96790c8750d8229b0f3c569dd6",
-      "message": "Fix - Repair broken commit-message parsing in the changelog generators",
-      "author": "Lasikiewicz",
-      "details": [
-        "The alpha and main changelog generators lost the special separator characters used to split multi-commit git log output when that logic was shared into a new helper file, silently turning every commit message into a stream of single characters instead of parsing them",
-        "This made a merged alpha push record itself under the generic \"Merge branch...\" message with no real details, instead of the actual commit's summary and bullet points - visible as alpha build 2's changelog entry",
-        "The alpha changelog generator now also prefers the most recent real commit's message as the entry headline when the triggering commit is an auto-generated merge (routine on this branch, since the bot's own build-bump commit gets folded back on the next push), instead of showing merge plumbing as the changelog title",
-        "Corrected the already-published build 2 entry in changelog.alpha.json to show its real changes"
-      ]
-    },
-    {
-      "build": 2,
-      "version": "0.8.0.2",
-      "date": "2026-08-18T13:56:14+01:00",
-      "commit": "1ad18b460e5e538a7fc23dcca44669c9644cbd9e",
-      "message": "Fix - Close remaining gaps in cross-platform watch-state sync",
-      "author": "Lasikiewicz",
-      "details": [
-        "Force Sync no longer records a fake \"just watched\" date for a title whose played flag has no reliable timestamp on Plex, Emby, or Jellyfin - it is skipped instead of imported with a fabricated date",
-        "Unwatching a title now clears its resume/continue-watching position on every connected server, not just the played flag, so a title doesn't keep showing as partially watched after being unwatched",
-        "Full Sync now clears a stale resume position for a title that's already unwatched in Plembfin but still shows in-progress on a server, instead of doing nothing because the title isn't watched anywhere",
-        "Editing, adding, or bulk-editing a watched date on a media detail page now pushes the corrected date to Trakt and every connected Plex/Emby/Jellyfin server in the background",
-        "Emby and Jellyfin now get the same once-a-minute unwatch reconciliation safety net Plex already had, catching a missed or misconfigured webhook instead of leaving a title stuck as watched",
-        "Documented all of the above across CLAUDE.md, docs/architecture.md, docs/emby.md, docs/jellyfin.md, docs/media-detail.md, docs/scheduled-sync.md, README, and .env.example"
-      ]
-    },
-    {
       "build": 1,
-      "version": "0.8.0.1",
-      "date": "2026-08-18T13:16:34+01:00",
-      "commit": "709b4b99b3b11ef15ad9702e79ee941418e0d95b",
-      "message": "Feature - Give alpha builds their own version counter and fix identical log tabs",
-      "author": "Lasikiewicz",
+      "version": "0.8.1.1",
+      "date": "2026-08-18T16:16:00Z",
+      "commit": "24b74cab93f16977b8aa1504d88552c7f9fc88b6",
+      "message": "Chore - Update changelog for c678878",
+      "author": "github-actions[bot]",
       "details": [
-        "Alpha builds now show a distinct version like v0.8.0.7 alpha in the sidebar and Settings -> About, instead of always showing the same trailing version as main; the number increments on every push to the alpha branch and resets automatically the next time alpha is merged into main",
-        "Settings -> About now lists an \"Alpha builds since last merge\" changelog section separate from published releases, generated from the same commit-bullet rules as real release notes",
-        "The published alpha Docker image is now also tagged with its specific build number (alpha-<N>) alongside the existing rolling alpha tag, so a specific build can be pinned or identified",
-        "Fixed the Settings -> Logs page showing identical content on every category tab: the unfiltered browser debug log trail was being appended under every tab and tab switches auto-scroll to the bottom, so Plex WebSockets/Outbound Sync/Scheduled Polls all looked the same; that trail now only shows under All Logs and System Logs, where it is actually relevant",
-        "Documented both changes in CLAUDE.md, docs/architecture.md, docs/development.md, docs/settings.md, and the README"
+        "Chore - Update changelog for c678878"
       ]
     }
-  ]
+  ],
+  "updatedAt": "2026-08-18T16:16:00Z"
 }
