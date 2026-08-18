@@ -66,17 +66,33 @@ export async function withFreshTraktConnection(force = false) {
   return hydrateTraktAppCredentials(connection);
 }
 
+// Trakt's history is a play log, not a "watched" flag - POST /sync/history
+// always adds a new play, it never corrects an existing one. A canonical
+// replay (Force Sync, a watched-date correction - anything sourced as
+// "manual") isn't a fresh watch event, so clear any existing plays for this
+// item first; otherwise every replay silently piles up duplicate history
+// entries at whatever time it happened to run. A genuine watch reported by a
+// media server still just adds, since that really is a new play. Removing an
+// item with no existing history is a no-op on Trakt's side, not an error.
+async function performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay) {
+  if (isCanonicalReplay) {
+    await setTraktWatchState(connection, trackerMedia, "unwatched");
+  }
+  return setTraktWatchState(connection, trackerMedia, state);
+}
+
 async function dispatchTrakt(media, state) {
   let connection = await withFreshTraktConnection();
   if (!connection) return { target: "trakt", status: "skipped", detail: "Trakt is not connected" };
   if (String(media.source || "").toLowerCase() === "trakt") return { target: "trakt", status: "skipped", detail: "Source tracker echo suppressed" };
   const trackerMedia = await hydrateTrackerMedia(media);
+  const isCanonicalReplay = state === "watched" && String(media.source || "").toLowerCase() === "manual";
   try {
-    await setTraktWatchState(connection, trackerMedia, state);
+    await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay);
   } catch (error) {
     if (error.status !== 401) throw error;
     connection = await withFreshTraktConnection(true);
-    await setTraktWatchState(connection, trackerMedia, state);
+    await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay);
   }
   const mediaKey = trackerMediaKey(trackerMedia);
   recordTrackerOutbound("trakt", mediaKey, trackerMedia, state);

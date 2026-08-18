@@ -153,7 +153,13 @@ first complete render.
   `routes/media.js`, reusing `syncCanonicalPlaystate` - the same replay Force
   Sync's Push To uses), so the platforms Plembfin is canonical for don't keep
   showing a stale or fabricated date after a manual fix; a record currently
-  marked unwatched is left alone. TV Fix Match sends one `POST /api/rematch-show` request that
+  marked unwatched is left alone. Since Trakt's history is an additive play log,
+  this replay clears any existing Trakt plays for the item first
+  (`trackerDispatcher.js`) so the correction replaces the old entry instead of
+  adding another one alongside it. Plex/Emby/Jellyfin's own mark-played APIs
+  don't accept an arbitrary date, so those servers still record the moment the
+  correction ran, not the corrected date itself - only Trakt's history reflects
+  the actual corrected timestamp. TV Fix Match sends one `POST /api/rematch-show` request that
   updates every episode record in a transaction, renaming them onto the picked
   series when that name differs; the dialog closes after that local update while
   progress, artwork, and metadata refresh in the background. A rename changes the

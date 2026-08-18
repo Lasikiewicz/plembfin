@@ -160,7 +160,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `plexFetch.js` | Plex-account HTTP boundary with Plex client identity headers and structured failures. |
 | `plexTokenManager.js` | Managed Plex account/server-token validity checks and refresh/recovery. |
 | `trackerConnectionRepo.js` | Encrypted tracker connection and expiring device-flow persistence. |
-| `trackerDispatcher.js` | Sends canonical watched/unwatched/rewatch changes to active trackers with echo suppression. |
+| `trackerDispatcher.js` | Sends canonical watched/unwatched/rewatch changes to active trackers with echo suppression. Trakt's history is a play log with no update semantics - `POST /sync/history` only ever adds a play - so a canonical replay (`source: "manual"`, e.g. Force Sync or a watched-date correction) first removes any existing Trakt plays for that item before adding the corrected one, instead of stacking a duplicate. A genuine watch reported by a media server still just adds. |
 | `trackerSync.js` | Compares complete Trakt watched snapshots with stored tracker state and feeds additions, removals, and changed timestamps into canonical transitions. |
 | `traktClient.js` | Trakt device OAuth, refresh, paged watched-history reads, and watched-history write client. |
 | `watchStateTransitions.js` | Shared transactional watched/unwatched transition boundary used by tracker and media-server inputs. |
