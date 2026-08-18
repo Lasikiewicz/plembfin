@@ -1,8 +1,22 @@
 {
   "baseVersion": "0.8.0",
-  "build": 5,
-  "updatedAt": "2026-08-18T14:49:09+01:00",
+  "build": 6,
+  "updatedAt": "2026-08-18T15:08:54+01:00",
   "entries": [
+    {
+      "build": 6,
+      "version": "0.8.0.6",
+      "date": "2026-08-18T15:08:54+01:00",
+      "commit": "27b2cef92320c37e698ca336b47f5f7184c7270a",
+      "message": "Fix - Stop the Emby/Jellyfin unwatch backstop poll from overloading the process",
+      "author": "Lasikiewicz",
+      "details": [
+        "The Emby and Jellyfin unwatched-reconciliation poll added earlier this session was checking a 30-item batch every minute on both platforms, and each item's lookup costs several sequential outbound requests (provider-ID searches, a title-fallback search, a full series-episode fetch) - together this could pile up 100+ outbound requests into a single scheduler tick",
+        "This was severe enough in practice to make the process unresponsive and get restarted repeatedly, causing the intermittent downtime and connection failures seen on the live site",
+        "The batch size is now 5 records and the check runs every 5 minutes instead of every 1 (configurable via EMBY_UNWATCHED_POLL_INTERVAL_MS / JELLYFIN_UNWATCHED_POLL_INTERVAL_MS), which is still comfortably enough to backstop a missed webhook without competing for the scheduler's time budget",
+        "Plex's equivalent poll is unaffected - its lookup is a single cheap call, so it keeps its original batch size and one-minute cadence"
+      ]
+    },
     {
       "build": 5,
       "version": "0.8.0.5",
