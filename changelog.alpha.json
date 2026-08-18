@@ -1,8 +1,22 @@
 {
   "baseVersion": "0.8.0",
-  "build": 7,
-  "updatedAt": "2026-08-18T15:25:23+01:00",
+  "build": 8,
+  "updatedAt": "2026-08-18T15:52:48+01:00",
   "entries": [
+    {
+      "build": 8,
+      "version": "0.8.0.8",
+      "date": "2026-08-18T15:52:48+01:00",
+      "commit": "5fea19c97b62e092ee573279249c09d1c3c22566",
+      "message": "Fix - Cap concurrent Plex notification handlers to stop memory spikes",
+      "author": "Lasikiewicz",
+      "details": [
+        "The Plex WebSocket notification listener debounces per item, but every debounced timer fired its handler immediately with no concurrency limit at all - a burst of notifications (which can arrive right as the socket connects or reconnects, i.e. on every process restart) meant hundreds of handlers could run at once, each doing a metadata fetch, a playstate lookup, and possibly full unwatch propagation to every connected platform",
+        "This was severe enough in production to spike memory to multiple gigabytes within seconds and get the process killed by its healthcheck-driven restart policy, which explains the recurring downtime even after the Emby/Jellyfin poll was fully disabled",
+        "Handlers are now capped at 3 concurrent, with the rest queued instead of all firing at the same moment",
+        "This is the likely actual trigger for today's instability: an earlier fix this session (making the listener correctly treat more Plex changes as real unwatches instead of silently skipping them) meant more notifications now do real work instead of an early no-op, which is what exposed this pre-existing lack of a concurrency limit"
+      ]
+    },
     {
       "build": 7,
       "version": "0.8.0.7",
