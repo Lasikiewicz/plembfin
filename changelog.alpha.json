@@ -1,8 +1,22 @@
 {
   "baseVersion": "0.8.0",
-  "build": 6,
-  "updatedAt": "2026-08-18T15:08:54+01:00",
+  "build": 7,
+  "updatedAt": "2026-08-18T15:25:23+01:00",
   "entries": [
+    {
+      "build": 7,
+      "version": "0.8.0.7",
+      "date": "2026-08-18T15:25:23+01:00",
+      "commit": "08863a31b9adaaa3082122ae81f76570aabde6d0",
+      "message": "Fix - Disable the Emby/Jellyfin unwatch backstop poll by default",
+      "author": "Lasikiewicz",
+      "details": [
+        "The previous load reduction (smaller batch, 5-minute cadence) did not actually fix the production instability: the \"last checked\" timestamp only lived in memory, so a process restart reset it to zero and made the very next tick fire the check again immediately - turning one expensive tick into a sustained restart loop instead of a rare backstop",
+        "Emby's and Jellyfin's unwatch-reconciliation poll is now disabled by default (EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED=true to opt in); their webhooks already report unwatch natively, so this was only ever meant to be a rare safety net, not something worth the repeated production instability while it gets a proper concurrency-limited rework",
+        "The restart-reset bug itself is also fixed (the timestamp now seeds to process start time instead of zero) for whenever this is re-enabled",
+        "Plex's equivalent poll is untouched and stays enabled - its lookup is a single cheap call and was never implicated"
+      ]
+    },
     {
       "build": 6,
       "version": "0.8.0.6",
