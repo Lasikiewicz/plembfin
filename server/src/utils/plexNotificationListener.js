@@ -136,6 +136,16 @@ export function parsePlexNotificationRatingKeys(raw) {
   return [...new Set(keys)];
 }
 
+// A burst of notifications (e.g. Plex announcing a large batch of changes right as
+// the socket connects or reconnects, which happens on every process restart) debounces
+// down to one timer per ratingKey, but every timer previously fired its handler
+// immediately and unboundedly - hundreds of concurrent handlers each doing metadata
+// fetches, playstate lookups, and possibly full unwatch propagation to every connected
+// platform was severe enough in practice to spike memory and get the process killed.
+// This caps how many handlers run at once; the rest wait in a queue instead of all
+// firing at the same moment.
+const MAX_CONCURRENT_HANDLERS = 3;
+
 export function createPlexNotificationListener({ getPlexConfig, onLibraryItemChange, logger = console.log }) {
   let socket = null;
   let stopped = true;
@@ -144,6 +154,22 @@ export function createPlexNotificationListener({ getPlexConfig, onLibraryItemCha
   let attempt = 0;
   let lastActivityAt = 0;
   const pending = new Map(); // ratingKey -> debounce timeout
+  const handlerQueue = [];
+  let activeHandlers = 0;
+
+  function drainHandlerQueue() {
+    while (activeHandlers < MAX_CONCURRENT_HANDLERS && handlerQueue.length > 0) {
+      const ratingKey = handlerQueue.shift();
+      activeHandlers += 1;
+      Promise.resolve()
+        .then(() => onLibraryItemChange(ratingKey))
+        .catch((error) => logger(`Plex notifications: handler failed for ${ratingKey}: ${error?.message || error}`))
+        .finally(() => {
+          activeHandlers -= 1;
+          drainHandlerQueue();
+        });
+    }
+  }
 
   function clearReconnect() {
     if (reconnectTimer) {
@@ -197,6 +223,7 @@ export function createPlexNotificationListener({ getPlexConfig, onLibraryItemCha
   function flushPending() {
     for (const timer of pending.values()) clearTimeout(timer);
     pending.clear();
+    handlerQueue.length = 0;
   }
 
   function debounce(ratingKey) {
@@ -205,9 +232,8 @@ export function createPlexNotificationListener({ getPlexConfig, onLibraryItemCha
       ratingKey,
       setTimeout(() => {
         pending.delete(ratingKey);
-        Promise.resolve()
-          .then(() => onLibraryItemChange(ratingKey))
-          .catch((error) => logger(`Plex notifications: handler failed for ${ratingKey}: ${error?.message || error}`));
+        handlerQueue.push(ratingKey);
+        drainHandlerQueue();
       }, DEBOUNCE_MS),
     );
   }

@@ -78,7 +78,13 @@ and watches `timeline` notifications for movies (type 1), shows (type 2), season
 (type 3), and episodes (type 4) from the library section (supporting both array and
 single-object `TimelineEntry` payloads). Show and season changes are expanded to their
 episodes so bulk watched/unwatched actions propagate immediately. It is pure transport: reconnect with backoff (3s → 60s), debounce per
-ratingKey (2.5s), then hand each changed ratingKey to `onLibraryItemChange`.
+ratingKey (2.5s), then hand each changed ratingKey to `onLibraryItemChange` - capped at 3
+concurrent handlers, queueing the rest. A notification burst (e.g. right as the socket
+connects or reconnects) debounces down to one timer per ratingKey, but every timer used to
+fire its handler immediately and unboundedly; hundreds of concurrent handlers each doing a
+metadata fetch, a playstate lookup, and possibly full propagation to every connected
+platform was severe enough in production to spike memory and get the process killed by its
+healthcheck-driven restart policy.
 
 Reverse proxies in front of Plex (Cloudflare, nginx, Traefik, etc.) commonly drop an idle
 WebSocket after a timeout without ever sending a close frame, leaving a "zombie"
