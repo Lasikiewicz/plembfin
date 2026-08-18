@@ -1,8 +1,22 @@
 {
   "baseVersion": "0.8.0",
-  "build": 3,
-  "updatedAt": "2026-08-18T14:08:01+01:00",
+  "build": 4,
+  "updatedAt": "2026-08-18T14:36:11+01:00",
   "entries": [
+    {
+      "build": 4,
+      "version": "0.8.0.4",
+      "date": "2026-08-18T14:36:11+01:00",
+      "commit": "2093791d0854423eeb1b565738487d5d3e94a6ab",
+      "message": "Fix - Stop Trakt watch corrections from stacking duplicate history entries",
+      "author": "Lasikiewicz",
+      "details": [
+        "Force Sync and watched-date corrections were adding a brand-new Trakt history entry every time they ran, because Trakt's history is an additive play log with no update semantics - repeated corrections piled up duplicate \"watched\" entries instead of fixing the existing one",
+        "Plembfin now removes any existing Trakt plays for a title before replaying its own corrected watched state, so a correction replaces the old entry instead of stacking another one alongside it",
+        "A genuine watch reported by Plex, Emby, or Jellyfin still just adds a play, since that really is a new watch",
+        "Documented the Trakt play-log limitation and a related one: Plex/Emby/Jellyfin's own mark-played APIs don't accept a backdated date, so those servers still record the moment a correction ran rather than the corrected date itself - confirmed this cannot silently revert a corrected date in Plembfin's own history, since neither the scheduled catch-up sync nor Force Sync ever overwrites an already-recorded watch's date"
+      ]
+    },
     {
       "build": 3,
       "version": "0.8.0.3",
