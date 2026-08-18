@@ -1,8 +1,21 @@
 {
   "baseVersion": "0.8.0",
-  "build": 4,
-  "updatedAt": "2026-08-18T14:36:11+01:00",
+  "build": 5,
+  "updatedAt": "2026-08-18T14:49:09+01:00",
   "entries": [
+    {
+      "build": 5,
+      "version": "0.8.0.5",
+      "date": "2026-08-18T14:49:09+01:00",
+      "commit": "e4b98f9604287e9ba284a83115f15ae2161da826",
+      "message": "Feature - Flag when a newer alpha build is available",
+      "author": "Lasikiewicz",
+      "details": [
+        "Settings -> About and the sidebar version badge now show a real \"Update available\" indicator on the alpha channel when a newer :alpha image has actually been published, naming the build number and prompting a pull of the latest image",
+        "This is separate from the existing release-version check: alpha's bundled semver still never flags the expected gap against main as an update, since that gap is normal and not actionable, but a genuinely newer alpha build now is",
+        "The check compares the running build's bundled changelog.alpha.json against the alpha branch's published copy on GitHub, cached for a minute the same way the main release check already works"
+      ]
+    },
     {
       "build": 4,
       "version": "0.8.0.4",
