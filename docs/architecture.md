@@ -425,26 +425,41 @@ commit (falling back to version + message), remote copies win on conflict except
 local entry's `details` are kept when the remote one has none, and the result is sorted
 newest-first by semver then date. A release that exists only in the bundled file therefore
 stays visible alongside releases that exist only on GitHub. The response is
-`{ current, channel, latest, updateAvailable, remoteAvailable, remoteError, newer, entries }`,
+`{ current, channel, alphaBuild, latest, updateAvailable, remoteAvailable, remoteError, newer, entries }`,
 where `latest` is the highest version across the remote manifest and the merged entries,
 `newer` lists releases with a higher semver than the running build, `updateAvailable` is
 true when `latest` outranks `current`, and `channel` is `"alpha"` when the image was built
 with `BUILD_CHANNEL=alpha` (the `ghcr.io/lasikiewicz/plembfin:alpha` image) or `"release"`
 otherwise. `current` itself always stays a plain semver string so entry-matching and
-update comparisons are unaffected; the frontend appends " alpha" only where the version is
-displayed - the sidebar badge (`v0.2.15 alpha`) and Settings → About's current-version
-banner - never in the value compared against changelog entries. If GitHub is unreachable
-the bundled entries are served on their own.
+update comparisons are unaffected; the frontend appends " alpha" (and, on alpha, the build
+number) only where the version is displayed - the sidebar badge and Settings → About's
+current-version banner - never in the value compared against changelog entries. If GitHub
+is unreachable the bundled entries are served on their own.
+
+`alphaBuild` is populated only on the `alpha` channel, read from the bundled
+`changelog.alpha.json` (`readLocalAlphaChangelog()` in `routes/maintenance.js`): a rolling
+build counter and per-push changelog entries, separate from `changelog.json`'s real semver
+and reset on the next "Merge alpha with main". `scripts/update-alpha-changelog.js` writes
+this file - bumping `build`, recording an entry with the same commit-bullet rules as
+`scripts/update-changelog.js` (both share `scripts/changelog-git-helpers.js`), and
+resetting to build 0 with an empty entry list whenever `changelog.alpha.json`'s
+`baseVersion` no longer matches `changelog.json`'s version (i.e. main moved forward since
+the last alpha push). `docker-publish-alpha.yml` runs it on every push to `alpha`,
+committing the result back as `chore: bump alpha build for <sha>` and tagging the
+published image `alpha-<build>` alongside the rolling `alpha` tag.
 
 Settings → About renders the current version, a status banner, and the full release list
 with newer versions highlighted. On the `alpha` channel the banner never shows the
 "Update available" treatment, and the sidebar badge never appends " - Update available":
-alpha's bundled version number only advances when it is merged into `main`, so it always
-trails main's latest release right after every merge even though the running alpha build
-may already contain newer commits than that release - flagging that gap as an actionable
+alpha's bundled semver only advances when it is merged into `main`, so it always trails
+main's latest release right after every merge even though the running alpha build may
+already contain newer commits than that release - flagging that gap as an actionable
 update would be misleading. The banner instead states that alpha is a rolling pre-release
 channel and, if `newer` is non-empty, notes how many releases have landed on `main` since
-this build for context.
+this build for context. The sidebar/About version label itself still distinguishes one
+alpha build from the next via the build number (`v0.8.0.7 alpha`), and the release list
+shows a separate "Alpha builds since last merge" section above the published releases
+when `alphaBuild.entries` is non-empty.
 
 ## Data layer (`server/src/db.js` + `schema.sql`)
 

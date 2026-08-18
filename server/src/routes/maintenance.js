@@ -796,6 +796,24 @@ function readLocalChangelog() {
   }
 }
 
+// Bundled only on the alpha channel build; see docker-publish-alpha.yml and
+// scripts/update-alpha-changelog.js. Tracks a rolling build counter and
+// per-push changelog entries that reset on the next "Merge alpha with main",
+// independent of changelog.json's real semver.
+function readLocalAlphaChangelog() {
+  try {
+    const raw = fs.readFileSync(nodePath.resolve(PUBLIC_DIR, "..", "changelog.alpha.json"), "utf8");
+    const data = JSON.parse(raw);
+    return {
+      build: Number(data.build) || 0,
+      baseVersion: data.baseVersion || null,
+      entries: Array.isArray(data.entries) ? data.entries : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchRemoteChangelog({ force = false } = {}) {
   const now = Date.now();
   if (!force && remoteChangelogCache.data && now - remoteChangelogCache.fetchedAt < REMOTE_CHANGELOG_TTL_MS) {
@@ -900,11 +918,15 @@ export async function handleChangelog(req, res) {
     ? entries.filter((entry) => compareSemver(entry.version, currentVersion) > 0)
     : [];
 
+  const channel = process.env.BUILD_CHANNEL === "alpha" ? "alpha" : "release";
+  const alphaBuild = channel === "alpha" ? readLocalAlphaChangelog() : null;
+
   return sendJson(
     res,
     {
       current: currentVersion,
-      channel: process.env.BUILD_CHANNEL === "alpha" ? "alpha" : "release",
+      channel,
+      alphaBuild,
       latest: latestVersion,
       updateAvailable: compareSemver(latestVersion, currentVersion) > 0,
       remoteAvailable,

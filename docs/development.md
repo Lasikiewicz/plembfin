@@ -63,8 +63,13 @@ deliberately promoted, and every promotion becomes exactly one release.
   same `secret-scan.yml` and `security.yml` coverage as `main` (see the table below),
   so a broken dependency or a leaked secret surfaces immediately. `docker-publish-alpha.yml`
   builds, verifies, and publishes a rolling pre-release image to
-  `ghcr.io/lasikiewicz/plembfin:alpha` on every push - but `alpha` never touches
-  `changelog.json` or the package version, and never updates the `:latest` tag.
+  `ghcr.io/lasikiewicz/plembfin:alpha` (also tagged `alpha-<build>`) on every push - but
+  `alpha` never touches `changelog.json` or the package version, and never updates the
+  `:latest` tag. It does bump a separate `changelog.alpha.json` build counter via
+  `scripts/update-alpha-changelog.js`, committed back to `alpha` as
+  `chore: bump alpha build for <sha>`; that counter resets on the next "Merge alpha with
+  main". See [`architecture.md`](architecture.md#changelog--update-check) for how this
+  surfaces in the UI.
 - The "Merge alpha with main" agent workflow force-pushes `alpha`'s current state onto
   `main` (`git push origin alpha:main --force`), which triggers the release pipeline
   below. Every commit that was queued on `alpha` rides in on that one push, so the
@@ -111,7 +116,7 @@ on GitHub - see the changelog section of [architecture.md](architecture.md).
 | `security.yml` | `npm audit --audit-level=high` + CodeQL, on push to `main`/`alpha`, PRs targeting `main`, and daily. CodeQL loads `.github/codeql/codeql-config.yml`, which excludes the `js/request-forgery` query repo-wide - every outbound request funnels through the centralized, validated fetch guard in `server/src/utils/outbound.js`, and admin-configured LAN media server URLs make that query permanently false-positive for this app |
 | `secret-scan.yml` | TruffleHog verified-secret scan on push to `main`/`alpha` and PRs targeting `main` |
 | `docker-build-check.yml` | Builds the image on every PR targeting `main`, without pushing anything, then runs `better-sqlite3` and `sharp` inside it, so a broken Dockerfile or dependency install is caught before a PR merges. The runtime probe matters because production dependencies install with `--ignore-scripts`: a native module with no usable binary for the platform still builds cleanly and would fail on first database open |
-| `docker-publish-alpha.yml` | On every push to `alpha`: builds the image, runs the same native-module probe as `docker-build-check.yml`, then pushes it to `ghcr.io/lasikiewicz/plembfin:alpha`. Never touches `changelog.json`, the package version, or the `:latest` tag |
+| `docker-publish-alpha.yml` | On every push to `alpha`: bumps `changelog.alpha.json`'s build counter and commits it back to `alpha`, builds the image, runs the same native-module probe as `docker-build-check.yml`, then pushes it to `ghcr.io/lasikiewicz/plembfin:alpha` and `ghcr.io/lasikiewicz/plembfin:alpha-<build>`. Never touches `changelog.json`, the package version, or the `:latest` tag |
 | `dependabot.yml` | Dependency update PRs |
 
 ## Docker

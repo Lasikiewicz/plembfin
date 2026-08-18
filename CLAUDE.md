@@ -22,8 +22,14 @@ onto it, and each promotion becomes exactly one release (one changelog entry, on
 version bump, one `:latest` + versioned Docker image publish). `alpha` gets the same
 secret-scan and security CI coverage as `main`, so problems surface on every push.
 Every push to `alpha` also builds, verifies, and publishes a rolling pre-release image
-to `ghcr.io/lasikiewicz/plembfin:alpha` - unlike the `main` release pipeline, this
-never touches `changelog.json` or the package version.
+to `ghcr.io/lasikiewicz/plembfin:alpha` (also tagged `alpha-<build>` for a specific
+build) - unlike the `main` release pipeline, this never touches `changelog.json` or the
+package version. It does bump a separate `changelog.alpha.json` build counter and record
+a changelog entry for the push, committed back to `alpha` as `chore: bump alpha build for
+<sha>`; that counter and its entries reset the next time "Merge alpha with main" lands.
+The running alpha build shows this as `v<version>.<build> alpha` (e.g. `v0.8.0.7 alpha`)
+in the sidebar and Settings → About, which also lists the alpha build history separately
+from published releases.
 
 ## "Push to git" command
 
@@ -133,12 +139,16 @@ happens when "Merge alpha with main" runs.
 
 #### Expect `alpha` to occasionally be behind after a merge - this is normal, not a conflict to escalate
 
-"Merge alpha with main" force-pushes `alpha`'s state onto `main`, and CI then commits
-its changelog-bump commit **directly back to `main`**. That command folds the bump
-commit back into `alpha` as its last step, but if that step was skipped, or another
-session pushed to `alpha` in the meantime, `origin/alpha` can be ahead of your local
-branch. A local pre-push hook also fetches and merges against the same-named remote
-branch before pushing, so this is usually already handled - but if `git status` or a failed push reports
+`docker-publish-alpha.yml` also commits its own `chore: bump alpha build for <sha>` back
+to `alpha` after every single push (see the branching model section above), so
+`origin/alpha` is routinely one commit ahead of whatever you just pushed - treat that
+commit as expected, not as unrecognized work. Separately, "Merge alpha with main"
+force-pushes `alpha`'s state onto `main`, and CI then commits its changelog-bump commit
+**directly back to `main`**. That command folds the bump commit back into `alpha` as its
+last step, but if that step was skipped, or another session pushed to `alpha` in the
+meantime, `origin/alpha` can be further ahead of your local branch. A local pre-push hook
+also fetches and merges against the same-named remote branch before pushing, so both
+cases are usually already handled - but if `git status` or a failed push reports
 `alpha` and `origin/alpha` have diverged, treat it as the expected steady-state, not a
 real conflict, and reconcile automatically as part of the same "Push to git" run:
 ```bash

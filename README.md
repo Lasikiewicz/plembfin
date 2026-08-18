@@ -419,9 +419,10 @@ preventing sparse entries in **Settings → About**. See
 workflow.
 
 Every push to `alpha` builds, verifies, and publishes a rolling pre-release image to
-`ghcr.io/lasikiewicz/plembfin:alpha`; every pull request targeting `main` builds and
-verifies the same way without publishing. Either way, a change that breaks the
-container is caught immediately rather than after a release has been published.
+`ghcr.io/lasikiewicz/plembfin:alpha` (also tagged `alpha-<build>` for a specific build,
+shown in the app as `v<version>.<build> alpha`); every pull request targeting `main`
+builds and verifies the same way without publishing. Either way, a change that breaks
+the container is caught immediately rather than after a release has been published.
 
 When a change completes an item in [`TODO.md`](TODO.md), remove that item and update
 the corresponding documentation in the same change.

@@ -33,6 +33,7 @@ RUN npm ci --omit=dev --ignore-scripts && chmod +x /usr/local/bin/docker-entrypo
 COPY server ./server
 COPY public ./public
 COPY changelog.json ./changelog.json
+COPY changelog.alpha.json ./changelog.alpha.json
 
 # node:22-slim already provides a 'node' user at uid 1000; rename it to
 # 'plembfin' for clarity and set up the data directory.

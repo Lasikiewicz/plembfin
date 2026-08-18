@@ -253,6 +253,8 @@ Log entries feature human-readable timestamps (`YYYY-MM-DD HH:MM:SS`), color-cod
 
 Entries are served from the `diagnostic_log` table, so the panel merges output from the web and worker processes and reads at a fixed cost no matter how long the server has been running. The table is a bounded ring buffer; **Clear Logs** empties it. Per-request tracing is off unless `LOG_VERBOSE` is set - see [troubleshooting.md](troubleshooting.md) for what that adds. On-disk JSONL copies under `data/logs` are a crash-forensics archive only, pruned automatically on start.
 
+The panel also appends a browser-side debug log trail below the server entries. That trail has no category of its own, so it only appears under **All Logs** and **System Logs** - the other three tabs show only the matching server-categorized entries, so each tab's content is distinct.
+
 ## Settings Layout & Card Standards
 
 All settings pages follow the standard layout established on `/settings/metadata`:

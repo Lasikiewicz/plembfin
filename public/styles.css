@@ -6646,6 +6646,15 @@ details.sync-tool-details[open] > summary {
   border-color: rgba(37, 99, 235, 0.4);
 }
 
+.changelog-section-heading {
+  margin: var(--space-3) 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .changelog-tag {
   display: inline-block;
   margin-left: var(--space-2);

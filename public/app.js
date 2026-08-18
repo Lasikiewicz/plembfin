@@ -338,15 +338,18 @@ function authHeaders() {
   return buildAuthHeaders(state.token);
 }
 
-// Purely cosmetic: appends the build channel to a displayed version string
-// without touching the raw semver used for update-available/entry-match checks.
-function versionDisplayLabel(version, channel) {
-  return channel === "alpha" && version ? `${version} alpha` : version;
+// Purely cosmetic: appends the build channel (and, on alpha, the rolling
+// build counter) to a displayed version string without touching the raw
+// semver used for update-available/entry-match checks.
+function versionDisplayLabel(version, channel, alphaBuild) {
+  if (channel !== "alpha" || !version) return version;
+  const build = Number(alphaBuild?.build) || 0;
+  return build > 0 ? `${version}.${build} alpha` : `${version} alpha`;
 }
 
 function updateVersionBadge(data) {
   if (!elements.appVersion || !data?.current) return;
-  const label = versionDisplayLabel(data.current, data.channel);
+  const label = versionDisplayLabel(data.current, data.channel, data.alphaBuild);
   // Alpha's version number only bumps when it is merged into main, so an
   // alpha build sits "behind" main's version string by design right after
   // every release - that gap isn't a real update the user is missing, so the
@@ -416,9 +419,12 @@ async function renderChangelog(force = false) {
     const data = await loadChangelogData(force);
     const entries = Array.isArray(data.entries) ? data.entries : [];
     const current = data.current || null;
-    const currentLabel = versionDisplayLabel(current, data.channel) || "?";
+    const currentLabel = versionDisplayLabel(current, data.channel, data.alphaBuild) || "?";
     const latest = data.latest || current;
     const newerCount = Array.isArray(data.newer) ? data.newer.length : 0;
+    const alphaBuildEntries = data.channel === "alpha" && Array.isArray(data.alphaBuild?.entries)
+      ? data.alphaBuild.entries
+      : [];
 
     let banner;
     if (!data.remoteAvailable) {
@@ -451,7 +457,7 @@ async function renderChangelog(force = false) {
         </div>`;
     }
 
-    if (!entries.length) {
+    if (!entries.length && !alphaBuildEntries.length) {
       elements.changelogPanel.innerHTML = `${banner}<div class="idle-state"><b>No changelog entries found.</b></div>`;
       return;
     }
@@ -478,9 +484,33 @@ async function renderChangelog(force = false) {
       `;
     };
 
+    // Alpha's own rolling build history - separate from the release entries
+    // above since these builds are never published to GitHub and reset on
+    // the next "Merge alpha with main".
+    const renderAlphaBuildEntry = (entry) => {
+      const details = Array.isArray(entry.details) ? entry.details.filter(Boolean) : [];
+      const isCurrent = Number(entry.build) === Number(data.alphaBuild?.build);
+      return `
+        <article class="changelog-entry${isCurrent ? " changelog-entry-current" : ""}">
+          <div class="changelog-entry-head">
+            <b>Build ${escapeHtml(String(entry.build ?? ""))}${isCurrent ? `<span class="changelog-tag changelog-tag-current">Current</span>` : ""}</b>
+            <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
+          </div>
+          <p>${escapeHtml(entry.message || "Alpha build update")}</p>
+          ${details.length ? `<ul>${details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("")}</ul>` : ""}
+        </article>
+      `;
+    };
+    const alphaSection = alphaBuildEntries.length
+      ? `<h4 class="changelog-section-heading">Alpha builds since last merge</h4>${alphaBuildEntries.map(renderAlphaBuildEntry).join("")}`
+      : "";
+
     const visibleEntries = changelogExpanded ? entries : entries.slice(0, 20);
     const olderCount = entries.length - visibleEntries.length;
-    elements.changelogPanel.innerHTML = banner + visibleEntries.map(renderEntry).join("") + (
+    const releaseHeading = alphaSection && entries.length
+      ? `<h4 class="changelog-section-heading">Published releases</h4>`
+      : "";
+    elements.changelogPanel.innerHTML = banner + alphaSection + releaseHeading + visibleEntries.map(renderEntry).join("") + (
       olderCount > 0
         ? `<button id="changelogShowAll" class="button-ghost" type="button">Show ${olderCount} older releases</button>`
         : ""
@@ -1884,25 +1914,31 @@ async function renderLogs(forceScrollToBottom = false) {
   const localLogs = logsText();
   const category = state.activeLogCategory || "all";
 
+  // The frontend debug log is a flat browser-activity trail with no server-side
+  // category of its own, so it only genuinely belongs under "All" and "System" -
+  // showing it under Plex WebSockets/Outbound Sync/Scheduled Polls made every tab
+  // look identical, since tab switches force-scroll to the bottom of this section.
+  const includeFrontendSection = category === "all" || category === "system";
+
   try {
     const backendLogs = await fetchDiagnosticLogs(authHeaders(), category);
-    if (backendLogs.length > 0) {
+    if (backendLogs.length > 0 || includeFrontendSection) {
       const visibleBackendLogs = backendLogs.slice(-250);
-      const visibleFrontendLogs = localLogs ? localLogs.split("\n").slice(-50) : [];
+      const visibleFrontendLogs = includeFrontendSection && localLogs ? localLogs.split("\n").slice(-50) : [];
       const allLogs = [
         `=== BACKEND DIAGNOSTIC LOGS (${category.toUpperCase()}) ===`,
         ...backendLogs,
-        "",
-        "=== FRONTEND DEBUG LOGS ===",
-        localLogs || "[no frontend logs]"
+        ...(includeFrontendSection ? ["", "=== FRONTEND DEBUG LOGS ===", localLogs || "[no frontend logs]"] : [])
       ].join("\n");
       state.renderedLogsText = allLogs;
 
       const htmlLines = [
         `<div class="log-section-header">=== BACKEND DIAGNOSTIC LOGS (${escapeHtml(category.toUpperCase())}) - showing latest ${visibleBackendLogs.length} of ${backendLogs.length} ===</div>`,
-        ...visibleBackendLogs.map(formatLogLineToHtml),
-        `<div class="log-section-header" style="margin-top: 1rem;">=== FRONTEND DEBUG LOGS ===</div>`,
-        ...(visibleFrontendLogs.length ? visibleFrontendLogs.map(formatLogLineToHtml) : ['<div class="log-row"><span class="log-msg" style="opacity: 0.6;">[no frontend logs]</span></div>'])
+        ...(visibleBackendLogs.length ? visibleBackendLogs.map(formatLogLineToHtml) : ['<div class="log-row"><span class="log-msg" style="opacity: 0.6;">[no backend logs for this category]</span></div>']),
+        ...(includeFrontendSection ? [
+          `<div class="log-section-header" style="margin-top: 1rem;">=== FRONTEND DEBUG LOGS ===</div>`,
+          ...(visibleFrontendLogs.length ? visibleFrontendLogs.map(formatLogLineToHtml) : ['<div class="log-row"><span class="log-msg" style="opacity: 0.6;">[no frontend logs]</span></div>'])
+        ] : [])
       ].join("");
 
       elements.logsTerminal.innerHTML = htmlLines;
