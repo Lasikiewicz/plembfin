@@ -1,7 +1,18 @@
 {
-  "version": "0.7.9",
-  "updatedAt": "2026-08-17T15:47:27+01:00",
+  "version": "0.7.10",
+  "updatedAt": "2026-08-18T11:16:43+01:00",
   "entries": [
+    {
+      "version": "0.7.10",
+      "date": "2026-08-18T11:16:43+01:00",
+      "commit": "8068a905b1853b4bf4b19e8053ffa521286d00e7",
+      "message": "Fix - Remove flaky credential vault tampering test",
+      "author": "Lasikiewicz",
+      "details": [
+        "Items pushed to Trakt now record the real play date and time instead of the moment the sync request was sent, so Trakt history reflects when something was actually watched",
+        "The tampering test always overwrote the last ciphertext character with a fixed value, so it silently passed without proving tampering on the rare run where the random ciphertext already ended in that character. It now guarantees the substitution changes the byte, so the check reliably catches tampering on every run."
+      ]
+    },
     {
       "version": "0.7.9",
       "date": "2026-08-17T15:47:27+01:00",
