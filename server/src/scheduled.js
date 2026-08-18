@@ -73,11 +73,18 @@ let lastPlexUnwatchedPollAt = 0;
 
 // Emby/Jellyfin webhooks natively report unwatch (unlike Plex), so this is a
 // backstop for a missed/misconfigured webhook or a server that was offline
-// when the change happened, not the primary detection path.
-const EMBY_UNWATCHED_POLL_INTERVAL_MS = Number(process.env.EMBY_UNWATCHED_POLL_INTERVAL_MS || 60 * 1000);
+// when the change happened, not the primary detection path. Unlike Plex's
+// single-lookup findPlexItem, Emby/Jellyfin's per-episode lookup
+// (findEpisode: up to 3 provider-ID searches, a title-fallback search, and a
+// full series-episode fetch) is expensive enough that checking a large batch
+// on both platforms every minute can pile up 100+ outbound requests in one
+// tick - severe enough in practice to make the process unresponsive. This
+// runs far less often and over a much smaller batch as a result.
+const EMBY_UNWATCHED_POLL_INTERVAL_MS = Number(process.env.EMBY_UNWATCHED_POLL_INTERVAL_MS || 5 * 60 * 1000);
 let lastEmbyUnwatchedPollAt = 0;
-const JELLYFIN_UNWATCHED_POLL_INTERVAL_MS = Number(process.env.JELLYFIN_UNWATCHED_POLL_INTERVAL_MS || 60 * 1000);
+const JELLYFIN_UNWATCHED_POLL_INTERVAL_MS = Number(process.env.JELLYFIN_UNWATCHED_POLL_INTERVAL_MS || 5 * 60 * 1000);
 let lastJellyfinUnwatchedPollAt = 0;
+const EMBY_LIKE_UNWATCHED_BATCH_SIZE = 5;
 
 // Cadence for background catch-up library syncs (recently watched & continue watching lists).
 // These serve as backstops for events missed by webhooks/live session tracking, so they
@@ -465,7 +472,7 @@ async function checkEmbyUnwatchedStatus(config, loopStore) {
   };
   const records = (await listRecentTrackedWatchRows({ limit: 100, includeScheduled: true })).filter(
     (record) => record.watched_at < threeMinutesAgo && embyWasConfirmedWatched(record),
-  ).slice(0, 30);
+  ).slice(0, EMBY_LIKE_UNWATCHED_BATCH_SIZE);
   if (!records.length) return;
 
   const { findEmbyItems } = await import("./utils/embyClient.js");
@@ -523,7 +530,7 @@ async function checkJellyfinUnwatchedStatus(config, loopStore) {
   };
   const records = (await listRecentTrackedWatchRows({ limit: 100, includeScheduled: true })).filter(
     (record) => record.watched_at < threeMinutesAgo && jellyfinWasConfirmedWatched(record),
-  ).slice(0, 30);
+  ).slice(0, EMBY_LIKE_UNWATCHED_BATCH_SIZE);
   if (!records.length) return;
 
   const { findJellyfinItems } = await import("./utils/jellyfinClient.js");

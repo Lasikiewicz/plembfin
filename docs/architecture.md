@@ -586,7 +586,8 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `LOG_VERBOSE` - set to `true` to include per-request tracing (Plex GUID lookups, search fallbacks, per-phase scheduled-sync narration) in the logs. Off by default; errors and warnings are always logged.
 - `WATCHED_PLAYED_SYNC_ENABLED` - set to `false`/`0`/`off` to disable all watched/played propagation (recording still happens)
 - `CATCHUP_SYNC_INTERVAL_MS` - how often the catch-up library sync runs inside the scheduler (default 15 minutes)
-- `PLEX_UNWATCHED_POLL_INTERVAL_MS` / `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` - cadence of each platform's unwatched-reconciliation fallback poll (default 60 seconds each)
+- `PLEX_UNWATCHED_POLL_INTERVAL_MS` - cadence of Plex's unwatched-reconciliation fallback poll (default 60 seconds); Plex's per-item lookup is a single cheap call
+- `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` - cadence of Emby's/Jellyfin's equivalent (default 5 minutes; each checked batch is also capped much lower than Plex's, at `EMBY_LIKE_UNWATCHED_BATCH_SIZE = 5`) - their per-item lookup (`findEpisode`: up to 3 provider-ID searches, a title-fallback search, and a full series-episode fetch) is expensive enough on both platforms at once that a larger batch or a one-minute cadence can pile up 100+ outbound requests in a single scheduler tick
 - `WATCHED_THRESHOLD_PERCENT` - playback percentage that counts as watched (default `90`, range 50-100)
 - `MIN_RESUME_POSITION_SEC` - minimum stopped-play position saved as resume progress (default `60`, range 0-3600 seconds)
 - `ACTIVE_SESSION_TTL_MIN` - time without a webhook update before an active session is stale (default `5`, range 1-120 minutes)

@@ -62,12 +62,15 @@ Every minute `fetchLiveSessions` polls `/Sessions` for Now Playing. The catch-up
   series provider IDs so cross-server lookup can resolve the series before selecting
   the matching season and episode.
 
-Every minute, **unwatched reconciliation** (`checkJellyfinUnwatchedStatus`) re-checks
-items Plembfin thinks are watched via Jellyfin against Jellyfin's current played flag.
-Jellyfin's webhook natively reports unwatch via `User Data Saved`, so this is a backstop
-for a missed or misconfigured webhook, not the primary detection path - mirrors
-`checkPlexUnwatchedStatus` in [plex.md](plex.md), but Plex needs that poll as its *only*
-unwatch signal since its webhook can't report unwatch at all.
+Every 5 minutes (`JELLYFIN_UNWATCHED_POLL_INTERVAL_MS`), **unwatched reconciliation**
+(`checkJellyfinUnwatchedStatus`) re-checks up to 5 items Plembfin thinks are watched via
+Jellyfin against Jellyfin's current played flag. Jellyfin's webhook natively reports
+unwatch via `User Data Saved`, so this is a backstop for a missed or misconfigured
+webhook, not the primary detection path - mirrors `checkPlexUnwatchedStatus` in
+[plex.md](plex.md), but Plex needs that poll as its *only* unwatch signal since its
+webhook can't report unwatch at all, and its per-item lookup is a single cheap call, so
+it runs every minute over a larger batch. Jellyfin's per-item lookup (`findEpisode`)
+costs several outbound requests, so this batch and cadence are both deliberately smaller.
 
 Playback positions use tick units (1 tick = 100 ns), converted in `scheduled.js`.
 
