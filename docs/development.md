@@ -44,12 +44,34 @@ completed work changes user-visible behavior.
 points `core.hooksPath` at `.githooks/`. The `.githooks/commit-msg` hook rejects
 user-visible release commits whose body has no meaningful changelog bullet (a repeat
 of the subject does not count). The `.githooks/pre-push` hook runs `git pull --rebase
-origin main` and then `npm run build` - so a push always goes out rebased and
-build-checked.
+origin <current-branch>` and then `npm run build` - so a push always goes out rebased
+against whichever branch it targets and build-checked.
+
+## Branching model (`alpha` → `main`)
+
+Day-to-day work lands on `alpha`, not `main`. `main` only moves when work is
+deliberately promoted, and every promotion becomes exactly one release.
+
+- The "Push to git" agent workflow commits and pushes to `alpha`. `alpha` gets the
+  same `secret-scan.yml`, `security.yml`, and `docker-build-check.yml` coverage as
+  `main` (see the table below), so a broken dependency, a leaked secret, or a
+  Dockerfile regression surfaces immediately - but `alpha` never bumps the changelog
+  version or publishes a Docker image on its own.
+- The "Merge alpha with main" agent workflow force-pushes `alpha`'s current state onto
+  `main` (`git push origin alpha:main --force`), which triggers the release pipeline
+  below. Every commit that was queued on `alpha` rides in on that one push, so the
+  generated changelog entry combines the bullet points from all of them (see step 2
+  below) rather than only the most recent commit.
+- After the release pipeline commits its changelog-bump commit back to `main`, `alpha`
+  is fast-forwarded onto the new `main` so the next round of work starts from a
+  matching base instead of immediately diverging.
+
+Full step-by-step commands for both workflows live in [`../CLAUDE.md`](../CLAUDE.md).
 
 ## Release pipeline (push to `main`)
 
-`.github/workflows/update-changelog.yml` runs on every push to `main`:
+`.github/workflows/update-changelog.yml` runs on every push to `main` - in practice
+this means every "Merge alpha with main" run, not every individual commit:
 
 1. build check
 2. `scripts/update-changelog.js` bumps the patch version (honouring a manually-set
@@ -62,9 +84,9 @@ build-checked.
    has no body, the generator derives a user-facing summary from its changed file
    areas instead of publishing only a vague subject line
 3. commits `changelog.json` + `package.json` + `package-lock.json` back to `main` as
-   `chore: update changelog for <sha>` - this is why `origin/main` is usually one
-   commit ahead right after a push (expected; see the "Push to git" section of
-   [`../CLAUDE.md`](../CLAUDE.md))
+   `chore: update changelog for <sha>` - the "Merge alpha with main" workflow folds
+   this bump commit back into `alpha` afterward (see the "Merge alpha with main"
+   section of [`../CLAUDE.md`](../CLAUDE.md))
 4. builds and pushes the Docker image to GHCR tagged `latest` + the new version
 
 A second job in the same workflow re-publishes the image when the triggering push *is*
@@ -78,9 +100,9 @@ on GitHub - see the changelog section of [architecture.md](architecture.md).
 
 | Workflow | What it does |
 | --- | --- |
-| `security.yml` | `npm audit --audit-level=high` + CodeQL, on push/PR/daily. CodeQL loads `.github/codeql/codeql-config.yml`, which excludes the `js/request-forgery` query repo-wide - every outbound request funnels through the centralized, validated fetch guard in `server/src/utils/outbound.js`, and admin-configured LAN media server URLs make that query permanently false-positive for this app |
-| `secret-scan.yml` | TruffleHog verified-secret scan on push/PR |
-| `docker-build-check.yml` | Builds the image on every PR without pushing, then runs `better-sqlite3` and `sharp` inside it. The release workflow is the only other place the image is built, so without this a broken Dockerfile or dependency install is only discovered after a version has been published. The runtime probe matters because production dependencies install with `--ignore-scripts`: a native module with no usable binary for the platform still builds cleanly and would fail on first database open |
+| `security.yml` | `npm audit --audit-level=high` + CodeQL, on push to `main`/`alpha`, PRs targeting `main`, and daily. CodeQL loads `.github/codeql/codeql-config.yml`, which excludes the `js/request-forgery` query repo-wide - every outbound request funnels through the centralized, validated fetch guard in `server/src/utils/outbound.js`, and admin-configured LAN media server URLs make that query permanently false-positive for this app |
+| `secret-scan.yml` | TruffleHog verified-secret scan on push to `main`/`alpha` and PRs targeting `main` |
+| `docker-build-check.yml` | Builds the image on every push to `alpha` and every PR targeting `main`, without pushing anything, then runs `better-sqlite3` and `sharp` inside it. The release workflow is the only other place the image is built, so without this a broken Dockerfile or dependency install would only be discovered after a version had been published. The runtime probe matters because production dependencies install with `--ignore-scripts`: a native module with no usable binary for the platform still builds cleanly and would fail on first database open |
 | `dependabot.yml` | Dependency update PRs |
 
 ## Docker

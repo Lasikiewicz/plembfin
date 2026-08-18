@@ -14,9 +14,18 @@ Agent instructions for working with this codebase.
 - **No Browser Actions Unless Asked** - Never open web browsers/browser tools unless the user has explicitly requested it. Test commands are part of the normal project checks: run `npm test` or `npm run build` when a change touches code covered by those checks or when the user asks for verification.
 - **Act immediately on simple requests** - If the user describes a clear, specific change, make it directly without preamble, planning steps, or explanation. Save analysis for genuinely complex or ambiguous tasks.
 
+## Branching model: `alpha` → `main`
+
+Day-to-day work lands on the `alpha` branch, never directly on `main`. `main` only
+moves when the separate "Merge alpha with main" command explicitly promotes `alpha`
+onto it, and each promotion becomes exactly one release (one changelog entry, one
+version bump, one Docker image publish). `alpha` gets the same secret-scan, security,
+and Docker build-check CI coverage as `main`, so problems surface on every push - it
+just never bumps the version or publishes an image on its own.
+
 ## "Push to git" command
 
-When the user says **"Push to git"** (exactly), run this full pre-push workflow before committing:
+When the user says **"Push to git"** (exactly), run this full pre-push workflow before committing to `alpha`:
 
 ### 1 - Review all pending changes
 ```bash
@@ -112,23 +121,76 @@ Stage all modified files **except** `data/`, `node_modules/`, and any secrets. C
 
 ### 6 - Push
 ```bash
-git push origin main
+git push origin alpha
 ```
-CI will then auto-bump the patch version, add a `changelog.json` entry, and build/push the Docker image.
+This lands the commit on `alpha`, not `main`. Secret-scan, security, and Docker
+build-check CI all run against it, but nothing publishes yet: no changelog entry, no
+version bump, no Docker image. That only happens when "Merge alpha with main" runs.
 
-The generated entry's headline and version always come from the last commit in the push, while the `details` list is backfilled from bullet points in *every* commit included in that push. Maintenance commits may fall back to their subject; user-visible release commits must pass the meaningful-bullet validation above. Nothing gets silently dropped even if the final commit's message doesn't summarize the whole push. Still, write the last commit's message as a proper user-facing summary of the session's work - features and fixes, no internal implementation details (file names, CSS properties, line counts) - since it becomes the entry's headline.
+#### Expect `alpha` to occasionally be behind after a merge - this is normal, not a conflict to escalate
 
-#### Expect `main` to be ahead - this is normal, not a conflict to escalate
-
-The GitHub Actions workflow above commits its version bump **directly back to `main`** within seconds of every push, and a local pre-push hook also fetches/rebases against the remote before pushing. Together these mean `origin/main` will very often show 1 (sometimes more) commits that your local branch doesn't have yet - usually just `chore: update changelog for <sha>` bump commits that only ever touch `changelog.json`, `package.json`, and `package-lock.json`.
-
-When `git status` or a failed push reports `main` and `origin/main` have diverged, treat it as the expected steady-state, not a real conflict, and reconcile automatically as part of the same "Push to git" run:
+"Merge alpha with main" force-pushes `alpha`'s state onto `main`, and CI then commits
+its changelog-bump commit **directly back to `main`**. That command folds the bump
+commit back into `alpha` as its last step, but if that step was skipped, or another
+session pushed to `alpha` in the meantime, `origin/alpha` can be ahead of your local
+branch. A local pre-push hook also fetches/rebases against the remote before pushing,
+so this is usually already handled - but if `git status` or a failed push reports
+`alpha` and `origin/alpha` have diverged, treat it as the expected steady-state, not a
+real conflict, and reconcile automatically as part of the same "Push to git" run:
 ```bash
 git fetch origin
-git merge origin/main --no-edit   # or: git merge --ff-only origin/main if it's a straight fast-forward
-git push origin main
+git merge origin/alpha --no-edit   # or: git merge --ff-only origin/alpha if it's a straight fast-forward
+git push origin alpha
 ```
-This is safe to do without stopping to ask, because the only files those CI commits ever touch (`changelog.json`, `package.json`, `package-lock.json`) don't overlap with feature work in `public/` or `server/`, so the merge is conflict-free by construction. Only pause and ask the user if the merge actually produces a conflict (e.g. someone hand-edited `changelog.json`), or if `origin/main` contains commits that touch source files you don't recognize - that would mean unrelated work landed on `main` and needs a real decision, not an automatic merge.
+Only pause and ask the user if the merge actually produces a conflict, or if
+`origin/alpha` contains commits that touch source files you don't recognize - that
+would mean unrelated work landed on `alpha` and needs a real decision, not an
+automatic merge.
+
+## "Merge alpha with main" command
+
+When the user says **"Merge alpha with main"** (exactly), promote everything queued on
+`alpha` onto `main` as a single release:
+
+### 1 - Bring alpha up to date with main
+```bash
+git fetch origin
+git checkout alpha
+git merge origin/main --no-edit
+```
+This folds in any changelog-bump commit CI already pushed to `main` since the last
+merge, so that history isn't lost when `main` is overwritten in the next step. Stop
+and ask the user if this step produces a real conflict - it should only ever touch
+`changelog.json`, `package.json`, and `package-lock.json`.
+
+### 2 - Force main to match alpha
+Show the user what is about to land before running this - it is a force push to the
+shared `main` branch:
+```bash
+git log origin/main..alpha --oneline
+```
+Then:
+```bash
+git push origin alpha:main --force
+```
+
+### 3 - Let CI build the combined changelog entry
+This push carries every commit that was queued on `alpha`, all in one push event.
+`update-changelog.yml` triggers on the push to `main`, and `scripts/update-changelog.js`
+already aggregates bullet points from **every** commit in a multi-commit push - not
+just the last one - into a single changelog entry. No extra step is needed to combine
+them; it happens automatically. CI then commits `chore: update changelog for <sha>`
+back onto `main` and builds/publishes the Docker image.
+
+### 4 - Sync alpha back onto the new main
+```bash
+git fetch origin
+git checkout alpha
+git merge origin/main --no-edit
+git push origin alpha
+```
+This folds the changelog-bump commit CI just added back into `alpha`, so the next
+"Push to git" run starts from a clean, matching base instead of immediately diverging.
 
 ## Commands
 

@@ -409,15 +409,18 @@ npm install      # install dependencies
 npm run dev      # start with auto-reload on http://localhost:5055
 ```
 
-Commits for user-visible features, fixes, security changes, enhancements, and docs
-must use a `type: summary` subject plus meaningful `- ` bullet points in the body.
-The installed commit hook and CI changelog generator both reject title-only release
-messages, preventing sparse entries in **Settings → About**. See
-[`docs/development.md`](docs/development.md) for the full release workflow.
+Day-to-day work lands on an `alpha` branch; `main` only moves when `alpha` is
+explicitly merged into it, and each merge becomes exactly one release. Commits for
+user-visible features, fixes, security changes, enhancements, and docs must use a
+`type: summary` subject plus meaningful `- ` bullet points in the body. The installed
+commit hook and CI changelog generator both reject title-only release messages,
+preventing sparse entries in **Settings → About**. See
+[`docs/development.md`](docs/development.md) for the full branching and release
+workflow.
 
-Pull requests build the Docker image and start its native modules inside it, so a
-change that breaks the container is caught on the pull request rather than after a
-release has been published.
+Every push to `alpha`, and every pull request targeting `main`, builds the Docker
+image and starts its native modules inside it, so a change that breaks the container
+is caught immediately rather than after a release has been published.
 
 When a change completes an item in [`TODO.md`](TODO.md), remove that item and update
 the corresponding documentation in the same change.

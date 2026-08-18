@@ -1,19 +1,22 @@
 name: Docker Build Check
 
-# The image is only built during a release push, so a change that breaks the
-# Dockerfile or the way dependencies install inside it used to surface after
-# merge, once a version had already been published without an image. This runs
-# the same build on the pull request, without pushing anything.
+# The image is only built for real during a merge to main, so a change that
+# breaks the Dockerfile or the way dependencies install inside it would
+# otherwise surface after merge, once a version had already been published
+# without an image. This runs the same build on pull requests targeting main
+# and on every push to alpha, without pushing anything.
 
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [alpha]
 
 permissions:
   contents: read
 
 concurrency:
-  group: docker-build-check-${{ github.event.pull_request.number }}
+  group: docker-build-check-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:

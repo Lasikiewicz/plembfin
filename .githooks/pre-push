@@ -2,7 +2,8 @@
 set -e
 
 echo "Syncing with remote before push..."
-git pull --rebase origin main
+branch="$(git rev-parse --abbrev-ref HEAD)"
+git pull --rebase origin "$branch"
 
 echo "Running Plembfin pre-push build check..."
 npm run build
