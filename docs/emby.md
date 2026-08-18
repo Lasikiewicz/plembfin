@@ -66,15 +66,19 @@ Every minute `fetchLiveSessions` polls `/Sessions` for Now Playing. The catch-up
   Episode rows include series provider IDs so cross-server lookup can resolve the
   series before selecting the matching season and episode.
 
-Every 5 minutes (`EMBY_UNWATCHED_POLL_INTERVAL_MS`), **unwatched reconciliation**
+**Disabled by default** - set `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED=true` to enable it. When
+enabled, every 5 minutes (`EMBY_UNWATCHED_POLL_INTERVAL_MS`), **unwatched reconciliation**
 (`checkEmbyUnwatchedStatus`) re-checks up to 5 items Plembfin thinks are watched via Emby
 against Emby's current played flag. Emby's webhook natively reports `Mark Unplayed`, so
 this is a backstop for a missed or misconfigured webhook, not the primary detection path -
 mirrors `checkPlexUnwatchedStatus` in [plex.md](plex.md), but Plex needs that poll as its
 *only* unwatch signal since its webhook can't report unwatch at all, and its per-item
-lookup is a single cheap call, so it runs every minute over a larger batch. Emby's
-per-item lookup (`findEpisode`) costs several outbound requests, so this batch and cadence
-are both deliberately smaller.
+lookup is a single cheap call, so it stays enabled by default at a one-minute cadence over
+a larger batch. Emby's per-item lookup (`findEpisode`: up to 3 provider-ID searches, a
+title-fallback search, and a full series-episode fetch) costs several outbound requests
+on top of the equivalent Jellyfin check running alongside it, which was severe enough at
+production scale to make the process unresponsive and get restarted repeatedly - it needs
+a real concurrency-limited rework before it's safe to enable by default.
 
 Playback positions use Emby's tick units (1 tick = 100 ns); `scheduled.js` converts
 with `ticksToMilliseconds`.

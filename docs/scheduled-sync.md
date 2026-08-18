@@ -130,13 +130,18 @@ Implementation lives in `server/src/scheduled.js`.
      played state (a single cheap lookup per item), repairing an unwatch that the
      notification WebSocket missed - Plex's webhook cannot report unwatch at all, so this
      poll is a primary detection path, not just a backstop. `checkEmbyUnwatchedStatus` and
-     `checkJellyfinUnwatchedStatus` do the same for a much smaller batch (5 records) every
-     5 minutes instead of every 1: their webhooks natively report unwatch, so these polls
-     only backstop a missed or misconfigured webhook, and their per-item lookup
-     (`findEpisode`: several sequential provider-ID/fallback/episode-fetch requests) is
-     expensive enough on both platforms that a Plex-sized batch at a one-minute cadence
-     was overwhelming the process. A record more than ~100 tracked watches old (or, for
-     Emby/Jellyfin, outside the smaller batch) ages out of this window and is only caught
+     `checkJellyfinUnwatchedStatus` would do the same for a smaller batch (5 records) every
+     5 minutes instead of every 1, since their webhooks natively report unwatch and these
+     polls only ever backstop a missed or misconfigured webhook - but they are **disabled
+     by default** (`EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED=true` to opt in). Their per-item
+     lookup (`findEpisode`: several sequential provider-ID/fallback/episode-fetch requests)
+     was expensive enough on both platforms at once to make the process unresponsive and
+     get restarted repeatedly in production; because the "last checked" timestamp only
+     lived in memory, every restart reset it and made the very next tick fire again
+     immediately, turning one bad tick into a sustained restart loop (now also fixed - the
+     timestamp seeds to process start time instead of zero - but the feature stays off by
+     default until its request volume is properly bounded). A record more than ~100
+     tracked watches old ages out of this window and is only caught
      by a manual
      Force Sync (`docs/media-detail.md`).
 

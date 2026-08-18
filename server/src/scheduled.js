@@ -68,22 +68,29 @@ function scheduledMediaInScope(config, media) {
 
 // Fallback cadence for the legacy Plex unwatch poll. Primary detection is the realtime
 // notification listener; this poll only backstops events missed while the socket was down.
+// Seeded to "now" rather than 0 so a process restart doesn't make the very next tick
+// treat the interval as already elapsed and fire immediately.
 const PLEX_UNWATCHED_POLL_INTERVAL_MS = Number(process.env.PLEX_UNWATCHED_POLL_INTERVAL_MS || 60 * 1000);
-let lastPlexUnwatchedPollAt = 0;
+let lastPlexUnwatchedPollAt = Date.now();
 
 // Emby/Jellyfin webhooks natively report unwatch (unlike Plex), so this is a
 // backstop for a missed/misconfigured webhook or a server that was offline
 // when the change happened, not the primary detection path. Unlike Plex's
 // single-lookup findPlexItem, Emby/Jellyfin's per-episode lookup
 // (findEpisode: up to 3 provider-ID searches, a title-fallback search, and a
-// full series-episode fetch) is expensive enough that checking a large batch
-// on both platforms every minute can pile up 100+ outbound requests in one
-// tick - severe enough in practice to make the process unresponsive. This
-// runs far less often and over a much smaller batch as a result.
+// full series-episode fetch) is expensive enough that checking a batch on
+// both platforms was piling up 100+ outbound requests in one tick and making
+// the process unresponsive enough to be killed and restarted repeatedly in
+// production - and because the "last checked" timestamp only lived in memory,
+// every restart reset it to 0 and made the very next tick fire immediately,
+// turning one bad tick into a sustained restart loop. Disabled by default
+// until it's rebuilt with real concurrency limits and a persisted cadence;
+// set EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED=true to opt back in.
+const EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED = String(process.env.EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED || "").toLowerCase() === "true";
 const EMBY_UNWATCHED_POLL_INTERVAL_MS = Number(process.env.EMBY_UNWATCHED_POLL_INTERVAL_MS || 5 * 60 * 1000);
-let lastEmbyUnwatchedPollAt = 0;
+let lastEmbyUnwatchedPollAt = Date.now();
 const JELLYFIN_UNWATCHED_POLL_INTERVAL_MS = Number(process.env.JELLYFIN_UNWATCHED_POLL_INTERVAL_MS || 5 * 60 * 1000);
-let lastJellyfinUnwatchedPollAt = 0;
+let lastJellyfinUnwatchedPollAt = Date.now();
 const EMBY_LIKE_UNWATCHED_BATCH_SIZE = 5;
 
 // Cadence for background catch-up library syncs (recently watched & continue watching lists).
@@ -1553,7 +1560,8 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
 
   // Emby/Jellyfin webhooks report unwatch natively, so these are a backstop
   // for a missed webhook - same fallback-poll role as the Plex check above.
-  if (embyActive && Date.now() - lastEmbyUnwatchedPollAt >= EMBY_UNWATCHED_POLL_INTERVAL_MS) {
+  // Disabled by default; see EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED above.
+  if (EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED && embyActive && Date.now() - lastEmbyUnwatchedPollAt >= EMBY_UNWATCHED_POLL_INTERVAL_MS) {
     lastEmbyUnwatchedPollAt = Date.now();
     trace("Scheduled Sync: checking Emby unwatched status (fallback poll)...");
     await checkEmbyUnwatchedStatus(config, loopStore).catch((error) => {
@@ -1561,7 +1569,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
     });
   }
 
-  if (jellyfinActive && Date.now() - lastJellyfinUnwatchedPollAt >= JELLYFIN_UNWATCHED_POLL_INTERVAL_MS) {
+  if (EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED && jellyfinActive && Date.now() - lastJellyfinUnwatchedPollAt >= JELLYFIN_UNWATCHED_POLL_INTERVAL_MS) {
     lastJellyfinUnwatchedPollAt = Date.now();
     trace("Scheduled Sync: checking Jellyfin unwatched status (fallback poll)...");
     await checkJellyfinUnwatchedStatus(config, loopStore).catch((error) => {
