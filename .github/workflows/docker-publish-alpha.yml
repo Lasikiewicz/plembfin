@@ -40,6 +40,7 @@ jobs:
           push: false
           load: true
           tags: plembfin:alpha-check
+          build-args: BUILD_CHANNEL=alpha
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -92,6 +93,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: BUILD_CHANNEL=alpha
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true

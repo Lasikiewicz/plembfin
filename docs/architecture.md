@@ -90,7 +90,7 @@ Every tracked file in the repository, by directory.
 | `.editorconfig` | Editor whitespace/indent conventions. |
 | `.gitattributes` | Normalizes line endings to LF; marks image formats binary. |
 | `.gitignore` | Ignores `node_modules`, `data/`, logs, local env files. |
-| `.githooks/commit-msg`, `.githooks/pre-push` | Git hooks installed by `scripts/install-git-hooks.js`: release commit messages must contain meaningful changelog bullets; pushes rebase onto `origin/main` and run `npm run build`. |
+| `.githooks/commit-msg`, `.githooks/pre-push` | Git hooks installed by `scripts/install-git-hooks.js`: release commit messages must contain meaningful changelog bullets; pushes rebase onto `origin/<current-branch>` and run `npm run build`. |
 | `LICENSE.md` | Project license. |
 | `SECURITY.md` | Vulnerability reporting policy. |
 | `CONTRIBUTING.md` | Contribution guidelines. |
@@ -425,12 +425,17 @@ commit (falling back to version + message), remote copies win on conflict except
 local entry's `details` are kept when the remote one has none, and the result is sorted
 newest-first by semver then date. A release that exists only in the bundled file therefore
 stays visible alongside releases that exist only on GitHub. The response is
-`{ current, latest, updateAvailable, remoteAvailable, remoteError, newer, entries }`, where
-`latest` is the highest version across the remote manifest and the merged entries, `newer`
-lists releases with a higher semver than the running build, and `updateAvailable` is true
-when `latest` outranks `current`. If GitHub is unreachable the bundled entries are served on
-their own. Settings → About renders the current version, an update banner, and the full
-release list with newer versions highlighted.
+`{ current, channel, latest, updateAvailable, remoteAvailable, remoteError, newer, entries }`,
+where `latest` is the highest version across the remote manifest and the merged entries,
+`newer` lists releases with a higher semver than the running build, `updateAvailable` is
+true when `latest` outranks `current`, and `channel` is `"alpha"` when the image was built
+with `BUILD_CHANNEL=alpha` (the `ghcr.io/lasikiewicz/plembfin:alpha` image) or `"release"`
+otherwise. `current` itself always stays a plain semver string so entry-matching and
+update comparisons are unaffected; the frontend appends " alpha" only where the version is
+displayed - the sidebar badge (`v0.2.15 alpha`) and Settings → About's current-version
+banner - never in the value compared against changelog entries. If GitHub is unreachable
+the bundled entries are served on their own. Settings → About renders the current version,
+an update banner, and the full release list with newer versions highlighted.
 
 ## Data layer (`server/src/db.js` + `schema.sql`)
 
@@ -563,6 +568,7 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `FANART_PROJECT_KEY` - advanced: replace the built-in shared Fanart.tv project key. Only needed if the built-in key is revoked or exhausted.
 - `FANART_API_KEY` - optional personal Fanart.tv key (raises the rate limit as a `client_key`)
 - `PLEMBFIN_DEBUG_OUTBOUND` - set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs); for measuring upstream traffic
+- `BUILD_CHANNEL` - baked into the Docker image at build time (`release` by default, `alpha` in the `ghcr.io/lasikiewicz/plembfin:alpha` image); appends "alpha" to the version shown in the sidebar badge and Settings → About so a pre-release build is visually distinct from a tagged release. Not meant to be set manually
 
 Environment variables act as **defaults** for connection and sync-tuning settings:
 values saved in Settings (stored in the `settings` SQLite row) take precedence over

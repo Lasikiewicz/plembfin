@@ -338,11 +338,18 @@ function authHeaders() {
   return buildAuthHeaders(state.token);
 }
 
+// Purely cosmetic: appends the build channel to a displayed version string
+// without touching the raw semver used for update-available/entry-match checks.
+function versionDisplayLabel(version, channel) {
+  return channel === "alpha" && version ? `${version} alpha` : version;
+}
+
 function updateVersionBadge(data) {
   if (!elements.appVersion || !data?.current) return;
+  const label = versionDisplayLabel(data.current, data.channel);
   elements.appVersion.textContent = data.updateAvailable
-    ? `v${data.current} - Update available`
-    : `v${data.current}`;
+    ? `v${label} - Update available`
+    : `v${label}`;
   elements.appVersion.classList.toggle("app-version-update", Boolean(data.updateAvailable));
   elements.appVersion.title = data.updateAvailable
     ? `Update available - v${data.latest || data.current}. Open changelog`
@@ -404,6 +411,7 @@ async function renderChangelog(force = false) {
     const data = await loadChangelogData(force);
     const entries = Array.isArray(data.entries) ? data.entries : [];
     const current = data.current || null;
+    const currentLabel = versionDisplayLabel(current, data.channel) || "?";
     const latest = data.latest || current;
     const newerCount = Array.isArray(data.newer) ? data.newer.length : 0;
 
@@ -411,19 +419,19 @@ async function renderChangelog(force = false) {
     if (!data.remoteAvailable) {
       banner = `
         <div class="changelog-status changelog-status-muted">
-          <b>Current version v${escapeHtml(current || "?")}</b>
+          <b>Current version v${escapeHtml(currentLabel)}</b>
           <span>Couldn't reach GitHub to check for newer releases${data.remoteError ? ` (${escapeHtml(data.remoteError)})` : ""}.</span>
         </div>`;
     } else if (data.updateAvailable) {
       banner = `
         <div class="changelog-status changelog-status-update">
           <b>Update available - v${escapeHtml(latest)}</b>
-          <span>You're running v${escapeHtml(current || "?")}. ${newerCount} newer release${newerCount === 1 ? "" : "s"} listed below.</span>
+          <span>You're running v${escapeHtml(currentLabel)}. ${newerCount} newer release${newerCount === 1 ? "" : "s"} listed below.</span>
         </div>`;
     } else {
       banner = `
         <div class="changelog-status changelog-status-ok">
-          <b>You're up to date - v${escapeHtml(current || "?")}</b>
+          <b>You're up to date - v${escapeHtml(currentLabel)}</b>
           <span>Running the latest published release.</span>
         </div>`;
     }

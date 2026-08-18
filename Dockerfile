@@ -2,9 +2,11 @@
 FROM node:22-slim
 
 WORKDIR /app
+ARG BUILD_CHANNEL=release
 ENV NODE_ENV=production \
     DATA_DIR=/data \
-    PORT=5055
+    PORT=5055 \
+    BUILD_CHANNEL=$BUILD_CHANNEL
 
 # Install gosu for clean privilege-drop in the entrypoint.
 RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*

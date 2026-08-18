@@ -904,6 +904,7 @@ export async function handleChangelog(req, res) {
     res,
     {
       current: currentVersion,
+      channel: process.env.BUILD_CHANNEL === "alpha" ? "alpha" : "release",
       latest: latestVersion,
       updateAvailable: compareSemver(latestVersion, currentVersion) > 0,
       remoteAvailable,
