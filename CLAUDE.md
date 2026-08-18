@@ -19,9 +19,11 @@ Agent instructions for working with this codebase.
 Day-to-day work lands on the `alpha` branch, never directly on `main`. `main` only
 moves when the separate "Merge alpha with main" command explicitly promotes `alpha`
 onto it, and each promotion becomes exactly one release (one changelog entry, one
-version bump, one Docker image publish). `alpha` gets the same secret-scan, security,
-and Docker build-check CI coverage as `main`, so problems surface on every push - it
-just never bumps the version or publishes an image on its own.
+version bump, one `:latest` + versioned Docker image publish). `alpha` gets the same
+secret-scan and security CI coverage as `main`, so problems surface on every push.
+Every push to `alpha` also builds, verifies, and publishes a rolling pre-release image
+to `ghcr.io/lasikiewicz/plembfin:alpha` - unlike the `main` release pipeline, this
+never touches `changelog.json` or the package version.
 
 ## "Push to git" command
 
@@ -123,9 +125,11 @@ Stage all modified files **except** `data/`, `node_modules/`, and any secrets. C
 ```bash
 git push origin alpha
 ```
-This lands the commit on `alpha`, not `main`. Secret-scan, security, and Docker
-build-check CI all run against it, but nothing publishes yet: no changelog entry, no
-version bump, no Docker image. That only happens when "Merge alpha with main" runs.
+This lands the commit on `alpha`, not `main`. Secret-scan and security CI run against
+it, and `docker-publish-alpha.yml` builds, verifies, and publishes a rolling
+pre-release image to `ghcr.io/lasikiewicz/plembfin:alpha`. Nothing touches
+`changelog.json` or the package version, and `:latest` is not updated - that only
+happens when "Merge alpha with main" runs.
 
 #### Expect `alpha` to occasionally be behind after a merge - this is normal, not a conflict to escalate
 

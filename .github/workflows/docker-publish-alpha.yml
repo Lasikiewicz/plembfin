@@ -1,0 +1,87 @@
+name: Publish Alpha Image
+
+# Publishes a rolling pre-release image on every push to alpha, tagged :alpha.
+# Unlike the main release pipeline, this never touches changelog.json or the
+# package version - alpha is a build-and-publish-only stream. The image is
+# verified the same way docker-build-check.yml verifies main's release image
+# before it is pushed.
+
+on:
+  push:
+    branches: [alpha]
+
+concurrency:
+  group: docker-publish-alpha
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  publish:
+    name: Build, verify, and publish the alpha image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: plembfin:alpha-check
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Same probe as docker-build-check.yml: production dependencies install
+      # with --ignore-scripts, so a native module with no usable binary for
+      # this platform still builds cleanly and would only fail on first
+      # database open.
+      - name: Verify native modules load inside the image
+        run: |
+          docker run --rm --entrypoint node plembfin:alpha-check -e "
+            const Database = require('better-sqlite3');
+            const sharp = require('sharp');
+            const db = new Database(':memory:');
+            db.exec('CREATE TABLE probe (value TEXT)');
+            db.prepare('INSERT INTO probe VALUES (?)').run('ok');
+            const row = db.prepare('SELECT value FROM probe').get();
+            db.close();
+            if (row.value !== 'ok') throw new Error('better-sqlite3 returned unexpected data');
+            sharp({ create: { width: 8, height: 8, channels: 3, background: '#000000' } })
+              .webp()
+              .toBuffer()
+              .then((buffer) => {
+                if (!buffer.length) throw new Error('sharp produced an empty image');
+                console.log('better-sqlite3', require('better-sqlite3/package.json').version, 'and sharp', sharp.versions.sharp, 'both load in the image');
+              })
+              .catch((error) => { console.error(error); process.exit(1); });
+          "
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push alpha image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:alpha
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true

@@ -418,9 +418,10 @@ preventing sparse entries in **Settings → About**. See
 [`docs/development.md`](docs/development.md) for the full branching and release
 workflow.
 
-Every push to `alpha`, and every pull request targeting `main`, builds the Docker
-image and starts its native modules inside it, so a change that breaks the container
-is caught immediately rather than after a release has been published.
+Every push to `alpha` builds, verifies, and publishes a rolling pre-release image to
+`ghcr.io/lasikiewicz/plembfin:alpha`; every pull request targeting `main` builds and
+verifies the same way without publishing. Either way, a change that breaks the
+container is caught immediately rather than after a release has been published.
 
 When a change completes an item in [`TODO.md`](TODO.md), remove that item and update
 the corresponding documentation in the same change.
