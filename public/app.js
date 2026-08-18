@@ -353,15 +353,20 @@ function updateVersionBadge(data) {
   // Alpha's version number only bumps when it is merged into main, so an
   // alpha build sits "behind" main's version string by design right after
   // every release - that gap isn't a real update the user is missing, so the
-  // update-available treatment is suppressed on this channel.
-  const showUpdate = Boolean(data.updateAvailable) && data.channel !== "alpha";
+  // update-available treatment is suppressed on this channel. A newer alpha
+  // *build* is a different, real signal (a fresh :alpha image has been
+  // published since this one was built) and is shown instead.
+  const newerAlphaBuild = data.channel === "alpha" && Boolean(data.alphaBuild?.newerBuildAvailable);
+  const showUpdate = data.channel === "alpha" ? newerAlphaBuild : Boolean(data.updateAvailable);
   elements.appVersion.textContent = showUpdate
     ? `v${label} - Update available`
     : `v${label}`;
   elements.appVersion.classList.toggle("app-version-update", showUpdate);
-  elements.appVersion.title = showUpdate
-    ? `Update available - v${data.latest || data.current}. Open changelog`
-    : "Open changelog";
+  elements.appVersion.title = newerAlphaBuild
+    ? `Newer alpha build available - build ${data.alphaBuild.latestBuild}. Open changelog`
+    : showUpdate
+      ? `Update available - v${data.latest || data.current}. Open changelog`
+      : "Open changelog";
 }
 
 // Quick update check on dashboard load: refreshes the GitHub update status so
@@ -425,6 +430,7 @@ async function renderChangelog(force = false) {
     const alphaBuildEntries = data.channel === "alpha" && Array.isArray(data.alphaBuild?.entries)
       ? data.alphaBuild.entries
       : [];
+    const newerAlphaBuild = data.channel === "alpha" && Boolean(data.alphaBuild?.newerBuildAvailable);
 
     let banner;
     if (!data.remoteAvailable) {
@@ -432,6 +438,12 @@ async function renderChangelog(force = false) {
         <div class="changelog-status changelog-status-muted">
           <b>Current version v${escapeHtml(currentLabel)}</b>
           <span>Couldn't reach GitHub to check for newer releases${data.remoteError ? ` (${escapeHtml(data.remoteError)})` : ""}.</span>
+        </div>`;
+    } else if (data.channel === "alpha" && newerAlphaBuild) {
+      banner = `
+        <div class="changelog-status changelog-status-update">
+          <b>Newer alpha build available - build ${escapeHtml(String(data.alphaBuild.latestBuild))}</b>
+          <span>You're running build ${escapeHtml(String(data.alphaBuild.build))}. Pull the latest ghcr.io/lasikiewicz/plembfin:alpha image to update.</span>
         </div>`;
     } else if (data.channel === "alpha") {
       // Alpha's version number only bumps when it is merged into main, so it

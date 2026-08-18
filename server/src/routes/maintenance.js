@@ -829,6 +829,30 @@ async function fetchRemoteChangelog({ force = false } = {}) {
   return data;
 }
 
+// Mirrors fetchRemoteChangelog above, but against the alpha branch's own
+// changelog.alpha.json, so a running alpha build can tell "a newer alpha
+// build has been published" apart from "a new release exists" - the running
+// image's bundled build number only reflects what it was built from.
+const REMOTE_ALPHA_CHANGELOG_URL =
+  "https://raw.githubusercontent.com/Lasikiewicz/plembfin/alpha/changelog.alpha.json";
+const REMOTE_ALPHA_CHANGELOG_TTL_MS = 60 * 1000;
+let remoteAlphaChangelogCache = { fetchedAt: 0, data: null };
+
+async function fetchRemoteAlphaChangelog({ force = false } = {}) {
+  const now = Date.now();
+  if (!force && remoteAlphaChangelogCache.data && now - remoteAlphaChangelogCache.fetchedAt < REMOTE_ALPHA_CHANGELOG_TTL_MS) {
+    return remoteAlphaChangelogCache.data;
+  }
+  const url = `${REMOTE_ALPHA_CHANGELOG_URL}?_t=${now}`;
+  const response = await fetchWithTimeout(url, {
+    headers: { Accept: "application/json", "Cache-Control": "no-cache", "Pragma": "no-cache" },
+  }, 8000);
+  if (!response.ok) throw new Error(`GitHub responded ${response.status}`);
+  const data = await response.json();
+  remoteAlphaChangelogCache = { fetchedAt: now, data };
+  return data;
+}
+
 function parseSemver(value) {
   const match = String(value || "").trim().match(/^(\d+)\.(\d+)\.(\d+)/);
   if (!match) return null;
@@ -919,7 +943,21 @@ export async function handleChangelog(req, res) {
     : [];
 
   const channel = process.env.BUILD_CHANNEL === "alpha" ? "alpha" : "release";
-  const alphaBuild = channel === "alpha" ? readLocalAlphaChangelog() : null;
+  let alphaBuild = channel === "alpha" ? readLocalAlphaChangelog() : null;
+  if (alphaBuild) {
+    try {
+      const remoteAlpha = await fetchRemoteAlphaChangelog({ force: isForceRefresh });
+      const remoteBuild = Number(remoteAlpha?.build) || 0;
+      const remoteBaseVersion = remoteAlpha?.baseVersion || alphaBuild.baseVersion;
+      alphaBuild = {
+        ...alphaBuild,
+        latestBuild: remoteBuild,
+        newerBuildAvailable: remoteBaseVersion !== alphaBuild.baseVersion || remoteBuild > alphaBuild.build,
+      };
+    } catch {
+      // GitHub unreachable - alphaBuild stays the local-only snapshot, no update signal.
+    }
+  }
 
   return sendJson(
     res,

@@ -448,18 +448,27 @@ the last alpha push). `docker-publish-alpha.yml` runs it on every push to `alpha
 committing the result back as `chore: bump alpha build for <sha>` and tagging the
 published image `alpha-<build>` alongside the rolling `alpha` tag.
 
+`handleChangelog` also fetches `changelog.alpha.json` from the `alpha` branch on GitHub raw
+(`fetchRemoteAlphaChangelog()`, same one-minute cache and `?refresh=1` bypass as the main
+remote fetch) and adds `alphaBuild.latestBuild` / `alphaBuild.newerBuildAvailable` to the
+response: true when the remote's `build` is higher than the running instance's own, or its
+`baseVersion` differs (a release cycle moved on). This is a distinct signal from a main
+release existing - it answers "has a newer `:alpha` image been published since this one was
+built," which the running build's own bundled file can never know on its own.
+
 Settings → About renders the current version, a status banner, and the full release list
 with newer versions highlighted. On the `alpha` channel the banner never shows the
-"Update available" treatment, and the sidebar badge never appends " - Update available":
-alpha's bundled semver only advances when it is merged into `main`, so it always trails
-main's latest release right after every merge even though the running alpha build may
-already contain newer commits than that release - flagging that gap as an actionable
-update would be misleading. The banner instead states that alpha is a rolling pre-release
-channel and, if `newer` is non-empty, notes how many releases have landed on `main` since
-this build for context. The sidebar/About version label itself still distinguishes one
-alpha build from the next via the build number (`v0.8.0.7 alpha`), and the release list
-shows a separate "Alpha builds since last merge" section above the published releases
-when `alphaBuild.entries` is non-empty.
+"Update available" treatment for the semver gap: alpha's bundled semver only advances when
+it is merged into `main`, so it always trails main's latest release right after every merge
+even though the running alpha build may already contain newer commits than that release -
+flagging that gap as an actionable update would be misleading. It shows the real
+"Update available" treatment instead when `alphaBuild.newerBuildAvailable` is true, naming
+the newer build number and prompting a pull of the latest `:alpha` image; otherwise the
+banner states that alpha is a rolling pre-release channel and, if `newer` is non-empty,
+notes how many releases have landed on `main` since this build for context. The sidebar/About
+version label itself still distinguishes one alpha build from the next via the build number
+(`v0.8.0.7 alpha`), and the release list shows a separate "Alpha builds since last merge"
+section above the published releases when `alphaBuild.entries` is non-empty.
 
 ## Data layer (`server/src/db.js` + `schema.sql`)
 
