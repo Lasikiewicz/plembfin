@@ -1,8 +1,22 @@
 {
   "baseVersion": "0.8.0",
-  "build": 10,
-  "updatedAt": "2026-08-18T16:14:19+01:00",
+  "build": 11,
+  "updatedAt": "2026-08-18T16:19:11+01:00",
   "entries": [
+    {
+      "build": 11,
+      "version": "0.8.0.11",
+      "date": "2026-08-18T16:19:11+01:00",
+      "commit": "8a3b6d51fbad0be1d85c3cd52762db4dbc9bed91",
+      "message": "Fix - Stop the show-cache rebuild from blocking the event loop",
+      "author": "Lasikiewicz",
+      "details": [
+        "CACHEPROBE/LAGPROBE diagnostics from the last build confirmed the actual root cause of the production instability: getCachedShows's per-show loop (a synchronous SQLite lookup plus a JSON parse of cached TMDB details for every show, ~331 shows in production) took 1.6 seconds in one unbroken burst, blocking the event loop long enough - especially when it fired more than once in a short window, which it did - to fail the container's 5-second health check and get it restarted by autoheal",
+        "This rebuild isn't debounced, and several of today's earlier fixes added new calls that invalidate it more often than before, which is why this only became severe today even though the underlying cost was always there",
+        "The loop now yields to the event loop every 25 shows instead of running straight through, so no single rebuild can monopolize it long enough to fail a health check, regardless of library size or how often the cache invalidates",
+        "getCachedHistory and getCachedMovies were measured too and are comfortably fast (a few hundred ms at this data size); only the per-show TMDB lookup needed this"
+      ]
+    },
     {
       "build": 10,
       "version": "0.8.0.10",
