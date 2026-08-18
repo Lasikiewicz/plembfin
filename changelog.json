@@ -1,7 +1,20 @@
 {
-  "version": "0.8.1",
-  "updatedAt": "2026-08-18T16:11:39Z",
+  "version": "0.8.2",
+  "updatedAt": "2026-08-18T16:34:57Z",
   "entries": [
+    {
+      "version": "0.8.2",
+      "date": "2026-08-18T16:34:57Z",
+      "commit": "5283d60f82d0dc4daf95de05ba43026c06de8e40",
+      "message": "Fix - Stop CI plumbing commits from polluting release changelog entries",
+      "author": "github-actions[bot]",
+      "details": [
+        "The main and alpha changelog generators no longer pull bullet points from the bot's own chore: bump alpha build for / chore: update changelog for commits, or from Merge branch/commit/pull request commits - these carry no user-visible content and were showing up as literal bullets in published release notes",
+        "When the commit that triggers a changelog entry is itself one of those plumbing commits (routine for a Merge alpha with main force-push, since GitHub reports the pushed range's last commit as the trigger), the entry's headline now falls back to the most recent real commit instead of showing a meaningless title like \"Chore - Bump alpha build for <sha>\"",
+        "Manually corrected the already-published 0.8.1 changelog entry, which combined a full day's worth of iterative alpha commits (including several that were later throttled, disabled, and re-enabled again) into a single overwhelming and self-contradicting list; consolidated it down to the net, final user-facing changes",
+        "Added test coverage for the new noise-detection helper"
+      ]
+    },
     {
       "version": "0.8.1",
       "date": "2026-08-18T16:11:39Z",
