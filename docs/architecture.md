@@ -90,7 +90,7 @@ Every tracked file in the repository, by directory.
 | `.editorconfig` | Editor whitespace/indent conventions. |
 | `.gitattributes` | Normalizes line endings to LF; marks image formats binary. |
 | `.gitignore` | Ignores `node_modules`, `data/`, logs, local env files. |
-| `.githooks/commit-msg`, `.githooks/pre-push` | Git hooks installed by `scripts/install-git-hooks.js`: release commit messages must contain meaningful changelog bullets; pushes rebase onto `origin/<current-branch>` and run `npm run build`. |
+| `.githooks/commit-msg`, `.githooks/pre-push` | Git hooks installed by `scripts/install-git-hooks.js`: release commit messages must contain meaningful changelog bullets; a same-name push merges `origin/<current-branch>` first (a cross-ref push, e.g. the alpha-onto-main force-push, skips this sync), then runs `npm run build`. |
 | `LICENSE.md` | Project license. |
 | `SECURITY.md` | Vulnerability reporting policy. |
 | `CONTRIBUTING.md` | Contribution guidelines. |

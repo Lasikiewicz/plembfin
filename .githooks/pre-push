@@ -3,17 +3,22 @@ set -e
 
 # Only auto-sync for a same-name push (e.g. "alpha" -> "alpha"). A cross-ref
 # push (e.g. the "Merge alpha with main" force-push of alpha onto main) has
-# already been deliberately reconciled by hand; rebasing the current branch
-# against a same-named remote branch that isn't actually the push target -
-# or worse, against a target whose history was merged in via a real merge
-# commit - makes git silently flatten that merge and replay its commits
-# individually, which can conflict with content the merge already resolved.
+# already been deliberately reconciled by hand, and syncing the current
+# branch against an unrelated same-named remote branch would be wrong anyway.
+#
+# The sync itself merges rather than rebases. alpha's history routinely
+# contains a real merge commit (folding a changelog-bump commit from main back
+# into alpha), and --rebase walks full ancestry rather than just the
+# first-parent chain: it silently drops merge commits and replays both sides'
+# commits individually, which can conflict with content the merge already
+# resolved. A merge-based pull is a no-op when upstream is already an
+# ancestor and a plain merge commit otherwise - never a replay.
 while read -r local_ref local_sha remote_ref remote_sha; do
   local_branch="${local_ref#refs/heads/}"
   remote_branch="${remote_ref#refs/heads/}"
   if [ "$local_branch" = "$remote_branch" ] && [ -n "$remote_branch" ]; then
     echo "Syncing with remote before push..."
-    git pull --rebase origin "$remote_branch"
+    git pull --no-rebase origin "$remote_branch"
   fi
 done
 

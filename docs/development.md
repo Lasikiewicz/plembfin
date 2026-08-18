@@ -43,9 +43,16 @@ completed work changes user-visible behavior.
 `npm install` runs `scripts/install-git-hooks.js` (via the `prepare` script), which
 points `core.hooksPath` at `.githooks/`. The `.githooks/commit-msg` hook rejects
 user-visible release commits whose body has no meaningful changelog bullet (a repeat
-of the subject does not count). The `.githooks/pre-push` hook runs `git pull --rebase
-origin <current-branch>` and then `npm run build` - so a push always goes out rebased
-against whichever branch it targets and build-checked.
+of the subject does not count). The `.githooks/pre-push` hook reads the actual push
+refspec from stdin: for a same-name push (e.g. `alpha` → `alpha`) it runs
+`git pull --no-rebase origin <branch>` first, then always runs `npm run build`. A
+cross-ref push (e.g. the alpha-onto-main force-push in "Merge alpha with main") skips
+the sync step entirely, since that content has already been deliberately reconciled by
+hand. The sync merges rather than rebases deliberately - `alpha`'s history routinely
+contains a real merge commit folding a changelog-bump commit back in from `main`, and
+`--rebase` walks full ancestry rather than just the first-parent chain, so it silently
+drops merge commits and replays both sides' commits individually instead of leaving the
+already-resolved merge alone.
 
 ## Branching model (`alpha` → `main`)
 

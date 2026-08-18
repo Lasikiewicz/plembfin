@@ -137,8 +137,8 @@ happens when "Merge alpha with main" runs.
 its changelog-bump commit **directly back to `main`**. That command folds the bump
 commit back into `alpha` as its last step, but if that step was skipped, or another
 session pushed to `alpha` in the meantime, `origin/alpha` can be ahead of your local
-branch. A local pre-push hook also fetches/rebases against the remote before pushing,
-so this is usually already handled - but if `git status` or a failed push reports
+branch. A local pre-push hook also fetches and merges against the same-named remote
+branch before pushing, so this is usually already handled - but if `git status` or a failed push reports
 `alpha` and `origin/alpha` have diverged, treat it as the expected steady-state, not a
 real conflict, and reconcile automatically as part of the same "Push to git" run:
 ```bash
