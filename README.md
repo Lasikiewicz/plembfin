@@ -328,7 +328,10 @@ the connection baseline. The connection card shows progress while **Sync Now** r
 reports the items checked and watched or unwatched changes applied. Disable Emby and
 Jellyfin Trakt plugins so Plembfin
 is the only Trakt writer and cannot compete with a second authority loop. Open Plembfin
-pages refresh automatically as imported watch-state changes are processed.
+pages refresh automatically as imported watch-state changes are processed. Editing,
+adding, or bulk-editing a watched date from a media detail page also pushes that
+corrected date to Trakt immediately, alongside every connected Plex/Emby/Jellyfin
+server, rather than waiting for the next minute's poll.
 
 ---
 
@@ -376,6 +379,7 @@ The following environment variables can be set in your system or defined in `doc
 | `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` | _none_ | Default Jellyfin connection values (Settings takes precedence). |
 | `WATCHED_PLAYED_SYNC_ENABLED` | `true` | Set to `false` to disable all watched/played propagation between platforms (watch recording still happens). |
 | `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | The frequency (in milliseconds) of database-heavy catch-up library scans on Plex/Emby/Jellyfin. |
+| `PLEX_UNWATCHED_POLL_INTERVAL_MS` / `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` | `60000` (1m) each | Cadence of each platform's unwatched-reconciliation fallback poll, which backstops a missed webhook (and, for Plex, is the only unwatch-detection path its webhook cannot cover). |
 | `WATCHED_THRESHOLD_PERCENT` | `90` | Playback percentage that counts as watched (50-100). Settings → Sync takes precedence. |
 | `MIN_RESUME_POSITION_SEC` | `60` | Minimum stopped-play position saved and propagated as resume progress (0-3600 seconds). Settings takes precedence. |
 | `ACTIVE_SESSION_TTL_MIN` | `5` | Time without a webhook update before an active session is stale (1-120 minutes). Settings takes precedence. |

@@ -125,6 +125,15 @@ Implementation lives in `server/src/scheduled.js`.
      that conflicts with Plembfin's watched state is repaired instead of imported as a
      local unwatch. Each platform check is wrapped in try/catch so one failure doesn't
      abort the run.
+   - **Unwatched reconciliation** - `checkPlexUnwatchedStatus`, `checkEmbyUnwatchedStatus`,
+     and `checkJellyfinUnwatchedStatus` each re-check up to 30 recently-tracked,
+     platform-confirmed-watched records per minute against that platform's current played
+     state, repairing an unwatch that its real-time channel missed. Plex's webhook cannot
+     report unwatch at all, so its poll is a primary detection path (backstopping the
+     notification WebSocket); Emby's and Jellyfin's webhooks natively report unwatch, so
+     their polls only backstop a missed or misconfigured webhook. A record more than
+     ~100 tracked watches old ages out of this window and is only caught by a manual
+     Force Sync (`docs/media-detail.md`).
 
 This is how a play that finishes without a final scrobble webhook still gets
 recorded: the poller sees it hit the watched threshold (90% by default), then

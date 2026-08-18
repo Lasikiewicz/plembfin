@@ -66,6 +66,13 @@ Every minute `fetchLiveSessions` polls `/Sessions` for Now Playing. The catch-up
   Episode rows include series provider IDs so cross-server lookup can resolve the
   series before selecting the matching season and episode.
 
+Every minute, **unwatched reconciliation** (`checkEmbyUnwatchedStatus`) re-checks
+items Plembfin thinks are watched via Emby against Emby's current played flag. Emby's
+webhook natively reports `Mark Unplayed`, so this is a backstop for a missed or
+misconfigured webhook, not the primary detection path - mirrors `checkPlexUnwatchedStatus`
+in [plex.md](plex.md), but Plex needs that poll as its *only* unwatch signal since its
+webhook can't report unwatch at all.
+
 Playback positions use Emby's tick units (1 tick = 100 ns); `scheduled.js` converts
 with `ticksToMilliseconds`.
 

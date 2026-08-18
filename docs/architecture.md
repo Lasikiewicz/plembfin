@@ -165,7 +165,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `traktClient.js` | Trakt device OAuth, refresh, paged watched-history reads, and watched-history write client. |
 | `watchStateTransitions.js` | Shared transactional watched/unwatched transition boundary used by tracker and media-server inputs. |
 | `syncMatchReport.js` | Pure aggregation of current watch-history telemetry into per-platform unmatched-media counts, movie/episode splits, and bounded samples for Settings → Sync → Sync Issues. |
-| `mediaForceSync.js` | Detail-page Force Sync: title-scoped Plex/Emby/Jellyfin watched-state lookup, Full Sync/Push/Pull modes, explicit import of remote-only records, provenance/telemetry, and target-filtered canonical propagation. The library-wide Force Sync planner remains remote-only-safe. |
+| `mediaForceSync.js` | Detail-page Force Sync: title-scoped Plex/Emby/Jellyfin watched-state lookup, Full Sync/Push/Pull modes, explicit import of remote-only records, provenance/telemetry, and target-filtered canonical propagation. A remote item whose played flag has no reliable played date is skipped rather than imported with a fabricated current-time date. Full Sync also reconciles a title that's already unwatched in Plembfin but still carries a stale resume position on a server. The library-wide Force Sync planner remains remote-only-safe. |
 | `libraryForceSync.js` | Settings Force Sync: library-wide Full Sync/Push/Pull operations, remote watched-state collection, union with Plembfin's watched playstate, and target-filtered canonical propagation. |
 | `mediaForceSyncActivity.js` | Bounded in-memory activity ledger used by the detail-page and Settings Force Sync status/cancellation endpoints to stream operation lines, cancellation state, and final results to the UI. |
 | `tuning.js` | Import-free runtime accessors for watched threshold, minimum resume position, active-session TTL, and outbound timeout; reads environment defaults and applies validated Settings overrides. |
@@ -577,6 +577,7 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `LOG_VERBOSE` - set to `true` to include per-request tracing (Plex GUID lookups, search fallbacks, per-phase scheduled-sync narration) in the logs. Off by default; errors and warnings are always logged.
 - `WATCHED_PLAYED_SYNC_ENABLED` - set to `false`/`0`/`off` to disable all watched/played propagation (recording still happens)
 - `CATCHUP_SYNC_INTERVAL_MS` - how often the catch-up library sync runs inside the scheduler (default 15 minutes)
+- `PLEX_UNWATCHED_POLL_INTERVAL_MS` / `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` - cadence of each platform's unwatched-reconciliation fallback poll (default 60 seconds each)
 - `WATCHED_THRESHOLD_PERCENT` - playback percentage that counts as watched (default `90`, range 50-100)
 - `MIN_RESUME_POSITION_SEC` - minimum stopped-play position saved as resume progress (default `60`, range 0-3600 seconds)
 - `ACTIVE_SESSION_TTL_MIN` - time without a webhook update before an active session is stale (default `5`, range 1-120 minutes)

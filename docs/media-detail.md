@@ -98,7 +98,14 @@ first complete render.
   that title, **Push To** a selected destination (or all), and **Pull From** a
   selected server (or all). Full Sync checks every configured Plex, Emby, and
   Jellyfin server, imports watched items that are missing from Plembfin, and
-  replays the resulting canonical state to the selected destinations. Pull only
+  replays the resulting canonical state to the selected destinations - including
+  clearing a stale resume position on a title that's already unwatched in
+  Plembfin but still shows partially watched on a server (`collectStaleUnwatchedItems`
+  in `mediaForceSync.js`), and clearing playback position (not just the played
+  flag) on every server an unwatched state is replayed to
+  (`syncMediaUnplayedPlaystate` in `syncOrchestrator.js`). A remote item whose
+  played flag has no reliable played date is skipped rather than imported with
+  a fabricated "just now" date (`remoteItemToMedia`). Pull only
   imports state; Push only replays Plembfin's canonical state. The asynchronous
   `POST /api/force-sync/media` operation is followed through
   `GET /api/force-sync/media/status?id=...`, and the dialog shows its detailed
@@ -139,7 +146,14 @@ first complete render.
   one of them, add another watch date (`POST /api/add-watch-date`, clones the
   anchor row's identity fields onto a new date), or remove one with confirmation
   (`POST /api/delete-watch-date` - rolls `playstate.watched_at` back to whichever
-  remaining watch is newest, or clears it if none remain). TV Fix Match sends one `POST /api/rematch-show` request that
+  remaining watch is newest, or clears it if none remain). Editing, adding, or
+  bulk-editing (`POST /api/update-watch-dates`) a watched date replays the
+  corrected date to Trakt and every connected Plex/Emby/Jellyfin server as a
+  canonical "watched" state in the background (`propagateCorrectedWatchDate` in
+  `routes/media.js`, reusing `syncCanonicalPlaystate` - the same replay Force
+  Sync's Push To uses), so the platforms Plembfin is canonical for don't keep
+  showing a stale or fabricated date after a manual fix; a record currently
+  marked unwatched is left alone. TV Fix Match sends one `POST /api/rematch-show` request that
   updates every episode record in a transaction, renaming them onto the picked
   series when that name differs; the dialog closes after that local update while
   progress, artwork, and metadata refresh in the background. A rename changes the

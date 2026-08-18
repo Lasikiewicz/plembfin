@@ -403,7 +403,11 @@ Trace sync issues in this order:
    phases, and source-event handling.
 3. `server/src/utils/syncOrchestrator.js`, `loopStore.js`, and `syncRoles.js` for target
    selection, outbound results, and echo-loop suppression. Use `docs/scheduled-sync.md`,
-   `docs/webhooks.md`, and the relevant platform doc alongside the code.
+   `docs/webhooks.md`, and the relevant platform doc alongside the code. For a detail-page
+   Force Sync (`server/src/utils/mediaForceSync.js`) or a manual watch-date edit
+   (`propagateCorrectedWatchDate` in `server/src/routes/media.js`), the same
+   `syncOrchestrator.js` functions do the outbound work; check `remoteItemToMedia`'s
+   played-date handling first if a title was imported with an unexpected watched date.
 4. `server/src/utils/watchAudit.js`, `server/src/routes/media.js` (`handleHistoryAudit`),
    and `server/src/utils/dataRepo.js` for the persisted audit trail, watch-history rows,
    playstate, and telemetry.

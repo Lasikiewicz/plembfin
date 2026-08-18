@@ -499,6 +499,18 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
   // callback before the outbound request resolves.
   await recordOutboundUnplayedMarks(media, targets, kv);
 
+  // "Mark unplayed" and "resume position" are separate fields on Emby/Jellyfin/
+  // Plex - clearing the played flag alone leaves a stale progress bar in
+  // Continue Watching. Best-effort and non-fatal: a target that rejects this
+  // still gets the unplayed mark below.
+  await Promise.all(targets.map(async (target) => {
+    try {
+      await clientProgressFor(target, config, { ...media, positionMs: 0 })();
+    } catch (error) {
+      console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
+    }
+  }));
+
   const jobs = targets.map((target) => {
     const run = clientUnplayedFor(target, config, media);
     return run();

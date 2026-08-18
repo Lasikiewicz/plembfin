@@ -7,12 +7,13 @@
 // state to the configured destinations.
 
 import { fetchPlexMetadataItem, fetchPlexSeriesEpisodes, findPlexItem } from "./plexClient.js";
-import { fetchEmbySeriesEpisodes, fetchEmbyWatchedItems } from "./embyClient.js";
-import { fetchJellyfinSeriesEpisodes, fetchJellyfinWatchedItems } from "./jellyfinClient.js";
+import { fetchEmbySeriesEpisodes, fetchEmbyWatchedItems, findEmbyItems } from "./embyClient.js";
+import { fetchJellyfinSeriesEpisodes, fetchJellyfinWatchedItems, findJellyfinItems } from "./jellyfinClient.js";
 import { normalizeProviderIds, parsePlexGuids } from "./parsers.js";
 import { isEmbyLikePlayed, watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./watchDates.js";
 import { appendSyncHistory, loadMediaConfig } from "./configStore.js";
 import { createLoopStore } from "./loopStore.js";
+import { minResumePositionMs } from "./tuning.js";
 import { syncCanonicalPlaystate } from "./syncOrchestrator.js";
 import {
   getCanonicalWatchState,
@@ -122,10 +123,20 @@ export function remoteItemIsWatched(item = {}, source = "") {
   return isEmbyLikePlayed(item);
 }
 
+// A played flag without a reliable played timestamp is historical state, not
+// evidence of a watch happening right now (see the identical rule and
+// rationale in watchDates.js). Force Sync used to fabricate "now" as the
+// watched date for these, which manufactured phantom watch-history rows for
+// items with a stale or server-lost played date. Skip them instead - an item
+// this ambiguous is better left alone than recorded with a fictitious time.
 export function remoteItemToMedia(item = {}, source = "", requested = {}, now = Date.now()) {
   const type = itemType(item, source);
   const coordinates = itemCoordinates(item, source);
   if (type === "episode" && (coordinates.season == null || coordinates.episode == null)) return null;
+
+  const watchedAtResult = source === "plex" ? watchedAtForPlexItem(item) : watchedAtForEmbyLikeItem(item);
+  const isPlayed = remoteItemIsWatched(item, source);
+  if (isPlayed && !watchedAtResult.watchedAt) return null;
 
   const ids = itemIds(item, source);
   const requestedIds = requested.ids || {};
@@ -137,8 +148,7 @@ export function remoteItemToMedia(item = {}, source = "", requested = {}, now = 
   const title = type === "episode"
     ? `${showTitle || "Unknown Show"} - S${String(coordinates.season).padStart(2, "0")}E${String(coordinates.episode).padStart(2, "0")}`
     : itemTitle(item, source) || requested.title;
-  const watchedAtResult = source === "plex" ? watchedAtForPlexItem(item) : watchedAtForEmbyLikeItem(item);
-  const watchedAt = watchedAtResult.watchedAt || new Date(now).toISOString();
+  const watchedAt = watchedAtResult.watchedAt || "";
   const itemId = itemNativeId(item, source);
 
   return {
@@ -227,6 +237,68 @@ async function collectSourceItems(config, requested, source, now) {
     .filter((item) => remoteItemIsWatched(item, source))
     .map((item) => remoteItemToMedia(item, source, requested, now))
     .filter((media) => mediaMatchesRequest(media, requested));
+}
+
+// Resume position in ms, independent of the played flag - Emby/Jellyfin report
+// ticks (100ns units), Plex reports ms directly.
+function itemResumePositionMs(item = {}, source = "") {
+  if (source === "plex") return Math.max(0, Number(item.viewOffset || 0));
+  const ticks = Number(item.UserData?.PlaybackPositionTicks || 0);
+  return Math.max(0, Math.round(ticks / 10000));
+}
+
+// The pull step above only ever discovers items that are watched somewhere,
+// so a title that's unwatched in Plembfin but still carries a lingering
+// resume position on a server (e.g. "Mark Unwatched" left the offset behind -
+// see docs/plex.md) is never reconciled by it: nothing "watched" was found to
+// import or replay. This surfaces those specifically so Full Sync's replay
+// step below also clears the stale progress. Deliberately conservative: only
+// acts when Plembfin's own canonical state already says "unwatched" - an item
+// Plembfin has no opinion on is left alone rather than guessed at.
+async function collectStaleUnwatchedItems(config, requested, { logger = () => {} } = {}) {
+  if (!["movie", "show"].includes(requested.type)) return [];
+  const sources = requested.source ? [requested.source] : MEDIA_SERVERS;
+  const found = [];
+
+  await Promise.all(sources.map(async (source) => {
+    if (!sourceConfigured(config, source)) return;
+    try {
+      let rawItems = [];
+      const sourceConfig = config[source];
+      if (requested.type === "movie") {
+        if (source === "plex") {
+          const item = await findPlexItem(sourceConfig, requested);
+          rawItems = item ? [item] : [];
+        } else if (source === "emby") {
+          rawItems = await findEmbyItems(sourceConfig, { ...requested, type: "movie" });
+        } else if (source === "jellyfin") {
+          rawItems = await findJellyfinItems(sourceConfig, { ...requested, type: "movie" });
+        }
+      } else if (source === "plex") {
+        rawItems = await fetchPlexSeriesEpisodes(sourceConfig, { ...requested, type: "series" });
+      } else if (source === "emby") {
+        rawItems = await fetchEmbySeriesEpisodes(sourceConfig, { ...requested, type: "episode" });
+      } else if (source === "jellyfin") {
+        rawItems = await fetchJellyfinSeriesEpisodes(sourceConfig, { ...requested, type: "episode" });
+      }
+
+      for (const item of rawItems) {
+        if (remoteItemIsWatched(item, source)) continue;
+        if (itemResumePositionMs(item, source) < minResumePositionMs()) continue;
+        const media = remoteItemToMedia(item, source, requested, Date.now());
+        if (!media || !mediaMatchesRequest(media, requested)) continue;
+        const probe = { title: media.title, type: media.type, ids: media.ids, season: media.season, episode: media.episode, isValid: true };
+        const canonicalState = await getCanonicalWatchState(probe).catch(() => null);
+        if (canonicalState !== "unwatched") continue;
+        logger(`[full] ${source}: "${media.title}" has stale resume progress but is unwatched in Plembfin; queuing reconciliation.`);
+        found.push({ ...media, source: "manual", canonicalState: "unwatched", watched_at: "" });
+      }
+    } catch (error) {
+      logger(`Detail Force Sync: ${source} stale-progress check failed: ${error.message || String(error)}`);
+    }
+  }));
+
+  return dedupeMedia(found);
 }
 
 function sourceLabel(source = "") {
@@ -346,7 +418,7 @@ async function appendForceSyncHistory(media, summary, requested) {
     source: media.source,
     status: summary.status || "unknown",
     details: `Detail-page ${modeLabel(requested.mode)}: ${summary.details || "completed"}`,
-    action: "watched",
+    action: media.canonicalState === "unwatched" ? "unwatched" : "watched",
     targetStates: summary.targetStates || [],
     rawPayloadDebug: {
       event: "media_force_sync",
@@ -368,6 +440,22 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
   const collection = requested.mode === "push"
     ? await collectLocalCanonicalItems(requested, { logger })
     : await collectMediaForceSyncItems(resolvedConfig, requested, { now, logger });
+
+  // Full Sync also reconciles titles that are already unwatched in Plembfin
+  // but still show stale resume progress on a server - the pull step above
+  // only ever surfaces items that are watched *somewhere*, so this would
+  // otherwise never get replayed.
+  if (requested.mode === "full") {
+    const stale = await collectStaleUnwatchedItems(resolvedConfig, requested, { logger });
+    if (stale.length) {
+      collection.items = dedupeMedia([...collection.items, ...stale]);
+      collection.sourceResults = [
+        ...collection.sourceResults,
+        { source: "plembfin", status: "success", watchedCount: stale.length, state: "unwatched" },
+      ];
+    }
+  }
+
   const loopStore = createLoopStore();
   const results = [];
   const records = [];
@@ -382,7 +470,7 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
     const canonicalState = media.canonicalState || "watched";
     let record = await findWatchedByAnyMediaKey(media).catch(() => null);
     let inserted = false;
-    if (requested.mode !== "push" && !record) {
+    if (requested.mode !== "push" && canonicalState !== "unwatched" && !record) {
       const insertedResult = await insertWatchRecord({
         ...media,
         sync_action: "watched",

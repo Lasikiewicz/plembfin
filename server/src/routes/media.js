@@ -16,7 +16,7 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
-import { getTargetsForSource, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { getTargetsForSource, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
@@ -764,9 +764,28 @@ export async function handleWatchDates(req, res) {
   return sendJson(res, result);
 }
 
+// A manually added or corrected watched date should also reach every
+// connected platform, not just Plembfin's own database - the same replay
+// Force Sync's "Push To" already does for canonical state, so Trakt (which
+// accepts a specific historical watched_at) and Plex/Emby/Jellyfin don't keep
+// showing the old, missing, or a previously-fabricated date after a manual
+// fix. Fire-and-forget: the edit itself must not wait on several outbound API
+// calls to save, and a propagation failure must not undo the local edit.
+function propagateCorrectedWatchDate(recordId) {
+  getWatchRecordByIdLight(recordId)
+    .then(async (row) => {
+      if (!row) return;
+      if (String(row.sync_action || "watched").toLowerCase() === "unwatched") return;
+      const media = watchRowToMedia(row, "manual");
+      if (!media?.isValid) return;
+      const config = await loadMediaConfig();
+      await syncCanonicalPlaystate(media, config, createLoopStore(), "watched");
+    })
+    .catch((error) => console.error(`Failed to propagate corrected watch date for record ${recordId}:`, error.message || error));
+}
+
 // Adds another watch date for the same movie/episode as `id` (the "Add another
-// watch date" control in the edit-date dialog) - a local-only record, not
-// propagated to Plex/Emby/Jellyfin, matching how manual date edits behave.
+// watch date" control in the edit-date dialog).
 export async function handleAddWatchDate(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -780,6 +799,7 @@ export async function handleAddWatchDate(req, res) {
 
   const result = await addWatchDate(id, watchedAt);
   if (!result.ok) return sendJson(res, { error: result.error }, 400);
+  propagateCorrectedWatchDate(result.id);
   return sendJson(res, { ok: true, id: result.id });
 }
 
@@ -811,6 +831,7 @@ export async function handleUpdateWatchDates(req, res) {
   const body = await readJson(req);
   const result = await updateWatchDates(body.updates);
   if (!result.ok) return sendJson(res, { error: result.error }, 400);
+  for (const updatedId of result.updated_ids || []) propagateCorrectedWatchDate(updatedId);
   return sendJson(res, result);
 }
 
@@ -854,6 +875,8 @@ export async function handleUpdateWatch(req, res) {
   // Callers may address a record by its media_key (the manual match queue does),
   // so resolve the real row id before any of the id-keyed follow-up work below.
   const recordId = (await getWatchRecordByIdLight(id).catch(() => null))?.id || id;
+
+  if (fields.watched_at !== undefined) propagateCorrectedWatchDate(recordId);
 
   // If a custom poster was chosen, make it authoritative across the site. The
   // poster pipeline serves /api/poster from the poster cache (keyed by
