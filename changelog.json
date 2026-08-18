@@ -1,7 +1,34 @@
 {
-  "version": "0.7.11",
-  "updatedAt": "2026-08-18T11:24:35+01:00",
+  "version": "0.8.0",
+  "updatedAt": "2026-08-18T12:14:29+01:00",
   "entries": [
+    {
+      "version": "0.8.0",
+      "date": "2026-08-18T12:14:29+01:00",
+      "commit": "54dd7171042bcb270368c570daa3f4163ee9695f",
+      "message": "Fix - Sync the pre-push hook by merge, not rebase",
+      "author": "Lasikiewicz",
+      "details": [
+        "Every push to the alpha branch now builds, verifies, and publishes ghcr.io/lasikiewicz/plembfin:alpha, so a pre-release image is always available to pull without waiting for a main release",
+        "The alpha image goes through the same better-sqlite3/sharp native-module check as the main release image before it is pushed",
+        "docker-build-check.yml goes back to pull-request-only verification, since alpha pushes now get the equivalent check as part of publishing",
+        "Documented the new :alpha image in CLAUDE.md, docs/development.md, and the README",
+        "The alpha image publish step used github.repository directly for the image name, which preserves the account's original casing (Lasikiewicz/plembfin) and GHCR rejected as an invalid tag; it now goes through docker/metadata-action like the main release pipeline does, which lowercases the ref before building",
+        "The sidebar version badge and Settings -> About now show \"alpha\" next to the version number when running the ghcr.io/lasikiewicz/plembfin:alpha image, so a pre-release build is visually distinct from a tagged release",
+        "The alpha image now bakes in a BUILD_CHANNEL=alpha flag at build time; the main/latest release image is unaffected and shows the plain version number as before",
+        "Update-available checks and changelog entry matching still compare the underlying plain version number, so the alpha label is purely cosmetic",
+        "The sidebar badge and Settings -> About no longer show \"Update available\" on the alpha channel; alpha's version number only advances when it is merged into a release, so it always trails main's latest version right after a merge even when the running alpha build already contains newer commits",
+        "Settings -> About now shows a neutral \"Alpha channel\" banner instead, noting how many releases have landed on main since this build for context",
+        "chore: bump version to 0.8.0",
+        "Merge remote-tracking branch 'origin/main' into alpha",
+        "The pre-push hook always synced against a remote branch matching the currently checked-out branch name, regardless of the actual push target",
+        "A force-push like alpha:main (used by the Merge alpha with main command) triggered a rebase of local alpha against origin/alpha instead of the real target, and since alpha's history contains a genuine merge commit, git silently flattened it and replayed its commits individually, conflicting with content the merge had already resolved",
+        "The hook now only auto-syncs when the local and remote branch names in the push actually match, so a deliberately reconciled cross-ref push goes through untouched",
+        "The previous fix stopped the hook from rebasing against the wrong branch on a cross-ref push, but git rebase still flattens merge commits regardless of which branch it targets: it walks full ancestry rather than just the first-parent chain, so it silently drops merge commits and replays both sides' commits individually",
+        "The hook's same-name sync now runs git pull --no-rebase, which is a no-op when upstream is already an ancestor and a plain merge commit otherwise, matching the merge-based reconciliation CLAUDE.md already documents",
+        "Updated CLAUDE.md, docs/architecture.md, and docs/development.md to describe the merge-based sync"
+      ]
+    },
     {
       "version": "0.7.11",
       "date": "2026-08-18T11:24:35+01:00",
