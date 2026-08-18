@@ -587,8 +587,8 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `WATCHED_PLAYED_SYNC_ENABLED` - set to `false`/`0`/`off` to disable all watched/played propagation (recording still happens)
 - `CATCHUP_SYNC_INTERVAL_MS` - how often the catch-up library sync runs inside the scheduler (default 15 minutes)
 - `PLEX_UNWATCHED_POLL_INTERVAL_MS` - cadence of Plex's unwatched-reconciliation fallback poll (default 60 seconds); Plex's per-item lookup is a single cheap call
-- `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED` - set to `true` to enable Emby's/Jellyfin's equivalent of the Plex unwatched-reconciliation poll (disabled by default - their per-item lookup, `findEpisode`, costs several outbound requests on both platforms at once and was severe enough in production to make the process unresponsive and get restarted repeatedly)
-- `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` - cadence of that poll when enabled (default 5 minutes; each checked batch is also capped much lower than Plex's, at `EMBY_LIKE_UNWATCHED_BATCH_SIZE = 5`)
+- `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED` - set to `false` to disable Emby's/Jellyfin's equivalent of the Plex unwatched-reconciliation poll (enabled by default; their per-item lookup, `findEpisode`, costs several outbound requests, so each checked batch is capped lower than Plex's, at `EMBY_LIKE_UNWATCHED_BATCH_SIZE = 5`, and records are checked sequentially rather than concurrently)
+- `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` - cadence of that poll (default 5 minutes)
 - `WATCHED_THRESHOLD_PERCENT` - playback percentage that counts as watched (default `90`, range 50-100)
 - `MIN_RESUME_POSITION_SEC` - minimum stopped-play position saved as resume progress (default `60`, range 0-3600 seconds)
 - `ACTIVE_SESSION_TTL_MIN` - time without a webhook update before an active session is stale (default `5`, range 1-120 minutes)

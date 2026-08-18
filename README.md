@@ -380,7 +380,7 @@ The following environment variables can be set in your system or defined in `doc
 | `WATCHED_PLAYED_SYNC_ENABLED` | `true` | Set to `false` to disable all watched/played propagation between platforms (watch recording still happens). |
 | `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | The frequency (in milliseconds) of database-heavy catch-up library scans on Plex/Emby/Jellyfin. |
 | `PLEX_UNWATCHED_POLL_INTERVAL_MS` | `60000` (1m) | Cadence of Plex's unwatched-reconciliation fallback poll - the only unwatch-detection path its webhook cannot cover. |
-| `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED` | `false` | Set to `true` to enable Emby's/Jellyfin's equivalent of the Plex unwatched-reconciliation backstop poll. Off by default - it costs several outbound requests per lookup on both platforms at once, severe enough in production to make the process unresponsive. |
+| `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED` | `true` | Set to `false` to disable Emby's/Jellyfin's equivalent of the Plex unwatched-reconciliation backstop poll. Checks a small batch (5 items) sequentially every 5 minutes per platform. |
 | `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` | `300000` (5m) each | Cadence of that poll when enabled, checked in a smaller batch than Plex's. |
 | `WATCHED_THRESHOLD_PERCENT` | `90` | Playback percentage that counts as watched (50-100). Settings → Sync takes precedence. |
 | `MIN_RESUME_POSITION_SEC` | `60` | Minimum stopped-play position saved and propagated as resume progress (0-3600 seconds). Settings takes precedence. |

@@ -62,8 +62,8 @@ Every minute `fetchLiveSessions` polls `/Sessions` for Now Playing. The catch-up
   series provider IDs so cross-server lookup can resolve the series before selecting
   the matching season and episode.
 
-**Disabled by default** - set `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED=true` to enable it. When
-enabled, every 5 minutes (`JELLYFIN_UNWATCHED_POLL_INTERVAL_MS`), **unwatched
+**Enabled by default** - set `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED=false` to disable it. Every
+5 minutes (`JELLYFIN_UNWATCHED_POLL_INTERVAL_MS`), **unwatched
 reconciliation** (`checkJellyfinUnwatchedStatus`) re-checks up to 5 items Plembfin thinks
 are watched via Jellyfin against Jellyfin's current played flag. Jellyfin's webhook
 natively reports unwatch via `User Data Saved`, so this is a backstop for a missed or
