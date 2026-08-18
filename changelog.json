@@ -1,7 +1,20 @@
 {
-  "version": "0.7.10",
-  "updatedAt": "2026-08-18T11:16:43+01:00",
+  "version": "0.7.11",
+  "updatedAt": "2026-08-18T11:24:35+01:00",
   "entries": [
+    {
+      "version": "0.7.11",
+      "date": "2026-08-18T11:24:35+01:00",
+      "commit": "933e443109768f14005c713e7a281f56c1192684",
+      "message": "Chore - Switch to an alpha/main branching model for pushes and releases",
+      "author": "Lasikiewicz",
+      "details": [
+        "Day-to-day pushes now land on a new alpha branch instead of main; alpha gets the same secret-scan, security, and Docker build-check coverage main gets, so problems surface immediately without publishing a release",
+        "main only moves through an explicit merge-alpha-with-main step, which force-pushes alpha onto main and lets CI combine every queued commit's changelog bullets into one release entry",
+        "Updated the pre-push hook to sync against whichever branch is being pushed instead of always rebasing onto main",
+        "Documented the new branching model and both agent commands in CLAUDE.md, docs/development.md, and the README"
+      ]
+    },
     {
       "version": "0.7.10",
       "date": "2026-08-18T11:16:43+01:00",
