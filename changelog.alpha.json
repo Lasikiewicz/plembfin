@@ -1,8 +1,24 @@
 {
   "baseVersion": "0.8.0",
-  "build": 1,
-  "updatedAt": "2026-08-18T13:16:34+01:00",
+  "build": 2,
+  "updatedAt": "2026-08-18T13:56:14+01:00",
   "entries": [
+    {
+      "build": 2,
+      "version": "0.8.0.2",
+      "date": "2026-08-18T13:56:14+01:00",
+      "commit": "1ad18b460e5e538a7fc23dcca44669c9644cbd9e",
+      "message": "Fix - Close remaining gaps in cross-platform watch-state sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Force Sync no longer records a fake \"just watched\" date for a title whose played flag has no reliable timestamp on Plex, Emby, or Jellyfin - it is skipped instead of imported with a fabricated date",
+        "Unwatching a title now clears its resume/continue-watching position on every connected server, not just the played flag, so a title doesn't keep showing as partially watched after being unwatched",
+        "Full Sync now clears a stale resume position for a title that's already unwatched in Plembfin but still shows in-progress on a server, instead of doing nothing because the title isn't watched anywhere",
+        "Editing, adding, or bulk-editing a watched date on a media detail page now pushes the corrected date to Trakt and every connected Plex/Emby/Jellyfin server in the background",
+        "Emby and Jellyfin now get the same once-a-minute unwatch reconciliation safety net Plex already had, catching a missed or misconfigured webhook instead of leaving a title stuck as watched",
+        "Documented all of the above across CLAUDE.md, docs/architecture.md, docs/emby.md, docs/jellyfin.md, docs/media-detail.md, docs/scheduled-sync.md, README, and .env.example"
+      ]
+    },
     {
       "build": 1,
       "version": "0.8.0.1",

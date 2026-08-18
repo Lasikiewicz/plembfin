@@ -12,8 +12,12 @@ import { execFileSync } from "node:child_process";
 // last recorded changelog commit and the current one.
 export function commitsSinceLastEntry(root, lastCommit, headCommit) {
   if (!lastCommit || lastCommit === headCommit) return [];
-  const unitSep = "";
-  const recordSep = "";
+  // Real ASCII Unit/Record Separator control characters, not empty strings -
+  // a commit body can legitimately contain any printable character (including
+  // literal "%H"-looking text), so the split points must be characters git
+  // guarantees never appear in a commit message on their own.
+  const unitSep = "\x1f";
+  const recordSep = "\x1e";
   try {
     const raw = execFileSync(
       "git",

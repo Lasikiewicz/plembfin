@@ -20,7 +20,6 @@ const alphaChangelogPath = path.join(root, "changelog.alpha.json");
 
 const sourceCommit = String(process.env.SOURCE_COMMIT || "").trim();
 const rawMessage = String(process.env.SOURCE_MESSAGE || "Update application").trim();
-const sourceMessage = formatChangelogMessage(rawMessage.split(/\r?\n/, 1)[0]);
 const sourceDate = String(process.env.SOURCE_DATE || new Date().toISOString()).trim();
 const sourceAuthor = String(process.env.SOURCE_AUTHOR || "unknown").trim();
 
@@ -65,8 +64,25 @@ const otherCommitsRaw = gitHistoryCommits.length > 0 ? gitHistoryCommits : pushe
 const otherCommits = otherCommitsRaw.filter((commit) =>
   commit.id !== sourceCommit && !/^chore: bump alpha build for /.test(String(commit.message || "")));
 
+// The pre-push hook merges origin/alpha into a local push whenever the bot's
+// own build-bump commit already landed there (routine on this branch - see
+// CLAUDE.md's "expect alpha to occasionally be behind" section), which gets
+// git's generic "Merge branch ... into ..." message with no bullets of its
+// own. Prefer the most recent real commit in this push's range as the
+// entry's headline instead, so the changelog reflects the actual work rather
+// than merge plumbing.
+const isAutoMergeMessage = /^Merge (branch|commit|pull request|remote-tracking branch)\b/i.test(rawMessage);
+let effectiveCommit = sourceCommit;
+let effectiveMessage = rawMessage;
+if (isAutoMergeMessage && otherCommits.length) {
+  const latest = otherCommits.pop(); // git log --reverse -> oldest..newest, so the last entry is the most recent
+  effectiveCommit = latest.id;
+  effectiveMessage = latest.message;
+}
+const sourceMessage = formatChangelogMessage(effectiveMessage.split(/\r?\n/, 1)[0]);
+
 const messagesToValidate = [
-  { id: sourceCommit, message: rawMessage },
+  { id: effectiveCommit, message: effectiveMessage },
   ...otherCommits,
 ];
 const messageErrors = messagesToValidate.flatMap((commit) =>
@@ -77,7 +93,7 @@ if (messageErrors.length > 0) {
   process.exit(1);
 }
 
-const sourceDetails = bulletPointsFrom(rawMessage);
+const sourceDetails = bulletPointsFrom(effectiveMessage);
 
 let backfilledDetails = [];
 for (const commit of otherCommits) {
@@ -92,13 +108,13 @@ for (const commit of otherCommits) {
 }
 
 if (sourceDetails.length === 0) {
-  const source = pushedCommits.find((commit) => commit.id === sourceCommit);
+  const source = pushedCommits.find((commit) => commit.id === effectiveCommit);
   const sourceFiles = [
     ...(Array.isArray(source?.added) ? source.added : []),
     ...(Array.isArray(source?.modified) ? source.modified : []),
     ...(Array.isArray(source?.removed) ? source.removed : []),
   ].filter(Boolean);
-  const effectiveSourceFiles = sourceFiles.length ? sourceFiles : changedFilesForCommit(root, sourceCommit);
+  const effectiveSourceFiles = sourceFiles.length ? sourceFiles : changedFilesForCommit(root, effectiveCommit);
   const generatedDetails = changeAreaDetails(effectiveSourceFiles);
   sourceDetails.push(...(generatedDetails.length ? generatedDetails : [sourceMessage]));
 }
