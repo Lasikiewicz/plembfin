@@ -1,8 +1,19 @@
 {
   "baseVersion": "0.8.0",
-  "build": 1,
-  "updatedAt": "2026-08-18T13:16:34+01:00",
+  "build": 2,
+  "updatedAt": "2026-08-18T13:56:14+01:00",
   "entries": [
+    {
+      "build": 2,
+      "version": "0.8.0.2",
+      "date": "2026-08-18T13:56:14+01:00",
+      "commit": "1ad18b460e5e538a7fc23dcca44669c9644cbd9e",
+      "message": "Merge branch 'alpha' of https://github.com/Lasikiewicz/plembfin into alpha",
+      "author": "Lasikiewicz",
+      "details": [
+        "Merge branch 'alpha' of https://github.com/Lasikiewicz/plembfin into alpha"
+      ]
+    },
     {
       "build": 1,
       "version": "0.8.0.1",
