@@ -1,7 +1,20 @@
 {
   "baseVersion": "0.8.5",
-  "build": 2,
+  "build": 3,
   "entries": [
+    {
+      "build": 3,
+      "version": "0.8.5.3",
+      "date": "2026-08-19T19:40:57+01:00",
+      "commit": "9b1fbe997ba595c76a0b8e34f390176d6c51cff6",
+      "message": "Fix - Stop Trakt episode dispatch from overwriting correct ids with a wrong TMDB title-search match",
+      "author": "Lasikiewicz",
+      "details": [
+        "Trakt sync for episodes no longer replaces an episode's own stored provider ids with a TMDB title-search result; existing ids now always win, and the lookup is skipped entirely once an episode already has one",
+        "Root cause of persistent duplicate/stuck Trakt entries for shows with short or ambiguous titles (e.g. G'wed): TMDB's search resolved to the wrong series, and that wrong id silently replaced the correct one on every dispatch, making Trakt unable to match the item to clear or add plays",
+        "Trakt dispatch now reports a real error (with the not_found detail) instead of a false success when Trakt cannot recognize the item"
+      ]
+    },
     {
       "build": 2,
       "version": "0.8.5.2",
@@ -27,5 +40,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T17:35:21+01:00"
+  "updatedAt": "2026-08-19T19:40:57+01:00"
 }
