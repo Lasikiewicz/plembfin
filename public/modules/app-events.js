@@ -892,6 +892,22 @@ function attachEvents() {
     });
   }
 
+  if (elements.duplicateWatchTvButton) {
+    elements.duplicateWatchTvButton.addEventListener("click", () => {
+      _cb.runDuplicateWatchCleanup?.("episode").catch((error) => {
+        if (elements.duplicateWatchStatus) elements.duplicateWatchStatus.textContent = `Error: ${error?.message || String(error)}`;
+      });
+    });
+  }
+
+  if (elements.duplicateWatchMovieButton) {
+    elements.duplicateWatchMovieButton.addEventListener("click", () => {
+      _cb.runDuplicateWatchCleanup?.("movie").catch((error) => {
+        if (elements.duplicateWatchStatus) elements.duplicateWatchStatus.textContent = `Error: ${error?.message || String(error)}`;
+      });
+    });
+  }
+
   if (elements.refreshMetadataButton) {
     elements.refreshMetadataButton.addEventListener("click", () => {
       runRefreshMetadataWorkflow().catch((error) => {

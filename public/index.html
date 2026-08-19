@@ -25,6 +25,7 @@
     <link rel="modulepreload" href="/modules/tools-backups.js?v=20260810" />
     <link rel="modulepreload" href="/modules/tools-maintenance.js" />
     <link rel="modulepreload" href="/modules/tools-health.js" />
+    <link rel="modulepreload" href="/modules/tools-duplicates.js" />
     <link rel="modulepreload" href="/modules/sync.js" />
     <link rel="modulepreload" href="/modules/sync-preview.js" />
     <link rel="modulepreload" href="/modules/dashboard.js" />
@@ -1122,6 +1123,25 @@
                             </div>
                           </div>
                         </details>
+
+                        <!-- Inner Box 3: Remove Duplicate Watches -->
+                        <details id="remove-duplicate-watches" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Remove Duplicate Watches</b>
+                              <span id="duplicateWatchStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <span>Keeps only the oldest watch date for each movie or episode across the whole library</span>
+                          </summary>
+                          <div class="tool-item-row">
+                            <div id="duplicateWatchLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Results will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="duplicateWatchTvButton" class="button-danger sync-action-btn sync-tool-button" type="button">Remove Duplicate TV Watches</button>
+                              <button id="duplicateWatchMovieButton" class="button-danger sync-action-btn sync-tool-button" type="button">Remove Duplicate Movie Watches</button>
+                            </div>
+                          </div>
+                        </details>
                       </div>
                     </article>
                   </div>
@@ -1136,9 +1156,13 @@
                         <b style="display: block; margin-bottom: 2px;">Repair History Rows</b>
                         <p style="margin: 0; line-height: 1.4;">Scans your 300 most recent history rows for ones missing a media type or an optimized (locally cached) poster. Rows with no type are guessed as an episode or movie from the title pattern (e.g. <code>S01E01</code>), then a poster is resolved from the cache, the configured media server, or TMDB and saved to local storage. Runs in passes of up to 10 rows and stops automatically once a pass makes no changes.</p>
                       </div>
-                      <div style="margin-top: var(--space-2);">
+                      <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Audit Phantom Watches</b>
                         <p style="margin: 0; line-height: 1.4;">Runs a read-only scan of all watch-history rows for suspicious platform duplicates across media keys, provider IDs, and title or episode identities. Results are labelled high-confidence or review-only; the audit never changes or deletes records.</p>
+                      </div>
+                      <div style="margin-top: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Remove Duplicate Watches</b>
+                        <p style="margin: 0; line-height: 1.4;">Scans every movie or every TV episode with more than one recorded watch and keeps only the oldest date, permanently deleting the rest and pushing the corrected watch state out to every connected platform. Always shows the exact number of watches and items affected before asking for confirmation - this cannot be undone.</p>
                       </div>
                     </article>
                   </div>

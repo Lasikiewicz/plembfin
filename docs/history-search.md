@@ -58,6 +58,33 @@ same title are not accidentally merged.
 The dashboard's recent-history rail is a separate, smaller consumer of the same
 endpoint - see [dashboard.md](dashboard.md).
 
+## Remove Duplicate Watches (library-wide)
+
+Settings → Tools → Database Repairs → **Remove Duplicate Watches** runs the same
+keep-the-oldest-date cleanup used by the per-season "Remove duplicate watches" control
+(`public/modules/edit-dialogs.js`), but across the whole library instead of one season at
+a time. Separate buttons run it for TV episodes and for movies.
+
+| File | Role |
+| --- | --- |
+| `public/modules/tools-duplicates.js` | `runDuplicateWatchCleanup(mediaType)` - scans, confirms, then cleans up |
+| `server/src/routes/media.js` | `handleDuplicateWatchScan` (`GET /api/duplicate-watch-scan?mediaType=`), `handleDuplicateWatchCleanup` (`POST /api/duplicate-watch-cleanup`) |
+| `server/src/utils/dataRepo.js` | `queryWatchHistory` (deduped, with `playHistory`), `deleteWatchDates` |
+
+Unlike the same-event collapse above, this does not use a time window - it groups by
+`media_key` (or show title/season/episode for episodes) via `queryWatchHistory`'s existing
+dedupe path, and for every movie or episode with more than one recorded watch
+(`playHistory.length > 1`), every watch after the oldest is treated as removable. That covers
+duplicates a time window would miss: rewatch-import floods, or the kind of wrong-provider-id
+Trakt overwrite described in [media-detail.md](media-detail.md).
+
+The button always scans first and shows the real count of duplicate watches and affected
+items before asking for confirmation - nothing is deleted until that confirmation is
+approved. On confirm, the cleanup runs `deleteWatchDates` in batches of 300 ids, and for each
+affected item propagates the corrected canonical state to every connected platform the same
+way the per-season cleanup and a manual watch-date deletion already do (see the "Removing a
+watch date propagates the correction" behavior in [media-detail.md](media-detail.md)).
+
 ## Search page (`/search`)
 
 Global search across the local library, TMDB discovery **and** TVDB, reached from the

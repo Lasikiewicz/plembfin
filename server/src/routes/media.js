@@ -865,6 +865,79 @@ export async function handleDeleteWatchDates(req, res) {
   return sendJson(res, result);
 }
 
+// Library-wide version of the season "remove duplicate watches" cleanup - for
+// every movie or episode with more than one recorded watch, everything after
+// the oldest is a removable duplicate (a rewatch import, a sync echo, or the
+// kind of wrong-id Trakt overwrite fixed in trackerDispatcher.js). Read-only:
+// used to size the confirmation dialog before handleDuplicateWatchCleanup runs.
+const DUPLICATE_WATCH_MEDIA_TYPES = new Set(["movie", "episode"]);
+
+async function findDuplicateWatchGroups(mediaType) {
+  const rows = await queryWatchHistory({ mediaType, limit: 25000, offset: 0, dedupe: true });
+  return rows.filter((row) => Array.isArray(row.playHistory) && row.playHistory.length > 1);
+}
+
+export async function handleDuplicateWatchScan(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const mediaType = String(req.query.mediaType || "").toLowerCase();
+  if (!DUPLICATE_WATCH_MEDIA_TYPES.has(mediaType)) return sendJson(res, { error: "mediaType must be 'movie' or 'episode'" }, 400);
+
+  const groups = await findDuplicateWatchGroups(mediaType);
+  const removable = groups.reduce((sum, row) => sum + row.playHistory.length - 1, 0);
+  return sendJson(res, {
+    ok: true,
+    mediaType,
+    itemsWithDuplicates: groups.length,
+    removable,
+    samples: groups.slice(0, 20).map((row) => ({
+      title: row.title,
+      showTitle: row.show_title,
+      season: row.season,
+      episode: row.episode,
+      watchCount: row.playHistory.length,
+    })),
+  }, 200, { "Cache-Control": "no-store" });
+}
+
+// Deletes every removable duplicate found by handleDuplicateWatchScan, in
+// batches (deleteWatchDates itself is capped at 500 ids per call by
+// handleDeleteWatchDates, but this calls the dataRepo function directly so
+// the batch size here is just a self-imposed chunk size). Reuses the same
+// keep-oldest, propagate-canonical-state path as the per-season cleanup.
+const DUPLICATE_WATCH_BATCH_SIZE = 300;
+
+export async function handleDuplicateWatchCleanup(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const mediaType = String(body.mediaType || "").toLowerCase();
+  if (!DUPLICATE_WATCH_MEDIA_TYPES.has(mediaType)) return sendJson(res, { error: "mediaType must be 'movie' or 'episode'" }, 400);
+
+  const groups = await findDuplicateWatchGroups(mediaType);
+  const removableIds = groups.flatMap((row) => row.playHistory.slice(1).map((entry) => entry.id).filter(Boolean));
+
+  let removed = 0;
+  for (let i = 0; i < removableIds.length; i += DUPLICATE_WATCH_BATCH_SIZE) {
+    const batch = removableIds.slice(i, i + DUPLICATE_WATCH_BATCH_SIZE);
+    const { affectedMedia, deleted } = await deleteWatchDates(batch);
+    removed += deleted.length;
+    for (const media of affectedMedia || []) {
+      propagateWatchDateRemoval(media.remainingRow, media.deletedRow);
+    }
+  }
+
+  writeAuditLog("media.duplicate_watches_bulk_removed", {
+    ip: req.ip || req.socket?.remoteAddress,
+    detail: { mediaType, itemsAffected: groups.length, removed },
+  });
+  return sendJson(res, { ok: true, mediaType, itemsAffected: groups.length, removed }, 200, { "Cache-Control": "no-store" });
+}
+
 // Updates existing watch rows only. Season/show date edits use this bulk path
 // so each selected episode can receive its own release date without the
 // single-row editor's same-day duplicate propagation or any history inserts.

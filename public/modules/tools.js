@@ -4,6 +4,7 @@ import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normali
 import { initBackupTools } from "./tools-backups.js?v=20260810";
 import { initMaintenanceTools } from "./tools-maintenance.js";
 import { initHealthTools } from "./tools-health.js";
+import { initDuplicateWatchTools } from "./tools-duplicates.js";
 // Callbacks injected by app.js at startup to avoid circular imports.
 let _setMessage = () => {};
 let _openConfirmDialog = async () => false;
@@ -29,6 +30,7 @@ export function initTools(callbacks) {
   initBackupTools(callbacks);
   initMaintenanceTools(callbacks);
   initHealthTools();
+  initDuplicateWatchTools(callbacks);
 }
 function authHeaders() {
   return buildAuthHeaders(state.token);
@@ -346,3 +348,4 @@ export async function startImport() {
 // re-exported here so existing imports of these names from "./tools.js"
 // keep working unchanged.
 export { runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, cancelFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js";
+export { runDuplicateWatchCleanup } from "./tools-duplicates.js";

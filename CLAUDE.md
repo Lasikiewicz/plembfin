@@ -270,6 +270,7 @@ When adding frontend code, place it in the most specific existing module that ow
 | Authenticated live watch-state refresh stream | `modules/live-updates.js` |
 | Backup and appearance tools | `modules/tools-backups.js` |
 | Maintenance diagnostics, cache tools, sync repair tools, and sync health | `modules/tools-maintenance.js`, `modules/tools-health.js` |
+| Library-wide duplicate-watch cleanup (Settings → Tools → Database Repairs) | `modules/tools-duplicates.js` |
 | Auth, session, tokens | `modules/auth.js` |
 | Debug/diagnostic logs & telemetry export | `modules/logs.js` (categorization, local time formatting, export) |
 | Connection label formatting | `modules/settings.js` |

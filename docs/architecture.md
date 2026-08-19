@@ -250,6 +250,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `tools.js` | Settings tools bridge: Trakt/CSV import flows, `initTools()`, and compatibility re-exports for backup/appearance and maintenance tools. |
 | `tools-backups.js` | Settings backup and appearance UI: full export/import, watch-history backups, encrypted backups, Backblaze destination cards/dialogs, backup passphrase controls, and appearance settings. See [backups.md](backups.md). |
 | `tools-maintenance.js` | Maintenance diagnostics: System Integrity Check, repair workflow, dedup history, Trakt backfill, TV re-match, full watchstate sync, cache stats/clear. |
+| `tools-duplicates.js` | Library-wide duplicate-watch cleanup (Settings → Tools → Database Repairs): scans then removes every extra watch beyond the oldest, for TV episodes and movies separately. |
 | `help-content.js` | Static help/guide HTML: credential guides, webhook setup per platform, cron guide, settings inline help. |
 | `app-events.js` | Global app event wiring (delegated click/submit/keyboard handlers bound at startup). |
 
