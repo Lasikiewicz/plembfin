@@ -1443,25 +1443,35 @@ export async function deleteWatchDate(id) {
   const existing = selectByIdStmt.get(String(id));
   if (!existing) return { ok: false, error: "Watch record not found" };
 
-  queueProgressUpdateForRecord(existing);
-  deleteByIdStmt.run(String(id));
-  recordWatchAuditEvent({
-    eventType: "history_deleted",
-    timestamp: Date.now(),
-    action: existing.sync_action || "watched",
-    watchRecordId: existing.id,
-    mediaKey: existing.media_key,
-    mediaType: existing.media_type,
-    title: existing.title,
-    showTitle: existing.show_title,
-    source: existing.source,
-    ids: { imdb: existing.imdb_id, tmdb: existing.tmdb_id, tvdb: existing.tvdb_id },
-    season: existing.season,
-    episode: existing.episode,
-    status: "deleted",
-    details: "A single watch date was deleted from Plembfin history.",
-    payload: { record: existing, operation: "delete_watch_date" },
-  });
+  const candidateRows = [existing, ...siblingWatchRowsFor(existing)];
+  const chainIds = sameEventChainIdsFor([existing.id], candidateRows);
+  const rowsToDelete = chainIds
+    .map((chainId) => (chainId === existing.id ? existing : candidateRows.find((row) => row.id === chainId)))
+    .filter(Boolean);
+
+  for (const row of rowsToDelete) {
+    queueProgressUpdateForRecord(row);
+    deleteByIdStmt.run(String(row.id));
+    recordWatchAuditEvent({
+      eventType: "history_deleted",
+      timestamp: Date.now(),
+      action: row.sync_action || "watched",
+      watchRecordId: row.id,
+      mediaKey: row.media_key,
+      mediaType: row.media_type,
+      title: row.title,
+      showTitle: row.show_title,
+      source: row.source,
+      ids: { imdb: row.imdb_id, tmdb: row.tmdb_id, tvdb: row.tvdb_id },
+      season: row.season,
+      episode: row.episode,
+      status: "deleted",
+      details: row.id === existing.id
+        ? "A single watch date was deleted from Plembfin history."
+        : "An echoed duplicate row chained to the deleted watch date was removed with it.",
+      payload: { record: row, operation: "delete_watch_date" },
+    });
+  }
   const mediaKey = existing.media_key;
   if (mediaKey) {
     const remaining = selectByMediaKeyStmt.all(mediaKey).filter(isPlembfinTrackedWatchRow);
@@ -1486,34 +1496,48 @@ export async function deleteWatchDates(ids = []) {
   const deleted = [];
   const notFound = [];
   const affectedMediaKeys = new Set();
+  const handled = new Set();
 
   for (const id of uniqueIds) {
+    if (handled.has(id)) continue;
     const existing = selectByIdStmt.get(id);
     if (!existing) {
       notFound.push(id);
       continue;
     }
-    queueProgressUpdateForRecord(existing);
-    deleteByIdStmt.run(id);
-    recordWatchAuditEvent({
-      eventType: "history_deleted",
-      timestamp: Date.now(),
-      action: existing.sync_action || "watched",
-      watchRecordId: existing.id,
-      mediaKey: existing.media_key,
-      mediaType: existing.media_type,
-      title: existing.title,
-      showTitle: existing.show_title,
-      source: existing.source,
-      ids: { imdb: existing.imdb_id, tmdb: existing.tmdb_id, tvdb: existing.tvdb_id },
-      season: existing.season,
-      episode: existing.episode,
-      status: "deleted",
-      details: "A watch date was removed as part of a bulk duplicate-watch cleanup.",
-      payload: { record: existing, operation: "bulk_delete_watch_dates" },
-    });
-    deleted.push(id);
-    if (existing.media_key) affectedMediaKeys.add(existing.media_key);
+
+    const candidateRows = [existing, ...siblingWatchRowsFor(existing)];
+    const chainIds = sameEventChainIdsFor([id], candidateRows).filter((chainId) => !handled.has(chainId));
+    const rowsToDelete = chainIds
+      .map((chainId) => (chainId === existing.id ? existing : candidateRows.find((row) => row.id === chainId)))
+      .filter(Boolean);
+
+    for (const row of rowsToDelete) {
+      handled.add(row.id);
+      queueProgressUpdateForRecord(row);
+      deleteByIdStmt.run(row.id);
+      recordWatchAuditEvent({
+        eventType: "history_deleted",
+        timestamp: Date.now(),
+        action: row.sync_action || "watched",
+        watchRecordId: row.id,
+        mediaKey: row.media_key,
+        mediaType: row.media_type,
+        title: row.title,
+        showTitle: row.show_title,
+        source: row.source,
+        ids: { imdb: row.imdb_id, tmdb: row.tmdb_id, tvdb: row.tvdb_id },
+        season: row.season,
+        episode: row.episode,
+        status: "deleted",
+        details: row.id === existing.id
+          ? "A watch date was removed as part of a bulk duplicate-watch cleanup."
+          : "An echoed duplicate row chained to a bulk-cleanup watch date was removed with it.",
+        payload: { record: row, operation: "bulk_delete_watch_dates" },
+      });
+      deleted.push(row.id);
+      if (row.media_key) affectedMediaKeys.add(row.media_key);
+    }
   }
 
   for (const mediaKey of affectedMediaKeys) {
@@ -1891,6 +1915,45 @@ function sameEventDuplicateIdsForRows(rows = [], windowMs = SAME_EVENT_WINDOW_MS
     }
   }
   return duplicates;
+}
+
+// The Edit Watch Date dialog shows one row per real viewing event and hides
+// any echoed duplicate chained to it within SAME_EVENT_WINDOW_MS (see
+// filterSameEventDuplicateRows above). Deleting only the visible row leaves
+// its hidden echo behind, and that echo resurfaces as a "new" watch date the
+// next time the list is rebuilt. Expand each requested id to every id in its
+// same-event chain so the whole event - visible row and hidden echoes alike -
+// is removed together.
+function sameEventChainIdsFor(targetIds, rows = [], windowMs = SAME_EVENT_WINDOW_MS) {
+  const targets = new Set(targetIds);
+  const allWatched = rows.filter((row) => row?.id && row.watched_at && isWatchedAction(row));
+  const byKey = new Map();
+  for (const row of allWatched) {
+    const key = sameEventKey(row);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(row);
+  }
+
+  const result = new Set(targetIds);
+  for (const group of byKey.values()) {
+    group.sort((a, b) => (Date.parse(a.watched_at) || 0) - (Date.parse(b.watched_at) || 0));
+    let chain = [];
+    let previous = null;
+    const flushChain = () => {
+      if (chain.length > 1 && chain.some((rowId) => targets.has(rowId))) {
+        chain.forEach((rowId) => result.add(rowId));
+      }
+      chain = [];
+    };
+    for (const row of group) {
+      const time = Date.parse(row.watched_at) || 0;
+      if (chain.length && time - previous > windowMs) flushChain();
+      chain.push(row.id);
+      previous = time;
+    }
+    flushChain();
+  }
+  return [...result];
 }
 
 // Return only rows representing real viewing events. A webhook echo or a
