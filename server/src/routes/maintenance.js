@@ -27,6 +27,7 @@ import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork, getTvd
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
 import { outboundGovernorTelemetry } from "../utils/outboundGovernor.js";
+import { isVerboseLogging, setVerboseLogging } from "../utils/logVerbose.js";
 import capacityRanges from "../capacityRanges.json" with { type: "json" };
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
 import {
@@ -495,6 +496,51 @@ export async function handleDiagnosticLogs(req, res) {
   const level = ["info", "warn", "error"].includes(requestedLevel) ? requestedLevel : "";
   const data = getDiagnosticLogs({ limit, category, level });
   return sendJson(res, data, 200, { "Cache-Control": "no-store" });
+}
+
+// One-off diagnostic for "Plembfin says synced, but the media server doesn't
+// show it watched" reports - runs the exact same findPlexItem lookup a real
+// dispatch would use for one specific watch record, with verbose GUID/search
+// tracing forced on for just this call (regardless of the LOG_VERBOSE env
+// var), so the detailed trace lines land in the diagnostic log even when the
+// server wasn't started with verbose tracing on. Restores the previous
+// verbose setting afterward rather than leaving it flipped on server-wide.
+export async function handleDebugPlexMatch(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req).catch(() => ({}));
+  const id = String(body.id || "").trim();
+  if (!id) return sendJson(res, { error: "id is required" }, 400);
+
+  const row = await getWatchRecordByIdLight(id);
+  if (!row) return sendJson(res, { error: "Watch record not found" }, 404);
+
+  const config = await loadMediaConfig();
+  if (!config.plex?.baseUrl || !config.plex?.token) {
+    return sendJson(res, { error: "Plex is not configured" }, 400);
+  }
+
+  const media = watchRowToMedia(row, "manual");
+  const wasVerbose = isVerboseLogging();
+  setVerboseLogging(true);
+  let item = null;
+  let matchError = "";
+  try {
+    item = await findPlexItem(config.plex, media);
+  } catch (error) {
+    matchError = error.message || String(error);
+  } finally {
+    setVerboseLogging(wasVerbose);
+  }
+
+  return sendJson(res, {
+    media,
+    found: Boolean(item?.ratingKey),
+    item: item ? { ratingKey: item.ratingKey, title: item.title, type: item.type, year: item.year, guid: item.guid } : null,
+    error: matchError || undefined,
+  }, 200, { "Cache-Control": "no-store" });
 }
 
 

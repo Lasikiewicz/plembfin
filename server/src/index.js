@@ -7,7 +7,7 @@ import { handleAppearance, handleConfig, handleMediaAppLinks, handleSeerrMediaSt
 import { handleAddWatchDate, handleClearMissingTelemetry, handleDeleteHistoryRecord, handleDeleteMedia, handleDeleteWatchDate, handleDeleteWatchDates, handleFullSyncWatchstates, handleHistory, handleHistoryAudit, handleMergeShows, handleMovies, handleRematchShow, handleShow, handleShows, handleUpdateWatch, handleUpdateWatchDates, handleWatchDates } from "./routes/media.js";
 import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleForceSyncPlan, handleForceSyncCancellation, handleLibraryForceSync, handleLibraryForceSyncStatus, handleManualUnwatch, handleMediaForceSync, handleMediaForceSyncStatus, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleRetrySync, handleStopForceSync, handleSyncHistory, handleSyncJobs, handleSyncLibraries, handleWebhook } from "./routes/sync.js";
 import { handleFanartImages, handleMediaSearch, handleOmdbRating, handlePoster, handleRemoteArtwork, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleYoutubeMeta } from "./routes/metadata.js";
-import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRefreshTvdbMetadata, handleRematchTvShows, handleSyncHealth, handleSyncMatchReport, handlePhantomWatchAudit, handlePhantomWatchRepair, handleStaleTraktImportAudit, handleStaleTraktImportRepair } from "./routes/maintenance.js";
+import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDebugPlexMatch, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRefreshTvdbMetadata, handleRematchTvShows, handleSyncHealth, handleSyncMatchReport, handlePhantomWatchAudit, handlePhantomWatchRepair, handleStaleTraktImportAudit, handleStaleTraktImportRepair } from "./routes/maintenance.js";
 import { handleEmbyLikeAuth, handleEmbyLikeConnection, handlePlexAuth, handlePlexConnection } from "./routes/mediaAuth.js";
 import { handleTrackerAuth, handleTrackerConnections } from "./routes/trackerAuth.js";
 import { handleLiveUpdates } from "./routes/liveUpdates.js";
@@ -24,6 +24,7 @@ async function dispatch(req, res) {
     if (path === "live-updates") return handleLiveUpdates(req, res);
     if (path === "changelog") return handleChangelog(req, res);
     if (path === "diagnostic-logs") return handleDiagnosticLogs(req, res);
+    if (path === "debug-plex-match") return handleDebugPlexMatch(req, res);
     if (path === "login") return handleLogin(req, res);
     if (path === "logout") return handleLogout(req, res);
     if (path === "auth/status" || path === "auth-status") return handleAuthStatus(req, res);
