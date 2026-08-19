@@ -4,7 +4,7 @@ import {
   invalidateHistoryDerivedCaches, mediaKeyFor, mediaToWatchRecord, signalHistoryDataChanged, upsertPlaystateForMedia,
 } from "./dataRepo.js";
 import { createLoopStore } from "./loopStore.js";
-import { fetchTraktPlayHistory, fetchTraktWatchedSnapshot } from "./traktClient.js";
+import { fetchTraktPlayHistory, fetchTraktWatchedSnapshot, trackerMediaKey } from "./traktClient.js";
 import {
   getTrackerConnection, listTrackerItemStates, listUnrecordedTrackerPlayIds,
   recordTrackerPlay, replaceTrackerSnapshot, updateTrackerConnectionStatus,
@@ -53,7 +53,7 @@ async function runTransitionBatch(items, handler, concurrency = TRACKER_TRANSITI
 // (via tracker_play_history) and nudges playstate's timestamp forward when
 // a newer rewatch is found. It never propagates to sync targets itself -
 // these are historical facts, not new events for Plex/Emby/Jellyfin to act on.
-async function importTraktPlayHistory(connection, publicConnection) {
+async function importTraktPlayHistory(connection, publicConnection, previousOutboundByKey) {
   const watermarkMs = publicConnection.baselineComplete ? Number(publicConnection.historySyncedAt || 0) : 0;
   // A minute of overlap tolerates clock skew; tracker_play_history dedup
   // means re-seeing already-imported plays here is a harmless no-op.
@@ -69,11 +69,36 @@ async function importTraktPlayHistory(connection, publicConnection) {
   const touchedKeys = new Map();
 
   for (const entry of entries.filter((entry) => pendingIds.has(entry.historyId)).sort((a, b) => a.watchedAt - b.watchedAt)) {
+    const watchedAtIso = new Date(entry.watchedAt).toISOString();
+
+    // A play that looks like it just happened, right after Plembfin itself
+    // last pushed a "watched" mark for this item to Trakt, is almost
+    // certainly an echo of that push rather than a genuine new play - e.g. a
+    // canonical replay (manual mark-watched, a watched-date correction) whose
+    // pushed date was wrong for any reason. Importing it as history would
+    // create a second local watch alongside the correct one. Uses Trakt's
+    // own mediaKey shape here (not dataRepo's mediaKeyFor below) because
+    // that's what recordTrackerOutbound in trackerDispatcher.js keys by.
+    // Reads from the previous-snapshot map captured in pollTrakt before
+    // replaceTrackerSnapshot() ran, rather than querying tracker_item_state
+    // fresh here - replaceTrackerSnapshot rebuilds that table from the
+    // just-fetched watched snapshot, and a just-pushed item that hasn't
+    // shown up there yet would otherwise have its outbound-echo state wiped
+    // out from under this check before it ever ran.
+    const outboundState = previousOutboundByKey.get(trackerMediaKey(entry.media));
+    if (
+      outboundState?.lastOutboundState === "watched"
+      && Number(outboundState.lastOutboundAt || 0) > 0
+      && Math.abs(entry.watchedAt - Number(outboundState.lastOutboundAt)) <= OUTBOUND_ECHO_WINDOW_MS
+    ) {
+      recordTrackerPlay("trakt", { historyId: entry.historyId, mediaKey: trackerMediaKey(entry.media), watchedAt: watchedAtIso, watchRecordId: "" });
+      continue;
+    }
+
     // Trakt's own mediaKey shape (used for tracker_item_state) differs from
     // dataRepo's canonical media_key column format - recompute the canonical
     // one here or findExistingWatch's lookup against watch_history never matches.
     const canonicalMediaKey = mediaKeyFor(entry.media);
-    const watchedAtIso = new Date(entry.watchedAt).toISOString();
     const existing = await findExistingWatch(canonicalMediaKey, watchedAtIso).catch(() => null);
     let watchRecordId = existing?.id || "";
     if (!existing) {
@@ -135,6 +160,7 @@ async function pollTrakt({ reconcile = false } = {}) {
   if (!publicConnection || publicConnection.status !== "connected") return { skipped: true, reason: "not-connected", watched: 0, unwatched: 0 };
   const { connection, snapshot } = await readSnapshot();
   const previous = listTrackerItemStates("trakt");
+  const previousByKey = new Map(previous.map((item) => [item.mediaKey, item]));
   const currentByKey = new Map(snapshot.map((item) => [item.mediaKey, item]));
   const baseline = publicConnection.baselineComplete;
   const reconcileKeys = new Set();
@@ -177,7 +203,7 @@ async function pollTrakt({ reconcile = false } = {}) {
   updateTrackerConnectionStatus("trakt", { baselineComplete: true, lastPolledAt: Date.now(), lastValidatedAt: Date.now(), lastError: null });
 
   try {
-    await importTraktPlayHistory(connection, publicConnection);
+    await importTraktPlayHistory(connection, publicConnection, previousByKey);
   } catch (error) {
     console.error("[trackerSync] Trakt play-history import failed (non-fatal)", error);
   }

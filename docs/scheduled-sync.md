@@ -95,6 +95,16 @@ happened on Trakt rather than triggering a new watch event - and pushing a local
 Trakt (`setTraktWatchState`) already sends each individual play with its own timestamp, so
 rewatches recorded locally reach Trakt as separate history entries too.
 
+Before importing a play, the history importer checks it against Plembfin's own most recent
+outbound "watched" push for that item (the same `tracker_item_state` ledger the snapshot
+diff's echo markers use, captured before that poll's snapshot rewrite so a not-yet-reflected
+push isn't lost). A play timestamped within 30 minutes of that push is treated as an echo of
+it rather than a new play: it is recorded in `tracker_play_history` so it is never
+re-evaluated, but no `watch_history` row is created for it. This is defense-in-depth against
+a wrongly-dated outbound push (or plain clock skew) round-tripping back in as a phantom
+second local watch, on top of whatever caused the wrong date reaching Trakt in the first
+place.
+
 An earlier version of this feature (before 2026-08-19) inserted these rows without any
 `sync_dispatch_telemetry`, which the manual-dispatch retry sweep below reads as pending
 work - it kept re-sending every backfilled play to every connected target, including back

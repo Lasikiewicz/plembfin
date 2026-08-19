@@ -8,6 +8,7 @@ const repo = await import("../server/src/utils/dataRepo.js");
 const trackerConnectionRepo = await import("../server/src/utils/trackerConnectionRepo.js");
 const { pollConnectedTrackers } = await import("../server/src/utils/trackerSync.js");
 const { dispatchTrackerWatchState } = await import("../server/src/utils/trackerDispatcher.js");
+const { trackerMediaKey } = await import("../server/src/utils/traktClient.js");
 
 function connectTrakt(overrides = {}) {
   trackerConnectionRepo.saveTrackerConnection({
@@ -80,6 +81,63 @@ test("importing Trakt play history never pushes those plays back out to Trakt or
     }
 
     assert.equal(historyWriteCalls, 0, "the import must never call Trakt's /sync/history write endpoint");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+// Regression coverage for a real incident (2026-08-19): a manual "mark
+// watched" bug pushed the wrong (current-time) date to Trakt via a canonical
+// replay. The play-history importer had no way to know that play was just an
+// echo of Plembfin's own very-recent push, so it imported it as a genuine
+// new play - creating a phantom second local watch alongside the correct
+// one. That underlying push-date bug is now fixed separately, but this is
+// defense-in-depth against any future bug (or plain clock skew) doing the
+// same thing again.
+test("a Trakt play arriving right after our own outbound push is treated as an echo, not a new play", async () => {
+  // baselineComplete stays false here so pollTrakt's watched/unwatched
+  // snapshot diff (which also reads tracker_item_state) is a no-op; only the
+  // play-history import path below is under test, not the unrelated
+  // snapshot-diff reconciliation for this synthetic media.
+  connectTrakt({ baselineComplete: false });
+  const media = { type: "movie", ids: { imdb: "tt9999999" } };
+  trackerConnectionRepo.recordTrackerOutbound("trakt", trackerMediaKey(media), media, "watched");
+  const echoWatchedAtIso = new Date(Date.now() + 5000).toISOString(); // 5s after our own push, well inside the echo window
+
+  let historyWriteCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const href = String(url);
+    if (href.includes("/sync/watched/")) {
+      return new Response(JSON.stringify([]), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (href === "https://api.trakt.tv/sync/history" || href === "https://api.trakt.tv/sync/history/remove") {
+      historyWriteCalls += 1;
+      return new Response(JSON.stringify({ added: {} }), { status: 201, headers: { "content-type": "application/json" } });
+    }
+    if (href.includes("/sync/history/movies")) {
+      return new Response(JSON.stringify([{
+        id: 777001, watched_at: echoWatchedAtIso, action: "watch", type: "movie",
+        movie: { title: "Echo Movie", ids: { imdb: "tt9999999" } },
+      }]), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (href.includes("/sync/history/episodes")) {
+      return new Response(JSON.stringify([]), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    throw new Error(`Unexpected fetch during test: ${href}`);
+  };
+
+  try {
+    await pollConnectedTrackers();
+
+    const stored = await repo.findExistingWatch(repo.mediaKeyFor(media), echoWatchedAtIso);
+    assert.equal(stored, null, "an echo of our own recent outbound push must not be imported as a new local watch");
+    assert.equal(historyWriteCalls, 0);
+
+    const db = repo.requireDb();
+    const recordedPlay = db.prepare("SELECT * FROM tracker_play_history WHERE provider='trakt' AND history_id=?").get("777001");
+    assert.ok(recordedPlay, "the historyId must still be recorded so it is not re-evaluated on every poll");
+    assert.equal(recordedPlay.watch_record_id, null);
   } finally {
     globalThis.fetch = originalFetch;
   }
