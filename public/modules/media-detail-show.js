@@ -1,5 +1,5 @@
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, sourceBadgeHtml } from "./utils.js";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, sourceBadgeHtml, actualWatchHistory } from "./utils.js";
 import { posterUrlFor, isCachedStorageImageUrl, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
@@ -356,26 +356,6 @@ function watchedEpisodeFor(watchedMap, seasonNumber, episodeNumber) {
     return watchedMap.get(showEpisodeKey(null, episodeNumber)) || null;
   }
   return null;
-}
-
-// The server removes same-event propagation echoes before it builds
-// playHistory. Keep the UI defensive for older cached rows, and always count a
-// missing history array as one watch rather than zero.
-function actualWatchHistory(watched = {}) {
-  const raw = Array.isArray(watched?.playHistory) ? watched.playHistory : [];
-  const entries = raw
-    .map((entry) => (typeof entry === "string" ? { watched_at: entry } : entry))
-    .filter((entry) => entry?.watched_at);
-  if (!entries.length && watched?.watched_at) {
-    return [{ id: watched.id, watched_at: watched.watched_at, source: watched.source }];
-  }
-  const seen = new Set();
-  return entries.filter((entry) => {
-    const key = entry.id || `${entry.watched_at}|${entry.source || ""}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 function watchSummaryForRows(rows = []) {

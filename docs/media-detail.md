@@ -149,7 +149,17 @@ first complete render.
   one of them, add another watch date (`POST /api/add-watch-date`, clones the
   anchor row's identity fields onto a new date), or remove one with confirmation
   (`POST /api/delete-watch-date` - rolls `playstate.watched_at` back to whichever
-  remaining watch is newest, or clears it if none remain). Editing, adding, or
+  remaining watch is newest, or clears it if none remain). The per-season "Edit
+  season date" dialog additionally offers **Remove duplicate watches** when any
+  episode in the season has more than one recorded watch: it keeps only the
+  oldest watch per episode and bulk-deletes the rest in a single confirmed
+  action (`POST /api/delete-watch-dates`, `deleteWatchDates` in `dataRepo.js`),
+  rolling each affected `playstate.watched_at` back to the surviving (oldest)
+  date the same way the single-row delete does. The show-level "Edit Date"
+  control (top action bar, `openEditShowDateDialog`) shows one row per season
+  instead of a single date for the whole show - each season defaults to its
+  own latest watched date and can be changed independently before saving, so
+  Season 1 and Season 2 don't have to share one timestamp. Editing, adding, or
   bulk-editing (`POST /api/update-watch-dates`) a watched date replays the
   corrected date to Trakt and every connected Plex/Emby/Jellyfin server as a
   canonical "watched" state in the background (`propagateCorrectedWatchDate` in

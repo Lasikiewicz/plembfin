@@ -1477,6 +1477,59 @@ export async function deleteWatchDate(id) {
   return { ok: true };
 }
 
+// Bulk form of deleteWatchDate - used by the season/show "remove duplicate
+// watches" cleanup, which can delete dozens of rows across many episodes in
+// one action. Recomputes each affected media_key's playstate once at the end
+// instead of once per deleted row.
+export async function deleteWatchDates(ids = []) {
+  const uniqueIds = [...new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean))];
+  const deleted = [];
+  const notFound = [];
+  const affectedMediaKeys = new Set();
+
+  for (const id of uniqueIds) {
+    const existing = selectByIdStmt.get(id);
+    if (!existing) {
+      notFound.push(id);
+      continue;
+    }
+    queueProgressUpdateForRecord(existing);
+    deleteByIdStmt.run(id);
+    recordWatchAuditEvent({
+      eventType: "history_deleted",
+      timestamp: Date.now(),
+      action: existing.sync_action || "watched",
+      watchRecordId: existing.id,
+      mediaKey: existing.media_key,
+      mediaType: existing.media_type,
+      title: existing.title,
+      showTitle: existing.show_title,
+      source: existing.source,
+      ids: { imdb: existing.imdb_id, tmdb: existing.tmdb_id, tvdb: existing.tvdb_id },
+      season: existing.season,
+      episode: existing.episode,
+      status: "deleted",
+      details: "A watch date was removed as part of a bulk duplicate-watch cleanup.",
+      payload: { record: existing, operation: "bulk_delete_watch_dates" },
+    });
+    deleted.push(id);
+    if (existing.media_key) affectedMediaKeys.add(existing.media_key);
+  }
+
+  for (const mediaKey of affectedMediaKeys) {
+    const remaining = selectByMediaKeyStmt.all(mediaKey).filter(isPlembfinTrackedWatchRow);
+    if (remaining.length) {
+      const latest = remaining.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
+      updatePlaystateWatchedAtStmt.run(latest.watched_at, Date.now(), mediaKey);
+    } else {
+      deletePlaystateByKeyStmt.run(mediaKey);
+    }
+  }
+
+  if (deleted.length) await invalidateHistoryDerivedCaches();
+  return { ok: true, deleted, notFound };
+}
+
 export async function updateWatchTelemetry(id, telemetry, { skipInvalidate = false } = {}) {
   if (!id) return;
   const oldRow = selectByIdStmt.get(String(id));

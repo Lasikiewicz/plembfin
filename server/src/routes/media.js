@@ -36,6 +36,7 @@ import {
   getWatchDatesForRecord,
   addWatchDate,
   deleteWatchDate,
+  deleteWatchDates,
   updateWatchDates,
   mergeShows,
   getWatchRecordById,
@@ -818,6 +819,27 @@ export async function handleDeleteWatchDate(req, res) {
   if (!result.ok) return sendJson(res, { error: result.error }, 400);
   writeAuditLog("media.watch_date_deleted", { ip: req.ip || req.socket?.remoteAddress, detail: { id } });
   return sendJson(res, { ok: true });
+}
+
+// Bulk delete for the season/show "remove duplicate watches" cleanup - keeps
+// each episode's oldest watch and removes the rest in one request instead of
+// one round trip per row.
+export async function handleDeleteWatchDates(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST" && req.method !== "DELETE") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  const ids = Array.isArray(body.ids) ? body.ids : [];
+  if (!ids.length) return sendJson(res, { error: "ids is required" }, 400);
+  if (ids.length > 500) return sendJson(res, { error: "Batch size must be 500 ids or fewer" }, 413);
+
+  const result = await deleteWatchDates(ids);
+  writeAuditLog("media.watch_dates_bulk_deleted", {
+    ip: req.ip || req.socket?.remoteAddress,
+    detail: { requested: ids.length, deleted: result.deleted.length, notFound: result.notFound.length },
+  });
+  return sendJson(res, result);
 }
 
 // Updates existing watch rows only. Season/show date edits use this bulk path

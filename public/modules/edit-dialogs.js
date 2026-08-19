@@ -1,5 +1,5 @@
 import { state } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate } from "./utils.js";
+import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory } from "./utils.js";
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js";
@@ -87,6 +87,17 @@ async function apiDeleteWatchDate(id) {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({ id }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body;
+}
+
+async function apiDeleteWatchDates(ids) {
+  const res = await fetch("/api/delete-watch-dates", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
@@ -408,8 +419,41 @@ export function openEditShowDateDialog(showTitle, watchedRows = []) {
     return;
   }
 
-  const latest = rows.reduce((value, row) => row.watched_at > value ? row.watched_at : value, rows[0].watched_at || "");
+  // One row per season rather than one date for the whole show: each season
+  // defaults to its own latest watched date and can be changed independently.
+  const seasonMap = new Map();
+  for (const row of rows) {
+    const seasonNum = row.season == null ? 0 : Number(row.season);
+    if (!seasonMap.has(seasonNum)) seasonMap.set(seasonNum, []);
+    seasonMap.get(seasonNum).push(row);
+  }
+  const seasons = [...seasonMap.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([seasonNum, seasonRows]) => ({
+      seasonNum,
+      rows: seasonRows,
+      initialIso: seasonRows.reduce((value, row) => String(row.watched_at || "") > value ? row.watched_at : value, seasonRows[0].watched_at || ""),
+    }));
+
   document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
+
+  const seasonRowLabel = (seasonNum) => (seasonNum === 0 ? "Specials" : `Season ${seasonNum}`);
+  const toIso = (value) => {
+    const date = new Date(value || Date.now());
+    return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+  };
+  const renderSeasonRow = (season) => `
+    <div class="watch-date-list-row" data-season-number="${season.seasonNum}">
+      <div class="watch-date-row-main">
+        <span class="watch-date-row-label">${escapeHtml(seasonRowLabel(season.seasonNum))}</span>
+        <button type="button" class="watch-date-value-btn" data-watched-iso="${escapeAttribute(toIso(season.initialIso))}">
+          ${escapeHtml(formatDate(toIso(season.initialIso)))}
+        </button>
+        <span class="watch-date-episode-air">${season.rows.length} episode${season.rows.length === 1 ? "" : "s"}</span>
+      </div>
+      <div class="watch-date-calendar-slot"></div>
+    </div>
+  `;
 
   const overlay = document.createElement("div");
   overlay.className = "edit-dialog-overlay";
@@ -417,8 +461,10 @@ export function openEditShowDateDialog(showTitle, watchedRows = []) {
   overlay.innerHTML = `
     <div class="edit-dialog glass-panel edit-dialog--watch-date">
       <h3>Edit Show Watch Date</h3>
-      <p class="muted-copy">Updates ${rows.length} watched episode date${rows.length === 1 ? "" : "s"} for ${escapeHtml(showTitle || "this show")}.</p>
-      <div class="watch-date-calendar-slot"></div>
+      <p class="muted-copy">Updates ${rows.length} watched episode date${rows.length === 1 ? "" : "s"} across ${seasons.length} season${seasons.length === 1 ? "" : "s"} for ${escapeHtml(showTitle || "this show")}. Click a season's date to change just that season.</p>
+      <div class="watch-date-list">
+        ${seasons.map(renderSeasonRow).join("")}
+      </div>
       <div class="edit-dialog-actions">
         <button class="button-primary edit-dialog-save" type="button">Save</button>
         <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
@@ -427,28 +473,67 @@ export function openEditShowDateDialog(showTitle, watchedRows = []) {
     </div>
   `;
 
-  const pickerState = calendarStateFromIso(latest);
-  mountCalendarPicker(overlay.querySelector(".watch-date-calendar-slot"), pickerState, { showConfirm: false });
+  const listEl = overlay.querySelector(".watch-date-list");
+  const closeAnyOpenCalendar = () => {
+    listEl.querySelectorAll(".watch-date-calendar-slot").forEach((slot) => { slot.innerHTML = ""; });
+  };
+  const setRowValue = (rowEl, iso) => {
+    const btn = rowEl.querySelector(".watch-date-value-btn");
+    if (!btn) return;
+    btn.dataset.watchedIso = iso;
+    btn.textContent = formatDate(iso);
+  };
+  listEl.addEventListener("click", (event) => {
+    const valueBtn = event.target.closest(".watch-date-value-btn");
+    if (!valueBtn) return;
+    const rowEl = valueBtn.closest(".watch-date-list-row");
+    const slot = rowEl.querySelector(".watch-date-calendar-slot");
+    const alreadyOpen = slot.childElementCount > 0;
+    closeAnyOpenCalendar();
+    if (alreadyOpen) return;
+    const pickerState = calendarStateFromIso(valueBtn.dataset.watchedIso);
+    mountCalendarPicker(slot, pickerState, {
+      onConfirm: (selectedDate) => {
+        setRowValue(rowEl, selectedDate.toISOString());
+        slot.innerHTML = "";
+      },
+      onCancel: () => { slot.innerHTML = ""; },
+    });
+  });
 
   overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
   overlay.querySelector(".edit-dialog-save").addEventListener("click", async () => {
     const status = overlay.querySelector(".edit-dialog-status");
     const saveButton = overlay.querySelector(".edit-dialog-save");
 
-    const watched_at = pickerState.selected.toISOString();
-    saveButton.disabled = true;
-    status.textContent = `Saving 0/${rows.length}...`;
-    try {
-      await apiUpdateWatchDates(rows.map((row) => ({ id: row.id, media_key: row.media_key, watched_at })));
-      status.textContent = `Saving ${rows.length}/${rows.length}...`;
+    const watchedAtBySeason = new Map();
+    listEl.querySelectorAll(".watch-date-list-row").forEach((rowEl) => {
+      const seasonNum = Number(rowEl.dataset.seasonNumber);
+      const iso = rowEl.querySelector(".watch-date-value-btn")?.dataset.watchedIso || new Date().toISOString();
+      watchedAtBySeason.set(seasonNum, iso);
+    });
+    const updates = seasons.flatMap((season) => {
+      const watched_at = watchedAtBySeason.get(season.seasonNum);
+      return season.rows.map((row) => ({ id: row.id, media_key: row.media_key, watched_at }));
+    });
 
-      for (const row of rows) row.watched_at = watched_at;
+    saveButton.disabled = true;
+    status.textContent = `Saving 0/${updates.length}...`;
+    try {
+      await apiUpdateWatchDates(updates);
+      status.textContent = `Saving ${updates.length}/${updates.length}...`;
+
+      const updatedAtById = new Map(updates.map((update) => [String(update.id || update.media_key), update.watched_at]));
+      for (const row of rows) row.watched_at = updatedAtById.get(String(row.id || row.media_key)) || row.watched_at;
       const showKey = slug(showTitle);
       const show = state.showsRaw.find((item) => slug(item.title) === showKey);
       if (show?.episodes) {
-        const ids = new Set(rows.map((row) => row.id));
+        const ids = new Set(rows.map((row) => String(row.id || "")).filter(Boolean));
         for (const episode of show.episodes) {
-          if (ids.has(episode.id)) episode.watched_at = watched_at;
+          if (ids.has(String(episode.id || ""))) {
+            const updatedAt = updatedAtById.get(String(episode.id));
+            if (updatedAt) episode.watched_at = updatedAt;
+          }
         }
         show.latest_watched_at = show.episodes.reduce((value, episode) => episode.watched_at > value ? episode.watched_at : value, "");
         show.earliest_watched_at = show.episodes.reduce((value, episode) => !value || episode.watched_at < value ? episode.watched_at : value, "");
@@ -466,7 +551,7 @@ export function openEditShowDateDialog(showTitle, watchedRows = []) {
         await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
       }
       overlay.remove();
-      _setMessage(`Updated ${rows.length} watched episode date${rows.length === 1 ? "" : "s"}.`, "success");
+      _setMessage(`Updated ${updates.length} watched episode date${updates.length === 1 ? "" : "s"} across ${seasons.length} season${seasons.length === 1 ? "" : "s"}.`, "success");
     } catch (error) {
       saveButton.disabled = false;
       _setMessage(`Show watch date update failed: ${error.message}`, "error");
@@ -488,6 +573,18 @@ export function openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes =
     return;
   }
 
+  // Duplicate watches (rewatch imports, sync echoes, etc.): for each episode,
+  // every recorded watch after the earliest is removable. Entries with no id
+  // (older cached rows with only a bare watched_at) can't be targeted by the
+  // bulk-delete endpoint, so they're left out of the plan entirely.
+  const dedupePlan = rows.map((row) => {
+    const history = [...actualWatchHistory(row)].sort((a, b) => String(a.watched_at || "").localeCompare(String(b.watched_at || "")));
+    const removableIds = history.slice(1).map((entry) => entry.id).filter(Boolean);
+    return { row, removableIds };
+  }).filter((plan) => plan.removableIds.length > 0);
+  const removableIds = dedupePlan.flatMap((plan) => plan.removableIds);
+  const totalRemovable = removableIds.length;
+
   const releaseDateFor = (row) => {
     const value = String(row?.release_date || row?.air_date || row?.airDate || "").slice(0, 10);
     return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
@@ -504,6 +601,13 @@ export function openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes =
     <div class="edit-dialog glass-panel edit-dialog--watch-date">
       <h3>Edit Season Watch Date</h3>
       <p class="muted-copy">Updates ${rows.length} existing watched episode record${rows.length === 1 ? "" : "s"} for Season ${seasonNum} of ${escapeHtml(showTitle || "this show")}. This never adds another watch.</p>
+      ${totalRemovable ? `
+      <div class="watch-date-section-label">Duplicate watches</div>
+      <div class="season-dedupe-panel">
+        <p class="muted-copy">${totalRemovable} extra watch${totalRemovable === 1 ? "" : "es"} across ${dedupePlan.length} episode${dedupePlan.length === 1 ? "" : "s"} in this season. Keep only the oldest date for each episode and remove the rest. This cannot be undone.</p>
+        <button class="button-danger season-dedupe-btn" type="button">Remove ${totalRemovable} duplicate watch${totalRemovable === 1 ? "" : "es"}</button>
+      </div>
+      ` : ""}
       <div class="watch-date-section-label">Quick choices</div>
       <div class="watch-date-options season-watch-date-options">
         <button class="watch-date-pick season-date-choice" type="button" data-season-date-choice="release" aria-pressed="false"${missingReleaseDates ? " disabled" : ""}>
@@ -548,6 +652,47 @@ export function openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes =
   });
   mountCalendarPicker(calendarSlot, pickerState, { showConfirm: false });
 
+  // Shared post-write refresh for both Save and the duplicate-watch cleanup below.
+  const refreshAfterSeasonChange = async () => {
+    _clearDerivedUiCaches({ resetExplorer: false });
+    await Promise.all([
+      _loadHistory({ force: true }).catch(() => null),
+      showTitle ? refreshShowAfterManualWatch(showTitle).catch(() => null) : Promise.resolve(),
+    ]);
+    _renderExplorer();
+    if (state.activeShowModalKey) {
+      _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+    } else if (state.activeShowTmdbId) {
+      await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+    }
+  };
+
+  const dedupeBtn = overlay.querySelector(".season-dedupe-btn");
+  dedupeBtn?.addEventListener("click", async () => {
+    const status = overlay.querySelector(".edit-dialog-status");
+    const confirmed = await _openConfirmDialog({
+      title: "Remove duplicate watches",
+      body: `Permanently remove ${totalRemovable} duplicate watch${totalRemovable === 1 ? "" : "es"} across ${dedupePlan.length} episode${dedupePlan.length === 1 ? "" : "s"} in Season ${seasonNum}, keeping only the oldest date for each. This cannot be undone.`,
+      confirmLabel: "Remove duplicates",
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    dedupeBtn.disabled = true;
+    status.textContent = `Removing 0/${totalRemovable}...`;
+    try {
+      await apiDeleteWatchDates(removableIds);
+      status.textContent = `Removed ${totalRemovable}/${totalRemovable}.`;
+      await refreshAfterSeasonChange();
+      overlay.remove();
+      _setMessage(`Removed ${totalRemovable} duplicate watch${totalRemovable === 1 ? "" : "es"} from Season ${seasonNum}.`, "success");
+    } catch (error) {
+      dedupeBtn.disabled = false;
+      _setMessage(`Removing duplicate watches failed: ${error.message}`, "error");
+      status.textContent = `Error: ${error.message}`;
+    }
+  });
+
   overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
   overlay.querySelector(".edit-dialog-save").addEventListener("click", async () => {
     const status = overlay.querySelector(".edit-dialog-status");
@@ -583,17 +728,7 @@ export function openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes =
         show.earliest_watched_at = show.episodes.reduce((value, episode) => !value || episode.watched_at < value ? episode.watched_at : value, "");
       }
 
-      _clearDerivedUiCaches({ resetExplorer: false });
-      await Promise.all([
-        _loadHistory({ force: true }).catch(() => null),
-        showTitle ? refreshShowAfterManualWatch(showTitle).catch(() => null) : Promise.resolve(),
-      ]);
-      _renderExplorer();
-      if (state.activeShowModalKey) {
-        _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-      } else if (state.activeShowTmdbId) {
-        await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
-      }
+      await refreshAfterSeasonChange();
       overlay.remove();
       _setMessage(
         releaseChoiceSelected
