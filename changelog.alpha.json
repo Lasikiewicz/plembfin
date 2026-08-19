@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.2",
-  "build": 2,
+  "build": 3,
   "entries": [
+    {
+      "build": 3,
+      "version": "0.8.2.3",
+      "date": "2026-08-19T08:45:55+01:00",
+      "commit": "b1b2b05272227cb4a9e6b52340ebca0e53194315",
+      "message": "Fix - Stop Trakt rewatch import from flooding Trakt with duplicate plays",
+      "author": "Lasikiewicz",
+      "details": [
+        "The Trakt play-history import added earlier today did not mark its backfilled watch records as already synced, so the scheduler's manual-dispatch retry sweep treated them as pending work and re-sent them to every connected service, including pushing them back out to Trakt",
+        "Each outbound push created a brand new Trakt history entry, which the next poll then re-imported as a fresh play and pushed again, looping every minute for the whole Trakt history and flooding the account's watch history page",
+        "Backfilled plays are now stored with telemetry marking them fully settled, so the retry sweep skips them and they are never re-propagated to Plex, Emby, Jellyfin, or Trakt",
+        "Broadened the outbound Trakt echo guard to skip any Trakt-sourced record (live sync or import), not just an exact source match, closing the same gap for the existing CSV/JSON Trakt import feature too"
+      ]
+    },
     {
       "build": 2,
       "version": "0.8.2.2",
@@ -29,5 +43,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T08:24:18+01:00"
+  "updatedAt": "2026-08-19T08:45:55+01:00"
 }
