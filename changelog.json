@@ -1,7 +1,28 @@
 {
-  "version": "0.8.3",
-  "updatedAt": "2026-08-19T09:27:15Z",
+  "version": "0.8.4",
+  "updatedAt": "2026-08-19T11:14:01Z",
   "entries": [
+    {
+      "version": "0.8.4",
+      "date": "2026-08-19T11:14:01Z",
+      "commit": "641fb7c9657d6a54e4a4918c288c4435295360c4",
+      "message": "Fix - Prevent phantom local watches from echoed Trakt play-history imports",
+      "author": "github-actions[bot]",
+      "details": [
+        "Edit Season Date now shows a Remove Duplicate Watches option when any episode in the season has more than one recorded watch, keeping only the oldest date per episode and deleting the rest in a single confirmed action instead of removing them one at a time",
+        "New POST /api/delete-watch-dates endpoint bulk-deletes watch records and rolls each affected show/episode's canonical watched state back to whichever watch survives, in one request instead of one per row",
+        "The show-level Edit Date control (top action bar) now shows one row per season instead of forcing the whole show onto a single date/time - each season defaults to its own latest watched date and can be changed independently before saving",
+        "Settings -> Changelog now lists the actual changes in a newer, not-yet-pulled alpha build under a new \"Not pulled yet\" section, instead of only saying a newer build exists and requiring an update first to see what changed",
+        "The backend was already fetching the newer build's changelog data to detect an update, but discarded the entry list and kept only the build number; it now reads GitHub's copy of the changelog directly, since a build that hasn't been pulled yet can never appear in the locally-installed copy",
+        "Extracted the comparison logic into a pure, unit-tested function",
+        "Marking an episode or movie watched with a specific date (e.g. release date) via the Mark Watched action reached Trakt stamped as watched right now instead of the date chosen in Plembfin, because the media object built for outbound dispatch never carried a watched_at field",
+        "Plex, Emby, and Jellyfin were never affected since their mark-played APIs don't accept a historical date at all; the Edit Date correction path was also unaffected since it built its dispatch payload differently",
+        "Added regression tests covering both the dispatch payload and Trakt's client sending the supplied date verbatim",
+        "Trakt play-history import now recognizes a play that arrives shortly after Plembfin's own outbound watched push as an echo of that push, not a new play, and skips creating a duplicate local watch for it",
+        "Fixes a defense-in-depth gap: the echo check reads outbound state captured before the snapshot rewrite that runs earlier in the same poll, so a just-pushed item that hasn't shown up in Trakt's watched snapshot yet no longer loses its echo marker",
+        "Documented the new guard in docs/scheduled-sync.md"
+      ]
+    },
     {
       "version": "0.8.3",
       "date": "2026-08-19T09:27:15Z",
