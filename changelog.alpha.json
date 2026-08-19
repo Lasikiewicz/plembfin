@@ -1,7 +1,20 @@
 {
   "baseVersion": "0.8.5",
-  "build": 1,
+  "build": 2,
   "entries": [
+    {
+      "build": 2,
+      "version": "0.8.5.2",
+      "date": "2026-08-19T17:35:21+01:00",
+      "commit": "5b424cd350b088507296db2bc761df6c477e157b",
+      "message": "Chore - Add one-off Plex match diagnostic endpoint",
+      "author": "Lasikiewicz",
+      "details": [
+        "Multiple shows (Silo, Game of Thrones) are reporting a genuine 'No matching item found' from findPlexItem for episodes that demonstrably exist in the library, and the detailed GUID/search trace that would explain why is gated behind the LOG_VERBOSE env var, which isn't set on the running deployment",
+        "Added POST /api/debug-plex-match (admin-only): runs findPlexItem for one watch record's exact media payload with verbose tracing forced on for just that call, then restores the previous verbose setting - no env var change or restart needed",
+        "Diagnostic only, no behavior change to any real sync path"
+      ]
+    },
     {
       "build": 1,
       "version": "0.8.5.1",
@@ -14,5 +27,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T17:05:32+01:00"
+  "updatedAt": "2026-08-19T17:35:21+01:00"
 }
