@@ -386,7 +386,7 @@ function shouldIgnoreWebhookUser(mediaUser = "", configuredUser = "", { strictNa
   return looksLikeServerUserId(incoming);
 }
 
-function manualWatchMediaFromRecord(record = {}) {
+export function manualWatchMediaFromRecord(record = {}) {
   return {
     title: record.title,
     type: record.media_type,
@@ -398,6 +398,11 @@ function manualWatchMediaFromRecord(record = {}) {
     },
     season: record.season == null ? undefined : Number(record.season),
     episode: record.episode == null ? undefined : Number(record.episode),
+    // Without this, outbound dispatch (traktClient.js syncPayload) falls
+    // back to Date.now() for the watched_at it sends to Trakt, so a manual
+    // watch with an explicit historical date (e.g. "watched on release day")
+    // reached Trakt stamped as watched right now instead.
+    watched_at: record.watched_at || undefined,
     posterUrl: record.poster_url || undefined,
     watchProvenance: record.watch_provenance || null,
     isValid: Boolean(record.title && ["movie", "episode"].includes(record.media_type)),

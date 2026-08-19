@@ -98,3 +98,17 @@ test("Trakt episode writes use show IDs plus season and episode coordinates", as
     assert.equal(trackerMediaKey(media), "episode:tmdb:108978:s1e1");
   } finally { globalThis.fetch = originalFetch; }
 });
+
+test("Trakt watched writes send an explicit historical watched_at rather than the current time", async () => {
+  const originalFetch = globalThis.fetch;
+  let request;
+  globalThis.fetch = async (url, options) => {
+    request = { url: String(url), body: JSON.parse(options.body) };
+    return new Response(JSON.stringify({ added: { episodes: 1 } }), { status: 201, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const media = { type: "episode", season: 5, episode: 6, ids: { tmdb: 38772847 }, watched_at: "2026-08-12T12:00:00.000Z" };
+    await setTraktWatchState({ clientId: "client", accessToken: "token" }, media, "watched");
+    assert.equal(request.body.shows[0].seasons[0].episodes[0].watched_at, "2026-08-12T12:00:00.000Z");
+  } finally { globalThis.fetch = originalFetch; }
+});
