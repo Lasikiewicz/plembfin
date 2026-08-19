@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.5",
-  "build": 3,
+  "build": 4,
   "entries": [
+    {
+      "build": 4,
+      "version": "0.8.5.4",
+      "date": "2026-08-19T21:50:12+01:00",
+      "commit": "57a0daae1b5779bd3d29271a39482e775f719ae7",
+      "message": "Feature - Add library-wide duplicate watch cleanup for TV shows and movies",
+      "author": "Lasikiewicz",
+      "details": [
+        "Settings -> Tools -> Database Repairs now has a Remove Duplicate Watches tool with separate confirmed actions for TV shows and movies",
+        "Scans the whole library, keeps only the oldest watch date for each episode or movie, and shows the exact number of duplicate watches and affected items before asking for confirmation - the deletion cannot be undone once approved",
+        "Removed watches are pushed out as corrected canonical state to every connected platform (Plex, Emby, Jellyfin, Trakt), the same propagation already used by the per-season duplicate cleanup and manual watch-date edits",
+        "New GET /api/duplicate-watch-scan and POST /api/duplicate-watch-cleanup endpoints, both admin-only"
+      ]
+    },
     {
       "build": 3,
       "version": "0.8.5.3",
@@ -40,5 +54,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T19:40:57+01:00"
+  "updatedAt": "2026-08-19T21:50:12+01:00"
 }
