@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.4",
-  "build": 5,
+  "build": 6,
   "entries": [
+    {
+      "build": 6,
+      "version": "0.8.4.6",
+      "date": "2026-08-19T15:05:55+01:00",
+      "commit": "ebda8fc10b3843dff6bdb78cc5877c07f42c73b8",
+      "message": "Fix - Stop deleted watch dates from resurfacing via echoed duplicate rows",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removing a watch date (single row or the season bulk cleanup) now also removes any webhook-echoed duplicate row chained to it within the same 10-minute event window, instead of deleting only the row you clicked",
+        "Fixes manual watch history removal working inconsistently: items with an echoed duplicate row would have the deleted watch date silently reappear as a new entry the next time the list was rebuilt",
+        "Added regression tests covering echo-chain deletion and confirming genuine rewatches outside the event window are left untouched",
+        "Documented the echo-chain handling for both the single-row and season bulk delete paths in docs/media-detail.md"
+      ]
+    },
     {
       "build": 5,
       "version": "0.8.4.5",
@@ -66,5 +80,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T13:08:47+01:00"
+  "updatedAt": "2026-08-19T15:05:55+01:00"
 }
