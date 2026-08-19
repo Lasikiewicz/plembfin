@@ -28,7 +28,68 @@
 
 ---
 
-**Plembfin** is a self-hosted watch history tracker and playstate sync tool for Plex, Emby, and Jellyfin. It records everything you watch in a local SQLite database and keeps your watched/unwatched state in sync across all your media servers automatically.
+**Plembfin** is the brain that sits between your media servers and everything else that
+cares about what you watch. Plex, Emby, and Jellyfin each only know their own watch
+state; Trakt only knows its own account history; TMDB, TheTVDB, Fanart.tv, and OMDb only
+know metadata and artwork; Seerr only knows what's been requested. None of them talk to
+each other. Plembfin does: it records every watch once in its own local SQLite database,
+treats that record as the single source of truth, and keeps every connected service in
+sync with it - so three unrelated media servers, a Trakt account, and a request manager
+all end up agreeing with each other, without ever talking directly.
+
+---
+
+## Plembfin is the bridge, not another server
+
+```mermaid
+flowchart LR
+    subgraph Media Servers
+        Plex
+        Emby
+        Jellyfin
+    end
+
+    subgraph Metadata & Artwork
+        TMDB
+        TVDB[TheTVDB]
+        Fanart[Fanart.tv]
+        OMDb
+    end
+
+    Trakt
+    Seerr[Overseerr / Jellyseerr]
+
+    Plex <-- watched / unwatched --> Plembfin((Plembfin))
+    Emby <-- watched / unwatched --> Plembfin
+    Jellyfin <-- watched / unwatched --> Plembfin
+    Trakt <-- watched / unwatched --> Plembfin
+    Seerr <-- requests / availability --> Plembfin
+    TMDB -- posters, cast, trailers --> Plembfin
+    TVDB -- episodes, air dates --> Plembfin
+    Fanart -- artwork fallback --> Plembfin
+    OMDb -- IMDb ratings --> Plembfin
+
+    Plembfin --- DB[("Local SQLite - the memory")]
+```
+
+Nothing on this diagram can see the others. A show marked watched on Jellyfin means
+nothing to Plex, Trakt has no idea Emby exists, and TMDB has never heard of your library.
+Plembfin is the only node that talks to everyone - it is the shared memory and the
+translator, not just another app bolted alongside them:
+
+*   **Canonical memory** - every watch is recorded once, locally, in SQLite. Nothing is
+    re-derived on the fly from whichever server happens to answer first, so the record
+    survives a rebuilt library, a reinstalled app, or a server that's offline for a week.
+*   **Bidirectional sync** - mark something watched or unwatched on Plex, Emby, Jellyfin,
+    or Trakt and Plembfin propagates that change to every other connected destination,
+    with drift repaired automatically and duplicate-play echoes suppressed.
+*   **Metadata aggregation** - TMDB, TheTVDB, Fanart.tv, and OMDb each know part of the
+    picture; Plembfin merges them into one consistent view (episode data from TheTVDB,
+    cast/trailers/recommendations from TMDB, artwork fallbacks from Fanart.tv, ratings
+    from OMDb) so the app never has to ask you which source to trust.
+*   **Request bridge** - Overseerr/Jellyseerr requests and availability badges are
+    resolved against Plembfin's own knowledge of what each configured server already has,
+    not Seerr's separately cached view.
 
 ---
 
