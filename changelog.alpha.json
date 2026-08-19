@@ -1,7 +1,22 @@
 {
   "baseVersion": "0.8.2",
-  "build": 1,
+  "build": 2,
   "entries": [
+    {
+      "build": 2,
+      "version": "0.8.2.2",
+      "date": "2026-08-19T08:24:18+01:00",
+      "commit": "fb60c8065ddc1f656213d54cba78c439cd4498fb",
+      "message": "Feature - Import individual Trakt rewatches instead of only the latest play",
+      "author": "Lasikiewicz",
+      "details": [
+        "Trakt's live sync now imports every play from a connected account's watch history, not just the most recent one, so rewatches show up individually in History and Stats instead of being collapsed into a single watched record",
+        "The first poll after connecting backfills the full Trakt play history; later polls only fetch plays since the last import, tracked per Trakt history id so nothing is imported twice",
+        "Backfilled rewatches update Plembfin's local history and refresh the last-watched timestamp shown elsewhere in the app, without re-sending duplicate mark-watched calls to connected Plex/Emby/Jellyfin servers",
+        "Pushing local watches to Trakt already sent each play individually and is unchanged",
+        "Documented the new behavior in docs/scheduled-sync.md, docs/sqlite-schema.md, and the README's Trakt sections"
+      ]
+    },
     {
       "build": 1,
       "version": "0.8.2.1",
@@ -14,5 +29,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-18T16:36:59Z"
+  "updatedAt": "2026-08-19T08:24:18+01:00"
 }
