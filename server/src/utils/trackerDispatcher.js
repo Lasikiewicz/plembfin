@@ -11,12 +11,21 @@ function trackerShowTitle(media = {}) {
   return String(media.title || "").replace(/\s+-\s+S\d{1,2}E\d{1,2}.*$/i, "").trim();
 }
 
+// A stored id on the episode itself (from the media server or an import)
+// identifies this exact row and must win over a title-based guess - a short
+// or common show title ("G'wed") can resolve TMDB's search to the wrong
+// series, and overwriting an already-correct id with that wrong one sends
+// every future Trakt dispatch for the show to a series Trakt has never heard
+// of, which then can't be matched to clear or add anything (see the
+// not_found handling in dispatchTrakt below). Existing ids are only filled
+// in where the episode doesn't already have one, never replaced.
 export function trackerMediaWithSeriesIds(media = {}, details = {}) {
   if ((media.type || media.mediaType) !== "episode") return media;
   const tmdb = String(details.id || details.external_ids?.tmdb_id || "").trim();
   const tvdb = String(details.external_ids?.tvdb_id || "").trim();
   const imdb = String(details.external_ids?.imdb_id || "").trim();
   if (!tmdb && !tvdb && !imdb) return media;
+  const existingIds = media.ids || {};
   return {
     ...media,
     showTitle: trackerShowTitle(media),
@@ -24,12 +33,19 @@ export function trackerMediaWithSeriesIds(media = {}, details = {}) {
       ...(tmdb ? { tmdb } : {}),
       ...(tvdb ? { tvdb } : {}),
       ...(imdb ? { imdb } : {}),
+      ...existingIds,
     },
   };
 }
 
+// Skips the TMDB title search entirely when the episode already carries a
+// usable id - the lookup exists only to backfill series-level ids for
+// episodes that arrive with none, not to re-derive ids for rows that already
+// have a trustworthy one.
 async function hydrateTrackerMedia(media) {
   if ((media.type || media.mediaType) !== "episode") return media;
+  const existingIds = media.ids || {};
+  if (existingIds.imdb || existingIds.tmdb || existingIds.tvdb) return media;
   const title = trackerShowTitle(media);
   if (!title) return media;
   try {

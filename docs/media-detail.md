@@ -195,7 +195,17 @@ first complete render.
   any it didn't recognize) in the telemetry, e.g. "Marked watched on Trakt
   (cleared 0 existing plays first)" - a visible signal that Trakt didn't
   recognize the item to clear, rather than a blind "success" while a stale
-  duplicate play stays on Trakt. Plex/Emby/Jellyfin's own mark-played APIs
+  duplicate play stays on Trakt. That `not_found` detail is also what exposed a
+  real identity bug: an episode dispatched to Trakt without an id of its own
+  used to have its ids re-derived from a TMDB title search every time
+  (`hydrateTrackerMedia`/`trackerMediaWithSeriesIds` in `trackerDispatcher.js`)
+  and that search result unconditionally replaced whatever ids the episode
+  already had - so a short or ambiguous show title that TMDB's search
+  resolved to the wrong series (e.g. "G'wed") silently corrupted every Trakt
+  request for that show's episodes, `not_found`-ing both the add and the
+  clear-existing-plays step. The lookup now only fills in ids an episode is
+  missing and is skipped entirely once it already has one, so a correct
+  stored id is never overwritten by a guess. Plex/Emby/Jellyfin's own mark-played APIs
   don't accept an arbitrary date, so those servers still record the moment the
   correction ran, not the corrected date itself - only Trakt's history reflects
   the actual corrected timestamp. TV Fix Match sends one `POST /api/rematch-show` request that

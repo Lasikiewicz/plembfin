@@ -221,7 +221,13 @@ test("user-scoped scheduled history is visible while unscoped scan evidence stay
   assert.equal(await repo.queryShowDetail({ title: "Untrusted Scan" }), null);
 });
 
-test("Trakt episode dispatch replaces episode IDs with series IDs", () => {
+// A stored id on the episode is a known-correct identity for that exact row
+// (from the media server or an import). A title search against TMDB can
+// resolve to the wrong series for a short or common show title, so it must
+// only ever fill in ids the episode doesn't already have - never replace
+// ones that are already there. This is what let a bad TMDB title match for
+// "G'wed" silently overwrite its correct TVDB id on every Trakt dispatch.
+test("Trakt episode dispatch keeps the episode's own IDs instead of replacing them", () => {
   const media = trackerMediaWithSeriesIds({
     title: "Trying - S05E05",
     type: "episode",
@@ -234,7 +240,23 @@ test("Trakt episode dispatch replaces episode IDs with series IDs", () => {
   });
 
   assert.equal(media.showTitle, "Trying");
-  assert.deepEqual(media.ids, { tmdb: "98177", tvdb: "375903", imdb: "tt10982034" });
+  assert.deepEqual(media.ids, { tmdb: "episode-tmdb", tvdb: "episode-tvdb", imdb: "episode-imdb" });
+});
+
+test("Trakt episode dispatch fills in only the IDs an episode is missing", () => {
+  const media = trackerMediaWithSeriesIds({
+    title: "Trying - S05E05",
+    type: "episode",
+    season: 5,
+    episode: 5,
+    ids: { tmdb: "episode-tmdb" },
+  }, {
+    id: 98177,
+    external_ids: { tvdb_id: 375903, imdb_id: "tt10982034" },
+  });
+
+  assert.equal(media.showTitle, "Trying");
+  assert.deepEqual(media.ids, { tmdb: "episode-tmdb", tvdb: "375903", imdb: "tt10982034" });
 });
 
 test("manual Trakt reconciliation replays an unchanged remote watch over local drift", () => {
