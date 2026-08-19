@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.4",
-  "build": 10,
+  "build": 11,
   "entries": [
+    {
+      "build": 11,
+      "version": "0.8.4.11",
+      "date": "2026-08-19T16:37:16+01:00",
+      "commit": "369617de5aace2d0cf73952884159421fdd5c529",
+      "message": "Feature - Add a live background-sync progress indicator and clearer rewatch-count wording",
+      "author": "Lasikiewicz",
+      "details": [
+        "The sidebar now shows a live \"Syncing N of M\" indicator above the version number whenever the scheduler's pending-dispatch queue is working through a backlog, and hides once it drains",
+        "The pending-dispatch queue (syncPendingManualDispatches) now reports its backlog size and progress to runtime_state each tick; the existing live-updates SSE stream polls it once a second and pushes sync-progress events to the browser, so the indicator updates in real time without polling from the client",
+        "Dashboard watch-history cards now show a separate \"Watched Twice\" (or \"Watched N Times\") line instead of appending \"· N actual watches\" onto the Last Played date",
+        "Documented both in docs/dashboard.md and docs/scheduled-sync.md"
+      ]
+    },
     {
       "build": 10,
       "version": "0.8.4.10",
@@ -136,5 +150,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T16:06:49+01:00"
+  "updatedAt": "2026-08-19T16:37:16+01:00"
 }
