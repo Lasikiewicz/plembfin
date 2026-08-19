@@ -1,7 +1,20 @@
 {
   "baseVersion": "0.8.4",
-  "build": 1,
+  "build": 2,
   "entries": [
+    {
+      "build": 2,
+      "version": "0.8.4.2",
+      "date": "2026-08-19T12:31:43+01:00",
+      "commit": "aec4a38837f21319132dc10b8cf58520f8008c51",
+      "message": "Docs - Reframe README around Plembfin as the hub between all connected services",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added a bridge/hub framing to the README intro: Plex, Emby, Jellyfin, Trakt, Seerr, and the metadata providers never talk to each other directly, only through Plembfin",
+        "Added a new section with a diagram showing Plembfin as the central node and its local SQLite store as the canonical memory",
+        "No behavior changes; documentation only"
+      ]
+    },
     {
       "build": 1,
       "version": "0.8.4.1",
@@ -14,5 +27,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T11:19:46Z"
+  "updatedAt": "2026-08-19T12:31:43+01:00"
 }
