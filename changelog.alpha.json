@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.4",
-  "build": 12,
+  "build": 13,
   "entries": [
+    {
+      "build": 13,
+      "version": "0.8.4.13",
+      "date": "2026-08-19T17:04:24+01:00",
+      "commit": "2d310dca6044ac1068e5e4f8bca6c72aa54aef0d",
+      "message": "Fix - Surface Trakt's real not_found/deleted counts instead of a blind success",
+      "author": "Lasikiewicz",
+      "details": [
+        "Trakt's /sync/history and /sync/history/remove both return 200 OK with a body summarizing what actually matched (added/deleted counts, not_found lists) even when nothing did - dispatchTrakt never read that body, so a canonical replay's clear-existing-plays step could silently fail to match anything on Trakt's side while telemetry still reported a clean success",
+        "Reproduced live: re-ran Force Sync's Set Plembfin as Source of Truth for G'wed and every episode logged Trakt success, but all 8 previously-duplicated episodes were still sitting under their old date on trakt.tv afterward",
+        "dispatchTrakt now inspects the response: a non-empty not_found on the add step is reported as an error instead of a false success, and a canonical replay's clear step reports how many plays it actually deleted and how many it could not recognize",
+        "This makes the failure visible in telemetry going forward rather than fixing it silently - the underlying reason Trakt doesn't recognize these specific episodes for removal still needs the not_found detail from a real run to diagnose"
+      ]
+    },
     {
       "build": 12,
       "version": "0.8.4.12",
@@ -164,5 +178,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T16:47:06+01:00"
+  "updatedAt": "2026-08-19T17:04:24+01:00"
 }
