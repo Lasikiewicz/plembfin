@@ -1,7 +1,19 @@
 {
   "baseVersion": "0.8.4",
-  "build": 3,
+  "build": 4,
   "entries": [
+    {
+      "build": 4,
+      "version": "0.8.4.4",
+      "date": "2026-08-19T12:55:58+01:00",
+      "commit": "67df1a11eefed015017095288b529a0d4745473c",
+      "message": "Docs - Use real app icons in the README hub diagram",
+      "author": "Lasikiewicz",
+      "details": [
+        "Replaced the plain-text hub diagram with the actual Plex, Emby, and Jellyfin logos plus brand-colored badges for Trakt, TMDB, TheTVDB, Fanart.tv, OMDb, and Overseerr/Jellyseerr",
+        "No behavior changes; documentation only"
+      ]
+    },
     {
       "build": 3,
       "version": "0.8.4.3",
@@ -39,5 +51,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T12:33:29+01:00"
+  "updatedAt": "2026-08-19T12:55:58+01:00"
 }
