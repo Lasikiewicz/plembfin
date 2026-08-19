@@ -1,7 +1,20 @@
 {
   "baseVersion": "0.8.2",
-  "build": 3,
+  "build": 4,
   "entries": [
+    {
+      "build": 4,
+      "version": "0.8.2.4",
+      "date": "2026-08-19T09:03:14+01:00",
+      "commit": "544b7a20103809a09103ca3bba22eb7e6ee697fc",
+      "message": "test: lock in the Trakt rewatch-import dispatch-loop fix",
+      "author": "Lasikiewicz",
+      "details": [
+        "Adds a regression test asserting a backfilled Trakt play never gets treated as pending outbound work by the scheduler's manual-dispatch retry sweep",
+        "Adds a regression test asserting any Trakt-sourced watch (live sync or import) is always echo-suppressed from being pushed back out to Trakt, while a genuinely new watch from a media server still reaches Trakt normally",
+        "Verified both tests fail against the pre-fix code and pass against the fix, so this incident cannot silently regress"
+      ]
+    },
     {
       "build": 3,
       "version": "0.8.2.3",
@@ -43,5 +56,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T08:45:55+01:00"
+  "updatedAt": "2026-08-19T09:03:14+01:00"
 }
