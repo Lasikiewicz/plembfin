@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.4",
-  "build": 9,
+  "build": 10,
   "entries": [
+    {
+      "build": 10,
+      "version": "0.8.4.10",
+      "date": "2026-08-19T16:06:49+01:00",
+      "commit": "e8f06a8a66b5012748dacbacf124c438d1f12479",
+      "message": "Fix - Match whitespace-variant movie titles and let Fix Match merge duplicate identities",
+      "author": "Lasikiewicz",
+      "details": [
+        "The scheduled Plex/Emby/Jellyfin catch-up sync's 'already watched?' check failed to recognize a movie it already had a record for when the title differed only by whitespace variant (Trakt imports often carry a non-breaking space after a colon where media servers report a plain space), so the same movie could get imported a second time under a title-only identity instead of being recognized as already watched",
+        "findWatchedByAnyMediaKey now falls back to the same whitespace-normalizing canonicalTitleKey comparison already trusted elsewhere in the app to merge these rows for display, so this can no longer create a duplicate watch for any movie going forward",
+        "Fix Match (PATCH /api/update-watch) previously updated a row's provider ids without ever recomputing its media_key, so a correction left the row permanently split from any other watch of the same item under its old identity; it now accepts imdb_id as well as tmdb_id/tvdb_id, recomputes media_key when identity changes, and merges playstate on both the old and new key",
+        "Documented both fixes in docs/scheduled-sync.md and docs/media-detail.md; added regression tests for the media_key migration and playstate merge"
+      ]
+    },
     {
       "build": 9,
       "version": "0.8.4.9",
@@ -122,5 +136,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T15:49:23+01:00"
+  "updatedAt": "2026-08-19T16:06:49+01:00"
 }
