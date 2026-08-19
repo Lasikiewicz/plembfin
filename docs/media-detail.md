@@ -193,7 +193,13 @@ first complete render.
   updates every episode record in a transaction, renaming them onto the picked
   series when that name differs; the dialog closes after that local update while
   progress, artwork, and metadata refresh in the background. A rename changes the
-  show's route key, so the UI navigates to the new show URL.
+  show's route key, so the UI navigates to the new show URL. Movie Fix Match saves the picked
+  TMDB id via `PATCH /api/update-watch` (`updateWatchRecord` in `dataRepo.js`, which also
+  accepts an `imdb_id`). Because a row's `media_key` is derived from its identity fields,
+  correcting them recomputes the key and moves the row onto it - merging it with any other
+  watch already recorded under that identity instead of leaving it permanently split under
+  its old key - and reconciles `playstate` on both the old key (rolled back to whatever else
+  is still there, or cleared) and the new one (merged with whatever it already reflects).
   Season and show date editors use `POST /api/update-watch-dates` to update the
   selected existing rows in one transaction. The season editor can use each
   episode's release day independently; this path never adds a watch-history row.

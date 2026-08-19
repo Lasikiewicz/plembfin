@@ -68,9 +68,19 @@ previously and was removed: it silently inserted duplicate, today-dated watch re
 a server's metadata rematch changed an item's provider IDs mid-flight (the pull step no
 longer recognized it as an item Plembfin already had), and then immediately propagated that
 bad state to every destination including Trakt. Import alone can still create a duplicate
-local record from the same identity mismatch - that underlying matching issue isn't fixed -
-but with the combined mode gone, a bad import is no longer automatically pushed out
-anywhere; it stays a local, visible discrepancy until Push is run deliberately.
+local record when an item's provider IDs genuinely change (a metadata rematch on the source
+server) - that case isn't fixed - but with the combined mode gone, a bad import is no longer
+automatically pushed out anywhere; it stays a local, visible discrepancy until Push is run
+deliberately. A narrower identity mismatch - the same movie title reaching Plembfin with a
+different whitespace variant (Trakt imports often carry a non-breaking space after a colon
+where Plex/Emby/Jellyfin report a plain space) - previously wasn't caught by the "already
+watched?" lookup and produced this same kind of duplicate on its own, with no rematch
+involved. `findWatchedByAnyMediaKey` now falls back to the same whitespace-normalizing
+`canonicalTitleKey` comparison the edit-date dialog's row-merging already relies on
+(`dataRepo.js`), so that specific case no longer creates a duplicate. Fix Match
+(`PATCH /api/update-watch`) also now recomputes `media_key` and merges playstate when a
+correction changes a row's identity, so an existing duplicate like this can be repaired by
+hand instead of staying permanently split.
 
 ## One canonical state, input from every connected service
 

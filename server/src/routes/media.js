@@ -905,6 +905,7 @@ export async function handleUpdateWatch(req, res) {
   if (body.poster_url !== undefined) fields.poster_url = body.poster_url;
   if (body.logo_url !== undefined) fields.logo_url = body.logo_url;
   if (body.backdrop_url !== undefined) fields.backdrop_url = body.backdrop_url;
+  if (body.imdb_id !== undefined) fields.imdb_id = body.imdb_id;
   if (body.tmdb_id !== undefined) fields.tmdb_id = body.tmdb_id;
   if (body.tvdb_id !== undefined) fields.tvdb_id = body.tvdb_id;
   if (body.title !== undefined) fields.title = body.title;

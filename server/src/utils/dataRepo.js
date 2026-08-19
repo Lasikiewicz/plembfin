@@ -2607,9 +2607,11 @@ export async function updateWatchRecord(id, fields = {}) {
   if (fields.poster_url != null) { sets.push("poster_url = ?"); params.push(String(fields.poster_url).trim()); }
   if (fields.logo_url != null) { sets.push("logo_url = ?"); params.push(String(fields.logo_url).trim()); }
   if (fields.backdrop_url != null) { sets.push("backdrop_url = ?"); params.push(String(fields.backdrop_url).trim()); }
+  if (fields.imdb_id != null) { sets.push("imdb_id = ?"); params.push(String(fields.imdb_id).trim()); }
   if (fields.tmdb_id != null) { sets.push("tmdb_id = ?"); params.push(String(fields.tmdb_id).trim()); }
   if (fields.tvdb_id != null) { sets.push("tvdb_id = ?"); params.push(String(fields.tvdb_id).trim()); }
-  if (fields.tmdb_id != null || fields.tvdb_id != null) {
+  const identityChanged = fields.imdb_id != null || fields.tmdb_id != null || fields.tvdb_id != null;
+  if (identityChanged) {
     sets.push("sync_dispatch_telemetry = ?", "sync_retry_count = ?", "sync_next_retry_at = ?");
     params.push("Identity updated via Fix Match. Pending outbound sync.", 0, 0);
   }
@@ -2623,6 +2625,24 @@ export async function updateWatchRecord(id, fields = {}) {
   }
   if (fields.youtube_url != null) { sets.push("youtube_url = ?"); params.push(String(fields.youtube_url).trim()); }
   if (!sets.length) return { ok: false, error: "No valid fields to update" };
+
+  // Fix Match corrects a row's identity in place, and that must also move it
+  // onto the media_key its new identity computes to - otherwise it stays
+  // grouped under its old (often title-only) key forever, permanently split
+  // from any other row for the same item, with the edit-date list, playstate,
+  // and history-audit trail all still keyed by the stale identity.
+  const oldMediaKey = existing.media_key;
+  let newMediaKey = oldMediaKey;
+  if (identityChanged) {
+    newMediaKey = mediaKeyFor({
+      ...existing,
+      imdb_id: fields.imdb_id != null ? String(fields.imdb_id).trim() : existing.imdb_id,
+      tmdb_id: fields.tmdb_id != null ? String(fields.tmdb_id).trim() : existing.tmdb_id,
+      tvdb_id: fields.tvdb_id != null ? String(fields.tvdb_id).trim() : existing.tvdb_id,
+    });
+    if (newMediaKey !== oldMediaKey) { sets.push("media_key = ?"); params.push(newMediaKey); }
+  }
+
   const updatedAt = Date.now();
   sets.push("updated_at = ?"); params.push(updatedAt);
   params.push(String(targetId));
@@ -2662,6 +2682,47 @@ export async function updateWatchRecord(id, fields = {}) {
   if (normalizedWatchedAt && existing.media_key) {
     updatePlaystateWatchedAtStmt.run(normalizedWatchedAt, Date.now(), existing.media_key);
   }
+
+  // The row just moved to newMediaKey - roll the old key's playstate back to
+  // whatever else still lives there (or drop it if nothing does), and fold
+  // this row into whatever the new key's playstate already reflects, the same
+  // reconciliation deleteWatchDate does when a row leaves a media_key.
+  if (identityChanged && newMediaKey !== oldMediaKey) {
+    if (oldMediaKey) {
+      const oldRemaining = selectByMediaKeyStmt.all(oldMediaKey).filter(isPlembfinTrackedWatchRow);
+      if (oldRemaining.length) {
+        const oldLatest = oldRemaining.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
+        updatePlaystateWatchedAtStmt.run(oldLatest.watched_at, Date.now(), oldMediaKey);
+      } else {
+        deletePlaystateByKeyStmt.run(oldMediaKey);
+      }
+    }
+    const newSiblings = selectByMediaKeyStmt.all(newMediaKey).filter(isPlembfinTrackedWatchRow);
+    if (newSiblings.length) {
+      const newLatest = newSiblings.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
+      const existingNewPlaystate = selectPlaystateStmt.get(newMediaKey);
+      const sources = new Set(parseJson(existingNewPlaystate?.sources, []) || []);
+      if (newLatest.source) sources.add(newLatest.source);
+      upsertPlaystateStmt.run({
+        media_key: newMediaKey,
+        title: newLatest.title,
+        title_lower: (newLatest.title || "").toLowerCase(),
+        media_type: newLatest.media_type,
+        state: "watched",
+        watched_at: newLatest.watched_at,
+        last_source: newLatest.source || existingNewPlaystate?.last_source || "manual",
+        sources: toJson([...sources].sort()),
+        imdb_id: newLatest.imdb_id || existingNewPlaystate?.imdb_id || null,
+        tmdb_id: newLatest.tmdb_id || existingNewPlaystate?.tmdb_id || null,
+        tvdb_id: newLatest.tvdb_id || existingNewPlaystate?.tvdb_id || null,
+        season: newLatest.season,
+        episode: newLatest.episode,
+        poster_url: newLatest.poster_url || existingNewPlaystate?.poster_url || null,
+        updated_at: Date.now(),
+      });
+    }
+  }
+
   await invalidateHistoryDerivedCaches();
   return { ok: true };
 }
@@ -3187,6 +3248,20 @@ export async function findWatchedByAnyMediaKey(media) {
     if (titleLower) {
       const row = findWatchedByCoordinatesStmt.get("movie", null, null, null, null, titleLower);
       if (row) return rowToWatch(row);
+    }
+    // Last resort: an exact title_lower match can miss two rows for the same
+    // movie that only differ by whitespace variant - e.g. Trakt imports often
+    // carry a non-breaking space after a colon ("Title: Subtitle") where
+    // Plex/Emby/Jellyfin report a plain space for the identical title. Without
+    // this, that already-watched movie looks brand new on the next scheduled
+    // sync and gets duplicated under a second, title-only media_key. Mirrors
+    // the episode fallback above, using the same canonicalTitleKey normalizer
+    // siblingWatchRowsFor already relies on to merge these rows for display.
+    const targetKey = canonicalTitleKey(media.title || "");
+    if (targetKey) {
+      const match = selectMoviesStmt.all()
+        .find((row) => row.sync_action === "watched" && canonicalTitleKey(row.title) === targetKey);
+      if (match) return rowToWatch(match);
     }
   }
 
