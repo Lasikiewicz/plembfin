@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.4",
-  "build": 6,
+  "build": 7,
   "entries": [
+    {
+      "build": 7,
+      "version": "0.8.4.7",
+      "date": "2026-08-19T15:12:36+01:00",
+      "commit": "6b106376ce9345a2375b3786f3c7215ac6865004",
+      "message": "Fix - Refresh dashboard history cache after deleting a single watch date",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removing a watch date from the single-item Edit Watch Date dialog now clears the cached dashboard/explorer history and forces a refetch, instead of only patching the deleted row's watched_at in memory",
+        "Fixes the dashboard showing a stale rewatch count (e.g. still '4 actual watches' after a delete) until some unrelated reload happened to refresh it",
+        "Brings the single-row delete path in line with the season bulk 'Remove duplicate watches' cleanup and 'Mark unwatched', which already refresh history after deleting",
+        "Documented the cache refresh in docs/media-detail.md"
+      ]
+    },
     {
       "build": 6,
       "version": "0.8.4.6",
@@ -80,5 +94,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T15:05:55+01:00"
+  "updatedAt": "2026-08-19T15:12:36+01:00"
 }
