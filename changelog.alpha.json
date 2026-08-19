@@ -1,7 +1,20 @@
 {
   "baseVersion": "0.8.3",
-  "build": 4,
+  "build": 5,
   "entries": [
+    {
+      "build": 5,
+      "version": "0.8.3.5",
+      "date": "2026-08-19T12:13:23+01:00",
+      "commit": "023d56fc7f9a46c05320397af0f21d3c36fd1937",
+      "message": "Fix - Prevent phantom local watches from echoed Trakt play-history imports",
+      "author": "Lasikiewicz",
+      "details": [
+        "Trakt play-history import now recognizes a play that arrives shortly after Plembfin's own outbound watched push as an echo of that push, not a new play, and skips creating a duplicate local watch for it",
+        "Fixes a defense-in-depth gap: the echo check reads outbound state captured before the snapshot rewrite that runs earlier in the same poll, so a just-pushed item that hasn't shown up in Trakt's watched snapshot yet no longer loses its echo marker",
+        "Documented the new guard in docs/scheduled-sync.md"
+      ]
+    },
     {
       "build": 4,
       "version": "0.8.3.4",
@@ -53,5 +66,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T11:52:59+01:00"
+  "updatedAt": "2026-08-19T12:13:23+01:00"
 }
