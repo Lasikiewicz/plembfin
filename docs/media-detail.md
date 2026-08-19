@@ -149,7 +149,9 @@ first complete render.
   one of them, add another watch date (`POST /api/add-watch-date`, clones the
   anchor row's identity fields onto a new date), or remove one with confirmation
   (`POST /api/delete-watch-date` - rolls `playstate.watched_at` back to whichever
-  remaining watch is newest, or clears it if none remain). The list only ever
+  remaining watch is newest, or clears it if none remain, and clears the
+  dashboard/explorer's cached history so the "N actual watches" count updates
+  immediately instead of only after some unrelated reload). The list only ever
   shows one row per real viewing event, since a webhook echo can write more
   than one `watch_history` row within the same short window
   (`SAME_EVENT_WINDOW_MS` in `dataRepo.js`); deleting that row also deletes any

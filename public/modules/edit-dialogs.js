@@ -332,6 +332,13 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
           .filter(Boolean)
           .sort();
         if (remainingDates.length) await onSaved?.({ watched_at: remainingDates.at(-1) });
+        // The dashboard's "N actual watches" count and the explorer's rewatch
+        // summaries are read from in-memory snapshots (state.history, the
+        // cached /api/movies rows) that a deleted row's own watched_at patch
+        // never updates. Force a refetch so those counts drop immediately
+        // instead of only after the next unrelated reload.
+        _clearDerivedUiCaches({ resetExplorer: true });
+        await _loadHistory({ force: true }).catch(() => null);
       } catch (err) {
         if (status) status.textContent = `Error: ${err.message}`;
         removeBtn.disabled = false;
