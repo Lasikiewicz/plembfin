@@ -1,32 +1,18 @@
 {
-  "baseVersion": "0.8.1",
-  "build": 2,
+  "baseVersion": "0.8.2",
+  "build": 1,
   "entries": [
     {
-      "build": 2,
-      "version": "0.8.1.2",
-      "date": "2026-08-18T17:34:27+01:00",
-      "commit": "b6ea8b2dee0c6fc845df2fbada468128a0a7d5b3",
-      "message": "Fix - Stop CI plumbing commits from polluting release changelog entries",
-      "author": "Lasikiewicz",
-      "details": [
-        "The main and alpha changelog generators no longer pull bullet points from the bot's own chore: bump alpha build for / chore: update changelog for commits, or from Merge branch/commit/pull request commits - these carry no user-visible content and were showing up as literal bullets in published release notes",
-        "When the commit that triggers a changelog entry is itself one of those plumbing commits (routine for a Merge alpha with main force-push, since GitHub reports the pushed range's last commit as the trigger), the entry's headline now falls back to the most recent real commit instead of showing a meaningless title like \"Chore - Bump alpha build for <sha>\"",
-        "Manually corrected the already-published 0.8.1 changelog entry, which combined a full day's worth of iterative alpha commits (including several that were later throttled, disabled, and re-enabled again) into a single overwhelming and self-contradicting list; consolidated it down to the net, final user-facing changes",
-        "Added test coverage for the new noise-detection helper"
-      ]
-    },
-    {
       "build": 1,
-      "version": "0.8.1.1",
-      "date": "2026-08-18T16:16:00Z",
-      "commit": "24b74cab93f16977b8aa1504d88552c7f9fc88b6",
-      "message": "Chore - Update changelog for c678878",
+      "version": "0.8.2.1",
+      "date": "2026-08-18T16:36:59Z",
+      "commit": "c8e2af013db8157cb38adf1f92957705f2fc07fa",
+      "message": "Chore - Update changelog for 5283d60",
       "author": "github-actions[bot]",
       "details": [
-        "Chore - Update changelog for c678878"
+        "Chore - Update changelog for 5283d60"
       ]
     }
   ],
-  "updatedAt": "2026-08-18T17:34:27+01:00"
+  "updatedAt": "2026-08-18T16:36:59Z"
 }
