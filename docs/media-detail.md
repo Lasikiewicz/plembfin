@@ -186,7 +186,16 @@ first complete render.
   marked unwatched is left alone. Since Trakt's history is an additive play log,
   this replay clears any existing Trakt plays for the item first
   (`trackerDispatcher.js`) so the correction replaces the old entry instead of
-  adding another one alongside it. Plex/Emby/Jellyfin's own mark-played APIs
+  adding another one alongside it. Trakt's `/sync/history` and
+  `/sync/history/remove` both return `200 OK` with a `{ added|deleted, not_found }`
+  summary even when nothing actually matched, so `dispatchTrakt` reads that body
+  rather than trusting the HTTP status alone: a non-empty `not_found` on the add
+  step is reported back as an error instead of a false "success", and a
+  canonical replay's clear step reports how many plays it actually deleted (and
+  any it didn't recognize) in the telemetry, e.g. "Marked watched on Trakt
+  (cleared 0 existing plays first)" - a visible signal that Trakt didn't
+  recognize the item to clear, rather than a blind "success" while a stale
+  duplicate play stays on Trakt. Plex/Emby/Jellyfin's own mark-played APIs
   don't accept an arbitrary date, so those servers still record the moment the
   correction ran, not the corrected date itself - only Trakt's history reflects
   the actual corrected timestamp. TV Fix Match sends one `POST /api/rematch-show` request that

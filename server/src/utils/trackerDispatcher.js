@@ -66,6 +66,19 @@ export async function withFreshTraktConnection(force = false) {
   return hydrateTraktAppCredentials(connection);
 }
 
+// Trakt's /sync/history and /sync/history/remove both return 200 with a
+// summary body - {added|deleted: {movies, episodes}, not_found: {movies,
+// shows, seasons, episodes}} - even when nothing actually matched. A
+// non-empty not_found means Trakt could not resolve the ids/season/episode
+// we sent to a real item, which is a real failure that an HTTP 200 alone
+// hides; without reading the body, a canonical replay's "clear existing
+// plays first" step can silently do nothing while still being reported as a
+// success.
+function traktNotFoundCount(result) {
+  const notFound = result?.not_found || {};
+  return Object.values(notFound).reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
+}
+
 // Trakt's history is a play log, not a "watched" flag - POST /sync/history
 // always adds a new play, it never corrects an existing one. A canonical
 // replay (Force Sync, a watched-date correction - anything sourced as
@@ -75,10 +88,12 @@ export async function withFreshTraktConnection(force = false) {
 // media server still just adds, since that really is a new play. Removing an
 // item with no existing history is a no-op on Trakt's side, not an error.
 async function performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay) {
+  let removeResult = null;
   if (isCanonicalReplay) {
-    await setTraktWatchState(connection, trackerMedia, "unwatched");
+    removeResult = await setTraktWatchState(connection, trackerMedia, "unwatched");
   }
-  return setTraktWatchState(connection, trackerMedia, state);
+  const result = await setTraktWatchState(connection, trackerMedia, state);
+  return { removeResult, result };
 }
 
 async function dispatchTrakt(media, state) {
@@ -91,16 +106,35 @@ async function dispatchTrakt(media, state) {
   if (String(media.source || "").toLowerCase().includes("trakt")) return { target: "trakt", status: "skipped", detail: "Source tracker echo suppressed" };
   const trackerMedia = await hydrateTrackerMedia(media);
   const isCanonicalReplay = state === "watched" && String(media.source || "").toLowerCase() === "manual";
+  let dispatch;
   try {
-    await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay);
+    dispatch = await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay);
   } catch (error) {
     if (error.status !== 401) throw error;
     connection = await withFreshTraktConnection(true);
-    await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay);
+    dispatch = await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay);
   }
   const mediaKey = trackerMediaKey(trackerMedia);
   recordTrackerOutbound("trakt", mediaKey, trackerMedia, state);
-  return { target: "trakt", status: "success", detail: `Marked ${state} on Trakt` };
+
+  const addNotFound = traktNotFoundCount(dispatch.result);
+  if (addNotFound > 0) {
+    return {
+      target: "trakt",
+      status: "error",
+      detail: `Trakt could not match this item to mark it ${state} (not_found: ${JSON.stringify(dispatch.result.not_found)})`,
+    };
+  }
+
+  let detail = `Marked ${state} on Trakt`;
+  if (isCanonicalReplay && dispatch.removeResult) {
+    const deleted = dispatch.removeResult.deleted || {};
+    const deletedCount = Number(deleted.movies || 0) + Number(deleted.episodes || 0);
+    const removeNotFound = traktNotFoundCount(dispatch.removeResult);
+    detail += ` (cleared ${deletedCount} existing play${deletedCount === 1 ? "" : "s"} first`;
+    detail += removeNotFound ? `, ${removeNotFound} not recognized: ${JSON.stringify(dispatch.removeResult.not_found)})` : ")";
+  }
+  return { target: "trakt", status: "success", detail };
 }
 
 export async function dispatchTrackerWatchState(media, state) {
