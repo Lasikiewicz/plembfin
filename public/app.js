@@ -430,6 +430,9 @@ async function renderChangelog(force = false) {
     const alphaBuildEntries = data.channel === "alpha" && Array.isArray(data.alphaBuild?.entries)
       ? data.alphaBuild.entries
       : [];
+    const pendingAlphaEntries = data.channel === "alpha" && Array.isArray(data.alphaBuild?.pendingEntries)
+      ? data.alphaBuild.pendingEntries
+      : [];
     const newerAlphaBuild = data.channel === "alpha" && Boolean(data.alphaBuild?.newerBuildAvailable);
 
     let banner;
@@ -443,7 +446,7 @@ async function renderChangelog(force = false) {
       banner = `
         <div class="changelog-status changelog-status-update">
           <b>Newer alpha build available - build ${escapeHtml(String(data.alphaBuild.latestBuild))}</b>
-          <span>You're running build ${escapeHtml(String(data.alphaBuild.build))}. Pull the latest ghcr.io/lasikiewicz/plembfin:alpha image to update.</span>
+          <span>You're running build ${escapeHtml(String(data.alphaBuild.build))}. See what's new below, then pull the latest ghcr.io/lasikiewicz/plembfin:alpha image to update.</span>
         </div>`;
     } else if (data.channel === "alpha") {
       // Alpha's version number only bumps when it is merged into main, so it
@@ -469,7 +472,7 @@ async function renderChangelog(force = false) {
         </div>`;
     }
 
-    if (!entries.length && !alphaBuildEntries.length) {
+    if (!entries.length && !alphaBuildEntries.length && !pendingAlphaEntries.length) {
       elements.changelogPanel.innerHTML = `${banner}<div class="idle-state"><b>No changelog entries found.</b></div>`;
       return;
     }
@@ -498,14 +501,20 @@ async function renderChangelog(force = false) {
 
     // Alpha's own rolling build history - separate from the release entries
     // above since these builds are never published to GitHub and reset on
-    // the next "Merge alpha with main".
-    const renderAlphaBuildEntry = (entry) => {
+    // the next "Merge alpha with main". `pending` entries are builds that
+    // have been pushed and published to :alpha but not pulled/deployed
+    // here yet - shown so "newer build available" doesn't require updating
+    // first just to see what changed.
+    const renderAlphaBuildEntry = (entry, { pending = false } = {}) => {
       const details = Array.isArray(entry.details) ? entry.details.filter(Boolean) : [];
-      const isCurrent = Number(entry.build) === Number(data.alphaBuild?.build);
+      const isCurrent = !pending && Number(entry.build) === Number(data.alphaBuild?.build);
+      const tag = pending
+        ? `<span class="changelog-tag changelog-tag-new">Not pulled yet</span>`
+        : isCurrent ? `<span class="changelog-tag changelog-tag-current">Current</span>` : "";
       return `
-        <article class="changelog-entry${isCurrent ? " changelog-entry-current" : ""}">
+        <article class="changelog-entry${isCurrent ? " changelog-entry-current" : ""}${pending ? " changelog-entry-new" : ""}">
           <div class="changelog-entry-head">
-            <b>Build ${escapeHtml(String(entry.build ?? ""))}${isCurrent ? `<span class="changelog-tag changelog-tag-current">Current</span>` : ""}</b>
+            <b>Build ${escapeHtml(String(entry.build ?? ""))}${tag}</b>
             <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
           </div>
           <p>${escapeHtml(entry.message || "Alpha build update")}</p>
@@ -513,8 +522,11 @@ async function renderChangelog(force = false) {
         </article>
       `;
     };
+    const pendingSection = pendingAlphaEntries.length
+      ? `<h4 class="changelog-section-heading">New since your build - not pulled yet</h4>${pendingAlphaEntries.map((entry) => renderAlphaBuildEntry(entry, { pending: true })).join("")}`
+      : "";
     const alphaSection = alphaBuildEntries.length
-      ? `<h4 class="changelog-section-heading">Alpha builds since last merge</h4>${alphaBuildEntries.map(renderAlphaBuildEntry).join("")}`
+      ? `<h4 class="changelog-section-heading">Alpha builds since last merge</h4>${alphaBuildEntries.map((entry) => renderAlphaBuildEntry(entry)).join("")}`
       : "";
 
     const visibleEntries = changelogExpanded ? entries : entries.slice(0, 20);
@@ -522,7 +534,7 @@ async function renderChangelog(force = false) {
     const releaseHeading = alphaSection && entries.length
       ? `<h4 class="changelog-section-heading">Published releases</h4>`
       : "";
-    elements.changelogPanel.innerHTML = banner + alphaSection + releaseHeading + visibleEntries.map(renderEntry).join("") + (
+    elements.changelogPanel.innerHTML = banner + pendingSection + alphaSection + releaseHeading + visibleEntries.map(renderEntry).join("") + (
       olderCount > 0
         ? `<button id="changelogShowAll" class="button-ghost" type="button">Show ${olderCount} older releases</button>`
         : ""

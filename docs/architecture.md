@@ -453,11 +453,18 @@ published image `alpha-<build>` alongside the rolling `alpha` tag.
 
 `handleChangelog` also fetches `changelog.alpha.json` from the `alpha` branch on GitHub raw
 (`fetchRemoteAlphaChangelog()`, same one-minute cache and `?refresh=1` bypass as the main
-remote fetch) and adds `alphaBuild.latestBuild` / `alphaBuild.newerBuildAvailable` to the
-response: true when the remote's `build` is higher than the running instance's own, or its
-`baseVersion` differs (a release cycle moved on). This is a distinct signal from a main
-release existing - it answers "has a newer `:alpha` image been published since this one was
-built," which the running build's own bundled file can never know on its own.
+remote fetch) and passes the local and remote alpha manifests through
+`describePendingAlphaBuild()` (a pure, exported function - no I/O - so it's unit-tested
+directly rather than through the route) to add `alphaBuild.latestBuild` /
+`alphaBuild.newerBuildAvailable` / `alphaBuild.pendingEntries` to the response.
+`newerBuildAvailable` is true when the remote's `build` is higher than the running
+instance's own, or its `baseVersion` differs (a release cycle moved on) - a distinct signal
+from a main release existing, answering "has a newer `:alpha` image been published since
+this one was built," which the running build's own bundled file can never know on its own.
+`pendingEntries` is the actual changelog bullets for those not-yet-pulled builds - read from
+the *remote* manifest, not the local one, since a build that hasn't been pulled yet can only
+ever appear in GitHub's copy of the file - so the UI can show what changed before the user
+updates, not only after.
 
 Settings → About renders the current version, a status banner, and the full release list
 with newer versions highlighted. On the `alpha` channel the banner never shows the
@@ -470,8 +477,11 @@ the newer build number and prompting a pull of the latest `:alpha` image; otherw
 banner states that alpha is a rolling pre-release channel and, if `newer` is non-empty,
 notes how many releases have landed on `main` since this build for context. The sidebar/About
 version label itself still distinguishes one alpha build from the next via the build number
-(`v0.8.0.7 alpha`), and the release list shows a separate "Alpha builds since last merge"
-section above the published releases when `alphaBuild.entries` is non-empty.
+(`v0.8.0.7 alpha`), and the release list shows a separate "New since your build - not pulled
+yet" section (tagged "Not pulled yet", `alphaBuild.pendingEntries`) above the "Alpha builds
+since last merge" section (`alphaBuild.entries`, this instance's own already-installed
+build history) whenever either is non-empty, so a newer build's changes are visible without
+updating first.
 
 ## Data layer (`server/src/db.js` + `schema.sql`)
 

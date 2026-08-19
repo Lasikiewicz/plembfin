@@ -843,6 +843,26 @@ function readLocalAlphaChangelog() {
   }
 }
 
+// What "Newer alpha build available" should actually show: the entries for
+// builds not yet pulled locally, read straight from GitHub's copy of
+// changelog.alpha.json - not the locally-installed build's own history,
+// which never contains commits from a build that hasn't been pulled yet. A
+// changed baseVersion means alpha reset (a "Merge alpha with main" landed
+// remotely) and this instance hasn't seen any of the new base's builds yet,
+// so every remote entry is pending; otherwise only builds past the
+// locally-installed one are. Exported standalone (pure, no I/O) so this can
+// be tested without mocking the filesystem or network.
+export function describePendingAlphaBuild(localAlphaBuild, remoteAlpha) {
+  const remoteBuild = Number(remoteAlpha?.build) || 0;
+  const remoteBaseVersion = remoteAlpha?.baseVersion || localAlphaBuild.baseVersion;
+  const remoteEntries = Array.isArray(remoteAlpha?.entries) ? remoteAlpha.entries : [];
+  const newerBuildAvailable = remoteBaseVersion !== localAlphaBuild.baseVersion || remoteBuild > localAlphaBuild.build;
+  const pendingEntries = newerBuildAvailable
+    ? remoteEntries.filter((entry) => remoteBaseVersion !== localAlphaBuild.baseVersion || Number(entry.build) > localAlphaBuild.build)
+    : [];
+  return { latestBuild: remoteBuild, newerBuildAvailable, pendingEntries };
+}
+
 async function fetchRemoteChangelog({ force = false } = {}) {
   const now = Date.now();
   if (!force && remoteChangelogCache.data && now - remoteChangelogCache.fetchedAt < REMOTE_CHANGELOG_TTL_MS) {
@@ -976,13 +996,7 @@ export async function handleChangelog(req, res) {
   if (alphaBuild) {
     try {
       const remoteAlpha = await fetchRemoteAlphaChangelog({ force: isForceRefresh });
-      const remoteBuild = Number(remoteAlpha?.build) || 0;
-      const remoteBaseVersion = remoteAlpha?.baseVersion || alphaBuild.baseVersion;
-      alphaBuild = {
-        ...alphaBuild,
-        latestBuild: remoteBuild,
-        newerBuildAvailable: remoteBaseVersion !== alphaBuild.baseVersion || remoteBuild > alphaBuild.build,
-      };
+      alphaBuild = { ...alphaBuild, ...describePendingAlphaBuild(alphaBuild, remoteAlpha) };
     } catch {
       // GitHub unreachable - alphaBuild stays the local-only snapshot, no update signal.
     }
