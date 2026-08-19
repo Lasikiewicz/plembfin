@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.2",
-  "build": 5,
+  "build": 6,
   "entries": [
+    {
+      "build": 6,
+      "version": "0.8.2.6",
+      "date": "2026-08-19T10:26:42+01:00",
+      "commit": "c74a6b19540fc2ebec30c51c6bcf91bf6c9022d6",
+      "message": "Performance - Process Force Sync episodes concurrently; UI polish on watch-date and danger buttons",
+      "author": "Lasikiewicz",
+      "details": [
+        "Set Plembfin as Source of Truth and Import Watched Status now process several episodes at once instead of one at a time, so shows with many seasons sync significantly faster; both operations still confirm before starting and support cancellation mid-run",
+        "Outbound calls to Plex, Emby, and Jellyfin remain safely throttled per server regardless of how many episodes are in flight, since the existing outbound governor limits concurrency per host independently of this change",
+        "Removing a watch date now shows \"Removing...\" while the request is in flight instead of the row silently freezing with no feedback",
+        "The remove-watch-date button and all danger-styled buttons (including Force Sync's Cancel operation) now use the site's standard rounded corners instead of a mix of a full circle and no rounding at all"
+      ]
+    },
     {
       "build": 5,
       "version": "0.8.2.5",
@@ -70,5 +84,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T10:00:15+01:00"
+  "updatedAt": "2026-08-19T10:26:42+01:00"
 }
