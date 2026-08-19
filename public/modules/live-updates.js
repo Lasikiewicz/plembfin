@@ -14,7 +14,7 @@ export function stopLiveUpdates() {
   lastVersion = null;
 }
 
-export function startLiveUpdates({ authHeaders, onHistoryVersion, onError } = {}) {
+export function startLiveUpdates({ authHeaders, onHistoryVersion, onSyncProgress, onError } = {}) {
   stopLiveUpdates();
   const generation = connectionGeneration;
 
@@ -34,6 +34,12 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onError } = {}
       .join("\n");
     if (!data) return;
     const event = JSON.parse(data);
+
+    if (event.type === "sync-progress") {
+      onSyncProgress?.({ total: Number(event.total) || 0, completed: Number(event.completed) || 0 });
+      return;
+    }
+
     const version = Number(event.version);
     if (!Number.isFinite(version)) return;
     if (lastVersion === null) {

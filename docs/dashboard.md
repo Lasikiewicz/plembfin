@@ -32,7 +32,11 @@ reload; the `X-Now-Playing-Refresh` header from the now-playing poll signals whe
 re-fetch.
 
 Each card shows poster, platform badge, sync-status pill, and links into the media
-detail page ([media-detail.md](media-detail.md)).
+detail page ([media-detail.md](media-detail.md)). When an item has more than one
+recorded watch, a second line below "Last Played" reads "Watched Twice" (or "Watched N
+Times" for more) - `actualWatchLabel` in `dashboard.js`, driven by the same watch-count
+figure (`watch_count`, falling back to `playHistory.length`) as the movie detail page's
+rewatch history.
 
 ### Part-watched (continue watching)
 
@@ -52,6 +56,15 @@ reloads this rail, keeping it aligned with playback changes without a full page 
 
 The sidebar version badge is populated from `/api/changelog` on dashboard load; see
 the "Changelog & update check" section of [architecture.md](architecture.md).
+
+### Background sync indicator
+
+A "Syncing N of M" line appears above the version badge whenever the scheduler's
+pending-dispatch queue is working through a backlog, and hides once it drains. It's
+driven by the `sync-progress` events on the `GET /api/live-updates` SSE stream
+(`onSyncProgress` in `live-updates.js`, rendered by `renderSyncProgress` in `app.js`);
+see the "Manual dispatch queue" part of [scheduled-sync.md](scheduled-sync.md#what-it-does-each-run)
+for where the underlying `{ total, completed }` snapshot comes from.
 
 ## Posters
 

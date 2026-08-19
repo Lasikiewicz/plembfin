@@ -103,6 +103,8 @@ function bindElements() {
   Object.assign(elements, {
     appShell: document.querySelector("#appShell"),
     appVersion: document.querySelector("#appVersion"),
+    syncProgressIndicator: document.querySelector("#syncProgressIndicator"),
+    syncProgressText: document.querySelector("#syncProgressText"),
     changelogPanel: document.querySelector("#changelogPanel"),
     changelogRefreshButton: document.querySelector("#changelogRefreshButton"),
     authForm: document.querySelector("#authForm"),
@@ -1862,6 +1864,16 @@ function clearDerivedUiCaches({ resetExplorer = true } = {}) {
   }
 }
 
+function renderSyncProgress({ total = 0, completed = 0 } = {}) {
+  if (!elements.syncProgressIndicator || !elements.syncProgressText) return;
+  if (total > 0) {
+    elements.syncProgressText.textContent = `Syncing ${completed} of ${total}`;
+    elements.syncProgressIndicator.classList.remove("hidden");
+  } else {
+    elements.syncProgressIndicator.classList.add("hidden");
+  }
+}
+
 let liveHistoryRefreshTimer = null;
 let liveHistoryRefreshActive = false;
 let liveHistoryRefreshQueued = false;
@@ -2418,6 +2430,7 @@ function initialize() {
       startLiveUpdates({
         authHeaders,
         onHistoryVersion: queueLiveHistoryRefresh,
+        onSyncProgress: renderSyncProgress,
         onError: (error) => logDebug(`Live update connection interrupted: ${error.message}`),
       });
       refreshTrackerSettings().catch(() => { });
@@ -2483,6 +2496,7 @@ function initialize() {
       }
     } else if (!user) {
       stopLiveUpdates();
+      renderSyncProgress({ total: 0, completed: 0 });
       setUnlocked(false);
     }
   });

@@ -1,8 +1,10 @@
 import { getDataVersion } from "../db.js";
 import { requireAdmin } from "../utils/auth.js";
 import { methodNotAllowed } from "../utils/http.js";
+import { loadRuntimeState } from "../utils/configStore.js";
 
 const VERSION_CHECK_MS = 250;
+const SYNC_PROGRESS_CHECK_MS = 1_000;
 const HEARTBEAT_MS = 15_000;
 
 function writeEvent(res, payload) {
@@ -44,7 +46,38 @@ export async function handleLiveUpdates(req, res) {
   }, VERSION_CHECK_MS);
   timer.unref?.();
 
-  const close = () => clearInterval(timer);
+  // The pending-dispatch backlog (scheduled.js's syncPendingManualDispatches)
+  // writes its snapshot to runtime_state so this works across a split
+  // web/worker deployment too, the same reason the history version above
+  // reads shared SQLite rather than an in-process emitter. Polled on its own
+  // slower interval since it's a DB read, not the cheap in-process counter
+  // getDataVersion() uses; syncInFlight guards against a slow read piling up
+  // if it ever takes longer than the poll interval.
+  let lastSyncProgress = { total: 0, completed: 0 };
+  let syncProgressInFlight = false;
+  const syncProgressTimer = setInterval(() => {
+    if (res.writableEnded || res.destroyed || syncProgressInFlight) return;
+    syncProgressInFlight = true;
+    loadRuntimeState()
+      .then((runtime) => {
+        const progress = runtime?.backgroundSyncProgress || { total: 0, completed: 0 };
+        const total = Number(progress.total) || 0;
+        const completed = Number(progress.completed) || 0;
+        if (total === lastSyncProgress.total && completed === lastSyncProgress.completed) return;
+        lastSyncProgress = { total, completed };
+        if (!res.writableEnded && !res.destroyed) {
+          writeEvent(res, { type: "sync-progress", total, completed });
+        }
+      })
+      .catch(() => null)
+      .finally(() => { syncProgressInFlight = false; });
+  }, SYNC_PROGRESS_CHECK_MS);
+  syncProgressTimer.unref?.();
+
+  const close = () => {
+    clearInterval(timer);
+    clearInterval(syncProgressTimer);
+  };
   req.once("close", close);
   res.once("close", close);
 }

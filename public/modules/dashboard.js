@@ -171,6 +171,12 @@ function actualWatchText(entry = {}) {
   return count > 1 ? ` · ${count} actual watches` : "";
 }
 
+function actualWatchLabel(entry = {}) {
+  const count = actualWatchCount(entry);
+  if (count <= 1) return "";
+  return count === 2 ? "Watched Twice" : `Watched ${count} Times`;
+}
+
 export function renderHistoryCard(entry) {
   const isEpisode = entry.media_type === "episode";
 
@@ -261,8 +267,13 @@ function renderDashboardHistoryPageCard(entry) {
           ` : ""}
           <div class="history-card-meta-row">
             <span class="meta-label">Last Played:</span>
-            <span class="meta-value">${formatDate(entry.watched_at)}${actualWatchText(entry)}</span>
+            <span class="meta-value">${formatDate(entry.watched_at)}</span>
           </div>
+          ${actualWatchLabel(entry) ? `
+            <div class="history-card-meta-row">
+              <span class="meta-value history-card-watch-count">${escapeHtml(actualWatchLabel(entry))}</span>
+            </div>
+          ` : ""}
         </div>
         <div class="history-card-footer">
           <span class="meta-label">App Used:</span>

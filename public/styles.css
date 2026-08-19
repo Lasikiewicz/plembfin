@@ -10058,6 +10058,40 @@ h1 {
   color: var(--accent, #6366f1);
 }
 
+.sync-progress-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.65rem 0.05rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--accent, #6366f1);
+}
+
+.sync-progress-indicator.hidden {
+  display: none;
+}
+
+.sync-progress-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent, #6366f1);
+  flex-shrink: 0;
+  animation: sync-progress-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes sync-progress-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-progress-dot { animation: none; }
+}
+
 .sidebar-footer .button-ghost {
   width: 100%;
   justify-content: flex-start;
@@ -15053,6 +15087,12 @@ details[open] > .tool-section-summary::before {
 .history-card-meta-row .meta-value {
   color: var(--text);
   font-size: 0.76rem;
+}
+
+.history-card-meta-row .meta-value.history-card-watch-count {
+  color: var(--muted, #666);
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .history-card-footer {
