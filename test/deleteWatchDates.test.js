@@ -78,3 +78,50 @@ test("deleteWatchDate leaves an independent rewatch outside the same-event windo
   assert.equal(await repo.findExistingWatch(repo.mediaKeyFor(media), first.record.watched_at).then((r) => Boolean(r)), false);
   assert.equal(await repo.findExistingWatch(repo.mediaKeyFor(media), later.record.watched_at).then((r) => Boolean(r)), true);
 });
+
+// routes/media.js decides whether to propagate a rolled-back "watched" date
+// or a full "unwatched" state to Plex/Emby/Jellyfin/Trakt purely from these
+// return values (remainingRow / deletedRow) - without them, a deleted watch
+// date's old dispatched state is never corrected on those platforms, and
+// their own next catch-up scan can re-import it as a phantom watch.
+test("deleteWatchDate reports the surviving row so the caller can propagate the rolled-back date", async () => {
+  const media = { title: "Survivor Show - S01E01", type: "episode", season: 1, episode: 1, ids: { tmdb: "survivor-1" }, isValid: true };
+  const older = await repo.insertWatchRecord({ title: media.title, media_type: "episode", season: 1, episode: 1, tmdb_id: "survivor-1", watched_at: "2023-01-01T00:00:00.000Z", source: "plex" });
+  const newer = await repo.insertWatchRecord({ title: media.title, media_type: "episode", season: 1, episode: 1, tmdb_id: "survivor-1", watched_at: "2023-06-01T00:00:00.000Z", source: "plex" });
+  await repo.upsertPlaystateForMedia(media, "watched", newer.record.watched_at);
+
+  const result = await repo.deleteWatchDate(newer.id);
+  assert.equal(result.ok, true);
+  assert.equal(result.remainingRow?.id, older.id);
+  assert.equal(result.deletedRow?.id, newer.id);
+});
+
+test("deleteWatchDate reports no surviving row when the last watch is removed", async () => {
+  const media = { title: "Lone Watch Show - S01E01", type: "episode", season: 1, episode: 1, ids: { tmdb: "lone-1" }, isValid: true };
+  const only = await repo.insertWatchRecord({ title: media.title, media_type: "episode", season: 1, episode: 1, tmdb_id: "lone-1", watched_at: "2023-01-01T00:00:00.000Z", source: "plex" });
+  await repo.upsertPlaystateForMedia(media, "watched", only.record.watched_at);
+
+  const result = await repo.deleteWatchDate(only.id);
+  assert.equal(result.ok, true);
+  assert.equal(result.remainingRow, null);
+  assert.equal(result.deletedRow?.id, only.id);
+});
+
+test("deleteWatchDates reports affected media with surviving/deleted rows per media_key", async () => {
+  const mediaA = { title: "Bulk A Show - S01E01", type: "episode", season: 1, episode: 1, ids: { tmdb: "bulk-a" }, isValid: true };
+  const mediaB = { title: "Bulk B Show - S01E01", type: "episode", season: 1, episode: 1, ids: { tmdb: "bulk-b" }, isValid: true };
+  const aOlder = await repo.insertWatchRecord({ title: mediaA.title, media_type: "episode", season: 1, episode: 1, tmdb_id: "bulk-a", watched_at: "2023-01-01T00:00:00.000Z", source: "plex" });
+  const aNewer = await repo.insertWatchRecord({ title: mediaA.title, media_type: "episode", season: 1, episode: 1, tmdb_id: "bulk-a", watched_at: "2023-06-01T00:00:00.000Z", source: "plex" });
+  const bOnly = await repo.insertWatchRecord({ title: mediaB.title, media_type: "episode", season: 1, episode: 1, tmdb_id: "bulk-b", watched_at: "2023-01-01T00:00:00.000Z", source: "plex" });
+  await repo.upsertPlaystateForMedia(mediaA, "watched", aNewer.record.watched_at);
+  await repo.upsertPlaystateForMedia(mediaB, "watched", bOnly.record.watched_at);
+
+  const result = await repo.deleteWatchDates([aNewer.id, bOnly.id]);
+  assert.equal(result.affectedMedia.length, 2);
+
+  const aEntry = result.affectedMedia.find((entry) => entry.deletedRow.id === aNewer.id);
+  assert.equal(aEntry.remainingRow?.id, aOlder.id);
+
+  const bEntry = result.affectedMedia.find((entry) => entry.deletedRow.id === bOnly.id);
+  assert.equal(bEntry.remainingRow, null);
+});

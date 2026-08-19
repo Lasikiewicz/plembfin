@@ -1473,18 +1473,19 @@ export async function deleteWatchDate(id) {
     });
   }
   const mediaKey = existing.media_key;
+  let remainingRow = null;
   if (mediaKey) {
     const remaining = selectByMediaKeyStmt.all(mediaKey).filter(isPlembfinTrackedWatchRow);
     if (remaining.length) {
-      const latest = remaining.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
-      updatePlaystateWatchedAtStmt.run(latest.watched_at, Date.now(), mediaKey);
+      remainingRow = remaining.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
+      updatePlaystateWatchedAtStmt.run(remainingRow.watched_at, Date.now(), mediaKey);
     } else {
       deletePlaystateByKeyStmt.run(mediaKey);
     }
   }
 
   await invalidateHistoryDerivedCaches();
-  return { ok: true };
+  return { ok: true, remainingRow, deletedRow: existing };
 }
 
 // Bulk form of deleteWatchDate - used by the season/show "remove duplicate
@@ -1496,6 +1497,7 @@ export async function deleteWatchDates(ids = []) {
   const deleted = [];
   const notFound = [];
   const affectedMediaKeys = new Set();
+  const representativeRowByMediaKey = new Map();
   const handled = new Set();
 
   for (const id of uniqueIds) {
@@ -1536,22 +1538,28 @@ export async function deleteWatchDates(ids = []) {
         payload: { record: row, operation: "bulk_delete_watch_dates" },
       });
       deleted.push(row.id);
-      if (row.media_key) affectedMediaKeys.add(row.media_key);
+      if (row.media_key) {
+        affectedMediaKeys.add(row.media_key);
+        if (!representativeRowByMediaKey.has(row.media_key)) representativeRowByMediaKey.set(row.media_key, row);
+      }
     }
   }
 
+  const affectedMedia = [];
   for (const mediaKey of affectedMediaKeys) {
     const remaining = selectByMediaKeyStmt.all(mediaKey).filter(isPlembfinTrackedWatchRow);
+    let remainingRow = null;
     if (remaining.length) {
-      const latest = remaining.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
-      updatePlaystateWatchedAtStmt.run(latest.watched_at, Date.now(), mediaKey);
+      remainingRow = remaining.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
+      updatePlaystateWatchedAtStmt.run(remainingRow.watched_at, Date.now(), mediaKey);
     } else {
       deletePlaystateByKeyStmt.run(mediaKey);
     }
+    affectedMedia.push({ mediaKey, remainingRow, deletedRow: representativeRowByMediaKey.get(mediaKey) });
   }
 
   if (deleted.length) await invalidateHistoryDerivedCaches();
-  return { ok: true, deleted, notFound };
+  return { ok: true, deleted, notFound, affectedMedia };
 }
 
 export async function updateWatchTelemetry(id, telemetry, { skipInvalidate = false } = {}) {

@@ -785,6 +785,25 @@ function propagateCorrectedWatchDate(recordId) {
     .catch((error) => console.error(`Failed to propagate corrected watch date for record ${recordId}:`, error.message || error));
 }
 
+// Deleting a watch date changes what Plembfin considers canonical for that
+// item - either a rolled-back watched date, or fully unwatched if nothing is
+// left - and that correction has to reach every connected platform too. Every
+// server this was already dispatched to (see the row's sync_dispatch_telemetry
+// before the delete) still believes the old state; left alone, that stale
+// state can come back as a brand-new phantom watch the next time that
+// platform's own catch-up scan runs. Reuses the same loop-safe canonical
+// replay as propagateCorrectedWatchDate and Force Sync's "Set Plembfin as
+// Source of Truth". Fire-and-forget, same reasoning as above.
+function propagateWatchDateRemoval(remainingRow, deletedRow) {
+  const row = remainingRow || deletedRow;
+  if (!row) return;
+  const media = watchRowToMedia(row, "manual");
+  if (!media?.isValid) return;
+  loadMediaConfig()
+    .then((config) => syncCanonicalPlaystate(media, config, createLoopStore(), remainingRow ? "watched" : "unwatched"))
+    .catch((error) => console.error(`Failed to propagate watch date removal for ${row.id}:`, error.message || error));
+}
+
 // Adds another watch date for the same movie/episode as `id` (the "Add another
 // watch date" control in the edit-date dialog).
 export async function handleAddWatchDate(req, res) {
@@ -817,6 +836,7 @@ export async function handleDeleteWatchDate(req, res) {
 
   const result = await deleteWatchDate(id);
   if (!result.ok) return sendJson(res, { error: result.error }, 400);
+  propagateWatchDateRemoval(result.remainingRow, result.deletedRow);
   writeAuditLog("media.watch_date_deleted", { ip: req.ip || req.socket?.remoteAddress, detail: { id } });
   return sendJson(res, { ok: true });
 }
@@ -834,7 +854,10 @@ export async function handleDeleteWatchDates(req, res) {
   if (!ids.length) return sendJson(res, { error: "ids is required" }, 400);
   if (ids.length > 500) return sendJson(res, { error: "Batch size must be 500 ids or fewer" }, 413);
 
-  const result = await deleteWatchDates(ids);
+  const { affectedMedia, ...result } = await deleteWatchDates(ids);
+  for (const media of affectedMedia || []) {
+    propagateWatchDateRemoval(media.remainingRow, media.deletedRow);
+  }
   writeAuditLog("media.watch_dates_bulk_deleted", {
     ip: req.ip || req.socket?.remoteAddress,
     detail: { requested: ids.length, deleted: result.deleted.length, notFound: result.notFound.length },

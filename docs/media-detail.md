@@ -156,12 +156,21 @@ first complete render.
   than one `watch_history` row within the same short window
   (`SAME_EVENT_WINDOW_MS` in `dataRepo.js`); deleting that row also deletes any
   echo chained to it (`sameEventChainIdsFor` in `dataRepo.js`), so a hidden
-  duplicate can't resurface as a "new" watch date afterward. The per-season "Edit
-  season date" dialog additionally offers **Remove duplicate watches** when any
-  episode in the season has more than one recorded watch: it keeps only the
-  oldest watch per episode and bulk-deletes the rest in a single confirmed
-  action (`POST /api/delete-watch-dates`, `deleteWatchDates` in `dataRepo.js`,
-  same echo-chain handling as the single-row delete), rolling each affected
+  duplicate can't resurface as a "new" watch date afterward. Deleting a watch
+  date also replays the resulting canonical state - the rolled-back date if a
+  watch remains, or "unwatched" if that was the only one - to every connected
+  Plex/Emby/Jellyfin/Trakt server (`propagateWatchDateRemoval` in
+  `routes/media.js`, reusing the same `syncCanonicalPlaystate` replay as an
+  edited date), so a platform that already received the deleted watch as
+  "watched" gets corrected instead of continuing to disagree with Plembfin;
+  left uncorrected, that platform's own next catch-up scan could otherwise
+  re-import its stale "watched" state as a brand-new phantom watch. The
+  per-season "Edit season date" dialog additionally offers **Remove duplicate
+  watches** when any episode in the season has more than one recorded watch: it
+  keeps only the oldest watch per episode and bulk-deletes the rest in a single
+  confirmed action (`POST /api/delete-watch-dates`, `deleteWatchDates` in
+  `dataRepo.js`, same echo-chain handling and canonical-state replay per
+  affected episode as the single-row delete), rolling each affected
   `playstate.watched_at` back to the surviving (oldest) date the same way the
   single-row delete does. The show-level "Edit Date"
   control (top action bar, `openEditShowDateDialog`) shows one row per season
