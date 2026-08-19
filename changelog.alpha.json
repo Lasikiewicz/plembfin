@@ -1,7 +1,20 @@
 {
   "baseVersion": "0.8.3",
-  "build": 1,
+  "build": 2,
   "entries": [
+    {
+      "build": 2,
+      "version": "0.8.3.2",
+      "date": "2026-08-19T11:26:01+01:00",
+      "commit": "0b542e38f47d08d3d9bdd98f9cd3edf8b3a662a3",
+      "message": "Feature - Bulk-remove duplicate watch dates; per-season show date editing",
+      "author": "Lasikiewicz",
+      "details": [
+        "Edit Season Date now shows a Remove Duplicate Watches option when any episode in the season has more than one recorded watch, keeping only the oldest date per episode and deleting the rest in a single confirmed action instead of removing them one at a time",
+        "New POST /api/delete-watch-dates endpoint bulk-deletes watch records and rolls each affected show/episode's canonical watched state back to whichever watch survives, in one request instead of one per row",
+        "The show-level Edit Date control (top action bar) now shows one row per season instead of forcing the whole show onto a single date/time - each season defaults to its own latest watched date and can be changed independently before saving"
+      ]
+    },
     {
       "build": 1,
       "version": "0.8.3.1",
@@ -14,5 +27,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T09:37:58Z"
+  "updatedAt": "2026-08-19T11:26:01+01:00"
 }
