@@ -35,20 +35,29 @@ to each other - Plembfin remembers what you've watched and keeps everyone in syn
 
 ## The hub
 
-```mermaid
-flowchart TB
-    Plex --- Plembfin((Plembfin))
-    Emby --- Plembfin
-    Jellyfin --- Plembfin
-    Trakt --- Plembfin
-    Seerr --- Plembfin
-    Plembfin --- Metadata["TMDB · TVDB · Fanart · OMDb"]
-```
+<p align="center">
+  <img src="public/icon-192.png" width="72" alt="Plembfin" />
+</p>
+
+<p align="center">
+  <img src="public/icons/plex.svg" width="36" title="Plex" alt="Plex" />
+  <img src="public/icons/emby.svg" width="36" title="Emby" alt="Emby" />
+  <img src="public/icons/jellyfin.svg" width="36" title="Jellyfin" alt="Jellyfin" />
+  &nbsp;&nbsp;
+  <img src="https://img.shields.io/badge/-Trakt-ED2224?style=flat-square&logo=trakt&logoColor=white" alt="Trakt" />
+  <img src="https://img.shields.io/badge/-TMDB-01B4E4?style=flat-square&logo=themoviedatabase&logoColor=white" alt="TMDB" />
+  <img src="https://img.shields.io/badge/-TheTVDB-6EC7E7?style=flat-square" alt="TheTVDB" />
+  <img src="https://img.shields.io/badge/-Fanart.tv-1a1a1a?style=flat-square" alt="Fanart.tv" />
+  <img src="https://img.shields.io/badge/-OMDb-F5C518?style=flat-square" alt="OMDb" />
+  <img src="https://img.shields.io/badge/-Overseerr%2FJellyseerr-5865F2?style=flat-square" alt="Overseerr / Jellyseerr" />
+</p>
+
+None of these talk to each other - they all talk to Plembfin.
 
 *   🧠 **Remembers** - every watch is stored once, locally, in SQLite
 *   🔄 **Syncs** - watched/unwatched state stays matched across Plex, Emby, Jellyfin, and Trakt
 *   🎨 **Enriches** - posters, cast, episodes, and ratings pulled from TMDB, TheTVDB, Fanart.tv, and OMDb
-*   🎬 **Connects** - requests and availability flow through Seerr
+*   🎬 **Connects** - requests and availability flow through Overseerr/Jellyseerr
 
 ---
 
