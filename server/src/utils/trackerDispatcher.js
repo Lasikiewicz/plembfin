@@ -84,7 +84,11 @@ async function performTraktDispatch(connection, trackerMedia, state, isCanonical
 async function dispatchTrakt(media, state) {
   let connection = await withFreshTraktConnection();
   if (!connection) return { target: "trakt", status: "skipped", detail: "Trakt is not connected" };
-  if (String(media.source || "").toLowerCase() === "trakt") return { target: "trakt", status: "skipped", detail: "Source tracker echo suppressed" };
+  // Anything sourced from Trakt itself - the live poller ("trakt") or a bulk
+  // history import ("trakt_import", used by both the CSV/JSON importer and
+  // the play-history backfill) - already exists on Trakt. Echoing it back
+  // via /sync/history would create a duplicate play there every time.
+  if (String(media.source || "").toLowerCase().includes("trakt")) return { target: "trakt", status: "skipped", detail: "Source tracker echo suppressed" };
   const trackerMedia = await hydrateTrackerMedia(media);
   const isCanonicalReplay = state === "watched" && String(media.source || "").toLowerCase() === "manual";
   try {

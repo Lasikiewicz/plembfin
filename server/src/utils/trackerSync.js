@@ -79,6 +79,22 @@ async function importTraktPlayHistory(connection, publicConnection) {
     if (!existing) {
       const record = mediaToWatchRecord({ ...entry.media, watched_at: watchedAtIso, syncAction: "watched" }, "trakt_import");
       record.sync_action = "watched";
+      // Without telemetry that looks "done", the scheduler's manual-dispatch
+      // retry sweep (server/src/scheduled.js syncPendingManualDispatches)
+      // treats any watched row as needing outbound propagation and re-fires
+      // it - including back out to Trakt, which (before the source-echo fix
+      // in trackerDispatcher.js) created a new Trakt play every poll for
+      // every backfilled play. Mark these as already-settled so nothing ever
+      // re-dispatches them to Plex/Emby/Jellyfin or Trakt.
+      record.sync_dispatch_telemetry = [
+        "Origin: trakt_import",
+        "Loop-check: Skipped propagation",
+        "Dispatch status: skipped",
+        "Details: Historical play imported from Trakt history; current watch state is tracked separately and was not re-propagated.",
+        "Target plex status: skipped - Historical import; not re-propagated",
+        "Target emby status: skipped - Historical import; not re-propagated",
+        "Target jellyfin status: skipped - Historical import; not re-propagated",
+      ].join("\n");
       const result = await insertWatchRecord(record, { skipInvalidate: true });
       watchRecordId = result.id;
     }
