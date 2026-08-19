@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.4",
-  "build": 11,
+  "build": 12,
   "entries": [
+    {
+      "build": 12,
+      "version": "0.8.4.12",
+      "date": "2026-08-19T16:47:06+01:00",
+      "commit": "e51f74d425078342afbb730432fa5ccb92eb9253",
+      "message": "Fix - Track sync progress at the shared dispatch functions, not just the retry queue",
+      "author": "Lasikiewicz",
+      "details": [
+        "The sidebar's sync-progress indicator only tracked the scheduler's per-minute pending-dispatch queue, so it stayed hidden for anything that dispatches immediately instead - a bulk duplicate-watch cleanup, a single manual watch/unwatch, a webhook-triggered propagation - which is most of what actually generates background sync activity",
+        "Moved the tracking into syncMediaPlaystate and syncMediaUnplayedPlaystate in syncOrchestrator.js, the shared functions every dispatch path funnels through, so the indicator now covers all of them without depending on knowing every call site",
+        "A dispatch burst opens on the first call after being idle and closes 2 seconds after the last one in it finishes, so a handful of near-simultaneous fire-and-forget calls (one per affected episode from a season cleanup, for example) share one window instead of flickering",
+        "Removed the now-redundant tracking that lived directly in the retry queue, since it already goes through the same shared functions"
+      ]
+    },
     {
       "build": 11,
       "version": "0.8.4.11",
@@ -150,5 +164,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T16:37:16+01:00"
+  "updatedAt": "2026-08-19T16:47:06+01:00"
 }
