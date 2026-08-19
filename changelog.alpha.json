@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.4",
-  "build": 7,
+  "build": 8,
   "entries": [
+    {
+      "build": 8,
+      "version": "0.8.4.8",
+      "date": "2026-08-19T15:28:43+01:00",
+      "commit": "7bdef4c04121dd2d5e7b166f899eb18e921fa63a",
+      "message": "Fix - Stop a stale HTTP cache entry from undoing a forced dashboard refresh",
+      "author": "Lasikiewicz",
+      "details": [
+        "The forced dashboard history refresh (used right after deleting a watch date, marking watched/unwatched, etc) fetched with cache: no-store, which bypasses the browser's HTTP cache on read but never updates it either",
+        "Every dashboard-view entry runs a second, unforced history fetch right after (cache: default, reusing the endpoint's 30s max-age), which could still return the original pre-edit response left over from the page's first load and silently overwrite the just-refreshed data",
+        "Reproduced live: deleting watch dates on a movie correctly updated the backend and the detail page immediately, but the dashboard card briefly reverted to the pre-edit watch count and date after navigating back to it",
+        "Switched the forced fetch to cache: reload, which still forces a real network round trip but also refreshes the HTTP cache entry, so the follow-up unforced fetch no longer serves stale data"
+      ]
+    },
     {
       "build": 7,
       "version": "0.8.4.7",
@@ -94,5 +108,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T15:12:36+01:00"
+  "updatedAt": "2026-08-19T15:28:43+01:00"
 }
