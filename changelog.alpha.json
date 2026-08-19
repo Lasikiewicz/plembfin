@@ -1,7 +1,20 @@
 {
   "baseVersion": "0.8.3",
-  "build": 3,
+  "build": 4,
   "entries": [
+    {
+      "build": 4,
+      "version": "0.8.3.4",
+      "date": "2026-08-19T11:52:59+01:00",
+      "commit": "7f335b8c0eee490aaa1c0cdb1bd8828e1e436d03",
+      "message": "Fix - Manual mark-watched now sends the chosen date to Trakt instead of the current time",
+      "author": "Lasikiewicz",
+      "details": [
+        "Marking an episode or movie watched with a specific date (e.g. release date) via the Mark Watched action reached Trakt stamped as watched right now instead of the date chosen in Plembfin, because the media object built for outbound dispatch never carried a watched_at field",
+        "Plex, Emby, and Jellyfin were never affected since their mark-played APIs don't accept a historical date at all; the Edit Date correction path was also unaffected since it built its dispatch payload differently",
+        "Added regression tests covering both the dispatch payload and Trakt's client sending the supplied date verbatim"
+      ]
+    },
     {
       "build": 3,
       "version": "0.8.3.3",
@@ -40,5 +53,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T11:34:13+01:00"
+  "updatedAt": "2026-08-19T11:52:59+01:00"
 }
