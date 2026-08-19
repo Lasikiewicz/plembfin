@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.2",
-  "build": 4,
+  "build": 5,
   "entries": [
+    {
+      "build": 5,
+      "version": "0.8.2.5",
+      "date": "2026-08-19T10:00:15+01:00",
+      "commit": "3607fceabcd554dd91307efd3bdabdf0af07919f",
+      "message": "Feature - Replace Full Sync with explicit push/pull, fix episode identity matching, add stale-backlog repair",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removes the detail-page and library-wide Force Sync \"Full Sync\" option, which silently reconciled server state with Plembfin and could insert duplicate, today-dated watch records when a show's metadata was rematched on a media server",
+        "Renames \"Push To\" to \"Set Plembfin as Source of Truth\" and \"Pull From\" to \"Import Watched Status\", with descriptions that state plainly what each one does and does not do (Push overwrites destinations without checking them first; Import only adds, never sends anything out or removes anything)",
+        "Fixes episode watch/playstate lookups to recognize an episode as already recorded even after a media-server metadata rematch changes its provider ids or its show title gains or loses a trailing year (e.g. \"Ludwig\" vs \"Ludwig (2024)\"), preventing duplicate watch history entries in that situation",
+        "Adds a one-time repair (GET /api/stale-trakt-import-audit, POST /api/stale-trakt-import-repair) for watch records left behind by the Trakt rewatch-import incident, which were still being repeatedly re-sent to Plex, Emby, Jellyfin, and Trakt by the retry queue"
+      ]
+    },
     {
       "build": 4,
       "version": "0.8.2.4",
@@ -56,5 +70,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T09:03:14+01:00"
+  "updatedAt": "2026-08-19T10:00:15+01:00"
 }
