@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.4",
-  "build": 8,
+  "build": 9,
   "entries": [
+    {
+      "build": 9,
+      "version": "0.8.4.9",
+      "date": "2026-08-19T15:49:23+01:00",
+      "commit": "b4da9b1be73a7af8d9bc97ef4c8380c8002d6501",
+      "message": "Fix - Propagate corrected watch state after deleting a watch date",
+      "author": "Lasikiewicz",
+      "details": [
+        "Deleting a watch date (single row, or the season 'Remove duplicate watches' bulk cleanup) now replays the resulting canonical state to every connected Plex/Emby/Jellyfin/Trakt server - the rolled-back date if a watch remains, or unwatched if that was the last one",
+        "Reuses the same loop-safe canonical replay (syncCanonicalPlaystate) that editing a watch date and Force Sync's 'Set Plembfin as Source of Truth' already use, so a corrected server does not turn around and echo the old state back in as a new phantom watch",
+        "Previously a deleted watch date only removed the local Plembfin row; any platform it had already been dispatched to as watched kept believing that, and its own next catch-up scan could reintroduce it as a brand-new watch",
+        "deleteWatchDate/deleteWatchDates now report the surviving and deleted rows so the route layer can decide which state to replay; added regression tests for the new return values"
+      ]
+    },
     {
       "build": 8,
       "version": "0.8.4.8",
@@ -108,5 +122,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T15:28:43+01:00"
+  "updatedAt": "2026-08-19T15:49:23+01:00"
 }
