@@ -36,20 +36,7 @@ to each other - Plembfin remembers what you've watched and keeps everyone in syn
 ## The hub
 
 <p align="center">
-  <img src="public/icon-192.png" width="72" alt="Plembfin" />
-</p>
-
-<p align="center">
-  <img src="public/icons/plex.svg" width="36" title="Plex" alt="Plex" />
-  <img src="public/icons/emby.svg" width="36" title="Emby" alt="Emby" />
-  <img src="public/icons/jellyfin.svg" width="36" title="Jellyfin" alt="Jellyfin" />
-  &nbsp;&nbsp;
-  <img src="https://img.shields.io/badge/-Trakt-ED2224?style=flat-square&logo=trakt&logoColor=white" alt="Trakt" />
-  <img src="https://img.shields.io/badge/-TMDB-01B4E4?style=flat-square&logo=themoviedatabase&logoColor=white" alt="TMDB" />
-  <img src="https://img.shields.io/badge/-TheTVDB-6EC7E7?style=flat-square" alt="TheTVDB" />
-  <img src="https://img.shields.io/badge/-Fanart.tv-1a1a1a?style=flat-square" alt="Fanart.tv" />
-  <img src="https://img.shields.io/badge/-OMDb-F5C518?style=flat-square" alt="OMDb" />
-  <img src="https://img.shields.io/badge/-Overseerr%2FJellyseerr-5865F2?style=flat-square" alt="Overseerr / Jellyseerr" />
+  <img src="docs/plembfin-hub.svg" alt="Plembfin sits between Plex, Emby, Jellyfin, and Trakt (two-way watch state sync) and TMDB, TheTVDB, Fanart.tv, OMDb, and Overseerr/Jellyseerr (metadata and requests flowing in)" width="100%" />
 </p>
 
 None of these talk to each other - they all talk to Plembfin.
