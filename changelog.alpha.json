@@ -1,70 +1,18 @@
 {
-  "baseVersion": "0.8.3",
-  "build": 5,
+  "baseVersion": "0.8.4",
+  "build": 1,
   "entries": [
     {
-      "build": 5,
-      "version": "0.8.3.5",
-      "date": "2026-08-19T12:13:23+01:00",
-      "commit": "023d56fc7f9a46c05320397af0f21d3c36fd1937",
-      "message": "Fix - Prevent phantom local watches from echoed Trakt play-history imports",
-      "author": "Lasikiewicz",
-      "details": [
-        "Trakt play-history import now recognizes a play that arrives shortly after Plembfin's own outbound watched push as an echo of that push, not a new play, and skips creating a duplicate local watch for it",
-        "Fixes a defense-in-depth gap: the echo check reads outbound state captured before the snapshot rewrite that runs earlier in the same poll, so a just-pushed item that hasn't shown up in Trakt's watched snapshot yet no longer loses its echo marker",
-        "Documented the new guard in docs/scheduled-sync.md"
-      ]
-    },
-    {
-      "build": 4,
-      "version": "0.8.3.4",
-      "date": "2026-08-19T11:52:59+01:00",
-      "commit": "7f335b8c0eee490aaa1c0cdb1bd8828e1e436d03",
-      "message": "Fix - Manual mark-watched now sends the chosen date to Trakt instead of the current time",
-      "author": "Lasikiewicz",
-      "details": [
-        "Marking an episode or movie watched with a specific date (e.g. release date) via the Mark Watched action reached Trakt stamped as watched right now instead of the date chosen in Plembfin, because the media object built for outbound dispatch never carried a watched_at field",
-        "Plex, Emby, and Jellyfin were never affected since their mark-played APIs don't accept a historical date at all; the Edit Date correction path was also unaffected since it built its dispatch payload differently",
-        "Added regression tests covering both the dispatch payload and Trakt's client sending the supplied date verbatim"
-      ]
-    },
-    {
-      "build": 3,
-      "version": "0.8.3.3",
-      "date": "2026-08-19T11:34:13+01:00",
-      "commit": "4e52c4275c3f4c94c9c902a768a8cc5f4534f065",
-      "message": "Fix - Show what changed in a newer alpha build before pulling it",
-      "author": "Lasikiewicz",
-      "details": [
-        "Settings -> Changelog now lists the actual changes in a newer, not-yet-pulled alpha build under a new \"Not pulled yet\" section, instead of only saying a newer build exists and requiring an update first to see what changed",
-        "The backend was already fetching the newer build's changelog data to detect an update, but discarded the entry list and kept only the build number; it now reads GitHub's copy of the changelog directly, since a build that hasn't been pulled yet can never appear in the locally-installed copy",
-        "Extracted the comparison logic into a pure, unit-tested function"
-      ]
-    },
-    {
-      "build": 2,
-      "version": "0.8.3.2",
-      "date": "2026-08-19T11:26:01+01:00",
-      "commit": "0b542e38f47d08d3d9bdd98f9cd3edf8b3a662a3",
-      "message": "Feature - Bulk-remove duplicate watch dates; per-season show date editing",
-      "author": "Lasikiewicz",
-      "details": [
-        "Edit Season Date now shows a Remove Duplicate Watches option when any episode in the season has more than one recorded watch, keeping only the oldest date per episode and deleting the rest in a single confirmed action instead of removing them one at a time",
-        "New POST /api/delete-watch-dates endpoint bulk-deletes watch records and rolls each affected show/episode's canonical watched state back to whichever watch survives, in one request instead of one per row",
-        "The show-level Edit Date control (top action bar) now shows one row per season instead of forcing the whole show onto a single date/time - each season defaults to its own latest watched date and can be changed independently before saving"
-      ]
-    },
-    {
       "build": 1,
-      "version": "0.8.3.1",
-      "date": "2026-08-19T09:37:58Z",
-      "commit": "c5b6b69d1c4a0f4509ca27dccb0d283d33cccf8a",
-      "message": "Chore - Update changelog for 7392857",
+      "version": "0.8.4.1",
+      "date": "2026-08-19T11:19:46Z",
+      "commit": "059c93a891ca957df96ef2dffe05e5659dae042e",
+      "message": "Chore - Update changelog for 641fb7c",
       "author": "github-actions[bot]",
       "details": [
-        "Chore - Update changelog for 7392857"
+        "Chore - Update changelog for 641fb7c"
       ]
     }
   ],
-  "updatedAt": "2026-08-19T12:13:23+01:00"
+  "updatedAt": "2026-08-19T11:19:46Z"
 }
