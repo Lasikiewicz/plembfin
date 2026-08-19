@@ -1,7 +1,19 @@
 {
   "baseVersion": "0.8.4",
-  "build": 2,
+  "build": 3,
   "entries": [
+    {
+      "build": 3,
+      "version": "0.8.4.3",
+      "date": "2026-08-19T12:33:29+01:00",
+      "commit": "4d1a25f847c75d75474ae75739d6c5105bada7dc",
+      "message": "Docs - Simplify the hub framing in the README",
+      "author": "Lasikiewicz",
+      "details": [
+        "Trimmed the intro and hub diagram to a single simple flowchart with icon-led bullets instead of dense paragraphs",
+        "No behavior changes; documentation only"
+      ]
+    },
     {
       "build": 2,
       "version": "0.8.4.2",
@@ -27,5 +39,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T12:31:43+01:00"
+  "updatedAt": "2026-08-19T12:33:29+01:00"
 }
