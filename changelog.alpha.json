@@ -1,7 +1,22 @@
 {
   "baseVersion": "0.8.4",
-  "build": 4,
+  "build": 5,
   "entries": [
+    {
+      "build": 5,
+      "version": "0.8.4.5",
+      "date": "2026-08-19T13:08:47+01:00",
+      "commit": "06137f13e0edaa1b0e0cec18a385764d308405e8",
+      "message": "Docs - Rebuild the README hub diagram with real icons and no backdrop circles",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removed the dark circle backdrops behind every node in the hub diagram",
+        "Added real TheTVDB and Overseerr/Jellyseerr logos (sourced from the walkxcode/dashboard-icons project) in place of placeholder monogram circles",
+        "Re-trimmed every connector line so arrowheads land visibly at each icon's edge instead of hiding under a circle",
+        "Fanart.tv and OMDb have no available vector logo, so they render as plain colored text instead of a fake or placeholder icon",
+        "No behavior changes; documentation only"
+      ]
+    },
     {
       "build": 4,
       "version": "0.8.4.4",
@@ -51,5 +66,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T12:55:58+01:00"
+  "updatedAt": "2026-08-19T13:08:47+01:00"
 }
