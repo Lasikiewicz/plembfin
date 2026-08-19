@@ -1809,10 +1809,16 @@ async function loadHistory({ force = false } = {}) {
     // The dashboard preview response is served with Cache-Control: max-age=30
     // so routine loads/polls can reuse the browser's HTTP cache. A forced
     // refresh (e.g. right after marking something watched) needs to bypass
-    // that cache, or it can silently hand back a pre-mutation response for
-    // up to 30s - the "watched" item would then be missing from the
-    // dashboard's watch-history row until the cache naturally expired.
-    const response = await fetch(url, { headers: authHeaders(), cache: force ? "no-store" : "default" });
+    // that cache on read, or it can silently hand back a pre-mutation
+    // response for up to 30s - the "watched" item would then be missing from
+    // the dashboard's watch-history row until the cache naturally expired.
+    // Using "reload" rather than "no-store" also re-populates the cache with
+    // this fresh response: every dashboard-view entry runs an unforced
+    // loadHistory() right after (see the "dashboard" branch above), and with
+    // "no-store" that follow-up default-mode fetch could still hit the
+    // stale pre-mutation entry left over from the page's original load and
+    // silently undo the forced refresh.
+    const response = await fetch(url, { headers: authHeaders(), cache: force ? "reload" : "default" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `History load failed with ${response.status}`);
 
