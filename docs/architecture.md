@@ -165,8 +165,8 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `traktClient.js` | Trakt device OAuth, refresh, paged watched-history reads, and watched-history write client. |
 | `watchStateTransitions.js` | Shared transactional watched/unwatched transition boundary used by tracker and media-server inputs. |
 | `syncMatchReport.js` | Pure aggregation of current watch-history telemetry into per-platform unmatched-media counts, movie/episode splits, and bounded samples for Settings → Sync → Sync Issues. |
-| `mediaForceSync.js` | Detail-page Force Sync: title-scoped Plex/Emby/Jellyfin watched-state lookup, Full Sync/Push/Pull modes, explicit import of remote-only records, provenance/telemetry, and target-filtered canonical propagation. A remote item whose played flag has no reliable played date is skipped rather than imported with a fabricated current-time date. Full Sync also reconciles a title that's already unwatched in Plembfin but still carries a stale resume position on a server. The library-wide Force Sync planner remains remote-only-safe. |
-| `libraryForceSync.js` | Settings Force Sync: library-wide Full Sync/Push/Pull operations, remote watched-state collection, union with Plembfin's watched playstate, and target-filtered canonical propagation. |
+| `mediaForceSync.js` | Detail-page Force Sync: title-scoped Plex/Emby/Jellyfin watched-state lookup, Set Plembfin as Source of Truth (push)/Import Watched Status (pull) modes, explicit import of remote-only records on pull, provenance/telemetry, and target-filtered canonical propagation. A remote item whose played flag has no reliable played date is skipped rather than imported with a fabricated current-time date. The library-wide Force Sync planner remains remote-only-safe. |
+| `libraryForceSync.js` | Settings Force Sync: library-wide push (Set Plembfin as Source of Truth)/pull (Import Watched Status) operations, remote watched-state collection, and target-filtered canonical propagation. |
 | `mediaForceSyncActivity.js` | Bounded in-memory activity ledger used by the detail-page and Settings Force Sync status/cancellation endpoints to stream operation lines, cancellation state, and final results to the UI. |
 | `tuning.js` | Import-free runtime accessors for watched threshold, minimum resume position, active-session TTL, and outbound timeout; reads environment defaults and applies validated Settings overrides. |
 | `plexClient.js` | Plex HTTP client: find items by GUID/title, mark played/unplayed, set resume progress, fetch watched/resumable/metadata/episodes; username→accountID resolution with memoization. Token always sent as `X-Plex-Token` header. See [plex.md](plex.md). |
@@ -354,12 +354,14 @@ The same logic runs on demand via:
 - `POST /api/cron-sync` - streams a text log of what the tick did.
 - `POST /api/force-sync` - runs and stores progress in `runtime_state` for the
   dashboard to poll; `stop-force-sync` cancels.
-- `POST /api/force-sync/library` - runs a library-wide Full Sync, Push, or Pull
-  operation from Settings → Sync Tools; `GET /api/force-sync/library/status?id=...`
-  returns its live activity and final result.
-- `POST /api/force-sync/media` - runs a title-scoped Full Sync, Push, or Pull
-  operation from the detail page; `GET /api/force-sync/media/status?id=...`
-  returns its live activity and final result.
+- `POST /api/force-sync/library` - runs a library-wide push (Set Plembfin as
+  Source of Truth) or pull (Import Watched Status) operation from Settings →
+  Sync Tools; `GET /api/force-sync/library/status?id=...` returns its live
+  activity and final result.
+- `POST /api/force-sync/media` - runs a title-scoped push (Set Plembfin as
+  Source of Truth) or pull (Import Watched Status) operation from the detail
+  page; `GET /api/force-sync/media/status?id=...` returns its live activity
+  and final result.
 
 The tick also runs the scheduled watch-history backup and encrypted backup jobs
 ([backups.md](backups.md)), maintains `data/next-airing-cache.json`, and progressively
@@ -613,7 +615,7 @@ env values (`mergeEnvDefaults` in `configStore.js`).
 ## Synchronization safety modules
 
 - `server/src/utils/forceSyncPlanner.js` collects read-only server state and builds typed, scoped Force Sync actions.
-- `server/src/utils/libraryForceSync.js` powers the Settings library-wide Full Sync, Push To, and Pull From operations.
+- `server/src/utils/libraryForceSync.js` powers the Settings library-wide Set Plembfin as Source of Truth (push) and Import Watched Status (pull) operations.
 - `server/src/utils/forceSyncExecutor.js` validates plan freshness, creates verified destructive-run snapshots, and executes confirmed actions.
 - `server/src/utils/syncPlans.js` stores plan summaries/actions, confirmation state, snapshots, and retention.
 - `server/src/utils/outboundGovernor.js` coordinates per-host pacing, lanes, cooldowns, and safe telemetry.

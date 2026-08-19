@@ -54,13 +54,23 @@ as echoes; scheduled-sync callbacks remain eligible for normal echo-ledger check
 unplayed callbacks are additionally matched against a 14-day outbound unmark ledger.
 
 The detail-page endpoint is deliberately separate from that library-wide policy. It is a
-user-requested repair for one title: Full Sync queries configured servers for that title,
-imports any watched movie or episode found there into Plembfin, and propagates the
-imported state canonically. Pull mode performs only the import, while Push mode replays
-Plembfin's existing canonical state to the selected destination(s). It does not change
-the behavior or safety guarantees of the library-wide `/api/force-sync` planner and
-executor. Jellyfin episode lookups return every matching season/episode item so duplicate
-quality copies are marked consistently.
+user-requested repair for one title, with two independent, explicit operations: Import
+Watched Status (pull) queries configured servers for that title and imports any watched
+movie or episode found there into Plembfin - the import only, nothing is sent back out and
+nothing is removed. Set Plembfin as Source of Truth (push) replays Plembfin's existing
+canonical state to the selected destination(s) without checking their current state first.
+It does not change the behavior or safety guarantees of the library-wide `/api/force-sync`
+planner and executor. Jellyfin episode lookups return every matching season/episode item so
+duplicate quality copies are marked consistently.
+
+A combined "pull everything, reconcile, then push the result everywhere" mode existed
+previously and was removed: it silently inserted duplicate, today-dated watch records when
+a server's metadata rematch changed an item's provider IDs mid-flight (the pull step no
+longer recognized it as an item Plembfin already had), and then immediately propagated that
+bad state to every destination including Trakt. Import alone can still create a duplicate
+local record from the same identity mismatch - that underlying matching issue isn't fixed -
+but with the combined mode gone, a bad import is no longer automatically pushed out
+anywhere; it stays a local, visible discrepancy until Push is run deliberately.
 
 ## One canonical state, input from every connected service
 
@@ -84,6 +94,16 @@ These backfilled plays do not propagate to Plex/Emby/Jellyfin - they record what
 happened on Trakt rather than triggering a new watch event - and pushing a local watch to
 Trakt (`setTraktWatchState`) already sends each individual play with its own timestamp, so
 rewatches recorded locally reach Trakt as separate history entries too.
+
+An earlier version of this feature (before 2026-08-19) inserted these rows without any
+`sync_dispatch_telemetry`, which the manual-dispatch retry sweep below reads as pending
+work - it kept re-sending every backfilled play to every connected target, including back
+out to Trakt, in a loop. Any row inserted during that window still has
+`sync_dispatch_telemetry IS NULL` and keeps getting swept up on every scheduler tick until
+repaired. `GET /api/stale-trakt-import-audit` reports how many such rows remain (read-only);
+`POST /api/stale-trakt-import-repair` marks them settled without touching their watched
+state or re-dispatching them anywhere (`auditStaleTraktImportRows`/
+`repairStaleTraktImportRows` in `dataRepo.js`).
 
 An explicit unplayed webhook/notification or Trakt snapshot removal changes the canonical
 state to unwatched and propagates it. Plex show and season notifications are expanded into
@@ -242,6 +262,6 @@ addresses.
 - Repeated per-item outcomes are condensed: skipped watched items are reported once
   per run with a count, and a resume-progress item that keeps producing the same
   outcome is logged only when that outcome changes.
-- Force sync from the dashboard: **Settings → Sync → Sync Tools → Force Full Sync**
-  (`/settings/sync#sync-tools-force`) streams the same log in-browser and shows
+- Force sync from the dashboard: **Settings → Sync → Sync Tools → Force Sync**
+  (`/settings/sync#sync-tools`) streams the same log in-browser and shows
   per-platform status.

@@ -115,3 +115,44 @@ test("an outbound watch sourced from Trakt (live sync or import) is never echoed
     globalThis.fetch = originalFetch;
   }
 });
+
+test("the stale-telemetry repair settles pre-fix trakt_import rows without touching anything else", async () => {
+  // A row shaped exactly like what the buggy pre-fix importer created: no
+  // sync_dispatch_telemetry at all, so it reads as "pending" to the retry sweep.
+  const stale = await repo.insertWatchRecord({
+    title: "Reacher - S01E07", show_title: "Reacher", media_type: "episode", season: 1, episode: 7,
+    watched_at: "2026-08-10T10:00:00.000Z", source: "trakt_import", imdb_id: "tt14503470",
+  });
+  // A row with telemetry already set (post-fix, or a legitimate CSV import)
+  // must be left completely alone by the repair.
+  const settled = await repo.insertWatchRecord({
+    title: "Reacher - S01E08", show_title: "Reacher", media_type: "episode", season: 1, episode: 8,
+    watched_at: "2026-08-11T10:00:00.000Z", source: "trakt_import", imdb_id: "tt14503474",
+    sync_dispatch_telemetry: "Origin: trakt_import\nDispatch status: pending",
+  });
+  // A non-trakt_import row must never be touched by this repair either.
+  const unrelated = await repo.insertWatchRecord({
+    title: "Silo - S01E01", media_type: "episode", season: 1, episode: 1,
+    watched_at: "2026-08-12T10:00:00.000Z", source: "plex",
+  });
+
+  const auditBefore = repo.auditStaleTraktImportRows();
+  assert.equal(auditBefore.count, 1);
+  assert.equal(auditBefore.sample[0].id, stale.id);
+
+  const result = repo.repairStaleTraktImportRows();
+  assert.equal(result.repaired, 1);
+
+  const db = repo.requireDb();
+  const staleRow = db.prepare("SELECT sync_dispatch_telemetry FROM watch_history WHERE id = ?").get(stale.id);
+  assert.ok(!staleRow.sync_dispatch_telemetry.includes("Dispatch status: pending"));
+  assert.match(staleRow.sync_dispatch_telemetry, /Target plex status: skipped/);
+
+  const settledRow = db.prepare("SELECT sync_dispatch_telemetry FROM watch_history WHERE id = ?").get(settled.id);
+  assert.equal(settledRow.sync_dispatch_telemetry, "Origin: trakt_import\nDispatch status: pending");
+
+  const unrelatedRow = db.prepare("SELECT sync_dispatch_telemetry FROM watch_history WHERE id = ?").get(unrelated.id);
+  assert.equal(unrelatedRow.sync_dispatch_telemetry, null);
+
+  assert.equal(repo.auditStaleTraktImportRows().count, 0);
+});

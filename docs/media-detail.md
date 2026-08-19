@@ -94,28 +94,26 @@ first complete render.
   and season summaries also show the total actual-watch count.
 - **Sync status** - per-platform pills from `sync_dispatch_telemetry`
   (`modules/sync.js`), with retry (`POST /api/retry-sync`). Detail pages also
-  expose **Force Sync** for movies and shows. Its dialog offers **Full Sync** for
-  that title, **Push To** a selected destination (or all), and **Pull From** a
-  selected server (or all). Full Sync checks every configured Plex, Emby, and
-  Jellyfin server, imports watched items that are missing from Plembfin, and
-  replays the resulting canonical state to the selected destinations - including
-  clearing a stale resume position on a title that's already unwatched in
-  Plembfin but still shows partially watched on a server (`collectStaleUnwatchedItems`
-  in `mediaForceSync.js`), and clearing playback position (not just the played
-  flag) on every server an unwatched state is replayed to
-  (`syncMediaUnplayedPlaystate` in `syncOrchestrator.js`). A remote item whose
-  played flag has no reliable played date is skipped rather than imported with
-  a fabricated "just now" date (`remoteItemToMedia`). Pull only
-  imports state; Push only replays Plembfin's canonical state. The asynchronous
+  expose **Force Sync** for movies and shows. Its dialog offers two independent
+  operations, each explicit about what it does: **Set Plembfin as Source of
+  Truth** sends this title's watched state exactly as Plembfin currently has
+  it recorded to a selected destination (or all), overwriting whatever they
+  show, without checking their current state first
+  (`syncCanonicalPlaystate` in `syncOrchestrator.js`, and
+  `syncMediaUnplayedPlaystate` also clears playback position, not just the
+  played flag, on every server an unwatched state is replayed to); and
+  **Import Watched Status** reads watched state from a selected server (or
+  all) and adds anything Plembfin doesn't already have, without sending
+  anything back out or removing anything. A remote item whose played flag has
+  no reliable played date is skipped rather than imported with a fabricated
+  "just now" date (`remoteItemToMedia`). The asynchronous
   `POST /api/force-sync/media` operation is followed through
   `GET /api/force-sync/media/status?id=...`, and the dialog shows its detailed
   live terminal output until completion. Every action asks for confirmation before it
   starts, and the activity header exposes **Cancel operation** while it is running.
-  Settings → Sync → Sync Tools → Force Full Sync
-  keeps the same controls and live terminal inline in the Force Full Sync box for the
-  complete library: its Full Sync unions watched state from
-  connected servers with Plembfin's watched playstate before replaying it to eligible
-  destinations.
+  Settings → Sync → Sync Tools → Force Sync
+  keeps the same two operations and live terminal inline in the Force Sync box for
+  the complete library.
   Jellyfin episode matching keeps every same-season/episode copy, so separate
   1080p and 4K items can both receive the watched or unwatched state.
   `POST /api/retry-sync` and `POST /api/update-watch` both take an optional
@@ -151,7 +149,7 @@ first complete render.
   corrected date to Trakt and every connected Plex/Emby/Jellyfin server as a
   canonical "watched" state in the background (`propagateCorrectedWatchDate` in
   `routes/media.js`, reusing `syncCanonicalPlaystate` - the same replay Force
-  Sync's Push To uses), so the platforms Plembfin is canonical for don't keep
+  Sync's "Set Plembfin as Source of Truth" uses), so the platforms Plembfin is canonical for don't keep
   showing a stale or fabricated date after a manual fix; a record currently
   marked unwatched is left alone. Since Trakt's history is an additive play log,
   this replay clears any existing Trakt plays for the item first

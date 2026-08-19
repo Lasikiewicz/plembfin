@@ -10,6 +10,97 @@ const { applyWatchedStateToNewItem } = await import("../server/src/routes/sync.j
 const { trackerMediaWithSeriesIds } = await import("../server/src/utils/trackerDispatcher.js");
 const { selectTraktWatchedTransitions } = await import("../server/src/utils/trackerSync.js");
 
+test("a rematched episode with new provider ids is still recognized as already watched via the show title", async () => {
+  // Simulates a row recorded before insert-time show-title normalization
+  // stripped trailing years (real historical rows like this exist - normal
+  // inserts today already strip the year, so this has to be written directly
+  // rather than through insertWatchRecord to reproduce the legacy shape).
+  const db = repo.requireDb();
+  const rowId = "legacy-ludwig-row";
+  db.prepare(`INSERT INTO watch_history
+    (id, title, title_lower, media_type, watched_at, source, tvdb_id, season, episode, sync_action, media_key, show_title, show_title_lower, created_at, updated_at)
+    VALUES (@id, @title, @title_lower, 'episode', @watched_at, 'emby', '435298', 1, 1, 'watched', @media_key, @show_title, @show_title_lower, @now, @now)`).run({
+    id: rowId,
+    title: "Ludwig (2024) - S01E01",
+    title_lower: "ludwig (2024) - s01e01",
+    watched_at: "2026-07-01T20:00:00.000Z",
+    media_key: "episode:1:1:tvdb:435298",
+    show_title: "Ludwig (2024)",
+    show_title_lower: "ludwig (2024)",
+    now: Date.now(),
+  });
+
+  // A later metadata rematch swapped this episode onto entirely new provider
+  // ids and dropped the year from both the show title and the full title -
+  // neither the id-based keys nor either exact-string fallback can match
+  // this against the row above; only normalized show-title matching can.
+  const rematched = {
+    title: "Ludwig - S01E01",
+    show_title: "Ludwig",
+    type: "episode",
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    ids: { imdb: "tt99999901" },
+  };
+
+  const found = await repo.findWatchedByAnyMediaKey(rematched);
+  assert.ok(found, "the coordinate fallback should still find the pre-rematch row by normalized show title");
+  assert.equal(found.id, rowId);
+});
+
+test("playstate lookup also survives the same legacy show-title mismatch", async () => {
+  const db = repo.requireDb();
+  const mediaKey = "episode:1:2:tvdb:435298";
+  db.prepare(`INSERT INTO playstate
+    (media_key, title, title_lower, media_type, state, watched_at, last_source, sources, tvdb_id, season, episode, updated_at)
+    VALUES (@media_key, @title, @title_lower, 'episode', 'watched', @watched_at, 'emby', '["emby"]', '435298', 1, 2, @now)`).run({
+    media_key: mediaKey,
+    title: "Ludwig (2024) - S01E02",
+    title_lower: "ludwig (2024) - s01e02",
+    watched_at: "2026-07-01T20:05:00.000Z",
+    now: Date.now(),
+  });
+
+  const state = await repo.getPlaystateForMedia({
+    title: "Ludwig - S01E02",
+    type: "episode",
+    season: 1,
+    episode: 2,
+    ids: { imdb: "tt99999902" },
+    isValid: true,
+  });
+  assert.equal(state?.state, "watched");
+  assert.equal(state?.media_key, mediaKey);
+});
+
+test("two unrelated shows sharing a season/episode number are not conflated", async () => {
+  const inserted = await repo.insertWatchRecord({
+    title: "Show One - S01E01",
+    show_title: "Show One",
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    watched_at: "2026-07-01T20:00:00.000Z",
+    source: "plex",
+  });
+
+  const other = {
+    title: "Show Two - S01E01",
+    show_title: "Show Two",
+    type: "episode",
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    ids: {},
+  };
+
+  assert.equal(await repo.findWatchedByAnyMediaKey(other), null);
+  // Sanity check the fixture itself is still found under its own identity.
+  const same = await repo.findWatchedByAnyMediaKey({ title: "Show One - S01E01", show_title: "Show One", type: "episode", season: 1, episode: 1, ids: {} });
+  assert.equal(same.id, inserted.id);
+});
+
 test("imported watched records become canonical playstate and remain queued for app sync", async () => {
   const result = await repo.batchInsertWatchRecords([{
     title: "Fallout - S01E01",

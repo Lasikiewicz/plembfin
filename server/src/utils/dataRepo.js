@@ -67,6 +67,7 @@ const selectAllEpisodesStmt = db.prepare("SELECT * FROM watch_history WHERE medi
 const deleteByIdStmt = db.prepare("DELETE FROM watch_history WHERE id = ?");
 const deleteByMediaKeyStmt = db.prepare("DELETE FROM watch_history WHERE media_key = ?");
 const findExistingStmt = db.prepare("SELECT * FROM watch_history WHERE media_key = ? AND watched_at = ? LIMIT 1");
+const findWatchedBySeasonEpisodeStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = 'episode' AND season = ? AND episode = ? AND sync_action = 'watched'");
 const findWatchedByKeyStmt = db.prepare("SELECT * FROM watch_history WHERE media_key = ? AND sync_action = 'watched' LIMIT 1");
 const findWatchedByCoordinatesStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = ? AND (season IS ? OR season = ?) AND (episode IS ? OR episode = ?) AND title_lower = ? AND sync_action = 'watched' LIMIT 1");
 const findWatchedByShowCoordinatesStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = 'episode' AND season = ? AND episode = ? AND show_title_lower = ? AND sync_action = 'watched' LIMIT 1");
@@ -203,6 +204,15 @@ function preferredShowTitle(current, candidate) {
 
 function removeTrailingYear(title) {
   return cleanString(title).replace(/\s*\(\d{4}\)\s*$/, "").trim();
+}
+
+// A show identity that survives a media-server metadata rematch (which
+// swaps every episode's provider ids and can toggle a trailing "(YYYY)" on
+// or off the show title) or an inconsistent import. Deliberately looser than
+// canonicalTitleKey alone - "Ludwig" and "Ludwig (2024)" must resolve to the
+// same show, or the same real show ends up split into two in the app.
+function canonicalShowTitleKey(value) {
+  return canonicalTitleKey(removeTrailingYear(value || ""));
 }
 
 function showTitleFrom(title = "") {
@@ -811,6 +821,7 @@ const selectPlaystateByTitleStmt = db.prepare("SELECT * FROM playstate WHERE med
 const selectPlaystateByImdbStmt = db.prepare("SELECT * FROM playstate WHERE media_type = ? AND imdb_id = ?");
 const selectPlaystateByTmdbStmt = db.prepare("SELECT * FROM playstate WHERE media_type = ? AND tmdb_id = ?");
 const selectPlaystateByTvdbStmt = db.prepare("SELECT * FROM playstate WHERE media_type = ? AND tvdb_id = ?");
+const selectPlaystateBySeasonEpisodeStmt = db.prepare("SELECT * FROM playstate WHERE media_type = 'episode' AND season = ? AND episode = ?");
 const upsertPlaystateStmt = db.prepare(
   `INSERT INTO playstate (media_key, title, title_lower, media_type, state, watched_at, last_source, sources, imdb_id, tmdb_id, tvdb_id, season, episode, poster_url, updated_at)
    VALUES (@media_key, @title, @title_lower, @media_type, @state, @watched_at, @last_source, @sources, @imdb_id, @tmdb_id, @tvdb_id, @season, @episode, @poster_url, @updated_at)
@@ -957,7 +968,16 @@ export async function getPlaystateForMedia(media) {
   const related = selectPlaystateByTitleStmt
     .all(record.media_type, record.title.toLowerCase())
     .filter((row) => sameEpisodeCoordinates(record, row));
-  const row = newestByUpdatedAt([exact, ...playstateRowsForIdentity(record), ...related]);
+  // Same rematch/legacy-normalization gap as findWatchedByAnyMediaKey: none
+  // of the exact matches above catch a show whose title changed (a trailing
+  // "(YYYY)" only one side carries) alongside a provider-id rematch. Compare
+  // every playstate row at this season+episode by normalized show title
+  // before concluding there's no existing state for this episode.
+  const byShowTitle = record.media_type === "episode" && record.season != null && record.episode != null
+    ? selectPlaystateBySeasonEpisodeStmt.all(record.season, record.episode)
+      .filter((row) => canonicalShowTitleKey(showTitleFrom(row.title)) === canonicalShowTitleKey(showTitleFrom(record.title)))
+    : [];
+  const row = newestByUpdatedAt([exact, ...playstateRowsForIdentity(record), ...related, ...byShowTitle]);
   return row ? playstateFromRow(row) : null;
 }
 
@@ -2936,6 +2956,48 @@ export function requireDb() {
   return db;
 }
 
+// One-time repair for the Trakt play-history import incident (2026-08-19): the
+// feature originally inserted "trakt_import" watch rows with no
+// sync_dispatch_telemetry, so the scheduler's manual-dispatch retry sweep
+// treated every one of them as pending work and kept re-sending them to
+// every connected target, including back out to Trakt. The fix stops new
+// rows from being created this way (they now always carry settled
+// telemetry), but rows already inserted before the fix was deployed are
+// still sitting there with telemetry = NULL and still get swept up on every
+// scheduler tick. NULL telemetry on a "trakt_import" row uniquely identifies
+// this: the CSV/JSON bulk importer always writes telemetry via
+// defaultTelemetry(), and the play-history importer has written explicit
+// "skipped" telemetry since the fix, so nothing legitimate should ever have
+// a NULL value here.
+const STALE_TRAKT_IMPORT_TELEMETRY = [
+  "Origin: trakt_import",
+  "Loop-check: Skipped propagation",
+  "Dispatch status: skipped",
+  "Details: Historical play imported before dispatch telemetry was recorded on import; repaired to stop repeated re-dispatch.",
+  "Target plex status: skipped - Historical import; not re-propagated",
+  "Target emby status: skipped - Historical import; not re-propagated",
+  "Target jellyfin status: skipped - Historical import; not re-propagated",
+].join("\n");
+const selectStaleTraktImportRowsStmt = db.prepare(
+  "SELECT id, title, watched_at, created_at FROM watch_history WHERE source = 'trakt_import' AND sync_action = 'watched' AND sync_dispatch_telemetry IS NULL ORDER BY created_at ASC",
+);
+const repairStaleTraktImportRowsStmt = db.prepare(
+  "UPDATE watch_history SET sync_dispatch_telemetry = ?, sync_retry_count = 0, sync_next_retry_at = 0, updated_at = ? WHERE source = 'trakt_import' AND sync_action = 'watched' AND sync_dispatch_telemetry IS NULL",
+);
+
+export function auditStaleTraktImportRows({ sampleSize = 25 } = {}) {
+  const rows = selectStaleTraktImportRowsStmt.all();
+  return {
+    count: rows.length,
+    sample: rows.slice(0, sampleSize).map((row) => ({ id: row.id, title: row.title, watchedAt: row.watched_at, createdAt: row.created_at })),
+  };
+}
+
+export function repairStaleTraktImportRows() {
+  const result = repairStaleTraktImportRowsStmt.run(STALE_TRAKT_IMPORT_TELEMETRY, Date.now());
+  return { repaired: result.changes };
+}
+
 // --- Maintenance helpers (used by index.js admin endpoints) ----------------
 export async function findExistingWatch(mediaKey, watchedAt) {
   return rowToWatch(findExistingStmt.get(mediaKey, watchedAt));
@@ -2981,6 +3043,20 @@ export async function findWatchedByAnyMediaKey(media) {
     if (titleLower) {
       const row = findWatchedByCoordinatesStmt.get("episode", season, season, episode, episode, titleLower);
       if (row) return rowToWatch(row);
+    }
+    // Last resort: the exact-string matches above found nothing, but this
+    // could still be the same real episode after a media-server metadata
+    // rematch (every provider id changed) or a trailing "(YYYY)" that only
+    // one side carries - e.g. "Ludwig" vs "Ludwig (2024)". Without this, a
+    // rematch makes every affected episode look brand new and gets
+    // duplicated instead of recognized on the next sync.
+    if (rawShowTitle) {
+      const targetKey = canonicalShowTitleKey(rawShowTitle);
+      if (targetKey) {
+        const match = findWatchedBySeasonEpisodeStmt.all(season, episode)
+          .find((row) => canonicalShowTitleKey(row.show_title) === targetKey);
+        if (match) return rowToWatch(match);
+      }
     }
   } else if (type === "movie") {
     const titleLower = (media.title || "").trim().toLowerCase();

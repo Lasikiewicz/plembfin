@@ -120,8 +120,8 @@ function libraryForceSyncElements() {
   return forceSyncElements("library");
 }
 
-function mediaForceSyncModeLabel(mode = "full") {
-  return mode === "push" ? "Push To" : mode === "pull" ? "Pull From" : "Full Sync";
+function mediaForceSyncModeLabel(mode = "push") {
+  return mode === "pull" ? "Import Watched Status" : "Set Plembfin as Source of Truth";
 }
 
 function mediaForceSyncServerLabel(server = "all") {
@@ -225,7 +225,7 @@ function openMediaForceSyncDialog(button) {
   resetMediaForceSyncActivity(elements);
   setMediaForceSyncControlsBusy(elements, false);
   elements.modal.classList.remove("hidden");
-  elements.modal.querySelector("[data-media-force-sync-run=full]")?.focus();
+  elements.modal.querySelector("[data-media-force-sync-run=push]")?.focus();
 }
 
 function prepareLibraryForceSyncSession() {
@@ -263,14 +263,11 @@ export function initLibraryForceSyncPanel() {
 
 function forceSyncConfirmation(mode, session, elements) {
   const title = session.payload.type === "library" ? "the full library" : `"${session.payload.title}"`;
-  if (mode === "full") {
-    return `This will pull watched state from all connected servers, reconcile ${title} in Plembfin, and push the resulting state to every eligible destination. Continue?`;
-  }
   if (mode === "push") {
     const progress = session.payload.type === "library" ? " and saved resume positions" : "";
-    return `This will push Plembfin's canonical watched state${progress} for ${title} to ${mediaForceSyncServerLabel(elements.pushTarget?.value || "all")}. Continue?`;
+    return `This will send Plembfin's currently recorded watched state${progress} for ${title} to ${mediaForceSyncServerLabel(elements.pushTarget?.value || "all")}, overwriting whatever it currently shows. Nothing is checked or pulled in first — if Plembfin's own record is wrong, this sends that wrong state out too. Continue?`;
   }
-  return `This will pull watched state for ${title} from ${mediaForceSyncServerLabel(elements.pullSource?.value || "all")} into Plembfin. It will not send changes to media servers. Continue?`;
+  return `This will read watched status for ${title} from ${mediaForceSyncServerLabel(elements.pullSource?.value || "all")} and add anything Plembfin doesn't already have. Nothing is sent back out, and nothing is marked unwatched or removed. Continue?`;
 }
 
 async function confirmAndRunMediaForceSync(mode) {
@@ -363,14 +360,12 @@ async function finishMediaForceSyncOperation(payload, activity, error = "") {
   }
 
   if (payload.mode === "pull") {
-    setMessage(`Pull completed: found ${Number(result.found || 0)} watched item${Number(result.found || 0) === 1 ? "" : "s"}; added ${Number(result.imported || 0)} to Plembfin.`, "success");
-  } else if (payload.mode === "push") {
+    setMessage(`Import completed: found ${Number(result.found || 0)} watched item${Number(result.found || 0) === 1 ? "" : "s"}; added ${Number(result.imported || 0)} to Plembfin.`, "success");
+  } else {
     const progressMessage = payload.type === "library" && Number(result.progressSynced || 0) > 0
       ? ` ${Number(result.progressSynced)} resume position${Number(result.progressSynced) === 1 ? "" : "s"} also sent.`
       : "";
     setMessage(`Push completed to ${mediaForceSyncServerLabel(payload.push_to || "all")}: ${Number(result.synced || 0)} item${Number(result.synced || 0) === 1 ? "" : "s"} processed.${progressMessage}`, "success");
-  } else {
-    setMessage(`Full Sync completed: found ${Number(result.found || 0)} watched item${Number(result.found || 0) === 1 ? "" : "s"}; added ${Number(result.imported || 0)} to Plembfin.`, "success");
   }
 }
 

@@ -17,6 +17,7 @@ test("normalizes a show detail Force Sync request and provider ids", () => {
       name: "The Acolyte",
       tmdbId: 4194,
       tvdb_id: "41077",
+      mode: "push",
     }),
     {
       title: "The Acolyte",
@@ -24,10 +25,21 @@ test("normalizes a show detail Force Sync request and provider ids", () => {
       ids: { imdb: "", tmdb: "4194", tvdb: "41077" },
       season: null,
       episode: null,
-      mode: "full",
+      mode: "push",
       source: "",
       target: "",
     },
+  );
+});
+
+test("rejects a Force Sync request with no mode or an unrecognized mode", () => {
+  assert.throws(
+    () => normalizeMediaForceSyncRequest({ title: "The Acolyte", type: "show" }),
+    /mode must be push or pull/,
+  );
+  assert.throws(
+    () => normalizeMediaForceSyncRequest({ title: "The Acolyte", type: "show", mode: "full" }),
+    /mode must be push or pull/,
   );
 });
 
@@ -73,10 +85,6 @@ test("normalizes target-specific push and pull operations", () => {
 });
 
 test("normalizes the Settings library Force Sync options", () => {
-  assert.deepEqual(
-    normalizeLibraryForceSyncRequest({ mode: "full_sync" }),
-    { title: "All media", type: "library", mode: "full", source: "", target: "" },
-  );
   assert.equal(
     normalizeLibraryForceSyncRequest({ mode: "pull_from", pull_from: "jellyfin" }).source,
     "jellyfin",
@@ -85,6 +93,7 @@ test("normalizes the Settings library Force Sync options", () => {
     normalizeLibraryForceSyncRequest({ mode: "push_to", push_to: "emby" }).target,
     "emby",
   );
+  assert.throws(() => normalizeLibraryForceSyncRequest({ mode: "full_sync" }), /mode must be push or pull/);
 });
 
 test("Force Sync activity records a user cancellation", () => {

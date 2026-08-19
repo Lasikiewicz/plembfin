@@ -685,8 +685,8 @@ export async function handleMediaForceSyncStatus(req, res) {
   return sendJson(res, { ok: true, ...activity }, 200, { "Cache-Control": "no-store" });
 }
 
-// Settings uses the same Full Sync / Push To / Pull From activity surface as
-// the detail page, but its operation is library-wide rather than title-scoped.
+// Settings uses the same push/pull activity surface as the detail page, but
+// its operation is library-wide rather than title-scoped.
 export async function handleLibraryForceSync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);

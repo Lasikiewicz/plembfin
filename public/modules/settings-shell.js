@@ -72,9 +72,8 @@ const SECTIONS = {
     subPanels: ["sync-tools"],
     subSections: [
       { id: "sync-tools-repair", label: "Repair Recent Items", description: "Check recent watched items for missing records" },
-      { id: "sync-tools-force", label: "Full Sync", description: "Pull watched state from connected servers and push it to eligible destinations" },
-      { id: "sync-tools-push", label: "Push To", description: "Send watched status and resume positions to one server or all connected servers" },
-      { id: "sync-tools-pull", label: "Pull From", description: "Import watched status from one server or all connected servers" },
+      { id: "sync-tools-push", label: "Set Plembfin as Source of Truth", description: "Send Plembfin's currently recorded watched status and resume positions to one server or all connected servers, overwriting what they show" },
+      { id: "sync-tools-pull", label: "Import Watched Status", description: "Add watched status Plembfin doesn't already have from one server or all connected servers; never sends anything out or removes anything" },
     ],
     isDisplayOnly: true,
   },

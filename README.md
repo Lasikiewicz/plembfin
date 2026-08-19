@@ -37,8 +37,8 @@
 | | |
 |---|---|
 | **Plembfin-canonical sync** | Plembfin's watched/unwatched state is pushed to every connected app that contains the media; platform drift is repaired automatically |
-| **Detail-page Force Sync** | From any movie or show page, choose Full Sync, Push To, or Pull From for that title; follow detailed live operation output, including duplicate-quality Jellyfin episode copies |
-| **Library-wide Force Sync** | From Settings → Sync Tools, use the same Full Sync, Push To, and Pull From options for the complete library with a live terminal; Full Sync unions watched state from connected apps with Plembfin and replays it to eligible destinations |
+| **Detail-page Force Sync** | From any movie or show page, choose Set Plembfin as Source of Truth or Import Watched Status for that title; follow detailed live operation output, including duplicate-quality Jellyfin episode copies |
+| **Library-wide Force Sync** | From Settings → Sync Tools, use the same Set Plembfin as Source of Truth or Import Watched Status options for the complete library with a live terminal |
 | **New media arrives watched** | Add a film or show whose current Plembfin state is watched and it is marked watched on that server as it appears - no re-watching prompts on a rebuilt library, no manual catch-up. A newer unwatch overrides older watch history |
 | **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |
 | **Rewatch tracking** | Watching a movie or episode again logs a new watch instead of overwriting the old one; detail pages show a full watch history with the date and app for every play. The duplicate-cleanup tool only removes rows recording the same watch event, so rewatches are never collapsed |
@@ -110,12 +110,13 @@
 
 ## Sync safety and operations
 
-The Settings Force Full Sync box and detail-page Force Sync dialog offer Full Sync, Push To,
-and Pull From with live activity output. Each action is confirmed before it starts, and a
-running operation can be cancelled from its activity header. Settings Full Sync scans connected Plex, Emby, and Jellyfin
-libraries, unions watched items with Plembfin's watched playstate, and replays the result
-to eligible destinations; Pull From imports without outbound writes, while Push To only
-replays Plembfin's canonical watched state. The separate planner endpoint still provides
+The Settings Force Sync box and detail-page Force Sync dialog each offer two explicit
+operations with live activity output: Import Watched Status scans connected Plex, Emby, and
+Jellyfin for watched items and adds anything Plembfin doesn't already have, without any
+outbound writes; Set Plembfin as Source of Truth replays Plembfin's canonical watched state
+to the selected destination(s), overwriting whatever they show without checking first. Each
+action is confirmed before it starts, and a running operation can be cancelled from its
+activity header. The separate planner endpoint still provides
 scoped, typed actions with stale-plan protection and verified pre-run snapshots for
 automation and compatibility. Server roles can be bidirectional, source-only,
 destination-only, or monitor-only. Failed server scans are reported in the terminal rather

@@ -30,6 +30,8 @@ import { outboundGovernorTelemetry } from "../utils/outboundGovernor.js";
 import capacityRanges from "../capacityRanges.json" with { type: "json" };
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
 import {
+  auditStaleTraktImportRows,
+  repairStaleTraktImportRows,
   countPlaybackProgressRows,
   countWatchedPlaystateRows,
   watchHistoryQualityCounts,
@@ -386,6 +388,33 @@ export async function handlePhantomWatchRepair(req, res) {
     return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
   } catch (error) {
     return sendJson(res, { error: error.message || "Phantom watch repair failed" }, 500);
+  }
+}
+
+// One-time cleanup for the Trakt play-history import incident (2026-08-19) -
+// see the comment on auditStaleTraktImportRows/repairStaleTraktImportRows in
+// dataRepo.js. Audit is read-only so it is safe to poll before confirming.
+export async function handleStaleTraktImportAudit(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const result = auditStaleTraktImportRows();
+  return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
+}
+
+export async function handleStaleTraktImportRepair(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const result = repairStaleTraktImportRows();
+    writeAuditLog("history.stale_trakt_import_repair", {
+      ip: req.ip || req.socket?.remoteAddress,
+      detail: { repaired: result.repaired },
+    });
+    return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    return sendJson(res, { error: error.message || "Stale Trakt import repair failed" }, 500);
   }
 }
 

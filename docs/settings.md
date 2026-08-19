@@ -13,7 +13,7 @@ Desktop renders the grouped sidebar; mobile uses the **Settings section** select
 | Media Servers | Media Servers, Seerr, Webhooks | `/settings/media-servers#media-servers`, `/settings/media-servers#seerr`, `/settings/media-servers#webhooks` |
 | Connections | Trakt | `/settings/import` |
 | Metadata | Metadata Providers, Refresh Metadata (TMDB, TVDB) | `/settings/metadata#metadata-providers`, `/settings/metadata#refresh-metadata` |
-| Sync | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Full Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
+| Sync | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
 | Backup / Restore | Backup Settings (Local, Remote), Restore (Local, Remote) | `/settings/backup-restore#backups`, `/settings/backup-restore#restore` |
 | Tools | Database Repairs, Library Rebuilds and Backfills | `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds` |
 | Logs | Logs | `/settings/logs` |
@@ -46,18 +46,19 @@ authenticated update stream and refreshes the active page as imported changes co
 
 Full Sync Watchstates replays Plembfin's canonical watched and resume rows in two phases. It takes a fixed snapshot for each phase, temporarily suppresses inbound media-server callbacks and scheduled catch-up work, and shows rows processed, throughput, and an estimated remaining time. The shared sync-operation lock prevents it from overlapping Force Sync or a backup restore. The Stop Restore control cancels future batches; already completed batches remain applied. Reset Restore Lock is an administrator-confirmed recovery action for a run abandoned by a browser or server restart; it stops any in-flight restore before allowing another run to start.
 
-Force Full Sync contains the same Full Sync / Push To / Pull From controls and live activity
-terminal used by media detail pages. The controls stay inline in the Force Full Sync box.
-Each action asks for confirmation before it starts, and the activity header exposes
-**Cancel operation** while a run is in progress. Cancellation stops before the next
-library item; writes already completed remain applied.
-Full Sync scans the configured Plex, Emby, and
-Jellyfin libraries for watched items, unions those results with Plembfin's watched
-playstate, and replays the resulting watched state to every eligible destination. Push To
-replays Plembfin's watched playstate to one destination or all destinations. Pull From
-imports watched state from one server or all configured servers without outbound writes.
-The operation is library-wide, and its status is polled through the shared Force Sync
-activity ledger until it completes.
+Force Sync contains the same two controls and live activity terminal used by media detail
+pages. The controls stay inline in the Force Sync box. Each action asks for confirmation
+before it starts, and the activity header exposes **Cancel operation** while a run is in
+progress. Cancellation stops before the next library item; writes already completed remain
+applied.
+**Set Plembfin as Source of Truth** replays Plembfin's watched playstate (and saved resume
+positions) to one destination or all destinations, overwriting whatever they currently
+show - it does not check their current state first.
+**Import Watched Status** scans the configured Plex, Emby, and Jellyfin libraries for
+watched items and adds anything Plembfin doesn't already have, without sending anything
+back out or removing anything.
+Both operations are library-wide, and status is polled through the shared Force Sync
+activity ledger until each completes.
 
 ## Multi-view aggregation
 

@@ -1,6 +1,6 @@
 // The Settings Force Sync dialog operates on the whole library. It mirrors
-// the explicit detail-page Full/Push/Pull actions while keeping the title
-// lookup out of the request: the library scan is performed once, then the
+// the explicit detail-page Push/Pull actions while keeping the title lookup
+// out of the request: the library scan is performed once, then the
 // resulting canonical state is replayed item by item.
 
 import { appendSyncHistory, loadMediaConfig } from "./configStore.js";
@@ -25,22 +25,19 @@ import {
 } from "./dataRepo.js";
 
 const MEDIA_SERVERS = ["plex", "emby", "jellyfin"];
-const FORCE_SYNC_MODES = ["full", "push", "pull"];
+const FORCE_SYNC_MODES = ["push", "pull"];
 const CANONICAL_PAGE_SIZE = 100;
 
 function clean(value) {
   return String(value ?? "").trim();
 }
 
-function modeLabel(mode = "full") {
-  if (mode === "push") return "Push To";
-  if (mode === "pull") return "Pull From";
-  return "Full Sync";
+function modeLabel(mode = "push") {
+  return mode === "pull" ? "Import Watched Status" : "Set Plembfin as Source of Truth";
 }
 
 function modeFrom(input = {}) {
-  const raw = clean(input.mode || input.action || "full").toLowerCase();
-  if (raw === "full_sync" || raw === "fullsync") return "full";
+  const raw = clean(input.mode || input.action).toLowerCase();
   if (raw === "push_to") return "push";
   if (raw === "pull_from") return "pull";
   return raw;
@@ -53,7 +50,7 @@ export function normalizeLibraryForceSyncRequest(input = {}) {
   const source = sourceValue === "all" ? "" : sourceValue;
   const target = targetValue === "all" ? "" : targetValue;
 
-  if (!FORCE_SYNC_MODES.includes(mode)) throw new Error("mode must be full, push, or pull");
+  if (!FORCE_SYNC_MODES.includes(mode)) throw new Error("mode must be push or pull");
   if (source && !MEDIA_SERVERS.includes(source)) throw new Error("source must be plex, emby, or jellyfin");
   if (target && !MEDIA_SERVERS.includes(target)) throw new Error("target must be plex, emby, or jellyfin");
 
@@ -199,12 +196,11 @@ function sourceResults(config, scan) {
   });
 }
 
-async function collectLibraryItems(config, requested, now, logger, isCancelled = () => false) {
+async function collectLibraryItems(config, requested, now, logger) {
   const scope = requested.source ? { servers: [requested.source] } : {};
   const scan = await collectServerWatchedItems(config, { scope, logger });
   const remoteItems = MEDIA_SERVERS.flatMap((source) => scan.itemsByServer?.[source] || []);
-  const canonicalItems = requested.mode === "full" ? await listCanonicalWatchedItems(logger, isCancelled) : [];
-  const groups = mergeLibraryItems([...remoteItems, ...canonicalItems]);
+  const groups = mergeLibraryItems(remoteItems);
   const items = groups.map((group) => plannerMediaToSyncMedia(
     group,
     now,
@@ -373,7 +369,7 @@ export async function forceSyncLibraryState(input, { config = null, now = Date.n
 
   const collection = requested.mode === "push"
     ? await collectPushItems(logger, now, isCancelled)
-    : await collectLibraryItems(resolvedConfig, requested, now, logger, isCancelled);
+    : await collectLibraryItems(resolvedConfig, requested, now, logger);
   const loopStore = createLoopStore();
   const results = [];
   let cancelled = Boolean(isCancelled());

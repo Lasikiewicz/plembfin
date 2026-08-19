@@ -1687,20 +1687,12 @@
                             <div class="settings-actions hidden" style="margin-top: var(--space-3);">
                               <button id="previewForceSyncButton" class="button-ghost sync-action-btn hidden" type="button" title="Inspect planned Force Sync changes before writing">Preview Force Sync</button>
                               <button id="stopSyncButton" class="button-danger sync-tools-cancel-button hidden" type="button" title="Cancel a running force sync or clear a sync lock left behind by a server restart">Stop / Reset Sync</button>
-                              <button id="forceSyncButton" class="button-primary sync-action-btn hidden" type="button" title="Open Full Sync, Push To, and Pull From options">Force Sync Options</button>
+                              <button id="forceSyncButton" class="button-primary sync-action-btn hidden" type="button" title="Open Set Plembfin as Source of Truth and Import Watched Status options">Force Sync Options</button>
                             </div>
-                            <div id="sync-tools-force" class="media-force-sync-choice">
-                                  <span class="media-force-sync-choice-copy">
-                                    <strong>Full Sync</strong>
-                                    <small>Collects watched status from every connected Plex, Emby, and Jellyfin server.<br>Combines the results in Plembfin, then sends the final status to every eligible destination.<br><span class="sync-tools-when-to-use"><strong>When to use:</strong> Run this after repairing a library or when every connected app needs the same watched status.</span></small>
-                                  </span>
-                                  <button class="button-primary media-force-sync-run sync-tool-button" type="button" data-library-force-sync-run="full" aria-label="Run Full Sync">Run</button>
-                                </div>
-
           <div id="sync-tools-push" class="media-force-sync-target-row">
             <div class="media-force-sync-target-copy">
-              <label for="settingsForceSyncPushTarget">Push To</label>
-                                    <small>Sends Plembfin's watched status and saved resume positions to the selected server or all connected servers.<br><span class="sync-tools-when-to-use"><strong>When to use:</strong> Use this when Plembfin has the correct state and you need to send it to other servers.</span></small>
+              <label for="settingsForceSyncPushTarget">Set Plembfin as Source of Truth</label>
+                                    <small>Sends Plembfin's currently recorded watched status and saved resume positions to the selected server or all connected servers, overwriting whatever they currently show.<br>Nothing is checked or pulled in first — if Plembfin's own record is wrong, this sends that wrong state out too.<br><span class="sync-tools-when-to-use"><strong>When to use:</strong> Use this when you've confirmed Plembfin's record is correct and want every connected app to match it.</span></small>
                                   </div>
                                   <select id="settingsForceSyncPushTarget" class="field media-force-sync-select">
                                     <option value="plex">Plex</option>
@@ -1713,8 +1705,8 @@
 
           <div id="sync-tools-pull" class="media-force-sync-target-row">
             <div class="media-force-sync-target-copy">
-              <label for="settingsForceSyncPullSource">Pull From</label>
-                                    <small>Imports watched status from the selected server or all connected servers into Plembfin.<br>Does not send changes to the other servers.<br><span class="sync-tools-when-to-use"><strong>When to use:</strong> Use this when you need to import watched status from a server without updating the others.</span></small>
+              <label for="settingsForceSyncPullSource">Import Watched Status</label>
+                                    <small>Reads watched status from the selected server or all connected servers and adds anything Plembfin doesn't already have.<br>Purely additive: never sends anything back out, and never marks anything unwatched or removes existing history.<br><span class="sync-tools-when-to-use"><strong>When to use:</strong> Use this to bring watched status in from a server without changing anything else.</span></small>
                                   </div>
                                   <select id="settingsForceSyncPullSource" class="field media-force-sync-select">
                                     <option value="plex">Plex</option>
@@ -1768,8 +1760,13 @@
                       </div>
 
                       <div style="margin-bottom: var(--space-1);">
-                        <b style="display: block; margin-bottom: 2px;">Full Sync</b>
-                        <p style="margin: 0; line-height: 1.4;">Collects watched status from connected Plex, Emby, and Jellyfin servers, combines it in Plembfin, and sends the result to every eligible destination.<br>Push To sends Plembfin's watched status and saved resume positions to the selected server or all servers.<br>Pull From imports watched status from the selected server or all servers into Plembfin.</p>
+                        <b style="display: block; margin-bottom: 2px;">Set Plembfin as Source of Truth</b>
+                        <p style="margin: 0; line-height: 1.4;">Sends Plembfin's currently recorded watched status and saved resume positions to the selected server or all servers, overwriting whatever they currently show. Nothing is checked or pulled in first.</p>
+                      </div>
+
+                      <div style="margin-bottom: var(--space-1);">
+                        <b style="display: block; margin-bottom: 2px;">Import Watched Status</b>
+                        <p style="margin: 0; line-height: 1.4;">Reads watched status from the selected server or all servers and adds anything Plembfin doesn't already have. Never sends anything back out, and never marks anything unwatched or removes existing history.</p>
                       </div>
 
                       <div>
@@ -1897,7 +1894,7 @@
                           When you mark something as watched (on any platform), Plembfin automatically propagates that state to your other configured servers every 60 seconds.
                         </p>
                         <p style="margin: 0; line-height: 1.4;">
-                          Resume positions sync similarly. Use the controls in the Force Sync box when you need a library-wide Full Sync, Push To, or Pull From operation with live terminal output.
+                          Resume positions sync similarly. Use the controls in the Force Sync box when you need a library-wide Set Plembfin as Source of Truth or Import Watched Status operation with live terminal output.
                         </p>
                       </div>
                     </article>
@@ -2086,18 +2083,10 @@
         </div>
         <div class="modal-body media-force-sync-body">
           <div class="media-force-sync-options" aria-label="Force Sync options">
-            <div class="media-force-sync-choice">
-              <span class="media-force-sync-choice-copy">
-                <strong>Full Sync</strong>
-                <small>Pull watched state from connected servers, reconcile Plembfin, then push this media item to every eligible destination.</small>
-              </span>
-              <button class="button-primary media-force-sync-run" type="button" data-media-force-sync-run="full" aria-label="Run Full Sync">Run</button>
-            </div>
-
             <div class="media-force-sync-target-row">
               <div class="media-force-sync-target-copy">
-                <label for="mediaForceSyncPushTarget">Push To</label>
-                <small>Send Plembfin’s canonical state to one destination or all of them.</small>
+                <label for="mediaForceSyncPushTarget">Set Plembfin as Source of Truth</label>
+                <small>Sends this title's watched state exactly as Plembfin currently has it recorded to the selected destination(s), overwriting whatever they show. Nothing is checked first — if Plembfin's record is wrong, this sends that wrong state out too.</small>
               </div>
               <select id="mediaForceSyncPushTarget" class="field media-force-sync-select">
                 <option value="plex">Plex</option>
@@ -2110,8 +2099,8 @@
 
             <div class="media-force-sync-target-row">
               <div class="media-force-sync-target-copy">
-                <label for="mediaForceSyncPullSource">Pull From</label>
-                <small>Import watched state from one server without sending it elsewhere.</small>
+                <label for="mediaForceSyncPullSource">Import Watched Status</label>
+                <small>Reads watched status for this title from one server and adds anything Plembfin doesn't already have. Never sends anything back out, and never marks anything unwatched or removes existing history.</small>
               </div>
               <select id="mediaForceSyncPullSource" class="field media-force-sync-select">
                 <option value="plex">Plex</option>

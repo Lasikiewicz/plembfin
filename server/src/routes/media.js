@@ -766,7 +766,7 @@ export async function handleWatchDates(req, res) {
 
 // A manually added or corrected watched date should also reach every
 // connected platform, not just Plembfin's own database - the same replay
-// Force Sync's "Push To" already does for canonical state, so Trakt (which
+// Force Sync's "Set Plembfin as Source of Truth" already does for canonical state, so Trakt (which
 // accepts a specific historical watched_at) and Plex/Emby/Jellyfin don't keep
 // showing the old, missing, or a previously-fabricated date after a manual
 // fix. Fire-and-forget: the edit itself must not wait on several outbound API
