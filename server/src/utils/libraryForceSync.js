@@ -5,6 +5,7 @@
 
 import { appendSyncHistory, loadMediaConfig } from "./configStore.js";
 import { createLoopStore } from "./loopStore.js";
+import { runWithConcurrency } from "./concurrency.js";
 import {
   collectServerWatchedItems,
   configuredSyncServers,
@@ -25,6 +26,10 @@ import {
 } from "./dataRepo.js";
 
 const MEDIA_SERVERS = ["plex", "emby", "jellyfin"];
+// See the identical comment in mediaForceSync.js - per-item outbound calls
+// already run in parallel across targets and are throttled per-host by the
+// outbound governor, so this only shortens wall-clock time on a large library.
+const FORCE_SYNC_ITEM_CONCURRENCY = 6;
 const FORCE_SYNC_MODES = ["push", "pull"];
 const CANONICAL_PAGE_SIZE = 100;
 
@@ -373,12 +378,16 @@ export async function forceSyncLibraryState(input, { config = null, now = Date.n
   const loopStore = createLoopStore();
   const results = [];
   let cancelled = Boolean(isCancelled());
+  let itemsCancellationLogged = false;
 
-  for (const media of collection.items) {
+  await runWithConcurrency(collection.items, async (media) => {
     if (isCancelled()) {
       cancelled = true;
-      logger(`[${requested.mode}] Cancellation acknowledged; stopping before remaining items.`);
-      break;
+      if (!itemsCancellationLogged) {
+        itemsCancellationLogged = true;
+        logger(`[${requested.mode}] Cancellation acknowledged; stopping before remaining items.`);
+      }
+      return;
     }
     try {
       const { record, inserted, summary } = await syncOneLibraryItem(media, requested, resolvedConfig, loopStore, logger);
@@ -415,14 +424,18 @@ export async function forceSyncLibraryState(input, { config = null, now = Date.n
         error: message,
       });
     }
-  }
+  }, FORCE_SYNC_ITEM_CONCURRENCY);
 
   if (requested.mode === "push" && !cancelled) {
-    for (const media of collection.progressItems || []) {
+    let progressCancellationLogged = false;
+    await runWithConcurrency(collection.progressItems || [], async (media) => {
       if (isCancelled()) {
         cancelled = true;
-        logger(`[${requested.mode}] Cancellation acknowledged; stopping before remaining resume positions.`);
-        break;
+        if (!progressCancellationLogged) {
+          progressCancellationLogged = true;
+          logger(`[${requested.mode}] Cancellation acknowledged; stopping before remaining resume positions.`);
+        }
+        return;
       }
       try {
         const summary = await syncOneLibraryProgressItem(media, requested, resolvedConfig, loopStore, logger);
@@ -457,7 +470,7 @@ export async function forceSyncLibraryState(input, { config = null, now = Date.n
           error: message,
         });
       }
-    }
+    }, FORCE_SYNC_ITEM_CONCURRENCY);
   }
 
   cancelled = cancelled || Boolean(isCancelled());

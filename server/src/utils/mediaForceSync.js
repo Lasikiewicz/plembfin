@@ -13,6 +13,7 @@ import { normalizeProviderIds, parsePlexGuids } from "./parsers.js";
 import { isEmbyLikePlayed, watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./watchDates.js";
 import { appendSyncHistory, loadMediaConfig } from "./configStore.js";
 import { createLoopStore } from "./loopStore.js";
+import { runWithConcurrency } from "./concurrency.js";
 import { syncCanonicalPlaystate } from "./syncOrchestrator.js";
 import {
   getCanonicalWatchState,
@@ -28,6 +29,11 @@ import {
 
 const MEDIA_SERVERS = ["plex", "emby", "jellyfin"];
 const FORCE_SYNC_MODES = ["push", "pull"];
+// Each item's outbound calls already run in parallel across targets
+// (syncMediaPlaystate) and are throttled per-host by the outbound governor,
+// so processing several episodes at once only shortens wall-clock time on a
+// large show - it does not add outbound pressure beyond what's already safe.
+const FORCE_SYNC_ITEM_CONCURRENCY = 6;
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -380,12 +386,16 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
   const results = [];
   const records = [];
   let cancelled = Boolean(isCancelled());
+  let cancellationLogged = false;
 
-  for (const media of collection.items) {
+  await runWithConcurrency(collection.items, async (media) => {
     if (isCancelled()) {
       cancelled = true;
-      logger(`[${requested.mode}] Cancellation acknowledged; stopping before remaining items.`);
-      break;
+      if (!cancellationLogged) {
+        cancellationLogged = true;
+        logger(`[${requested.mode}] Cancellation acknowledged; stopping before remaining items.`);
+      }
+      return;
     }
     const canonicalState = media.canonicalState || "watched";
     let record = await findWatchedByAnyMediaKey(media).catch(() => null);
@@ -449,7 +459,7 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
       canonicalState,
       targetStates: summary.targetStates || [],
     });
-  }
+  }, FORCE_SYNC_ITEM_CONCURRENCY);
 
   cancelled = cancelled || Boolean(isCancelled());
   await invalidateHistoryDerivedCaches().catch(() => null);

@@ -305,7 +305,13 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
       });
       if (!confirmed) return;
 
+      const rowValueBtn = rowEl.querySelector(".watch-date-value-btn");
+      const originalValueText = rowValueBtn?.textContent || "";
       removeBtn.disabled = true;
+      if (rowValueBtn) {
+        rowValueBtn.disabled = true;
+        rowValueBtn.textContent = "Removing…";
+      }
       try {
         await apiDeleteWatchDate(rowId);
         rowEl.remove();
@@ -318,6 +324,10 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
       } catch (err) {
         if (status) status.textContent = `Error: ${err.message}`;
         removeBtn.disabled = false;
+        if (rowValueBtn) {
+          rowValueBtn.disabled = false;
+          rowValueBtn.textContent = originalValueText;
+        }
       }
     });
 

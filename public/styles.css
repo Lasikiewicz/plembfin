@@ -1167,6 +1167,7 @@ h2 {
 .segment-button,
 .button-primary,
 .button-ghost,
+.button-danger,
 .icon-button {
   min-height: 2.05rem;
   border: 1px solid transparent;
@@ -8841,7 +8842,7 @@ html.light-mode .log-msg {
   align-items: center;
   justify-content: center;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--muted);
   font-size: 1rem;

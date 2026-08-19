@@ -114,6 +114,11 @@ first complete render.
   Settings → Sync → Sync Tools → Force Sync
   keeps the same two operations and live terminal inline in the Force Sync box for
   the complete library.
+  Both operations process several episodes at once (bounded concurrency, see
+  `runWithConcurrency` in `concurrency.js`) rather than one at a time, so a show with
+  many seasons syncs significantly faster; outbound calls to each media server are still
+  throttled per host by the outbound governor regardless of how many episodes are in
+  flight.
   Jellyfin episode matching keeps every same-season/episode copy, so separate
   1080p and 4K items can both receive the watched or unwatched state.
   `POST /api/retry-sync` and `POST /api/update-watch` both take an optional
