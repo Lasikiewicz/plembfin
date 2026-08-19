@@ -24,6 +24,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `tracker_connections` | Encrypted Trakt OAuth connection plus initial-sync policy/cursor state | tracker auth routes | scheduled tracker sync and outbound dispatcher |
 | `tracker_auth_flows` | Expiring Trakt device-code authorization attempts | tracker auth routes | tracker auth polling/completion |
 | `tracker_item_state` | Last observed Trakt state/timestamp and echo-suppression markers per canonical item | tracker sync/dispatcher | Trakt change detection |
+| `tracker_play_history` | Dedup ledger of individually-imported Trakt plays, keyed by Trakt history id | tracker sync | rewatch/multi-play import |
 | `loop_keys` | Loop-detection KV with TTL | sync orchestrator | sync orchestrator |
 | `poster_cache` | Cached artwork metadata (binaries in `data/media/`) | poster handler | poster resolution |
 | `tmdb_metadata_cache` | Movie details (pure TMDB) or TV show details (TVDB structure + TMDB extras merged), key `${mediaType}_${tmdbId}` (or `tv_tvdb_${tvdbId}` if no TMDB match) | tmdb-details handler | detail pages, prefetch |

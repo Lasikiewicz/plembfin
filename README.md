@@ -45,7 +45,7 @@
 | **Now Playing dashboard** | Real-time active sessions, weekly charts, and recent watch history |
 | **Stats** | All-time and per-period reports with top shows, platform breakdowns, and watch trends |
 | **Upcoming episodes** | Scrolling month calendar of historical and future TV air dates that opens with the current week on top and scrolls freely into the past or future, plus a mobile agenda layout and a dedicated search results view spanning all cached months. The calendar is served from a persistent server-side cache and refreshed in the background, so it renders immediately on every visit |
-| **Live Trakt sync** | Mark an item watched or unwatched in Trakt, Plex, Emby, Jellyfin, or Plembfin and distribute that state to every connected service; episode writes resolve series IDs automatically, and Sync Now repairs drift against the complete Trakt snapshot |
+| **Live Trakt sync** | Mark an item watched or unwatched in Trakt, Plex, Emby, Jellyfin, or Plembfin and distribute that state to every connected service; every individual Trakt rewatch is imported as its own history entry, episode writes resolve series IDs automatically, and Sync Now repairs drift against the complete Trakt snapshot |
 | **Seerr integration** | Request movies and shows from detail pages via Overseerr or Jellyseerr |
 | **Movie collections** | Movie pages show a poster row of other films in the same franchise (sequels, prequels, spin-offs) |
 | **Open-in-app links** | Detail pages and Part Watched cards link straight to the item in Plex, Emby, or Jellyfin when it exists in that server's library |
@@ -321,8 +321,11 @@ their account without Trakt VIP or personal API credentials. OAuth access and re
 tokens are encrypted at rest. `TRAKT_CLIENT_ID` and `TRAKT_CLIENT_SECRET` can replace
 the bundled application when a maintainer needs to rotate it. At connection time, choose
 whether to record the current Trakt state as a baseline or import all existing watched
-items. Plembfin then checks Trakt each minute and distributes watched, unwatched, and
-rewatch changes in both directions. **Sync Now** additionally compares the complete Trakt
+items. Plembfin then checks Trakt each minute and distributes watched and unwatched
+changes in both directions. Trakt records every individual play of an item, and Plembfin
+imports each rewatch it doesn't already have as its own history entry - not just the most
+recent play - the first poll after connecting backfills the full play history and later
+polls only fetch new plays. **Sync Now** additionally compares the complete Trakt
 snapshot with Plembfin's current canonical state, repairing mismatches that existed before
 the connection baseline. The connection card shows progress while **Sync Now** runs and
 reports the items checked and watched or unwatched changes applied. Disable Emby and

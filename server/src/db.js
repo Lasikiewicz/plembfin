@@ -233,6 +233,21 @@ const migrations = [
       `);
     },
   },
+  {
+    id: 12,
+    up(database) {
+      const columns = database.pragma("table_info(tracker_connections)").map((column) => column.name);
+      if (!columns.includes("history_synced_at")) database.exec("ALTER TABLE tracker_connections ADD COLUMN history_synced_at INTEGER");
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS tracker_play_history (
+          provider TEXT NOT NULL, history_id TEXT NOT NULL, media_key TEXT NOT NULL,
+          watched_at TEXT NOT NULL, watch_record_id TEXT, created_at INTEGER NOT NULL,
+          PRIMARY KEY(provider, history_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_tracker_play_history_media ON tracker_play_history(provider, media_key);
+      `);
+    },
+  },
 ];
 
 function runSchemaMigrations() {

@@ -68,9 +68,22 @@ Plembfin stores the canonical `playstate`/watch-history decision, but accepts ex
 watched and unwatched actions from Plembfin, Plex, Emby, Jellyfin, and a connected Trakt
 account. Each accepted transition is committed locally and distributed to every other
 eligible destination. Trakt is read as a complete snapshot each minute: additions become
-watches, removals become unwatches, and a changed watched timestamp becomes a rewatch.
-Persisted tracker state and echo markers prevent Plembfin's own outbound write from being
-read back as a second user action.
+watches, removals become unwatches, and a changed watched timestamp updates the canonical
+playstate. Persisted tracker state and echo markers prevent Plembfin's own outbound write
+from being read back as a second user action.
+
+Trakt records every individual play of an item, not just its most recent one. Alongside
+the snapshot diff above, Plembfin separately reads Trakt's play-by-play history
+(`/sync/history/movies` and `/sync/history/episodes`) and imports each play Plembfin
+doesn't already have as its own `watch_history` row, so rewatches show up individually in
+History and Stats instead of being collapsed into one watched record. The first poll after
+connecting imports the full history; later polls only fetch plays since the last-seen
+timestamp (`tracker_connections.history_synced_at`), and each play is deduplicated by its
+Trakt history id in the `tracker_play_history` table so it is only ever imported once.
+These backfilled plays do not propagate to Plex/Emby/Jellyfin - they record what already
+happened on Trakt rather than triggering a new watch event - and pushing a local watch to
+Trakt (`setTraktWatchState`) already sends each individual play with its own timestamp, so
+rewatches recorded locally reach Trakt as separate history entries too.
 
 An explicit unplayed webhook/notification or Trakt snapshot removal changes the canonical
 state to unwatched and propagates it. Plex show and season notifications are expanded into
@@ -115,6 +128,10 @@ Implementation lives in `server/src/scheduled.js`.
      catch-up rows use the show's cached metadata.
    - Dispatches accepted transitions to media servers and signals the authenticated
      browser update stream after each committed item.
+   - After the snapshot diff, a separate step reads Trakt's per-play history and imports
+     any rewatch Plembfin hasn't recorded yet (see "One canonical state" above). A failure
+     here is logged and does not fail the poll - the snapshot-driven playstate sync above
+     still completes normally.
 4. **Catch-up library sync** - **runs every 15 minutes** (configurable via `CATCHUP_SYNC_INTERVAL_MS` env variable) to avoid heavy redundant API queries:
    - Pulls recently-watched and continue-watching (resumable) items from each active server: `syncRecentlyWatchedFromPlex`/`syncRecentlyResumableFromPlex` (and Emby/Jellyfin equivalents) in `scheduled.js`.
    - A recently-watched row counts in Plembfin's visible history and show progress only

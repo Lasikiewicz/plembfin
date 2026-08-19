@@ -23,7 +23,8 @@ function publicConnection(row) {
     accessTokenExpiresAt: row.access_token_expires_at,
     initialSyncMode: row.initial_sync_mode, baselineComplete: Boolean(row.baseline_complete),
     lastPolledAt: row.last_polled_at, lastValidatedAt: row.last_validated_at,
-    lastError: row.last_error || "", createdAt: row.created_at, updatedAt: row.updated_at,
+    lastError: row.last_error || "", historySyncedAt: row.history_synced_at || 0,
+    createdAt: row.created_at, updatedAt: row.updated_at,
   };
 }
 
@@ -80,7 +81,7 @@ export function updateTrackerTokens(provider, tokens) {
 }
 
 export function updateTrackerConnectionStatus(provider, patch = {}) {
-  const allowed = { status: "status", baselineComplete: "baseline_complete", lastPolledAt: "last_polled_at", lastValidatedAt: "last_validated_at", lastError: "last_error" };
+  const allowed = { status: "status", baselineComplete: "baseline_complete", lastPolledAt: "last_polled_at", lastValidatedAt: "last_validated_at", lastError: "last_error", historySyncedAt: "history_synced_at" };
   const entries = Object.entries(patch).filter(([key]) => allowed[key]);
   if (!entries.length) return;
   const values = entries.map(([, value]) => value instanceof Boolean ? Number(value) : value);
@@ -92,6 +93,7 @@ export function deleteTrackerConnection(provider) {
   const name = providerName(provider);
   return db.transaction(() => {
     db.prepare("DELETE FROM tracker_item_state WHERE provider=?").run(name);
+    db.prepare("DELETE FROM tracker_play_history WHERE provider=?").run(name);
     return db.prepare("DELETE FROM tracker_connections WHERE provider=?").run(name).changes > 0;
   })();
 }
@@ -156,4 +158,27 @@ export function recordTrackerOutbound(provider, mediaKey, media, state) {
   db.prepare(`INSERT INTO tracker_item_state (provider,media_key,media_json,remote_watched_at,last_seen_at,last_outbound_state,last_outbound_at)
     VALUES (?,?,?,?,?,?,?) ON CONFLICT(provider,media_key) DO UPDATE SET media_json=excluded.media_json,last_outbound_state=excluded.last_outbound_state,last_outbound_at=excluded.last_outbound_at`)
     .run(name, mediaKey, JSON.stringify(media), state === "watched" ? timestamp : null, timestamp, state, timestamp);
+}
+
+// Returns the subset of `historyIds` that have not already been imported for
+// this provider, so a poll only fetches/inserts plays it hasn't seen before.
+export function listUnrecordedTrackerPlayIds(provider, historyIds) {
+  const name = providerName(provider);
+  const ids = [...new Set((historyIds || []).map((id) => String(id)))];
+  if (!ids.length) return new Set();
+  const known = new Set();
+  const CHUNK_SIZE = 500;
+  for (let start = 0; start < ids.length; start += CHUNK_SIZE) {
+    const chunk = ids.slice(start, start + CHUNK_SIZE);
+    const placeholders = chunk.map(() => "?").join(",");
+    for (const row of db.prepare(`SELECT history_id FROM tracker_play_history WHERE provider=? AND history_id IN (${placeholders})`).all(name, ...chunk)) {
+      known.add(row.history_id);
+    }
+  }
+  return new Set(ids.filter((id) => !known.has(id)));
+}
+
+export function recordTrackerPlay(provider, { historyId, mediaKey, watchedAt, watchRecordId }) {
+  db.prepare(`INSERT OR IGNORE INTO tracker_play_history (provider,history_id,media_key,watched_at,watch_record_id,created_at) VALUES (?,?,?,?,?,?)`)
+    .run(providerName(provider), String(historyId), mediaKey, watchedAt, watchRecordId || null, Date.now());
 }

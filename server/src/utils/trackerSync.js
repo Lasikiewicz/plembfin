@@ -1,8 +1,14 @@
 import { loadMediaConfig } from "./configStore.js";
-import { getCanonicalWatchState, invalidateHistoryDerivedCaches, signalHistoryDataChanged } from "./dataRepo.js";
+import {
+  findExistingWatch, getCanonicalWatchState, getPlaystateForMedia, insertWatchRecord,
+  invalidateHistoryDerivedCaches, mediaKeyFor, mediaToWatchRecord, signalHistoryDataChanged, upsertPlaystateForMedia,
+} from "./dataRepo.js";
 import { createLoopStore } from "./loopStore.js";
-import { fetchTraktWatchedSnapshot } from "./traktClient.js";
-import { getTrackerConnection, listTrackerItemStates, replaceTrackerSnapshot, updateTrackerConnectionStatus } from "./trackerConnectionRepo.js";
+import { fetchTraktPlayHistory, fetchTraktWatchedSnapshot } from "./traktClient.js";
+import {
+  getTrackerConnection, listTrackerItemStates, listUnrecordedTrackerPlayIds,
+  recordTrackerPlay, replaceTrackerSnapshot, updateTrackerConnectionStatus,
+} from "./trackerConnectionRepo.js";
 import { withFreshTraktConnection } from "./trackerDispatcher.js";
 import { applyUnwatchedTransition, applyWatchedTransition } from "./watchStateTransitions.js";
 
@@ -39,6 +45,64 @@ async function runTransitionBatch(items, handler, concurrency = TRACKER_TRANSITI
   await Promise.all(workers);
 }
 
+// Imports every individual Trakt play (rewatches included) as its own
+// watch_history row. This runs alongside the existing "current watched
+// state" diff above rather than replacing it: that diff still owns
+// playstate/unwatch detection/outbound propagation for the latest play,
+// while this only backfills additional plays it doesn't already know about
+// (via tracker_play_history) and nudges playstate's timestamp forward when
+// a newer rewatch is found. It never propagates to sync targets itself -
+// these are historical facts, not new events for Plex/Emby/Jellyfin to act on.
+async function importTraktPlayHistory(connection, publicConnection) {
+  const watermarkMs = publicConnection.baselineComplete ? Number(publicConnection.historySyncedAt || 0) : 0;
+  // A minute of overlap tolerates clock skew; tracker_play_history dedup
+  // means re-seeing already-imported plays here is a harmless no-op.
+  const startAt = watermarkMs > 0 ? new Date(watermarkMs - 60_000).toISOString() : undefined;
+  const entries = await fetchTraktPlayHistory(connection, { startAt });
+  if (!entries.length) return;
+
+  const pendingIds = listUnrecordedTrackerPlayIds("trakt", entries.map((entry) => entry.historyId));
+  // Advance past every entry this fetch saw, not just the newly-inserted
+  // ones, or an already-imported entry would keep it re-fetching the same
+  // window forever instead of narrowing to genuinely new plays next time.
+  let latestWatchedAt = entries.reduce((max, entry) => Math.max(max, entry.watchedAt), watermarkMs);
+  const touchedKeys = new Map();
+
+  for (const entry of entries.filter((entry) => pendingIds.has(entry.historyId)).sort((a, b) => a.watchedAt - b.watchedAt)) {
+    // Trakt's own mediaKey shape (used for tracker_item_state) differs from
+    // dataRepo's canonical media_key column format - recompute the canonical
+    // one here or findExistingWatch's lookup against watch_history never matches.
+    const canonicalMediaKey = mediaKeyFor(entry.media);
+    const watchedAtIso = new Date(entry.watchedAt).toISOString();
+    const existing = await findExistingWatch(canonicalMediaKey, watchedAtIso).catch(() => null);
+    let watchRecordId = existing?.id || "";
+    if (!existing) {
+      const record = mediaToWatchRecord({ ...entry.media, watched_at: watchedAtIso, syncAction: "watched" }, "trakt_import");
+      record.sync_action = "watched";
+      const result = await insertWatchRecord(record, { skipInvalidate: true });
+      watchRecordId = result.id;
+    }
+    recordTrackerPlay("trakt", { historyId: entry.historyId, mediaKey: canonicalMediaKey, watchedAt: watchedAtIso, watchRecordId });
+    const previous = touchedKeys.get(canonicalMediaKey);
+    if (!previous || entry.watchedAt > previous.watchedAtMs) {
+      touchedKeys.set(canonicalMediaKey, { media: entry.media, watchedAtMs: entry.watchedAt, watchedAtIso });
+    }
+  }
+
+  // Nudge playstate's timestamp forward for a newer rewatch that the
+  // already-watched short-circuit above skips inserting a fresh row for -
+  // never flips unwatched->watched and never regresses an existing timestamp.
+  for (const [, info] of touchedKeys) {
+    const state = await getPlaystateForMedia(info.media).catch(() => null);
+    if (state?.state === "watched" && Number(Date.parse(state.watched_at || "")) < info.watchedAtMs) {
+      await upsertPlaystateForMedia(info.media, "watched", info.watchedAtIso, { skipInvalidate: true });
+    }
+  }
+
+  if (touchedKeys.size) await invalidateHistoryDerivedCaches();
+  updateTrackerConnectionStatus("trakt", { historySyncedAt: latestWatchedAt });
+}
+
 export function selectTraktWatchedTransitions({ snapshot = [], previous = [], baseline = false, initialSyncMode = "baseline", reconcileKeys = new Set() } = {}) {
   const previousByKey = new Map(previous.map((item) => [item.mediaKey, item]));
   return baseline
@@ -53,7 +117,7 @@ export function selectTraktWatchedTransitions({ snapshot = [], previous = [], ba
 async function pollTrakt({ reconcile = false } = {}) {
   const publicConnection = getTrackerConnection("trakt");
   if (!publicConnection || publicConnection.status !== "connected") return { skipped: true, reason: "not-connected", watched: 0, unwatched: 0 };
-  const { snapshot } = await readSnapshot();
+  const { connection, snapshot } = await readSnapshot();
   const previous = listTrackerItemStates("trakt");
   const currentByKey = new Map(snapshot.map((item) => [item.mediaKey, item]));
   const baseline = publicConnection.baselineComplete;
@@ -95,6 +159,13 @@ async function pollTrakt({ reconcile = false } = {}) {
 
   replaceTrackerSnapshot("trakt", snapshot);
   updateTrackerConnectionStatus("trakt", { baselineComplete: true, lastPolledAt: Date.now(), lastValidatedAt: Date.now(), lastError: null });
+
+  try {
+    await importTraktPlayHistory(connection, publicConnection);
+  } catch (error) {
+    console.error("[trackerSync] Trakt play-history import failed (non-fatal)", error);
+  }
+
   return { skipped: false, baselineEstablished: !baseline, watched: watched.length, unwatched: unwatched.length, remoteItems: snapshot.length };
 }
 

@@ -120,6 +120,50 @@ export async function fetchTraktWatchedSnapshot({ clientId, accessToken }) {
   return result.filter((item) => !item.mediaKey.endsWith(":"));
 }
 
+async function fetchAllHistoryPages(type, connection, { startAt } = {}) {
+  const limit = 250;
+  const items = [];
+  const startParam = startAt ? `&start_at=${encodeURIComponent(startAt)}` : "";
+  for (let page = 1; page <= 10_000; page += 1) {
+    const result = await request(`${API_BASE}/sync/history/${type}?page=${page}&limit=${limit}${startParam}`, {
+      ...connection,
+      includePagination: true,
+    });
+    const rows = Array.isArray(result.data) ? result.data : [];
+    items.push(...rows);
+    if (result.pageCount > 0 ? page >= result.pageCount : rows.length < (result.pageLimit || limit)) return items;
+  }
+  throw new Error(`Trakt ${type} history exceeded the pagination safety limit`);
+}
+
+function normalizeHistoryMovie(entry) {
+  const { mediaKey, media, watchedAt } = normalizeMovie(entry);
+  return { historyId: String(entry.id), mediaKey, media, watchedAt };
+}
+
+function normalizeHistoryEpisode(entry) {
+  // The episode entry's own timestamp fields are missing on /sync/history
+  // responses - watched_at lives on the outer history entry instead.
+  const episodeEntry = { ...(entry.episode || {}), watched_at: entry.watched_at };
+  const { mediaKey, media, watchedAt } = normalizeEpisode({ show: entry.show }, episodeEntry);
+  return { historyId: String(entry.id), mediaKey, media, watchedAt };
+}
+
+// Unlike fetchTraktWatchedSnapshot (which returns Trakt's collapsed
+// last-watched-per-item view), this reads Trakt's actual play-by-play
+// history, so a rewatch shows up as its own entry with its own timestamp
+// and history id instead of being folded into a single "last watched" row.
+export async function fetchTraktPlayHistory({ clientId, accessToken }, { startAt } = {}) {
+  const [movies, episodes] = await Promise.all([
+    fetchAllHistoryPages("movies", { clientId, accessToken }, { startAt }),
+    fetchAllHistoryPages("episodes", { clientId, accessToken }, { startAt }),
+  ]);
+  const result = [];
+  for (const entry of movies || []) result.push(normalizeHistoryMovie(entry));
+  for (const entry of episodes || []) result.push(normalizeHistoryEpisode(entry));
+  return result.filter((item) => !item.mediaKey.endsWith(":"));
+}
+
 function syncPayload(media, state) {
   const ids = cleanIds(media.ids);
   if (!Object.keys(ids).length) throw Object.assign(new Error("Trakt needs a Trakt, IMDb, TMDB, or TVDB ID for this item"), { code: "not_found" });

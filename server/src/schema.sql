@@ -425,6 +425,7 @@ CREATE TABLE IF NOT EXISTS tracker_connections (
   last_polled_at INTEGER,
   last_validated_at INTEGER,
   last_error TEXT,
+  history_synced_at INTEGER,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -462,3 +463,18 @@ CREATE TABLE IF NOT EXISTS tracker_item_state (
   last_outbound_at INTEGER,
   PRIMARY KEY(provider, media_key)
 );
+
+-- Per-play dedup ledger for imported tracker history (Trakt can report the
+-- same item watched multiple times - each play has its own history id).
+-- Lets the poller import every individual rewatch exactly once without
+-- re-fetching or re-diffing the whole watch_history table on every tick.
+CREATE TABLE IF NOT EXISTS tracker_play_history (
+  provider TEXT NOT NULL,
+  history_id TEXT NOT NULL,
+  media_key TEXT NOT NULL,
+  watched_at TEXT NOT NULL,
+  watch_record_id TEXT,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY(provider, history_id)
+);
+CREATE INDEX IF NOT EXISTS idx_tracker_play_history_media ON tracker_play_history(provider, media_key);
