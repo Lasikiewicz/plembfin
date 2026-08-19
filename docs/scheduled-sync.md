@@ -156,16 +156,23 @@ Implementation lives in `server/src/scheduled.js`.
      Targets that answer "No matching item found" are recorded in the row's
      telemetry and aggregated per platform by the Cross-Platform Match Report
      (Settings → Sync → Sync Issues, backed by `GET /api/sync-match-report`).
-   - Each tick's full backlog size and how far the current batch has gotten are written to
-     `runtime_state.backgroundSyncProgress` (`{ total, completed }`, via
-     `reportBackgroundSyncProgress` - skips the write when unchanged from the last tick, so an
-     idle queue doesn't touch `runtime_state` every minute). `GET /api/live-updates` polls that
-     field once a second (separately from its 250ms history-version poll, since this is a DB
-     read) and emits a `sync-progress` SSE event whenever it changes; the sidebar's "Syncing N
-     of M" indicator above the version number (`renderSyncProgress` in `app.js`) shows while
-     `total > 0` and hides once the backlog drains. Reading `runtime_state` rather than
-     in-process state keeps this correct across a split web/worker deployment, the same reason
-     the history-version stream itself reads shared SQLite instead of an in-process emitter.
+   - Every real dispatch this queue makes (and every other one - a bulk duplicate-watch
+     cleanup, a single manual watch/unwatch, a webhook-triggered propagation) goes through
+     `syncMediaPlaystate` or `syncMediaUnplayedPlaystate` in `syncOrchestrator.js`, which is
+     where the sidebar's "Syncing N of M" indicator gets its numbers - tracking it there,
+     rather than per call site, means the indicator does not depend on knowing every place
+     that can trigger a dispatch. A "burst" opens the first time a dispatch starts after being
+     fully idle and closes `DISPATCH_PROGRESS_IDLE_MS` (2s) after the last one in it finishes,
+     so a handful of near-simultaneous fire-and-forget calls (e.g. one propagation per episode
+     from a season's duplicate-watch cleanup) share one window instead of each flashing the
+     indicator open and shut on its own. Each start/finish writes `{ total, completed }` to
+     `runtime_state.backgroundSyncProgress`. `GET /api/live-updates` polls that field once a
+     second (separately from its 250ms history-version poll, since this is a DB read) and emits
+     a `sync-progress` SSE event whenever it changes; `renderSyncProgress` in `app.js` shows the
+     indicator while `total > 0` and hides it once the burst closes. Reading `runtime_state`
+     rather than in-process state keeps this correct across a split web/worker deployment, the
+     same reason the history-version stream itself reads shared SQLite instead of an in-process
+     emitter.
 3. **Trakt snapshot sync** - **runs every minute when connected**:
    - Refreshes OAuth tokens when required and reads every watched movie and episode page.
    - Applies additions, removals, and rewatch timestamp changes with bounded concurrency.

@@ -5,9 +5,61 @@ import { watchedPlayedSyncEnabled } from "./syncFlags.js";
 import { minResumePositionMs, watchedThresholdPercent } from "./tuning.js";
 import { canReceiveState, canSendState } from "./syncRoles.js";
 import { dispatchTrackerWatchState } from "./trackerDispatcher.js";
+import { setRuntimeState } from "./configStore.js";
 
 const LOOP_CACHE_TTL_SECONDS = 60;
 const LOOP_WINDOW_MS = 15_000;
+
+// Sidebar "Syncing N of M" indicator (public/app.js renderSyncProgress, fed
+// by the sync-progress SSE event in liveUpdates.js). Every real dispatch -
+// the pending-retry queue working through its per-minute batch, a bulk
+// duplicate-watch cleanup firing one propagation per affected episode, a
+// single manual watch/unwatch - ultimately calls syncMediaPlaystate or
+// syncMediaUnplayedPlaystate, so tracking here covers all of them without
+// having to instrument every call site individually. A "burst" opens the
+// first time a dispatch starts after being fully idle and closes
+// DISPATCH_PROGRESS_IDLE_MS after the last one finishes, so a handful of
+// near-simultaneous fire-and-forget calls share one window instead of each
+// flashing the indicator open and shut on its own.
+const DISPATCH_PROGRESS_IDLE_MS = 2_000;
+let dispatchBurstTotal = 0;
+let dispatchBurstCompleted = 0;
+let dispatchBurstActive = false;
+let dispatchIdleTimer = null;
+
+function reportDispatchProgress() {
+  setRuntimeState({
+    backgroundSyncProgress: { total: dispatchBurstTotal, completed: dispatchBurstCompleted, updatedAt: Date.now() },
+  }).catch(() => null);
+}
+
+function beginDispatchTracking() {
+  if (dispatchIdleTimer) {
+    clearTimeout(dispatchIdleTimer);
+    dispatchIdleTimer = null;
+  }
+  if (!dispatchBurstActive) {
+    dispatchBurstActive = true;
+    dispatchBurstTotal = 0;
+    dispatchBurstCompleted = 0;
+  }
+  dispatchBurstTotal += 1;
+  reportDispatchProgress();
+}
+
+function completeDispatchTracking() {
+  dispatchBurstCompleted += 1;
+  reportDispatchProgress();
+  if (dispatchBurstCompleted >= dispatchBurstTotal) {
+    dispatchIdleTimer = setTimeout(() => {
+      dispatchIdleTimer = null;
+      dispatchBurstActive = false;
+      dispatchBurstTotal = 0;
+      dispatchBurstCompleted = 0;
+      reportDispatchProgress();
+    }, DISPATCH_PROGRESS_IDLE_MS);
+  }
+}
 
 const TARGETS_BY_SOURCE = {
   plex: ["emby", "jellyfin"],
@@ -409,41 +461,46 @@ export async function syncMediaPlaystate(media, config, kv) {
     ids: media.ids,
   });
 
-  // Prime the echo ledger before making any remote calls. Plex can emit its
-  // played notification while the request is still in flight; recording only
-  // after the calls complete leaves a small window where our own write could
-  // be mistaken for a new watch.
-  await recordOutboundPlayedMarks(media, targets, kv);
+  beginDispatchTracking();
+  try {
+    // Prime the echo ledger before making any remote calls. Plex can emit its
+    // played notification while the request is still in flight; recording only
+    // after the calls complete leaves a small window where our own write could
+    // be mistaken for a new watch.
+    await recordOutboundPlayedMarks(media, targets, kv);
 
-  const jobs = targets.map((target) => {
-    const run = clientFor(target, config, media);
-    return run();
-  });
+    const jobs = targets.map((target) => {
+      const run = clientFor(target, config, media);
+      return run();
+    });
 
-  const results = await Promise.allSettled(jobs);
-  let summary = summarizeResults(targets, results);
+    const results = await Promise.allSettled(jobs);
+    let summary = summarizeResults(targets, results);
 
-  // Remember which servers we just stamped so a played flag read back from them
-  // later is recognised as our own write rather than a fresh play.
-  await recordOutboundPlayedMarks(
-    media,
-    summary.targetStates.filter((state) => state.status === "success").map((state) => state.target),
-    kv,
-  );
+    // Remember which servers we just stamped so a played flag read back from them
+    // later is recognised as our own write rather than a fresh play.
+    await recordOutboundPlayedMarks(
+      media,
+      summary.targetStates.filter((state) => state.status === "success").map((state) => state.target),
+      kv,
+    );
 
-  console.log("Sync playstate dispatch completed", {
-    source: media.source,
-    title: media.title,
-    status: summary.status,
-    results: results.map((result, index) => ({
-      target: targets[index],
-      status: result.status,
-      reason: result.status === "rejected" ? String(result.reason?.message || result.reason) : undefined,
-    })),
-  });
+    console.log("Sync playstate dispatch completed", {
+      source: media.source,
+      title: media.title,
+      status: summary.status,
+      results: results.map((result, index) => ({
+        target: targets[index],
+        status: result.status,
+        reason: result.status === "rejected" ? String(result.reason?.message || result.reason) : undefined,
+      })),
+    });
 
-  summary = await includeTrackerDispatch(summary, media, "watched");
-  return { ...summary, skipped: false, results };
+    summary = await includeTrackerDispatch(summary, media, "watched");
+    return { ...summary, skipped: false, results };
+  } finally {
+    completeDispatchTracking();
+  }
 }
 
 // Plembfin is the canonical watched-state store.  Use a synthetic manual
@@ -495,44 +552,49 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
     ids: media.ids,
   });
 
-  // Prime before the DELETE/unscrobble requests because some servers emit the
-  // callback before the outbound request resolves.
-  await recordOutboundUnplayedMarks(media, targets, kv);
+  beginDispatchTracking();
+  try {
+    // Prime before the DELETE/unscrobble requests because some servers emit the
+    // callback before the outbound request resolves.
+    await recordOutboundUnplayedMarks(media, targets, kv);
 
-  // "Mark unplayed" and "resume position" are separate fields on Emby/Jellyfin/
-  // Plex - clearing the played flag alone leaves a stale progress bar in
-  // Continue Watching. Best-effort and non-fatal: a target that rejects this
-  // still gets the unplayed mark below.
-  await Promise.all(targets.map(async (target) => {
-    try {
-      await clientProgressFor(target, config, { ...media, positionMs: 0 })();
-    } catch (error) {
-      console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
-    }
-  }));
+    // "Mark unplayed" and "resume position" are separate fields on Emby/Jellyfin/
+    // Plex - clearing the played flag alone leaves a stale progress bar in
+    // Continue Watching. Best-effort and non-fatal: a target that rejects this
+    // still gets the unplayed mark below.
+    await Promise.all(targets.map(async (target) => {
+      try {
+        await clientProgressFor(target, config, { ...media, positionMs: 0 })();
+      } catch (error) {
+        console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
+      }
+    }));
 
-  const jobs = targets.map((target) => {
-    const run = clientUnplayedFor(target, config, media);
-    return run();
-  });
+    const jobs = targets.map((target) => {
+      const run = clientUnplayedFor(target, config, media);
+      return run();
+    });
 
-  const results = await Promise.allSettled(jobs);
-  let summary = summarizeResults(targets, results);
-  const successfulTargets = summary.targetStates
-    .filter((state) => state.status === "success")
-    .map((state) => state.target);
-  await recordOutboundUnplayedMarks(media, successfulTargets, kv);
-  console.log("Sync unplayed dispatch completed", {
-    source: media.source,
-    results: results.map((result, index) => ({
-      target: targets[index],
-      status: result.status,
-      reason: result.status === "rejected" ? String(result.reason?.message || result.reason) : undefined,
-    })),
-  });
+    const results = await Promise.allSettled(jobs);
+    let summary = summarizeResults(targets, results);
+    const successfulTargets = summary.targetStates
+      .filter((state) => state.status === "success")
+      .map((state) => state.target);
+    await recordOutboundUnplayedMarks(media, successfulTargets, kv);
+    console.log("Sync unplayed dispatch completed", {
+      source: media.source,
+      results: results.map((result, index) => ({
+        target: targets[index],
+        status: result.status,
+        reason: result.status === "rejected" ? String(result.reason?.message || result.reason) : undefined,
+      })),
+    });
 
-  summary = await includeTrackerDispatch(summary, media, "unwatched");
-  return { ...summary, skipped: false, results };
+    summary = await includeTrackerDispatch(summary, media, "unwatched");
+    return { ...summary, skipped: false, results };
+  } finally {
+    completeDispatchTracking();
+  }
 }
 
 export async function syncMediaProgress(media, config, kv) {

@@ -59,11 +59,13 @@ the "Changelog & update check" section of [architecture.md](architecture.md).
 
 ### Background sync indicator
 
-A "Syncing N of M" line appears above the version badge whenever the scheduler's
-pending-dispatch queue is working through a backlog, and hides once it drains. It's
-driven by the `sync-progress` events on the `GET /api/live-updates` SSE stream
-(`onSyncProgress` in `live-updates.js`, rendered by `renderSyncProgress` in `app.js`);
-see the "Manual dispatch queue" part of [scheduled-sync.md](scheduled-sync.md#what-it-does-each-run)
+A "Syncing N of M" line appears above the version badge whenever Plembfin is actively
+dispatching watch-state changes out to Plex/Emby/Jellyfin/Trakt - the scheduler's
+pending-dispatch queue working through a backlog, a bulk duplicate-watch cleanup, a
+manual watch/unwatch, anything - and hides once that activity settles. It's driven by
+the `sync-progress` events on the `GET /api/live-updates` SSE stream (`onSyncProgress`
+in `live-updates.js`, rendered by `renderSyncProgress` in `app.js`); see the "Manual
+dispatch queue" part of [scheduled-sync.md](scheduled-sync.md#what-it-does-each-run)
 for where the underlying `{ total, completed }` snapshot comes from.
 
 ## Posters

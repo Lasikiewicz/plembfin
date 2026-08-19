@@ -1390,19 +1390,6 @@ function isTargetSynced(telemetry = "", target = "", source = "") {
   return false;
 }
 
-// Snapshot of the pending-dispatch backlog, surfaced to the sidebar's
-// "Syncing N of M" indicator via runtime_state (see liveUpdates.js, which
-// polls it the same bounded-cadence way db.js polls the shared history
-// version). Kept in module scope purely to skip a redundant write when the
-// queue is already reported empty - every idle scheduler tick would
-// otherwise touch the runtime_state row for nothing.
-let lastReportedSyncProgress = { total: 0, completed: 0 };
-async function reportBackgroundSyncProgress(total, completed) {
-  if (total === lastReportedSyncProgress.total && completed === lastReportedSyncProgress.completed) return;
-  lastReportedSyncProgress = { total, completed };
-  await setRuntimeState({ backgroundSyncProgress: { total, completed, updatedAt: Date.now() } }).catch(() => null);
-}
-
 async function syncPendingManualDispatches(config, loopStore, logger = console.log) {
   if (!watchedPlayedSyncEnabled()) {
     logger("Pending watched dispatch sync is disabled.");
@@ -1442,9 +1429,8 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
 
     const maxRetries = 15;
     const batchToRetry = toRetry.slice(0, maxRetries);
-    await reportBackgroundSyncProgress(toRetry.length, 0);
 
-    for (const [index, row] of batchToRetry.entries()) {
+    for (const row of batchToRetry) {
       const id = row.id;
       const media = {
         title: row.title,
@@ -1508,11 +1494,9 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         await recordSyncHistory(media, summary, "watched");
       }
       syncedCount++;
-      await reportBackgroundSyncProgress(toRetry.length, index + 1);
     }
   } catch (error) {
     logger(`Pending Queue dispatcher failed: ${error.message}`);
-    await reportBackgroundSyncProgress(0, 0);
   }
   if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
   return syncedCount;
