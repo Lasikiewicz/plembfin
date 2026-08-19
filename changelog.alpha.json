@@ -1,7 +1,20 @@
 {
   "baseVersion": "0.8.3",
-  "build": 2,
+  "build": 3,
   "entries": [
+    {
+      "build": 3,
+      "version": "0.8.3.3",
+      "date": "2026-08-19T11:34:13+01:00",
+      "commit": "4e52c4275c3f4c94c9c902a768a8cc5f4534f065",
+      "message": "Fix - Show what changed in a newer alpha build before pulling it",
+      "author": "Lasikiewicz",
+      "details": [
+        "Settings -> Changelog now lists the actual changes in a newer, not-yet-pulled alpha build under a new \"Not pulled yet\" section, instead of only saying a newer build exists and requiring an update first to see what changed",
+        "The backend was already fetching the newer build's changelog data to detect an update, but discarded the entry list and kept only the build number; it now reads GitHub's copy of the changelog directly, since a build that hasn't been pulled yet can never appear in the locally-installed copy",
+        "Extracted the comparison logic into a pure, unit-tested function"
+      ]
+    },
     {
       "build": 2,
       "version": "0.8.3.2",
@@ -27,5 +40,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T11:26:01+01:00"
+  "updatedAt": "2026-08-19T11:34:13+01:00"
 }
