@@ -1,8 +1,19 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 3,
-  "version": "0.9.3.1.3",
+  "build": 4,
+  "version": "0.9.3.1.4",
   "entries": [
+    {
+      "build": 4,
+      "version": "0.9.3.1.4",
+      "date": "2026-08-20T21:30:08+01:00",
+      "commit": "2c83cc4cb6cdb4711098b93f772e5ac3aa83362b",
+      "message": "Feature - Add adaptive fast poller for near-instant Plex watch and unwatch detection",
+      "author": "Lasikiewicz",
+      "details": [
+        "Automatically detects manual Plex watch and unwatch actions within seconds using lightweight adaptive polling"
+      ]
+    },
     {
       "build": 3,
       "version": "0.9.3.1.3",
@@ -40,5 +51,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T21:15:13+01:00"
+  "updatedAt": "2026-08-20T21:30:08+01:00"
 }
