@@ -1,139 +1,18 @@
 {
-  "baseVersion": "0.8.5",
-  "build": 10,
+  "baseVersion": "0.8.6",
+  "build": 1,
   "entries": [
     {
-      "build": 10,
-      "version": "0.8.5.10",
-      "date": "2026-08-20T11:57:23+01:00",
-      "commit": "5dd738f201b7b4bfe215216118d1b992252bb0db",
-      "message": "Fix - Stop a stale historyId from swapping in the wrong show's page",
-      "author": "Lasikiewicz",
-      "details": [
-        "Fixed a real bug: clicking a global search result for a TV show could open a completely different show's page instead - the URL still showed the show you clicked, but the title, poster, and episodes shown were whatever show had been open right before",
-        "Root cause: navigating to a show via a link that doesn't carry its own historyId (search results, unlike library cards) inherited the previous show's leftover historyId from app state, and the page then mistakenly treated that mismatched record as evidence the requested show couldn't be identified, substituting the unrelated show's single record in its place",
-        "The router now only carries a historyId forward when re-rendering the show already open, never into a navigation to a different show",
-        "A history record that names a real, different show is now treated as a stale reference and ignored, rather than swapped in as if the requested show were unidentifiable"
-      ]
-    },
-    {
-      "build": 9,
-      "version": "0.8.5.9",
-      "date": "2026-08-20T11:38:49+01:00",
-      "commit": "95cc62128cb6f73c5152205bac2c23269dd67940",
-      "message": "test: update Force Sync request tests for the new seasons field",
-      "author": "Lasikiewicz",
-      "details": [
-        "Removed a large empty gap that showed in the Force Sync dialog before starting an operation - the dialog now sizes to its content and only grows once the live log is actually showing",
-        "Fixed the live sync log growing past the bottom of the dialog during a run; it now fills the remaining space and scrolls on its own instead of pushing the whole dialog past its own edge",
-        "Added season checkboxes to the Force Sync dialog for TV shows - leave them unchecked to run across the whole show as before, or pick specific seasons to limit Set Plembfin as Source of Truth or Import Watched Status to just those",
-        "Existing normalizeMediaForceSyncRequest tests asserted the exact returned object shape and didn't know about the new seasons field, so the previous commit's local build check failed the push - fixed the expectations and added a case covering season-list normalization (dedup, sort, comma-separated string input)"
-      ]
-    },
-    {
-      "build": 8,
-      "version": "0.8.5.8",
-      "date": "2026-08-20T11:04:44+01:00",
-      "commit": "91785550c7594ceba96cf14d88e33ca6da1f6a80",
-      "message": "Fix - Stop a stale unwatch marker row from silently blocking a rewatch mark",
-      "author": "Lasikiewicz",
-      "details": [
-        "Fixed a real incident: marking The 'Burbs S01E05 watched via Same as other episodes kept reporting success and syncing to Plex, Emby, Jellyfin, and Trakt, but the watched state never actually saved and reverted on reload",
-        "Root cause: an earlier unwatch had left a non-watched bookkeeping row at the exact same media identity and timestamp the mark-watched request targeted; the duplicate check only looked at whether a row existed there at all, not whether it was actually marked watched, so it silently skipped writing the new watched state while still dispatching outbound sync as if it had",
-        "Manual mark-watched and marking watched from Part Watched now replace that kind of stale row with the real watched record instead of mistaking it for an existing watch"
-      ]
-    },
-    {
-      "build": 7,
-      "version": "0.8.5.7",
-      "date": "2026-08-20T10:47:19+01:00",
-      "commit": "4285a6dc599d4a0721cb7c03e98044ca028605d0",
-      "message": "Fix - Stop a just-watched item from being reverted by a lagging Trakt poll",
-      "author": "Lasikiewicz",
-      "details": [
-        "Fixed a real incident: marking The 'Burbs S01E05 watched appeared to succeed, then silently reverted seconds later - Trakt's API hadn't caught up to the write yet, so the next poll saw the episode as missing and treated it as a genuine remote unwatch, deleting the watch it had just created and re-propagating the unwatch to Plex, Emby, and Jellyfin",
-        "Live Trakt sync now protects a single item just marked watched the same way it already protects large batches: a poll landing within 30 minutes of that push can no longer read a lagging snapshot as a real unwatch",
-        "The sidebar Syncing N of M indicator now shows the true batch total immediately for a Trakt reconcile or bulk mark-watched/unwatched, instead of climbing one item at a time as workers pick up new items over the life of the batch"
-      ]
-    },
-    {
-      "build": 6,
-      "version": "0.8.5.6",
-      "date": "2026-08-20T09:51:47+01:00",
-      "commit": "6749eeae128e234e210c6c3ff6ee9782140e3ea7",
-      "message": "Security - Stop Trakt live sync from cascading a false mass-unwatch across every platform",
-      "author": "Lasikiewicz",
-      "details": [
-        "Fixed a real incident: a burst of Trakt API calls (from marking a season watched) caused Trakt's watched-progress response to come back rate-limited and incomplete, and the live Trakt sync trusted the shorter list as a genuine unwatch - cascading unwatched state to Plex, Emby, Jellyfin, and Plembfin's own history across three seasons of a show",
-        "Live Trakt sync now holds back any unwatch where a large share of one show's episodes disappear at once instead of propagating immediately; it re-checks on the next poll and only propagates once the same episodes are still missing a second time, so a genuine unwatch still goes through with a one-minute delay while a transient bad response self-heals with no changes sent anywhere",
-        "A normal unwatch of a couple of episodes is unaffected and still propagates the same minute as before",
-        "Marking a season or show watched at once (and bulk unwatch) now dispatches to Plex/Emby/Jellyfin/Trakt with bounded concurrency instead of one item at a time, so large batches finish noticeably faster without increasing load on any single server (outbound requests are still throttled per-host)"
-      ]
-    },
-    {
-      "build": 5,
-      "version": "0.8.5.5",
-      "date": "2026-08-20T09:07:42+01:00",
-      "commit": "6a0d52bcf112764693bdb926a97bfac3fb17a02e",
-      "message": "Feature - Keep batch mark-watched dates in order and add a same-as-other-episodes choice",
-      "author": "Lasikiewicz",
-      "details": [
-        "Marking a season or whole show watched at once no longer stamps every episode with the identical watched_at; each episode is now staggered one second apart in episode order so they sort correctly instead of tying",
-        "Added a new watched-date choice, Same as other episodes, shown whenever an episode in the same season (or show) already has a recorded watch date - it reuses that episode's date/time as the base for the rest, with the same ordering applied on top",
-        "Diagnosed a report of Mark season watched appearing to do nothing: the save itself works correctly; a stale/expired session is the most likely explanation for the original failure"
-      ]
-    },
-    {
-      "build": 4,
-      "version": "0.8.5.4",
-      "date": "2026-08-19T21:50:12+01:00",
-      "commit": "57a0daae1b5779bd3d29271a39482e775f719ae7",
-      "message": "Feature - Add library-wide duplicate watch cleanup for TV shows and movies",
-      "author": "Lasikiewicz",
-      "details": [
-        "Settings -> Tools -> Database Repairs now has a Remove Duplicate Watches tool with separate confirmed actions for TV shows and movies",
-        "Scans the whole library, keeps only the oldest watch date for each episode or movie, and shows the exact number of duplicate watches and affected items before asking for confirmation - the deletion cannot be undone once approved",
-        "Removed watches are pushed out as corrected canonical state to every connected platform (Plex, Emby, Jellyfin, Trakt), the same propagation already used by the per-season duplicate cleanup and manual watch-date edits",
-        "New GET /api/duplicate-watch-scan and POST /api/duplicate-watch-cleanup endpoints, both admin-only"
-      ]
-    },
-    {
-      "build": 3,
-      "version": "0.8.5.3",
-      "date": "2026-08-19T19:40:57+01:00",
-      "commit": "9b1fbe997ba595c76a0b8e34f390176d6c51cff6",
-      "message": "Fix - Stop Trakt episode dispatch from overwriting correct ids with a wrong TMDB title-search match",
-      "author": "Lasikiewicz",
-      "details": [
-        "Trakt sync for episodes no longer replaces an episode's own stored provider ids with a TMDB title-search result; existing ids now always win, and the lookup is skipped entirely once an episode already has one",
-        "Root cause of persistent duplicate/stuck Trakt entries for shows with short or ambiguous titles (e.g. G'wed): TMDB's search resolved to the wrong series, and that wrong id silently replaced the correct one on every dispatch, making Trakt unable to match the item to clear or add plays",
-        "Trakt dispatch now reports a real error (with the not_found detail) instead of a false success when Trakt cannot recognize the item"
-      ]
-    },
-    {
-      "build": 2,
-      "version": "0.8.5.2",
-      "date": "2026-08-19T17:35:21+01:00",
-      "commit": "5b424cd350b088507296db2bc761df6c477e157b",
-      "message": "Chore - Add one-off Plex match diagnostic endpoint",
-      "author": "Lasikiewicz",
-      "details": [
-        "Multiple shows (Silo, Game of Thrones) are reporting a genuine 'No matching item found' from findPlexItem for episodes that demonstrably exist in the library, and the detailed GUID/search trace that would explain why is gated behind the LOG_VERBOSE env var, which isn't set on the running deployment",
-        "Added POST /api/debug-plex-match (admin-only): runs findPlexItem for one watch record's exact media payload with verbose tracing forced on for just that call, then restores the previous verbose setting - no env var change or restart needed",
-        "Diagnostic only, no behavior change to any real sync path"
-      ]
-    },
-    {
       "build": 1,
-      "version": "0.8.5.1",
-      "date": "2026-08-19T17:05:32+01:00",
-      "commit": "1f856d63c1f40907e3e934391753cce2bddf5512",
-      "message": "Merge remote-tracking branch 'origin/alpha' into alpha",
-      "author": "Lasikiewicz",
+      "version": "0.8.6.1",
+      "date": "2026-08-20T11:07:41Z",
+      "commit": "80c1de712cc160042fcd51e1020d446d9eb30785",
+      "message": "Chore - Update changelog for e83e9e7",
+      "author": "github-actions[bot]",
       "details": [
-        "Merge remote-tracking branch 'origin/alpha' into alpha"
+        "Chore - Update changelog for e83e9e7"
       ]
     }
   ],
-  "updatedAt": "2026-08-20T11:57:23+01:00"
+  "updatedAt": "2026-08-20T11:07:41Z"
 }
