@@ -1,8 +1,21 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 1,
-  "version": "0.9.3.1.1",
+  "build": 2,
+  "version": "0.9.3.1.2",
   "entries": [
+    {
+      "build": 2,
+      "version": "0.9.3.1.2",
+      "date": "2026-08-20T20:29:23+01:00",
+      "commit": "c1bb43fe674628bb309492ecddb4acba2414e3e6",
+      "message": "Fix - Align develop and alpha versions with main v0.9.3",
+      "author": "Lasikiewicz",
+      "details": [
+        "Align alpha baseVersion to 0.9.3 (v0.9.3.1)",
+        "Align develop version to v0.9.3.1.1",
+        "Format version badges with clean (Develop) and (Alpha) channel suffixes"
+      ]
+    },
     {
       "build": 1,
       "version": "0.9.3.1.1",
@@ -16,5 +29,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T20:25:00+01:00"
+  "updatedAt": "2026-08-20T20:29:23+01:00"
 }
