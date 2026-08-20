@@ -7,6 +7,7 @@ import { fetchWithTimeout, assertSafeOutboundUrl } from "../utils/outbound.js";
 import { AUTH, verifyWebhookToken } from "../appConfig.js";
 import { db, parseJson, toJson, writeAuditLog } from "../db.js";
 import { createLoopStore } from "../utils/loopStore.js";
+import { runWithConcurrency } from "../utils/concurrency.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
 import { activeSyncOperation, appendSyncHistory, clearSyncOperation, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
@@ -757,6 +758,13 @@ export async function handleForceSyncCancellation(req, res) {
   return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
 }
 
+// Bounded item-level concurrency for bulk manual watch/unwatch dispatch, matching
+// the concurrency already used for Force Sync (mediaForceSync.js, libraryForceSync.js).
+// Outbound HTTP calls are still throttled per-host by the outbound governor, so this
+// only shortens wall-clock time for a large batch - it does not add pressure on
+// Plex/Emby/Jellyfin beyond what the governor already allows.
+const MANUAL_SYNC_ITEM_CONCURRENCY = 6;
+
 export async function handleManualUnwatch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -771,24 +779,24 @@ export async function handleManualUnwatch(req, res) {
 
   const config = await loadMediaConfig();
   const loopStore = createLoopStore();
-  const results = [];
+  const results = new Array(ids.length);
   let succeeded = 0;
   let failed = 0;
 
   try {
-    for (const id of ids) {
+    await runWithConcurrency(ids, async (id, index) => {
       try {
         const record = await getWatchRecordById(id);
         if (!record) throw new Error("Watch record not found");
         const media = mediaFromWatchRecord(record);
         const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, id, { includeSourcePlatform: true });
         succeeded += 1;
-        results.push({ id, unwatchedId, status: summary.status, targetStates: summary.targetStates || [] });
+        results[index] = { id, unwatchedId, status: summary.status, targetStates: summary.targetStates || [] };
       } catch (error) {
         failed += 1;
-        results.push({ id, error: error.message || String(error) });
+        results[index] = { id, error: error.message || String(error) };
       }
-    }
+    }, MANUAL_SYNC_ITEM_CONCURRENCY);
   } finally {
     await invalidateHistoryDerivedCaches().catch(() => null);
   }
@@ -857,7 +865,7 @@ export async function handleManualWatch(req, res) {
   // Sync in the background to prevent client timeouts
   if (syncTasks.length > 0) {
     (async () => {
-      for (const task of syncTasks) {
+      await runWithConcurrency(syncTasks, async (task) => {
         try {
           const summary = await syncMediaPlaystate(task.media, config, loopStore).catch((error) => ({
             skipped: false,
@@ -871,7 +879,7 @@ export async function handleManualWatch(req, res) {
         } catch (error) {
           console.error("Background manual watch sync failed:", error);
         }
-      }
+      }, MANUAL_SYNC_ITEM_CONCURRENCY);
       await invalidateHistoryDerivedCaches().catch(() => null);
     })().catch((error) => console.error("Background manual watch sync loop crashed:", error));
   }

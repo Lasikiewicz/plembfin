@@ -21,6 +21,76 @@ function isOutboundEcho(item, state, now = Date.now()) {
   return item?.lastOutboundState === state && Number(item.lastOutboundAt || 0) > 0 && now - Number(item.lastOutboundAt) <= OUTBOUND_ECHO_WINDOW_MS;
 }
 
+// Trakt's watched-progress endpoint occasionally comes back with fewer
+// episodes than the previous poll saw for a show, even though nothing was
+// actually unwatched on Trakt - a rate-limited or truncated response during
+// heavy outbound traffic (e.g. right after a canonical replay makes a burst
+// of Trakt API calls for one show) still returns a well-formed array, so the
+// malformedShow check in fetchTraktWatchedSnapshot does not catch it.
+// Trusting a sudden large drop as "these episodes are now unwatched" would
+// cascade a real, destructive unwatch to every connected platform and to
+// Plembfin's own history. A large, simultaneous drop within one show is held
+// back for one poll cycle instead of propagated immediately; if the same
+// episodes are still missing on the next poll it is treated as genuine and
+// goes through then. A genuine handful of unwatches (not a whole show at
+// once) always propagates immediately, and movies are single-item groups so
+// they are never affected by this check.
+const SUSPICIOUS_SHOW_DROP_MIN_COUNT = 4;
+const SUSPICIOUS_SHOW_DROP_MIN_FRACTION = 0.4;
+const pendingSuspiciousUnwatches = new Map(); // mediaKey -> first-detected timestamp
+
+export function showIdentityFromMediaKey(mediaKey = "") {
+  const match = /^episode:(.*):s-?\d+e-?\d+$/.exec(mediaKey);
+  return match ? match[1] : null;
+}
+
+function suspiciousShowDropIds(unwatchedCandidates, previous) {
+  const previousCountByShow = new Map();
+  for (const item of previous) {
+    const showId = showIdentityFromMediaKey(item.mediaKey);
+    if (!showId) continue;
+    previousCountByShow.set(showId, (previousCountByShow.get(showId) || 0) + 1);
+  }
+  const droppedCountByShow = new Map();
+  for (const item of unwatchedCandidates) {
+    const showId = showIdentityFromMediaKey(item.mediaKey);
+    if (!showId) continue;
+    droppedCountByShow.set(showId, (droppedCountByShow.get(showId) || 0) + 1);
+  }
+  const suspiciousShowIds = new Set();
+  for (const [showId, droppedCount] of droppedCountByShow) {
+    const previousCount = previousCountByShow.get(showId) || 0;
+    if (droppedCount >= SUSPICIOUS_SHOW_DROP_MIN_COUNT && previousCount > 0 && droppedCount / previousCount >= SUSPICIOUS_SHOW_DROP_MIN_FRACTION) {
+      suspiciousShowIds.add(showId);
+    }
+  }
+  return suspiciousShowIds;
+}
+
+// Splits unwatch candidates into ones to propagate now and ones to hold back
+// for one more poll. Also clears pending markers for items that reappeared
+// in the current snapshot (the transient hiccup resolved itself).
+export function partitionSuspiciousUnwatches(unwatchedCandidates, previous, currentByKey) {
+  for (const mediaKey of pendingSuspiciousUnwatches.keys()) {
+    if (currentByKey.has(mediaKey)) pendingSuspiciousUnwatches.delete(mediaKey);
+  }
+  const suspiciousShowIds = suspiciousShowDropIds(unwatchedCandidates, previous);
+  const unwatched = [];
+  const heldBack = [];
+  for (const item of unwatchedCandidates) {
+    const showId = showIdentityFromMediaKey(item.mediaKey);
+    const isSuspicious = showId && suspiciousShowIds.has(showId);
+    if (isSuspicious && !pendingSuspiciousUnwatches.has(item.mediaKey)) {
+      pendingSuspiciousUnwatches.set(item.mediaKey, Date.now());
+      heldBack.push(item);
+    } else {
+      unwatched.push(item);
+      pendingSuspiciousUnwatches.delete(item.mediaKey);
+    }
+  }
+  return { unwatched, heldBack };
+}
+
 async function readSnapshot() {
   let connection = await withFreshTraktConnection();
   if (!connection) return { connection: null, snapshot: [] };
@@ -177,9 +247,13 @@ async function pollTrakt({ reconcile = false } = {}) {
     initialSyncMode: publicConnection.initialSyncMode,
     reconcileKeys,
   });
-  const unwatched = baseline
+  const unwatchedCandidates = baseline
     ? previous.filter((item) => !currentByKey.has(item.mediaKey) && !isOutboundEcho(item, "unwatched"))
     : [];
+  const { unwatched, heldBack } = partitionSuspiciousUnwatches(unwatchedCandidates, previous, currentByKey);
+  if (heldBack.length) {
+    console.error(`[trackerSync] Held back ${heldBack.length} suspiciously large Trakt unwatch(es) from propagating - will re-check on the next poll instead of trusting a possibly incomplete response.`);
+  }
 
   const config = await loadMediaConfig();
   const loopStore = createLoopStore();
@@ -199,7 +273,11 @@ async function pollTrakt({ reconcile = false } = {}) {
   // after the batch or the TV detail page can continue showing stale progress.
   if (watched.length || unwatched.length) await invalidateHistoryDerivedCaches();
 
-  replaceTrackerSnapshot("trakt", snapshot);
+  // Held-back items must stay recorded as watched in tracker_item_state (not
+  // wiped out by the fresh snapshot) or the next poll would lose the "still
+  // missing?" comparison point and never be able to confirm or clear them.
+  const heldBackAsSnapshotItems = heldBack.map((item) => ({ mediaKey: item.mediaKey, media: item.media, watchedAt: item.remoteWatchedAt }));
+  replaceTrackerSnapshot("trakt", [...snapshot, ...heldBackAsSnapshotItems]);
   updateTrackerConnectionStatus("trakt", { baselineComplete: true, lastPolledAt: Date.now(), lastValidatedAt: Date.now(), lastError: null });
 
   try {

@@ -176,6 +176,14 @@ Implementation lives in `server/src/scheduled.js`.
 3. **Trakt snapshot sync** - **runs every minute when connected**:
    - Refreshes OAuth tokens when required and reads every watched movie and episode page.
    - Applies additions, removals, and rewatch timestamp changes with bounded concurrency.
+   - A removal is only trusted immediately when it is a small change. If a large share of one
+     show's episodes disappear from Trakt's watched response in the same poll - the shape of a
+     rate-limited or truncated response, not a real unwatch - those removals are held back and
+     re-checked on the next poll instead of propagating right away: still missing next time means
+     genuine and they go through then; back in the snapshot means the previous poll was a
+     transient hiccup and nothing is sent out. A normal removal of a couple of episodes is never
+     affected by this and still propagates the same minute (`partitionSuspiciousUnwatches` in
+     `trackerSync.js`).
    - **Sync Now** also reconciles unchanged Trakt watches against Plembfin's current
      canonical state, so it repairs drift that predates the connection baseline.
      The connection card shows an in-progress indicator while the complete snapshot
