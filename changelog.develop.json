@@ -1,9 +1,20 @@
 {
   "baseVersion": "0.8.6.7",
-  "build": 4,
-  "version": "0.8.6.7.4",
-  "updatedAt": "2026-08-20T19:27:54+01:00",
+  "build": 5,
+  "version": "0.8.6.7.5",
+  "updatedAt": "2026-08-20T19:33:21+01:00",
   "entries": [
+    {
+      "build": 5,
+      "version": "0.8.6.7.5",
+      "date": "2026-08-20T19:33:21+01:00",
+      "commit": "d2c6bfdfdd3e72af2eeb3bbe6798904350b0b12f",
+      "message": "Fix - Prioritize develop channel when changelog.develop.json is present",
+      "author": "Lasikiewicz",
+      "details": [
+        "Ensure container identifies as develop channel even if runtime env has stale BUILD_CHANNEL=alpha"
+      ]
+    },
     {
       "build": 4,
       "version": "0.8.6.7.4",
