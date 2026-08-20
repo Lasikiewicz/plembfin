@@ -32,10 +32,14 @@ export function isReleaseTypeCommitMessage(message) {
 }
 
 export function formatChangelogMessage(message) {
-  const m = String(message || "").match(/^([a-zA-Z]+)(?:\([^)]*\))?:\s*(.*)$/);
-  if (!m) return message;
+  let text = String(message || "").trim();
+  text = text.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "").trim();
+
+  const m = text.match(/^([a-zA-Z]+)(?:\([^)]*\))?:\s*(.*)$/);
+  if (!m) return text;
   const labels = {
     feat: "Feature",
+    feature: "Feature",
     fix: "Fix",
     security: "Security",
     chore: "Chore",
@@ -45,8 +49,9 @@ export function formatChangelogMessage(message) {
     perf: "Performance",
   };
   const label = labels[m[1].toLowerCase()];
-  if (!label) return message;
-  const rest = m[2].trim();
+  if (!label) return text;
+  let rest = m[2].trim();
+  rest = rest.replace(/^(feature|feat|fix|security|chore|docs|ci|enhancement|enhance|perf)\s*[:-]\s*/i, "").trim();
   if (!rest) return label;
   return `${label} - ${rest.charAt(0).toUpperCase()}${rest.slice(1)}`;
 }

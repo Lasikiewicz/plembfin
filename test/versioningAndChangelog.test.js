@@ -16,10 +16,10 @@ const { describePendingDevelopBuild, describePendingAlphaBuild, handleChangelog 
 test("simplifyEntries classifies and deduplicates features and fixes", () => {
   const entries = [
     {
-      message: "feat: add real-time websocket and SSE notifications",
+      message: "feat: Feature - add real-time websocket and SSE notifications",
       details: [
         "feat: add event listeners on client",
-        "fix: resolve connection drop on page unload",
+        "fix: Fix - resolve connection drop on page unload",
         "fix: resolve connection drop on page unload", // duplicate
         "internal cleanup of unused imports",
       ],
@@ -35,14 +35,16 @@ test("simplifyEntries classifies and deduplicates features and fixes", () => {
 
   const simplified = simplifyEntries(entries);
 
-  assert.ok(simplified.some((line) => line.includes("Feature:") && line.includes("add real-time websocket and SSE notifications")));
-  assert.ok(simplified.some((line) => line.includes("Feature:") && line.includes("configurable reconnect cadence")));
-  assert.ok(simplified.some((line) => line.includes("Fix:") && line.includes("resolve connection drop on page unload")));
-  assert.ok(simplified.some((line) => line.includes("Fix:") && line.includes("prevent memory leak on timer loop")));
-  assert.ok(simplified.some((line) => line.includes("Fix:") && line.includes("clear interval on socket termination")));
+  assert.ok(simplified.some((line) => line === "Feature: Add real-time websocket and SSE notifications"));
+  assert.ok(simplified.some((line) => line === "Feature: Configurable reconnect cadence"));
+  assert.ok(simplified.some((line) => line === "Fix: Resolve connection drop on page unload"));
+  assert.ok(simplified.some((line) => line === "Fix: Prevent memory leak on timer loop"));
+  assert.ok(simplified.some((line) => line === "Fix: Clear interval on socket termination"));
 
-  // Verify duplicates are removed and no icons are present
-  const connectionDropFixes = simplified.filter((line) => line.includes("resolve connection drop on page unload"));
+  // Verify duplicates and duplicate prefix labels are removed and no icons are present
+  assert.ok(!simplified.some((line) => /Feature:\s*(Feature|Feat)\b/i.test(line)), "No duplicate Feature: Feature prefixes");
+  assert.ok(!simplified.some((line) => /Fix:\s*Fix\b/i.test(line)), "No duplicate Fix: Fix prefixes");
+  const connectionDropFixes = simplified.filter((line) => line.includes("Resolve connection drop on page unload"));
   assert.equal(connectionDropFixes.length, 1);
   assert.ok(!simplified.some((line) => /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu.test(line)), "No icons/emojis should be present in changelog");
 });
