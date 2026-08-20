@@ -1,9 +1,21 @@
 {
   "baseVersion": "0.8.6.7",
-  "build": 5,
-  "version": "0.8.6.7.5",
-  "updatedAt": "2026-08-20T19:33:21+01:00",
+  "build": 6,
+  "version": "0.8.6.7.6",
+  "updatedAt": "2026-08-20T19:40:14+01:00",
   "entries": [
+    {
+      "build": 6,
+      "version": "0.8.6.7.6",
+      "date": "2026-08-20T19:40:14+01:00",
+      "commit": "72fb6d99c829b82daa993916457947c54378e1c2",
+      "message": "Feature - Update iOS home screen icon background to white and improve danger button contrast",
+      "author": "Lasikiewicz",
+      "details": [
+        "Set apple-touch-icon.png background to white for iOS home screen shortcuts",
+        "Improve danger/cancel button contrast and legibility across light and dark modes"
+      ]
+    },
     {
       "build": 5,
       "version": "0.8.6.7.5",
