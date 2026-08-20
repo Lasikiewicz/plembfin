@@ -3,7 +3,15 @@ import { collectServerWatchedItems, buildForceSyncPlan } from "./utils/forceSync
 import { createSyncPlanRecord } from "./utils/syncPlans.js";
 import { getCachedHistory } from "./utils/dataRepo.js";
 import { loadMediaConfig } from "./utils/configStore.js";
-import { runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener, restartPlexNotificationListener } from "./scheduler.js";
+import {
+  runScheduledTick,
+  startPlexNotificationListener,
+  stopPlexNotificationListener,
+  restartPlexNotificationListener,
+  startPlexAdaptivePoller,
+  stopPlexAdaptivePoller,
+  restartPlexAdaptivePoller,
+} from "./scheduler.js";
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
 import { backfillUnknownShowTitles, backfillMissingEpisodeSeasons } from "./utils/dataRepo.js";
 import { db } from "./db.js";
@@ -63,6 +71,7 @@ export function createWorkerCoordinator({ holderId, role }) {
     if (!changed) return;
     console.log(`[worker] scheduler leadership acquired (generation ${lease.generation})`);
     startPlexNotificationListener();
+    startPlexAdaptivePoller();
     await backfillUnknownShowTitles().catch((error) => console.error("backfillUnknownShowTitles failed", error));
     await backfillMissingEpisodeSeasons().catch((error) => console.error("backfillMissingEpisodeSeasons failed", error));
     // Warm the persisted Upcoming snapshot as soon as this process becomes the
@@ -77,6 +86,7 @@ export function createWorkerCoordinator({ holderId, role }) {
     console.warn(`[worker] scheduler leadership lost: ${reason}`);
     lease = null;
     stopPlexNotificationListener();
+    stopPlexAdaptivePoller();
   }
 
   async function maintainLease() {
@@ -92,7 +102,10 @@ export function createWorkerCoordinator({ holderId, role }) {
     }
     if (lease) {
       const settingsUpdatedAt = Number(db.prepare("SELECT updated_at FROM settings WHERE id='mediaConfig'").get()?.updated_at || 0);
-      if (lastSettingsUpdatedAt !== null && settingsUpdatedAt !== lastSettingsUpdatedAt) restartPlexNotificationListener();
+      if (lastSettingsUpdatedAt !== null && settingsUpdatedAt !== lastSettingsUpdatedAt) {
+        restartPlexNotificationListener();
+        restartPlexAdaptivePoller();
+      }
       lastSettingsUpdatedAt = settingsUpdatedAt;
     }
     later(maintainLease, lease ? RENEW_MS : ACQUIRE_MS);

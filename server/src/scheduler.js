@@ -1,7 +1,8 @@
 import { createLoopStore } from "./utils/loopStore.js";
 import { activeSyncOperation, appendSyncHistory, loadMediaConfig, loadRuntimeState, setRuntimeState, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
 import { createPlexNotificationListener } from "./utils/plexNotificationListener.js";
-import { fetchPlexContainerEpisodes, fetchPlexMetadataItem } from "./utils/plexClient.js";
+import { createPlexAdaptivePoller } from "./utils/plexAdaptivePoller.js";
+import { fetchPlexContainerEpisodes, fetchPlexMetadataItem, findPlexItem } from "./utils/plexClient.js";
 import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { runScheduledSync } from "./scheduled.js";
@@ -21,6 +22,7 @@ import {
   getPlaystateForMedia,
   insertWatchRecord,
   invalidateHistoryDerivedCaches,
+  listRecentTrackedWatchRows,
   mediaToWatchRecord,
   updateWatchTelemetry,
   upsertPlaystateForMedia,
@@ -363,3 +365,109 @@ export function restartPlexNotificationListener() {
 export function stopPlexNotificationListener() {
   plexNotificationListener?.stop();
 }
+
+async function checkPlexUnwatchedFast(plexConfig) {
+  if (!watchedPlayedSyncEnabled()) return false;
+  if (!plexConfig?.baseUrl || !plexConfig?.token || plexConfig.disabled) return false;
+
+  const restoreRuntime = await loadRuntimeState().catch(() => ({}));
+  const activeOperation = activeSyncOperation(restoreRuntime);
+  if (activeOperation && activeOperation.kind !== SYNC_OPERATION_SCHEDULED) return false;
+
+  const loopStore = createLoopStore();
+  const plexWasConfirmedWatched = (record) => {
+    if (String(record.source || "").toLowerCase().startsWith("plex")) return true;
+    const telemetry = String(record.sync_dispatch_telemetry || "").toLowerCase();
+    return /target plex status:\s*(fulfilled|success)/.test(telemetry);
+  };
+  const records = (await listRecentTrackedWatchRows({ limit: 50, includeScheduled: true })).filter(
+    (record) => plexWasConfirmedWatched(record),
+  ).slice(0, 10);
+
+  for (const record of records) {
+    try {
+      const media = {
+        title: record.title,
+        type: record.media_type,
+        source: "plex",
+        isValid: true,
+        ids: {
+          imdb: record.imdb_id || undefined,
+          tmdb: record.tmdb_id || undefined,
+          tvdb: record.tvdb_id || undefined,
+        },
+        season: record.season,
+        episode: record.episode,
+        watchProvenance: record.watch_provenance || null,
+      };
+
+      const plexItem = await findPlexItem(plexConfig, media);
+      if (plexItem) {
+        const isWatched = Boolean(plexItem.viewCount && Number(plexItem.viewCount) > 0);
+        if (!isWatched) {
+          const plexMedia = { ...media, itemId: plexItem.ratingKey || plexItem.key || undefined };
+          const ownPlayedMarkAt = await lastOutboundPlayedMarkAt(plexMedia, "plex", loopStore).catch(() => 0);
+          if (ownPlayedMarkAt > 0 && Date.now() - ownPlayedMarkAt <= 10 * 60 * 1000) {
+            continue;
+          }
+
+          console.log("Plex adaptive poller: item marked unwatched, storing and propagating", { title: record.title });
+          const config = await loadMediaConfig().catch(() => null);
+          const result = await applyUnwatchedTransition(plexMedia, config, loopStore, { recordId: record.id });
+          if (!result.alreadyUnwatched) {
+            await appendSyncHistory({
+              mediaType: plexMedia.type,
+              title: plexMedia.title,
+              source: "plex",
+              status: result.summary.status,
+              details: result.summary.details,
+              action: "unwatched",
+              targetStates: result.summary.targetStates || [],
+              rawPayloadDebug: { ratingKey: plexMedia.itemId, ids: plexMedia.ids || {} },
+            }).catch(() => null);
+          }
+          await invalidateHistoryDerivedCaches().catch(() => null);
+          await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+          return true;
+        }
+      }
+    } catch {
+      // quiet on individual lookup failures
+    }
+  }
+  return false;
+}
+
+let plexAdaptivePoller = null;
+
+export function startPlexAdaptivePoller() {
+  if (!plexAdaptivePoller) {
+    plexAdaptivePoller = createPlexAdaptivePoller({
+      getPlexConfig: async () => {
+        const config = await loadMediaConfig();
+        return config?.plex || null;
+      },
+      onLibraryItemChange: handlePlexLibraryItemChange,
+      checkUnwatched: checkPlexUnwatchedFast,
+      logger: console.log,
+    });
+  }
+  plexAdaptivePoller.start();
+}
+
+export function restartPlexAdaptivePoller() {
+  if (!plexAdaptivePoller) {
+    startPlexAdaptivePoller();
+    return;
+  }
+  plexAdaptivePoller.restart();
+}
+
+export function stopPlexAdaptivePoller() {
+  plexAdaptivePoller?.stop();
+}
+
+export function pokePlexAdaptivePoller() {
+  plexAdaptivePoller?.poke();
+}
+
