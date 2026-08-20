@@ -1,7 +1,20 @@
 {
   "baseVersion": "0.8.5",
-  "build": 6,
+  "build": 7,
   "entries": [
+    {
+      "build": 7,
+      "version": "0.8.5.7",
+      "date": "2026-08-20T10:47:19+01:00",
+      "commit": "4285a6dc599d4a0721cb7c03e98044ca028605d0",
+      "message": "Fix - Stop a just-watched item from being reverted by a lagging Trakt poll",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a real incident: marking The 'Burbs S01E05 watched appeared to succeed, then silently reverted seconds later - Trakt's API hadn't caught up to the write yet, so the next poll saw the episode as missing and treated it as a genuine remote unwatch, deleting the watch it had just created and re-propagating the unwatch to Plex, Emby, and Jellyfin",
+        "Live Trakt sync now protects a single item just marked watched the same way it already protects large batches: a poll landing within 30 minutes of that push can no longer read a lagging snapshot as a real unwatch",
+        "The sidebar Syncing N of M indicator now shows the true batch total immediately for a Trakt reconcile or bulk mark-watched/unwatched, instead of climbing one item at a time as workers pick up new items over the life of the batch"
+      ]
+    },
     {
       "build": 6,
       "version": "0.8.5.6",
@@ -81,5 +94,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T09:51:47+01:00"
+  "updatedAt": "2026-08-20T10:47:19+01:00"
 }
