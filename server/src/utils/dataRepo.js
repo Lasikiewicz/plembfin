@@ -520,6 +520,8 @@ function rowToWatch(row) {
     media_key: row.media_key || null,
     show_title: row.show_title ? decodeBasicHtmlEntities(row.show_title) : null,
     episode_title: row.episode_title ? decodeBasicHtmlEntities(row.episode_title) : null,
+    created_at: Number(row.created_at || 0),
+    updated_at: Number(row.updated_at || 0),
   };
 }
 
