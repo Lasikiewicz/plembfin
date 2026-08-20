@@ -841,11 +841,21 @@ export async function handleManualWatch(req, res) {
       };
       const { data, record } = normalizeWatchRecordForInsert(pending, "manual");
       const existing = await findExistingWatch(data.mediaKey || mediaKeyFor(record), data.watchedAt);
+      // findExistingWatch matches on (mediaKey, watchedAt) alone, so it can find a
+      // stale non-watched bookkeeping row left behind at this exact timestamp (e.g.
+      // the marker row an unwatch transition inserts to track its own resolution) -
+      // treating that as "already recorded" would silently skip writing the watched
+      // state while still reporting/dispatching success. Only a row already marked
+      // watched here is a genuine duplicate worth skipping.
+      const alreadyWatched = existing?.sync_action === "watched";
 
       const media = manualWatchMediaFromRecord(record);
       let id = "";
-      if (!existing) {
-        const insertResult = await insertWatchRecord(record, { skipInvalidate: true });
+      if (!alreadyWatched) {
+        // insertWatchRecord requires an id that isn't already in use, so a stale
+        // row occupying this slot has to be cleared before reusing its id.
+        if (existing) await deleteWatchRecordById(existing.id, { skipInvalidate: true }).catch(() => null);
+        const insertResult = await insertWatchRecord(record, { skipInvalidate: true, id: existing?.id || "" });
         id = insertResult.id;
         await insertResult.assetPrefetch?.catch(() => null);
         inserted += 1;
@@ -958,11 +968,16 @@ export async function handlePlaybackProgressWatch(req, res) {
 
     const { data, record: normalizedRecord } = normalizeWatchRecordForInsert(record, "manual");
     const existing = await findExistingWatch(data.mediaKey || mediaKeyFor(normalizedRecord), data.watchedAt);
+    // See the matching comment in handleManualWatch - a stale non-watched marker
+    // row at this exact (mediaKey, watchedAt) must not be treated as "already
+    // recorded", or the watched state never actually gets written.
+    const alreadyWatched = existing?.sync_action === "watched";
 
     const media = manualWatchMediaFromRecord(normalizedRecord);
     let id = "";
-    if (!existing) {
-      const insertResult = await insertWatchRecord(normalizedRecord, { skipInvalidate: true });
+    if (!alreadyWatched) {
+      if (existing) await deleteWatchRecordById(existing.id, { skipInvalidate: true }).catch(() => null);
+      const insertResult = await insertWatchRecord(normalizedRecord, { skipInvalidate: true, id: existing?.id || "" });
       id = insertResult.id;
       await insertResult.assetPrefetch?.catch(() => null);
     } else {

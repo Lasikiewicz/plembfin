@@ -88,7 +88,11 @@ first complete render.
   base. Marking more than one episode at once (season or show) always staggers each
   episode's `watched_at` one second apart in episode order - for "today" and "same as
   other episodes" alike - so a batch mark sorts correctly instead of every episode
-  landing on the same instant (`watchedAtForChoice`, `WATCH_ORDER_STEP_MS`).
+  landing on the same instant (`watchedAtForChoice`, `WATCH_ORDER_STEP_MS`). A mark-watched
+  request is treated as a genuine duplicate, and skipped, only when a row already marked
+  watched exists at that exact media identity and timestamp; a non-watched bookkeeping row
+  occupying that same slot (left behind by an unwatch transition) is replaced with the new
+  watched record instead of being mistaken for one.
 - **Rewatch tracking** - a genuine rewatch (a webhook playback event for an
   already-watched item on a later UTC calendar day; see [webhooks.md](webhooks.md#rewatch-detection))
   adds a new watch record instead of being dropped as a duplicate. A bare
