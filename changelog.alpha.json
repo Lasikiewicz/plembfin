@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.5",
-  "build": 9,
+  "build": 10,
   "entries": [
+    {
+      "build": 10,
+      "version": "0.8.5.10",
+      "date": "2026-08-20T11:57:23+01:00",
+      "commit": "5dd738f201b7b4bfe215216118d1b992252bb0db",
+      "message": "Fix - Stop a stale historyId from swapping in the wrong show's page",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a real bug: clicking a global search result for a TV show could open a completely different show's page instead - the URL still showed the show you clicked, but the title, poster, and episodes shown were whatever show had been open right before",
+        "Root cause: navigating to a show via a link that doesn't carry its own historyId (search results, unlike library cards) inherited the previous show's leftover historyId from app state, and the page then mistakenly treated that mismatched record as evidence the requested show couldn't be identified, substituting the unrelated show's single record in its place",
+        "The router now only carries a historyId forward when re-rendering the show already open, never into a navigation to a different show",
+        "A history record that names a real, different show is now treated as a stale reference and ignored, rather than swapped in as if the requested show were unidentifiable"
+      ]
+    },
     {
       "build": 9,
       "version": "0.8.5.9",
@@ -121,5 +135,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T11:38:49+01:00"
+  "updatedAt": "2026-08-20T11:57:23+01:00"
 }
