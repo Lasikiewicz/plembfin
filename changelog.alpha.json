@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.6",
-  "build": 5,
+  "build": 6,
   "entries": [
+    {
+      "build": 6,
+      "version": "0.8.6.6",
+      "date": "2026-08-20T15:00:59+01:00",
+      "commit": "fd97d068917b1fd18735a989a20f91f4e55d2523",
+      "message": "Fix - Force a live resync when marking a season or show watched that plembfin already has as watched",
+      "author": "Lasikiewicz",
+      "details": [
+        "Mark season watched / Mark Watched (show) no longer silently skips episodes plembfin's own history already shows as watched - they're re-pushed to Plex, Emby, Jellyfin, and Trakt in the same batch, using their existing watched date so history isn't rewritten",
+        "Fixes a drift bug where a media server that lost its watched flag after the original sync (e.g. following a library rescan) stayed unwatched forever unless the user ran Force Sync manually",
+        "When a season or the whole show has nothing left unwatched, the button relabels to \"Resync season\" / \"Resync Watched\" instead of disabling, so it stays usable for exactly this case",
+        "Documented the new resync behavior in docs/media-detail.md"
+      ]
+    },
     {
       "build": 5,
       "version": "0.8.6.5",
@@ -70,5 +84,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T14:34:10+01:00"
+  "updatedAt": "2026-08-20T15:00:59+01:00"
 }
