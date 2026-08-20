@@ -1,8 +1,19 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 7,
-  "version": "0.9.3.1.7",
+  "build": 8,
+  "version": "0.9.3.1.8",
   "entries": [
+    {
+      "build": 8,
+      "version": "0.9.3.1.8",
+      "date": "2026-08-20T22:05:10+01:00",
+      "commit": "d97f806123e927809c75c247b266ea0fb113fef2",
+      "message": "Fix - Piggyback sync-progress on history-version SSE to close refresh race",
+      "author": "Lasikiewicz",
+      "details": [
+        "Dashboard no longer refreshes repeatedly while a background sync is in progress after marking something watched in Plex"
+      ]
+    },
     {
       "build": 7,
       "version": "0.9.3.1.7",
@@ -86,5 +97,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T21:51:09+01:00"
+  "updatedAt": "2026-08-20T22:05:10+01:00"
 }
