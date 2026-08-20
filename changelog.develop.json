@@ -1,20 +1,7 @@
 {
   "baseVersion": "0.8.6.8",
-  "build": 1,
-  "version": "0.8.6.8.1",
-  "updatedAt": "2026-08-20T19:42:30+01:00",
-  "entries": [
-    {
-      "build": 1,
-      "version": "0.8.6.8.1",
-      "date": "2026-08-20T19:42:30+01:00",
-      "commit": "ad4b422232b3d3b1a00f3cd3523ba16f7fc29665",
-      "message": "Chore - Promote develop to alpha build 8 (v0.8.6.8.0)",
-      "author": "Lasikiewicz",
-      "details": [
-        "Simplified develop entries into alpha build 8 changelog",
-        "Reset develop changelog base version to 0.8.6.8"
-      ]
-    }
-  ]
+  "build": 0,
+  "version": "0.8.6.8.0",
+  "updatedAt": "2026-08-20T18:40:40.651Z",
+  "entries": []
 }
