@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.6",
-  "build": 3,
+  "build": 4,
   "entries": [
+    {
+      "build": 4,
+      "version": "0.8.6.4",
+      "date": "2026-08-20T14:20:10+01:00",
+      "commit": "c03a6ecf404076f0e8e42aa932469aa39820fbe8",
+      "message": "Fix - Close a gap where an identity-poor already-watched episode could still be duplicated",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a real gap in the duplicate-watch safeguard: it only ran the thorough watch-history identity check when the faster playstate check already agreed the item was watched, so a record old enough to predate provider-id tracking (title-only key) could slip past both and still get duplicated",
+        "Verified live: Reacher S01E01 (a properly identified, IMDb-keyed episode) was correctly protected, but School Spirits S03E04 (a title-only legacy record) let three duplicate marks through in a row before this fix",
+        "Both watch-state checks now run independently rather than one gated behind the other, so an item is treated as already watched if either finds it - closing the gap for any similarly old record library-wide, not just this one episode",
+        "Cleaned up the duplicates created during testing via Remove Duplicate Watches; no lasting data changes from this investigation"
+      ]
+    },
     {
       "build": 3,
       "version": "0.8.6.3",
@@ -42,5 +56,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T13:55:12+01:00"
+  "updatedAt": "2026-08-20T14:20:10+01:00"
 }
