@@ -1,8 +1,19 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 4,
-  "version": "0.9.3.1.4",
+  "build": 5,
+  "version": "0.9.3.1.5",
   "entries": [
+    {
+      "build": 5,
+      "version": "0.9.3.1.5",
+      "date": "2026-08-20T21:35:32+01:00",
+      "commit": "2f8977520d3ef3559a04661b4672f7ba9c96f759",
+      "message": "Fix - Prioritize exact media_key playstate match before fuzzy fallback",
+      "author": "Lasikiewicz",
+      "details": [
+        "Ensure exact media_key matches are checked before falling back to fuzzy title matches"
+      ]
+    },
     {
       "build": 4,
       "version": "0.9.3.1.4",
@@ -51,5 +62,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T21:30:08+01:00"
+  "updatedAt": "2026-08-20T21:35:32+01:00"
 }
