@@ -56,18 +56,53 @@ function unwatchedTelemetry(summary, media) {
 // Applies one explicit inbound/manual unwatched transition. Callers are
 // responsible for rejecting provider-user mismatches and outbound echoes before
 // reaching this function. Once admitted, the newest user action wins everywhere.
+//
+// `force` skips the "already unwatched, nothing to propagate" short-circuit
+// below and always dispatches to every target instead. Automated/inbound
+// callers (webhooks, the scheduler, tracker sync) must leave it off - the
+// short-circuit is their loop protection, since an echo of their own prior
+// unwatch would otherwise re-dispatch forever. It exists for explicit manual
+// unwatch actions, where plembfin's own canonical state can already say
+// "unwatched" while a media server has silently drifted back to watched (e.g.
+// after a library rescan) - the user clicking "Mark unwatched" again should
+// still force a live re-push rather than silently no-op.
 export async function applyUnwatchedTransition(media, config, loopStore, {
   recordId = "",
   includeSourcePlatform = false,
   trackDispatch = true,
+  force = false,
 } = {}) {
   const existingWatched = await findWatchedByAnyMediaKey(media).catch(() => null);
   const existingRecord = recordId
     ? await getWatchRecordByIdLight(recordId).catch(() => null)
     : await getWatchRecordByMediaKey(mediaKeyFor(media)).catch(() => null);
   const canonicalState = await getPlaystateForMedia(media).catch(() => null);
+  const alreadyUnwatchedLocally = !existingWatched && (canonicalState?.state === "unwatched" || existingRecord?.sync_action === "unwatched");
 
-  if (!existingWatched && (canonicalState?.state === "unwatched" || existingRecord?.sync_action === "unwatched")) {
+  if (alreadyUnwatchedLocally && force) {
+    // Nothing to insert/delete - plembfin already has this as unwatched - but
+    // still clear progress and push "unplayed" live to every connected target.
+    await deletePlaybackProgress(media).catch(() => null);
+    const syncMedia = includeSourcePlatform ? { ...media, source: "manual" } : media;
+    for (const target of getTargetsForSource(syncMedia.source, config)) {
+      try {
+        if (target === "plex") await setPlexProgress(config.plex, { ...media, positionMs: 0 });
+        if (target === "emby") await setEmbyProgress(config.emby, { ...media, positionMs: 0 });
+        if (target === "jellyfin") await setJellyfinProgress(config.jellyfin, { ...media, positionMs: 0 });
+      } catch (error) {
+        console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
+      }
+    }
+    const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore, { trackDispatch }).catch((error) => ({
+      skipped: false, status: "error", details: `Unwatched propagation failed: ${error.message || String(error)}`, targetStates: [],
+    }));
+    if (existingRecord?.id) {
+      await updateWatchTelemetry(existingRecord.id, unwatchedTelemetry(summary, media), { skipInvalidate: true }).catch(() => null);
+    }
+    return { wasDeleted: false, id: existingRecord?.id || "", alreadyUnwatched: true, summary };
+  }
+
+  if (alreadyUnwatchedLocally) {
     // Canonical state is already unwatched, but a partial-progress row can still
     // exist (e.g. a re-watch in progress after an earlier unwatch) - always clear
     // it so "Clear Progress" removes the item from the Part Watched list.

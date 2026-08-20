@@ -649,10 +649,10 @@ async function applyMovieWatchDateChoice(choice) {
   const markWatchedBtn = root.querySelector("[data-movie-mark-watched]");
   if (markWatchedBtn) {
     markWatchedBtn.disabled = true;
-    markWatchedBtn.textContent = "Saving watched state…";
+    markWatchedBtn.textContent = "Syncing…";
   }
 
-  _setMessage(`Saving "${movie.title}" to your watch history…`, "muted");
+  _setMessage(`Syncing "${movie.title}" to your media apps…`, "muted");
 
   try {
     const result = await postManualWatchRecords([record]);
@@ -661,11 +661,8 @@ async function applyMovieWatchDateChoice(choice) {
     const watchedMovie = localWatchRowFromMovie(movie, watchedAt, savedId);
     rememberLocalWatchedMovie(watchedMovie);
     _clearDerivedUiCaches({ resetExplorer: false });
-    const syncText = result.syncQueued
-      ? `sync queued for ${result.syncQueued} item${result.syncQueued === 1 ? "" : "s"}`
-      : `pushed ${result.propagated} to media apps`;
     _setMessage(
-      `Marked "${movie.title}" watched${result.skipped ? " (already logged)" : ""}; ${syncText}.`,
+      `Marked "${movie.title}" watched${result.skipped ? " (already logged)" : ""}; pushed ${result.propagated} of ${result.syncQueued} to media apps.`,
       result.rejected ? "error" : "success",
     );
     const patchedCurrentDetail = _patchMovieWatchedState(watchedMovie);
@@ -710,8 +707,7 @@ function applyOptimisticWatchedEpisodes(action, watchedRows) {
     const t = (show.title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     return t === showKey;
   });
-  const created = index < 0;
-  if (created) {
+  if (index < 0) {
     state.showsRaw.push({
       title: action.showTitle,
       tmdb_id: action.showTmdbId || null,
@@ -722,7 +718,6 @@ function applyOptimisticWatchedEpisodes(action, watchedRows) {
     index = state.showsRaw.length - 1;
   }
 
-  const previousShow = cloneShowRecord(state.showsRaw[index]);
   const show = cloneShowRecord(state.showsRaw[index]);
   const watchedByKey = new Map(watchedRows.map((row) => [showEpisodeKey(row.season, row.episode), row]));
   const existing = (show.episodes || []).filter((row) => !watchedByKey.has(showEpisodeKey(row.season, row.episode)));
@@ -738,20 +733,6 @@ function applyOptimisticWatchedEpisodes(action, watchedRows) {
     if (watched) modalEpisode.watched = watched;
   }
   state.showModalEpisodeIndex = new Map(state.showModalEpisodes.map((episode) => [episode.key, episode]));
-  return { showKey, previousShow, created };
-}
-
-function rollbackOptimisticWatchedEpisodes(rollback) {
-  if (!rollback?.showKey) return;
-  const index = state.showsRaw.findIndex((show) => {
-    const t = (show.title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    return t === rollback.showKey;
-  });
-  if (rollback?.created) {
-    if (index >= 0) state.showsRaw.splice(index, 1);
-    return;
-  }
-  if (index >= 0 && rollback?.previousShow) state.showsRaw[index] = rollback.previousShow;
 }
 
 async function applyPartWatchedWatchDateChoice(choice) {
@@ -805,13 +786,12 @@ export async function applyWatchDateChoice(choice) {
   if (action?.scope === "movie") return applyMovieWatchDateChoice(choice);
   if (!action?.episodes?.length) return;
 
-  const root = mediaDetailRoot();
   const customDate = getCustomWatchDateValue();
   const watchedRows = action.episodes.map((episode, index) => localWatchRowFromEpisode(episode, watchedAtForChoice(choice, episode, customDate, index * WATCH_ORDER_STEP_MS, action.referenceWatchedAt)));
   const records = action.episodes.map((episode, index) => watchRecordFromEpisode(episode, watchedRows[index].watched_at));
   // Episodes plembfin already has as watched ride along in the same batch so a
   // season/show "mark watched" always re-pushes them too, without touching
-  // their existing watched_at or going through the optimistic-UI update below.
+  // their existing watched_at.
   const resyncRecords = (action.resyncEpisodes || []).map((episode) => watchRecordFromEpisode(episode, episode.watched?.watched_at || new Date().toISOString()));
   const allRecords = [...records, ...resyncRecords];
   const overlay = document.querySelector(".watch-date-overlay");
@@ -820,9 +800,13 @@ export async function applyWatchDateChoice(choice) {
     button.disabled = true;
   });
 
+  // Rows in `action.episodes` show a "Syncing..." state (driven by
+  // state.savingWatchAction) instead of flipping to watched right away - the
+  // optimistic update only runs below once postManualWatchRecords resolves,
+  // i.e. once the live sync to every target has actually finished, not just
+  // once the click was registered.
   state.savingWatchAction = action;
   closeWatchDatePrompt();
-  const rollback = applyOptimisticWatchedEpisodes(action, watchedRows);
   if (state.activeShowModalKey) {
     _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
   } else if (state.activeShowTmdbId) {
@@ -830,20 +814,18 @@ export async function applyWatchDateChoice(choice) {
   }
 
   const total = allRecords.length;
-  _setMessage(total > 1 ? `Saving ${total} episodes to your watch history… 0/${total}` : "Saving to your watch history…", "muted");
+  _setMessage(total > 1 ? `Syncing ${total} episodes to your media apps… 0/${total}` : "Syncing to your media apps…", "muted");
 
   try {
     const result = await postManualWatchRecords(allRecords, (done, all) => {
-      if (all > 1) _setMessage(`Saving ${all} episodes to your watch history… ${done}/${all}`, "muted");
+      if (all > 1) _setMessage(`Syncing ${all} episodes to your media apps… ${done}/${all}`, "muted");
     });
     state.savingWatchAction = null;
+    applyOptimisticWatchedEpisodes(action, watchedRows);
     _clearDerivedUiCaches({ resetExplorer: false });
     const totalMarked = result.inserted + result.skipped;
-    const syncText = result.syncQueued
-      ? `sync queued for ${result.syncQueued} item${result.syncQueued === 1 ? "" : "s"}`
-      : `pushed ${result.propagated} to media apps`;
     _setMessage(
-      `Marked ${totalMarked} episode${totalMarked === 1 ? "" : "s"} watched; ${syncText}${result.skipped ? `, ${result.skipped} already logged` : ""}.`,
+      `Marked ${totalMarked} episode${totalMarked === 1 ? "" : "s"} watched; pushed ${result.propagated} of ${result.syncQueued} to media apps${result.skipped ? `, ${result.skipped} already logged` : ""}.`,
       result.rejected ? "error" : "success",
     );
     await refreshShowAfterManualWatch(action.showTitle).catch((error) => _setMessage(error.message, "error"));
@@ -854,7 +836,6 @@ export async function applyWatchDateChoice(choice) {
     }
   } catch (error) {
     state.savingWatchAction = null;
-    rollbackOptimisticWatchedEpisodes(rollback);
     if (state.activeShowModalKey) {
       _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
     } else if (state.activeShowTmdbId) {

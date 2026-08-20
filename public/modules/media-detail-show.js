@@ -769,7 +769,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
           ${seasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${seasonNumber}" ${isSaving ? "disabled" : ""}>Edit season date</button>` : ""}
           <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${seasonNumber}" ${(seasonEpisodes.length && !isSaving) ? "" : "disabled"}
             title="${seasonUnwatched.length ? "" : "Re-push this season's watched state to Plex, Emby, Jellyfin & Trakt"}">
-            ${isSaving && isSaving.scope === "season" && Number((isSaving.episodes[0] || isSaving.resyncEpisodes?.[0])?.seasonNumber) === Number(seasonNumber) ? "Saving…" : seasonUnwatched.length ? "Mark season watched" : "Resync season"}
+            ${isSaving && isSaving.scope === "season" && Number((isSaving.episodes[0] || isSaving.resyncEpisodes?.[0])?.seasonNumber) === Number(seasonNumber) ? "Syncing…" : seasonUnwatched.length ? "Mark season watched" : "Resync season"}
           </button>${seasonUnwatchButtonHtml(seasonEpisodes.filter((episode) => episode.watched).map((episode) => episode.watched.id), seasonNumber, showTitle, isSaving)}
         </div>
       </div>
@@ -803,9 +803,9 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
                     ${episodeIsUnreleased
         ? `<span class="unreleased-pill">Not yet released</span>`
         : !episode.watched
-          ? `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}" ${isSaving ? "disabled" : ""}>
-                            ${isSaving && isSaving.scope === "episode" && isSaving.episodes[0]?.key === episode.key ? "Saving…" : "Mark watched"}
-                           </button>`
+          ? isSaving?.episodes?.some((row) => row.key === episode.key)
+            ? `<button class="action-pill" type="button" disabled>Syncing…</button>`
+            : `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}" ${isSaving ? "disabled" : ""}>Mark watched</button>`
           : `<button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
                   </span>
                 </div>
@@ -1014,7 +1014,7 @@ export function renderShowModalContent(show, {
     <button class="action-pill" type="button" data-watch-scope="show" ${(episodeRows.length && !isSaving) ? "" : "disabled"}
       title="${unwatchedRows.length ? "" : "Re-push this show's watched state to Plex, Emby, Jellyfin & Trakt"}">
       ${checkIcon}
-      <span>${isSavingShow ? "Saving..." : unwatchedRows.length ? "Mark <br>Watched" : "Resync <br>Watched"}</span>
+      <span>${isSavingShow ? "Syncing..." : unwatchedRows.length ? "Mark <br>Watched" : "Resync <br>Watched"}</span>
     </button>
     ${showUnwatchButtonHtml(watchedRows.map((episode) => episode.watched.id), showTitle, isSaving)}
     ${watchedRows.length ? `

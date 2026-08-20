@@ -116,7 +116,14 @@ first complete render.
   rescan) gets corrected without needing Force Sync. When a season or the whole show
   has nothing left unwatched, the button relabels to "Resync season" / "Resync
   Watched" instead of disabling, so it can still be clicked to re-push
-  (`watchActionFromButton`, `runResyncWatchAction` in `watch-action.js`).
+  (`watchActionFromButton`, `runResyncWatchAction` in `watch-action.js`). `POST
+  /api/manual-watch` awaits the outbound dispatch to every target before responding
+  (rather than backgrounding it), and a manual unwatch (`POST /api/manual-unwatch`,
+  `POST /api/playback-progress/unwatch`) always forces a live re-push even when
+  Plembfin's own state already says unwatched - so the UI can show a row as
+  "Syncing..." for the duration of the request and only flip it to
+  watched/unwatched once the response confirms the push actually completed,
+  instead of updating optimistically on click.
 - **Rewatch tracking** - a genuine rewatch (a webhook playback event for an
   already-watched item on a later UTC calendar day; see [webhooks.md](webhooks.md#rewatch-detection))
   adds a new watch record instead of being dropped as a duplicate. A bare

@@ -468,9 +468,11 @@ function mediaFromWatchRecord(record) {
 // Core of "mark unwatched": delete the watched record, write a superseding
 // unwatched record, flip the playstate cache, and propagate unplayed to the other
 // platforms. Shared by the webhook `unplayed` phase and the manual-unwatch handler.
-export async function applyManualUnwatch(media, config, loopStore, recordId = "", { includeSourcePlatform = false, trackDispatch = true } = {}) {
-  const result = await applyUnwatchedTransition(media, config, loopStore, { recordId, includeSourcePlatform, trackDispatch });
-  if (!result.alreadyUnwatched) await recordSyncHistory(media, result.summary, "unwatched");
+export async function applyManualUnwatch(media, config, loopStore, recordId = "", { includeSourcePlatform = false, trackDispatch = true, force = false } = {}) {
+  const result = await applyUnwatchedTransition(media, config, loopStore, { recordId, includeSourcePlatform, trackDispatch, force });
+  // The force path still dispatches (and returns alreadyUnwatched: true purely
+  // to signal "no new watch_history row"), so it needs recording too.
+  if (!result.alreadyUnwatched || force) await recordSyncHistory(media, result.summary, "unwatched");
   return result;
 }
 
@@ -790,7 +792,7 @@ export async function handleManualUnwatch(req, res) {
         const record = await getWatchRecordById(id);
         if (!record) throw new Error("Watch record not found");
         const media = mediaFromWatchRecord(record);
-        const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, id, { includeSourcePlatform: true, trackDispatch: false });
+        const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, id, { includeSourcePlatform: true, trackDispatch: false, force: true });
         succeeded += 1;
         results[index] = { id, unwatchedId, status: summary.status, targetStates: summary.targetStates || [] };
       } catch (error) {
@@ -896,30 +898,32 @@ export async function handleManualWatch(req, res) {
 
   await invalidateHistoryDerivedCaches().catch(() => null);
 
-  // Sync in the background to prevent client timeouts
+  // Awaited rather than backgrounded: the UI shows a "Syncing..." state and
+  // only flips a row to watched once this response comes back, so the client
+  // needs the real per-target outcome, not just "a watch record was queued".
+  let propagated = 0;
   if (syncTasks.length > 0) {
-    (async () => {
-      reserveDispatchBatch(syncTasks.length);
-      await runWithConcurrency(syncTasks, async (task) => {
-        try {
-          const summary = await syncMediaPlaystate(task.media, config, loopStore, { trackDispatch: false }).catch((error) => ({
-            skipped: false,
-            status: "error",
-            details: `Manual watch propagation failed: ${error.message || String(error)}`,
-            targetStates: [],
-          }));
+    reserveDispatchBatch(syncTasks.length);
+    await runWithConcurrency(syncTasks, async (task) => {
+      try {
+        const summary = await syncMediaPlaystate(task.media, config, loopStore, { trackDispatch: false }).catch((error) => ({
+          skipped: false,
+          status: "error",
+          details: `Manual watch propagation failed: ${error.message || String(error)}`,
+          targetStates: [],
+        }));
+        if (summary.status === "success" || summary.status === "partial") propagated += 1;
 
-          await updateWatchTelemetry(task.id, formatDispatchTelemetry(summary, task.media, "watched"), { skipInvalidate: true });
-          await recordSyncHistory(task.media, summary, "watched");
-        } catch (error) {
-          console.error("Background manual watch sync failed:", error);
-        }
-      }, MANUAL_SYNC_ITEM_CONCURRENCY);
-      await invalidateHistoryDerivedCaches().catch(() => null);
-    })().catch((error) => console.error("Background manual watch sync loop crashed:", error));
+        await updateWatchTelemetry(task.id, formatDispatchTelemetry(summary, task.media, "watched"), { skipInvalidate: true });
+        await recordSyncHistory(task.media, summary, "watched");
+      } catch (error) {
+        console.error("Manual watch sync failed:", error);
+      }
+    }, MANUAL_SYNC_ITEM_CONCURRENCY);
+    await invalidateHistoryDerivedCaches().catch(() => null);
   }
 
-  return sendJson(res, { ok: true, inserted, skipped, rejected, propagated: 0, syncQueued: syncTasks.length, results });
+  return sendJson(res, { ok: true, inserted, skipped, rejected, propagated, syncQueued: syncTasks.length, results });
 }
 
 export async function handlePlaybackProgressList(req, res) {
@@ -1070,7 +1074,7 @@ export async function handlePlaybackProgressUnwatch(req, res) {
     const config = await loadMediaConfig();
     const loopStore = createLoopStore();
 
-    const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, "", { includeSourcePlatform: true });
+    const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, "", { includeSourcePlatform: true, force: true });
     return sendJson(res, { ok: true, id: unwatchedId, status: summary.status, targetStates: summary.targetStates || [] });
   } catch (error) {
     console.error("Playback progress unwatch failed", error);
