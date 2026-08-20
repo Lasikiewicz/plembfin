@@ -1,7 +1,20 @@
 {
   "baseVersion": "0.8.5",
-  "build": 4,
+  "build": 5,
   "entries": [
+    {
+      "build": 5,
+      "version": "0.8.5.5",
+      "date": "2026-08-20T09:07:42+01:00",
+      "commit": "6a0d52bcf112764693bdb926a97bfac3fb17a02e",
+      "message": "Feature - Keep batch mark-watched dates in order and add a same-as-other-episodes choice",
+      "author": "Lasikiewicz",
+      "details": [
+        "Marking a season or whole show watched at once no longer stamps every episode with the identical watched_at; each episode is now staggered one second apart in episode order so they sort correctly instead of tying",
+        "Added a new watched-date choice, Same as other episodes, shown whenever an episode in the same season (or show) already has a recorded watch date - it reuses that episode's date/time as the base for the rest, with the same ordering applied on top",
+        "Diagnosed a report of Mark season watched appearing to do nothing: the save itself works correctly; a stale/expired session is the most likely explanation for the original failure"
+      ]
+    },
     {
       "build": 4,
       "version": "0.8.5.4",
@@ -54,5 +67,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-19T21:50:12+01:00"
+  "updatedAt": "2026-08-20T09:07:42+01:00"
 }
