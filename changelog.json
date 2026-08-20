@@ -1,7 +1,33 @@
 {
-  "version": "0.8.6",
-  "updatedAt": "2026-08-20T10:57:57Z",
+  "version": "0.9.0",
+  "updatedAt": "2026-08-20T18:57:21.205Z",
   "entries": [
+    {
+      "version": "0.9.0",
+      "version5Digit": "0.9.0.0.0",
+      "date": "2026-08-20T18:57:21.205Z",
+      "commit": "72fb6d99c829b82daa993916457947c54378e1c2",
+      "message": "Feature - Update iOS home screen icon background to white and improve danger button contrast",
+      "author": "system",
+      "details": [
+        "Feature: Feature - Update iOS home screen icon background to white and improve danger button contrast",
+        "Feature: Feature - Package develop changelog in Docker and refine UI interactions",
+        "Feature: Feature - Optimize dashboard live updates and auto-detect develop channel",
+        "Feature: Add DOM HTML caching in dashboard and part watched views to eliminate unnecessary re-renders",
+        "Feature: Feature - 5-segment versioning and tiered changelog cascade",
+        "Feature: Add changelog.develop.json and tiered changelog visibility for develop, alpha, and main",
+        "Feature: Add promotion and summarization scripts for develop to alpha and alpha to main",
+        "Feature: Feat - Real-time live data updates and develop CI workflow",
+        "Feature: Add Docker build and publish workflow for develop branch",
+        "Fix: Fix - Prioritize develop channel when changelog.develop.json is present",
+        "Fix: Fix - Force live sync on manual unwatch and wait for it to finish before the UI shows the new state",
+        "Fix: Fix - Force a live resync when marking a season or show watched that plembfin already has as watched",
+        "Fix: Fix - Recover Trakt dispatch when a media server reports a wrong episode id",
+        "Fix: Fix - Close a gap where an identity-poor already-watched episode could still be duplicated",
+        "Fix: Fix - Stop mark-watched from ever creating a duplicate on an already-watched item",
+        "Fix: Fix - Stop non-release commits from polluting changelog entries"
+      ]
+    },
     {
       "version": "0.8.6",
       "date": "2026-08-20T10:57:57Z",

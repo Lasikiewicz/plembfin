@@ -24,13 +24,16 @@ export function simplifyEntries(entries = []) {
     ].filter(Boolean);
 
     for (const rawLine of lines) {
-      const line = String(rawLine).trim();
+      let line = String(rawLine).trim();
       if (!line) continue;
 
-      if (/^(feat|feature|add)\b/i.test(line) || /✨/i.test(line)) {
-        features.push(line.replace(/^(feat|feature|add):\s*/i, "").replace(/^✨\s*/, ""));
-      } else if (/^(fix|bug|repair|patch)\b/i.test(line) || /🐛/i.test(line)) {
-        fixes.push(line.replace(/^(fix|bug|repair|patch):\s*/i, "").replace(/^🐛\s*/, ""));
+      // Strip all emoji/icon characters
+      line = line.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "").trim();
+
+      if (/^(feat|feature|add)\b/i.test(line)) {
+        features.push(line.replace(/^(feat|feature|add):\s*/i, "").trim());
+      } else if (/^(fix|bug|repair|patch)\b/i.test(line)) {
+        fixes.push(line.replace(/^(fix|bug|repair|patch):\s*/i, "").trim());
       } else {
         other.push(line);
       }
@@ -45,10 +48,10 @@ export function simplifyEntries(entries = []) {
 
   const result = [];
   if (cleanFeatures.length) {
-    result.push(...cleanFeatures.map((f) => `✨ Feature: ${f}`));
+    result.push(...cleanFeatures.map((f) => `Feature: ${f}`));
   }
   if (cleanFixes.length) {
-    result.push(...cleanFixes.map((f) => `🐛 Fix: ${f}`));
+    result.push(...cleanFixes.map((f) => `Fix: ${f}`));
   }
   if (cleanOther.length && result.length === 0) {
     result.push(...cleanOther);
@@ -70,6 +73,11 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
     alpha = { baseVersion: mainVersion, build: 0, entries: [] };
   }
   if (!Array.isArray(alpha.entries)) alpha.entries = [];
+
+  // Always sync baseVersion with main if main has moved forward
+  if (alpha.baseVersion !== mainVersion) {
+    alpha = { baseVersion: mainVersion, build: 0, entries: [] };
+  }
 
   let develop;
   try {
