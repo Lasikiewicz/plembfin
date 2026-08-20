@@ -1,8 +1,22 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 14,
-  "version": "0.9.3.1.14",
+  "build": 15,
+  "version": "0.9.3.1.15",
   "entries": [
+    {
+      "build": 15,
+      "version": "0.9.3.1.15",
+      "date": "2026-08-21T00:07:14+01:00",
+      "commit": "7866cd4f3b65fa7852756d1150b448e95e0686c4",
+      "message": "Fix - Stop the play-history importer creating duplicate watches",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed importTraktPlayHistory only checking for an existing local watch via an exact (media_key, watched_at) match, which misses an already-recorded episode whenever the Trakt entry's own media key differs from how the existing record was stored (e.g. a manual watch keyed by tmdb vs a Trakt entry keyed by imdb for the same episode)",
+        "This became active once the earlier tracker-snapshot crash fix let the import step actually run again, and it was inserting a second watch_history row - dated whenever Trakt reported the play, often today - for episodes already recorded under a different key",
+        "The import now also checks getCanonicalWatchState, the same coordinate/provider-id fallback matching every other ingest path in the app already relies on, before deciding an episode is new; a canonical \"watched\" answer skips the insert instead of creating a duplicate",
+        "Cleaned up 31 duplicate rows this surfaced across multiple shows via the existing Dedup History tool"
+      ]
+    },
     {
       "build": 14,
       "version": "0.9.3.1.14",
@@ -177,5 +191,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-21T00:02:01+01:00"
+  "updatedAt": "2026-08-21T00:07:14+01:00"
 }
