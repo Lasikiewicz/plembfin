@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.5",
-  "build": 5,
+  "build": 6,
   "entries": [
+    {
+      "build": 6,
+      "version": "0.8.5.6",
+      "date": "2026-08-20T09:51:47+01:00",
+      "commit": "6749eeae128e234e210c6c3ff6ee9782140e3ea7",
+      "message": "Security - Stop Trakt live sync from cascading a false mass-unwatch across every platform",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a real incident: a burst of Trakt API calls (from marking a season watched) caused Trakt's watched-progress response to come back rate-limited and incomplete, and the live Trakt sync trusted the shorter list as a genuine unwatch - cascading unwatched state to Plex, Emby, Jellyfin, and Plembfin's own history across three seasons of a show",
+        "Live Trakt sync now holds back any unwatch where a large share of one show's episodes disappear at once instead of propagating immediately; it re-checks on the next poll and only propagates once the same episodes are still missing a second time, so a genuine unwatch still goes through with a one-minute delay while a transient bad response self-heals with no changes sent anywhere",
+        "A normal unwatch of a couple of episodes is unaffected and still propagates the same minute as before",
+        "Marking a season or show watched at once (and bulk unwatch) now dispatches to Plex/Emby/Jellyfin/Trakt with bounded concurrency instead of one item at a time, so large batches finish noticeably faster without increasing load on any single server (outbound requests are still throttled per-host)"
+      ]
+    },
     {
       "build": 5,
       "version": "0.8.5.5",
@@ -67,5 +81,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T09:07:42+01:00"
+  "updatedAt": "2026-08-20T09:51:47+01:00"
 }
