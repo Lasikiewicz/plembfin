@@ -200,7 +200,15 @@ Implementation lives in `server/src/scheduled.js`.
      is read, then reports the number of Trakt items checked and changes applied.
    - Episode writes resolve series-level provider IDs before calling Trakt. This avoids
      sending episode-level Plex/Emby/Jellyfin IDs in the show slot and lets identity-poor
-     catch-up rows use the show's cached metadata.
+     catch-up rows use the show's cached metadata. This lookup only fills in ids for an
+     episode that arrives with none - an id the episode already carries always wins, so a
+     bad match already resolved for that specific episode is never silently overwritten.
+     If Trakt then rejects that stored id outright (a non-empty `not_found` in its
+     `/sync/history` response body), `dispatchTrakt` retries once with the show's own known series ids before
+     giving up; this recovers a media server's own mismatched per-episode metadata (a
+     webhook can report a genuinely wrong id for one episode) without ever speculatively
+     replacing an id that was actually working. A retry that succeeds says so explicitly
+     in the sync-history detail rather than reporting a bare success.
    - Dispatches accepted transitions to media servers and signals the authenticated
      browser update stream after each committed item.
    - After the snapshot diff, a separate step reads Trakt's per-play history and imports

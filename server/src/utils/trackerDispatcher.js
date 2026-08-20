@@ -112,6 +112,28 @@ async function performTraktDispatch(connection, trackerMedia, state, isCanonical
   return { removeResult, result };
 }
 
+// hydrateTrackerMedia deliberately never overrides an episode's own stored
+// id, since that id normally must win over a title-based guess (see its own
+// comment). But Trakt rejecting the add outright is a much stronger signal
+// than "no id was ever recorded" - it means the specific id we sent doesn't
+// correspond to anything Trakt recognizes, which is exactly what happens
+// when a media server's own metadata match is wrong for one episode (its
+// webhook still reports *an* id, just the wrong one). One retry against the
+// show's own known series ids, only once Trakt has explicitly said the
+// episode's own id doesn't work, recovers this without ever silently
+// replacing a genuinely-working id the way the title-search bug used to.
+async function seriesIdsForRetry(media) {
+  const title = trackerShowTitle(media);
+  if (!title) return null;
+  const details = await getTmdbDetails({ mediaType: "tv", title, light: true }).catch(() => null);
+  const ids = {
+    imdb: String(details?.external_ids?.imdb_id || "").trim(),
+    tmdb: String(details?.id || details?.external_ids?.tmdb_id || "").trim(),
+    tvdb: String(details?.external_ids?.tvdb_id || "").trim(),
+  };
+  return ids.imdb || ids.tmdb || ids.tvdb ? ids : null;
+}
+
 async function dispatchTrakt(media, state) {
   let connection = await withFreshTraktConnection();
   if (!connection) return { target: "trakt", status: "skipped", detail: "Trakt is not connected" };
@@ -133,7 +155,22 @@ async function dispatchTrakt(media, state) {
   const mediaKey = trackerMediaKey(trackerMedia);
   recordTrackerOutbound("trakt", mediaKey, trackerMedia, state);
 
-  const addNotFound = traktNotFoundCount(dispatch.result);
+  let addNotFound = traktNotFoundCount(dispatch.result);
+  let usedSeriesIdFallback = false;
+  if (addNotFound > 0 && trackerMedia.type === "episode") {
+    const seriesIds = await seriesIdsForRetry(trackerMedia).catch(() => null);
+    const changed = seriesIds && JSON.stringify(seriesIds) !== JSON.stringify(trackerMedia.ids || {});
+    if (changed) {
+      const retryMedia = { ...trackerMedia, ids: seriesIds };
+      const retryDispatch = await performTraktDispatch(connection, retryMedia, state, isCanonicalReplay).catch(() => null);
+      if (retryDispatch && traktNotFoundCount(retryDispatch.result) === 0) {
+        dispatch = retryDispatch;
+        addNotFound = 0;
+        usedSeriesIdFallback = true;
+        recordTrackerOutbound("trakt", trackerMediaKey(retryMedia), retryMedia, state);
+      }
+    }
+  }
   if (addNotFound > 0) {
     return {
       target: "trakt",
@@ -142,7 +179,9 @@ async function dispatchTrakt(media, state) {
     };
   }
 
-  let detail = `Marked ${state} on Trakt`;
+  let detail = usedSeriesIdFallback
+    ? `Marked ${state} on Trakt (this episode's own stored id didn't match; used the show's series id instead)`
+    : `Marked ${state} on Trakt`;
   if (isCanonicalReplay && dispatch.removeResult) {
     const deleted = dispatch.removeResult.deleted || {};
     const deletedCount = Number(deleted.movies || 0) + Number(deleted.episodes || 0);
