@@ -1,7 +1,22 @@
 {
   "baseVersion": "0.8.6",
-  "build": 6,
+  "build": 7,
   "entries": [
+    {
+      "build": 7,
+      "version": "0.8.6.7",
+      "date": "2026-08-20T15:14:15+01:00",
+      "commit": "cdbf65dc84171f01e49f421b1dbf29373718597f",
+      "message": "Fix - Force live sync on manual unwatch and wait for it to finish before the UI shows the new state",
+      "author": "Lasikiewicz",
+      "details": [
+        "Manual unwatch (single episode, season/show bulk, and clearing Part Watched progress) now forces a live re-push to Plex, Emby, Jellyfin, and Trakt even when Plembfin's own database already shows the item unwatched, matching the mark-watched fix from the previous commit",
+        "Automated paths (webhooks, the scheduler, tracker sync) keep their original loop-protection skip, since that guard is what stops their own echoes from re-dispatching forever",
+        "Mark watched no longer flips an episode, season, or movie to \"watched\" the instant you click it - it now shows \"Syncing...\" and only updates once the live sync to every connected app has actually finished",
+        "The manual-watch API now waits for that sync to complete before responding, instead of dispatching it in the background and reporting an unverified queued count",
+        "Documented both changes in docs/media-detail.md"
+      ]
+    },
     {
       "build": 6,
       "version": "0.8.6.6",
@@ -84,5 +99,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T15:00:59+01:00"
+  "updatedAt": "2026-08-20T15:14:15+01:00"
 }
