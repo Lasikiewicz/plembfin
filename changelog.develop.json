@@ -1,0 +1,21 @@
+{
+  "baseVersion": "0.9.0.0",
+  "build": 1,
+  "entries": [
+    {
+      "build": 1,
+      "version": "0.9.0.0.1",
+      "date": "2026-08-20T20:09:16+01:00",
+      "commit": "051ca284e0593838e4f86aedd8ea1379c65084ea",
+      "message": "Fix - Format develop build cards as v<version> (Develop) and strip duplicate changelog prefixes",
+      "author": "Lasikiewicz",
+      "details": [
+        "Render develop build card headers as v<version> (Develop) and alpha build cards as v<version> (Alpha)",
+        "Strip repeated Feature: Feature - and Fix: Fix - prefixes from changelog details and generator scripts",
+        "Clean up release 0.9.0 changelog details"
+      ]
+    }
+  ],
+  "version": "0.9.0.0.1",
+  "updatedAt": "2026-08-20T20:09:16+01:00"
+}
