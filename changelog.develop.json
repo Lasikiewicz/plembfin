@@ -1,9 +1,22 @@
 {
   "baseVersion": "0.8.6.7",
-  "build": 2,
-  "version": "0.8.6.7.2",
-  "updatedAt": "2026-08-20T19:14:18+01:00",
+  "build": 3,
+  "version": "0.8.6.7.3",
+  "updatedAt": "2026-08-20T19:19:43+01:00",
   "entries": [
+    {
+      "build": 3,
+      "version": "0.8.6.7.3",
+      "date": "2026-08-20T19:19:43+01:00",
+      "commit": "165ca10d7b174968c5e10bc030e2305273c40b5d",
+      "message": "Feature - Optimize dashboard live updates and auto-detect develop channel",
+      "author": "Lasikiewicz",
+      "details": [
+        "Throttle live history refreshes during background syncs to avoid UI thrashing",
+        "Add DOM HTML caching in dashboard and part watched views to eliminate unnecessary re-renders",
+        "Auto-detect develop channel from changelog files on develop branch"
+      ]
+    },
     {
       "build": 2,
       "version": "0.8.6.7.2",
