@@ -1,8 +1,20 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 11,
-  "version": "0.9.3.1.11",
+  "build": 12,
+  "version": "0.9.3.1.12",
   "entries": [
+    {
+      "build": 12,
+      "version": "0.9.3.1.12",
+      "date": "2026-08-20T23:45:16+01:00",
+      "commit": "883f10ba4b707c9a5f4c0e67d6ab65989bdcad4c",
+      "message": "Fix - Stop the watched-state poll crashing on a duplicate media key",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed replaceTrackerSnapshot failing with a UNIQUE constraint error whenever the combined Trakt snapshot list contained more than one entry for the same media_key (e.g. a rewatch Trakt reports as a separate play), which crashed the whole snapshot replace and made the Trakt watched-state poll fail on every subsequent tick",
+        "The combined snapshot list is now deduplicated by media_key, keeping the most recently reported watched_at, before being written to tracker_item_state"
+      ]
+    },
     {
       "build": 11,
       "version": "0.9.3.1.11",
@@ -139,5 +151,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T23:33:39+01:00"
+  "updatedAt": "2026-08-20T23:45:16+01:00"
 }
