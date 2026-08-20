@@ -5,6 +5,7 @@ import {
   bulletPointsFrom,
   formatChangelogMessage,
   isNoiseCommitMessage,
+  isReleaseTypeCommitMessage,
   validateReleaseMessage,
 } from "../scripts/changelog-message.js";
 
@@ -43,6 +44,17 @@ test("isNoiseCommitMessage flags CI plumbing commits", () => {
   assert.equal(isNoiseCommitMessage("Merge pull request #12 from foo/bar"), true);
   assert.equal(isNoiseCommitMessage("fix: keep controls visible"), false);
   assert.equal(isNoiseCommitMessage("chore: bump version to 0.8.0"), false);
+});
+
+test("isReleaseTypeCommitMessage only accepts user-facing commit types", () => {
+  assert.equal(isReleaseTypeCommitMessage("fix: keep controls visible"), true);
+  assert.equal(isReleaseTypeCommitMessage("feat(stats): add comparisons"), true);
+  assert.equal(isReleaseTypeCommitMessage("security: rotate secrets"), true);
+  assert.equal(isReleaseTypeCommitMessage("docs: update readme"), true);
+  assert.equal(isReleaseTypeCommitMessage("test: update Force Sync request tests"), false);
+  assert.equal(isReleaseTypeCommitMessage("chore: add one-off diagnostic endpoint"), false);
+  assert.equal(isReleaseTypeCommitMessage("refactor: extract helper"), false);
+  assert.equal(isReleaseTypeCommitMessage("Merge branch 'alpha' into alpha"), false);
 });
 
 test("validateReleaseMessage accepts meaningful details and maintenance commits", () => {

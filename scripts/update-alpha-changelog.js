@@ -11,7 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { bulletPointsFrom, formatChangelogMessage, isNoiseCommitMessage, validateReleaseMessage } from "./changelog-message.js";
+import { bulletPointsFrom, formatChangelogMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, validateReleaseMessage } from "./changelog-message.js";
 import { changeAreaDetails, changedFilesForCommit, commitsSinceLastEntry } from "./changelog-git-helpers.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -62,7 +62,7 @@ const lastRecordedCommit = alpha.entries[0]?.commit || "";
 const gitHistoryCommits = commitsSinceLastEntry(root, lastRecordedCommit, sourceCommit);
 const otherCommitsRaw = gitHistoryCommits.length > 0 ? gitHistoryCommits : pushedCommits;
 const otherCommits = otherCommitsRaw.filter((commit) =>
-  commit.id !== sourceCommit && !isNoiseCommitMessage(commit.message));
+  commit.id !== sourceCommit && !isNoiseCommitMessage(commit.message) && isReleaseTypeCommitMessage(commit.message));
 
 // The pre-push hook merges origin/alpha into a local push whenever the bot's
 // own build-bump commit already landed there (routine on this branch - see

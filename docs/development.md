@@ -94,20 +94,29 @@ this means every "Merge alpha with main" run, not every individual commit:
    bullet points of every commit in the push, other than CI plumbing commits
    (`isNoiseCommitMessage` in `scripts/changelog-message.js`: the bot's own
    `chore: bump alpha build for …` / `chore: update changelog for …` commits and
-   `Merge branch/commit/pull request …` commits), which carry no user-visible content
-   of their own. When the head commit itself is one of those - routine for a
-   "Merge alpha with main" force-push, since GitHub reports the range's last commit as
-   the trigger - the headline falls back to the most recent real commit in the push
-   instead of the plumbing commit's subject line. User-visible `feat`, `fix`,
-   `security`, `enhance`, `perf`, and `docs` commits are rejected unless they
-   contain at least one meaningful body bullet. If a maintenance or legacy commit
-   has no body, the generator derives a user-facing summary from its changed file
-   areas instead of publishing only a vague subject line. A release built from many
-   small iterative alpha commits (a feature added, then throttled, then disabled,
-   then re-enabled within the same day) can still read as noisy even with plumbing
-   commits excluded, since the generator has no way to know a later commit
-   supersedes an earlier one - that kind of entry may need a manual touch-up to
-   `changelog.json` after the merge.
+   `Merge branch/commit/pull request …` commits) and commits whose own type isn't
+   user-facing (`isReleaseTypeCommitMessage`: only `feat`, `fix`, `security`,
+   `enhance`, `perf`, and `docs` commits contribute bullets - a `test:`, `chore:`,
+   `refactor:`, `style:`, or `ci:` commit bundled into the same push never surfaces
+   its own bullets, even when it isn't otherwise noise). When the head commit itself
+   is a plumbing commit - routine for a "Merge alpha with main" force-push, since
+   GitHub reports the range's last commit as the trigger - the headline falls back to
+   the most recent real commit in the push instead of the plumbing commit's subject
+   line. User-visible `feat`, `fix`, `security`, `enhance`, `perf`, and `docs`
+   commits are rejected unless they contain at least one meaningful body bullet. If a
+   maintenance or legacy commit has no body, the generator derives a user-facing
+   summary from its changed file areas instead of publishing only a vague subject
+   line. The type filter only screens out bullets from the *wrong kind* of commit -
+   it can't tell a bullet inside an otherwise legitimate `feat`/`fix` commit apart
+   from one that just narrates an investigation with no resulting product change
+   (e.g. "diagnosed a report of X; turned out to be a stale session, no code
+   change needed"); avoid writing that kind of bullet in a release commit's body in
+   the first place, or keep it as unbulleted prose so `bulletPointsFrom` skips it. A
+   release built from many small iterative alpha commits (a feature added, then
+   throttled, then disabled, then re-enabled within the same day) can still read as
+   noisy even with plumbing and non-release-type commits excluded, since the
+   generator has no way to know a later commit supersedes an earlier one - that kind
+   of entry may need a manual touch-up to `changelog.json` after the merge.
 3. commits `changelog.json` + `package.json` + `package-lock.json` back to `main` as
    `chore: update changelog for <sha>` - the "Merge alpha with main" workflow folds
    this bump commit back into `alpha` afterward (see the "Merge alpha with main"

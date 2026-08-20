@@ -16,6 +16,21 @@ export function isNoiseCommitMessage(message) {
   return NOISE_MESSAGE_PATTERNS.some((pattern) => pattern.test(subject));
 }
 
+// A multi-commit push (routine on alpha, and especially a "Merge alpha with
+// main" promotion that bundles a whole branch at once) backfills bullets from
+// every commit in range, not just the one that triggered the build. Without
+// this check that included commits whose type isn't user-facing - chore:,
+// test:, refactor:, ci:, style: - dumping their bullets into the same
+// changelog entry as real feat/fix/security work: an internal debug-only
+// endpoint, or a note about fixing a test's expectations, read like product
+// changes to anyone browsing Settings -> Changelog even though neither one
+// is. Only commits typed as one of the RELEASE_TYPES belong in the backfill.
+export function isReleaseTypeCommitMessage(message) {
+  const subject = String(message || "").split(/\r?\n/, 1)[0].trim();
+  const match = subject.match(/^([a-zA-Z]+)(?:\([^)]*\))?:\s*/);
+  return Boolean(match && RELEASE_TYPES.has(match[1].toLowerCase()));
+}
+
 export function formatChangelogMessage(message) {
   const m = String(message || "").match(/^([a-zA-Z]+)(?:\([^)]*\))?:\s*(.*)$/);
   if (!m) return message;
