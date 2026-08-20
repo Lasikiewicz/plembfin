@@ -40,13 +40,17 @@ function identifiableShowTitleFromRow(row, historyId = "") {
   return historyId ? `Unmatched show (${historyId.slice(0, 8)})` : "Unmatched show";
 }
 
-// A history row only needs the orphan shell treatment when its show identity
-// cannot be resolved. Rows that name a real series belong to the normal show
-// record, which must keep its full episode list and TMDB hydration.
-function historyRowResolvesShow(row, showKey) {
+// A history row only needs the orphan shell treatment when its own show
+// identity cannot be resolved at all - not merely when it names a different
+// show than the one requested. A stale/leftover historyId (e.g. carried over
+// from whatever show was open before a link that doesn't specify its own,
+// like a global search result) can point at a row for a perfectly real,
+// different show; treating that mismatch as "unresolved" would swap the
+// requested show out for that unrelated one instead of just ignoring the
+// stale id and loading the requested show normally.
+function historyRowShowIsUnresolved(row) {
   const parsed = showTitleFrom(row?.show_title || row?.grandparent_title || row?.series_title || row?.title || "");
-  if (!parsed || /^plex:\/\//i.test(parsed)) return false;
-  return slug(parsed) === showKey;
+  return !parsed || /^plex:\/\//i.test(parsed);
 }
 
 export async function openShowImmersiveModalByTitle(showTitle, seedEpisode = null, requestedSeason = null) {
@@ -1284,7 +1288,7 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
       const response = await fetch(`/api/history?id=${encodeURIComponent(historyId)}`, { headers: authHeaders(), cache: "no-store" });
       const body = await response.json().catch(() => ({}));
       const row = response.ok ? body.row : null;
-      if (row && !historyRowResolvesShow(row, showKey)) {
+      if (row && historyRowShowIsUnresolved(row)) {
         orphanShell = true;
         const title = identifiableShowTitleFromRow(row, historyId);
         show = {
@@ -1310,7 +1314,7 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
   // repair the orphaned show instead of seeing an empty placeholder page.
   if (historyId && (!show || sanitizeTitle(show.title) === "Unknown Show" || !Array.isArray(show.episodes) || !show.episodes.length)) {
     const localRow = (state.history || []).find((row) => String(row.id || "") === String(historyId));
-    if (localRow && !historyRowResolvesShow(localRow, showKey)) {
+    if (localRow && historyRowShowIsUnresolved(localRow)) {
       orphanShell = true;
       const title = identifiableShowTitleFromRow(localRow, historyId);
       show = {

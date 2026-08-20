@@ -62,7 +62,12 @@ A TV URL may also carry `?historyId=<record id>`, which library cards append so 
 page opens against the play that was clicked. When that record names a series the app
 can resolve, the page loads the full show and enriches it normally. The single-record
 shell, which keeps Fix Match usable without a stale lookup replacing it, is reserved
-for rows whose series cannot be identified.
+for rows whose own series identity cannot be identified at all - a record that names a
+real, different show than the URL's own key is treated as a stale id and ignored rather
+than substituted in, and the router only carries a `historyId` forward across a route
+change when the show being navigated to is the one already open, not into a link (a
+global search result, for instance) that names a different show without supplying its
+own.
 
 The show page paints as soon as the show's own metadata arrives. Season episode lists
 and the IMDb rating pill hydrate into the rendered page rather than holding up the

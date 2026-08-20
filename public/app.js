@@ -1228,11 +1228,17 @@ function handleRouting(path) {
   } else if (tvshowMatch) {
     const showKey = tvshowMatch[1];
     const routeQuery = pathPart.includes("?") ? pathPart.slice(pathPart.indexOf("?") + 1) : "";
-    const historyId = new URLSearchParams(routeQuery).get("historyId")
+    const queryHistoryId = new URLSearchParams(routeQuery).get("historyId")
       || new URLSearchParams(window.location.search).get("historyId")
-      || state.pendingShowHistoryId
-      || state.activeShowHistoryId
       || "";
+    // A pending/previous historyId is only relevant when re-rendering the show
+    // already open (e.g. a season/episode hash change). Navigating to a
+    // different show via a link that doesn't carry its own historyId - a
+    // global search result, for instance - must not inherit the last show's
+    // record, or the mismatch can make the wrong show's data render under
+    // this show's URL.
+    const sameShow = state.activeShowModalKey === showKey;
+    const historyId = queryHistoryId || (sameShow ? (state.pendingShowHistoryId || state.activeShowHistoryId) : "") || "";
     state.activeShowHistoryId = historyId;
     state.pendingShowHistoryId = "";
     let seasonNum = null;
