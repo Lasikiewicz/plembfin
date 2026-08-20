@@ -1,8 +1,21 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 6,
-  "version": "0.9.3.1.6",
+  "build": 7,
+  "version": "0.9.3.1.7",
   "entries": [
+    {
+      "build": 7,
+      "version": "0.9.3.1.7",
+      "date": "2026-08-20T21:51:09+01:00",
+      "commit": "aacfd9ff2c93bdfd9214158bbae434e96e239ff5",
+      "message": "Fix - Prevent dashboard and history reloads while syncing is in progress",
+      "author": "Lasikiewicz",
+      "details": [
+        "Suppress background dashboard and watch history reloads while any sync operation (Force Sync, Cron Sync, Full Sync, or background dispatch) is actively running",
+        "Settle and refresh the dashboard cleanly once when the sync completes, stops, or fails",
+        "Wire active sync progress checks into live history refresh throttling to avoid flickering and card reloading during large syncs"
+      ]
+    },
     {
       "build": 6,
       "version": "0.9.3.1.6",
@@ -73,5 +86,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T21:41:39+01:00"
+  "updatedAt": "2026-08-20T21:51:09+01:00"
 }
