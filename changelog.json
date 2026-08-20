@@ -1,7 +1,41 @@
 {
-  "version": "0.8.6",
-  "updatedAt": "2026-08-20T10:57:57Z",
+  "version": "0.8.7",
+  "updatedAt": "2026-08-20T14:14:55Z",
   "entries": [
+    {
+      "version": "0.8.7",
+      "date": "2026-08-20T14:14:55Z",
+      "commit": "3fdcc4a62627b14343cd2f4a9563e7c97b450be3",
+      "message": "Fix - Force live sync on manual unwatch and wait for it to finish before the UI shows the new state",
+      "author": "github-actions[bot]",
+      "details": [
+        "Fixed a real problem: the v0.8.6 release notes were dumping bullets from a chore commit (an internal debug-only endpoint) and a test commit (fixing test expectations) into the same entry as real feature and bug-fix work, making Settings -> Changelog read like a raw commit log instead of release notes",
+        "The changelog generator now only backfills bullets from commits typed feat, fix, security, enhance, perf, or docs - a chore/test/refactor/style/ci commit bundled into the same push never contributes its own bullets, even when it isn't otherwise CI plumbing",
+        "Applies to both the main and alpha changelog generators, which share the same filtering logic",
+        "Manually cleaned the noise already published in the current v0.8.6 and v0.8.3 entries so what's live in Settings -> Changelog reads correctly now, not just for future releases",
+        "Also removed one bullet that was pure investigation narration with no resulting product change (a bug report that turned out to be a stale session, not a code fix) - the type filter can't catch this since it lived inside an otherwise legitimate feature commit",
+        "Fixed a real incident: School Spirits kept accumulating duplicate watch records - a season page left open for ~20 minutes stopped reflecting a batch mark-watched that happened elsewhere, and clicking Mark Watched on what the stale page still showed as unwatched logged a second play for an episode the server already had watched",
+        "Manual mark-watched and marking watched from Part Watched now check the item's actual current watch state before inserting, not just whether a row exists at the exact timestamp the request happens to use - an item the server already has watched is reported as already-logged instead of getting a second play recorded, no matter how stale the page that submitted the request was",
+        "Cleaned up the duplicates already live on production: Remove Duplicate Watches removed 16 duplicate TV watches across 9 episodes library-wide and pushed the corrected state to every connected platform",
+        "Fixed a real gap in the duplicate-watch safeguard: it only ran the thorough watch-history identity check when the faster playstate check already agreed the item was watched, so a record old enough to predate provider-id tracking (title-only key) could slip past both and still get duplicated",
+        "Verified live: Reacher S01E01 (a properly identified, IMDb-keyed episode) was correctly protected, but School Spirits S03E04 (a title-only legacy record) let three duplicate marks through in a row before this fix",
+        "Both watch-state checks now run independently rather than one gated behind the other, so an item is treated as already watched if either finds it - closing the gap for any similarly old record library-wide, not just this one episode",
+        "Cleaned up the duplicates created during testing via Remove Duplicate Watches; no lasting data changes from this investigation",
+        "Fixed a real incident: Force Sync failed to mark Reacher S02E02 watched on Trakt (not_found) because the stored record's provider ids - reported by a real Plex webhook scrobble, not derived by Plembfin - didn't correspond to any real show; S02E01 in the same run succeeded only because it had no per-episode id and naturally fell back to the show's correct one",
+        "Episode writes already skip resolving series-level ids once an episode carries any id of its own, since that id normally must win over a title-based guess - this meant a media server's own mismatched match for one specific episode was never given a second look",
+        "Trakt dispatch now retries once with the show's own known series ids, but only after Trakt has explicitly rejected the episode's stored id with not_found - a working id is never speculatively second-guessed, only one Trakt has already refused",
+        "A recovered dispatch reports that the show's series id was used instead of a bare success, so this stays visible instead of silently masking the underlying bad episode id",
+        "Mark season watched / Mark Watched (show) no longer silently skips episodes plembfin's own history already shows as watched - they're re-pushed to Plex, Emby, Jellyfin, and Trakt in the same batch, using their existing watched date so history isn't rewritten",
+        "Fixes a drift bug where a media server that lost its watched flag after the original sync (e.g. following a library rescan) stayed unwatched forever unless the user ran Force Sync manually",
+        "When a season or the whole show has nothing left unwatched, the button relabels to \"Resync season\" / \"Resync Watched\" instead of disabling, so it stays usable for exactly this case",
+        "Documented the new resync behavior in docs/media-detail.md",
+        "Manual unwatch (single episode, season/show bulk, and clearing Part Watched progress) now forces a live re-push to Plex, Emby, Jellyfin, and Trakt even when Plembfin's own database already shows the item unwatched, matching the mark-watched fix from the previous commit",
+        "Automated paths (webhooks, the scheduler, tracker sync) keep their original loop-protection skip, since that guard is what stops their own echoes from re-dispatching forever",
+        "Mark watched no longer flips an episode, season, or movie to \"watched\" the instant you click it - it now shows \"Syncing...\" and only updates once the live sync to every connected app has actually finished",
+        "The manual-watch API now waits for that sync to complete before responding, instead of dispatching it in the background and reporting an unverified queued count",
+        "Documented both changes in docs/media-detail.md"
+      ]
+    },
     {
       "version": "0.8.6",
       "date": "2026-08-20T10:57:57Z",
