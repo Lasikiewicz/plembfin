@@ -1,8 +1,21 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 12,
-  "version": "0.9.3.1.12",
+  "build": 13,
+  "version": "0.9.3.1.13",
   "entries": [
+    {
+      "build": 13,
+      "version": "0.9.3.1.13",
+      "date": "2026-08-20T23:53:08+01:00",
+      "commit": "0f0c4ef492fe04cb27459b5c022b1138e99b6171",
+      "message": "Fix - Raise scheduled-sync time budget to stop false timeout errors",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed the per-minute scheduled-sync tick timing out at 50 seconds during a large outstanding backlog, even though the underlying work (unwatched-state checks, recently-watched/resumable polling across all three platforms, and manual-dispatch retries) was still succeeding in the background",
+        "Promise.race does not cancel the underlying task on timeout, so the tight budget did not stop progress, it only produced a recurring false timeout error and delayed when that progress became visible through cache invalidation",
+        "Raised the budget from 50 to 120 seconds; the existing scheduledTasksInFlight guard already prevents two runs from overlapping, so this is safe even if a pass occasionally runs past one tick"
+      ]
+    },
     {
       "build": 12,
       "version": "0.9.3.1.12",
@@ -151,5 +164,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T23:45:16+01:00"
+  "updatedAt": "2026-08-20T23:53:08+01:00"
 }
