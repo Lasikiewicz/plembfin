@@ -1,9 +1,23 @@
 {
   "baseVersion": "0.8.6.7",
-  "build": 1,
-  "version": "0.8.6.7.1",
-  "updatedAt": "2026-08-20T18:00:00Z",
+  "build": 2,
+  "version": "0.8.6.7.2",
+  "updatedAt": "2026-08-20T19:14:18+01:00",
   "entries": [
+    {
+      "build": 2,
+      "version": "0.8.6.7.2",
+      "date": "2026-08-20T19:14:18+01:00",
+      "commit": "5bd4f8c4314719f857b2c29606b6f5b0feda92ad",
+      "message": "Feature - 5-segment versioning and tiered changelog cascade",
+      "author": "Lasikiewicz",
+      "details": [
+        "Skip remote sync when pushing a newly created branch without an existing remote ref",
+        "Implement 5-digit versioning model Major.Minor.Patch.Alpha.Develop",
+        "Add changelog.develop.json and tiered changelog visibility for develop, alpha, and main",
+        "Add promotion and summarization scripts for develop to alpha and alpha to main"
+      ]
+    },
     {
       "build": 1,
       "version": "0.8.6.7.1",
