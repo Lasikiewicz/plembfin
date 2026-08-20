@@ -349,11 +349,11 @@ function authHeaders() {
 function versionDisplayLabel(version, channel, alphaBuild, developBuild) {
   if (channel === "develop") {
     const full = developBuild?.version || (developBuild?.baseVersion && developBuild?.build != null ? `${developBuild.baseVersion}.${developBuild.build}` : (version ? `${version}.develop` : "develop"));
-    return `${full} develop`;
+    return `${full} (Develop)`;
   }
   if (channel === "alpha") {
-    const build = Number(alphaBuild?.build) || 0;
-    return build > 0 ? `${version}.${build} alpha` : `${version} alpha`;
+    const full = alphaBuild?.shortVersion || (alphaBuild?.baseVersion && alphaBuild?.build != null ? `${alphaBuild.baseVersion}.${alphaBuild.build}` : (version ? `${version}.${alphaBuild?.build || 1}` : "alpha"));
+    return `${full} (Alpha)`;
   }
   return version || "";
 }

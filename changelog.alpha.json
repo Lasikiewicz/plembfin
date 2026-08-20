@@ -1,19 +1,22 @@
 {
-  "baseVersion": "0.9.0",
+  "baseVersion": "0.9.3",
   "build": 1,
-  "version": "0.9.0.0.0",
-  "updatedAt": "2026-08-20T20:00:17+01:00",
+  "version": "0.9.3.1.0",
+  "shortVersion": "0.9.3.1",
   "entries": [
     {
       "build": 1,
-      "version": "0.9.0.1",
-      "date": "2026-08-20T20:00:17+01:00",
-      "commit": "f4966f969256f48e28b395c959f6fffefb8f9340",
-      "message": "Fix - Channel determination and resilient versioning test",
+      "version": "0.9.3.1.0",
+      "shortVersion": "0.9.3.1",
+      "date": "2026-08-20T20:20:00+01:00",
+      "commit": "3bcc775660b05b7278550533121835e9cfa82240",
+      "message": "Fix - Ensure release channel is recognized correctly on main container images",
       "author": "Lasikiewicz",
       "details": [
-        "Refine channel resolution to check file presence and ensure resilient test assertions"
+        "Fix: Prioritize explicit BUILD_CHANNEL=release to prevent container identifying as alpha",
+        "Fix: Retain develop file fallback to override stale docker-compose alpha env on develop builds"
       ]
     }
-  ]
+  ],
+  "updatedAt": "2026-08-20T20:20:00+01:00"
 }

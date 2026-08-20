@@ -1,21 +1,20 @@
 {
-  "baseVersion": "0.9.0.0",
+  "baseVersion": "0.9.3.1",
   "build": 1,
+  "version": "0.9.3.1.1",
   "entries": [
     {
       "build": 1,
-      "version": "0.9.0.0.1",
-      "date": "2026-08-20T20:09:16+01:00",
-      "commit": "051ca284e0593838e4f86aedd8ea1379c65084ea",
-      "message": "Fix - Format develop build cards as v<version> (Develop) and strip duplicate changelog prefixes",
+      "version": "0.9.3.1.1",
+      "date": "2026-08-20T20:25:00+01:00",
+      "commit": "3bcc775660b05b7278550533121835e9cfa82240",
+      "message": "Fix - Ensure release channel is recognized correctly on main container images",
       "author": "Lasikiewicz",
       "details": [
-        "Render develop build card headers as v<version> (Develop) and alpha build cards as v<version> (Alpha)",
-        "Strip repeated Feature: Feature - and Fix: Fix - prefixes from changelog details and generator scripts",
-        "Clean up release 0.9.0 changelog details"
+        "Fix: Prioritize explicit BUILD_CHANNEL=release to prevent container identifying as alpha",
+        "Fix: Retain develop file fallback to override stale docker-compose alpha env on develop builds"
       ]
     }
   ],
-  "version": "0.9.0.0.1",
-  "updatedAt": "2026-08-20T20:09:16+01:00"
+  "updatedAt": "2026-08-20T20:25:00+01:00"
 }
