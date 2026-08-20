@@ -1,8 +1,19 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 2,
-  "version": "0.9.3.1.2",
+  "build": 3,
+  "version": "0.9.3.1.3",
   "entries": [
+    {
+      "build": 3,
+      "version": "0.9.3.1.3",
+      "date": "2026-08-20T21:15:13+01:00",
+      "commit": "f4740de25b71f9aa902c3effdcb97ebbc9d13ce4",
+      "message": "Chore - Remove debug memory, lag, and cache probes from server logs",
+      "author": "Lasikiewicz",
+      "details": [
+        "Updated application behavior and the web interface."
+      ]
+    },
     {
       "build": 2,
       "version": "0.9.3.1.2",
@@ -29,5 +40,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T20:29:23+01:00"
+  "updatedAt": "2026-08-20T21:15:13+01:00"
 }
