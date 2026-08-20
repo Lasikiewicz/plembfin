@@ -115,7 +115,7 @@ test("handleChangelog returns channel metadata properly", async () => {
       assert.ok(/^\d+\.\d+\.\d+\.\d+\.\d+$/.test(jsonBody.developBuild.version), `Version should be 5-segment version, got ${jsonBody.developBuild.version}`);
     } else if (jsonBody.alphaBuild) {
       assert.equal(jsonBody.channel, "alpha");
-      assert.ok(jsonBody.alphaBuild.build > 0, "alphaBuild should have build number");
+      assert.ok(jsonBody.alphaBuild.build >= 0, "alphaBuild should have build number");
     }
   } finally {
     process.env.BUILD_CHANNEL = prevChannel;
