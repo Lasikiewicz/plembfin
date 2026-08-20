@@ -170,7 +170,25 @@ async function importTraktPlayHistory(connection, publicConnection, previousOutb
     // dataRepo's canonical media_key column format - recompute the canonical
     // one here or findExistingWatch's lookup against watch_history never matches.
     const canonicalMediaKey = mediaKeyFor(entry.media);
-    const existing = await findExistingWatch(canonicalMediaKey, watchedAtIso).catch(() => null);
+    let existing = await findExistingWatch(canonicalMediaKey, watchedAtIso).catch(() => null);
+    if (!existing) {
+      // findExistingWatch only matches an exact (media_key, watched_at) pair.
+      // A media-key built from this Trakt entry's own ids can differ from the
+      // key an existing local record (e.g. a "manual" watch, or one imported
+      // from a different platform) was stored under, even though both are
+      // the same real episode - findExistingWatch then reports nothing and
+      // this loop creates a duplicate watch_history row instead of
+      // recognizing the episode is already recorded. getCanonicalWatchState
+      // has the same coordinate/provider-id fallback matching every other
+      // ingest path in the app relies on for exactly this mismatch; treat
+      // its "watched" answer as authoritative so a Trakt history entry never
+      // creates a second row for an episode Plembfin already has recorded.
+      const canonicalState = await getCanonicalWatchState(entry.media).catch(() => null);
+      if (canonicalState === "watched") {
+        recordTrackerPlay("trakt", { historyId: entry.historyId, mediaKey: trackerMediaKey(entry.media), watchedAt: watchedAtIso, watchRecordId: "" });
+        continue;
+      }
+    }
     let watchRecordId = existing?.id || "";
     if (!existing) {
       const record = mediaToWatchRecord({ ...entry.media, watched_at: watchedAtIso, syncAction: "watched" }, "trakt_import");
