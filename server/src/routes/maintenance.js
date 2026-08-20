@@ -871,6 +871,34 @@ function readLocalChangelog() {
   }
 }
 
+// Bundled only on the develop channel build; see docker-publish-develop.yml and
+// scripts/update-develop-changelog.js. Tracks a rolling 5-digit develop build counter.
+function readLocalDevelopChangelog() {
+  try {
+    const raw = fs.readFileSync(nodePath.resolve(PUBLIC_DIR, "..", "changelog.develop.json"), "utf8");
+    const data = JSON.parse(raw);
+    return {
+      build: Number(data.build) || 0,
+      baseVersion: data.baseVersion || null,
+      version: data.version || null,
+      entries: Array.isArray(data.entries) ? data.entries : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function describePendingDevelopBuild(localDevelopBuild, remoteDevelop) {
+  const remoteBuild = Number(remoteDevelop?.build) || 0;
+  const remoteBaseVersion = remoteDevelop?.baseVersion || localDevelopBuild.baseVersion;
+  const remoteEntries = Array.isArray(remoteDevelop?.entries) ? remoteDevelop.entries : [];
+  const newerBuildAvailable = remoteBaseVersion !== localDevelopBuild.baseVersion || remoteBuild > localDevelopBuild.build;
+  const pendingEntries = newerBuildAvailable
+    ? remoteEntries.filter((entry) => remoteBaseVersion !== localDevelopBuild.baseVersion || Number(entry.build) > localDevelopBuild.build)
+    : [];
+  return { latestBuild: remoteBuild, newerBuildAvailable, pendingEntries };
+}
+
 // Bundled only on the alpha channel build; see docker-publish-alpha.yml and
 // scripts/update-alpha-changelog.js. Tracks a rolling build counter and
 // per-push changelog entries that reset on the next "Merge alpha with main",
@@ -921,6 +949,26 @@ async function fetchRemoteChangelog({ force = false } = {}) {
   if (!response.ok) throw new Error(`GitHub responded ${response.status}`);
   const data = await response.json();
   remoteChangelogCache = { fetchedAt: now, data };
+  return data;
+}
+
+const REMOTE_DEVELOP_CHANGELOG_URL =
+  "https://raw.githubusercontent.com/Lasikiewicz/plembfin/develop/changelog.develop.json";
+const REMOTE_DEVELOP_CHANGELOG_TTL_MS = 60 * 1000;
+let remoteDevelopChangelogCache = { fetchedAt: 0, data: null };
+
+async function fetchRemoteDevelopChangelog({ force = false } = {}) {
+  const now = Date.now();
+  if (!force && remoteDevelopChangelogCache.data && now - remoteDevelopChangelogCache.fetchedAt < REMOTE_DEVELOP_CHANGELOG_TTL_MS) {
+    return remoteDevelopChangelogCache.data;
+  }
+  const url = `${REMOTE_DEVELOP_CHANGELOG_URL}?_t=${now}`;
+  const response = await fetchWithTimeout(url, {
+    headers: { Accept: "application/json", "Cache-Control": "no-cache", "Pragma": "no-cache" },
+  }, 8000);
+  if (!response.ok) throw new Error(`GitHub responded ${response.status}`);
+  const data = await response.json();
+  remoteDevelopChangelogCache = { fetchedAt: now, data };
   return data;
 }
 
@@ -1037,9 +1085,24 @@ export async function handleChangelog(req, res) {
     ? entries.filter((entry) => compareSemver(entry.version, currentVersion) > 0)
     : [];
 
-  const channel = process.env.BUILD_CHANNEL === "alpha" ? "alpha" : "release";
-  let alphaBuild = channel === "alpha" ? readLocalAlphaChangelog() : null;
-  if (alphaBuild) {
+  const channel = process.env.BUILD_CHANNEL === "develop"
+    ? "develop"
+    : process.env.BUILD_CHANNEL === "alpha"
+      ? "alpha"
+      : "release";
+
+  let developBuild = channel === "develop" ? readLocalDevelopChangelog() : null;
+  if (developBuild) {
+    try {
+      const remoteDevelop = await fetchRemoteDevelopChangelog({ force: isForceRefresh });
+      developBuild = { ...developBuild, ...describePendingDevelopBuild(developBuild, remoteDevelop) };
+    } catch {
+      // GitHub unreachable - developBuild stays the local-only snapshot, no update signal.
+    }
+  }
+
+  let alphaBuild = (channel === "alpha" || channel === "develop") ? readLocalAlphaChangelog() : null;
+  if (alphaBuild && channel === "alpha") {
     try {
       const remoteAlpha = await fetchRemoteAlphaChangelog({ force: isForceRefresh });
       alphaBuild = { ...alphaBuild, ...describePendingAlphaBuild(alphaBuild, remoteAlpha) };
@@ -1053,6 +1116,7 @@ export async function handleChangelog(req, res) {
     {
       current: currentVersion,
       channel,
+      developBuild,
       alphaBuild,
       latest: latestVersion,
       updateAvailable: compareSemver(latestVersion, currentVersion) > 0,

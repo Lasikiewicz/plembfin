@@ -1,0 +1,20 @@
+{
+  "baseVersion": "0.8.6.7",
+  "build": 1,
+  "version": "0.8.6.7.1",
+  "updatedAt": "2026-08-20T18:00:00Z",
+  "entries": [
+    {
+      "build": 1,
+      "version": "0.8.6.7.1",
+      "date": "2026-08-20T18:00:00Z",
+      "commit": "a6cb0d8",
+      "message": "Feat - Real-time live data updates and develop CI workflow",
+      "author": "Lasikiewicz",
+      "details": [
+        "Enable real-time UI data updates without reloading the page via Server-Sent Events",
+        "Add Docker build and publish workflow for develop branch"
+      ]
+    }
+  ]
+}

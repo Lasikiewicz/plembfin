@@ -1,7 +1,7 @@
 name: Publish Develop Image
 
-# Publishes an image on every push to develop, tagged :develop
-# and :develop-<sha>.
+# Publishes a rolling pre-release develop image on every push to develop, tagged :develop
+# and :develop-<build>. Each push bumps changelog.develop.json's build counter (5th digit).
 
 on:
   push:
@@ -17,15 +17,42 @@ env:
 
 jobs:
   publish:
-    name: Build, verify, and publish the develop image
+    name: Bump develop build, verify, and publish the develop image
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      startsWith(github.event.head_commit.message, 'chore: bump develop build for ') == false
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Bump develop build counter and changelog
+        id: develop
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          SOURCE_MESSAGE: ${{ github.event.head_commit.message }}
+          SOURCE_DATE: ${{ github.event.head_commit.timestamp }}
+          SOURCE_AUTHOR: ${{ github.event.head_commit.author.name }}
+          COMMITS_JSON: ${{ toJson(github.event.commits) }}
+        run: |
+          node scripts/update-develop-changelog.js
+          node -e "const fs=require('fs'); const d=require('./changelog.develop.json'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'build=' + d.build + '\nversion=' + d.version + '\n')"
+
+      - name: Commit develop build metadata
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add changelog.develop.json
+          git commit -m "chore: bump develop build for ${SOURCE_COMMIT::7}"
+          git push origin develop
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -82,7 +109,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=develop
-            type=raw,value=develop-${{ github.sha }}
+            type=raw,value=develop-${{ steps.develop.outputs.build }}
+            type=raw,value=${{ steps.develop.outputs.version }}
 
       - name: Build and push develop image
         uses: docker/build-push-action@v7
