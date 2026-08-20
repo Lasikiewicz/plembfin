@@ -1085,11 +1085,13 @@ export async function handleChangelog(req, res) {
     ? entries.filter((entry) => compareSemver(entry.version, currentVersion) > 0)
     : [];
 
-  const channel = process.env.BUILD_CHANNEL === "develop"
-    ? "develop"
-    : process.env.BUILD_CHANNEL === "alpha"
-      ? "alpha"
-      : "release";
+  const channel = process.env.BUILD_CHANNEL === "develop" || process.env.BUILD_CHANNEL === "alpha" || process.env.BUILD_CHANNEL === "release"
+    ? process.env.BUILD_CHANNEL
+    : fs.existsSync(nodePath.resolve(PUBLIC_DIR, "..", "changelog.develop.json"))
+      ? "develop"
+      : fs.existsSync(nodePath.resolve(PUBLIC_DIR, "..", "changelog.alpha.json"))
+        ? "alpha"
+        : "release";
 
   let developBuild = channel === "develop" ? readLocalDevelopChangelog() : null;
   if (developBuild) {

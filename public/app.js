@@ -1925,13 +1925,25 @@ function clearDerivedUiCaches({ resetExplorer = true } = {}) {
   }
 }
 
+let isBackgroundSyncing = false;
+
 function renderSyncProgress({ total = 0, completed = 0 } = {}) {
-  if (!elements.syncProgressIndicator || !elements.syncProgressText) return;
-  if (total > 0) {
-    elements.syncProgressText.textContent = `Syncing ${completed} of ${total}`;
-    elements.syncProgressIndicator.classList.remove("hidden");
-  } else {
-    elements.syncProgressIndicator.classList.add("hidden");
+  const syncing = total > 0 && completed < total;
+  const wasSyncing = isBackgroundSyncing;
+  isBackgroundSyncing = syncing;
+
+  if (elements.syncProgressIndicator && elements.syncProgressText) {
+    if (total > 0) {
+      elements.syncProgressText.textContent = `Syncing ${completed} of ${total}`;
+      elements.syncProgressIndicator.classList.remove("hidden");
+    } else {
+      elements.syncProgressIndicator.classList.add("hidden");
+    }
+  }
+
+  // When background sync transitions from running to finished, perform an immediate settle refresh
+  if (wasSyncing && !syncing) {
+    queueLiveHistoryRefresh({ immediate: true });
   }
 }
 
@@ -1939,13 +1951,29 @@ let liveHistoryRefreshTimer = null;
 let liveHistoryRefreshActive = false;
 let liveHistoryRefreshQueued = false;
 
-function queueLiveHistoryRefresh() {
+function queueLiveHistoryRefresh({ immediate = false } = {}) {
   liveHistoryRefreshQueued = true;
-  if (liveHistoryRefreshTimer || liveHistoryRefreshActive) return;
+  if (immediate) {
+    if (liveHistoryRefreshTimer) {
+      window.clearTimeout(liveHistoryRefreshTimer);
+      liveHistoryRefreshTimer = null;
+    }
+  } else if (liveHistoryRefreshTimer) {
+    return;
+  }
+
+  // While a sync job is actively writing rows in the background, throttle refreshes to 3s
+  // so the homepage doesn't constantly reload and flicker
+  const delayMs = immediate ? 50 : (isBackgroundSyncing ? 3000 : 350);
+
   liveHistoryRefreshTimer = window.setTimeout(() => {
     liveHistoryRefreshTimer = null;
+    if (liveHistoryRefreshActive) {
+      queueLiveHistoryRefresh();
+      return;
+    }
     refreshLiveHistoryView().catch((error) => logDebug(`Live history refresh failed: ${error.message}`));
-  }, 150);
+  }, delayMs);
 }
 
 async function refreshLiveHistoryView() {
