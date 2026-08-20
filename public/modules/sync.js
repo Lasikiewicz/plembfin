@@ -735,17 +735,21 @@ export function renderActiveSessions() {
   if (!elements.nowPlayingGrid) return;
 
   if (!state.activeSessions.length) {
-    elements.nowPlayingGrid.innerHTML = `
+    const emptyHtml = `
       <div class="idle-state">
         <b>No media currently playing.</b>
       </div>
     `;
+    if (elements.nowPlayingGrid.dataset.renderedHtml !== "empty") {
+      elements.nowPlayingGrid.dataset.renderedHtml = "empty";
+      elements.nowPlayingGrid.innerHTML = emptyHtml;
+    }
     if (elements.nowPlayingStatus) elements.nowPlayingStatus.textContent = "";
     _cb.updateDashboardSplitState?.();
     return;
   }
 
-  elements.nowPlayingGrid.innerHTML = state.activeSessions
+  const nextHtml = state.activeSessions
     .map((session) => {
       const progress = Math.max(0, Math.min(100, Number(session.progress ?? computeProgress(session.offsetMs, session.durationMs))));
       const href = _cb.nowPlayingHref?.(session) ?? "";
@@ -788,7 +792,11 @@ export function renderActiveSessions() {
     })
     .join("");
 
-  hydratePosters(elements.nowPlayingGrid);
+  if (elements.nowPlayingGrid.dataset.renderedHtml !== nextHtml) {
+    elements.nowPlayingGrid.dataset.renderedHtml = nextHtml;
+    elements.nowPlayingGrid.innerHTML = nextHtml;
+    hydratePosters(elements.nowPlayingGrid);
+  }
 
   if (elements.nowPlayingStatus) {
     elements.nowPlayingStatus.textContent = "";
@@ -844,22 +852,8 @@ export async function loadActiveSessions() {
   let sessions = Array.isArray(body) ? body : Array.isArray(body.sessions) ? body.sessions : [];
   _cb.logDebug?.(`Now-playing payload parsed successfully. Active sessions: ${sessions.length}`, sessions);
 
-  const refreshChanged = Boolean(refreshToken && refreshToken !== state.nowPlayingRefreshToken);
-
   state.nowPlayingRefreshToken = refreshToken || state.nowPlayingRefreshToken;
   setActiveSessions(sessions);
-
-  if (refreshChanged) {
-    _cb.loadHistory?.().catch((error) => _cb.setMessage?.(error.message, "error"));
-    _cb.resetPartWatchedView?.("default");
-    _cb.renderPartWatched?.();
-    // A remote watched/unwatched change (e.g. from the Plex notification listener) can
-    // land while the user is browsing Movies/TV Shows/History rather than the dashboard -
-    // refresh whatever's currently on screen so it doesn't wait for a manual reload.
-    _cb.clearDerivedUiCaches?.({ resetExplorer: false });
-    if (state.activeView === "explorer" && !state.mediaDetailInline) _cb.renderExplorer?.();
-    if (state.activeView === "history") _cb.renderHistoryView?.();
-  }
 
   return sessions;
 }

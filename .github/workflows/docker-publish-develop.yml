@@ -1,0 +1,126 @@
+name: Publish Develop Image
+
+# Publishes a rolling pre-release develop image on every push to develop, tagged :develop
+# and :develop-<build>. Each push bumps changelog.develop.json's build counter (5th digit).
+
+on:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: docker-publish-develop
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  publish:
+    name: Bump develop build, verify, and publish the develop image
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      startsWith(github.event.head_commit.message, 'chore: bump develop build for ') == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Bump develop build counter and changelog
+        id: develop
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          SOURCE_MESSAGE: ${{ github.event.head_commit.message }}
+          SOURCE_DATE: ${{ github.event.head_commit.timestamp }}
+          SOURCE_AUTHOR: ${{ github.event.head_commit.author.name }}
+          COMMITS_JSON: ${{ toJson(github.event.commits) }}
+        run: |
+          node scripts/update-develop-changelog.js
+          node -e "const fs=require('fs'); const d=require('./changelog.develop.json'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'build=' + d.build + '\nversion=' + d.version + '\n')"
+
+      - name: Commit develop build metadata
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add changelog.develop.json
+          git commit -m "chore: bump develop build for ${SOURCE_COMMIT::7}"
+          git push origin develop
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: plembfin:develop-check
+          build-args: BUILD_CHANNEL=develop
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Production dependencies install with --ignore-scripts, so a native
+      # module with no usable binary for this platform still builds cleanly and
+      # would only fail on first database open. Verify native modules load.
+      - name: Verify native modules load inside the image
+        run: |
+          docker run --rm --entrypoint node plembfin:develop-check -e "
+            const Database = require('better-sqlite3');
+            const sharp = require('sharp');
+            const db = new Database(':memory:');
+            db.exec('CREATE TABLE probe (value TEXT)');
+            db.prepare('INSERT INTO probe VALUES (?)').run('ok');
+            const row = db.prepare('SELECT value FROM probe').get();
+            db.close();
+            if (row.value !== 'ok') throw new Error('better-sqlite3 returned unexpected data');
+            sharp({ create: { width: 8, height: 8, channels: 3, background: '#000000' } })
+              .webp()
+              .toBuffer()
+              .then((buffer) => {
+                if (!buffer.length) throw new Error('sharp produced an empty image');
+                console.log('better-sqlite3', require('better-sqlite3/package.json').version, 'and sharp', sharp.versions.sharp, 'both load in the image');
+              })
+              .catch((error) => { console.error(error); process.exit(1); });
+          "
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # docker/metadata-action lowercases the image ref; github.repository
+      # preserves the owner's account casing (Lasikiewicz/plembfin), which
+      # GHCR rejects as an image tag.
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=develop
+            type=raw,value=develop-${{ steps.develop.outputs.build }}
+            type=raw,value=${{ steps.develop.outputs.version }}
+
+      - name: Build and push develop image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: BUILD_CHANNEL=develop
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true

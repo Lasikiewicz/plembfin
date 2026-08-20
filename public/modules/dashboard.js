@@ -386,10 +386,14 @@ export function renderDashboard() {
     } else {
       const tvFitLimit = getRowFitLimit(elements.tvHistoryRow);
       visibleTv = tvHistory.slice(0, tvFitLimit);
-      elements.tvHistoryRow.innerHTML = visibleTv
+      const nextTvHtml = visibleTv
         .map(state.dashboardHistoryViewMode === "cards" ? renderDashboardHistoryPageCard : renderHistoryCard)
         .join("");
-      hydratePosters(elements.tvHistoryRow);
+      if (elements.tvHistoryRow.dataset.renderedHtml !== nextTvHtml) {
+        elements.tvHistoryRow.dataset.renderedHtml = nextTvHtml;
+        elements.tvHistoryRow.innerHTML = nextTvHtml;
+        hydratePosters(elements.tvHistoryRow);
+      }
     }
   }
 
@@ -401,13 +405,18 @@ export function renderDashboard() {
           <span>New watched movies will appear here.</span>
         </div>
       `;
+      delete elements.movieHistoryRow.dataset.renderedHtml;
     } else {
       const movieFitLimit = getRowFitLimit(elements.movieHistoryRow);
       visibleMovies = movieHistory.slice(0, movieFitLimit);
-      elements.movieHistoryRow.innerHTML = visibleMovies
+      const nextMovieHtml = visibleMovies
         .map(state.dashboardHistoryViewMode === "cards" ? renderDashboardHistoryPageCard : renderHistoryCard)
         .join("");
-      hydratePosters(elements.movieHistoryRow);
+      if (elements.movieHistoryRow.dataset.renderedHtml !== nextMovieHtml) {
+        elements.movieHistoryRow.dataset.renderedHtml = nextMovieHtml;
+        elements.movieHistoryRow.innerHTML = nextMovieHtml;
+        hydratePosters(elements.movieHistoryRow);
+      }
     }
   }
 
@@ -583,17 +592,18 @@ export function renderPartWatched() {
 
   if (elements.partWatchedSection) elements.partWatchedSection.classList.remove("hidden");
   const items = state.partWatchedRaw.slice(0, PART_WATCHED_DASHBOARD_LIMIT);
-  elements.partWatchedPanel.innerHTML = items.map((entry, index) => renderPartWatchedCard({
+  const nextHtml = items.map((entry, index) => renderPartWatchedCard({
     ...entry,
-    // The first cards are visible in the dashboard's Part Watched strip. Ask
-    // the browser to start those images immediately; the remaining cards keep
-    // native lazy loading so the dashboard does not become image-heavy.
     eager_poster: index < 6,
     prefer_raw_poster: true,
   })).join("");
-  bindPartWatchedAppBadges(elements.partWatchedPanel);
-  hydratePosters(elements.partWatchedPanel);
-  _cb.observeExplorerTmdbPrefetch?.(elements.partWatchedPanel);
+  if (elements.partWatchedPanel.dataset.renderedHtml !== nextHtml) {
+    elements.partWatchedPanel.dataset.renderedHtml = nextHtml;
+    elements.partWatchedPanel.innerHTML = nextHtml;
+    bindPartWatchedAppBadges(elements.partWatchedPanel);
+    hydratePosters(elements.partWatchedPanel);
+    _cb.observeExplorerTmdbPrefetch?.(elements.partWatchedPanel);
+  }
   updateDashboardSplitState();
 }
 

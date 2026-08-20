@@ -1214,9 +1214,10 @@ h2 {
 }
 
 .button-danger {
-  border-color: rgba(244, 63, 94, 0.55);
-  background: rgba(244, 63, 94, 0.14);
-  color: #fecdd3;
+  border: 1px solid rgba(244, 63, 94, 0.45);
+  background: rgba(244, 63, 94, 0.12);
+  color: #fda4af;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
 }
 
 .icon-button {
@@ -1228,13 +1229,22 @@ h2 {
 }
 
 .button-ghost:hover,
-.button-danger:hover,
 .nav-tab:hover,
 .settings-tab:hover,
 .segment-button:hover,
 .icon-button:hover {
   border-color: var(--accent);
   color: #f4f8fb;
+}
+
+.button-danger:hover:not(:disabled) {
+  border-color: rgba(244, 63, 94, 0.7);
+  background: rgba(244, 63, 94, 0.22);
+  color: #fff1f2;
+}
+
+.button-danger:active:not(:disabled) {
+  background: rgba(244, 63, 94, 0.28);
 }
 
 .button-primary:hover {
@@ -4377,15 +4387,15 @@ details.sync-tool-details {
 }
 
 .settings-pane .sync-tools-content .sync-tools-cancel-button {
-  border-color: color-mix(in oklch, var(--red) 55%, var(--line-strong)) !important;
-  background: color-mix(in oklch, var(--red) 14%, var(--panel-2)) !important;
-  color: var(--red) !important;
+  border: 1px solid rgba(244, 63, 94, 0.45) !important;
+  background: rgba(244, 63, 94, 0.12) !important;
+  color: #fda4af !important;
 }
 
 .settings-pane .sync-tools-content .sync-tools-cancel-button:hover:not(:disabled) {
-  border-color: color-mix(in oklch, var(--red) 75%, var(--line-strong)) !important;
-  background: color-mix(in oklch, var(--red) 22%, var(--panel-2)) !important;
-  color: var(--red) !important;
+  border-color: rgba(244, 63, 94, 0.7) !important;
+  background: rgba(244, 63, 94, 0.22) !important;
+  color: #fff1f2 !important;
 }
 
 .settings-pane .media-force-sync-choice-copy small,
@@ -5052,7 +5062,7 @@ details.sync-tool-details[open] > summary {
 
 .media-force-sync-choice-copy small,
 .media-force-sync-target-copy small {
-  max-width: 60ch;
+  max-width: none;
   color: var(--muted);
   font-size: inherit;
   line-height: 1.45;
@@ -15449,9 +15459,17 @@ html.light-mode .button-ghost:hover {
 }
 
 html.light-mode .button-danger {
-  background: #dc2626;
-  color: #ffffff;
-  border: none;
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
+  box-shadow: none;
+}
+
+html.light-mode .button-danger:hover:not(:disabled) {
+  border-color: rgba(220, 38, 38, 0.6);
+  background: rgba(220, 38, 38, 0.16);
+  color: #b91c1c;
+  box-shadow: none;
 }
 
 html.light-mode h1,
@@ -16508,14 +16526,15 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 }
 
 .settings-pane .button-danger {
-  border: 1px solid rgba(244, 63, 94, 0.55) !important;
-  background: rgba(244, 63, 94, 0.14) !important;
-  color: #fecdd3 !important;
+  border: 1px solid rgba(244, 63, 94, 0.45) !important;
+  background: rgba(244, 63, 94, 0.12) !important;
+  color: #fda4af !important;
 }
 
-.settings-pane[data-settings-panel="backups"] .button-danger:hover:not(:disabled) {
-  border-color: var(--accent) !important;
-  color: #f4f8fb !important;
+.settings-pane .button-danger:hover:not(:disabled) {
+  border-color: rgba(244, 63, 94, 0.7) !important;
+  background: rgba(244, 63, 94, 0.22) !important;
+  color: #fff1f2 !important;
   transform: none !important;
 }
 
@@ -16921,6 +16940,23 @@ html.light-mode .settings-pane .button-primary:hover:not(:disabled) {
   border-color: rgba(37, 99, 235, 0.55) !important;
   background: rgba(37, 99, 235, 0.15) !important;
   color: #2563eb !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+html.light-mode .settings-pane .button-danger,
+html.light-mode .settings-pane .sync-tools-content .sync-tools-cancel-button {
+  border: 1px solid rgba(220, 38, 38, 0.35) !important;
+  background: rgba(220, 38, 38, 0.08) !important;
+  color: #dc2626 !important;
+  box-shadow: none !important;
+}
+
+html.light-mode .settings-pane .button-danger:hover:not(:disabled),
+html.light-mode .settings-pane .sync-tools-content .sync-tools-cancel-button:hover:not(:disabled) {
+  border-color: rgba(220, 38, 38, 0.6) !important;
+  background: rgba(220, 38, 38, 0.16) !important;
+  color: #b91c1c !important;
   box-shadow: none !important;
   transform: none !important;
 }

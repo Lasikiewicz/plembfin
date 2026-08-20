@@ -344,35 +344,42 @@ function authHeaders() {
   return buildAuthHeaders(state.token);
 }
 
-// Purely cosmetic: appends the build channel (and, on alpha, the rolling
-// build counter) to a displayed version string without touching the raw
-// semver used for update-available/entry-match checks.
-function versionDisplayLabel(version, channel, alphaBuild) {
-  if (channel !== "alpha" || !version) return version;
-  const build = Number(alphaBuild?.build) || 0;
-  return build > 0 ? `${version}.${build} alpha` : `${version} alpha`;
+// Purely cosmetic: appends the build channel (and rolling build counter)
+// to a displayed version string without touching the raw semver.
+function versionDisplayLabel(version, channel, alphaBuild, developBuild) {
+  if (channel === "develop") {
+    const full = developBuild?.version || (developBuild?.baseVersion && developBuild?.build != null ? `${developBuild.baseVersion}.${developBuild.build}` : (version ? `${version}.develop` : "develop"));
+    return `${full} develop`;
+  }
+  if (channel === "alpha") {
+    const build = Number(alphaBuild?.build) || 0;
+    return build > 0 ? `${version}.${build} alpha` : `${version} alpha`;
+  }
+  return version || "";
 }
 
 function updateVersionBadge(data) {
   if (!elements.appVersion || !data?.current) return;
-  const label = versionDisplayLabel(data.current, data.channel, data.alphaBuild);
-  // Alpha's version number only bumps when it is merged into main, so an
-  // alpha build sits "behind" main's version string by design right after
-  // every release - that gap isn't a real update the user is missing, so the
-  // update-available treatment is suppressed on this channel. A newer alpha
-  // *build* is a different, real signal (a fresh :alpha image has been
-  // published since this one was built) and is shown instead.
+  const label = versionDisplayLabel(data.current, data.channel, data.alphaBuild, data.developBuild);
+  const newerDevelopBuild = data.channel === "develop" && Boolean(data.developBuild?.newerBuildAvailable);
   const newerAlphaBuild = data.channel === "alpha" && Boolean(data.alphaBuild?.newerBuildAvailable);
-  const showUpdate = data.channel === "alpha" ? newerAlphaBuild : Boolean(data.updateAvailable);
+  const showUpdate = data.channel === "develop"
+    ? newerDevelopBuild
+    : data.channel === "alpha"
+      ? newerAlphaBuild
+      : Boolean(data.updateAvailable);
+
   elements.appVersion.textContent = showUpdate
     ? `v${label} - Update available`
     : `v${label}`;
   elements.appVersion.classList.toggle("app-version-update", showUpdate);
-  elements.appVersion.title = newerAlphaBuild
-    ? `Newer alpha build available - build ${data.alphaBuild.latestBuild}. Open changelog`
-    : showUpdate
-      ? `Update available - v${data.latest || data.current}. Open changelog`
-      : "Open changelog";
+  elements.appVersion.title = newerDevelopBuild
+    ? `Newer develop build available - build ${data.developBuild.latestBuild}. Open changelog`
+    : newerAlphaBuild
+      ? `Newer alpha build available - build ${data.alphaBuild.latestBuild}. Open changelog`
+      : showUpdate
+        ? `Update available - v${data.latest || data.current}. Open changelog`
+        : "Open changelog";
 }
 
 // Quick update check on dashboard load: refreshes the GitHub update status so
@@ -430,10 +437,19 @@ async function renderChangelog(force = false) {
     const data = await loadChangelogData(force);
     const entries = Array.isArray(data.entries) ? data.entries : [];
     const current = data.current || null;
-    const currentLabel = versionDisplayLabel(current, data.channel, data.alphaBuild) || "?";
+    const currentLabel = versionDisplayLabel(current, data.channel, data.alphaBuild, data.developBuild) || "?";
     const latest = data.latest || current;
     const newerCount = Array.isArray(data.newer) ? data.newer.length : 0;
-    const alphaBuildEntries = data.channel === "alpha" && Array.isArray(data.alphaBuild?.entries)
+
+    const developBuildEntries = data.channel === "develop" && Array.isArray(data.developBuild?.entries)
+      ? data.developBuild.entries
+      : [];
+    const pendingDevelopEntries = data.channel === "develop" && Array.isArray(data.developBuild?.pendingEntries)
+      ? data.developBuild.pendingEntries
+      : [];
+    const newerDevelopBuild = data.channel === "develop" && Boolean(data.developBuild?.newerBuildAvailable);
+
+    const alphaBuildEntries = (data.channel === "alpha" || data.channel === "develop") && Array.isArray(data.alphaBuild?.entries)
       ? data.alphaBuild.entries
       : [];
     const pendingAlphaEntries = data.channel === "alpha" && Array.isArray(data.alphaBuild?.pendingEntries)
@@ -448,6 +464,18 @@ async function renderChangelog(force = false) {
           <b>Current version v${escapeHtml(currentLabel)}</b>
           <span>Couldn't reach GitHub to check for newer releases${data.remoteError ? ` (${escapeHtml(data.remoteError)})` : ""}.</span>
         </div>`;
+    } else if (data.channel === "develop" && newerDevelopBuild) {
+      banner = `
+        <div class="changelog-status changelog-status-update">
+          <b>Newer develop build available - build ${escapeHtml(String(data.developBuild.latestBuild))}</b>
+          <span>You're running build ${escapeHtml(String(data.developBuild.build))}. See what's new below, then pull the latest ghcr.io/lasikiewicz/plembfin:develop image to update.</span>
+        </div>`;
+    } else if (data.channel === "develop") {
+      banner = `
+        <div class="changelog-status changelog-status-muted">
+          <b>Develop channel - v${escapeHtml(currentLabel)}</b>
+          <span>Develop is an active rolling development build containing the newest unreleased commits.</span>
+        </div>`;
     } else if (data.channel === "alpha" && newerAlphaBuild) {
       banner = `
         <div class="changelog-status changelog-status-update">
@@ -455,10 +483,6 @@ async function renderChangelog(force = false) {
           <span>You're running build ${escapeHtml(String(data.alphaBuild.build))}. See what's new below, then pull the latest ghcr.io/lasikiewicz/plembfin:alpha image to update.</span>
         </div>`;
     } else if (data.channel === "alpha") {
-      // Alpha's version number only bumps when it is merged into main, so it
-      // always trails main's version string right after a release even when
-      // this build already contains newer commits - showing that gap as an
-      // actionable "update available" would be misleading.
       banner = `
         <div class="changelog-status changelog-status-muted">
           <b>Alpha channel - v${escapeHtml(currentLabel)}</b>
@@ -478,7 +502,7 @@ async function renderChangelog(force = false) {
         </div>`;
     }
 
-    if (!entries.length && !alphaBuildEntries.length && !pendingAlphaEntries.length) {
+    if (!entries.length && !developBuildEntries.length && !alphaBuildEntries.length && !pendingDevelopEntries.length && !pendingAlphaEntries.length) {
       elements.changelogPanel.innerHTML = `${banner}<div class="idle-state"><b>No changelog entries found.</b></div>`;
       return;
     }
@@ -505,22 +529,34 @@ async function renderChangelog(force = false) {
       `;
     };
 
-    // Alpha's own rolling build history - separate from the release entries
-    // above since these builds are never published to GitHub and reset on
-    // the next "Merge alpha with main". `pending` entries are builds that
-    // have been pushed and published to :alpha but not pulled/deployed
-    // here yet - shown so "newer build available" doesn't require updating
-    // first just to see what changed.
-    const renderAlphaBuildEntry = (entry, { pending = false } = {}) => {
+    const renderDevelopBuildEntry = (entry, { pending = false } = {}) => {
       const details = Array.isArray(entry.details) ? entry.details.filter(Boolean) : [];
-      const isCurrent = !pending && Number(entry.build) === Number(data.alphaBuild?.build);
+      const isCurrent = !pending && Number(entry.build) === Number(data.developBuild?.build);
       const tag = pending
         ? `<span class="changelog-tag changelog-tag-new">Not pulled yet</span>`
         : isCurrent ? `<span class="changelog-tag changelog-tag-current">Current</span>` : "";
       return `
         <article class="changelog-entry${isCurrent ? " changelog-entry-current" : ""}${pending ? " changelog-entry-new" : ""}">
           <div class="changelog-entry-head">
-            <b>Build ${escapeHtml(String(entry.build ?? ""))}${tag}</b>
+            <b>Develop Build ${escapeHtml(String(entry.build ?? ""))}${entry.version ? ` (v${escapeHtml(entry.version)})` : ""}${tag}</b>
+            <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
+          </div>
+          <p>${escapeHtml(entry.message || "Develop build update")}</p>
+          ${details.length ? `<ul>${details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("")}</ul>` : ""}
+        </article>
+      `;
+    };
+
+    const renderAlphaBuildEntry = (entry, { pending = false } = {}) => {
+      const details = Array.isArray(entry.details) ? entry.details.filter(Boolean) : [];
+      const isCurrent = !pending && Number(entry.build) === Number(data.alphaBuild?.build) && data.channel === "alpha";
+      const tag = pending
+        ? `<span class="changelog-tag changelog-tag-new">Not pulled yet</span>`
+        : isCurrent ? `<span class="changelog-tag changelog-tag-current">Current</span>` : "";
+      return `
+        <article class="changelog-entry${isCurrent ? " changelog-entry-current" : ""}${pending ? " changelog-entry-new" : ""}">
+          <div class="changelog-entry-head">
+            <b>Alpha Build ${escapeHtml(String(entry.build ?? ""))}${entry.version ? ` (v${escapeHtml(entry.version)})` : ""}${tag}</b>
             <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
           </div>
           <p>${escapeHtml(entry.message || "Alpha build update")}</p>
@@ -528,23 +564,38 @@ async function renderChangelog(force = false) {
         </article>
       `;
     };
-    const pendingSection = pendingAlphaEntries.length
-      ? `<h4 class="changelog-section-heading">New since your build - not pulled yet</h4>${pendingAlphaEntries.map((entry) => renderAlphaBuildEntry(entry, { pending: true })).join("")}`
+
+    const pendingDevelopSection = pendingDevelopEntries.length
+      ? `<h4 class="changelog-section-heading">New since your develop build - not pulled yet</h4>${pendingDevelopEntries.map((entry) => renderDevelopBuildEntry(entry, { pending: true })).join("")}`
+      : "";
+    const developSection = developBuildEntries.length
+      ? `<h4 class="changelog-section-heading">Develop builds since last alpha</h4>${developBuildEntries.map((entry) => renderDevelopBuildEntry(entry)).join("")}`
+      : "";
+
+    const pendingAlphaSection = pendingAlphaEntries.length
+      ? `<h4 class="changelog-section-heading">New since your alpha build - not pulled yet</h4>${pendingAlphaEntries.map((entry) => renderAlphaBuildEntry(entry, { pending: true })).join("")}`
       : "";
     const alphaSection = alphaBuildEntries.length
-      ? `<h4 class="changelog-section-heading">Alpha builds since last merge</h4>${alphaBuildEntries.map((entry) => renderAlphaBuildEntry(entry)).join("")}`
+      ? `<h4 class="changelog-section-heading">${data.channel === "develop" ? "Alpha releases" : "Alpha builds since last merge"}</h4>${alphaBuildEntries.map((entry) => renderAlphaBuildEntry(entry)).join("")}`
       : "";
 
     const visibleEntries = changelogExpanded ? entries : entries.slice(0, 20);
     const olderCount = entries.length - visibleEntries.length;
-    const releaseHeading = alphaSection && entries.length
+    const releaseHeading = (developSection || alphaSection) && entries.length
       ? `<h4 class="changelog-section-heading">Published releases</h4>`
       : "";
-    elements.changelogPanel.innerHTML = banner + pendingSection + alphaSection + releaseHeading + visibleEntries.map(renderEntry).join("") + (
-      olderCount > 0
-        ? `<button id="changelogShowAll" class="button-ghost" type="button">Show ${olderCount} older releases</button>`
-        : ""
-    );
+
+    elements.changelogPanel.innerHTML = banner +
+      pendingDevelopSection +
+      developSection +
+      pendingAlphaSection +
+      alphaSection +
+      releaseHeading +
+      visibleEntries.map(renderEntry).join("") + (
+        olderCount > 0
+          ? `<button id="changelogShowAll" class="button-ghost" type="button">Show ${olderCount} older releases</button>`
+          : ""
+      );
     elements.changelogPanel.querySelector("#changelogShowAll")?.addEventListener("click", () => {
       changelogExpanded = true;
       renderChangelog(false).catch(() => { });
@@ -1874,13 +1925,25 @@ function clearDerivedUiCaches({ resetExplorer = true } = {}) {
   }
 }
 
+let isBackgroundSyncing = false;
+
 function renderSyncProgress({ total = 0, completed = 0 } = {}) {
-  if (!elements.syncProgressIndicator || !elements.syncProgressText) return;
-  if (total > 0) {
-    elements.syncProgressText.textContent = `Syncing ${completed} of ${total}`;
-    elements.syncProgressIndicator.classList.remove("hidden");
-  } else {
-    elements.syncProgressIndicator.classList.add("hidden");
+  const syncing = total > 0 && completed < total;
+  const wasSyncing = isBackgroundSyncing;
+  isBackgroundSyncing = syncing;
+
+  if (elements.syncProgressIndicator && elements.syncProgressText) {
+    if (total > 0) {
+      elements.syncProgressText.textContent = `Syncing ${completed} of ${total}`;
+      elements.syncProgressIndicator.classList.remove("hidden");
+    } else {
+      elements.syncProgressIndicator.classList.add("hidden");
+    }
+  }
+
+  // When background sync transitions from running to finished, perform an immediate settle refresh
+  if (wasSyncing && !syncing) {
+    queueLiveHistoryRefresh({ immediate: true });
   }
 }
 
@@ -1888,13 +1951,29 @@ let liveHistoryRefreshTimer = null;
 let liveHistoryRefreshActive = false;
 let liveHistoryRefreshQueued = false;
 
-function queueLiveHistoryRefresh() {
+function queueLiveHistoryRefresh({ immediate = false } = {}) {
   liveHistoryRefreshQueued = true;
-  if (liveHistoryRefreshTimer || liveHistoryRefreshActive) return;
+  if (immediate) {
+    if (liveHistoryRefreshTimer) {
+      window.clearTimeout(liveHistoryRefreshTimer);
+      liveHistoryRefreshTimer = null;
+    }
+  } else if (liveHistoryRefreshTimer) {
+    return;
+  }
+
+  // While a sync job is actively writing rows in the background, throttle refreshes to 3s
+  // so the homepage doesn't constantly reload and flicker
+  const delayMs = immediate ? 50 : (isBackgroundSyncing ? 3000 : 350);
+
   liveHistoryRefreshTimer = window.setTimeout(() => {
     liveHistoryRefreshTimer = null;
+    if (liveHistoryRefreshActive) {
+      queueLiveHistoryRefresh();
+      return;
+    }
     refreshLiveHistoryView().catch((error) => logDebug(`Live history refresh failed: ${error.message}`));
-  }, 150);
+  }, delayMs);
 }
 
 async function refreshLiveHistoryView() {
