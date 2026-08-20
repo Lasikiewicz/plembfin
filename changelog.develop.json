@@ -1,7 +1,20 @@
 {
   "baseVersion": "0.8.6.8",
-  "build": 0,
-  "version": "0.8.6.8.0",
-  "updatedAt": "2026-08-20T18:40:40.651Z",
-  "entries": []
+  "build": 1,
+  "version": "0.8.6.8.1",
+  "updatedAt": "2026-08-20T19:45:40+01:00",
+  "entries": [
+    {
+      "build": 1,
+      "version": "0.8.6.8.1",
+      "date": "2026-08-20T19:45:40+01:00",
+      "commit": "a7b75f432ec023ee358f083663e3711caf6719b1",
+      "message": "Chore - Initialize develop changelog for v0.8.6.8 cycle",
+      "author": "Lasikiewicz",
+      "details": [
+        "Refine channel resolution to check file presence and ensure resilient test assertions",
+        "Set develop base version to 0.8.6.8 build 0"
+      ]
+    }
+  ]
 }
