@@ -1,8 +1,21 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 13,
-  "version": "0.9.3.1.13",
+  "build": 14,
+  "version": "0.9.3.1.14",
   "entries": [
+    {
+      "build": 14,
+      "version": "0.9.3.1.14",
+      "date": "2026-08-21T00:02:01+01:00",
+      "commit": "e13626701a16e5e1cb1402162854ffdc0610aae6",
+      "message": "Fix - Include updated_at/created_at so Force Sync's updatedAfter scope actually works",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed rowToWatch never including updated_at (or created_at) on the objects returned by getCachedHistory(), which is what Force Sync's scoped plan reads",
+        "The updatedAfter/updatedBefore scope filter added earlier today compared row.updated_at against the requested window, but that field was always undefined coming through this path, so every row was silently excluded and the scoped plan always reported zero actions regardless of real activity",
+        "Added created_at and updated_at to rowToWatch's output so the scope filter can actually see them"
+      ]
+    },
     {
       "build": 13,
       "version": "0.9.3.1.13",
@@ -164,5 +177,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T23:53:08+01:00"
+  "updatedAt": "2026-08-21T00:02:01+01:00"
 }
