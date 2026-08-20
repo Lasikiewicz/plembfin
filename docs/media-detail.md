@@ -80,9 +80,15 @@ first complete render.
 - **Cast** - profile images proxied/cached via `GET /api/tmdb-profile`; clicking opens
   `/person/:id`.
 - **Watch state & actions** - mark watched (with date prompt: today / release date /
-  custom), mark unwatched, delete; episode- season- and show-level for TV
-  (`watch-action.js`, `POST /api/manual-watch` in batches of 100,
-  `POST /api/manual-unwatch`, `POST /api/delete-media`).
+  same as other episodes / custom), mark unwatched, delete; episode- season- and
+  show-level for TV (`watch-action.js`, `POST /api/manual-watch` in batches of 100,
+  `POST /api/manual-unwatch`, `POST /api/delete-media`). "Same as other episodes"
+  only appears when an episode is already watched in the same season (episode/season
+  scope) or show (show scope), and reuses that episode's watched date/time as the
+  base. Marking more than one episode at once (season or show) always staggers each
+  episode's `watched_at` one second apart in episode order - for "today" and "same as
+  other episodes" alike - so a batch mark sorts correctly instead of every episode
+  landing on the same instant (`watchedAtForChoice`, `WATCH_ORDER_STEP_MS`).
 - **Rewatch tracking** - a genuine rewatch (a webhook playback event for an
   already-watched item on a later UTC calendar day; see [webhooks.md](webhooks.md#rewatch-detection))
   adds a new watch record instead of being dropped as a duplicate. A bare

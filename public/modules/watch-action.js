@@ -174,6 +174,12 @@ export function renderWatchDatePrompt(action) {
             <span class="watch-date-pick-title">Day of release</span>
             <span class="watch-date-pick-sub">Use each episode's air date</span>
           </button>
+          ${action.referenceWatchedAt ? `
+          <button class="watch-date-pick" type="button" data-watch-date-choice="match_watched">
+            <span class="watch-date-pick-title">Same as other episodes</span>
+            <span class="watch-date-pick-sub">${escapeHtml(action.referenceEpisodeLabel)} was watched ${escapeHtml(formatDate(action.referenceWatchedAt))}</span>
+          </button>
+          ` : ""}
           <button class="watch-date-pick" type="button" data-watch-date-choice="now">
             <span class="watch-date-pick-title">Now</span>
             <span class="watch-date-pick-sub">Today, ${escapeHtml(formatTmdbDate(customValue))}</span>
@@ -194,19 +200,38 @@ export function renderWatchDatePrompt(action) {
 
 // ── Watch date prompt open/close ───────────────────────────────────────────
 
+// Finds the earliest-watched episode within `scopeEpisodes` so a batch mark
+// (or a single episode surrounded by already-watched ones) can offer "Same
+// as other episodes" - reusing the date the rest of the season/show was
+// actually watched instead of defaulting to today.
+function watchedReferenceFor(scopeEpisodes) {
+  let best = null;
+  for (const episode of scopeEpisodes) {
+    const watchedAt = episode?.watched?.watched_at;
+    if (!watchedAt) continue;
+    if (!best || watchedAt < best.watchedAt) best = { watchedAt, episode };
+  }
+  if (!best) return null;
+  return { watchedAt: best.watchedAt, label: episodeCode(best.episode.seasonNumber, best.episode.episodeNumber) };
+}
+
 export function watchActionFromButton(button) {
   const scope = button?.dataset.watchScope;
   if (!scope) return null;
 
   let episodes = [];
+  let referenceScope = [];
   if (scope === "episode") {
     const episode = state.showModalEpisodeIndex.get(button.dataset.episodeKey);
     if (episode && !episode.watched) episodes = [episode];
+    referenceScope = state.showModalEpisodes.filter((row) => row.seasonNumber === episode?.seasonNumber);
   } else if (scope === "season") {
     const seasonNumber = Number(button.dataset.seasonNumber);
     episodes = state.showModalEpisodes.filter((episode) => episode.seasonNumber === seasonNumber && !episode.watched);
+    referenceScope = state.showModalEpisodes.filter((row) => row.seasonNumber === seasonNumber);
   } else if (scope === "show") {
     episodes = state.showModalEpisodes.filter((episode) => !episode.watched);
+    referenceScope = state.showModalEpisodes;
   }
 
   if (!episodes.length) return null;
@@ -217,6 +242,7 @@ export function watchActionFromButton(button) {
     : scope === "season"
       ? `Mark ${showTitle} ${seasonLabel(episodes[0].seasonNumber)} watched`
       : `Mark ${showTitle} watched`;
+  const reference = watchedReferenceFor(referenceScope);
 
   return {
     scope,
@@ -225,6 +251,8 @@ export function watchActionFromButton(button) {
     episodes,
     label,
     countLabel: `${episodes.length} episode${episodes.length === 1 ? "" : "s"}`,
+    referenceWatchedAt: reference?.watchedAt || "",
+    referenceEpisodeLabel: reference?.label || "",
   };
 }
 
@@ -267,15 +295,25 @@ function customWatchedAtIso(value) {
   return dateAtMiddayIso(value);
 }
 
-function watchedAtForChoice(choice, episode, customDate) {
+// offsetMs staggers a batch mark-watched (season/show) so every episode gets
+// a distinct, increasing watched_at instead of colliding on the same instant
+// - episodes then sort in the order they were marked instead of tying.
+function watchedAtForChoice(choice, episode, customDate, offsetMs = 0, referenceWatchedAt = "") {
   if (choice === "release") return dateAtMiddayIso(episode.airDate);
   if (choice === "last_played") {
     const value = Number(episode.lastPlayedAt || 0);
     if (Number.isFinite(value) && value > 0) return new Date(value).toISOString();
   }
-  if (choice === "custom") return customWatchedAtIso(customDate);
-  return new Date().toISOString();
+  if (choice === "custom") return new Date(new Date(customWatchedAtIso(customDate)).getTime() + offsetMs).toISOString();
+  if (choice === "match_watched" && referenceWatchedAt) {
+    const base = Date.parse(referenceWatchedAt);
+    return new Date((Number.isNaN(base) ? Date.now() : base) + offsetMs).toISOString();
+  }
+  return new Date(Date.now() + offsetMs).toISOString();
 }
+
+// Gap between consecutive episodes in a batch mark-watched, in milliseconds.
+const WATCH_ORDER_STEP_MS = 1000;
 
 // ── Watch record builders ──────────────────────────────────────────────────
 
@@ -711,7 +749,7 @@ export async function applyWatchDateChoice(choice) {
 
   const root = mediaDetailRoot();
   const customDate = getCustomWatchDateValue();
-  const watchedRows = action.episodes.map((episode) => localWatchRowFromEpisode(episode, watchedAtForChoice(choice, episode, customDate)));
+  const watchedRows = action.episodes.map((episode, index) => localWatchRowFromEpisode(episode, watchedAtForChoice(choice, episode, customDate, index * WATCH_ORDER_STEP_MS, action.referenceWatchedAt)));
   const records = action.episodes.map((episode, index) => watchRecordFromEpisode(episode, watchedRows[index].watched_at));
   const overlay = document.querySelector(".watch-date-overlay");
   const buttons = [...(overlay?.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]") ?? [])];
