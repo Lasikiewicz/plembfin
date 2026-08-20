@@ -1,7 +1,22 @@
 {
   "baseVersion": "0.8.6",
-  "build": 1,
+  "build": 2,
   "entries": [
+    {
+      "build": 2,
+      "version": "0.8.6.2",
+      "date": "2026-08-20T12:21:57+01:00",
+      "commit": "989ae180db8c56dd1b40773f9dec1746c3bdbda1",
+      "message": "Fix - Stop non-release commits from polluting changelog entries",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a real problem: the v0.8.6 release notes were dumping bullets from a chore commit (an internal debug-only endpoint) and a test commit (fixing test expectations) into the same entry as real feature and bug-fix work, making Settings -> Changelog read like a raw commit log instead of release notes",
+        "The changelog generator now only backfills bullets from commits typed feat, fix, security, enhance, perf, or docs - a chore/test/refactor/style/ci commit bundled into the same push never contributes its own bullets, even when it isn't otherwise CI plumbing",
+        "Applies to both the main and alpha changelog generators, which share the same filtering logic",
+        "Manually cleaned the noise already published in the current v0.8.6 and v0.8.3 entries so what's live in Settings -> Changelog reads correctly now, not just for future releases",
+        "Also removed one bullet that was pure investigation narration with no resulting product change (a bug report that turned out to be a stale session, not a code fix) - the type filter can't catch this since it lived inside an otherwise legitimate feature commit"
+      ]
+    },
     {
       "build": 1,
       "version": "0.8.6.1",
@@ -14,5 +29,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T11:07:41Z"
+  "updatedAt": "2026-08-20T12:21:57+01:00"
 }
