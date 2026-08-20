@@ -1,9 +1,22 @@
 {
   "baseVersion": "0.8.6.7",
-  "build": 3,
-  "version": "0.8.6.7.3",
-  "updatedAt": "2026-08-20T19:19:43+01:00",
+  "build": 4,
+  "version": "0.8.6.7.4",
+  "updatedAt": "2026-08-20T19:27:54+01:00",
   "entries": [
+    {
+      "build": 4,
+      "version": "0.8.6.7.4",
+      "date": "2026-08-20T19:27:54+01:00",
+      "commit": "c786d82ba6ba688cf02ab67461101893936867b8",
+      "message": "Feature - Package develop changelog in Docker and refine UI interactions",
+      "author": "Lasikiewicz",
+      "details": [
+        "Copy changelog*.json in Dockerfile to preserve develop build metadata",
+        "Remove emdashes, expand descriptions, and remove subtitle from media force sync modal",
+        "Remove legacy full-page reloads on media play/stop and add Now Playing DOM diffing"
+      ]
+    },
     {
       "build": 3,
       "version": "0.8.6.7.3",
