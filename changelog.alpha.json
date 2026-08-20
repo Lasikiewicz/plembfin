@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.5",
-  "build": 8,
+  "build": 9,
   "entries": [
+    {
+      "build": 9,
+      "version": "0.8.5.9",
+      "date": "2026-08-20T11:38:49+01:00",
+      "commit": "95cc62128cb6f73c5152205bac2c23269dd67940",
+      "message": "test: update Force Sync request tests for the new seasons field",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removed a large empty gap that showed in the Force Sync dialog before starting an operation - the dialog now sizes to its content and only grows once the live log is actually showing",
+        "Fixed the live sync log growing past the bottom of the dialog during a run; it now fills the remaining space and scrolls on its own instead of pushing the whole dialog past its own edge",
+        "Added season checkboxes to the Force Sync dialog for TV shows - leave them unchecked to run across the whole show as before, or pick specific seasons to limit Set Plembfin as Source of Truth or Import Watched Status to just those",
+        "Existing normalizeMediaForceSyncRequest tests asserted the exact returned object shape and didn't know about the new seasons field, so the previous commit's local build check failed the push - fixed the expectations and added a case covering season-list normalization (dedup, sort, comma-separated string input)"
+      ]
+    },
     {
       "build": 8,
       "version": "0.8.5.8",
@@ -107,5 +121,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T11:04:44+01:00"
+  "updatedAt": "2026-08-20T11:38:49+01:00"
 }
