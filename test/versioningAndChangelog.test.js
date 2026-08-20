@@ -111,7 +111,7 @@ test("handleChangelog returns develop metadata when BUILD_CHANNEL=develop", asyn
     assert.equal(statusCode, 200);
     assert.equal(jsonBody.channel, "develop");
     assert.ok(jsonBody.developBuild !== null, "developBuild should be populated");
-    assert.ok(jsonBody.developBuild.version.startsWith("0.8.6.7"), `Version should be 0.8.6.7.x, got ${jsonBody.developBuild.version}`);
+    assert.ok(/^\d+\.\d+\.\d+\.\d+\.\d+$/.test(jsonBody.developBuild.version), `Version should be 5-segment version, got ${jsonBody.developBuild.version}`);
   } finally {
     process.env.BUILD_CHANNEL = prevChannel;
   }

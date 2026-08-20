@@ -1,7 +1,28 @@
 {
   "baseVersion": "0.8.6",
-  "build": 7,
+  "build": 8,
   "entries": [
+    {
+      "build": 8,
+      "version": "0.8.6.8.0",
+      "shortVersion": "0.8.6.8",
+      "date": "2026-08-20T18:42:24.972Z",
+      "commit": "72fb6d99c829b82daa993916457947c54378e1c2",
+      "message": "Feature - Update iOS home screen icon background to white and improve danger button contrast",
+      "author": "system",
+      "details": [
+        "✨ Feature: Feature - Update iOS home screen icon background to white and improve danger button contrast",
+        "✨ Feature: Feature - Package develop changelog in Docker and refine UI interactions",
+        "✨ Feature: Feature - Optimize dashboard live updates and auto-detect develop channel",
+        "✨ Feature: Add DOM HTML caching in dashboard and part watched views to eliminate unnecessary re-renders",
+        "✨ Feature: Feature - 5-segment versioning and tiered changelog cascade",
+        "✨ Feature: Add changelog.develop.json and tiered changelog visibility for develop, alpha, and main",
+        "✨ Feature: Add promotion and summarization scripts for develop to alpha and alpha to main",
+        "✨ Feature: Feat - Real-time live data updates and develop CI workflow",
+        "✨ Feature: Add Docker build and publish workflow for develop branch",
+        "🐛 Fix: Fix - Prioritize develop channel when changelog.develop.json is present"
+      ]
+    },
     {
       "build": 7,
       "version": "0.8.6.7",
@@ -99,5 +120,6 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T15:14:15+01:00"
+  "updatedAt": "2026-08-20T18:42:24.972Z",
+  "version": "0.8.6.8.0"
 }
