@@ -219,41 +219,99 @@ export function watchActionFromButton(button) {
   const scope = button?.dataset.watchScope;
   if (!scope) return null;
 
+  // episodes = currently-unwatched-in-plembfin rows that need a watched_at
+  // date picked. resyncEpisodes = rows plembfin already has as watched but
+  // that the user is explicitly asking to push again (e.g. a media server
+  // drifted out of sync after the original dispatch) - these keep their
+  // existing watched_at and skip the date prompt entirely.
   let episodes = [];
+  let resyncEpisodes = [];
   let referenceScope = [];
   if (scope === "episode") {
     const episode = state.showModalEpisodeIndex.get(button.dataset.episodeKey);
-    if (episode && !episode.watched) episodes = [episode];
+    if (episode) {
+      if (!episode.watched) episodes = [episode];
+      else resyncEpisodes = [episode];
+    }
     referenceScope = state.showModalEpisodes.filter((row) => row.seasonNumber === episode?.seasonNumber);
   } else if (scope === "season") {
     const seasonNumber = Number(button.dataset.seasonNumber);
-    episodes = state.showModalEpisodes.filter((episode) => episode.seasonNumber === seasonNumber && !episode.watched);
-    referenceScope = state.showModalEpisodes.filter((row) => row.seasonNumber === seasonNumber);
+    const seasonEpisodes = state.showModalEpisodes.filter((row) => row.seasonNumber === seasonNumber);
+    episodes = seasonEpisodes.filter((episode) => !episode.watched);
+    resyncEpisodes = seasonEpisodes.filter((episode) => episode.watched);
+    referenceScope = seasonEpisodes;
   } else if (scope === "show") {
     episodes = state.showModalEpisodes.filter((episode) => !episode.watched);
+    resyncEpisodes = state.showModalEpisodes.filter((episode) => episode.watched);
     referenceScope = state.showModalEpisodes;
   }
 
-  if (!episodes.length) return null;
+  if (!episodes.length && !resyncEpisodes.length) return null;
 
-  const showTitle = episodes[0]?.showTitle || "Show";
+  const anchor = episodes[0] || resyncEpisodes[0];
+  const showTitle = anchor?.showTitle || "Show";
   const label = scope === "episode"
-    ? `Mark ${episodeCode(episodes[0].seasonNumber, episodes[0].episodeNumber)} watched`
+    ? `Mark ${episodeCode(anchor.seasonNumber, anchor.episodeNumber)} watched`
     : scope === "season"
-      ? `Mark ${showTitle} ${seasonLabel(episodes[0].seasonNumber)} watched`
+      ? `Mark ${showTitle} ${seasonLabel(anchor.seasonNumber)} watched`
       : `Mark ${showTitle} watched`;
   const reference = watchedReferenceFor(referenceScope);
 
   return {
     scope,
     showTitle,
-    showTmdbId: episodes[0]?.showTmdbId || "",
+    showTmdbId: anchor?.showTmdbId || "",
     episodes,
+    resyncEpisodes,
     label,
     countLabel: `${episodes.length} episode${episodes.length === 1 ? "" : "s"}`,
     referenceWatchedAt: reference?.watchedAt || "",
     referenceEpisodeLabel: reference?.label || "",
   };
+}
+
+// Re-pushes episodes plembfin already has as watched to every connected
+// media server/tracker, without touching their recorded watched_at. Used
+// when "Mark watched" is clicked on a scope that has nothing new to record
+// (so the usual date-prompt flow has nothing to ask about) but the user
+// still wants a live re-sync - e.g. a media server's watched flag drifted
+// after the original push.
+export async function runResyncWatchAction(action) {
+  if (!action?.resyncEpisodes?.length) return;
+  const records = action.resyncEpisodes.map((episode) => watchRecordFromEpisode(episode, episode.watched?.watched_at || new Date().toISOString()));
+  const total = records.length;
+
+  state.savingWatchAction = action;
+  if (state.activeShowModalKey) {
+    _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+  } else if (state.activeShowTmdbId) {
+    await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+  }
+  _setMessage(total > 1 ? `Resyncing ${total} episodes to your media apps…` : "Resyncing to your media apps…", "muted");
+
+  try {
+    const result = await postManualWatchRecords(records);
+    state.savingWatchAction = null;
+    _clearDerivedUiCaches({ resetExplorer: false });
+    const syncText = result.syncQueued
+      ? `sync queued for ${result.syncQueued} item${result.syncQueued === 1 ? "" : "s"}`
+      : `pushed ${result.propagated} to media apps`;
+    _setMessage(`Resynced ${total} episode${total === 1 ? "" : "s"}; ${syncText}.`, result.rejected ? "error" : "success");
+    await refreshShowAfterManualWatch(action.showTitle).catch((error) => _setMessage(error.message, "error"));
+    if (state.activeShowModalKey) {
+      _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+    } else if (state.activeShowTmdbId) {
+      await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+    }
+  } catch (error) {
+    state.savingWatchAction = null;
+    if (state.activeShowModalKey) {
+      _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+    } else if (state.activeShowTmdbId) {
+      await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+    }
+    _setMessage(`Resync failed: ${error.message}`, "error");
+  }
 }
 
 export function openWatchDatePrompt(action) {
@@ -751,6 +809,11 @@ export async function applyWatchDateChoice(choice) {
   const customDate = getCustomWatchDateValue();
   const watchedRows = action.episodes.map((episode, index) => localWatchRowFromEpisode(episode, watchedAtForChoice(choice, episode, customDate, index * WATCH_ORDER_STEP_MS, action.referenceWatchedAt)));
   const records = action.episodes.map((episode, index) => watchRecordFromEpisode(episode, watchedRows[index].watched_at));
+  // Episodes plembfin already has as watched ride along in the same batch so a
+  // season/show "mark watched" always re-pushes them too, without touching
+  // their existing watched_at or going through the optimistic-UI update below.
+  const resyncRecords = (action.resyncEpisodes || []).map((episode) => watchRecordFromEpisode(episode, episode.watched?.watched_at || new Date().toISOString()));
+  const allRecords = [...records, ...resyncRecords];
   const overlay = document.querySelector(".watch-date-overlay");
   const buttons = [...(overlay?.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]") ?? [])];
   buttons.forEach((button) => {
@@ -766,11 +829,11 @@ export async function applyWatchDateChoice(choice) {
     await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
   }
 
-  const total = records.length;
+  const total = allRecords.length;
   _setMessage(total > 1 ? `Saving ${total} episodes to your watch history… 0/${total}` : "Saving to your watch history…", "muted");
 
   try {
-    const result = await postManualWatchRecords(records, (done, all) => {
+    const result = await postManualWatchRecords(allRecords, (done, all) => {
       if (all > 1) _setMessage(`Saving ${all} episodes to your watch history… ${done}/${all}`, "muted");
     });
     state.savingWatchAction = null;

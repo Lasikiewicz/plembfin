@@ -107,7 +107,16 @@ first complete render.
   watch-history lookup still finds it. A non-watched bookkeeping row occupying the exact same
   media identity and timestamp (left behind by an unwatch transition) is separately replaced
   with the new watched record
-  instead of being mistaken for an existing one.
+  instead of being mistaken for an existing one. Season- and show-level mark-watched
+  always dispatches sync for every episode in scope, not only the ones that were
+  actually unwatched - episodes plembfin already has as watched are folded into the
+  same batch and re-pushed to Plex/Emby/Jellyfin/Trakt using their existing
+  `watched_at` (no new watch-history row, no date prompt for them), so a target
+  whose own watched flag drifted after the original push (e.g. following a library
+  rescan) gets corrected without needing Force Sync. When a season or the whole show
+  has nothing left unwatched, the button relabels to "Resync season" / "Resync
+  Watched" instead of disabling, so it can still be clicked to re-push
+  (`watchActionFromButton`, `runResyncWatchAction` in `watch-action.js`).
 - **Rewatch tracking** - a genuine rewatch (a webhook playback event for an
   already-watched item on a later UTC calendar day; see [webhooks.md](webhooks.md#rewatch-detection))
   adds a new watch record instead of being dropped as a duplicate. A bare

@@ -15,6 +15,7 @@ import {
   openWatchDatePrompt,
   closeWatchDatePrompt,
   watchActionFromButton,
+  runResyncWatchAction,
   submitSeerrRequest,
   openSeerrSeasonRequestDialog,
   markMovieWatched,
@@ -1090,7 +1091,12 @@ export function attachMediaDetailEvents() {
     const watchButton = event.target.closest("[data-watch-scope]");
     if (watchButton) {
       event.preventDefault();
-      openWatchDatePrompt(watchActionFromButton(watchButton));
+      const watchAction = watchActionFromButton(watchButton);
+      if (watchAction && !watchAction.episodes.length && watchAction.resyncEpisodes.length) {
+        runResyncWatchAction(watchAction);
+      } else {
+        openWatchDatePrompt(watchAction);
+      }
       return;
     }
 

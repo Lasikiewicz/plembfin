@@ -767,8 +767,9 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
           ${seasonSeerrControls}
           ${seasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${seasonNumber}" ${isSaving ? "disabled" : ""}>Edit season date</button>` : ""}
-          <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${seasonNumber}" ${(seasonUnwatched.length && !isSaving) ? "" : "disabled"}>
-            ${isSaving && isSaving.scope === "season" && Number(isSaving.episodes[0]?.seasonNumber) === Number(seasonNumber) ? "Saving…" : "Mark season watched"}
+          <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${seasonNumber}" ${(seasonEpisodes.length && !isSaving) ? "" : "disabled"}
+            title="${seasonUnwatched.length ? "" : "Re-push this season's watched state to Plex, Emby, Jellyfin & Trakt"}">
+            ${isSaving && isSaving.scope === "season" && Number((isSaving.episodes[0] || isSaving.resyncEpisodes?.[0])?.seasonNumber) === Number(seasonNumber) ? "Saving…" : seasonUnwatched.length ? "Mark season watched" : "Resync season"}
           </button>${seasonUnwatchButtonHtml(seasonEpisodes.filter((episode) => episode.watched).map((episode) => episode.watched.id), seasonNumber, showTitle, isSaving)}
         </div>
       </div>
@@ -1010,9 +1011,10 @@ export function renderShowModalContent(show, {
         .sort((a, b) => Number(a.season_number) - Number(b.season_number))
         .map((season) => ({ number: Number(season.season_number), episodeCount: Number(season.episode_count || 0) })),
     })}
-    <button class="action-pill" type="button" data-watch-scope="show" ${(unwatchedRows.length && !isSaving) ? "" : "disabled"}>
+    <button class="action-pill" type="button" data-watch-scope="show" ${(episodeRows.length && !isSaving) ? "" : "disabled"}
+      title="${unwatchedRows.length ? "" : "Re-push this show's watched state to Plex, Emby, Jellyfin & Trakt"}">
       ${checkIcon}
-      <span>${isSavingShow ? "Saving..." : "Mark <br>Watched"}</span>
+      <span>${isSavingShow ? "Saving..." : unwatchedRows.length ? "Mark <br>Watched" : "Resync <br>Watched"}</span>
     </button>
     ${showUnwatchButtonHtml(watchedRows.map((episode) => episode.watched.id), showTitle, isSaving)}
     ${watchedRows.length ? `
