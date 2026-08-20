@@ -129,6 +129,11 @@ first complete render.
   many seasons syncs significantly faster; outbound calls to each media server are still
   throttled per host by the outbound governor regardless of how many episodes are in
   flight.
+  For a TV show, the dialog also lists its seasons as checkboxes; leaving all of them
+  unchecked scopes the operation to every season (the previous, only behavior), while
+  checking one or more limits it to just those seasons. This reuses the same season
+  filter (`mediaMatchesRequest` in `mediaForceSync.js`) that already scopes a single
+  episode's Force Sync button, extended to accept a list.
   Jellyfin episode matching keeps every same-season/episode copy, so separate
   1080p and 4K items can both receive the watched or unwatched state.
   `POST /api/retry-sync` and `POST /api/update-watch` both take an optional

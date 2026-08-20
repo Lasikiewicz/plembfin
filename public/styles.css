@@ -4972,16 +4972,28 @@ details.sync-tool-details[open] > summary {
 }
 
 .media-force-sync-modal {
+  display: flex;
+  flex-direction: column;
   width: min(1080px, 94vw);
-  min-height: min(600px, 76vh);
   max-height: min(900px, 92vh);
   padding: var(--space-4);
   gap: var(--space-4);
+  overflow: hidden;
+}
+
+/* The taller min-height only applies once the activity log is showing - when
+   it's idle (before a run starts) the modal shrinks to fit its two option
+   rows instead of leaving a large empty gap below them. */
+.media-force-sync-modal:has(.media-force-sync-activity:not(.hidden)) {
+  min-height: min(600px, 76vh);
 }
 
 .media-force-sync-body {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-4);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .media-force-sync-subtitle {
@@ -4990,6 +5002,7 @@ details.sync-tool-details[open] > summary {
 }
 
 .media-force-sync-options {
+  flex: 0 0 auto;
   display: grid;
   gap: var(--space-2);
 }
@@ -5062,6 +5075,49 @@ details.sync-tool-details[open] > summary {
   min-width: 0;
 }
 
+.media-force-sync-seasons {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.media-force-sync-seasons-label {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.media-force-sync-seasons-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.media-force-sync-season-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-3);
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.media-force-sync-season-pill:has(input:checked) {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 18%, var(--panel-3));
+}
+
+.media-force-sync-season-pill small {
+  color: var(--muted);
+}
+
 .media-force-sync-activity {
   margin-top: 0;
 }
@@ -5083,6 +5139,26 @@ details.sync-tool-details[open] > summary {
   max-height: 32rem;
   color: var(--text);
   background: var(--panel-3);
+}
+
+/* Inside the per-title modal only (not the Settings inline panel, which
+   scrolls with the rest of the page): let this terminal fill whatever space
+   is left below the options/header instead of using a plain max-height. A
+   fixed max-height sized independently of the modal's own remaining room
+   could add up to more than the modal ever fits, pushing the log's box past
+   the dialog's own bottom edge instead of scrolling cleanly inside it. */
+.media-force-sync-modal .media-force-sync-activity {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.media-force-sync-modal .media-force-sync-activity .import-terminal {
+  flex: 1 1 auto;
+  min-height: 12rem;
+  max-height: none;
+  overflow: auto;
 }
 
 @media (max-width: 680px) {

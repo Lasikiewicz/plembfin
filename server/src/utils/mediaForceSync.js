@@ -74,6 +74,11 @@ export function normalizeMediaForceSyncRequest(input = {}) {
   const title = clean(input.title || input.name);
   const season = numberOrNull(input.season);
   const episode = numberOrNull(input.episode);
+  // Optional subset of seasons for a show-scoped operation - lets the detail
+  // page limit push/pull to the seasons the user picked instead of the whole
+  // show. Empty/absent means "every season", the existing behavior.
+  const rawSeasons = Array.isArray(input.seasons) ? input.seasons : clean(input.seasons).split(",");
+  const seasons = [...new Set(rawSeasons.map(numberOrNull).filter((value) => value != null))].sort((a, b) => a - b);
   const rawMode = clean(input.mode || input.action).toLowerCase();
   const mode = rawMode === "push_to" ? "push" : rawMode === "pull_from" ? "pull" : rawMode;
   const sourceValue = clean(input.pull_from || input.pullFrom || input.source).toLowerCase();
@@ -87,7 +92,7 @@ export function normalizeMediaForceSyncRequest(input = {}) {
   if (source && !MEDIA_SERVERS.includes(source)) throw new Error("source must be plex, emby, or jellyfin");
   if (target && !MEDIA_SERVERS.includes(target)) throw new Error("target must be plex, emby, or jellyfin");
 
-  return { title, type, ids, season, episode, mode, source, target };
+  return { title, type, ids, season, episode, seasons, mode, source, target };
 }
 
 function sourceTitle(item = {}, source = "") {
@@ -186,6 +191,7 @@ function mediaMatchesRequest(media, requested) {
   if (requested.type !== "movie" && media.type !== "episode") return false;
   if (requested.season != null && Number(media.season) !== Number(requested.season)) return false;
   if (requested.episode != null && Number(media.episode) !== Number(requested.episode)) return false;
+  if (requested.seasons?.length && !requested.seasons.includes(Number(media.season))) return false;
 
   const requestedIds = idSet(requested.ids);
   const mediaIds = idSet(media.ids);

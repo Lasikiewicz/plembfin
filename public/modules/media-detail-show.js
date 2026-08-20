@@ -995,7 +995,17 @@ export function renderShowModalContent(show, {
 
   setMediaDetailActions(`
     ${mediaInfoActionHtml()}
-    ${mediaForceSyncActionHtml({ type: "show", title: showTitle, tmdbId: tmdbData?.id || show.tmdb_id || "", tvdbId: tmdbData?.external_ids?.tvdb_id || show.tvdb_id || "", imdbId: tmdbData?.external_ids?.imdb_id || show.imdb_id || "", disabled: isSaving })}
+    ${mediaForceSyncActionHtml({
+      type: "show",
+      title: showTitle,
+      tmdbId: tmdbData?.id || show.tmdb_id || "",
+      tvdbId: tmdbData?.external_ids?.tvdb_id || show.tvdb_id || "",
+      imdbId: tmdbData?.external_ids?.imdb_id || show.imdb_id || "",
+      disabled: isSaving,
+      seasons: [...regularSeasonsList]
+        .sort((a, b) => Number(a.season_number) - Number(b.season_number))
+        .map((season) => ({ number: Number(season.season_number), episodeCount: Number(season.episode_count || 0) })),
+    })}
     <button class="action-pill" type="button" data-watch-scope="show" ${(unwatchedRows.length && !isSaving) ? "" : "disabled"}>
       ${checkIcon}
       <span>${isSavingShow ? "Saving..." : "Mark <br>Watched"}</span>

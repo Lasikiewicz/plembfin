@@ -53,7 +53,7 @@ None of these talk to each other - they all talk to Plembfin.
 | | |
 |---|---|
 | **Plembfin-canonical sync** | Plembfin's watched/unwatched state is pushed to every connected app that contains the media; platform drift is repaired automatically |
-| **Detail-page Force Sync** | From any movie or show page, choose Set Plembfin as Source of Truth or Import Watched Status for that title; follow detailed live operation output, including duplicate-quality Jellyfin episode copies |
+| **Detail-page Force Sync** | From any movie or show page, choose Set Plembfin as Source of Truth or Import Watched Status for that title; follow detailed live operation output, including duplicate-quality Jellyfin episode copies. For a TV show, optionally check specific seasons to limit the operation instead of running it across the whole show |
 | **Library-wide Force Sync** | From Settings → Sync Tools, use the same Set Plembfin as Source of Truth or Import Watched Status options for the complete library with a live terminal |
 | **New media arrives watched** | Add a film or show whose current Plembfin state is watched and it is marked watched on that server as it appears - no re-watching prompts on a rebuilt library, no manual catch-up. A newer unwatch overrides older watch history |
 | **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |

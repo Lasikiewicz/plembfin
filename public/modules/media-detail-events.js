@@ -73,6 +73,16 @@ async function refreshActiveShowAfterDateEdit(entry = null) {
   }
 }
 
+function mediaForceSyncAvailableSeasons(button) {
+  const raw = button.dataset.forceSyncSeasons || "";
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((entry) => entry.split(":"))
+    .map(([number, episodeCount]) => ({ number: Number(number), episodeCount: Number(episodeCount) || 0 }))
+    .filter((season) => Number.isFinite(season.number) && season.number > 0);
+}
+
 function mediaForceSyncPayload(button) {
   const payload = {
     type: button.dataset.forceSyncType || "movie",
@@ -81,7 +91,9 @@ function mediaForceSyncPayload(button) {
     tvdb_id: button.dataset.forceSyncTvdbId || "",
     imdb_id: button.dataset.forceSyncImdbId || "",
   };
-  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== ""));
+  const clean = Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== ""));
+  clean.availableSeasons = mediaForceSyncAvailableSeasons(button);
+  return clean;
 }
 
 let mediaForceSyncSession = null;
@@ -107,6 +119,8 @@ function forceSyncElements(scope = "media") {
     progressFill: document.querySelector(id("ProgressFill")),
     pushTarget: document.querySelector(id("PushTarget")),
     pullSource: document.querySelector(id("PullSource")),
+    seasons: document.querySelector(id("Seasons")),
+    seasonsList: document.querySelector(id("SeasonsList")),
     cancel: document.querySelector(id("CancelButton")),
     runSelector: library ? "[data-library-force-sync-run]" : "[data-media-force-sync-run]",
   };
@@ -209,6 +223,27 @@ function closeMediaForceSyncDialog() {
   elements.modal?.classList.add("hidden");
 }
 
+function renderMediaForceSyncSeasons(elements, availableSeasons = []) {
+  if (!elements.seasons || !elements.seasonsList) return;
+  if (!availableSeasons.length) {
+    elements.seasons.classList.add("hidden");
+    elements.seasonsList.innerHTML = "";
+    return;
+  }
+  elements.seasons.classList.remove("hidden");
+  elements.seasonsList.innerHTML = availableSeasons.map((season) => `
+    <label class="media-force-sync-season-pill">
+      <input type="checkbox" value="${season.number}" data-media-force-sync-season />
+      <span>Season ${season.number}${season.episodeCount ? ` <small>(${season.episodeCount} eps)</small>` : ""}</span>
+    </label>
+  `).join("");
+}
+
+function selectedMediaForceSyncSeasons(elements) {
+  if (!elements.seasonsList) return [];
+  return [...elements.seasonsList.querySelectorAll("[data-media-force-sync-season]:checked")].map((input) => Number(input.value));
+}
+
 function openMediaForceSyncDialog(button) {
   if (mediaForceSyncSession?.running) return;
   const elements = mediaForceSyncElements();
@@ -222,6 +257,7 @@ function openMediaForceSyncDialog(button) {
   if (elements.description) elements.description.textContent = `${payload.type === "show" ? "TV show" : payload.type === "episode" ? "Episode" : "Movie"} · this operation is limited to the selected media item.`;
   if (elements.pushTarget) elements.pushTarget.value = "all";
   if (elements.pullSource) elements.pullSource.value = "all";
+  renderMediaForceSyncSeasons(elements, payload.type === "show" ? payload.availableSeasons : []);
   resetMediaForceSyncActivity(elements);
   setMediaForceSyncControlsBusy(elements, false);
   elements.modal.classList.remove("hidden");
@@ -263,11 +299,15 @@ export function initLibraryForceSyncPanel() {
 
 function forceSyncConfirmation(mode, session, elements) {
   const title = session.payload.type === "library" ? "the full library" : `"${session.payload.title}"`;
+  const selectedSeasons = selectedMediaForceSyncSeasons(elements);
+  const seasonScope = selectedSeasons.length
+    ? ` (season${selectedSeasons.length === 1 ? "" : "s"} ${selectedSeasons.join(", ")} only)`
+    : "";
   if (mode === "push") {
     const progress = session.payload.type === "library" ? " and saved resume positions" : "";
-    return `This will send Plembfin's currently recorded watched state${progress} for ${title} to ${mediaForceSyncServerLabel(elements.pushTarget?.value || "all")}, overwriting whatever it currently shows. Nothing is checked or pulled in first — if Plembfin's own record is wrong, this sends that wrong state out too. Continue?`;
+    return `This will send Plembfin's currently recorded watched state${progress} for ${title}${seasonScope} to ${mediaForceSyncServerLabel(elements.pushTarget?.value || "all")}, overwriting whatever it currently shows. Nothing is checked or pulled in first — if Plembfin's own record is wrong, this sends that wrong state out too. Continue?`;
   }
-  return `This will read watched status for ${title} from ${mediaForceSyncServerLabel(elements.pullSource?.value || "all")} and add anything Plembfin doesn't already have. Nothing is sent back out, and nothing is marked unwatched or removed. Continue?`;
+  return `This will read watched status for ${title}${seasonScope} from ${mediaForceSyncServerLabel(elements.pullSource?.value || "all")} and add anything Plembfin doesn't already have. Nothing is sent back out, and nothing is marked unwatched or removed. Continue?`;
 }
 
 async function confirmAndRunMediaForceSync(mode) {
@@ -395,10 +435,13 @@ async function runMediaForceSync(mode) {
   if (!session || session.running) return;
   const elements = session.elements || mediaForceSyncElements();
   const payload = { ...session.payload, mode };
+  delete payload.availableSeasons;
   const pushTarget = elements.pushTarget?.value || "all";
   const pullSource = elements.pullSource?.value || "all";
   if (mode === "push" && pushTarget !== "all") payload.push_to = pushTarget;
   if (mode === "pull" && pullSource !== "all") payload.pull_from = pullSource;
+  const selectedSeasons = selectedMediaForceSyncSeasons(elements);
+  if (selectedSeasons.length) payload.seasons = selectedSeasons;
   session.running = true;
   setMediaForceSyncControlsBusy(elements, true);
   if (session.button) {

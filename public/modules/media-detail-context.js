@@ -105,7 +105,12 @@ export function mediaForceSyncActionHtml({
   tvdbId = "",
   imdbId = "",
   disabled = false,
+  seasons = [],
 } = {}) {
+  const seasonsAttr = seasons
+    .filter((season) => Number.isFinite(Number(season.number)))
+    .map((season) => `${Number(season.number)}:${Number(season.episodeCount) || 0}`)
+    .join(",");
   return `
     <button class="action-pill action-pill-ghost media-force-sync-btn" type="button" ${disabled ? "disabled" : ""}
       data-media-force-sync
@@ -114,6 +119,7 @@ export function mediaForceSyncActionHtml({
       data-force-sync-tmdb-id="${escapeAttribute(tmdbId)}"
       data-force-sync-tvdb-id="${escapeAttribute(tvdbId)}"
       data-force-sync-imdb-id="${escapeAttribute(imdbId)}"
+      data-force-sync-seasons="${escapeAttribute(seasonsAttr)}"
       title="Import watched state from connected media servers">
       <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M13.5 5.5A5.5 5.5 0 0 0 3.2 4L2 6" />
