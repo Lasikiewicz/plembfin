@@ -1,7 +1,20 @@
 {
   "baseVersion": "0.8.6",
-  "build": 2,
+  "build": 3,
   "entries": [
+    {
+      "build": 3,
+      "version": "0.8.6.3",
+      "date": "2026-08-20T13:55:12+01:00",
+      "commit": "80570668e3b9420d7e7616ae5ef4863bc5696ad0",
+      "message": "Fix - Stop mark-watched from ever creating a duplicate on an already-watched item",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a real incident: School Spirits kept accumulating duplicate watch records - a season page left open for ~20 minutes stopped reflecting a batch mark-watched that happened elsewhere, and clicking Mark Watched on what the stale page still showed as unwatched logged a second play for an episode the server already had watched",
+        "Manual mark-watched and marking watched from Part Watched now check the item's actual current watch state before inserting, not just whether a row exists at the exact timestamp the request happens to use - an item the server already has watched is reported as already-logged instead of getting a second play recorded, no matter how stale the page that submitted the request was",
+        "Cleaned up the duplicates already live on production: Remove Duplicate Watches removed 16 duplicate TV watches across 9 episodes library-wide and pushed the corrected state to every connected platform"
+      ]
+    },
     {
       "build": 2,
       "version": "0.8.6.2",
@@ -29,5 +42,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T12:21:57+01:00"
+  "updatedAt": "2026-08-20T13:55:12+01:00"
 }
