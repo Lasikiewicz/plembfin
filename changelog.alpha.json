@@ -1,7 +1,21 @@
 {
   "baseVersion": "0.8.6",
-  "build": 4,
+  "build": 5,
   "entries": [
+    {
+      "build": 5,
+      "version": "0.8.6.5",
+      "date": "2026-08-20T14:34:10+01:00",
+      "commit": "c5a79c42cbfac35f26528fbeff30a862d65b741b",
+      "message": "Fix - Recover Trakt dispatch when a media server reports a wrong episode id",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a real incident: Force Sync failed to mark Reacher S02E02 watched on Trakt (not_found) because the stored record's provider ids - reported by a real Plex webhook scrobble, not derived by Plembfin - didn't correspond to any real show; S02E01 in the same run succeeded only because it had no per-episode id and naturally fell back to the show's correct one",
+        "Episode writes already skip resolving series-level ids once an episode carries any id of its own, since that id normally must win over a title-based guess - this meant a media server's own mismatched match for one specific episode was never given a second look",
+        "Trakt dispatch now retries once with the show's own known series ids, but only after Trakt has explicitly rejected the episode's stored id with not_found - a working id is never speculatively second-guessed, only one Trakt has already refused",
+        "A recovered dispatch reports that the show's series id was used instead of a bare success, so this stays visible instead of silently masking the underlying bad episode id"
+      ]
+    },
     {
       "build": 4,
       "version": "0.8.6.4",
@@ -56,5 +70,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T14:20:10+01:00"
+  "updatedAt": "2026-08-20T14:34:10+01:00"
 }
