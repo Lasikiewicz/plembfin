@@ -255,7 +255,6 @@ function openMediaForceSyncDialog(button) {
   const payload = mediaForceSyncPayload(button);
   mediaForceSyncSession = { button, payload, elements, running: false, operationId: "", cancelRequested: false, cancelling: false };
   if (elements.title) elements.title.textContent = `Force Sync · ${payload.title}`;
-  if (elements.description) elements.description.textContent = `${payload.type === "show" ? "TV show" : payload.type === "episode" ? "Episode" : "Movie"} · this operation is limited to the selected media item.`;
   if (elements.pushTarget) elements.pushTarget.value = "all";
   if (elements.pullSource) elements.pullSource.value = "all";
   renderMediaForceSyncSeasons(elements, payload.type === "show" ? payload.availableSeasons : []);
@@ -306,7 +305,7 @@ function forceSyncConfirmation(mode, session, elements) {
     : "";
   if (mode === "push") {
     const progress = session.payload.type === "library" ? " and saved resume positions" : "";
-    return `This will send Plembfin's currently recorded watched state${progress} for ${title}${seasonScope} to ${mediaForceSyncServerLabel(elements.pushTarget?.value || "all")}, overwriting whatever it currently shows. Nothing is checked or pulled in first — if Plembfin's own record is wrong, this sends that wrong state out too. Continue?`;
+    return `This will send Plembfin's currently recorded watched state${progress} for ${title}${seasonScope} to ${mediaForceSyncServerLabel(elements.pushTarget?.value || "all")}, overwriting whatever it currently shows. Nothing is checked or pulled in first. If Plembfin's own record is wrong, this sends that wrong state out too. Continue?`;
   }
   return `This will read watched status for ${title}${seasonScope} from ${mediaForceSyncServerLabel(elements.pullSource?.value || "all")} and add anything Plembfin doesn't already have. Nothing is sent back out, and nothing is marked unwatched or removed. Continue?`;
 }

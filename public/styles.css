@@ -5052,7 +5052,7 @@ details.sync-tool-details[open] > summary {
 
 .media-force-sync-choice-copy small,
 .media-force-sync-target-copy small {
-  max-width: 60ch;
+  max-width: none;
   color: var(--muted);
   font-size: inherit;
   line-height: 1.45;

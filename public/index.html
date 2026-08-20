@@ -1720,7 +1720,7 @@
           <div id="sync-tools-push" class="media-force-sync-target-row">
             <div class="media-force-sync-target-copy">
               <label for="settingsForceSyncPushTarget">Set Plembfin as Source of Truth</label>
-                                    <small>Sends Plembfin's currently recorded watched status and saved resume positions to the selected server or all connected servers, overwriting whatever they currently show.<br>Nothing is checked or pulled in first — if Plembfin's own record is wrong, this sends that wrong state out too.<br><span class="sync-tools-when-to-use"><strong>When to use:</strong> Use this when you've confirmed Plembfin's record is correct and want every connected app to match it.</span></small>
+                                    <small>Sends Plembfin's currently recorded watched status and saved resume positions to the selected server or all connected servers, overwriting whatever they currently show.<br>Nothing is checked or pulled in first. If Plembfin's own record is wrong, this sends that wrong state out too.<br><span class="sync-tools-when-to-use"><strong>When to use:</strong> Use this when you've confirmed Plembfin's record is correct and want every connected app to match it.</span></small>
                                   </div>
                                   <select id="settingsForceSyncPushTarget" class="field media-force-sync-select">
                                     <option value="plex">Plex</option>
@@ -2100,12 +2100,11 @@
       </article>
     </div>
 
-    <div id="mediaForceSyncModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="mediaForceSyncModalTitle" aria-describedby="mediaForceSyncModalDescription">
+    <div id="mediaForceSyncModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="mediaForceSyncModalTitle">
       <article class="modal-panel glass-panel media-force-sync-modal">
         <div class="modal-head">
           <div>
             <h2 id="mediaForceSyncModalTitle">Force Sync</h2>
-            <p id="mediaForceSyncModalDescription" class="muted-copy media-force-sync-subtitle"></p>
           </div>
           <button id="closeMediaForceSyncModalButton" class="button-ghost" type="button">Close</button>
         </div>
@@ -2118,7 +2117,7 @@
             <div class="media-force-sync-target-row">
               <div class="media-force-sync-target-copy">
                 <label for="mediaForceSyncPushTarget">Set Plembfin as Source of Truth</label>
-                <small>Sends this title's watched state exactly as Plembfin currently has it recorded to the selected destination(s), overwriting whatever they show. Nothing is checked first — if Plembfin's record is wrong, this sends that wrong state out too.</small>
+                <small>Overwrites watched status on the selected server(s) to match Plembfin's current records without checking for existing differences.</small>
               </div>
               <select id="mediaForceSyncPushTarget" class="field media-force-sync-select">
                 <option value="plex">Plex</option>
@@ -2132,7 +2131,7 @@
             <div class="media-force-sync-target-row">
               <div class="media-force-sync-target-copy">
                 <label for="mediaForceSyncPullSource">Import Watched Status</label>
-                <small>Reads watched status for this title from one server and adds anything Plembfin doesn't already have. Never sends anything back out, and never marks anything unwatched or removes existing history.</small>
+                <small>Imports watched history from the selected server to fill in missing records in Plembfin without removing existing history or modifying remote servers.</small>
               </div>
               <select id="mediaForceSyncPullSource" class="field media-force-sync-select">
                 <option value="plex">Plex</option>
