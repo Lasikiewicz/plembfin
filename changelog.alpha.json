@@ -1,7 +1,20 @@
 {
   "baseVersion": "0.8.5",
-  "build": 7,
+  "build": 8,
   "entries": [
+    {
+      "build": 8,
+      "version": "0.8.5.8",
+      "date": "2026-08-20T11:04:44+01:00",
+      "commit": "91785550c7594ceba96cf14d88e33ca6da1f6a80",
+      "message": "Fix - Stop a stale unwatch marker row from silently blocking a rewatch mark",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a real incident: marking The 'Burbs S01E05 watched via Same as other episodes kept reporting success and syncing to Plex, Emby, Jellyfin, and Trakt, but the watched state never actually saved and reverted on reload",
+        "Root cause: an earlier unwatch had left a non-watched bookkeeping row at the exact same media identity and timestamp the mark-watched request targeted; the duplicate check only looked at whether a row existed there at all, not whether it was actually marked watched, so it silently skipped writing the new watched state while still dispatching outbound sync as if it had",
+        "Manual mark-watched and marking watched from Part Watched now replace that kind of stale row with the real watched record instead of mistaking it for an existing watch"
+      ]
+    },
     {
       "build": 7,
       "version": "0.8.5.7",
@@ -94,5 +107,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T10:47:19+01:00"
+  "updatedAt": "2026-08-20T11:04:44+01:00"
 }
