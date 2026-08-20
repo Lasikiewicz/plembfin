@@ -7,7 +7,7 @@ import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSl
 import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-content.js";
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js";
 import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup } from "./modules/tools.js?v=20260810";
-import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync } from "./modules/sync.js";
+import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js";
 import { initSyncPreview } from "./modules/sync-preview.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
@@ -1933,6 +1933,10 @@ function clearDerivedUiCaches({ resetExplorer = true } = {}) {
 
 let isBackgroundSyncing = false;
 
+function isAnySyncRunning() {
+  return isBackgroundSyncing || Boolean(state.fullSyncActive) || isSyncProgressActive();
+}
+
 function renderSyncProgress({ total = 0, completed = 0 } = {}) {
   const syncing = total > 0 && completed < total;
   const wasSyncing = isBackgroundSyncing;
@@ -1959,6 +1963,13 @@ let liveHistoryRefreshQueued = false;
 
 function queueLiveHistoryRefresh({ immediate = false } = {}) {
   liveHistoryRefreshQueued = true;
+
+  // While a sync job is actively writing rows in the background (force sync, cron repair, full sync,
+  // or background dispatch), do NOT reload or refresh the dashboard until the sync finishes.
+  if (!immediate && isAnySyncRunning()) {
+    return;
+  }
+
   if (immediate) {
     if (liveHistoryRefreshTimer) {
       window.clearTimeout(liveHistoryRefreshTimer);
@@ -1968,14 +1979,16 @@ function queueLiveHistoryRefresh({ immediate = false } = {}) {
     return;
   }
 
-  // While a sync job is actively writing rows in the background, throttle refreshes to 3s
-  // so the homepage doesn't constantly reload and flicker
-  const delayMs = immediate ? 50 : (isBackgroundSyncing ? 3000 : 350);
+  const delayMs = immediate ? 50 : 350;
 
   liveHistoryRefreshTimer = window.setTimeout(() => {
     liveHistoryRefreshTimer = null;
+    if (!immediate && isAnySyncRunning()) {
+      liveHistoryRefreshQueued = true;
+      return;
+    }
     if (liveHistoryRefreshActive) {
-      queueLiveHistoryRefresh();
+      queueLiveHistoryRefresh({ immediate });
       return;
     }
     refreshLiveHistoryView().catch((error) => logDebug(`Live history refresh failed: ${error.message}`));
@@ -2027,7 +2040,9 @@ async function refreshLiveHistoryView() {
     }
   } finally {
     liveHistoryRefreshActive = false;
-    if (liveHistoryRefreshQueued) queueLiveHistoryRefresh();
+    if (liveHistoryRefreshQueued && !isAnySyncRunning()) {
+      queueLiveHistoryRefresh();
+    }
   }
 }
 
@@ -2345,6 +2360,7 @@ function initialize() {
     clearDerivedUiCaches,
     loadSyncJobs,
     loadSyncHistory,
+    queueLiveHistoryRefresh,
   });
   initMediaDetail({
     setMessage,
@@ -2413,6 +2429,7 @@ function initialize() {
     renderImmersiveShowModal,
     showToast,
     showConfirmModal,
+    queueLiveHistoryRefresh,
   });
   initSyncPreview({
     button: elements.previewForceSyncButton,

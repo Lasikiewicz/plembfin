@@ -11,6 +11,7 @@ let _loadSyncHistory = async () => {};
 let _loadHistory = async () => {};
 let _clearDerivedUiCaches = () => {};
 let _loadSavedConfig = async () => {};
+let _queueLiveHistoryRefresh = () => {};
 let fullSyncAbortController = null;
 let fullSyncRunId = "";
 let fullSyncCancelRequested = false;
@@ -25,6 +26,7 @@ export function initMaintenanceTools(callbacks = {}) {
   if (callbacks.loadHistory) _loadHistory = callbacks.loadHistory;
   if (callbacks.clearDerivedUiCaches) _clearDerivedUiCaches = callbacks.clearDerivedUiCaches;
   if (callbacks.loadSavedConfig) _loadSavedConfig = callbacks.loadSavedConfig;
+  if (callbacks.queueLiveHistoryRefresh) _queueLiveHistoryRefresh = callbacks.queueLiveHistoryRefresh;
   initSyncMatchReport();
 }
 
@@ -1282,6 +1284,7 @@ export async function runFullSyncWatchstates() {
     fullSyncAbortController = null;
     fullSyncRunId = "";
     fullSyncCancelRequested = false;
+    _queueLiveHistoryRefresh({ immediate: true });
   }
 }
 

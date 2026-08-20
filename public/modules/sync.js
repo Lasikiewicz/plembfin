@@ -1139,6 +1139,10 @@ function updateSyncProgressFromLine(line, mode) {
   if (stage) setSyncProgress(stage[1], stage[2]);
 }
 
+export function isSyncProgressActive() {
+  return Boolean(syncProgressState && syncProgressState.status === "running");
+}
+
 function finishSyncProgress(status, label) {
   if (!syncProgressState) return;
   if (syncProgressTimer) clearInterval(syncProgressTimer);
@@ -1147,6 +1151,7 @@ function finishSyncProgress(status, label) {
   syncProgressState.label = label;
   if (status === "complete") syncProgressState.value = 100;
   renderSyncProgress();
+  _cb.queueLiveHistoryRefresh?.({ immediate: true });
 }
 
 export async function triggerCronSync() {
