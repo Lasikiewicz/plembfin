@@ -25,6 +25,7 @@ test("normalizes a show detail Force Sync request and provider ids", () => {
       ids: { imdb: "", tmdb: "4194", tvdb: "41077" },
       season: null,
       episode: null,
+      seasons: [],
       mode: "push",
       source: "",
       target: "",
@@ -76,12 +77,25 @@ test("normalizes target-specific push and pull operations", () => {
       ids: { imdb: "", tmdb: "", tvdb: "" },
       season: null,
       episode: null,
+      seasons: [],
       mode: "push",
       source: "",
       target: "jellyfin",
     },
   );
   assert.equal(normalizeMediaForceSyncRequest({ title: "The Acolyte", type: "show", mode: "pull_from", pull_from: "plex" }).mode, "pull");
+});
+
+test("normalizes a season subset for a show detail Force Sync request", () => {
+  assert.deepEqual(
+    normalizeMediaForceSyncRequest({ title: "The Acolyte", type: "show", mode: "push", seasons: [2, 1, 1, "3"] }).seasons,
+    [1, 2, 3],
+  );
+  assert.deepEqual(
+    normalizeMediaForceSyncRequest({ title: "The Acolyte", type: "show", mode: "push", seasons: "2,1" }).seasons,
+    [1, 2],
+  );
+  assert.deepEqual(normalizeMediaForceSyncRequest({ title: "The Acolyte", type: "show", mode: "push" }).seasons, []);
 });
 
 test("normalizes the Settings library Force Sync options", () => {
