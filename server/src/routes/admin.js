@@ -871,18 +871,19 @@ export async function handleTestConnection(req, res) {
   const body = await readJson(req);
   const started = Date.now();
   const type = String(body.type || "").toLowerCase();
-  const baseUrl = String(body.url || body.baseUrl || "").replace(/\/+$/, "");
+  let baseUrl = String(body.url || body.baseUrl || "").replace(/\/+$/, "");
   let token = String(body.token || body.apiKey || "");
   // The browser never receives stored secrets, so the settings form may submit a
-  // blank token for an already-configured server â€” fall back to the saved credential.
-  if (!token && ["plex", "emby", "jellyfin"].includes(type)) {
+  // blank token for an already-configured server — fall back to the saved credential.
+  if ((!token || !baseUrl) && ["plex", "emby", "jellyfin"].includes(type)) {
     let config;
     try {
       config = await loadMediaConfig();
     } catch (error) {
       return sendJson(res, { ok: false, error: `${type === "plex" ? "Plex account" : type} credential unavailable: ${error.message || error}` }, 502);
     }
-    token = type === "plex" ? String(config?.plex?.token || "") : String(config?.[type]?.apiKey || "");
+    token = token || (type === "plex" ? String(config?.plex?.token || "") : String(config?.[type]?.apiKey || ""));
+    baseUrl = baseUrl || String(config?.[type]?.baseUrl || "").replace(/\/+$/, "");
   }
   if (!type || !baseUrl || !token) return sendJson(res, { ok: false, error: "type, url, and token are required" }, 400);
 

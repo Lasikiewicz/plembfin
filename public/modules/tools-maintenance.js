@@ -251,20 +251,30 @@ export async function runSystemIntegrityCheck() {
     }
   }
 
-  // Connection settings now live in edit modals, so diagnostics must use the
-  // redacted saved config instead of reading inputs that may not exist. A blank
-  // secret deliberately asks the backend to fall back to the stored credential.
-  const plexUrl = String(state.savedConfig?.plex?.baseUrl || state.savedConfig?.plex?.url || "").trim();
-  const embyUrl = String(state.savedConfig?.emby?.baseUrl || state.savedConfig?.emby?.url || "").trim();
-  const jellyfinUrl = String(state.savedConfig?.jellyfin?.baseUrl || state.savedConfig?.jellyfin?.url || "").trim();
+  // Connection settings live in edit modals and media_connections (app sign-ins).
+  // Diagnostics check both saved config and active connection state. A blank secret
+  // deliberately asks the backend to fall back to the stored/connected credential.
+  const getProviderInfo = (type) => {
+    const section = state.savedConfig?.[type] || {};
+    const conn = section.connection || {};
+    const url = String(section.baseUrl || section.url || conn.baseUrl || "").trim();
+    const isConfigured = Boolean(
+      section.configured ||
+      (conn.status && conn.status !== "disabled" && conn.baseUrl) ||
+      (section.authMode === "account" && conn.status === "connected")
+    );
+    return { url, isConfigured };
+  };
 
-  const testConnection = async (type, url, token, name) => {
-    // Secrets are never sent to the browser, so the token input is blank for an
-    // already-configured server - the backend falls back to the stored credential.
-    if (!url || (!token && !state.savedConfig?.[type]?.configured)) { results.push({ name, status: "skipped", detail: "Skipped - URL or token not provided." }); return; }
+  const testConnection = async (type, name) => {
+    const { url, isConfigured } = getProviderInfo(type);
+    if (!isConfigured && !url) {
+      results.push({ name, status: "skipped", detail: "Skipped - Server is not connected or configured." });
+      return;
+    }
     try {
       const startTime = Date.now();
-      const response = await fetch("/api/test-connection", { method: "POST", headers: authHeaders(), body: JSON.stringify({ type, url, token }) });
+      const response = await fetch("/api/test-connection", { method: "POST", headers: authHeaders(), body: JSON.stringify({ type, url, token: "" }) });
       const body = await response.json().catch(() => ({}));
       const elapsed = Date.now() - startTime;
       if (response.ok && body.ok) {
@@ -277,29 +287,30 @@ export async function runSystemIntegrityCheck() {
     }
   };
 
-  await testConnection("plex", plexUrl, "", "Plex Media Server");
+  await testConnection("plex", "Plex Media Server");
 
-  if (plexUrl && state.savedConfig?.plex?.configured) {
+  const plexInfo = getProviderInfo("plex");
+  if (plexInfo.isConfigured || plexInfo.url) {
     try {
       const startTime = Date.now();
-      // A blank token is fine - the backend falls back to the saved Plex config.
-      const response = await fetch("/api/test-plex-notifications", { method: "POST", headers: authHeaders(), body: JSON.stringify({ url: plexUrl, token: "" }) });
+      // A blank token is fine - the backend falls back to the saved/connected Plex config.
+      const response = await fetch("/api/test-plex-notifications", { method: "POST", headers: authHeaders(), body: JSON.stringify({ url: plexInfo.url, token: "" }) });
       const body = await response.json().catch(() => ({}));
       const elapsed = Date.now() - startTime;
       if (response.ok && body.ok) {
         results.push({ name: "Plex Realtime Notifications", status: "success", detail: `Notification WebSocket connected in ${body.elapsedMs || elapsed}ms. Event-driven unwatch detection is active.` });
       } else {
-        results.push({ name: "Plex Realtime Notifications", status: "warning", detail: `${body.error || `Unavailable (HTTP ${response.status})`}. Unwatch sync falls back to the periodic poll.` });
+        results.push({ name: "Plex Realtime Notifications", status: "warning", detail: `${body.error || `Unavailable (HTTP ${response.status})`}. Adaptive polling and unwatch sync will continue working.` });
       }
     } catch (error) {
-      results.push({ name: "Plex Realtime Notifications", status: "warning", detail: `Check failed: ${error.message}. Unwatch sync falls back to the periodic poll.` });
+      results.push({ name: "Plex Realtime Notifications", status: "warning", detail: `Check failed: ${error.message}. Adaptive polling and unwatch sync will continue working.` });
     }
   } else {
-    results.push({ name: "Plex Realtime Notifications", status: "skipped", detail: "Skipped - Plex URL or token not provided." });
+    results.push({ name: "Plex Realtime Notifications", status: "skipped", detail: "Skipped - Plex is not connected or configured." });
   }
 
-  await testConnection("emby", embyUrl, "", "Emby Media Server");
-  await testConnection("jellyfin", jellyfinUrl, "", "Jellyfin Media Server");
+  await testConnection("emby", "Emby Media Server");
+  await testConnection("jellyfin", "Jellyfin Media Server");
 
   try {
     const report = await fetchSyncMatchReport();
@@ -334,10 +345,10 @@ export async function runSystemIntegrityCheck() {
       else if (res.name === "Webhook Listener Endpoint") { fixInstruction = "Fix: Confirm the server is running and accessible at the expected host and port. Check for firewall or reverse-proxy rules blocking /api/webhook."; }
       else if (res.name === "Outbound Playstate Sync") { fixInstruction = "Fix: Open the latest history row debug details, review sync_dispatch_telemetry, then correct the failed platform credentials or provider-ID match."; }
       else if (res.name === "Cross-Platform Library Matching") { fixInstruction = "Fix: Open the Cross-Platform Match Report under Settings → Sync → Sync Issues to see which media each platform could not find, then add the media to that library or correct its metadata/external IDs."; settingsPath = "/settings/sync#syncMatchReport"; }
-      else if (res.name === "Plex Media Server") { fixInstruction = "Fix: Enter the Plex Server URL and Plex Token in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
-      else if (res.name === "Plex Realtime Notifications") { fixInstruction = "Fix: Ensure any reverse proxy / Cloudflare in front of Plex forwards WebSocket upgrades on /:/websockets/notifications, or set the Plex Server URL to the direct LAN address (e.g. http://192.168.x.x:32400). Unwatch sync still works via the fallback poll until this is fixed."; settingsPath = "/settings/media-servers"; }
-      else if (res.name === "Emby Media Server") { fixInstruction = "Fix: Enter the Emby Server URL, API Key, and User ID in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
-      else if (res.name === "Jellyfin Media Server") { fixInstruction = "Fix: Enter the Jellyfin Server URL, API Key, and User ID in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
+      else if (res.name === "Plex Media Server") { fixInstruction = "Fix: Sign in with Plex or enter the Plex Server URL and Plex Token in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
+      else if (res.name === "Plex Realtime Notifications") { fixInstruction = "Fix: Ensure any reverse proxy / Cloudflare in front of Plex forwards WebSocket upgrades on /:/websockets/notifications, or set the Plex Server URL to the direct LAN address (e.g. http://192.168.x.x:32400). Adaptive polling and unwatch sync will continue working."; settingsPath = "/settings/media-servers"; }
+      else if (res.name === "Emby Media Server") { fixInstruction = "Fix: Sign in to Emby or enter the Emby Server URL, API Key, and User ID in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
+      else if (res.name === "Jellyfin Media Server") { fixInstruction = "Fix: Sign in / Quick Connect to Jellyfin or enter the Jellyfin Server URL, API Key, and User ID in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
     }
 
     return `
