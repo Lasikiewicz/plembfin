@@ -72,6 +72,14 @@ export function normalizeScope(scope = {}) {
     libraries,
     watchedAfter: isoOrEmpty(scope.watchedAfter),
     watchedBefore: isoOrEmpty(scope.watchedBefore),
+    // Distinct from watchedAfter/watchedBefore: those filter by when the item
+    // was actually watched (its source playback timestamp), which is often
+    // old and spread across the library. updatedAfter/updatedBefore filter by
+    // when Plembfin's own history row was last touched - the right dimension
+    // for scoping a repair to "whatever a specific incident/bug run touched
+    // just now", regardless of how old the underlying real watch is.
+    updatedAfter: isoOrEmpty(scope.updatedAfter),
+    updatedBefore: isoOrEmpty(scope.updatedBefore),
     maxChanges,
   };
 }
@@ -84,6 +92,8 @@ export function scopeIsDefault(scope = {}) {
     !normalized.libraries.length &&
     !normalized.watchedAfter &&
     !normalized.watchedBefore &&
+    !normalized.updatedAfter &&
+    !normalized.updatedBefore &&
     !normalized.maxChanges
   );
 }
@@ -99,6 +109,8 @@ export function describeScope(scope = {}) {
   parts.push(normalized.mediaTypes.length ? `types: ${normalized.mediaTypes.join(", ")}` : "all media types");
   if (normalized.watchedAfter) parts.push(`watched after ${normalized.watchedAfter.slice(0, 10)}`);
   if (normalized.watchedBefore) parts.push(`watched before ${normalized.watchedBefore.slice(0, 10)}`);
+  if (normalized.updatedAfter) parts.push(`updated after ${normalized.updatedAfter}`);
+  if (normalized.updatedBefore) parts.push(`updated before ${normalized.updatedBefore}`);
   if (normalized.maxChanges) parts.push(`max ${normalized.maxChanges} changes`);
   return parts.join("; ");
 }
@@ -128,6 +140,11 @@ function historyRowInScope(scope, row) {
     const time = row.watched_at ? new Date(row.watched_at).getTime() : 0;
     if (scope.watchedAfter && (!time || time < new Date(scope.watchedAfter).getTime())) return false;
     if (scope.watchedBefore && (!time || time > new Date(scope.watchedBefore).getTime())) return false;
+  }
+  if (scope.updatedAfter || scope.updatedBefore) {
+    const updatedAt = Number(row.updated_at || 0);
+    if (scope.updatedAfter && (!updatedAt || updatedAt < new Date(scope.updatedAfter).getTime())) return false;
+    if (scope.updatedBefore && (!updatedAt || updatedAt > new Date(scope.updatedBefore).getTime())) return false;
   }
   return true;
 }
@@ -489,7 +506,13 @@ export function buildForceSyncPlan({
     const historyRecords = historyMap.get(key) || [];
     const lastHistoryRecord = historyRecords[0];
 
-    let newestState = "unwatched";
+    // No local history row at all means Plembfin never recorded a decision
+    // for this item - not that it was explicitly marked unwatched. Treating
+    // an absent row as canonical-unwatched would generate a destructive
+    // mark_unplayed action against a server that genuinely has it watched
+    // (e.g. after a history row is deleted by the phantom-watch repair
+    // tool). Only an explicit unwatched record is canonical.
+    let newestState = null;
     let newestTime = 0;
     let decidedBy = { policy: "plembfin", evidence: "no history" };
 
@@ -549,7 +572,7 @@ export function buildForceSyncPlan({
           });
         }
       }
-    } else {
+    } else if (newestState === "unwatched") {
       // Plembfin's unwatched marker is already canonical. Never delete or
       // recreate local history because a remote server reports played.
 
@@ -564,6 +587,12 @@ export function buildForceSyncPlan({
           });
         }
       }
+    } else {
+      skipped.push({
+        mediaKey: key,
+        title: mediaObj.title,
+        reason: "A server shows this watched but Plembfin has no history record for it, so its unwatched/watched state cannot be determined safely.",
+      });
     }
   }
 

@@ -3085,6 +3085,21 @@ export async function deleteWatchRecordById(id, { skipInvalidate = false } = {})
     });
   }
   deleteByIdStmt.run(String(id));
+  // playstate is a separate cached snapshot of "is this watched" and must be
+  // reconciled here, not left for the caller to remember - a caller that
+  // deletes the last remaining watch_history row for a media_key and skips
+  // this leaves playstate stuck reporting "watched" for an item Plembfin no
+  // longer has any record of, which is exactly the drift that let Force Sync
+  // and the Movies/TV Shows/History pages disagree with each other.
+  if (row?.media_key) {
+    const remaining = selectByMediaKeyStmt.all(row.media_key).filter(isPlembfinTrackedWatchRow);
+    if (remaining.length) {
+      const remainingRow = remaining.reduce((best, r) => (String(r.watched_at || "") > String(best.watched_at || "") ? r : best));
+      updatePlaystateWatchedAtStmt.run(remainingRow.watched_at, Date.now(), row.media_key);
+    } else {
+      deletePlaystateByKeyStmt.run(row.media_key);
+    }
+  }
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
   return true;
 }

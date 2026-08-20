@@ -1447,6 +1447,16 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         episode: row.episode == null ? undefined : Number(row.episode),
       };
 
+      // A row lands in this batch because at least one active target isn't
+      // confirmed synced yet, but that doesn't mean none of them are. Only
+      // dispatch to the targets still missing confirmation instead of
+      // re-sending mark-played to ones the telemetry already shows as
+      // successful - fewer redundant outbound calls, faster backlog drain.
+      const targetsStillNeeded = activeTargets.filter(
+        (target) => !isTargetSynced(row.sync_dispatch_telemetry || "", target, row.source)
+      );
+      if (targetsStillNeeded.length) media.syncTargets = targetsStillNeeded;
+
       logger(`Background Queue: retrying/dispatching sync for ${media.title} (${id})...`);
       await upsertPlaystateForMedia(media, "watched", row.watched_at, { skipInvalidate: true });
       const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
@@ -1456,12 +1466,27 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         targetStates: [],
       }));
 
+      // Targets skipped this round (already confirmed synced) had no dispatch
+      // this time, so summary.targetStates has no line for them - carry their
+      // prior confirmed line forward instead of letting it drop out of the
+      // telemetry, which would otherwise make allSyncedNow below regress to
+      // false and re-queue an already-finished target forever.
+      const previousTelemetryLines = String(row.sync_dispatch_telemetry || "").split("\n");
+      const carriedForwardLines = activeTargets
+        .filter((target) => !targetsStillNeeded.includes(target))
+        .map((target) => previousTelemetryLines.find((line) => {
+          const lower = line.toLowerCase();
+          return lower.includes(`target ${target} status:`) || lower.includes(`target ${target} progress status:`);
+        }))
+        .filter(Boolean);
+
       const telemetryLines = [
         `Origin: ${media.source}`,
         `Loop-check: Passed`,
         `Dispatch status: ${summary.status}`,
         `Details: Manual watch state propagated; sync completed.`,
         ...provenanceTelemetryLines(media.watchProvenance || media.watch_provenance),
+        ...carriedForwardLines,
         ...(summary.targetStates || []).map(
           (t) => `Target ${t.target} status: ${t.status}${t.detail ? ` - ${t.detail}` : ""}`
         ),
