@@ -48,6 +48,12 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onSyncProgress
     }
     if (version === lastVersion) return;
     lastVersion = version;
+    // If the server piggybacked sync-progress onto this version bump, apply it
+    // first so the client's sync-busy flag is current before onHistoryVersion
+    // decides whether to queue a dashboard refresh.
+    if ("syncTotal" in event) {
+      onSyncProgress?.({ total: Number(event.syncTotal) || 0, completed: Number(event.syncCompleted) || 0 });
+    }
     onHistoryVersion?.(version);
   };
 
