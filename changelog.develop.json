@@ -1,8 +1,22 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 9,
-  "version": "0.9.3.1.9",
+  "build": 10,
+  "version": "0.9.3.1.10",
   "entries": [
+    {
+      "build": 10,
+      "version": "0.9.3.1.10",
+      "date": "2026-08-20T22:59:33+01:00",
+      "commit": "6453ac94ae08fc13b9bd31abfdbe134ef807f2fb",
+      "message": "Fix - Close remaining false-unwatch and playstate-drift gaps",
+      "author": "Lasikiewicz",
+      "details": [
+        "Applied the same no-history-is-not-unwatched fix to the modern scoped Force Sync planner, which previously could still push a false mark-unplayed to Plex/Emby/Jellyfin for an item with no Plembfin history row",
+        "Added updatedAfter/updatedBefore Force Sync scope filters, so a repair can be limited to items Plembfin touched in a specific time window rather than filtering by original watch date",
+        "The backlog sync-retry queue now only re-sends mark-played to the specific targets still missing confirmation instead of all three every time, clearing large backlogs faster with less redundant traffic",
+        "Fixed a playstate/watch_history drift: deleting a single history row (e.g. via the History page's delete button) now also cleans up the matching playstate row, so Plembfin's own watched indicator can no longer disagree with its own history after a record is removed"
+      ]
+    },
     {
       "build": 9,
       "version": "0.9.3.1.9",
@@ -111,5 +125,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T22:30:13+01:00"
+  "updatedAt": "2026-08-20T22:59:33+01:00"
 }
