@@ -291,7 +291,17 @@ async function pollTrakt({ reconcile = false } = {}) {
   // wiped out by the fresh snapshot) or the next poll would lose the "still
   // missing?" comparison point and never be able to confirm or clear them.
   const heldBackAsSnapshotItems = heldBack.map((item) => ({ mediaKey: item.mediaKey, media: item.media, watchedAt: item.remoteWatchedAt }));
-  replaceTrackerSnapshot("trakt", [...snapshot, ...heldBackAsSnapshotItems]);
+  // tracker_item_state has a UNIQUE(provider, media_key) constraint, but
+  // Trakt's watched snapshot can contain more than one entry for the same
+  // media_key (e.g. a rewatch reported as a separate play rather than folded
+  // into one per-item row upstream). Inserting the raw combined list crashes
+  // the whole snapshot replace on the first repeat, which then keeps failing
+  // every poll. Keep the last entry per media_key instead of the first, so a
+  // duplicate resolves to its most recently reported watched_at.
+  const dedupedSnapshotItems = [...new Map(
+    [...snapshot, ...heldBackAsSnapshotItems].map((item) => [item.mediaKey, item]),
+  ).values()];
+  replaceTrackerSnapshot("trakt", dedupedSnapshotItems);
   updateTrackerConnectionStatus("trakt", { baselineComplete: true, lastPolledAt: Date.now(), lastValidatedAt: Date.now(), lastError: null });
 
   try {
