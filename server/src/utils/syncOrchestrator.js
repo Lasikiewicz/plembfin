@@ -6,6 +6,7 @@ import { minResumePositionMs, watchedThresholdPercent } from "./tuning.js";
 import { canReceiveState, canSendState } from "./syncRoles.js";
 import { dispatchTrackerWatchState } from "./trackerDispatcher.js";
 import { setRuntimeState } from "./configStore.js";
+import { canonicalShowTitleKey, canonicalTitleKey, showTitleFrom } from "./dataRepo.js";
 
 const LOOP_CACHE_TTL_SECONDS = 60;
 const LOOP_WINDOW_MS = 15_000;
@@ -175,7 +176,21 @@ function mediaCacheParts(media) {
   // imdb/tmdb/tvdb ids and so checks provider keys. With no key the two forms
   // share, the echo reads as a fresh event and the state bounces between
   // platforms until something else stops it.
-  const titleKey = media.title ? `${coordinates}:title:${normalizeCachePart(media.title)}` : "";
+  //
+  // Built from a canonicalized show/movie title, not the raw title string:
+  // one source can format the same episode as "Show (2025) - S01E02" while
+  // another reports it as "Show - S01E02" (a trailing year only one side
+  // carries). A raw-string key treats those as two different items, so an
+  // outbound mark claimed under one source's title is never recognized when
+  // the echo comes back formatted the other source's way - the echo then
+  // reads as a brand-new watch and gets inserted as a duplicate.
+  const rawTitleForKey = media.type === "episode"
+    ? (media.show_title || media.showTitle || showTitleFrom(media.title || ""))
+    : media.title;
+  const canonicalTitleForKey = rawTitleForKey
+    ? (media.type === "episode" ? canonicalShowTitleKey(rawTitleForKey) : canonicalTitleKey(rawTitleForKey))
+    : "";
+  const titleKey = canonicalTitleForKey ? `${coordinates}:title:${canonicalTitleForKey}` : "";
   return [...new Set([itemKey, ...providerKeys, titleKey].filter(Boolean))];
 }
 

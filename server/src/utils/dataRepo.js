@@ -211,11 +211,11 @@ function removeTrailingYear(title) {
 // or off the show title) or an inconsistent import. Deliberately looser than
 // canonicalTitleKey alone - "Ludwig" and "Ludwig (2024)" must resolve to the
 // same show, or the same real show ends up split into two in the app.
-function canonicalShowTitleKey(value) {
+export function canonicalShowTitleKey(value) {
   return canonicalTitleKey(removeTrailingYear(value || ""));
 }
 
-function showTitleFrom(title = "") {
+export function showTitleFrom(title = "") {
   const text = cleanString(decodeBasicHtmlEntities(title)) || "Unknown Show";
   const seasonMatch = text.match(/^(.*?)(?:\s+-\s+S\d{1,2}E\d{1,2})(?:\s+-\s+.*)?$/i);
   if (seasonMatch?.[1]) return removeTrailingYear(seasonMatch[1]) || "Unknown Show";
