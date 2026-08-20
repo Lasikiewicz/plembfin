@@ -957,6 +957,7 @@ function playstateRowsForIdentity(record = {}) {
 export async function getPlaystateForMedia(media) {
   const record = playstateRecordFromMedia(media, media?.syncAction || "watched");
   const exact = selectPlaystateStmt.get(mediaKeyFor(record));
+  if (exact) return playstateFromRow(exact);
   const related = selectPlaystateByTitleStmt
     .all(record.media_type, record.title.toLowerCase())
     .filter((row) => sameEpisodeCoordinates(record, row));
@@ -969,7 +970,7 @@ export async function getPlaystateForMedia(media) {
     ? selectPlaystateBySeasonEpisodeStmt.all(record.season, record.episode)
       .filter((row) => canonicalShowTitleKey(showTitleFrom(row.title)) === canonicalShowTitleKey(showTitleFrom(record.title)))
     : [];
-  const row = newestByUpdatedAt([exact, ...playstateRowsForIdentity(record), ...related, ...byShowTitle]);
+  const row = newestByUpdatedAt([...playstateRowsForIdentity(record), ...related, ...byShowTitle]);
   return row ? playstateFromRow(row) : null;
 }
 
