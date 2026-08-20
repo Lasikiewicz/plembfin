@@ -23,7 +23,7 @@ export function bumpPatchVersion(currentVersion = "0.0.0") {
   return `${major}.${minor}.${patch}`;
 }
 
-export function promoteAlphaToMain({ sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "" } = {}) {
+export function promoteAlphaToMain({ targetVersion = "0.9.0", sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "" } = {}) {
   let changelog = { version: "0.8.6", entries: [] };
   try {
     changelog = JSON.parse(fs.readFileSync(changelogPath, "utf8"));
@@ -36,14 +36,14 @@ export function promoteAlphaToMain({ sourceDate = new Date().toISOString(), sour
   } catch { }
   if (!Array.isArray(alpha.entries)) alpha.entries = [];
 
-  const newMainPatch = bumpPatchVersion(changelog.version);
-  const new5DigitVersion = `${newMainPatch}.0.0`;
+  const newMainVersion = targetVersion || bumpPatchVersion(changelog.version);
+  const new5DigitVersion = `${newMainVersion}.0.0`;
 
   const simplifiedDetails = simplifyEntries(alpha.entries);
-  const mainMessage = alpha.entries[0]?.message || `Release v${newMainPatch}`;
+  const mainMessage = alpha.entries[0]?.message || `Release v${newMainVersion}`;
 
   const mainEntry = {
-    version: newMainPatch,
+    version: newMainVersion,
     version5Digit: new5DigitVersion,
     date: sourceDate,
     commit: commit || alpha.entries[0]?.commit || "",
@@ -52,31 +52,31 @@ export function promoteAlphaToMain({ sourceDate = new Date().toISOString(), sour
     details: simplifiedDetails,
   };
 
-  changelog.version = newMainPatch;
+  changelog.version = newMainVersion;
   changelog.updatedAt = sourceDate;
   changelog.entries.unshift(mainEntry);
 
   // Update package.json
   try {
     const pkg = JSON.parse(fs.readFileSync(packagePath, "utf8"));
-    pkg.version = newMainPatch;
+    pkg.version = newMainVersion;
     fs.writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`);
   } catch { }
 
   // Reset alpha changelog for the new release cycle
   alpha = {
-    baseVersion: newMainPatch,
+    baseVersion: newMainVersion,
     build: 0,
-    version: `${newMainPatch}.0.0`,
+    version: `${newMainVersion}.0.0`,
     updatedAt: sourceDate,
     entries: [],
   };
 
   // Reset develop changelog for the new release cycle
   const develop = {
-    baseVersion: `${newMainPatch}.0`,
+    baseVersion: `${newMainVersion}.0`,
     build: 0,
-    version: `${newMainPatch}.0.0`,
+    version: `${newMainVersion}.0.0`,
     updatedAt: sourceDate,
     entries: [],
   };
@@ -85,12 +85,13 @@ export function promoteAlphaToMain({ sourceDate = new Date().toISOString(), sour
   fs.writeFileSync(alphaChangelogPath, `${JSON.stringify(alpha, null, 2)}\n`);
   fs.writeFileSync(developChangelogPath, `${JSON.stringify(develop, null, 2)}\n`);
 
-  console.log(`Promoted Alpha to Main release v${newMainPatch} (${new5DigitVersion})`);
+  console.log(`Promoted Alpha to Main release v${newMainVersion} (${new5DigitVersion})`);
   return { changelog, alpha, develop };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   promoteAlphaToMain({
+    targetVersion: process.argv[2] || process.env.TARGET_VERSION || "0.9.0",
     commit: process.env.SOURCE_COMMIT || "",
     sourceAuthor: process.env.SOURCE_AUTHOR || "system",
   });

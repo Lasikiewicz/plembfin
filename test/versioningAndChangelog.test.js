@@ -41,9 +41,10 @@ test("simplifyEntries classifies and deduplicates features and fixes", () => {
   assert.ok(simplified.some((line) => line.includes("Fix:") && line.includes("prevent memory leak on timer loop")));
   assert.ok(simplified.some((line) => line.includes("Fix:") && line.includes("clear interval on socket termination")));
 
-  // Verify duplicates are removed
+  // Verify duplicates are removed and no icons are present
   const connectionDropFixes = simplified.filter((line) => line.includes("resolve connection drop on page unload"));
   assert.equal(connectionDropFixes.length, 1);
+  assert.ok(!simplified.some((line) => /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu.test(line)), "No icons/emojis should be present in changelog");
 });
 
 test("bumpPatchVersion increments only the patch (3rd segment)", () => {
