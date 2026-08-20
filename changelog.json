@@ -1,7 +1,17 @@
 {
-  "version": "0.9.0",
-  "updatedAt": "2026-08-20T18:57:21.205Z",
+  "version": "0.9.1",
+  "updatedAt": "2026-08-20T19:59:19+01:00",
   "entries": [
+    {
+      "version": "0.9.1",
+      "date": "2026-08-20T19:59:19+01:00",
+      "commit": "89472311d64b1875af6c1a9f3ca9b6f294c44567",
+      "message": "Fix - Channel determination and resilient versioning test",
+      "author": "Lasikiewicz",
+      "details": [
+        "Refine channel resolution to check file presence and ensure resilient test assertions"
+      ]
+    },
     {
       "version": "0.9.0",
       "version5Digit": "0.9.0.0.0",
