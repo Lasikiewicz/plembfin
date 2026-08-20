@@ -30,10 +30,22 @@ export function simplifyEntries(entries = []) {
       // Strip all emoji/icon characters
       line = line.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "").trim();
 
-      if (/^(feat|feature|add)\b/i.test(line)) {
-        features.push(line.replace(/^(feat|feature|add):\s*/i, "").trim());
-      } else if (/^(fix|bug|repair|patch)\b/i.test(line)) {
-        fixes.push(line.replace(/^(fix|bug|repair|patch):\s*/i, "").trim());
+      let isFeat = /^(feat|feature|add)\b/i.test(line);
+      let isFix = /^(fix|bug|repair|patch)\b/i.test(line);
+
+      while (/^(feat|feature|enhancement|enhance|add|fix|bug|repair|patch)\s*[:-]\s*/i.test(line)) {
+        if (/^(feat|feature|enhancement|enhance|add)\b/i.test(line)) isFeat = true;
+        if (/^(fix|bug|repair|patch)\b/i.test(line)) isFix = true;
+        line = line.replace(/^(feat|feature|enhancement|enhance|add|fix|bug|repair|patch)\s*[:-]\s*/i, "").trim();
+      }
+
+      if (!line) continue;
+      line = line.charAt(0).toUpperCase() + line.slice(1);
+
+      if (isFeat) {
+        features.push(line);
+      } else if (isFix) {
+        fixes.push(line);
       } else {
         other.push(line);
       }

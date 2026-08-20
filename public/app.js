@@ -535,10 +535,13 @@ async function renderChangelog(force = false) {
       const tag = pending
         ? `<span class="changelog-tag changelog-tag-new">Not pulled yet</span>`
         : isCurrent ? `<span class="changelog-tag changelog-tag-current">Current</span>` : "";
+      const versionTitle = entry.version
+        ? `v${escapeHtml(entry.version)} (Develop)`
+        : `Develop Build ${escapeHtml(String(entry.build ?? ""))}`;
       return `
         <article class="changelog-entry${isCurrent ? " changelog-entry-current" : ""}${pending ? " changelog-entry-new" : ""}">
           <div class="changelog-entry-head">
-            <b>Develop Build ${escapeHtml(String(entry.build ?? ""))}${entry.version ? ` (v${escapeHtml(entry.version)})` : ""}${tag}</b>
+            <b>${versionTitle}${tag}</b>
             <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
           </div>
           <p>${escapeHtml(entry.message || "Develop build update")}</p>
@@ -553,10 +556,13 @@ async function renderChangelog(force = false) {
       const tag = pending
         ? `<span class="changelog-tag changelog-tag-new">Not pulled yet</span>`
         : isCurrent ? `<span class="changelog-tag changelog-tag-current">Current</span>` : "";
+      const versionTitle = entry.version
+        ? `v${escapeHtml(entry.version)} (Alpha)`
+        : `Alpha Build ${escapeHtml(String(entry.build ?? ""))}`;
       return `
         <article class="changelog-entry${isCurrent ? " changelog-entry-current" : ""}${pending ? " changelog-entry-new" : ""}">
           <div class="changelog-entry-head">
-            <b>Alpha Build ${escapeHtml(String(entry.build ?? ""))}${entry.version ? ` (v${escapeHtml(entry.version)})` : ""}${tag}</b>
+            <b>${versionTitle}${tag}</b>
             <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
           </div>
           <p>${escapeHtml(entry.message || "Alpha build update")}</p>
