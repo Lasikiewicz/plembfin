@@ -15,11 +15,14 @@ import {
   updateWatchTelemetry,
   upsertPlaystateForMedia,
 } from "./dataRepo.js";
-import { getTargetsForSource, syncMediaPlaystate, syncMediaUnplayedPlaystate } from "./syncOrchestrator.js";
+import { completeDispatchTracking, getTargetsForSource, syncMediaPlaystate, syncMediaUnplayedPlaystate } from "./syncOrchestrator.js";
 
-export async function applyWatchedTransition(media, config, loopStore) {
+export async function applyWatchedTransition(media, config, loopStore, { trackDispatch = true } = {}) {
   const existing = await getPlaystateForMedia(media).catch(() => null);
   if (existing?.state === "watched") {
+    // A pre-reserved batch slot (trackDispatch: false) skips syncMediaPlaystate
+    // entirely on this path, so nothing would otherwise mark it complete.
+    if (!trackDispatch) completeDispatchTracking();
     return { inserted: false, alreadyWatched: true, summary: { skipped: true, status: "skipped", details: "Already watched; no change to propagate", targetStates: [] } };
   }
   const record = mediaToWatchRecord({ ...media, syncAction: "watched" }, media.source);
@@ -27,7 +30,7 @@ export async function applyWatchedTransition(media, config, loopStore) {
   const result = await insertWatchRecord(record, { skipInvalidate: true });
   await upsertPlaystateForMedia(media, "watched", result.record.watched_at, { skipInvalidate: true });
   await deletePlaybackProgress(media).catch(() => null);
-  const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
+  const summary = await syncMediaPlaystate(media, config, loopStore, { trackDispatch }).catch((error) => ({
     skipped: false, status: "error", details: `Watched propagation failed: ${error.message || String(error)}`, targetStates: [],
   }));
   await updateWatchTelemetry(result.id, [
@@ -56,6 +59,7 @@ function unwatchedTelemetry(summary, media) {
 export async function applyUnwatchedTransition(media, config, loopStore, {
   recordId = "",
   includeSourcePlatform = false,
+  trackDispatch = true,
 } = {}) {
   const existingWatched = await findWatchedByAnyMediaKey(media).catch(() => null);
   const existingRecord = recordId
@@ -68,6 +72,10 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
     // exist (e.g. a re-watch in progress after an earlier unwatch) - always clear
     // it so "Clear Progress" removes the item from the Part Watched list.
     await deletePlaybackProgress(media).catch(() => null);
+    // See the matching comment in applyWatchedTransition - this path never
+    // reaches syncMediaUnplayedPlaystate, so a pre-reserved slot needs its
+    // own completion signal here.
+    if (!trackDispatch) completeDispatchTracking();
     return {
       wasDeleted: false,
       id: existingRecord?.id || "",
@@ -110,7 +118,7 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
     }
   }
 
-  const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore).catch((error) => ({
+  const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore, { trackDispatch }).catch((error) => ({
     skipped: false,
     status: "error",
     details: `Unwatched propagation failed: ${error.message || String(error)}`,

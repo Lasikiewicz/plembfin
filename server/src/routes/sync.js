@@ -27,7 +27,7 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
-import { getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { completeDispatchTracking, getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { forceSyncMediaState, normalizeMediaForceSyncRequest } from "../utils/mediaForceSync.js";
@@ -468,8 +468,8 @@ function mediaFromWatchRecord(record) {
 // Core of "mark unwatched": delete the watched record, write a superseding
 // unwatched record, flip the playstate cache, and propagate unplayed to the other
 // platforms. Shared by the webhook `unplayed` phase and the manual-unwatch handler.
-export async function applyManualUnwatch(media, config, loopStore, recordId = "", { includeSourcePlatform = false } = {}) {
-  const result = await applyUnwatchedTransition(media, config, loopStore, { recordId, includeSourcePlatform });
+export async function applyManualUnwatch(media, config, loopStore, recordId = "", { includeSourcePlatform = false, trackDispatch = true } = {}) {
+  const result = await applyUnwatchedTransition(media, config, loopStore, { recordId, includeSourcePlatform, trackDispatch });
   if (!result.alreadyUnwatched) await recordSyncHistory(media, result.summary, "unwatched");
   return result;
 }
@@ -784,15 +784,19 @@ export async function handleManualUnwatch(req, res) {
   let failed = 0;
 
   try {
+    reserveDispatchBatch(ids.length);
     await runWithConcurrency(ids, async (id, index) => {
       try {
         const record = await getWatchRecordById(id);
         if (!record) throw new Error("Watch record not found");
         const media = mediaFromWatchRecord(record);
-        const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, id, { includeSourcePlatform: true });
+        const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, id, { includeSourcePlatform: true, trackDispatch: false });
         succeeded += 1;
         results[index] = { id, unwatchedId, status: summary.status, targetStates: summary.targetStates || [] };
       } catch (error) {
+        // Failed before reaching applyManualUnwatch (e.g. record lookup),
+        // so nothing else will settle this reserved dispatch-batch slot.
+        completeDispatchTracking();
         failed += 1;
         results[index] = { id, error: error.message || String(error) };
       }
@@ -865,9 +869,10 @@ export async function handleManualWatch(req, res) {
   // Sync in the background to prevent client timeouts
   if (syncTasks.length > 0) {
     (async () => {
+      reserveDispatchBatch(syncTasks.length);
       await runWithConcurrency(syncTasks, async (task) => {
         try {
-          const summary = await syncMediaPlaystate(task.media, config, loopStore).catch((error) => ({
+          const summary = await syncMediaPlaystate(task.media, config, loopStore, { trackDispatch: false }).catch((error) => ({
             skipped: false,
             status: "error",
             details: `Manual watch propagation failed: ${error.message || String(error)}`,

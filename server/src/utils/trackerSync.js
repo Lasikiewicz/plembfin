@@ -11,6 +11,7 @@ import {
 } from "./trackerConnectionRepo.js";
 import { withFreshTraktConnection } from "./trackerDispatcher.js";
 import { applyUnwatchedTransition, applyWatchedTransition } from "./watchStateTransitions.js";
+import { reserveDispatchBatch } from "./syncOrchestrator.js";
 
 const OUTBOUND_ECHO_WINDOW_MS = 30 * 60_000;
 const TRACKER_TRANSITION_CONCURRENCY = 8;
@@ -247,8 +248,16 @@ async function pollTrakt({ reconcile = false } = {}) {
     initialSyncMode: publicConnection.initialSyncMode,
     reconcileKeys,
   });
+  // A "watched" mark just pushed to Trakt does not always show up in the
+  // very next watched-snapshot fetch - Trakt's API can lag behind its own
+  // write for several seconds. Without this guard, that stale snapshot looks
+  // identical to a genuine remote unwatch (the item is simply missing), so a
+  // poll landing in that window would delete the watch it just created.
+  // isOutboundEcho(item, "unwatched") only catches the item echoing back the
+  // same state we just pushed; a missing item after a recent "watched" push
+  // needs its own guard here.
   const unwatchedCandidates = baseline
-    ? previous.filter((item) => !currentByKey.has(item.mediaKey) && !isOutboundEcho(item, "unwatched"))
+    ? previous.filter((item) => !currentByKey.has(item.mediaKey) && !isOutboundEcho(item, "unwatched") && !isOutboundEcho(item, "watched"))
     : [];
   const { unwatched, heldBack } = partitionSuspiciousUnwatches(unwatchedCandidates, previous, currentByKey);
   if (heldBack.length) {
@@ -257,14 +266,19 @@ async function pollTrakt({ reconcile = false } = {}) {
 
   const config = await loadMediaConfig();
   const loopStore = createLoopStore();
+  // Reserve the whole known batch size on the sidebar sync-progress indicator
+  // up front, instead of letting it climb one item at a time as the bounded-
+  // concurrency workers below pick up new items over the life of the batch -
+  // see reserveDispatchBatch in syncOrchestrator.js.
+  reserveDispatchBatch(watched.length + unwatched.length);
   await runTransitionBatch(watched, async (item) => {
     const media = { ...item.media, source: "trakt", watched_at: new Date(item.watchedAt || Date.now()).toISOString() };
-    await applyWatchedTransition(media, config, loopStore);
+    await applyWatchedTransition(media, config, loopStore, { trackDispatch: false });
     signalHistoryDataChanged();
   });
   await runTransitionBatch(unwatched, async (item) => {
     const media = { ...item.media, source: "trakt", isValid: true };
-    await applyUnwatchedTransition(media, config, loopStore);
+    await applyUnwatchedTransition(media, config, loopStore, { trackDispatch: false });
     signalHistoryDataChanged();
   });
 

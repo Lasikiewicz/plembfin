@@ -165,8 +165,12 @@ Implementation lives in `server/src/scheduled.js`.
      fully idle and closes `DISPATCH_PROGRESS_IDLE_MS` (2s) after the last one in it finishes,
      so a handful of near-simultaneous fire-and-forget calls (e.g. one propagation per episode
      from a season's duplicate-watch cleanup) share one window instead of each flashing the
-     indicator open and shut on its own. Each start/finish writes `{ total, completed }` to
-     `runtime_state.backgroundSyncProgress`. `GET /api/live-updates` polls that field once a
+     indicator open and shut on its own. A caller that already knows its batch size (the Trakt
+     snapshot poll, a bulk mark-watched/unwatched) reports the whole total up front with
+     `reserveDispatchBatch(size)` instead of letting the total climb one item at a time as
+     bounded-concurrency workers pick up new items - the indicator shows the true total
+     immediately rather than rising toward an unknown ceiling. Each start/finish writes
+     `{ total, completed }` to `runtime_state.backgroundSyncProgress`. `GET /api/live-updates` polls that field once a
      second (separately from its 250ms history-version poll, since this is a DB read) and emits
      a `sync-progress` SSE event whenever it changes; `renderSyncProgress` in `app.js` shows the
      indicator while `total > 0` and hides it once the burst closes. Reading `runtime_state`
@@ -184,6 +188,12 @@ Implementation lives in `server/src/scheduled.js`.
      transient hiccup and nothing is sent out. A normal removal of a couple of episodes is never
      affected by this and still propagates the same minute (`partitionSuspiciousUnwatches` in
      `trackerSync.js`).
+   - A watched mark Plembfin just pushed to Trakt does not always appear in the very next
+     watched-snapshot fetch - Trakt's API can lag a few seconds behind its own write. A poll
+     landing in that window would otherwise see the item as missing and read it as a genuine
+     remote unwatch, deleting the watch it had just created. The unwatch-candidate filter
+     excludes any item pushed "watched" within the last 30 minutes for this reason, the same
+     window already used to stop a pushed "unwatched" from echoing back as a second unwatch.
    - **Sync Now** also reconciles unchanged Trakt watches against Plembfin's current
      canonical state, so it repairs drift that predates the connection baseline.
      The connection card shows an in-progress indicator while the complete snapshot

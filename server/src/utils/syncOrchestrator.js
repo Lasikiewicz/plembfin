@@ -33,7 +33,7 @@ function reportDispatchProgress() {
   }).catch(() => null);
 }
 
-function beginDispatchTracking() {
+function openDispatchBurstIfIdle() {
   if (dispatchIdleTimer) {
     clearTimeout(dispatchIdleTimer);
     dispatchIdleTimer = null;
@@ -43,11 +43,36 @@ function beginDispatchTracking() {
     dispatchBurstTotal = 0;
     dispatchBurstCompleted = 0;
   }
+}
+
+function beginDispatchTracking() {
+  openDispatchBurstIfIdle();
   dispatchBurstTotal += 1;
   reportDispatchProgress();
 }
 
-function completeDispatchTracking() {
+// For a caller that already knows how many items it is about to dispatch
+// (a Trakt reconcile pass, a bulk mark-watched/unwatched batch) - adds the
+// whole known size to the total in one call instead of letting it climb one
+// item at a time as bounded-concurrency workers pick items up over the
+// life of the batch, which otherwise makes the indicator look like it never
+// settles on a final number. Pair with `trackDispatch: false` on the
+// batch's own syncMediaPlaystate/syncMediaUnplayedPlaystate calls so those
+// items aren't counted a second time when they individually start.
+export function reserveDispatchBatch(size) {
+  if (!(size > 0)) return;
+  openDispatchBurstIfIdle();
+  dispatchBurstTotal += size;
+  reportDispatchProgress();
+}
+
+// Exported for callers that pre-reserve a batch slot (trackDispatch: false)
+// but then take an early-return path in applyWatchedTransition/
+// applyUnwatchedTransition without ever reaching syncMediaPlaystate/
+// syncMediaUnplayedPlaystate (e.g. "already watched" / "already unwatched") -
+// that reserved slot must still be marked complete or the indicator gets
+// stuck short of its total and the burst never closes.
+export function completeDispatchTracking() {
   dispatchBurstCompleted += 1;
   reportDispatchProgress();
   if (dispatchBurstCompleted >= dispatchBurstTotal) {
@@ -426,7 +451,7 @@ async function includeTrackerDispatch(summary, media, state) {
   };
 }
 
-export async function syncMediaPlaystate(media, config, kv) {
+export async function syncMediaPlaystate(media, config, kv, { trackDispatch = true } = {}) {
   if (!watchedPlayedSyncEnabled()) {
     console.log("Sync playstate skipped: watched/played syncing is disabled");
     return { skipped: true, status: "skipped", details: "Watched/played syncing is disabled.", targetStates: [], results: [] };
@@ -461,7 +486,7 @@ export async function syncMediaPlaystate(media, config, kv) {
     ids: media.ids,
   });
 
-  beginDispatchTracking();
+  if (trackDispatch) beginDispatchTracking();
   try {
     // Prime the echo ledger before making any remote calls. Plex can emit its
     // played notification while the request is still in flight; recording only
@@ -521,7 +546,7 @@ export async function syncCanonicalPlaystate(media, config, kv, state = "watched
   return syncMediaPlaystate(canonicalMedia, config, kv);
 }
 
-export async function syncMediaUnplayedPlaystate(media, config, kv) {
+export async function syncMediaUnplayedPlaystate(media, config, kv, { trackDispatch = true } = {}) {
   if (!watchedPlayedSyncEnabled()) {
     return { skipped: true, status: "skipped", details: "Watched/played syncing is disabled.", targetStates: [], results: [] };
   }
@@ -552,7 +577,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv) {
     ids: media.ids,
   });
 
-  beginDispatchTracking();
+  if (trackDispatch) beginDispatchTracking();
   try {
     // Prime before the DELETE/unscrobble requests because some servers emit the
     // callback before the outbound request resolves.
