@@ -735,20 +735,16 @@ function finalizeStatsPeriod(period) {
 export async function getCachedHistory() {
   const version = getDataVersion();
   if (historyCache.version === version) return historyCache.rows;
-  const __t0 = Date.now();
   const rows = selectAllHistoryStmt.all().map(rowToWatch);
   historyCache = { version, rows };
-  console.log(`CACHEPROBE getCachedHistory rebuild rows=${rows.length} ms=${Date.now() - __t0}`);
   return rows;
 }
 
 export async function getCachedMovies() {
   const version = getDataVersion();
   if (movieCache.version === version && Array.isArray(movieCache.rows)) return movieCache.rows;
-  const __t0 = Date.now();
   const rows = selectMoviesStmt.all().map(rowToWatch).filter(isPlembfinTrackedWatchRow);
   movieCache = { version, rows };
-  console.log(`CACHEPROBE getCachedMovies rebuild rows=${rows.length} ms=${Date.now() - __t0}`);
   return rows;
 }
 
@@ -756,12 +752,9 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
   const version = getDataVersion();
   const memo = includeScheduledLibraryHistory ? scheduledShowCache : showCache;
   if (memo.version === version && memo.shows.length > 0) return memo.shows;
-  const __t0 = Date.now();
   const episodeRows = (await getCachedHistory()).filter((r) => r.media_type === "episode"
     && (includeScheduledLibraryHistory ? isWatchedAction(r) : isPlembfinTrackedWatchRow(r)));
-  const __t1 = Date.now();
   const groups = groupShowRows(dedupeHistory(episodeRows));
-  const __t2 = Date.now();
   // Each show needs its own SQLite lookup + JSON parse for cached TMDB details;
   // at library scale that's enough synchronous work in one pass to block the
   // event loop for a second or more, which is long enough (especially when
@@ -810,7 +803,6 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
   }
   if (includeScheduledLibraryHistory) scheduledShowCache = { version, shows };
   else showCache = { version, shows };
-  console.log(`CACHEPROBE getCachedShows rebuild episodes=${episodeRows.length} groups=${groups.length} filterMs=${__t1 - __t0} dedupeMs=${__t2 - __t1} mapMs=${Date.now() - __t2}`);
   return shows;
 }
 

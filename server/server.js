@@ -274,30 +274,6 @@ server?.on("listening", async () => {
     return;
   }
   await coordinator?.start().catch((error) => console.error("Failed to start worker coordinator", error));
-
-  // TEMPORARY: diagnosing production health-check timeouts (the process exits
-  // cleanly, not OOMKilled - something is blocking the event loop for 5s+).
-  // Remove once the root cause is found - see the MEMPROBE/LAGPROBE lines.
-  const MEMPROBE_INTERVAL_MS = 3000;
-  const memProbe = setInterval(() => {
-    const m = process.memoryUsage();
-    const mb = (n) => `${(n / 1024 / 1024).toFixed(1)}MB`;
-    console.log(`MEMPROBE rss=${mb(m.rss)} heapUsed=${mb(m.heapUsed)} heapTotal=${mb(m.heapTotal)} external=${mb(m.external)} arrayBuffers=${mb(m.arrayBuffers)}`);
-  }, MEMPROBE_INTERVAL_MS);
-  memProbe.unref?.();
-
-  // If the interval above fires much later than MEMPROBE_INTERVAL_MS after the
-  // previous tick, the event loop was blocked for roughly that long in between -
-  // this fires on its own separate timer so it keeps ticking even while the
-  // memory probe itself is delayed, and reports exactly how much lag there was.
-  let lastLagCheckAt = Date.now();
-  const lagProbe = setInterval(() => {
-    const now = Date.now();
-    const lag = now - lastLagCheckAt - 1000;
-    lastLagCheckAt = now;
-    if (lag > 200) console.log(`LAGPROBE event loop blocked for ~${lag}ms`);
-  }, 1000);
-  lagProbe.unref?.();
 });
 
 server?.on("error", (error) => {
