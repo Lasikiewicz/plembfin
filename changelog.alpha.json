@@ -1,7 +1,18 @@
 {
   "baseVersion": "0.8.6",
-  "build": 8,
+  "build": 9,
   "entries": [
+    {
+      "build": 9,
+      "version": "0.8.6.9",
+      "date": "2026-08-20T19:44:29+01:00",
+      "commit": "65fc6b8751317938c597529778bc03a523a9d5e6",
+      "message": "Fix - Channel determination and resilient versioning test",
+      "author": "Lasikiewicz",
+      "details": [
+        "Refine channel resolution to check file presence and ensure resilient test assertions"
+      ]
+    },
     {
       "build": 8,
       "version": "0.8.6.8.0",
@@ -120,6 +131,6 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T18:42:24.972Z",
+  "updatedAt": "2026-08-20T19:44:29+01:00",
   "version": "0.8.6.8.0"
 }
