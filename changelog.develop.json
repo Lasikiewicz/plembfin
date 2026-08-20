@@ -1,8 +1,19 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 5,
-  "version": "0.9.3.1.5",
+  "build": 6,
+  "version": "0.9.3.1.6",
   "entries": [
+    {
+      "build": 6,
+      "version": "0.9.3.1.6",
+      "date": "2026-08-20T21:41:39+01:00",
+      "commit": "e21dcb4dc6e637bdce888ad84f1693af9debe81c",
+      "message": "Fix - Support in-app account sign-ins for media server health checks",
+      "author": "Lasikiewicz",
+      "details": [
+        "Resolve connected provider credentials and server URLs in System Diagnostic tests"
+      ]
+    },
     {
       "build": 5,
       "version": "0.9.3.1.5",
@@ -62,5 +73,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T21:35:32+01:00"
+  "updatedAt": "2026-08-20T21:41:39+01:00"
 }
