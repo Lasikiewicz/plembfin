@@ -116,7 +116,18 @@ async function runWithTimeBudget(label, task, timeoutMs) {
 export async function runScheduledTick({ isLeader = () => true } = {}) {
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   pruneSyncPlans();
-  await runWithTimeBudget("Scheduled sync", () => runScheduledSync(), 50_000);
+  // A large outstanding backlog (checkUnwatched + recently-watched/resumable
+  // polling across all three platforms, then up to 15 manual-dispatch
+  // retries) can genuinely take longer than one minute to finish a full
+  // pass. runWithTimeBudget's Promise.race does not cancel the underlying
+  // task on timeout - it keeps running in the background and still reaches
+  // its own cache-invalidation and completion logging - so a tight budget
+  // here does not prevent progress, it only manufactures a misleading
+  // recurring timeout error and delays when that progress becomes visible
+  // (e.g. to /api/sync-jobs, which depends on the invalidation at the end of
+  // the run). scheduledTasksInFlight already guards against two overlapping
+  // runs, so a generous budget is safe even if a pass runs past one tick.
+  await runWithTimeBudget("Scheduled sync", () => runScheduledSync(), 120_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   await runWithTimeBudget("Tracker watched-state poll", () => pollConnectedTrackers(), 45_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
