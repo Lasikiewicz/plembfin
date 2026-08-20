@@ -92,9 +92,10 @@ test("describePendingDevelopBuild treats baseVersion mismatch as full reset", ()
 
 test("handleChangelog returns channel metadata properly", async () => {
   const prevChannel = process.env.BUILD_CHANNEL;
-  process.env.BUILD_CHANNEL = "develop";
 
   try {
+    // 1. Test develop
+    process.env.BUILD_CHANNEL = "develop";
     let statusCode = 200;
     let jsonBody = null;
     const req = {
@@ -110,15 +111,17 @@ test("handleChangelog returns channel metadata properly", async () => {
     };
 
     await handleChangelog(req, res);
-
     assert.equal(statusCode, 200);
+    assert.equal(jsonBody.channel, "develop");
     if (jsonBody.developBuild) {
-      assert.equal(jsonBody.channel, "develop");
       assert.ok(/^\d+\.\d+\.\d+\.\d+\.\d+$/.test(jsonBody.developBuild.version), `Version should be 5-segment version, got ${jsonBody.developBuild.version}`);
-    } else if (jsonBody.alphaBuild) {
-      assert.equal(jsonBody.channel, "alpha");
-      assert.ok(jsonBody.alphaBuild.build >= 0, "alphaBuild should have build number");
     }
+
+    // 2. Test release
+    process.env.BUILD_CHANNEL = "release";
+    await handleChangelog(req, res);
+    assert.equal(statusCode, 200);
+    assert.equal(jsonBody.channel, "release");
   } finally {
     process.env.BUILD_CHANNEL = prevChannel;
   }

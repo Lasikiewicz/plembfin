@@ -1088,11 +1088,18 @@ export async function handleChangelog(req, res) {
   const hasDevelopFile = fs.existsSync(nodePath.resolve(PUBLIC_DIR, "..", "changelog.develop.json"));
   const hasAlphaFile = fs.existsSync(nodePath.resolve(PUBLIC_DIR, "..", "changelog.alpha.json"));
 
-  const channel = hasDevelopFile
-    ? "develop"
-    : (process.env.BUILD_CHANNEL === "alpha" || hasAlphaFile)
-      ? "alpha"
-      : (process.env.BUILD_CHANNEL || "release");
+  let channel = "release";
+  if (process.env.BUILD_CHANNEL === "release") {
+    channel = "release";
+  } else if (hasDevelopFile || process.env.BUILD_CHANNEL === "develop") {
+    channel = "develop";
+  } else if (process.env.BUILD_CHANNEL === "alpha") {
+    channel = "alpha";
+  } else if (hasAlphaFile && !fs.existsSync(nodePath.resolve(PUBLIC_DIR, "..", "changelog.json"))) {
+    channel = "alpha";
+  } else {
+    channel = "release";
+  }
 
   let developBuild = channel === "develop" ? readLocalDevelopChangelog() : null;
   if (developBuild) {
