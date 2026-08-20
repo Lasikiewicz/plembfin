@@ -1,8 +1,22 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 8,
-  "version": "0.9.3.1.8",
+  "build": 9,
+  "version": "0.9.3.1.9",
   "entries": [
+    {
+      "build": 9,
+      "version": "0.9.3.1.9",
+      "date": "2026-08-20T22:30:13+01:00",
+      "commit": "388f55e79839192a7efd2e50f506d716e39a57dd",
+      "message": "Fix - Stop false unwatch propagation and tighten phantom-burst detection",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a bug where the sync reconciliation pass treated a missing local watch record as an explicit \"unwatched\" decision, causing it to push real \"mark unplayed\" calls to Plex/Emby/Jellyfin for items that were genuinely watched but had no matching Plembfin history row (e.g. after phantom-watch repair deleted the row)",
+        "The reconciliation pass now only treats an item as canonical-unwatched when Plembfin holds an explicit unwatched record; if there is no record at all, it leaves the media server's watched state alone instead of guessing",
+        "Phantom-watch burst detection no longer flags a normal multi-hour, multi-show viewing session as an import-echo flood: cross-show bursts must now fit within a 10-minute span, not just have no single gap over 3 minutes",
+        "Phantom-watch burst repair now skips any watch row that every other configured media server has already independently confirmed as synced, so a real, cross-verified watch is never deleted just because its timing happens to match a suspicious pattern"
+      ]
+    },
     {
       "build": 8,
       "version": "0.9.3.1.8",
@@ -97,5 +111,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T22:05:10+01:00"
+  "updatedAt": "2026-08-20T22:30:13+01:00"
 }
