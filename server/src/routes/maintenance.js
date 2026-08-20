@@ -1090,11 +1090,9 @@ export async function handleChangelog(req, res) {
 
   const channel = hasDevelopFile
     ? "develop"
-    : process.env.BUILD_CHANNEL === "develop"
-      ? "develop"
-      : process.env.BUILD_CHANNEL === "alpha" || hasAlphaFile
-        ? "alpha"
-        : (process.env.BUILD_CHANNEL || "release");
+    : (process.env.BUILD_CHANNEL === "alpha" || hasAlphaFile)
+      ? "alpha"
+      : (process.env.BUILD_CHANNEL || "release");
 
   let developBuild = channel === "develop" ? readLocalDevelopChangelog() : null;
   if (developBuild) {
