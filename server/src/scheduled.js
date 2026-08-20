@@ -1360,7 +1360,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
   return syncedCount;
 }
 
-function getActiveTargetsForConfig(config) {
+export function getActiveTargetsForConfig(config) {
   const targets = [];
   if (!config?.plex?.disabled && config?.plex?.baseUrl && config?.plex?.token) targets.push("plex");
   if (!config?.emby?.disabled && config?.emby?.baseUrl && config?.emby?.apiKey && config?.emby?.userId) targets.push("emby");
@@ -2198,7 +2198,13 @@ export async function runForceSync(logger = console.log, {
     const historyRecords = historyMap.get(key) || [];
     const lastHistoryRecord = historyRecords[0];
 
-    let newestState = "unwatched";
+    // No local history row at all means Plembfin never recorded a decision for
+    // this item - not that it was explicitly marked unwatched. Treating an
+    // absent row as canonical-unwatched would push a false "mark unplayed" to
+    // any server that genuinely has it watched (e.g. after a history row is
+    // deleted by the phantom-watch repair tool). Only an explicit unwatched
+    // record is canonical.
+    let newestState = null;
     let newestTime = 0;
 
     if (lastHistoryRecord) {
@@ -2266,7 +2272,7 @@ export async function runForceSync(logger = console.log, {
           }
         }
       }
-    } else {
+    } else if (newestState === "unwatched") {
       // The unwatched marker is already the canonical Plembfin decision. Do
       // not delete or recreate local history based on a remote discrepancy.
       logger(`Plembfin is canonical for "${mediaObj.title}"; only repairing remote played flags.`);
@@ -2295,6 +2301,8 @@ export async function runForceSync(logger = console.log, {
           }
         }
       }
+    } else {
+      logger(`Skipping "${mediaObj.title}": server shows it watched but Plembfin has no history record for it, so its unwatched/watched state cannot be determined safely.`);
     }
     return true;
   }

@@ -10,7 +10,7 @@ import { createLoopStore } from "../utils/loopStore.js";
 import { buildSyncMatchReport } from "../utils/syncMatchReport.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
-import { runForceSync, runScheduledSync } from "../scheduled.js";
+import { runForceSync, runScheduledSync, getActiveTargetsForConfig } from "../scheduled.js";
 import { getLogs as getDiagnosticLogs, clearLogs as clearDiagnosticLogs } from "../utils/diagnosticLogger.js";
 import { appendSyncHistory, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog } from "../utils/configStore.js";
 import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes } from "../utils/plexClient.js";
@@ -380,7 +380,9 @@ export async function handlePhantomWatchRepair(req, res) {
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
   try {
-    const result = repairPhantomWatchBursts(db);
+    const config = await loadMediaConfig().catch(() => ({}));
+    const activeTargets = getActiveTargetsForConfig(config);
+    const result = repairPhantomWatchBursts(db, { activeTargets });
     if (result.deleted) await invalidateHistoryDerivedCaches().catch(() => null);
     writeAuditLog("history.phantom_burst_repair", {
       ip: req.ip || req.socket?.remoteAddress,

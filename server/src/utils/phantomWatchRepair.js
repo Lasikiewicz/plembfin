@@ -6,6 +6,12 @@
 const PLATFORM_SOURCES = new Set(["plex", "emby", "jellyfin"]);
 const BURST_GAP_MS = 3 * 60 * 1000;
 const MIN_BURST_ITEMS = 8;
+// A chain of items is only bounded by the per-pair gap below, so without a
+// total-span cap a real evening of mixed viewing (several shows, no single
+// gap over BURST_GAP_MS) reads identically to a genuine echo-import flood.
+// Real import bugs land every row within the same poll/webhook burst, well
+// under this window; a real viewing session naturally exceeds it.
+const CROSS_GROUP_MAX_SPAN_MS = 10 * 60 * 1000;
 const SAME_GROUP_MIN_ITEMS = 6;
 const SAME_GROUP_MAX_SPAN_MS = 60 * 1000;
 
@@ -36,16 +42,40 @@ function isExplicitManualWatch(row) {
   return /Origin:\s*manual/i.test(telemetry) && /Action:\s*Marked Watched/i.test(telemetry);
 }
 
-function isCandidateRow(row) {
+// A row every *other* configured platform has independently confirmed as
+// synced is strong corroboration it's a real watch, not an import echo - each
+// of those platforms verified the match and accepted the played state on its
+// own. Bursts should never delete a row with that level of independent
+// confirmation, even when its timing happens to match the burst pattern.
+function isIndependentlyConfirmed(row, activeTargets = []) {
+  const source = String(row.source || "").toLowerCase();
+  const otherTargets = activeTargets
+    .map((target) => String(target || "").toLowerCase())
+    .filter((target) => target && target !== source && !source.startsWith(`${target}_`));
+  if (!otherTargets.length) return false;
+
+  const telemetry = String(row.sync_dispatch_telemetry || "").toLowerCase();
+  if (!telemetry) return false;
+  const lines = telemetry.split("\n");
+
+  return otherTargets.every((target) => lines.some((line) => {
+    if (!line.includes(`${target} status:`) && !line.includes(`${target} progress status:`)) return false;
+    return line.includes("success");
+  }));
+}
+
+function isCandidateRow(row, activeTargets) {
   if (!PLATFORM_SOURCES.has(String(row.source || "").toLowerCase())) return false;
   if (["unwatched", "unplayed"].includes(String(row.sync_action || "").toLowerCase())) return false;
   if (isExplicitManualWatch(row)) return false;
+  if (isIndependentlyConfirmed(row, activeTargets)) return false;
   return timestampMs(row.watched_at) > 0;
 }
 
 export function findPhantomWatchBurstRows(database, {
   minItems = MIN_BURST_ITEMS,
   gapMs = BURST_GAP_MS,
+  activeTargets = [],
 } = {}) {
   const rows = database.prepare(`
     SELECT id, title, media_type, watched_at, source, imdb_id, tmdb_id, tvdb_id,
@@ -54,7 +84,7 @@ export function findPhantomWatchBurstRows(database, {
     WHERE watched_at IS NOT NULL
       AND (sync_action IS NULL OR LOWER(sync_action) NOT IN ('unwatched', 'unplayed'))
     ORDER BY watched_at ASC
-  `).all().filter(isCandidateRow);
+  `).all().filter((row) => isCandidateRow(row, activeTargets));
 
   const removeIds = new Set();
   const bursts = [];
@@ -96,7 +126,8 @@ export function findPhantomWatchBurstRows(database, {
     }
     const sameGroupBatch = [...groupCounts.values()].some((count) => count >= SAME_GROUP_MIN_ITEMS)
       && lastAt - firstAt <= SAME_GROUP_MAX_SPAN_MS;
-    const crossGroupBatch = identities.size >= minItems && groups.size >= 2;
+    const crossGroupBatch = identities.size >= minItems && groups.size >= 2
+      && lastAt - firstAt <= CROSS_GROUP_MAX_SPAN_MS;
     if (crossGroupBatch || sameGroupBatch) {
       const ids = burst.map((row) => row.id);
       ids.forEach((id) => removeIds.add(id));
