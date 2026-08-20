@@ -15,8 +15,8 @@ set -e
 # ancestor and a plain merge commit otherwise - never a replay.
 while read -r local_ref local_sha remote_ref remote_sha; do
   local_branch="${local_ref#refs/heads/}"
-  remote_branch="${remote_ref#refs/heads/}"
-  if [ "$local_branch" = "$remote_branch" ] && [ -n "$remote_branch" ]; then
+  zero_sha="0000000000000000000000000000000000000000"
+  if [ "$local_branch" = "$remote_branch" ] && [ -n "$remote_branch" ] && [ "$remote_sha" != "$zero_sha" ]; then
     echo "Syncing with remote before push..."
     git pull --no-rebase origin "$remote_branch"
   fi
