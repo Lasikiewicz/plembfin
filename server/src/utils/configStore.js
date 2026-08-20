@@ -231,35 +231,38 @@ export async function loadMediaConfig({ resolveConnections = true } = {}) {
 // the settings form needs for repopulation (baseUrl, username, userId, disabled).
 export function publicMediaConfig(config = {}) {
   const normalized = normalizeStoredConfig(config);
+  const plexConn = getMediaConnection("plex");
+  const embyConn = getMediaConnection("emby");
+  const jellyfinConn = getMediaConnection("jellyfin");
   return {
     mediaAuthEnabled: mediaAccountAuthEnabled(),
     publicBaseUrl: normalized.publicBaseUrl,
     plex: {
-      configured: Boolean(normalized.plex.token),
-      baseUrl: normalized.plex.baseUrl,
-      username: normalized.plex.username,
-      authMode: normalized.plex.authMode,
+      configured: Boolean(normalized.plex.token || (plexConn && plexConn.status !== "disabled" && plexConn.baseUrl)),
+      baseUrl: normalized.plex.baseUrl || plexConn?.baseUrl || "",
+      username: normalized.plex.username || plexConn?.remoteUsername || "",
+      authMode: normalized.plex.authMode || plexConn?.authKind || "manual",
       disabled: normalized.plex.disabled,
       sync: normalized.plex.sync,
-      connection: getMediaConnection("plex"),
+      connection: plexConn,
     },
     emby: {
-      configured: Boolean(normalized.emby.apiKey),
-      baseUrl: normalized.emby.baseUrl,
-      userId: normalized.emby.userId,
-      authMode: normalized.emby.authMode,
+      configured: Boolean(normalized.emby.apiKey || (embyConn && embyConn.status !== "disabled" && embyConn.baseUrl)),
+      baseUrl: normalized.emby.baseUrl || embyConn?.baseUrl || "",
+      userId: normalized.emby.userId || embyConn?.remoteUserId || "",
+      authMode: normalized.emby.authMode || embyConn?.authKind || "manual",
       disabled: normalized.emby.disabled,
       sync: normalized.emby.sync,
-      connection: getMediaConnection("emby"),
+      connection: embyConn,
     },
     jellyfin: {
-      configured: Boolean(normalized.jellyfin.apiKey),
-      baseUrl: normalized.jellyfin.baseUrl,
-      userId: normalized.jellyfin.userId,
-      authMode: normalized.jellyfin.authMode,
+      configured: Boolean(normalized.jellyfin.apiKey || (jellyfinConn && jellyfinConn.status !== "disabled" && jellyfinConn.baseUrl)),
+      baseUrl: normalized.jellyfin.baseUrl || jellyfinConn?.baseUrl || "",
+      userId: normalized.jellyfin.userId || jellyfinConn?.remoteUserId || "",
+      authMode: normalized.jellyfin.authMode || jellyfinConn?.authKind || "manual",
       disabled: normalized.jellyfin.disabled,
       sync: normalized.jellyfin.sync,
-      connection: getMediaConnection("jellyfin"),
+      connection: jellyfinConn,
     },
     seerr: {
       configured: Boolean(normalized.seerr.apiKey && normalized.seerr.baseUrl && !normalized.seerr.disabled),
