@@ -1,8 +1,22 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 10,
-  "version": "0.9.3.1.10",
+  "build": 11,
+  "version": "0.9.3.1.11",
   "entries": [
+    {
+      "build": 11,
+      "version": "0.9.3.1.11",
+      "date": "2026-08-20T23:33:39+01:00",
+      "commit": "3a1fac1504278fdf54f5e38f85304f7f3e5dd255",
+      "message": "Fix - Normalize titles in echo-loop detection to stop duplicate watches",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed the outbound-mark echo detector comparing raw title strings, which meant a source that formats an episode as \"Show (2025) - S01E02\" and another that reports it as \"Show - S01E02\" (only one carrying the year suffix) never shared a cache key",
+        "Because of that mismatch, a media server's own echo of an outbound mark Plembfin just sent was not recognized as an echo, was treated as a brand-new watch, and created a duplicate watch_history row for an episode already recorded from another source",
+        "The echo-loop cache key now uses the same canonicalized show/movie title matching already trusted elsewhere in the app for this exact year-suffix mismatch, instead of the raw, unnormalized title string",
+        "Exported the existing canonicalShowTitleKey/showTitleFrom helpers from dataRepo.js for reuse in syncOrchestrator.js rather than duplicating the normalization logic"
+      ]
+    },
     {
       "build": 10,
       "version": "0.9.3.1.10",
@@ -125,5 +139,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-20T22:59:33+01:00"
+  "updatedAt": "2026-08-20T23:33:39+01:00"
 }
