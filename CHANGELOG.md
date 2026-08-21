@@ -1,0 +1,3406 @@
+# Changelog
+
+Release history for Plembfin. This file covers published releases on `main` only -
+for the current pre-release build on `alpha` or `develop`, open **Settings → About**
+in a running instance, which lists that channel's build history separately.
+
+## v0.9.7 - 21 August 2026
+
+Fix - Scroll expanded seasons into view below the sticky topbar
+
+- develop's displayed version no longer derives from alpha's or main's current version (${mainVersion}.${alphaBuild}.${developBuild}) - it is now a plain incrementing build counter shown as "Develop Build N"
+- Fixes the sidebar/Settings-About version looking lower than its parent branch right after a promotion to alpha or main, since the borrowed version string only self-healed on develop's own next push and had no way to update itself when a promotion happened elsewhere
+- The build counter never resets on a promotion (only the entry list is cleared), so it can never appear to regress relative to a branch it was promoted from
+- Updated the pending-build comparison, changelog rendering, and the (previously unwired) promotion scripts to match; added test coverage for the new comparison logic
+- promoteDevelopToAlpha() now zeroes develop's build counter (not just its entry list) when develop is promoted to alpha, so the next develop push after a promotion starts back at build 1
+- This reset is safe because it happens as a deliberate, explicit step of the promotion itself, not an inferred comparison against a version string that could be stale - the same safe shape as alpha's own reset-on-promotion-to-main
+- Documented the distinction in update-develop-changelog.js and docs/architecture.md
+- Clicking a season header to expand it now scrolls that season into view, instead of leaving the newly-revealed episode list to open off-screen below where you clicked
+- Collapsing a season still preserves the scroll position as before, so the page doesn't jump now that the content above has shrunk
+- The season-scroll fix from the previous commit used scrollIntoView's default alignment, which puts the season header flush with the very top of the viewport - directly underneath the sticky page topbar, hiding it
+- Now offsets the scroll target by the topbar's real rendered height so the expanded season lands visible just below it instead of overshooting and disappearing behind it
+- Clicking a season header to expand it, or loading a URL that names a season directly, now scrolls that season into view instead of leaving it open off-screen below the click or hidden at the very top of the page
+- Fixed the actual scroll target: this app's shell keeps window/document fixed and scrolls .page-shell internally, so the first attempt (window.scrollTo) silently did nothing - now walks up to whichever ancestor actually has the overflow
+- Reserves space for the sticky topbar via scroll-margin-top so the season header lands visible just below it instead of hidden underneath
+- Replaced the browser's native (non-configurable, abrupt) smooth scroll with a hand-rolled eased animation
+- A season named in the URL scrolls into view once on that navigation, not on every later re-render of the same modal (e.g. toggling an episode watched)
+
+## v0.9.6 - 21 August 2026
+
+Fix - Stop same-event webhook echoes inflating play counts
+
+- Suppress background dashboard and watch history reloads while any sync operation (Force Sync, Cron Sync, Full Sync, or background dispatch) is actively running
+- Settle and refresh the dashboard cleanly once when the sync completes, stops, or fails
+- Wire active sync progress checks into live history refresh throttling to avoid flickering and card reloading during large syncs
+- Dashboard no longer refreshes repeatedly while a background sync is in progress after marking something watched in Plex
+- Fixed a bug where the sync reconciliation pass treated a missing local watch record as an explicit "unwatched" decision, causing it to push real "mark unplayed" calls to Plex/Emby/Jellyfin for items that were genuinely watched but had no matching Plembfin history row (e.g. after phantom-watch repair deleted the row)
+- The reconciliation pass now only treats an item as canonical-unwatched when Plembfin holds an explicit unwatched record; if there is no record at all, it leaves the media server's watched state alone instead of guessing
+- Phantom-watch burst detection no longer flags a normal multi-hour, multi-show viewing session as an import-echo flood: cross-show bursts must now fit within a 10-minute span, not just have no single gap over 3 minutes
+- Phantom-watch burst repair now skips any watch row that every other configured media server has already independently confirmed as synced, so a real, cross-verified watch is never deleted just because its timing happens to match a suspicious pattern
+- Applied the same no-history-is-not-unwatched fix to the modern scoped Force Sync planner, which previously could still push a false mark-unplayed to Plex/Emby/Jellyfin for an item with no Plembfin history row
+- Added updatedAfter/updatedBefore Force Sync scope filters, so a repair can be limited to items Plembfin touched in a specific time window rather than filtering by original watch date
+- The backlog sync-retry queue now only re-sends mark-played to the specific targets still missing confirmation instead of all three every time, clearing large backlogs faster with less redundant traffic
+- Fixed a playstate/watch_history drift: deleting a single history row (e.g. via the History page's delete button) now also cleans up the matching playstate row, so Plembfin's own watched indicator can no longer disagree with its own history after a record is removed
+- Fixed the outbound-mark echo detector comparing raw title strings, which meant a source that formats an episode as "Show (2025) - S01E02" and another that reports it as "Show - S01E02" (only one carrying the year suffix) never shared a cache key
+- Because of that mismatch, a media server's own echo of an outbound mark Plembfin just sent was not recognized as an echo, was treated as a brand-new watch, and created a duplicate watch_history row for an episode already recorded from another source
+- The echo-loop cache key now uses the same canonicalized show/movie title matching already trusted elsewhere in the app for this exact year-suffix mismatch, instead of the raw, unnormalized title string
+- Exported the existing canonicalShowTitleKey/showTitleFrom helpers from dataRepo.js for reuse in syncOrchestrator.js rather than duplicating the normalization logic
+- Fixed replaceTrackerSnapshot failing with a UNIQUE constraint error whenever the combined Trakt snapshot list contained more than one entry for the same media_key (e.g. a rewatch Trakt reports as a separate play), which crashed the whole snapshot replace and made the Trakt watched-state poll fail on every subsequent tick
+- The combined snapshot list is now deduplicated by media_key, keeping the most recently reported watched_at, before being written to tracker_item_state
+- Fixed the per-minute scheduled-sync tick timing out at 50 seconds during a large outstanding backlog, even though the underlying work (unwatched-state checks, recently-watched/resumable polling across all three platforms, and manual-dispatch retries) was still succeeding in the background
+- Promise.race does not cancel the underlying task on timeout, so the tight budget did not stop progress, it only produced a recurring false timeout error and delayed when that progress became visible through cache invalidation
+- Raised the budget from 50 to 120 seconds; the existing scheduledTasksInFlight guard already prevents two runs from overlapping, so this is safe even if a pass occasionally runs past one tick
+- Fixed rowToWatch never including updated_at (or created_at) on the objects returned by getCachedHistory(), which is what Force Sync's scoped plan reads
+- The updatedAfter/updatedBefore scope filter added earlier today compared row.updated_at against the requested window, but that field was always undefined coming through this path, so every row was silently excluded and the scoped plan always reported zero actions regardless of real activity
+- Added created_at and updated_at to rowToWatch's output so the scope filter can actually see them
+- Fixed importTraktPlayHistory only checking for an existing local watch via an exact (media_key, watched_at) match, which misses an already-recorded episode whenever the Trakt entry's own media key differs from how the existing record was stored (e.g. a manual watch keyed by tmdb vs a Trakt entry keyed by imdb for the same episode)
+- This became active once the earlier tracker-snapshot crash fix let the import step actually run again, and it was inserting a second watch_history row - dated whenever Trakt reported the play, often today - for episodes already recorded under a different key
+- The import now also checks getCanonicalWatchState, the same coordinate/provider-id fallback matching every other ingest path in the app already relies on, before deciding an episode is new; a canonical "watched" answer skips the insert instead of creating a duplicate
+- Cleaned up 31 duplicate rows this surfaced across multiple shows via the existing Dedup History tool
+- Audited every code path that can insert a new watch_history row and found several still relying on an exact media_key match (or playstate alone) to decide whether an item is already watched, instead of the broader coordinate/provider-id fallback matching used elsewhere - this is the exact mismatch behind today's Silo, Trying, Lioness, and Cape Fear phantom watches
+- Hardened the Plex real-time notification handler, the main webhook handler, the per-episode bulk webhook mark path, the shared watched-transition helper (used by Trakt polling and other manual/webhook paths), and the live-session tracker to all consistently check findWatchedByAnyMediaKey before logging a new watch
+- A hit under a different key now repairs the local playstate pointer instead of inserting a duplicate row, closing this class of bug at every remaining ingest path rather than one incident at a time
+- Stats page now collapses duplicate rows created when a media server fires its played webhook multiple times for one viewing, matching the logic already used by the movie list and Dedup History tool
+- Fixes titles showing an inflated most-watched count (e.g. a movie showing 3 plays for a single viewing) even though the dedup tool correctly reports nothing to clean up
+- No watch_history rows are changed; this only affects how Stats counts them
+
+## v0.9.5 - 20 August 2026
+
+Merge develop into main
+
+- Resolve connected provider credentials and server URLs in System Diagnostic tests
+- Merge develop into main
+
+## v0.9.4 - 20 August 2026
+
+Fix - Prioritize exact media_key playstate match before fuzzy fallback
+
+- Align alpha baseVersion to 0.9.3 (v0.9.3.1)
+- Align develop version to v0.9.3.1.1
+- Format version badges with clean (Develop) and (Alpha) channel suffixes
+- Automatically detects manual Plex watch and unwatch actions within seconds using lightweight adaptive polling
+- Ensure exact media_key matches are checked before falling back to fuzzy title matches
+
+## v0.9.3 - 20 August 2026
+
+Fix - Ensure release channel is recognized correctly on main container images
+
+- Prioritize explicit BUILD_CHANNEL=release to prevent container identifying as alpha
+- Retain develop file fallback to override stale docker-compose alpha env on develop builds
+
+## v0.9.2 - 20 August 2026
+
+Fix - Format develop build cards as v<version> (Develop) and strip duplicate changelog prefixes
+
+- Render develop build card headers as v<version> (Develop) and alpha build cards as v<version> (Alpha)
+- Strip repeated Feature: Feature - and Fix: Fix - prefixes from changelog details and generator scripts
+- Clean up release 0.9.0 changelog details
+
+## v0.9.1 - 20 August 2026
+
+Fix - Channel determination and resilient versioning test
+
+- Refine channel resolution to check file presence and ensure resilient test assertions
+
+## v0.9.0 - 20 August 2026
+
+Feature - Update iOS home screen icon background to white and improve danger button contrast
+
+- Feature: Update iOS home screen icon background to white and improve danger button contrast
+- Feature: Package develop changelog in Docker and refine UI interactions
+- Feature: Optimize dashboard live updates and auto-detect develop channel
+- Feature: Add DOM HTML caching in dashboard and part watched views to eliminate unnecessary re-renders
+- Feature: 5-segment versioning and tiered changelog cascade
+- Feature: Add changelog.develop.json and tiered changelog visibility for develop, alpha, and main
+- Feature: Add promotion and summarization scripts for develop to alpha and alpha to main
+- Feature: Real-time live data updates and develop CI workflow
+- Feature: Add Docker build and publish workflow for develop branch
+- Fix: Prioritize develop channel when changelog.develop.json is present
+- Fix: Force live sync on manual unwatch and wait for it to finish before the UI shows the new state
+- Fix: Force a live resync when marking a season or show watched that plembfin already has as watched
+- Fix: Recover Trakt dispatch when a media server reports a wrong episode id
+- Fix: Close a gap where an identity-poor already-watched episode could still be duplicated
+- Fix: Stop mark-watched from ever creating a duplicate on an already-watched item
+- Fix: Stop non-release commits from polluting changelog entries
+
+## v0.8.6 - 20 August 2026
+
+Fix - Stop a stale historyId from swapping in the wrong show's page
+
+- Trakt's /sync/history and /sync/history/remove both return 200 OK with a body summarizing what actually matched (added/deleted counts, not_found lists) even when nothing did - dispatchTrakt never read that body, so a canonical replay's clear-existing-plays step could silently fail to match anything on Trakt's side while telemetry still reported a clean success
+- Reproduced live: re-ran Force Sync's Set Plembfin as Source of Truth for G'wed and every episode logged Trakt success, but all 8 previously-duplicated episodes were still sitting under their old date on trakt.tv afterward
+- dispatchTrakt now inspects the response: a non-empty not_found on the add step is reported as an error instead of a false success, and a canonical replay's clear step reports how many plays it actually deleted and how many it could not recognize
+- This makes the failure visible in telemetry going forward rather than fixing it silently - the underlying reason Trakt doesn't recognize these specific episodes for removal still needs the not_found detail from a real run to diagnose
+- Trakt sync for episodes no longer replaces an episode's own stored provider ids with a TMDB title-search result; existing ids now always win, and the lookup is skipped entirely once an episode already has one
+- Root cause of persistent duplicate/stuck Trakt entries for shows with short or ambiguous titles (e.g. G'wed): TMDB's search resolved to the wrong series, and that wrong id silently replaced the correct one on every dispatch, making Trakt unable to match the item to clear or add plays
+- Trakt dispatch now reports a real error (with the not_found detail) instead of a false success when Trakt cannot recognize the item
+- Settings -> Tools -> Database Repairs now has a Remove Duplicate Watches tool with separate confirmed actions for TV shows and movies
+- Scans the whole library, keeps only the oldest watch date for each episode or movie, and shows the exact number of duplicate watches and affected items before asking for confirmation - the deletion cannot be undone once approved
+- Removed watches are pushed out as corrected canonical state to every connected platform (Plex, Emby, Jellyfin, Trakt), the same propagation already used by the per-season duplicate cleanup and manual watch-date edits
+- New GET /api/duplicate-watch-scan and POST /api/duplicate-watch-cleanup endpoints, both admin-only
+- Marking a season or whole show watched at once no longer stamps every episode with the identical watched_at; each episode is now staggered one second apart in episode order so they sort correctly instead of tying
+- Added a new watched-date choice, Same as other episodes, shown whenever an episode in the same season (or show) already has a recorded watch date - it reuses that episode's date/time as the base for the rest, with the same ordering applied on top
+- Fixed a real incident: a burst of Trakt API calls (from marking a season watched) caused Trakt's watched-progress response to come back rate-limited and incomplete, and the live Trakt sync trusted the shorter list as a genuine unwatch - cascading unwatched state to Plex, Emby, Jellyfin, and Plembfin's own history across three seasons of a show
+- Live Trakt sync now holds back any unwatch where a large share of one show's episodes disappear at once instead of propagating immediately; it re-checks on the next poll and only propagates once the same episodes are still missing a second time, so a genuine unwatch still goes through with a one-minute delay while a transient bad response self-heals with no changes sent anywhere
+- A normal unwatch of a couple of episodes is unaffected and still propagates the same minute as before
+- Marking a season or show watched at once (and bulk unwatch) now dispatches to Plex/Emby/Jellyfin/Trakt with bounded concurrency instead of one item at a time, so large batches finish noticeably faster without increasing load on any single server (outbound requests are still throttled per-host)
+- Fixed a real incident: marking The 'Burbs S01E05 watched appeared to succeed, then silently reverted seconds later - Trakt's API hadn't caught up to the write yet, so the next poll saw the episode as missing and treated it as a genuine remote unwatch, deleting the watch it had just created and re-propagating the unwatch to Plex, Emby, and Jellyfin
+- Live Trakt sync now protects a single item just marked watched the same way it already protects large batches: a poll landing within 30 minutes of that push can no longer read a lagging snapshot as a real unwatch
+- The sidebar Syncing N of M indicator now shows the true batch total immediately for a Trakt reconcile or bulk mark-watched/unwatched, instead of climbing one item at a time as workers pick up new items over the life of the batch
+- Fixed a real incident: marking The 'Burbs S01E05 watched via Same as other episodes kept reporting success and syncing to Plex, Emby, Jellyfin, and Trakt, but the watched state never actually saved and reverted on reload
+- Root cause: an earlier unwatch had left a non-watched bookkeeping row at the exact same media identity and timestamp the mark-watched request targeted; the duplicate check only looked at whether a row existed there at all, not whether it was actually marked watched, so it silently skipped writing the new watched state while still dispatching outbound sync as if it had
+- Manual mark-watched and marking watched from Part Watched now replace that kind of stale row with the real watched record instead of mistaking it for an existing watch
+- Removed a large empty gap that showed in the Force Sync dialog before starting an operation - the dialog now sizes to its content and only grows once the live log is actually showing
+- Fixed the live sync log growing past the bottom of the dialog during a run; it now fills the remaining space and scrolls on its own instead of pushing the whole dialog past its own edge
+- Added season checkboxes to the Force Sync dialog for TV shows - leave them unchecked to run across the whole show as before, or pick specific seasons to limit Set Plembfin as Source of Truth or Import Watched Status to just those
+- Fixed a real bug: clicking a global search result for a TV show could open a completely different show's page instead - the URL still showed the show you clicked, but the title, poster, and episodes shown were whatever show had been open right before
+- Root cause: navigating to a show via a link that doesn't carry its own historyId (search results, unlike library cards) inherited the previous show's leftover historyId from app state, and the page then mistakenly treated that mismatched record as evidence the requested show couldn't be identified, substituting the unrelated show's single record in its place
+- The router now only carries a historyId forward when re-rendering the show already open, never into a navigation to a different show
+- A history record that names a real, different show is now treated as a stale reference and ignored, rather than swapped in as if the requested show were unidentifiable
+
+## v0.8.5 - 19 August 2026
+
+Fix - Track sync progress at the shared dispatch functions, not just the retry queue
+
+- Added a bridge/hub framing to the README intro: Plex, Emby, Jellyfin, Trakt, Seerr, and the metadata providers never talk to each other directly, only through Plembfin
+- Added a new section with a diagram showing Plembfin as the central node and its local SQLite store as the canonical memory
+- No behavior changes; documentation only
+- Trimmed the intro and hub diagram to a single simple flowchart with icon-led bullets instead of dense paragraphs
+- Replaced the plain-text hub diagram with the actual Plex, Emby, and Jellyfin logos plus brand-colored badges for Trakt, TMDB, TheTVDB, Fanart.tv, OMDb, and Overseerr/Jellyseerr
+- Removed the dark circle backdrops behind every node in the hub diagram
+- Added real TheTVDB and Overseerr/Jellyseerr logos (sourced from the walkxcode/dashboard-icons project) in place of placeholder monogram circles
+- Re-trimmed every connector line so arrowheads land visibly at each icon's edge instead of hiding under a circle
+- Fanart.tv and OMDb have no available vector logo, so they render as plain colored text instead of a fake or placeholder icon
+- Removing a watch date (single row or the season bulk cleanup) now also removes any webhook-echoed duplicate row chained to it within the same 10-minute event window, instead of deleting only the row you clicked
+- Fixes manual watch history removal working inconsistently: items with an echoed duplicate row would have the deleted watch date silently reappear as a new entry the next time the list was rebuilt
+- Added regression tests covering echo-chain deletion and confirming genuine rewatches outside the event window are left untouched
+- Documented the echo-chain handling for both the single-row and season bulk delete paths in docs/media-detail.md
+- Removing a watch date from the single-item Edit Watch Date dialog now clears the cached dashboard/explorer history and forces a refetch, instead of only patching the deleted row's watched_at in memory
+- Fixes the dashboard showing a stale rewatch count (e.g. still '4 actual watches' after a delete) until some unrelated reload happened to refresh it
+- Brings the single-row delete path in line with the season bulk 'Remove duplicate watches' cleanup and 'Mark unwatched', which already refresh history after deleting
+- Documented the cache refresh in docs/media-detail.md
+- The forced dashboard history refresh (used right after deleting a watch date, marking watched/unwatched, etc) fetched with cache: no-store, which bypasses the browser's HTTP cache on read but never updates it either
+- Every dashboard-view entry runs a second, unforced history fetch right after (cache: default, reusing the endpoint's 30s max-age), which could still return the original pre-edit response left over from the page's first load and silently overwrite the just-refreshed data
+- Reproduced live: deleting watch dates on a movie correctly updated the backend and the detail page immediately, but the dashboard card briefly reverted to the pre-edit watch count and date after navigating back to it
+- Switched the forced fetch to cache: reload, which still forces a real network round trip but also refreshes the HTTP cache entry, so the follow-up unforced fetch no longer serves stale data
+- Deleting a watch date (single row, or the season 'Remove duplicate watches' bulk cleanup) now replays the resulting canonical state to every connected Plex/Emby/Jellyfin/Trakt server - the rolled-back date if a watch remains, or unwatched if that was the last one
+- Reuses the same loop-safe canonical replay (syncCanonicalPlaystate) that editing a watch date and Force Sync's 'Set Plembfin as Source of Truth' already use, so a corrected server does not turn around and echo the old state back in as a new phantom watch
+- Previously a deleted watch date only removed the local Plembfin row; any platform it had already been dispatched to as watched kept believing that, and its own next catch-up scan could reintroduce it as a brand-new watch
+- deleteWatchDate/deleteWatchDates now report the surviving and deleted rows so the route layer can decide which state to replay; added regression tests for the new return values
+- The scheduled Plex/Emby/Jellyfin catch-up sync's 'already watched?' check failed to recognize a movie it already had a record for when the title differed only by whitespace variant (Trakt imports often carry a non-breaking space after a colon where media servers report a plain space), so the same movie could get imported a second time under a title-only identity instead of being recognized as already watched
+- findWatchedByAnyMediaKey now falls back to the same whitespace-normalizing canonicalTitleKey comparison already trusted elsewhere in the app to merge these rows for display, so this can no longer create a duplicate watch for any movie going forward
+- Fix Match (PATCH /api/update-watch) previously updated a row's provider ids without ever recomputing its media_key, so a correction left the row permanently split from any other watch of the same item under its old identity; it now accepts imdb_id as well as tmdb_id/tvdb_id, recomputes media_key when identity changes, and merges playstate on both the old and new key
+- Documented both fixes in docs/scheduled-sync.md and docs/media-detail.md; added regression tests for the media_key migration and playstate merge
+- The sidebar now shows a live "Syncing N of M" indicator above the version number whenever the scheduler's pending-dispatch queue is working through a backlog, and hides once it drains
+- The pending-dispatch queue (syncPendingManualDispatches) now reports its backlog size and progress to runtime_state each tick; the existing live-updates SSE stream polls it once a second and pushes sync-progress events to the browser, so the indicator updates in real time without polling from the client
+- Dashboard watch-history cards now show a separate "Watched Twice" (or "Watched N Times") line instead of appending "· N actual watches" onto the Last Played date
+- Documented both in docs/dashboard.md and docs/scheduled-sync.md
+- The sidebar's sync-progress indicator only tracked the scheduler's per-minute pending-dispatch queue, so it stayed hidden for anything that dispatches immediately instead - a bulk duplicate-watch cleanup, a single manual watch/unwatch, a webhook-triggered propagation - which is most of what actually generates background sync activity
+- Moved the tracking into syncMediaPlaystate and syncMediaUnplayedPlaystate in syncOrchestrator.js, the shared functions every dispatch path funnels through, so the indicator now covers all of them without depending on knowing every call site
+- A dispatch burst opens on the first call after being idle and closes 2 seconds after the last one in it finishes, so a handful of near-simultaneous fire-and-forget calls (one per affected episode from a season cleanup, for example) share one window instead of flickering
+- Removed the now-redundant tracking that lived directly in the retry queue, since it already goes through the same shared functions
+
+## v0.8.4 - 19 August 2026
+
+Fix - Prevent phantom local watches from echoed Trakt play-history imports
+
+- Edit Season Date now shows a Remove Duplicate Watches option when any episode in the season has more than one recorded watch, keeping only the oldest date per episode and deleting the rest in a single confirmed action instead of removing them one at a time
+- New POST /api/delete-watch-dates endpoint bulk-deletes watch records and rolls each affected show/episode's canonical watched state back to whichever watch survives, in one request instead of one per row
+- The show-level Edit Date control (top action bar) now shows one row per season instead of forcing the whole show onto a single date/time - each season defaults to its own latest watched date and can be changed independently before saving
+- Settings -> Changelog now lists the actual changes in a newer, not-yet-pulled alpha build under a new "Not pulled yet" section, instead of only saying a newer build exists and requiring an update first to see what changed
+- The backend was already fetching the newer build's changelog data to detect an update, but discarded the entry list and kept only the build number; it now reads GitHub's copy of the changelog directly, since a build that hasn't been pulled yet can never appear in the locally-installed copy
+- Extracted the comparison logic into a pure, unit-tested function
+- Marking an episode or movie watched with a specific date (e.g. release date) via the Mark Watched action reached Trakt stamped as watched right now instead of the date chosen in Plembfin, because the media object built for outbound dispatch never carried a watched_at field
+- Plex, Emby, and Jellyfin were never affected since their mark-played APIs don't accept a historical date at all; the Edit Date correction path was also unaffected since it built its dispatch payload differently
+- Added regression tests covering both the dispatch payload and Trakt's client sending the supplied date verbatim
+- Trakt play-history import now recognizes a play that arrives shortly after Plembfin's own outbound watched push as an echo of that push, not a new play, and skips creating a duplicate local watch for it
+- Fixes a defense-in-depth gap: the echo check reads outbound state captured before the snapshot rewrite that runs earlier in the same poll, so a just-pushed item that hasn't shown up in Trakt's watched snapshot yet no longer loses its echo marker
+- Documented the new guard in docs/scheduled-sync.md
+
+## v0.8.3 - 19 August 2026
+
+Performance - Process Force Sync episodes concurrently; UI polish on watch-date and danger buttons
+
+- Trakt's live sync now imports every play from a connected account's watch history, not just the most recent one, so rewatches show up individually in History and Stats instead of being collapsed into a single watched record
+- The first poll after connecting backfills the full Trakt play history; later polls only fetch plays since the last import, tracked per Trakt history id so nothing is imported twice
+- Backfilled rewatches update Plembfin's local history and refresh the last-watched timestamp shown elsewhere in the app, without re-sending duplicate mark-watched calls to connected Plex/Emby/Jellyfin servers
+- Pushing local watches to Trakt already sent each play individually and is unchanged
+- Documented the new behavior in docs/scheduled-sync.md, docs/sqlite-schema.md, and the README's Trakt sections
+- The Trakt play-history import added earlier today did not mark its backfilled watch records as already synced, so the scheduler's manual-dispatch retry sweep treated them as pending work and re-sent them to every connected service, including pushing them back out to Trakt
+- Each outbound push created a brand new Trakt history entry, which the next poll then re-imported as a fresh play and pushed again, looping every minute for the whole Trakt history and flooding the account's watch history page
+- Backfilled plays are now stored with telemetry marking them fully settled, so the retry sweep skips them and they are never re-propagated to Plex, Emby, Jellyfin, or Trakt
+- Broadened the outbound Trakt echo guard to skip any Trakt-sourced record (live sync or import), not just an exact source match, closing the same gap for the existing CSV/JSON Trakt import feature too
+- Removes the detail-page and library-wide Force Sync "Full Sync" option, which silently reconciled server state with Plembfin and could insert duplicate, today-dated watch records when a show's metadata was rematched on a media server
+- Renames "Push To" to "Set Plembfin as Source of Truth" and "Pull From" to "Import Watched Status", with descriptions that state plainly what each one does and does not do (Push overwrites destinations without checking them first; Import only adds, never sends anything out or removes anything)
+- Fixes episode watch/playstate lookups to recognize an episode as already recorded even after a media-server metadata rematch changes its provider ids or its show title gains or loses a trailing year (e.g. "Ludwig" vs "Ludwig (2024)"), preventing duplicate watch history entries in that situation
+- Adds a one-time repair (GET /api/stale-trakt-import-audit, POST /api/stale-trakt-import-repair) for watch records left behind by the Trakt rewatch-import incident, which were still being repeatedly re-sent to Plex, Emby, Jellyfin, and Trakt by the retry queue
+- Set Plembfin as Source of Truth and Import Watched Status now process several episodes at once instead of one at a time, so shows with many seasons sync significantly faster; both operations still confirm before starting and support cancellation mid-run
+- Outbound calls to Plex, Emby, and Jellyfin remain safely throttled per server regardless of how many episodes are in flight, since the existing outbound governor limits concurrency per host independently of this change
+- Removing a watch date now shows "Removing..." while the request is in flight instead of the row silently freezing with no feedback
+- The remove-watch-date button and all danger-styled buttons (including Force Sync's Cancel operation) now use the site's standard rounded corners instead of a mix of a full circle and no rounding at all
+
+## v0.8.2 - 18 August 2026
+
+Fix - Stop CI plumbing commits from polluting release changelog entries
+
+- The main and alpha changelog generators no longer pull bullet points from the bot's own chore: bump alpha build for / chore: update changelog for commits, or from Merge branch/commit/pull request commits - these carry no user-visible content and were showing up as literal bullets in published release notes
+- When the commit that triggers a changelog entry is itself one of those plumbing commits (routine for a Merge alpha with main force-push, since GitHub reports the pushed range's last commit as the trigger), the entry's headline now falls back to the most recent real commit instead of showing a meaningless title like "Chore - Bump alpha build for <sha>"
+- Manually corrected the already-published 0.8.1 changelog entry, which combined a full day's worth of iterative alpha commits (including several that were later throttled, disabled, and re-enabled again) into a single overwhelming and self-contradicting list; consolidated it down to the net, final user-facing changes
+- Added test coverage for the new noise-detection helper
+
+## v0.8.1 - 18 August 2026
+
+Fix - Re-enable Emby/Jellyfin unwatched-reconciliation polling by default
+
+- Fixed the real-time Plex notification listener silently ignoring "Mark Unwatched" changes when Plex left a stale resume position behind instead of clearing it, which previously left Emby and Jellyfin showing the item as partially watched indefinitely
+- Force Sync no longer records a fake "just watched" date for a title whose played flag has no reliable timestamp on Plex, Emby, or Jellyfin - it is skipped instead of imported with a fabricated date
+- Unwatching a title now clears its resume/continue-watching position on every connected server, not just the played flag, so a title doesn't keep showing as partially watched after being unwatched
+- Editing, adding, or bulk-editing a watched date on a media detail page now pushes the corrected date to Trakt and every connected Plex/Emby/Jellyfin server in the background
+- Trakt watched-date corrections no longer create a duplicate history entry every time they run - a correction now replaces the existing entry instead of stacking a new one alongside it
+- Emby and Jellyfin now have the same unwatch-reconciliation safety net Plex already had, catching a missed or misconfigured webhook; it checks a small batch sequentially every 5 minutes per platform so it can't compete with the scheduler for time
+- Fixed the Settings -> Logs page showing identical content on every category tab
+- Fixed a performance bug where rebuilding the TV show cache could block the server for over a second in one unbroken burst under load, severe enough to fail health checks and trigger repeated restarts - the rebuild now yields periodically instead
+- Capped the Plex real-time notification listener at 3 concurrent handlers so a burst of notifications (e.g. right as it reconnects) can't spike memory by running hundreds of handlers at once
+- Alpha builds now show their own version number (e.g. v0.8.0.7 alpha) in the sidebar and Settings -> About, with a real "Update available" indicator when a newer alpha build is published, and their own build history section separate from tagged releases
+- The published alpha Docker image is now also tagged with its specific build number (alpha-<N>), alongside the existing rolling alpha tag
+- Fixed a changelog-generator bug that could scramble a merged multi-commit release's notes into unreadable text
+
+## v0.8.0 - 18 August 2026
+
+Fix - Sync the pre-push hook by merge, not rebase
+
+- Every push to the alpha branch now builds, verifies, and publishes ghcr.io/lasikiewicz/plembfin:alpha, so a pre-release image is always available to pull without waiting for a main release
+- The alpha image goes through the same better-sqlite3/sharp native-module check as the main release image before it is pushed
+- docker-build-check.yml goes back to pull-request-only verification, since alpha pushes now get the equivalent check as part of publishing
+- Documented the new :alpha image in CLAUDE.md, docs/development.md, and the README
+- The alpha image publish step used github.repository directly for the image name, which preserves the account's original casing (Lasikiewicz/plembfin) and GHCR rejected as an invalid tag; it now goes through docker/metadata-action like the main release pipeline does, which lowercases the ref before building
+- The sidebar version badge and Settings -> About now show "alpha" next to the version number when running the ghcr.io/lasikiewicz/plembfin:alpha image, so a pre-release build is visually distinct from a tagged release
+- The alpha image now bakes in a BUILD_CHANNEL=alpha flag at build time; the main/latest release image is unaffected and shows the plain version number as before
+- Update-available checks and changelog entry matching still compare the underlying plain version number, so the alpha label is purely cosmetic
+- The sidebar badge and Settings -> About no longer show "Update available" on the alpha channel; alpha's version number only advances when it is merged into a release, so it always trails main's latest version right after a merge even when the running alpha build already contains newer commits
+- Settings -> About now shows a neutral "Alpha channel" banner instead, noting how many releases have landed on main since this build for context
+- chore: bump version to 0.8.0
+- Merge remote-tracking branch 'origin/main' into alpha
+- The pre-push hook always synced against a remote branch matching the currently checked-out branch name, regardless of the actual push target
+- A force-push like alpha:main (used by the Merge alpha with main command) triggered a rebase of local alpha against origin/alpha instead of the real target, and since alpha's history contains a genuine merge commit, git silently flattened it and replayed its commits individually, conflicting with content the merge had already resolved
+- The hook now only auto-syncs when the local and remote branch names in the push actually match, so a deliberately reconciled cross-ref push goes through untouched
+- The previous fix stopped the hook from rebasing against the wrong branch on a cross-ref push, but git rebase still flattens merge commits regardless of which branch it targets: it walks full ancestry rather than just the first-parent chain, so it silently drops merge commits and replays both sides' commits individually
+- The hook's same-name sync now runs git pull --no-rebase, which is a no-op when upstream is already an ancestor and a plain merge commit otherwise, matching the merge-based reconciliation CLAUDE.md already documents
+- Updated CLAUDE.md, docs/architecture.md, and docs/development.md to describe the merge-based sync
+
+## v0.7.11 - 18 August 2026
+
+Chore - Switch to an alpha/main branching model for pushes and releases
+
+- Day-to-day pushes now land on a new alpha branch instead of main; alpha gets the same secret-scan, security, and Docker build-check coverage main gets, so problems surface immediately without publishing a release
+- main only moves through an explicit merge-alpha-with-main step, which force-pushes alpha onto main and lets CI combine every queued commit's changelog bullets into one release entry
+- Updated the pre-push hook to sync against whichever branch is being pushed instead of always rebasing onto main
+- Documented the new branching model and both agent commands in CLAUDE.md, docs/development.md, and the README
+
+## v0.7.10 - 18 August 2026
+
+Fix - Remove flaky credential vault tampering test
+
+- Items pushed to Trakt now record the real play date and time instead of the moment the sync request was sent, so Trakt history reflects when something was actually watched
+- The tampering test always overwrote the last ciphertext character with a fixed value, so it silently passed without proving tampering on the rare run where the random ciphertext already ended in that character. It now guarantees the substitution changes the byte, so the check reliably catches tampering on every run.
+
+## v0.7.9 - 17 August 2026
+
+Feature - Add season- and show-level mark unwatched
+
+- Added a season-level "Mark season unwatched" button and a show-level "Mark Unwatched" button on TV show detail pages, alongside the existing episode-level control
+- Both bulk-clear every watched episode in that scope and push the unplayed state to Plex, Emby, and Jellyfin the same way the existing episode unwatch button does
+- Manual unwatch requests now accept a batch of watch-history ids (up to 100) in one call instead of only a single id at a time
+
+## v0.7.8 - 17 August 2026
+
+Fix - Clear progress button not removing part-watched items
+
+- Clicking Clear Progress on a part-watched item whose canonical state was already unwatched (e.g. a re-watch in progress after an earlier unwatch) reported success but left the item stuck in the Part Watched list
+- The playback progress row is now always deleted, so the item is correctly removed
+
+## v0.7.7 - 17 August 2026
+
+Fix - Preserve unwatched state on library additions
+
+- Prevent delayed Emby and Jellyfin item-added events from restoring older watched history after a newer unwatch.
+- Keep the current canonical Plembfin state authoritative when newly added media is caught up.
+- Document the precedence rule and cover the Plex-to-media-server sequence with a regression test.
+
+## v0.7.6 - 17 August 2026
+
+Fix - Sync bulk Plex unwatched changes
+
+- Propagate Plex show and season unwatches to matching episodes across eligible media servers.
+- Process large bulk TV state changes in bounded batches to avoid flooding connected services.
+- Keep Plex watch-state help and setup documentation aligned with bidirectional unwatched sync.
+
+## v0.7.5 - 17 August 2026
+
+Feature - Show Trakt sync progress
+
+- Show the connected Trakt account and live-sync status directly above Sync Now
+- Change the action to Syncing and display an accessible progress indicator during reconciliation
+- Report items checked plus watched and unwatched changes applied
+- Document the feedback and cover the completion summary with a regression test
+
+## v0.7.4 - 17 August 2026
+
+Fix - Reconcile Trakt and library watch state
+
+- Count verified user-scoped library-history watches in Plembfin history and TV progress
+- Resolve series provider IDs before sending episode watch changes to Trakt
+- Make Sync Now repair unchanged Trakt watches that drifted across connected services
+- Rebuild stale show-progress caches and document the reconciliation behavior
+
+## v0.7.3 - 17 August 2026
+
+Fix - Auto-close mobile navigation menu on item click
+
+- Automatically close the mobile navigation drawer when selecting any Settings sub-section
+- Dismiss the mobile navigation drawer upon central page navigation, search result selection, brand logo, and sign out clicks
+- Add Escape key shortcut to close open mobile navigation menu
+- Clean up and organize Trakt connection settings and documentation
+
+## v0.7.2 - 16 August 2026
+
+Fix - Restore Plex account connection
+
+- New Plex connections use strong PIN authorization bound to Plembfin's encrypted device identity.
+- Plex authorization returns refreshable account tokens without exposing the private device key.
+- In-progress legacy connection attempts remain compatible during upgrades.
+
+## v0.7.1 - 16 August 2026
+
+Fix - Keep account authorization polling below rate limits
+
+- Prevent Plex and Jellyfin authorization status polling from exhausting the account-action allowance.
+- Keep start, login, disconnect, and other provider mutations protected by a dedicated rate limit.
+- Document 429 recovery and the separate polling and mutation limits for live deployments.
+
+## v0.7.0 - 16 August 2026
+
+Feature - Unify account and tracker watch-state sync
+
+- Connect Plex, Emby, and Jellyfin through verified account flows while keeping one optional manual credential mode per server.
+- Synchronize watched, unwatched, and rewatch changes bidirectionally with Trakt through device authorization.
+- Refresh open Plembfin pages automatically as imported watch-state changes are processed.
+- Encrypt provider tokens at rest and document the credential-key requirements for backup recovery.
+- Improve Plex token recovery and user-scoped Emby and Jellyfin matching for reliable propagation.
+- Add split web and worker coordination through shared SQLite state and an elected scheduler lease.
+- Release the combined connection and synchronization upgrade as version 0.7.0.
+
+## v0.6.79 - 6 August 2026
+
+Fix - Expand people results in search
+
+- Search people through TMDB's dedicated people catalogue instead of mixed results
+- Add paginated loading for the full people result set
+- Keep search panels bounded with independent scrolling and compact artwork
+- Make local media badges readable with a light-green treatment
+- Add artwork fallbacks when remote search images fail
+
+## v0.6.78 - 6 August 2026
+
+Fix - Update settings shell route handling and test suite for General group aggregation
+
+- Standardize card containers, headings, and field rows across all settings sub-panels to match Sync Tuning layout
+- Update Sync Tuning fields to display single-line default and valid range hints without optional tags
+- Restructure Account settings into a responsive 2x2 grid with inline status messaging
+- Reorganize System Integrity into dedicated Refresh Sync Health and Run System Diagnostic card boxes
+- Move System Integrity and Image Cache into the General settings section and update sidebar navigation tree
+- Standardize health metrics and diagnostic results as interactive card boxes matching settings field styling
+- Fix Media Servers panel enclosure regression in public HTML layout
+- Ensure child section routes scope subPanels to their own definition rather than all parent group panels
+- Update test/settingsShell.test.js assertions for storage panel and advanced legacy redirect
+- Pass all 177 automated unit tests
+
+## v0.6.77 - 6 August 2026
+
+Feature - Standardize settings page layouts
+
+- Aligns settings sections and internal action boxes with the Sync Tools spacing and layout.
+
+## v0.6.76 - 5 August 2026
+
+Feature - Add cancellable library force sync
+
+- Add inline Full Sync, Push To, and Pull From controls with live activity output
+- Confirm start actions and support cooperative cancellation for media and library runs
+- Document and test the shared Force Sync workflow
+
+## v0.6.75 - 5 August 2026
+
+Fix - Refine TV show library filters
+
+- Searches can find fully watched shows and the A-Z rail follows the selected sort order.
+
+## v0.6.74 - 5 August 2026
+
+Fix - Sync all Emby episode copies
+
+- Mark every matching Emby episode quality copy as watched, including 1080p and 4K versions.
+- Add regression coverage for duplicate Emby episode entries.
+
+## v0.6.73 - 5 August 2026
+
+Feature - Refine media info sync summary
+
+- Show watched-at, source, playback, and target sync details with per-episode collapsed diagnostics and healthy sync highlighting.
+
+## v0.6.72 - 5 August 2026
+
+Feature - Add scoped media sync controls
+
+- Add Full Sync, Push To, and Pull From controls with live operation output and duplicate-quality Jellyfin handling.
+
+## v0.6.71 - 5 August 2026
+
+Feature - Add detail-page force sync
+
+- Added a Force Sync action on media detail pages to recover watched state from connected servers.
+
+## v0.6.70 - 3 August 2026
+
+Fix - Harden watchstate sync and history edits
+
+- Season date edits now apply release dates to existing watch records and show actual repeat watches without phantom echoes.
+
+## v0.6.69 - 3 August 2026
+
+Fix - Recover interrupted full watchstate restores
+
+- Adds a confirmed Reset Restore Lock control for abandoned or restarted restores.
+- Clears interrupted Full Sync locks on startup while keeping backup restores protected.
+- Stops orphaned restore requests before they can send another batch.
+
+## v0.6.68 - 3 August 2026
+
+Fix - Harden full watchstate restore
+
+- Prevents restore echo watches and adds progress, throughput, ETA, and cancellation controls.
+
+## v0.6.67 - 3 August 2026
+
+Feature - Make Plembfin canonical for watch state
+
+- Plembfin now reasserts its watched state across configured apps without turning sync callbacks into duplicate watches.
+
+## v0.6.66 - 3 August 2026
+
+Feature - Add detailed media audit trail
+
+- Capture and display detailed watch provenance, event timelines, and per-record audit information.
+- Add audit export and clearer legacy-history coverage.
+- Keep audit details available from movie and TV show information views.
+
+## v0.6.65 - 3 August 2026
+
+Feature - Add complete media information panel
+
+- Add Info actions to movie and TV detail topbars.
+- Present metadata, watch history, provenance, and sync telemetry in one readable panel.
+- Keep the panel responsive and preserve detail-page Escape behavior.
+
+## v0.6.64 - 3 August 2026
+
+Fix - Record watch ingest provenance
+
+- Preserve the source event and ingest path for every new watched entry.
+- Show legacy provenance gaps explicitly in history diagnostics.
+
+## v0.6.63 - 31 July 2026
+
+Fix - Refine person profile scrolling
+
+- Keep biography columns and filmography panes within the viewport with consistent spacing and responsive mobile wrapping.
+
+## v0.6.62 - 31 July 2026
+
+Fix - Cap person photos at two rows
+
+- Keep small profile galleries on one row and wrap larger galleries into a maximum of two horizontally scrollable rows
+
+## v0.6.61 - 31 July 2026
+
+Feature - Refine person profile layout
+
+- Split person filmography into independently scrolling movie and TV sections with dedicated sorting controls
+
+## v0.6.60 - 31 July 2026
+
+test: include latest schema migration
+
+- Apply the duplicate-watch repair to databases that already completed the original migration.
+- Remove the destructive generic history deduplication UI and endpoint; targeted phantom repair remains available.
+- Keep concurrent startup migration coverage aligned with the production schema.
+- Updated automated regression coverage.
+
+## v0.6.59 - 31 July 2026
+
+Fix - Remove exact duplicate watch events
+
+- Clean exact same-item same-timestamp echoes without deleting legitimate rewatches.
+
+## v0.6.58 - 31 July 2026
+
+Fix - Repair phantom watch batches safely
+
+- Add a guarded repair for impossible Plex watch batches while preserving manual marks and genuine rewatches.
+
+## v0.6.57 - 31 July 2026
+
+Fix - Suppress outbound watch-state echoes
+
+- Remember direct bulk and force-sync played marks so Plex does not re-import them as new viewing history.
+
+## v0.6.56 - 31 July 2026
+
+Fix - Align duplicate history cleanup
+
+- Clean up cross-provider episode echoes even when media keys or sync fields differ, while preserving genuine movie rewatches.
+
+## v0.6.55 - 31 July 2026
+
+Fix - Backfill provider IDs and resolve duplicate watch history records
+
+- Backfill missing IMDb/TMDB/TVDB provider IDs and canonical keys on title-fallback watch history records
+- Collapse same-event duplicate watch entries across title-fallback and ID-bearing records
+- Update history maintenance deduplication tool to execute provider ID resolution prior to same-event window clustering
+
+## v0.6.54 - 29 July 2026
+
+Fix - Rank search suggestions by relevance and tidy the results page layout
+
+- Topbar search suggestions are now ranked by how closely each title matches what you typed, so the best match appears first whichever catalogue it came from
+- A close match from TheTVDB is no longer pushed out of the suggestions by loosely matching TMDB results
+- Titles already in your library win ties against the same title from a remote catalogue
+- Search results columns no longer stretch to the full window height, so a single result sits in a panel sized to fit rather than a large empty box
+- Search results columns now follow the light and dark themes instead of always painting a dark grey panel
+
+## v0.6.53 - 29 July 2026
+
+Feature - Search TheTVDB alongside TMDB instead of only as a fallback
+
+- TheTVDB is now searched at the same time as TMDB, so series TMDB does not list appear as quickly as any other result rather than only when TMDB comes back empty
+- Results from your library, TMDB and TheTVDB are merged on a normalised title, so a title punctuated differently by each source no longer appears twice
+- The topbar search now works without a TMDB key configured, and a TMDB outage no longer hides local or TheTVDB results
+- Cache TheTVDB search results so searching as you type stays fast and stays within the shared TheTVDB key's limits
+- Load every frontend module from a single versioned URL, so the browser no longer loads the same module twice
+
+## v0.6.52 - 29 July 2026
+
+Feature - Find shows TMDB does not list, and install to a phone Home Screen
+
+- Search now falls back to TheTVDB when TMDB lists no matching series, so shows TMDB has never catalogued are findable instead of returning nothing
+- TVDB-only series open a full detail page with seasons, episodes and artwork, reached at /tvshow/tvdb/<id>
+- The TVDB fallback only runs when TMDB has no plausible match, so searches TMDB already answers are unaffected and stay just as fast
+- Add an Android/Chrome web manifest so Plembfin installs to a Home Screen standalone with the Plembfin icon
+- Flatten the install icons onto the dark background colour, since both iOS and Android render transparent icon areas as black
+
+## v0.6.51 - 29 July 2026
+
+Fix - Use the Plembfin logo when adding the app to an iOS Home Screen
+
+- Add a dedicated 180x180 Home Screen icon so iOS shows the Plembfin logo instead of a screenshot of the page
+- Flatten the logo onto the dark background colour, since iOS renders transparent icon areas as black
+- Label the Home Screen shortcut "Plembfin" rather than the full page title
+
+## v0.6.50 - 29 July 2026
+
+Chore - Use the Plembfin logo as the browser tab icon
+
+- Browser tabs and bookmarks now show the Plembfin arrow logo instead of the generic placeholder mark
+- Added the logo as a 512x512 transparent PNG so it stays crisp on high-DPI displays and in both light and dark browser themes
+- Kept the existing placeholder art in place for missing posters and profile images, so card and cast fallbacks look unchanged
+
+## v0.6.49 - 29 July 2026
+
+Fix - Return to the correct library when leaving a movie or show page
+
+- Leaving a TV show page returns to the TV Shows library instead of dropping you on Movies
+- Closing a detail page updates the address bar, so the page title and the library controls (Hide Fully Watched, Hide Ended) come back with it
+- The browser's own back and forward buttons restore the right title, back button, and control bar for the view they land on
+- Opening a show from the poster grid no longer reloads the whole app, so it navigates as instantly as every other card
+- Show posters stay real links, so middle-click, open in a new tab, and copy link address still work
+- Detail pages opened straight from a URL or a bookmark return to the matching library instead of defaulting to Movies
+
+## v0.6.48 - 28 July 2026
+
+Feature - Add bio media layout toggle and layout refinements
+
+- Add optional bio media layout toggle in appearance settings
+- Refine poster, metadata sidebar, and watch status positioning in bio media layout
+
+## v0.6.47 - 28 July 2026
+
+Security - Reject unknown artwork variants instead of dispatching on them
+
+- The artwork endpoint now resolves its handler from a fixed set of variants, so a request naming an unexpected variant is refused as a bad request rather than reaching an unintended function and failing as a server error
+- Clears the open high-severity code-scanning alert for an unvalidated dynamic method call
+
+## v0.6.46 - 28 July 2026
+
+Chore - Build the Docker image on pull requests
+
+- Pull requests now build the container image and start the database and image libraries inside it, so a change that breaks the container is caught before it can be released
+- Closes the gap that let two versions publish with no usable image after the SQLite driver upgrade
+
+## v0.6.45 - 28 July 2026
+
+Fix - Repair the Docker image build after the SQLite driver upgrade
+
+- Docker images build again: the new SQLite driver made npm try to compile the database module from source inside the image, which has no compiler, so no image was published for the last two releases
+- The image now installs the prebuilt database binary that already ships for its platform, keeping the build fast and toolchain-free
+
+## v0.6.44 - 28 July 2026
+
+Fix - Stop retrying artwork the server cannot fetch
+
+- Artwork from an unreachable image host is requested once per session instead of once per page render, clearing the repeated errors it left in the browser console
+- A reload no longer re-requests artwork the server just reported as unavailable, while a recovered image host is picked back up within ten minutes
+- The artwork picker hides images it cannot preview rather than offering a tile that fails to load, and preselects the first image that actually appeared
+- Saving a logo that cannot be fetched leaves the title text in place instead of an empty image
+
+## v0.6.43 - 28 July 2026
+
+Chore - Bump better-sqlite3 from 12.11.1 to 13.0.1 (#20)
+
+- [Release notes](https://github.com/WiseLibs/better-sqlite3/releases)
+- [Commits](https://github.com/WiseLibs/better-sqlite3/compare/v12.11.1...v13.0.1)
+- dependency-name: better-sqlite3
+
+## v0.6.42 - 28 July 2026
+
+Chore - Bump undici from 8.7.0 to 8.9.0 (#19)
+
+- [Release notes](https://github.com/nodejs/undici/releases)
+- [Commits](https://github.com/nodejs/undici/compare/v8.7.0...v8.9.0)
+- dependency-name: undici
+
+## v0.6.41 - 28 July 2026
+
+Fix - Faster media detail loading and reliable artwork
+
+- TV show pages opened from a library card no longer sit on "Loading episode metadata...": a history-linked link now loads the full show instead of a single-record shell
+- Show and movie pages request their metadata directly instead of queueing behind library prefetch, so a page refresh paints in a fraction of the time
+- Show pages appear as soon as their own metadata arrives, with season episodes and the IMDb rating filling in afterwards
+- Artwork from fanart.tv and TheTVDB is downloaded and cached by the server, so logos and the artwork picker keep working when those image hosts are unreachable from the browser
+- Titles whose only TMDB logo art is in another language show their title text instead of a foreign wordmark
+- Library grids show an animated placeholder while each poster loads instead of an empty tile
+
+## v0.6.40 - 27 July 2026
+
+Fix - Exclude episodes from show search results
+
+- The global search TV Shows column now contains actual shows only, never individual episode history rows.
+
+## v0.6.39 - 27 July 2026
+
+Chore - Remove em and en dashes from the codebase and documentation
+
+- Replaced every em dash and en dash with a plain hyphen across documentation, in-app help, UI copy, code comments, and configuration samples
+- Settings help text, match report labels, and server log messages now read with hyphens instead of dashes
+- Bundled changelog entries were rewritten the same way so the in-app Changelog matches
+
+## v0.6.38 - 27 July 2026
+
+Docs - List automatic catch-up of newly added media as a key feature
+
+- Added "New media arrives watched" to the README feature table, next to bi-directional sync
+- Noted that adding a whole show catches up its episodes and skips any the server already has as played
+- Spelled out the library-add notification each server needs for it to work, with a link to the webhook guide
+
+## v0.6.37 - 27 July 2026
+
+Fix - Make newly added media actually get marked watched
+
+- Library-add events from Plex, Emby, and Jellyfin were being discarded as invalid, so newly added media was never marked watched; they are now accepted and acted on
+- Adding a show or a season now catches up its episodes, marking the ones you have already watched instead of only handling single items
+- A newly added show can no longer be mistaken for the whole series being watched, which would have filed a watch for every episode
+- Episodes a server already reports as played are left alone, and an episode with no watch record in Plembfin is never touched
+- Webhook parsing tests now check that add events are treated as actionable, which is the gap that let this ship broken
+
+## v0.6.36 - 27 July 2026
+
+Feature - Mark newly added media watched and list only unidentified media in the match report
+
+- Media that a server is simply missing is no longer listed in the Cross-Platform Match Report; the watch is recorded correctly and there was nothing to act on
+- The report now lists only media Plembfin could not identify, which is the one case picking a title actually fixes
+- When a media server announces newly added content you have already watched, it is now marked watched on that server as it arrives, instead of waiting for a Force Sync
+- Catch-up only ever applies an existing watch to the server that added the item, and never creates watch history, so a library scan cannot invent a play
+- Items with no watch record, items you marked unwatched, and platforms not set to receive watched state are left untouched
+- Webhook setup help and docs now cover the library-add notification each server needs for this
+
+## v0.6.35 - 27 July 2026
+
+Fix - Keep manually matched media out of the match report queue
+
+- A record you fix by picking the right title now leaves the manual matching queue instead of being offered again on every run
+- The match report classifies rows by the provider IDs the record actually holds rather than by the key it was first stored under, which never changed when a match was applied later
+- Report rows carry their IMDB, TMDB, and TVDB IDs so the Sync Issues panel can tell an unidentified item from one the library simply does not have
+
+## v0.6.34 - 27 July 2026
+
+Feature - Add match report rescan and separate unidentified media from library gaps
+
+- Added a Rescan button to the Cross-Platform Match Report that re-runs the sync for every listed item and rebuilds the report, reporting how many now match
+- Each report row now says which problem it is: media that was never identified, or media that is identified and simply missing from that library
+- Fix All Matches now queues only the rows a title match can actually repair, instead of asking you to re-pick a title for media whose identity is already correct
+- Items that are missing from a library are counted in the summary with what to do about them, rather than opening a search dialog that cannot help
+- Report rows keep showing any sync detail the platform returned beyond the generic no-match message
+- In-app Sync Issues help and the Settings documentation describe both failure kinds and what each button does
+
+## v0.6.33 - 27 July 2026
+
+Fix - Stop unwatch echo loop between media servers and repair Fix Match saves
+
+- Fixed an unwatch feedback loop where Emby and Jellyfin echoed each other's unplayed events, deleting and re-creating the same watch record about once a second until it stopped on its own
+- Echo detection now recognises a returning event as Plembfin's own write even when the media server reports provider IDs that the outgoing record did not carry
+- Marking an item unwatched when it is already recorded as unwatched now changes nothing and propagates nothing, so a late echo cannot restart the cycle
+- An unwatched record keeps the identity of the watched record it supersedes, so an open edit dialog or a queued manual match still points at a record that exists
+- Fix Match in the Sync Issues manual match queue now saves instead of failing with "Watch record not found", and Retry Sync works on the same items
+- Retry Sync and match saves send a media key alongside the record id and fall back to it when the id no longer resolves
+
+## v0.6.32 - 27 July 2026
+
+Fix - Repair manual match queue actions and keep both changelog sources visible
+
+- Fix Match and Retry Sync now work from the Sync Issues manual match queue, which addresses records by media key instead of row id and previously failed with "Watch record not found"
+- Saving a match against a media key writes the change instead of silently reporting success while leaving the record untouched
+- Post-rematch artwork cleanup (poster cache reset, custom backdrop save, related artwork clearing) targets the correct record
+- Settings > About merges the bundled release list with the published one, so a release present in only one of them still appears
+- Update check re-reads GitHub at most once a minute, and an admin-forced refresh fetches immediately rather than waiting out a floor
+- Update banner keys off the highest version known from either source
+- Backup passphrase forms carry a hidden username field so password managers stop warning about them
+
+## v0.6.31 - 27 July 2026
+
+Fix - Deduplicate manual episode matching by show and reset telemetry on fix match
+
+- Grouped manual match queue items by TV show so matching one episode fixes the entire show at once.
+- Automatically filtered out redundant episode prompts for the same show after a show match is confirmed.
+- Cleared stale error telemetry and reset sync retry backoffs in SQLite whenever provider IDs are updated via Fix Match.
+- Invalidated server-side history cache after TV show rematching so the Cross-Platform Match Report updates immediately.
+
+## v0.6.30 - 27 July 2026
+
+Feature - Expand settings sections from left menu and add Fix All Matches manual queue
+
+- Added subsection definitions to settings navigation menu for Sync Tuning, Sync Issues, Database Repairs, Library Rebuilds, and Webhooks.
+- Clicking any section or subsection in the left sidebar menu auto-expands the target accordion box and smoothly scrolls it to the top of the viewport.
+- Added Fix All Matches action buttons to the Cross-Platform Match Report header and platform blocks.
+- Implemented automatic batch rematching pass followed by a 1-by-1 manual matching queue fallback for unresolved items.
+- Added progress count tracking and a Skip option to the manual match dialog flow.
+
+## v0.6.29 - 27 July 2026
+
+Fix - Remove nested container borders and duplicate status pills from sync settings
+
+- Removed outer container borders from Sync Tuning and Sync Issues so accordions render cleanly inside glass cards
+- Standardized vertical flex gaps between all collapsible setting boxes to match Sync Tools
+- Removed duplicate All Clear status pill from the No Sync Issues accordion header
+- Fixed outer box background leakage on container fields
+
+## v0.6.28 - 27 July 2026
+
+style: unify collapsible box backgrounds with settings cards when closed
+
+- Set closed accordion background color to match the surrounding settings card glassmorphic panel tone
+- Ensured details.sync-tool-details, details.sync-match-report, and details.issue-category seamlessly integrate into cards when collapsed
+- Maintained subtle background contrast when accordion boxes are expanded to expose controls
+
+## v0.6.27 - 27 July 2026
+
+style: standardize settings card layouts, section headers, and collapsible accordions
+
+- Updated user and developer documentation.
+- Updated application behavior and the web interface.
+
+## v0.6.26 - 27 July 2026
+
+Fix - Flatten settings tool containers
+
+- Remove redundant outer cards around database repair and library rebuild actions
+
+## v0.6.25 - 27 July 2026
+
+Fix - Remove duplicate database repairs heading
+
+- Keep the disclosure title as the single Database Repairs heading
+
+## v0.6.24 - 27 July 2026
+
+Fix - Scope audit provider matches to episodes
+
+- Prevent series-level IDs from flagging separate episodes as duplicate watches
+
+## v0.6.23 - 27 July 2026
+
+Fix - Audit phantom watch history globally
+
+- Add a read-only maintenance audit for suspicious watch-history echoes across keys, IDs, and episode identities
+- Include all canonical movie watch dates in the edit dialog
+
+## v0.6.22 - 26 July 2026
+
+Fix - Split current changelog bullets
+
+- Remove the remaining escaped bullet separators from the latest release entry
+
+## v0.6.21 - 26 July 2026
+
+Fix - Normalize escaped changelog bullets
+
+- Convert literal newline sequences into separate changelog details
+- Correct the affected historical release entry and add regression coverage
+
+## v0.6.20 - 26 July 2026
+
+Docs - Clean changelog and backlog
+
+- Split escaped changelog bullets into separate details
+- Remove completed TODO entries
+- Normalize the alpha software wording
+
+## v0.6.19 - 26 July 2026
+
+Fix - Repair phantom watch bursts
+
+- Remove implausible historical media-server watch bursts during migration
+- Preserve explicit manual watches and clean orphaned playstates
+- Add detector and migration coverage
+
+## v0.6.18 - 26 July 2026
+
+Fix - Refresh upcoming cache on worker startup
+
+- Refresh the current Upcoming month as soon as the worker starts while continuing to serve the persisted snapshot immediately
+
+## v0.6.17 - 26 July 2026
+
+Fix - Handle unmatched media records
+
+- Refresh matched artwork and metadata across library views.
+- Show actionable details and safe removal confirmations for unmatched TV records.
+
+## v0.6.16 - 26 July 2026
+
+Docs - Mark backlog items complete
+
+- Backlog now tracks the unparsed webhook traffic, delayed Emby delivery, cross-platform match failures, missing season numbers and opaque show titles, the Fix Match media_key gap, restore verification, and the imported Trakt watch clusters
+- Each entry records the measured counts and where to read them, so it stands on its own when picked up later
+- Jellyfin events are no longer ignored: its webhook plugin labels valid JSON as text/plain, so every mark-played and mark-unplayed it sent was being discarded and unwatch never propagated from Jellyfin
+- Fix Match now rebuilds a show's media key and moves its watched state across, so a corrected show keeps its watch history instead of stranding it under the old identity
+- Fix Match clears the IMDb id from the previous match as well as the TMDB one, since both belong to the show that was wrong
+- Episodes stored without a season number now recover it from their title at startup, so season-zero specials match for sync and count toward show progress
+- Plex series and episode lookups no longer share a cache slot, which could make an episode stop matching after its first successful sync
+- Setup guides no longer ask you to change Jellyfin's content type, which is not something you needed to do
+- Record completed sync, metadata, webhook, restore, and import follow-ups in the backlog.
+
+## v0.6.15 - 26 July 2026
+
+Fix - Detect watch duplicates that arrive seconds apart, not just on the same instant
+
+- Clean Duplicate History Rows now collapses plays of the same item recorded within 10 minutes of each other, catching the copies each media server writes as a watch propagates between them
+- Sync Health's duplicate count uses the same rule, so the number it reports is what the cleanup will actually remove instead of a small fraction of it
+- Rewatches are still preserved: 10 minutes is shorter than any real playthrough, so watches further apart are always treated as separate viewings
+- Sync Health now notes that its rewatch total is only accurate once the duplicate count is zero
+
+## v0.6.14 - 26 July 2026
+
+Docs - Flag alpha status and make rejected webhooks identifiable
+
+- Choosing a series in Fix Match now renames the episodes to that show, so a group stuck as 'Unknown Show' takes on its real name instead of silently keeping the old one
+- The show page moves to the renamed show's URL after a match instead of leaving you on a route that no longer exists
+- Episode titles keep their season/episode numbers and episode names through the rename
+- Picking the same series a show already has still corrects its identity without touching the titles
+- README now opens with an alpha-testing notice: core features work, expect bugs, and take a backup before starting
+- A webhook Plembfin can't parse now records the content type, user agent, and start of the body, so you can tell which server sent it instead of seeing an anonymous rejection
+- Emby and Jellyfin setup guides say to leave unused event categories unticked, since ignored events only add rejected entries to Sync History
+- Jellyfin guide notes that a custom template must send application/json or the request is refused
+
+## v0.6.13 - 26 July 2026
+
+Fix - Keep history posters at 2:3 when cards stack on small screens
+
+- Watches synced out to Emby, Jellyfin or Plex no longer come back hours later as new watches dated at the time the echo arrived
+- A bare 'marked played' event from Emby or Jellyfin no longer counts as a rewatch for something already watched; only real playback does
+- When such an event does record a first watch, it is dated from the media server's own last-played time instead of the moment it was received
+- Library polling and the Plex notification listener now recognise a played flag that Plembfin itself wrote, instead of reading it back as a fresh play
+- Plex polling repairs a drifted watched state in place rather than filing a second watch for the same play
+- A playback session left in the live cache is dated from when it was last seen playing, not from the tick that noticed it had gone
+- History posters keep their 2:3 shape on narrow screens instead of stretching when the card's details wrap
+- History posters no longer flatten to a square on phone-width screens, where the stacked card layout was pinning their height instead of their width
+
+## v0.6.12 - 26 July 2026
+
+Fix - Protect rewatch history, restore Sync Health, and load Upcoming instantly
+
+- Clean Duplicate History Rows no longer collapses rewatches: it previously kept only the newest row per item and would have deleted 1,288 rows, most of them separate viewings recorded weeks or months apart. It now removes only rows that record the same watch event, and reports how many rewatched items it preserved
+- Sync Health works again - the panel returned an internal error on every request and showed nothing
+- Sync Health now reports watch-history data quality: rows duplicating an existing watch event, items with several distinct watch dates, episode rows missing a season number, and rows holding a provider URI instead of a show title, each with a recommendation
+- The Upcoming calendar opens from its saved cache and refreshes in the background instead of rebuilding before anything renders, so it no longer shows a blank month on every visit. Months in view load together, and repeated reloads no longer queue repeated rebuilds
+- TV show progress is now calculated for shows whose stored title carries a year, such as "Robin Hood (2025)". Those shows previously never cached a progress figure and were recalculated fruitlessly on every start
+- Shows with no resolvable episode total wait a week before retrying rather than repeating the same failing metadata lookups every start
+- Emby items flagged played over the API - which is what outbound sync itself does - are no longer reported as watches with missing metadata; only genuine missing play dates are surfaced
+- The Logs panel reads from the database, so it merges web and worker output and stays fast however long the server runs; a sync tick that changed nothing now logs nothing, repeated per-item outcomes are condensed, and detailed request tracing moved behind a new LOG_VERBOSE setting
+- Log files under data/logs are pruned automatically and the HTTP access log now rotates on size, so the directory stops growing without limit
+
+## v0.6.11 - 26 July 2026
+
+Fix - Include future episodes in upcoming calendar
+
+- Upcoming now includes future episodes from watched library-history records, title-only shows, and active seasons before a placeholder next season.
+
+## v0.6.10 - 26 July 2026
+
+Fix - Show actual part watched app
+
+- Part Watched now shows only the media app that supplied the current progress, preventing stale Emby badges from appearing beside Plex.
+
+## v0.6.9 - 24 July 2026
+
+Fix - Harden all watch history ingestion
+
+- Reject timestamp-less Plex, Emby, and Jellyfin library state as new watches and ignore Plex bulk refresh notifications.
+
+## v0.6.8 - 24 July 2026
+
+Fix - Open Upcoming on the current week and fix month navigation
+
+- Upcoming now opens with the current week as the top row and scrolls freely back into the past or forward into the future, loading months as you go
+- The Previous/Next arrows move exactly one month per click and land that month at the top of the page, directly under the topbar
+- Month headings no longer stack on top of each other into an unreadable smear when several months are on screen
+- Days belonging to a neighbouring month now appear only under their own month heading, leaving the spaces above it blank
+- The month bar is opaque and sits slightly below the topbar instead of colliding with it
+- Background month loads no longer throw away your scroll position mid-browse
+- Emby and Jellyfin sync logs now say a skipped item had no played date, rather than referring to a release date that is no longer used
+
+## v0.6.7 - 24 July 2026
+
+Fix - Prevent false overnight watch history
+
+- Ignore timestamp-less Emby/Jellyfin played flags instead of creating current-time watch rows, and add regression coverage.
+
+## v0.6.6 - 23 July 2026
+
+Fix - Stop Upcoming auto-scrolling months
+
+- Keep the current month visible until the user selects another month.
+
+## v0.6.5 - 23 July 2026
+
+Performance - Improve poster loading and changelog detail
+
+- Prioritize visible Part Watched posters and generate specific user-facing release details from changed areas.
+
+## v0.6.4 - 23 July 2026
+
+perf: optimize page loading
+
+- perf: optimize page loading
+
+## v0.6.3 - 23 July 2026
+
+perf: speed up media detail loading
+
+- Media detail pages now show available local content before slower metadata enrichment completes.
+- Person profiles load the biography and filmography before fetching large watched-state library snapshots.
+- Repeated media metadata lookups now reuse resolved TMDB details instead of requesting the same title again.
+
+## v0.6.2 - 23 July 2026
+
+Docs - Sync backlog completion workflow
+
+- Remove completed backlog items from TODO.md after implementation.
+- Require matching documentation updates for completed backlog work.
+- Add TODO review to the pull request checklist.
+
+## v0.6.1 - 23 July 2026
+
+Fix - Stabilize mobile control layouts
+
+- Keep mobile action labels readable and stack Upcoming controls cleanly on narrow screens.
+
+## v0.6.0 - 23 July 2026
+
+Fix - Complete movie watch history editing
+
+- Keeps movie watch-history identities consistent across stats, detail pages, and edit-date dialogs.
+- Updates the release version to 0.6.0.
+
+## v0.5.38 - 23 July 2026
+
+Fix - Await detail refresh after watch date save
+
+- Refresh the open movie or show detail immediately after saving edited watch dates.
+- Keep the edit flow asynchronous until the visible movie or show details have been refreshed.
+
+## v0.5.37 - 23 July 2026
+
+Fix - Refine movie watch history layout
+
+- Show watch dates in a compact row with dash separators and an end-positioned Show more control.
+
+## v0.5.36 - 23 July 2026
+
+perf: render show details before hydration
+
+- TV show detail pages now render the local show shell before playback progress and episode metadata finish loading.
+- Slow secondary requests no longer block the first useful show-detail view.
+
+## v0.5.35 - 23 July 2026
+
+Fix - TV show cast now shows the full main ensemble instead of 4 actors
+
+- TV show details now pull TMDB's aggregate_credits (whole-series regular cast) instead of the plain credits endpoint, which only reflects one season's top billing and can omit long-running leads entirely
+- The show detail page's cast row now displays up to 30 main cast members instead of 20
+- Verified against The Office (US): previously showed 4 actors and was missing Michael Scott; now shows the full ~22-person regular cast
+
+## v0.5.34 - 23 July 2026
+
+Fix - TV Fix Match no longer reuses a mismatched cached TMDB doc
+
+- Fix Match on a TV show now clears the cached progress-tracker entry for that show as part of the rematch, instead of only clearing cache rows tied to the ids already stored on episode records
+- Prevents a stale TMDB id (left over from an earlier automatic match) from being served back by the show detail API in the moment between saving a new match and the background metadata refresh finishing
+- Fixes the TV show page briefly showing the new match then reverting to the previous show's title/details while keeping the newly chosen artwork
+- getTvShowDetails() no longer returns a cached tmdb_id document when it belongs to a different TVDB series than the one being resolved
+- Fixes the real cause of Fix Match appearing to revert: an earlier ambiguous match had cached the wrong show's data under a TMDB id that a later, correct TVDB-based match also resolves to, so the stale cache kept winning
+- The stale cache entry self-heals automatically the next time that show is viewed, no manual cache clearing needed
+
+## v0.5.33 - 23 July 2026
+
+Feature - Track and manage rewatches across movies and TV episodes
+
+- Watching a movie or episode again now logs a new watch instead of being silently dropped as a duplicate; a same-day repeat is still ignored as an echo, but a repeat on a later day counts as a genuine rewatch
+- Movie cards, episode rows, and detail pages show a rewatch badge and a full Watch History list (date + source app for every play) once an item has more than one recorded watch
+- The Edit Watch Date dialog now lists every watch date for an item, letting you edit any of them, add another watch date, or remove one (with confirmation) instead of only editing a single date
+- Every date/time picker in the app (edit dialogs and the mark-watched prompts) now shares one calendar component: consistent size across months, click-to-jump month/year selects, and clearer spacing
+- Added a TODO.md tracking near-term feature ideas (multi-source import, onboarding)
+
+## v0.5.32 - 23 July 2026
+
+Fix - TV show Fix Match no longer reverts to the old match after saving
+
+- Watching a movie or episode again now logs a new watch instead of being silently dropped as a duplicate; a same-day repeat is still ignored as an echo, but a repeat on a later day counts as a genuine rewatch
+- Movie cards, episode rows, and detail pages show a rewatch badge and a full Watch History list (date + source app for every play) once an item has more than one recorded watch
+- The Edit Watch Date dialog now lists every watch date for an item, letting you edit any of them, add another watch date, or remove one (with confirmation) instead of only editing a single date
+- Every date/time picker in the app (edit dialogs and the mark-watched prompts) now shares one calendar component: consistent size across months, click-to-jump month/year selects, and clearer spacing
+- Added a TODO.md tracking near-term feature ideas (multi-source import, onboarding)
+- Fix Match on a TV show now clears the cached progress-tracker entry for that show as part of the rematch, instead of only clearing cache rows tied to the ids already stored on episode records
+- Prevents a stale TMDB id (left over from an earlier automatic match) from being served back by the show detail API in the moment between saving a new match and the background metadata refresh finishing
+- Fixes the TV show page briefly showing the new match then reverting to the previous show's title/details while keeping the newly chosen artwork
+
+## v0.5.31 - 22 July 2026
+
+Fix - Improve settings modal layout, theme contrast and media servers sidebar navigation
+
+- Redesign media server edit modals into wide two-column dialogs with side-by-side setup help guide
+- Fix dark and light mode theme variable mapping for modal dialogs, field labels, and code blocks
+- Fix settings sub-section deep-linking, smooth scrolling, and section target highlight pulse
+- Restore Media Servers sidebar options and card visibility for Plex, Emby, Jellyfin, and Seerr
+
+## v0.5.30 - 22 July 2026
+
+Docs - Update README and CLAUDE guidelines with latest logging and settings features
+
+- Correct background scheduler polling description in README (per-minute ticks)
+- Add System Diagnostics & Server Logs section documenting category tabs and log export feature
+- Update settings route path references across README to clean canonical endpoints
+- Sync frontend module discipline mapping table in CLAUDE.md
+
+## v0.5.29 - 22 July 2026
+
+style(changelog): refine status card borders and update route normalization
+
+- style(settings): harmonize settings layouts, help sidebars, log viewer, and button positioning
+- style(changelog): refine status card borders and update route normalization
+
+## v0.5.28 - 21 July 2026
+
+Docs - Fix and expand Settings help sections across the app
+
+- Rematch TV Shows help now correctly credits TheTVDB as the primary match source instead of TMDB
+- Repair History Rows help no longer claims to fix mislabeled media types; it actually fills in missing types and backfills posters on recent rows
+- Clean Duplicate History Rows help now explains it keeps the newest row per media group and deletes the rest
+- System Integrity Check help now lists all nine checks it runs and explains the previously-undocumented Refresh Sync Health button
+- Backup Settings help expanded to cover encrypted Plembfin backups, the passphrase/remember-passphrase security tradeoff, and Backblaze B2 remote destinations
+- Server Logs help now documents the category filter tabs (Plex WebSockets, Outbound Sync, Scheduled Polls, System Logs)
+- All in-app help disclosures now expand by default instead of starting collapsed
+
+## v0.5.27 - 21 July 2026
+
+Feature - Format server logs in local time and expand log terminal to full page height
+
+- Display server log timestamps in local server and browser time (YYYY-MM-DD HH:MM:SS) instead of UTC
+- Expand the Server Logs panel to fit full page viewport height without outer window scrolling
+
+## v0.5.26 - 21 July 2026
+
+Feature - Add categorized logs filtering and themed diagnostic terminal UI
+
+- Add category filter tabs to Server Logs (Plex WebSockets, Outbound Sync, Scheduled Polls, System Logs) to isolate specific function event streams
+- Redesign the Server Logs interface to match Plembfin's glassmorphism dark and light theme
+- Format log entries with clean human-readable timestamps and color-coded event badges
+- Filter out routine connection recycling and 0-item scheduled sync ticks to keep diagnostic logs high-signal
+
+## v0.5.25 - 21 July 2026
+
+Feature - Add category filter tabs and automatic categorization to Server Logs UI
+
+- Automatically classify diagnostic logs into Plex WebSockets, Outbound Sync, Scheduled Polls, or System categories
+- Add category filter buttons to Settings > Server Logs UI to easily isolate function-specific event streams
+
+## v0.5.24 - 21 July 2026
+
+Fix - Support Plex activity notifications for manual mark watched/unwatched actions
+
+- Handle Plex ActivityNotification WebSocket frames (type: activity) emitted when marking items watched or unwatched in Plex UI
+- Refine handlePlexLibraryItemChange to process newer watched_at timestamps even if playstate is watched
+
+## v0.5.23 - 21 July 2026
+
+Fix - Resolve Plex catchup poll HTTP 500 and update playstate cache on catchup sync
+
+- Fix Plex library section query by using unwatched=0 and lastViewedAt:desc instead of invalid sort=viewedAt:desc
+- Update playstate cache and propagate watched state during catchup sync whenever item state is not currently watched
+
+## v0.5.22 - 21 July 2026
+
+Fix - Handle single-object Plex timeline entries and persist watch state on historical matches
+
+- Fix Plex WebSocket notification listener to parse single-object TimelineEntry payloads when items are marked watched manually in Plex
+- Fix scheduler to update playstate cache and trigger real-time frontend refreshes even when an item has historical watch records
+
+## v0.5.21 - 21 July 2026
+
+Fix - Recycle stale plex websocket connections
+
+- Reconnect Plex notifications when a proxy silently drops an idle socket so watched/unwatched changes keep flowing
+
+## v0.5.20 - 21 July 2026
+
+Fix - Show Plex watched/unwatched changes instantly instead of requiring a manual refresh
+
+- The real-time Plex WebSocket listener now signals the frontend when it detects a watched or unwatched change, so browser tabs refresh automatically instead of only updating on the next unrelated event or manual reload
+- Live watch-state polling now runs on every page (Movies, TV Shows, History), not just the Dashboard, so a change made in Plex shows up within about 10 seconds no matter what page is open
+- Movies, TV Shows, and History views now refresh in place when a change is detected, instead of requiring the user to navigate away and back
+
+## v0.5.19 - 21 July 2026
+
+Chore - Fix changelog entry for Upcoming page rework
+
+- Removed stale bullets describing week view and debug-logging work that were superseded within the same push and no longer reflect the shipped feature
+- Changelog entry now only lists the final scrolling calendar, today-on-open, and search-results-view behavior
+
+## v0.5.18 - 21 July 2026
+
+Feature - Rework Upcoming page into a continuously scrollable calendar
+
+- Upcoming now scrolls seamlessly between months instead of paging one month at a time, loading further months automatically as you scroll
+- Opening the Upcoming page always lands on today's date, centered and highlighted, instead of wherever a previous visit left off
+- Each day renders as a card (weekday, date, episode entries) in a 7-column grid per month, with a sticky month heading pinned while that month is in view
+- Searching switches to a dedicated results view listing every matching upcoming episode across all loaded months, grouped by month, instead of a small panel below the calendar
+- Removed the separate Week and List view toggle in favor of one unified scrollable view
+- Updated docs/upcoming.md and the README feature summary to describe the new scrolling and search behavior
+
+## v0.5.17 - 21 July 2026
+
+Chore - Standardize layout gaps to var(--space-3) across all pages
+
+- Consolidated spacing standards from .agents/AGENTS.md into docs/frontend.md
+- Updated poster grid gaps on Movies, TV Shows, and History pages to match standard
+- Applied var(--space-3) spacing consistently across dashboard, explorer, stats, and settings sections
+- Removed redundant .agents/AGENTS.md file
+
+## v0.5.16 - 21 July 2026
+
+Fix - Remove settings group top gap
+
+- Keep aggregated settings routes from rendering empty sibling panes that add extra spacing above the first visible section.
+
+## v0.5.15 - 21 July 2026
+
+settings: unify all layout gaps to var(--space-3)
+
+- settings: unify all layout gaps to var(--space-3)
+
+## v0.5.14 - 21 July 2026
+
+settings: standardise layout spacing and navigation routing
+
+- Unify all settings gaps to canonical values (AGENTS.md):
+- .settings-row gap: var(--space-3) = 12px (matches topbar gap)
+- .settings-pane / .settings-content gap: 1.5rem = 24px
+- .settings-card padding: 1.5rem all sides
+- Fix .app-shell split from .view-panel so topbar gap is preserved
+- Remove sync-specific margin-top override causing inconsistent row gaps
+- Remove .settings-disclosure margin-bottom inconsistency
+- Settings nav: all links go to parent group path, no hash anchors
+- focusSettingsRoute now scrolls to top on every navigation
+- Remove Administration eyebrow and Settings header from overview
+- Add .agents/AGENTS.md with binding spacing and nav rules
+
+## v0.5.13 - 20 July 2026
+
+Fix - Satisfy CodeQL poster URL sinks
+
+- Encode allowlisted poster URLs at image DOM sinks.
+
+## v0.5.12 - 20 July 2026
+
+Fix - Resolve open code scanning alerts
+
+- Harden poster URL hydration against untrusted sources.
+- Remove secret-bearing startup diagnostics.
+- Apply reviewed dependency and workflow updates.
+
+## v0.5.11 - 20 July 2026
+
+Fix - Align backup runtime summaries
+
+- Show backup runtime metrics in an equal-width row spanning the full card.
+
+## v0.5.10 - 20 July 2026
+
+Feature - Remote backups get their own schedules and on-demand upload buttons
+
+- Remote Watch History Backups card added with its own daily schedule time, retention count, per-destination sync status, and a Back Up Now button
+- Remote Plembfin Backups card gains a Back Up Now button that creates an encrypted backup and uploads it to remote storage immediately
+- Remote retention no longer deletes the other backup type's files on the destination - watch-history and Plembfin backups are pruned independently
+- Remote Plembfin sync status now reports real per-destination upload results instead of always showing Never / Not connected
+- Backup cards redesigned: enable toggles sit in the card header, passphrase fields have their own row, and Save / Back Up Now buttons sit at the bottom right of each card
+
+## v0.5.9 - 20 July 2026
+
+Feature - Refine backup and restore layout hierarchy and smooth scroll behavior
+
+- Align Backup Settings and Restore panel layout hierarchy into main section card boxes with nested Local and Remote sub-card sections
+- Remove extra outer pane border box and redundant padding from Backup/Restore settings pane in CSS
+- Fix target section element resolution and add topbar scroll-margin-top offset for smooth section scrolling
+- Ensure links and same-page navigation re-parse target section and smoothly scroll to the exact target element
+
+## v0.5.8 - 20 July 2026
+
+Feature - Expand settings sidebar child navigation items under active parent page only
+
+- Collapse child sections and sub-sections in the settings sidebar menu by default
+- Expand child navigation items only when their parent section page is active
+- Update settings documentation to reflect sidebar accordion navigation behavior
+
+## v0.5.7 - 20 July 2026
+
+Refactor Settings UI: unify section sub-card styling, update Metadata and Tools hierarchy, and enhance page scroll behavior
+
+- Refactor Settings UI: unify section sub-card styling, update Metadata and Tools hierarchy, and enhance page scroll behavior
+
+## v0.5.6 - 20 July 2026
+
+Feature - Complete force sync planning
+
+- Add Force Sync planning, preview, execution safeguards, health tools, and Sync settings navigation.
+
+## v0.5.5 - 20 July 2026
+
+Feature - Reorganize settings navigation and layout
+
+- Group settings into compact, sentence-case sections with responsive overview layout
+- Separate media servers, Seerr, webhooks, metadata, and backup restore subsections
+- Show webhook secrets and platform-specific setup guidance in the settings pages
+- Rename Health to System Integrity Check and document the updated settings routes
+
+## v0.5.4 - 20 July 2026
+
+Chore - Retitle the 0.5.2 changelog entry to lead with its main change
+
+- The 0.5.2 release headline said Retry startup SQLite pragmas even though its details were mostly the settings-sidebar overhaul; retitled it to lead with the settings fix, which was the substantively larger and more user-visible change in that release
+
+## v0.5.3 - 20 July 2026
+
+Fix - Recover a changelog entry lost to a prior CI failure and harden the generator
+
+- Backfilled the 0.5.2 changelog entry with the settings-sidebar fix details that were silently dropped when an earlier push's CI build check failed before the changelog step ran
+- The changelog generator now walks actual git history since the last recorded entry instead of trusting only the current push's commit list, so a future CI failure on one push can no longer cause the next successful push to skip that commit's release notes
+
+## v0.5.2 - 20 July 2026
+
+Fix - Repair the settings sidebar's hierarchical menu and aggregated pages
+
+- Fixed parent group pages (Media Servers, Backup/Restore, Advanced) that only showed one of their child sections instead of all of them, and Tools accordions that stayed collapsed with no content visible
+- Fixed Storage & Cache usage numbers and other data (sync jobs, backups, logs) not loading when shown on an aggregated parent settings page
+- Clicking a sub-section in the settings sidebar now scrolls straight to that section on the page instead of just landing at the top, and no longer leaves it hidden under the sticky header
+- Switching between settings pages no longer keeps the previous page's scroll position
+- Renamed Admin Login to Account, API Endpoints to Webhooks (now shown under Media Servers), and the Metadata submenu item to Metadata Providers
+- Sync Tuning now edits directly on the page instead of opening a popup
+- Moved Logs out of the Advanced group into its own top-level settings entry
+- Fixed a stray CSS rule that rotated the Tools page's accordion sections 45 degrees
+- Two Plembfin processes starting against the same brand-new database at the same instant could crash on boot because switching journal mode to WAL can throw a busy-database error immediately instead of waiting, even with a busy timeout configured
+- Startup now retries that pragma briefly before giving up, fixing an intermittent CI failure in the concurrent-migration test
+
+## v0.5.1 - 18 July 2026
+
+Fix - Speed up media detail loading and show rematches
+
+- Replace green status pills with an accessible loading animation across media detail pages
+- Update every episode match in one request while metadata refreshes in the background
+- Keep the corrected TVDB identity authoritative during progress and artwork refresh
+
+## v0.5.0 - 18 July 2026
+
+Feature - Add safe multi-process operation
+
+- Add SQLite-backed cache invalidation, fenced scheduler leadership, and durable background jobs.
+- Support all, web, and worker roles with shared diagnostics and split deployment guidance.
+- Add migration, concurrency, failover, and real local multi-process acceptance coverage.
+- Release Plembfin 0.5.0.
+
+## v0.4.62 - 18 July 2026
+
+Feature - Harden cross-platform sync diagnostics and tuning
+
+- Add a Cross-Platform Match Report that highlights unmatched media by Plex, Emby, and Jellyfin.
+- Add configurable watched, resume, active-session, and outbound timeout tuning while preserving existing defaults.
+- Reduce unnecessary history-derived cache rebuilds while keeping dashboard refresh versions accurate.
+- Expand backend and frontend coverage for sync parsing, tuning validation, timeout behavior, and cache correctness.
+- Align setup guidance, inline help, and troubleshooting documentation with the configurable behavior.
+
+## v0.4.61 - 17 July 2026
+
+Security - Stop recurring SSRF false-positive alert from CodeQL
+
+- Added a scoped CodeQL config that excludes the js/request-forgery query repo-wide, since every outbound request already funnels through the centralized, validated fetch guard and the flagged targets are admin-configured LAN media servers by design
+- Removed the previous inline suppression comment, which was verified not to actually register with CodeQL (the alert kept reopening under a new number on every nearby edit)
+- Documented the exclusion and its rationale in docs/development.md so it doesn't get mistaken for an unreviewed gap later
+
+## v0.4.60 - 17 July 2026
+
+Security - Suppress audited outbound SSRF finding
+
+- Keep administrator-configured LAN integrations behind the centralized URL and redirect checks
+- Prevent CodeQL from reopening the audited shared request boundary as a new alert
+
+## v0.4.59 - 17 July 2026
+
+Security - Harden outbound requests against SSRF
+
+- Reject unsafe outbound URLs and cloud-metadata endpoints before any connection is made
+- Validate redirects and prevent credentials from being forwarded to another origin
+- Apply the protections to Seerr requests and enforce them for future server integrations
+
+## v0.4.58 - 17 July 2026
+
+Feature - Add persistent historic episode calendar
+
+- Show historical episode air dates when navigating earlier months on the Upcoming page.
+- Store calendar months locally across restarts and progressively preload the previous 24 months without refreshing completed history.
+- Check the current and next 12 months for schedule changes while avoiding rewrites when episode data is unchanged.
+- Detect newly tracked shows on calendar access and merge only their episodes into existing month results.
+
+## v0.4.57 - 16 July 2026
+
+Fix - Keep part watched progress accurate
+
+- Derive watched percentages from the authoritative playback position and duration when webhook percentage fields are stale.
+- Refresh the Part Watched dashboard rail whenever live playback state changes.
+- Correct existing zero-percent rows when they are read without requiring a database migration.
+
+## v0.4.56 - 16 July 2026
+
+Feature - Complete card-based settings workflows
+
+- Replaces grouped settings tasks with flat canonical sections, a link-list landing page, desktop sidebar entries, and a mobile section picker.
+- Adds reusable card grids and edit dialogs for media servers and metadata providers with per-service save, test, enable, and stored-secret behavior.
+- Adds Backblaze destination cards with add, edit, connection test, disable, and confirmed delete workflows.
+- Keeps health diagnostics working from redacted saved configuration and updates repair links to the new settings routes.
+- Refines responsive settings layouts and removes obsolete form, sub-tab, integration, and destination styling.
+- Synchronizes setup, backup, security, routing, and architecture documentation with the new navigation and dialogs.
+
+## v0.4.55 - 16 July 2026
+
+Feature - Overhaul settings navigation and workflows
+
+- Adds a task-oriented Settings overview with status summaries and direct next actions
+- Organizes account, connections, metadata, backups, and system tools into focused responsive routes
+- Keeps legacy Settings, sync, and logs links working through canonical redirects
+- Places specialist maintenance operations in clear Advanced disclosures with consequence guidance
+- Uses the full available page width and keeps Save available when disabling a connected app
+- Updates setup documentation, inline help, and route and dashboard-state test coverage
+
+## v0.4.54 - 16 July 2026
+
+Fix - Harden backup forms and TMDB timeouts
+
+- Remove browser password-form warnings from backup settings and show a useful fallback when TMDB times out.
+
+## v0.4.53 - 16 July 2026
+
+Fix - Recover orphaned force sync locks
+
+- Clear persisted force-sync locks automatically when the server restarts.
+- Keep a Stop / Reset Sync kill switch available for live and orphaned jobs.
+- Add regression coverage for cancel, reset, and idle control states.
+
+## v0.4.52 - 16 July 2026
+
+Feature - Add targeted sync repair progress
+
+- Replace the macOS-style consoles with native activity panels and taller output areas.
+- Show sync stages, elapsed time, item progress, and estimated remaining time.
+- Add a lightweight recent-item repair that bypasses the catch-up throttle without scanning full libraries.
+
+## v0.4.51 - 16 July 2026
+
+Fix - Repair cross-platform watch-state syncing
+
+- Record Plex library mark-watched changes in Plembfin history and propagate them immediately
+- Match title aliases through shared provider IDs to prevent duplicate Part Watched entries
+- Use series provider IDs when syncing Emby and Jellyfin episode resume positions
+
+## v0.4.50 - 13 July 2026
+
+Fix - Prevent incomplete changelog releases
+
+- Reject user-visible commits that omit meaningful release details
+- Apply the same validation locally and in CI, including multi-commit pushes
+- Treat bullets that merely repeat the commit subject as incomplete
+- Document and test the enforced changelog workflow
+
+## v0.4.49 - 13 July 2026
+
+Fix - Keep mobile controls accessible across breakpoints
+
+- Responsive Stats and Upcoming controls now fit without hidden overflow from 320-1280 px
+- Mobile controls now use 44 px touch targets
+- Closed navigation is now inert, aria-hidden, and removed from keyboard and screen-reader navigation
+- Routed pages now have proper h1 headings with a logical Dashboard and Stats section hierarchy
+- Fixed the tablet breakpoint regression affecting layouts from 761-1023 px
+
+## v0.4.48 - 13 July 2026
+
+Fix - Prevent iOS form focus zoom
+
+- Fix - Prevent iOS form focus zoom
+
+## v0.4.47 - 13 July 2026
+
+Fix - Prevent incomplete changelog entries
+
+- Add changed-file fallback details when a release commit has no bullet-point body
+- Preserve authored bullet points as the preferred changelog source
+- Document the fallback behavior in the changelog workflow
+
+## v0.4.46 - 13 July 2026
+
+Fix - Scope biography filmography filters
+
+- TV shows in biography filmographies now open their TV-show detail pages instead of incorrectly using movie routes
+- Filmography filters reset when opening a different person, so movie, TV, year, genre, and sort choices do not leak between profiles
+- Filter selections are retained when returning to the same person’s biography
+
+## v0.4.45 - 10 July 2026
+
+Fix - Reduce media background cast
+
+## v0.4.44 - 10 July 2026
+
+Fix - Make Part Watched app badges open media apps
+
+- App Used badges now open matching Plex, Emby, or Jellyfin items from the Part Watched rail
+- Existing media identifiers and app-link lookups deep-link to the selected platform
+- Updated dashboard documentation and feature guidance
+
+## v0.4.43 - 10 July 2026
+
+Feature - Smarter API usage - sync retry backoff, metadata caching, and traffic limits
+
+- Failed watched-sync dispatches now retry with exponential backoff (1m up to 6h) and stop after 10 attempts instead of retrying every minute forever; the Retry Sync button re-queues them
+- Sync History is kept to 90 days / 10,000 entries and only logs meaningful outcome changes, so it no longer grows without bound
+- Fanart.tv artwork lookups are throttled and cached for 7 days (24 hours for items with no artwork), matching the TMDB/TVDB gateways
+- The TV next-airing refresh reads through the normal metadata caches instead of force-refetching up to 40 shows from TMDB every 30 minutes
+- Library grids prefetch lightweight metadata so cold-scrolling a large library is far cheaper; detail pages still fetch complete data
+- TheTVDB rate-limit responses are honored with a cooldown so the shared project key is not hammered once its quota is exhausted
+- Trailer metadata is cached for 30 days, update checks fetch from GitHub at most once per 5 minutes, and OMDb errors are cached briefly so a dead key stops costing a request per page view
+- New PLEMBFIN_DEBUG_OUTBOUND setting logs per-host outbound request counts for measuring upstream traffic
+
+## v0.4.42 - 10 July 2026
+
+Feature - Enhance person profiles with social links and filmography filtering
+
+- Add social media icons (IMDb, Instagram, X, Facebook, TikTok, Wikidata)
+- Add filter/sort controls for filmography by type (all/movie/TV), year, and genre
+- Redesigned layout: responsive two-column sidebar/content on desktop, stacked on mobile
+- Show biography and personal info in expandable sidebar with age display
+- Change filmography default sort from popularity to release date (newest first)
+- Improve responsive typography and spacing with CSS clamp()
+- Update media-detail.md documentation for person pages
+
+## v0.4.41 - 8 July 2026
+
+Feature - Visual progress and cache invalidation for edit dialogs
+
+- Align media UI styling
+- Add visual progress bar and step status feedback to the TV show rematch dialog
+- Add saving states, button disablement, and success confirmation to the edit images dialog
+- Clear TMDB and TVDB local metadata caches on rematch to ensure fresh details are fetched immediately
+- Automatically invalidate local image URLs and trigger a frontend UI refresh upon saving a match
+- Avoid redundant DOM inserts when syncing the page topbar layout
+
+## v0.4.40 - 8 July 2026
+
+Feature - Add upcoming episodes calendar
+
+- Add an Upcoming page with a month calendar of future TV episode air dates
+- Add centered month controls, larger episode posters, and a mobile agenda layout
+- Add Upcoming search with matching episodes from later months shown below the calendar
+- Add an authenticated upcoming episodes API backed by TVDB season data and the next-airing cache
+- Document the Upcoming page, route, module, and API endpoint
+
+## v0.4.39 - 8 July 2026
+
+Feature - Manual match search in the artwork picker
+
+- The edit-images dialog on media pages now has a search box at the top to manually find the right title when artwork fails to load automatically
+- Picking a search result instantly reloads the poster, logo, and background choices from TMDB, TheTVDB, and fanart.tv for the selected title
+- Custom-image web search links follow the manually selected title
+
+## v0.4.38 - 8 July 2026
+
+Feature - Media detail pages show availability and app links instantly
+
+- Media detail pages remember each title's availability badges (Available in 1080p/4K, per-season counts) and show them instantly on open instead of loading blank
+- Plex/Emby/Jellyfin open-in-app buttons appear immediately from the last visit and update silently in the background if availability changed
+- Availability shown on screen is no longer wiped when a background refresh fails; the last known state is kept and retried
+- Repeated availability lookups while a detail page loads are deduplicated, reducing redundant server queries
+
+## v0.4.37 - 7 July 2026
+
+Chore - Improve module discipline and build integrity
+
+- Raise module size soft limit from 1,000 to 1,200 lines (hard limit unchanged at 1,500) to accommodate larger feature modules while maintaining discipline
+- Fix showProgressCache to resolve cache file via DATA_DIR instead of hardcoded relative path, so builds no longer corrupt the real tv_progress_cache.json
+- Add null check in flushShowProgressUpdates to gracefully skip work if database handle is closed, eliminating test output noise
+
+## v0.4.36 - 7 July 2026
+
+refactor: improve error handling in image fetch retry logic
+
+- Use explicit try/catch for better readability
+
+## v0.4.35 - 7 July 2026
+
+Fix - Retry TMDB image fetch on missing images
+
+- Extract image grouping logic into reusable helpers
+- Force-refresh TMDB details if image gallery is empty on first load
+
+## v0.4.34 - 7 July 2026
+
+Fix - Preserve Plex specials episode numbers
+
+- Plex history imports keep season zero as S00 instead of turning it into an unknown season.
+- Existing malformed specials entries such as S0?E01 are repaired when watch history is read.
+- Added coverage for Plex specials imports and legacy malformed specials rows.
+
+## v0.4.33 - 7 July 2026
+
+Fix - Align node engine requirement
+
+## v0.4.32 - 7 July 2026
+
+Chore - Bump undici from 8.5.0 to 8.7.0
+
+- [Release notes](https://github.com/nodejs/undici/releases)
+- [Commits](https://github.com/nodejs/undici/compare/v8.5.0...v8.7.0)
+- dependency-name: undici
+
+## v0.4.31 - 7 July 2026
+
+Fix - Repair changelog metadata
+
+- Add the missing release entry for the IMDb link and live Specials fixes.
+- Backfill the sparse Specials and TVDB links entry with user-facing details.
+- Align the bundled app version with the corrected changelog history.
+
+## v0.4.30 - 7 July 2026
+
+Fix - Preserve imdb links and live specials
+
+- Preserve IMDb links and ratings on TV show detail pages when TVDB metadata is merged with TMDB details.
+- Keep watched-state matching for Specials season 0 episodes even when a source record omits the season number.
+- Treat season zero as a real live-session value so Emby and Jellyfin Specials keep their episode coordinates.
+- Refresh TV detail caches so existing shows pick up retained IMDb IDs after upgrade.
+
+## v0.4.29 - 7 July 2026
+
+Fix - Handle specials and tvdb links
+
+- Normalize episode labels as SxxEyy across dashboard, history, stats, tools, and confirmation dialogs, including Specials.
+- Preserve season 0 when creating media keys and normalizing imported or webhook watch records.
+- Recover episode coordinates from titles such as S00E03 when incoming records omit separate season and episode fields.
+- Recover missing show titles from stored IDs or sync telemetry so episode rows do not remain grouped as Unknown Show.
+- Add test coverage for season 0 media keys and watch-record normalization.
+
+## v0.4.28 - 7 July 2026
+
+Chore - Split route and backup modules
+
+- Split API handlers into dedicated route modules and moved scheduler/listener lifecycle out of the route table.
+- Move backup and appearance settings logic into a dedicated frontend module.
+- Tighten mobile backup settings layout and restore poster request in-flight tracking.
+- Update architecture and module ownership docs.
+
+## v0.4.27 - 7 July 2026
+
+Chore - Implement repo improvement guardrails
+
+- Rename the app package, Docker image, container, and startup log from plembfinfire to plembfin
+- Remove the unused browser-side Now Playing probe and document the server-backed polling sources
+- Add a focused node:test suite for parser phases, sync routing, loop detection, and media key formats
+- Expand the build check to run tests and reject routed API handlers without an auth guard
+- Warn operators when in-app credentials override ADMIN_USERNAME or ADMIN_PASSWORD env vars
+- Make encrypted backup passphrase persistence opt-in for new saves while preserving existing scheduled backups
+- Add a schema migration ledger, document cache scalability limits, and align README licensing with AGPL-3.0
+
+## v0.4.26 - 7 July 2026
+
+Chore - Overhaul documentation and remove all legacy backend references
+
+- Added a complete documentation set under docs/ with a dedicated guide for every major feature: Plex, Emby, Jellyfin, dashboard, movies, TV shows, media detail, history and search, stats, backups, metadata sources, posters and artwork, settings, auth, frontend, and development
+- Rebuilt the architecture guide as the first place to check before changing anything, with a full map of every file in the repository and a task router pointing to the right doc for each area
+- Removed every remaining legacy cloud-backend reference from the project, including code comments, schema notes, ignore files, and old changelog entries, and renamed the server data repository module accordingly
+- Replaced the outdated environment variable template with a commented list of every supported setting
+- Expanded the README configuration reference with the media-server connection and sync-behaviour environment variables
+
+## v0.4.25 - 6 July 2026
+
+Fix - Resolve poster list scrolling in the edit images popup on mobile
+
+- Converted .edit-image-dialog to a vertical flex container with 90vh fixed height on mobile
+- Configured .edit-image-main to occupy remaining flex space with min-height: 0
+- This ensures the poster/logo/background image search grid is constrained to the dialog height and becomes scrollable instead of overflowing and clipping
+
+## v0.4.24 - 6 July 2026
+
+Fix - Resolve TMDB metadata caching lookup for unwatched and directly-linked movies
+
+- Fixed a bug where TMDB details were not resolved when editing images for movies not present in timeline history
+- Enabled fallback lookup using state.moviesRaw and state.activeMovieTmdbId when resolving tmdbData for the edit dialog
+
+## v0.4.23 - 6 July 2026
+
+Fix - Mobile UI enhancements for media details and library views
+
+- Added sticky topbars to movies, tvshows, and watch history pages on mobile
+- Built mobile-optimized collapsible control panels for search, sort, and filter
+- Arranged media detail action buttons on a single line in desktop mode
+- Spaced media detail action buttons evenly across the full width on mobile
+- Redesigned Edit Images dialog grid to show smaller, responsive images on mobile
+- Repositioned platform app badges to sit directly below the title and ratings on mobile
+
+## v0.4.22 - 4 July 2026
+
+Fix - Specials episodes never rendered even when TVDB had episode data
+
+- Episode rows for a show were only ever built for season_number > 0, so the Specials accordion always showed "No episode rows yet" even when TheTVDB had real episodes for season 0
+- The progress-total exclusion for Specials is already handled separately downstream, so this restriction only needed to stay off the row-building loop
+
+## v0.4.21 - 4 July 2026
+
+Fix - Hide empty Specials seasons and stop gating episode data on a TMDB key
+
+- Show pages no longer display a "Specials" season row when TheTVDB has no episodes cataloged for it, instead of an always-empty dead accordion
+- Season and episode data is fully TVDB-backed (built-in key) and no longer requires the user to have a personal TMDB API key configured to load
+- Corrected status messages that incorrectly blamed a missing TMDB key or TMDB metadata for season/episode data that actually comes from TheTVDB
+- Bumped the TV details cache schema version so existing cached shows pick up the Specials filtering without waiting for the cache to expire
+
+## v0.4.20 - 4 July 2026
+
+Fix - Clicking Specials (season 0) in the show accordion did nothing
+
+- Season 0 ("Specials") was silently untoggleable: the open/close check coerced the "no season selected" state via Number(null), which equals 0 and collided with the real season 0 id, so the very first click always looked like "already open" and closed nothing
+- The season permalink URL also skipped the #season0 hash for the same falsy-zero reason
+- Both now use explicit null checks so season 0 behaves like any other season
+
+## v0.4.19 - 4 July 2026
+
+Fix - Match TVDB artwork types by name instead of slug
+
+- TheTVDB's series artwork type slugs are inconsistently pluralized (posters/backgrounds vs singular clearlogo), so matching by slug silently dropped all TVDB posters and backgrounds in the edit image dialog
+- Matching by the type's name (always singular) instead resolves this
+
+## v0.4.18 - 4 July 2026
+
+Fix - Fall back to a TMDB title search when TheTVDB's TMDB id mapping is stale
+
+- TV shows were silently missing TMDB-sourced cast, trailers, and images whenever TheTVDB's community-submitted TMDB id mapping pointed at a show that no longer resolves on TMDB
+- The show details lookup now verifies that id and retries with a TMDB title search if it fails, instead of leaving those fields empty forever
+- Documented the fallback behavior in the TV metadata architecture notes
+
+## v0.4.17 - 4 July 2026
+
+Fix - Repair broken TMDB artwork lookup and add TVDB artwork to the edit image dialog
+
+- Fixed TMDB posters, logos, and backgrounds failing to load in the edit image dialog for TV shows when the show's TMDB ID couldn't be independently verified against TMDB
+- The edit image dialog now also browses TheTVDB artwork (posters, backgrounds, and clear logos) for TV shows, alongside TMDB and the existing fanart.tv fallback
+- Added a TVDB source badge to match the existing Fanart.tv badge styling
+
+## v0.4.16 - 4 July 2026
+
+Docs - Add community health files for GitHub community standards
+
+- Add a Code of Conduct based on the Contributor Covenant
+- Add a Contributing guide covering dev setup, project structure, and PR expectations
+- Add bug report and feature request issue templates, plus a config linking security reports to private advisories
+- Add a pull request template with a review checklist
+
+## v0.4.15 - 4 July 2026
+
+Docs - Recapture Now Playing, Part Watched, and search README screenshots from production
+
+- Captured the Now Playing and Part Watched dashboard screenshots from the live server with real active sessions and in-progress items, blurring usernames for privacy
+- Updated the search screenshot to use the phrase "Tom" instead of "Jack Ryan"
+
+## v0.4.14 - 4 July 2026
+
+Docs - Refresh README screenshots and document push workflow expectations
+
+- Recaptured every README screenshot from the live app with current library data, split evenly between light and dark theme
+- Updated the dashboard screenshot caption so it no longer claims active playback sessions when nothing is currently playing
+- Documented in CLAUDE.md that origin/main routinely gains a CI changelog-bump commit right after a push, and how to reconcile that automatically
+
+## v0.4.13 - 4 July 2026
+
+Feature - Move Appearance settings into contextual sidebar menus
+
+- Removed the standalone Appearance tab from Settings
+- Added an Appearance link in the sidebar, styled like the other menu items, that only appears on the Dashboard or on a movie/show detail page
+- Dashboard shows Card View / Poster View options; movie and show pages show toggles for Logo Art, Cast Members, Trailers & Clips, Reviews, Images, and Related Shows
+- Options display as a list with icons, matching the highlight color used by the currently active menu item, and apply instantly without opening Settings
+- Fixed a sidebar spacing bug where the gap above Settings was larger than the gaps between the other menu items above it
+
+## v0.4.12 - 4 July 2026
+
+Feature - Reorganize sidebar layout, enhance Clear Progress confirmation, and add app icon badges
+
+- Moved Settings directly below Stats in the left sidebar instead of pinning it to the bottom
+- Anchored the theme toggle and version number to the bottom of the sidebar, with the version shown above the toggle, and removed the divider line above it
+- The Clear Progress confirmation now shows the media poster, title, episode, and watch progress, and clearly explains that it clears progress, marks the item unwatched, and syncs that status back to the originating and other connected media servers
+- Removed the redundant "Action Confirmation" label from confirmation popups
+- App Used badges on the dashboard, history, and now playing cards now show the Plex/Emby/Jellyfin icon alongside the platform name, matching the style used on media detail pages
+- Moved the Stats page summary cards (Plays, Movies, TV Shows, Top Platform, Busiest Month) into the top of the right-hand column and arranged them across two full-width rows
+
+## v0.4.11 - 4 July 2026
+
+Fix - Clear progress and manual unwatch now propagate to the item's originating server
+
+- Fixed a bug where clicking "Clear Progress" or manually marking an item unwatched failed to update the media server the item was originally played on
+- Previously, only the other two servers received the update, leaving resume progress or watched state stuck on the source server
+- Automatic unwatch propagation triggered by webhooks or Plex notifications is unaffected and continues to skip the reporting server as before
+
+## v0.4.10 - 4 July 2026
+
+Fix - Resolve layout alignment gap below biography on cast member profile pages
+
+- Nest photos and credits back inside main profile content block
+- Flow sections vertically with natural margins on desktop viewports
+- Remove obsolete grid layout alignment constraints from style rules
+
+## v0.4.9 - 4 July 2026
+
+Fix - Customize section ordering and resolve layout spacing issues in media detail pages
+
+- Order detail page sections as: Cast, Images, Trailers, Reviews
+- Align and center facts rail and apps buttons horizontally on desktop
+- Prevent genres text wrapping and fix vertical crashing on facts layout
+- Solve JavaScript ReferenceError causing page load issues on movies details
+
+## v0.4.8 - 4 July 2026
+
+Fix - Restrict collapsible metadata and full-width profile layouts to mobile viewports
+
+- Restore flat uncollapsible metadata rail on desktop views
+- Keep cast photos and filmography inside the right-hand column on desktop
+- Restrict collapsible details blocks and full-width layout grids to mobile only
+
+## v0.4.7 - 4 July 2026
+
+Fix - Optimize mobile view layout for cast member profiles and top-bar logo
+
+- Rearrange filmography cards on mobile to stack vertically into 3 columns
+- Align cast photos section to use full grid width and match filmography layout
+- Increase mobile size of main profile photo and remove top padding gap
+- Align top-bar brand header logo correctly on mobile viewports
+
+## v0.4.6 - 4 July 2026
+
+Fix - Optimize mobile layout on media details and improve TVDB cache TTL on misses
+
+- Issue 1: Replace hamburger close icon with clean ✕ character instead of transformed spans
+- Issue 2: Hide Search, Size controls on mobile, show only Sort option
+- Issue 3: Restructure media detail page for mobile with centered poster, hidden logo, and stacked vertical layout for meta information
+- Added collapsed overview with gradient fade effect for accordion-style appearance
+- All changes mobile-only (≤760px) to preserve desktop layout
+- Poster positioned in top left (35% width)
+- Meta information (TMDB %, Seerr requests, status, dates, etc.) positioned in top right
+- Description text below spanning full width
+- Logo hidden on mobile
+- No overlapping content
+- Clean, organized mobile layout
+- Center and group show logo/title, subtitle, and ratings next to poster in mobile view
+- Move streaming app links directly next to poster under ratings
+- Remove Open in label from streaming app links
+- Remove Progress heading from TV show progress trackers
+- Display full synopsis overview text without accordion truncation on mobile
+- Make metadata details collapsible, collapsed by default, with custom centered toggle button
+- Cache TVDB series resolution misses for 1 hour instead of 180 days to allow faster retries
+
+## v0.4.5 - 2 July 2026
+
+Fix - Show changelog entries as "Fix -" / "Feature -" instead of raw commit prefixes
+
+- Changelog headlines used the raw conventional-commit prefix (e.g.
+- Future entries are generated as "Fix - Pull season pills left" /
+- Reformatted all 236 existing changelog entries the same way so
+
+## v0.4.4 - 2 July 2026
+
+Fix - Stop changelog from dropping earlier commits in a multi-commit push
+
+- The changelog workflow only read GitHub's head_commit, so pushing
+- Every commit in the push now contributes its bullet points (or its
+- Documented the behavior in CLAUDE.md's push workflow so future
+
+## v0.4.3 - 2 July 2026
+
+Feature - Add movie collections and always-visible app quick-links
+
+- Movie pages now show a Collection row with poster cards for other films in the same franchise (e.g. A Quiet Place, A Quiet Place Part II, A Quiet Place: Day One)
+- Plex/Emby/Jellyfin "Open in" icons appear immediately on movie and TV pages (greyed out while checking) and become clickable once the app confirms the title exists on that server
+- Fixed season availability pills showing a color that contradicted their own count (a fully-watched season could show a green pill reading "0/20 available") and consolidated the separate 4K pill into a small tag inside the main pill
+- Fixed season rows floating toward the middle of the page instead of sitting close to the season title
+- Fixed the unwatched-movie page layout splitting the poster/title from the details sidebar into two separate rows
+
+## v0.4.2 - 2 July 2026
+
+Fix - Pull season availability pills left instead of centre-floating
+
+- Cap the season title column at 260px instead of an unbounded 1fr
+- Only the next-airing column remains flexible, absorbing the leftover
+
+## v0.4.1 - 2 July 2026
+
+Fix - Reliable open-in-app icons and aligned season accordion columns
+
+- Open in Plex/Emby/Jellyfin buttons use bundled icons instead of hotlinking the media server's favicon, which wasn't reliably served and left the buttons showing text only with no icon
+- Season accordion rows (episode count, watched count, availability, next airing) now line up in fixed columns instead of shifting position depending on which fields are present for that season
+- Verified column alignment on desktop and confirmed the row wraps cleanly without clipping on mobile
+
+## v0.4.0 - 2 July 2026
+
+Feature - Add open-in-app links and harden API security and reliability
+
+- Movie and TV detail pages show Open in buttons that link directly to the item in Plex, Emby, or Jellyfin when it exists in that server's library
+- Media server tokens and API keys are no longer sent to the browser; settings show a Configured placeholder and keep the saved credential when the field is left blank
+- All outbound requests to media servers, metadata providers, and backup destinations now time out instead of hanging when a server is unresponsive
+- Plex requests send the token as a header so it stays out of server access logs
+- Malformed API requests return a clear Invalid JSON body error instead of a server error
+- Server URLs pointing at cloud metadata endpoints are rejected when saving settings
+- Faster full syncs: the Plex account lookup is cached instead of repeated for every item
+- TheTVDB and Fanart.tv built-in project keys can be replaced via environment variables
+
+## v0.3.17 - 2 July 2026
+
+Feature - Add episode resolution badges and speed up availability lookups
+
+- Season availability pills now match the rest of the site's pill style instead of a separate rounded-capsule look
+- Fixed the "Available in 1080p" badge rendering shorter than its neighboring pills
+- Each episode row on a TV show's page now shows its resolution (720p, 1080p, 4K, etc.) when it's available in a configured Plex/Emby/Jellyfin app
+- Availability and resolution lookups are cached for 3 minutes per title, so reopening a detail page no longer re-queries every configured app on each open; submitting a Seerr request clears that title's cache immediately
+
+## v0.3.16 - 2 July 2026
+
+Fix - Exclude specials from TV show episode/season totals
+
+- Specials (season 0) were being counted in a show's total episode/season count, causing the TV library grid to show an inflated total (e.g. 110/123) that disagreed with the show's own progress bar (110/110), which already excluded them
+- Show progress totals (episode count, season count, watched percentage) now exclude specials consistently everywhere they're calculated
+- Specials still appear as a "Specials" entry in the seasons list on a show's page so they remain browsable, they just no longer count toward the totals
+- Previously cached show details and progress totals are automatically refreshed in the background so existing shows pick up the corrected counts without manual intervention
+
+## v0.3.15 - 2 July 2026
+
+Fix - Clear stale poster/backdrop after Fix Match rematch
+
+- Fix Match invalidated the cached poster entry for a rematched movie or TV show but left the old poster/backdrop URL stamped on the watch record itself, and the poster endpoint serves a stored storage URL directly without checking the cache, so the previous (wrong) artwork kept being served indefinitely after a rematch
+- Rematching a movie or TV show (including every episode during a TV rematch) now also clears its stored poster/backdrop/logo URLs so the correct artwork is fetched and cached on the next request
+
+## v0.3.14 - 2 July 2026
+
+Fix - Force refresh of TV show details cached before episode-total fix
+
+- The previous fix that added TV show total-episode counts didn't bump the metadata cache schema version, so shows already cached kept returning stale details with no episode total (still showing "?" watched counts) until their cache entry naturally expired
+- Bumped the cache schema version so all previously cached TV/movie details are refetched and pick up the corrected episode/season totals immediately
+
+## v0.3.13 - 2 July 2026
+
+Fix - Backfill missing TV show episode totals and refresh stale counts
+
+- TV shows watched before the per-show progress cache existed (or added outside its incremental update path) never got an episode total computed, permanently showing "?" watched counts on the TV Shows page
+- On startup, any show missing from the cache is now automatically queued for a background total-episode lookup alongside shows with a stale zero count
+- The TV show list's in-memory cache now refreshes as soon as the background total-episode backfill finishes, instead of waiting for an unrelated watch event
+- TheTVDB-sourced show details now report a total episode count, fixing counts that were stuck at zero after the switch to TheTVDB for TV metadata
+
+## v0.3.12 - 2 July 2026
+
+Fix - Restore season availability pills on TV show pages
+
+- Season availability pills (1080p/4K available counts) stopped appearing on season accordions after the TheTVDB migration, because episode counts per season were never populated
+- TheTVDB series lookup now fetches full episode data so each season's episode count can be computed
+- Existing cached show metadata refreshes automatically on next view to pick up the corrected counts
+
+## v0.3.11 - 2 July 2026
+
+Fix - Prevent metadata reload when marking items unwatched
+
+- Prevent eagerly pulling TMDB/TVDB metadata when deleting or marking episodes/movies unwatched
+- Guard TMDB prefetch backgrounds to skip unwatched and unplayed sync actions
+
+## v0.3.10 - 2 July 2026
+
+Fix - Improve edit image dialog layout, sizing, and asset presentation
+
+- Expand the edit image dialog width and lock it to a constant height to prevent layout shifts
+- Fix transparent logo contrast using a photoshop-style mid-tone checkerboard background pattern
+- Resolve specificity bug to display logo and backdrop assets at their correct larger sizes
+- Prevent cards from stretching vertically inside the grid tracks
+- Scale up the language and source badge pills for better readability
+
+## v0.3.9 - 2 July 2026
+
+Fix - Correct watched edit icon glyph
+
+## v0.3.8 - 2 July 2026
+
+Fix - Patch movie watched state in place
+
+## v0.3.7 - 2 July 2026
+
+Fix - Harden tvdb gateway requests
+
+- Restrict TVDB gateway requests to known API endpoints instead of accepting arbitrary path strings.
+- Validate TVDB series and season IDs before building upstream request URLs.
+- Replace the TVDB API-key cache fingerprint with a stronger PBKDF2-SHA256 fingerprint to satisfy GitHub CodeQL.
+
+## v0.3.6 - 2 July 2026
+
+Docs - Clarify readme source wording
+
+- Reword README metadata descriptions so first-time readers see the current TheTVDB/TMDB source split without historical context.
+- Rephrase the default admin-password note as current behavior instead of upgrade-history wording.
+- Add CLAUDE.md guidance requiring standalone docs copy and detailed commit bodies for user-visible changes.
+
+## v0.3.5 - 2 July 2026
+
+Fix - Reduce tvdb refresh traffic
+
+- Cache TVDB search, series, and season responses with longer lifetimes for archived shows and shorter lifetimes for active/upcoming shows.
+- Deduplicate simultaneous TVDB lookups so repeated page loads share one upstream request instead of launching parallel refreshes.
+- Reuse cached TVDB details when a refresh fails, keeping show pages usable during temporary TVDB errors or rate limits.
+
+## v0.3.4 - 2 July 2026
+
+Fix - Add tv rematch tools
+
+- Add TV show rematch controls that can search TheTVDB and update every episode in a show together.
+- Add a maintenance tool to batch rematch existing TV shows after switching episode metadata to TheTVDB.
+- Refresh cached show artwork and IDs after rematches so detail pages, season lists, and library rows use the corrected match.
+
+## v0.3.3 - 2 July 2026
+
+Fix - Correct TV show cache key and TVDB remote-ID matching after rematch
+
+- getTvShowDetails() cached TV show details under a key derived from the caller's tmdb_id, but after Fix Match clears tmdb_id to force re-resolution, that key no longer matches what getTmdbSeason() looks up, so season data silently failed to load
+- TheTVDB's remoteIds sourceName is "TheMovieDB.com", not "TheMovieDB" as assumed, so the automatic TMDB-ID lookup used whenever tmdb_id isn't already known (e.g. right after a TV show rematch) never actually resolved a match
+
+## v0.3.2 - 2 July 2026
+
+Feature - Source TV show episode data from TheTVDB instead of TMDB
+
+- TV shows now pull season/episode numbering, titles, air dates, and artwork from TheTVDB, which is more accurate than TMDB for many shows; cast, trailers, reviews, and recommendations still come from TMDB
+- Movies are unaffected and remain 100% TMDB-sourced
+- Added a "TheTVDB" tab under Settings -> API Keys with an optional personal API key (a built-in key works out of the box, like the existing Fanart.tv setup)
+- "Fix Match" on a TV show now searches TheTVDB and rematches every episode of the show at once, instead of only patching a single record
+- Fixed a CSP gap that silently blocked TheTVDB artwork from loading
+- Existing cached show data is automatically refreshed to the new source on next view, no manual steps needed
+
+## v0.3.1 - 2 July 2026
+
+Fix - Correct mobile dashboard and stats layout issues
+
+- Shrink dashboard watch-history poster cards on mobile so they fit the screen instead of overflowing and overlapping the section below
+- Fix stats "Plays" number wrapping mid-digit on narrow screens
+- Fix Watch Activity chart month labels overlapping into unreadable text on mobile
+- Make the mobile nav menu a proper full-screen overlay instead of pushing page content down
+
+## v0.3.0 - 1 July 2026
+
+Fix - Repair dark theme color corruption and search poster loading
+
+- Removed a leftover CSS override that broke dark mode's blue/yellow accents and background shade across the whole app
+- Fixed search results never loading posters for local movies and TV shows
+- Added a loading indicator to the Stats page so it no longer flashes "0" before data arrives
+- Fixed mismatched border/text coloring on the "Mark unwatched" button
+- Consolidated repeated hardcoded colors into shared theme tokens
+- Cleaned up duplicated inline styles on filter checkboxes and the cast member modal
+- Bumped version to 0.3.0
+
+## v0.2.83 - 1 July 2026
+
+Fix - Stop Seerr season picker from re-opening itself on submit
+
+- The "Request selected" button carried the same data attributes the global click handler uses to detect request buttons, so submitting bubbled into that handler and reopened a fresh picker instead of showing the result
+- Requests now complete with the expected success/error toast and the dialog closes correctly
+
+## v0.2.82 - 1 July 2026
+
+Fix - Widen Seerr season picker and default to latest season only
+
+- Season request dialog is now bigger and a consistent size for both standard and 4K requests
+- Only the latest missing season is pre-selected by default instead of every missing season
+
+## v0.2.81 - 1 July 2026
+
+Fix - Repair Seerr TV requests and add a season picker
+
+- Fixed whole-show Seerr requests for TV crashing on Seerr's server because no seasons field was sent
+- Requesting a TV show (standard or 4K) now opens a season picker showing each season's availability, instead of blindly requesting the whole series
+- Per-season "Request season" buttons on individual seasons are unchanged
+
+## v0.2.80 - 1 July 2026
+
+Fix - Retry npm ci in security workflow to survive transient network errors
+
+- The npm audit job was failing on ECONNRESET during npm ci; it now retries up to 3 times with backoff before failing the job
+
+## v0.2.79 - 1 July 2026
+
+Fix - Place season availability pills inline with episode meta text
+
+- Availability/4K pills now sit on the same line as episode count, watched count, and next-airing text instead of wrapping to their own row
+
+## v0.2.78 - 1 July 2026
+
+Fix - Move season availability pills next to season info and stop flagging watched episodes as missing
+
+- Availability/4K pills now sit under the season title/episode count instead of being pushed to the far edge of the row
+- Watched episodes no longer show as red/missing availability status just because the library hasn't caught up
+
+## v0.2.77 - 1 July 2026
+
+Fix - Improve readability of season metadata on TV show pages
+
+- Split season episode count, watched count, and next airing text into separate segments instead of one run-on string
+- Increased font size and reduced weight of season meta text
+- Season title and metadata now stack on separate lines instead of being crammed together
+
+## v0.2.76 - 1 July 2026
+
+Security - Harden poster cache, Seerr requests, secrets, and admin defaults
+
+- Blocked a path-traversal edge case in the local poster cache's /media/ URL handling
+- Seerr requests are now checked against the same outbound-URL safety guard used for TMDB/Plex/Emby/Jellyfin
+- Added rate limits to destructive/expensive admin actions (delete media, backup import/restore, force-sync, credential changes)
+- Closed a race condition in echo-loop detection so overlapping syncs can't both slip past the check
+- Startup now fails fast on a weak pinned API key, webhook secret, or session secret instead of just warning
+- Fresh installs get a randomly generated admin password (printed once to the server console) instead of a default admin/admin login
+- Split two oversized frontend modules (tools.js, app-events.js) back under the project's module size limits
+- Removed duplicated Plex GUID-parsing and episode-title logic in favor of shared helpers
+
+## v0.2.75 - 1 July 2026
+
+Fix - Stop dashboard history clicks reloading the page, fix stale watch-history cache, speed up poster loading
+
+- Fixed movie/show detail pages flickering on open: dashboard watch-history cards were falling through to a code path that never called preventDefault(), so clicks triggered a full page reload instead of an in-app transition
+- Fixed newly-watched items not appearing instantly in the dashboard's watch-history row after marking something watched from the homepage (the refresh was silently served a stale cached response)
+- Sped up poster loading in the movie/TV grids and dashboard history rows by raising client-side concurrency limits that were more conservative than necessary
+- Removed leftover debug logging from a previous investigation into the flicker issue
+
+## v0.2.74 - 1 July 2026
+
+Feature - Show person name and age on biography page
+
+- Display the cast/crew member's name above the biography text
+- Show their current age (or age at death) in brackets next to the name
+
+## v0.2.73 - 1 July 2026
+
+Chore - Split media-detail.js into focused modules
+
+- Broke the 1,900-line media-detail.js into four modules: modal shell/context, shared TMDB/Seerr rendering, TV show detail, and movie detail
+- No behavior change - the public API is unchanged, so no other files needed import changes
+- Documented the render-token handshake between the show and movie renderers so future edits to either module don't silently desync
+
+## v0.2.72 - 30 June 2026
+
+Chore - Align Restore page layout with Backups page and tidy nav
+
+- Restructured Restore panel into two separate rows (Local / Remote) matching the Backups page two-row layout with help sidebars
+- Removed Backups / Restore sub-menu items from the left sidebar nav
+- Removed left-side blue border from all settings help sidebar cards
+
+## v0.2.71 - 30 June 2026
+
+Chore - Tighten CLAUDE.md agent instructions
+
+- Made header agent-neutral (removed Claude Code branding)
+- Removed redundant constraint preamble blockquote
+- Added direct-action rule: act immediately on simple requests without over-analysis
+- Fixed stale app.js references to modules/images.js for posterMarkup, hydratePosterFallbacks, isCachedStorageImageUrl
+- Expanded module list in Architecture section to include all current modules
+
+## v0.2.70 - 30 June 2026
+
+Docs - Move features above screenshots and tighten feature list
+
+- Features section now appears before Screenshots
+- Rewrote feature list as a concise two-column table (one line per feature)
+- Cut verbose implementation-detail entries, kept user-facing selling points
+- Trimmed intro paragraph to a single sentence
+
+## v0.2.69 - 30 June 2026
+
+Chore - Remove AI agent clutter and clean up README
+
+- Deleted AGENTS.md (redundant pointer to CLAUDE.md)
+- Deleted .Jules/ directory (empty, Jules not in use)
+- Added .Jules/ to .gitignore so it stays out if recreated
+- Removed emoji decorators from all README section headings and feature bullet points
+
+## v0.2.68 - 30 June 2026
+
+Feature - Support scheduled Remote Plembfin Backups and simplify Remote Watch History layout
+
+- Simplify Remote Watch History Backups card layout to match local backups panel
+- Support scheduled and manual remote mirroring of encrypted Plembfin backups to B2
+- Require a secure encryption passphrase for Remote Plembfin Backups configuration
+- Add Remote Plembfin Backups settings inputs and status elements to the UI
+- Display remote upload attempt/success runtime status inside Remote Plembfin Backups card
+
+## v0.2.67 - 30 June 2026
+
+Feature - Add scheduled local Plembfin backups with passphrase encryption
+
+- Add daily scheduled full Plembfin database backups with AES-256-GCM encryption
+- Add scheduling configuration UI for Plembfin backups matching watch history styling
+- Add password/passphrase input to configure and manually trigger full backups
+- Integrate Plembfin scheduled backups run checking with the per-minute cron tick
+- Add Local Watch History Backups runtime stats inside its card border
+- Support downloading, deleting, and restoring Plembfin backups from UI
+
+## v0.2.66 - 30 June 2026
+
+Fix - Refresh part-watched history
+
+- Refresh the home page watch history immediately after a part-watched item is marked watched.
+
+## v0.2.65 - 30 June 2026
+
+Security - Harden logout and view controls
+
+- Require logout requests to use POST before clearing the dashboard session cookie
+- Add accessible names and selected states to History and Library view controls
+- Add a Palette journal placeholder for future critical UX notes
+
+## v0.2.64 - 29 June 2026
+
+Fix - Re-render active view after marking item as unwatched
+
+- Add renderActiveView callback to re-render dashboard/explorer/history after state changes
+- Call renderActiveView after closing media detail when marking non-episode items as unwatched
+- Ensures UI updates immediately without requiring page refresh
+
+## v0.2.63 - 29 June 2026
+
+Fix - Make date picker day and month buttons clickable
+
+- Add click event listeners to calendar day buttons and month navigation arrows
+- Fix DOM queries to use document.querySelector instead of mediaDetailRoot() to ensure overlay is found regardless of mount location
+- Overlay now mounts on document.body for proper fixed positioning and click target alignment
+
+## v0.2.62 - 29 June 2026
+
+Feature - Redesign settings pages to use top sub-tabs and clean visual layout
+
+- Balanced column proportions to 65% forms and 35% side help guidelines
+- Added top sub-tab navigation to General, Apps, API Keys, Appearance, Sync, and Tools panels
+- Cleaned up app integration cards using uniform boundaries and subtle brand accent switch tracks
+- Integrated clean typography (Outfit) and macOS-style developer console window decorations
+- Replaced the image cache stats table with clean visual storage progress meters
+- Validated and refined light theme settings page colors and layout responsiveness
+
+## v0.2.61 - 29 June 2026
+
+Feature - Simplify left menu and update settings layout
+
+- Remove the standalone Help page and sidebar tab
+- Remove the "More" sidebar separator to clean up navigation
+- Relocate "Watch History View" segmented control to Settings - Appearance card
+- Relocate and restyle the "Sign out" button to the bottom of the Settings sub-menu
+
+## v0.2.60 - 28 June 2026
+
+Fix - Movie detail pages now show local content immediately; hide alphabet picker on detail pages
+
+- Movie pages render title, poster, watch date and status instantly without waiting for TMDB
+- TMDB metadata (synopsis, cast, rating, trailers) patches in as soon as it arrives
+- IMDb rating and TV show recommendations load in parallel afterwards, no longer blocking the page
+- Alphabet letter picker no longer appears on movie/show detail pages or cast member profile pages
+
+## v0.2.59 - 28 June 2026
+
+Fix - Dynamically extend CSP img-src with configured media server origins
+
+- Fixed Content Security Policy violations that blocked poster and backdrop images served directly by configured Plex, Emby, Jellyfin, or Seerr servers
+- Server now reads stored media config at request time and appends configured server origins to the CSP img-src whitelist
+- Updated docs/architecture.md to document the dynamic img-src behaviour
+
+## v0.2.58 - 28 June 2026
+
+Fix - Resolve movie loading stuck and optimize history defaults
+
+- Fixed a bug causing movie detail pages to stay stuck on "Loading metadata" if no matching TV show recommendations are found
+- Configured the History page to default to Card View
+- Set default card size slider on the History page to 75% (150px)
+- Optimized TV next-airing cache background refresh batch size to prevent server timeouts on large libraries
+- Updated scheduled sync documentation to cover next-airing cache batching
+- Removed misleading debug console logs that resembled runtime errors
+
+## v0.2.57 - 28 June 2026
+
+Security - Fix CodeQL code-scanning findings
+
+- Match YouTube/TMDB hosts exactly instead of substring checks, blocking spoofed hostnames like youtube.com.evil.com
+- Pass user-supplied values as console format args to prevent tainted format strings in logs
+- Add cloud-metadata SSRF guard to the admin server connection test (LAN/localhost still allowed)
+- Add general API and static request rate limiters with high ceilings so normal dashboard use is never throttled
+- Tighten the trailing-year title regex to remove polynomial ReDoS backtracking
+- Decode HTML entities in a single pass to prevent double-unescaping
+
+## v0.2.56 - 28 June 2026
+
+Fix - Watch history layout update and episode title resolution on dashboard
+
+- Add episode names to watch history cards if known instead of generic "Episode X"
+- Resolve episode titles from TMDB for cards lacking explicit tmdb_id using the show progress cache
+- Include episode title and TMDB/TVDB IDs in the dashboard history preview payload
+- Redesign watch history card details to use vertical stacked metadata layout
+- Anchor show and episode titles to top of card with word wrapping
+- Anchor App Used source badge to the bottom of the card
+
+## v0.2.55 - 28 June 2026
+
+Fix - Load now-playing posters for unwatched live sessions
+
+- Now-playing posters now resolve through the cached artwork pipeline so they load on remote https sites
+- /api/poster falls back to the live session cache when an item has never been watched, instead of returning 404
+- Documented now-playing poster resolution and its failure mode in docs/now-playing.md
+
+## v0.2.54 - 28 June 2026
+
+Fix - Fix now-playing poster images and dashboard card width
+
+- Now-playing sessions now always carry a media_key so posters load correctly
+- Poster lookup falls back to media_key when the row ID is not a numeric watch record
+- Dashboard watch history view (state 2) cards now have the correct 430px width
+- posterUpdateId uses the row's actual id so poster URLs persist to the right record
+
+## v0.2.53 - 28 June 2026
+
+Fix - Polish dashboard settings and artwork flows
+
+- Allow legitimate external artwork hosts through the image CSP
+- Resolve Fanart.tv TV artwork using show-level identifiers when episode IDs are present
+- Update dashboard layout splits, row padding, and Watch History view icon toggles
+- Keep settings refreshes on the current section while main Settings opens General
+- Reduce password manager update prompts on dashboard refresh
+
+## v0.2.52 - 28 June 2026
+
+Fix - Widen dashboard card view cards when nothing is playing or part-watched
+
+- Increase card width from 385px to 460px in dashboard state 3 (no active session, no part-watched items)
+
+## v0.2.51 - 28 June 2026
+
+Feature - Add dashboard watch history view toggle
+
+- Add Card View and Poster View controls to the left menu above More
+- Make Card View the default dashboard watch history layout
+- Keep TV Shows and Movies history as single horizontal rows in both view modes
+- Scale Card View posters to the card height instead of a fixed poster width
+
+## v0.2.50 - 28 June 2026
+
+Feature - Improve media artwork editing
+
+- Redesign the edit images dialog with poster, logo, background, and YouTube sections
+- Add custom artwork upload controls with search links for finding poster, logo, and background images
+- Load Fanart.tv artwork after TMDB and improve TVDB/key handling for fanart results
+- Store custom background artwork on media records and include it in backups
+- Standardize primary action button styling across the app
+- Hide IMDb rating badges unless OMDb is configured
+
+## v0.2.49 - 28 June 2026
+
+Fix - Improve TV episode season cards
+
+- Show part-watched progress on TV episode cards with clearer inline styling
+- Lay season episodes out in a responsive six-card grid with stable footer actions
+- Load season metadata on demand so episode thumbnails update without wrong repeated artwork
+- Expand and highlight an episode card in place instead of routing when it is clicked
+
+## v0.2.48 - 28 June 2026
+
+Security - Harden webhook auth and sync operations
+
+- Add header and Bearer webhook auth while keeping query-token compatibility
+- Redact sensitive request and diagnostic log values before storage
+- Stop storing the global API key in browser localStorage
+- Add outbound URL validation, fetch timeouts, and cron status reporting
+- Strengthen force-sync locking and isolate scheduled maintenance work
+- Fix season accordion scrolling and improve mobile watch controls
+- Update webhook, scheduler, architecture, troubleshooting, README, and in-app help docs
+
+## v0.2.47 - 26 June 2026
+
+Chore - Clean up repository metadata
+
+- Add the media detail screenshot to the README gallery
+- Remove the obsolete missing telemetry cleanup script
+- Rename the agent instructions file to AGENTS.md for standard discovery
+
+## v0.2.46 - 26 June 2026
+
+Feature - Improve media recommendations
+
+- Sort recommended movies by closest TMDB relevance first
+- Add recommended TV shows to movie detail pages when a matching show can be found
+- Reuse existing movie and TV detail navigation from recommendation cards
+
+## v0.2.45 - 26 June 2026
+
+Fix - Improve photo lightbox controls
+
+- Close the photo viewer when clicking outside the rendered image
+- Navigate to previous or next photos by clicking the left or right side of the image
+- Add accessible labels and clearer sizing for lightbox controls
+
+## v0.2.44 - 26 June 2026
+
+Fix - Restore local media detail routing
+
+- Split media detail, person, lightbox, maintenance, TMDB, and app event code into dedicated frontend modules
+- Load direct movie detail pages from the local archive when memory state is empty
+- Restore movie metadata actions and person profile rendering after the module split
+- Update frontend architecture notes for the module ownership changes
+
+## v0.2.43 - 26 June 2026
+
+Feature - Throttle background sync checks and refactor frontend modules
+
+- Add configuration to run catch-up library syncs every 15 minutes by default instead of every minute
+- Maintain real-time live session tracking and manual dispatches on the 1-minute tick
+- Refactor dashboard sync operations, tool options, and utility helpers into separate modules
+- Update scheduled sync documentation and configuration reference table in README
+
+## v0.2.42 - 26 June 2026
+
+Fix - Delete exact row on manual unwatch
+
+- Remove the clicked watch-history row by id before applying unplayed state
+- Keep the existing media-key cleanup path for related duplicate rows
+
+## v0.2.41 - 26 June 2026
+
+Fix - Complete manual episode watch saves
+
+- Restore manual episode watch batching so the save request is sent
+- Bypass cached show detail responses after a watch update
+
+## v0.2.40 - 26 June 2026
+
+Fix - Save manual episode watches
+
+- Save manually watched TV episodes with the correct episode number field
+- Prevent watch date prompt buttons from triggering native page navigation
+
+## v0.2.39 - 26 June 2026
+
+Fix - Restore tv show detail pages
+
+- Restore direct TV show pages so local episode history and TMDB metadata render reliably
+- Prevent inline media detail views from being overwritten by the explorer list during startup
+- Treat missing poster fallbacks as quiet misses and wrap the hidden password manager fields in a form
+- Ignore local plan workspace output
+
+## v0.2.38 - 26 June 2026
+
+Fix - Show missing future episodes and restore episode thumbnail images on TV show detail pages
+
+- TV show season now synthesizes placeholder rows for episodes announced in season count but not yet published in TMDB season detail endpoint (e.g. upcoming episodes not yet fully listed)
+- next_episode_to_air data from the show-level TMDB response is used to populate title, air date, and overview for those synthesized rows
+- Episode thumbnails now correctly fall back to the season poster when TMDB has no still image for a newly-aired episode (safeImageUrl was rejecting the relative /api/tmdb-poster URL)
+- Episode still images that fail to load from TMDB CDN now automatically swap to the season poster via onerror handler
+- Refactored public/app.js into ES modules under public/modules/ (dashboard, explorer, help-content, images, state, stats, sync, tools, utils)
+- Updated CLAUDE.md and docs/architecture.md to reflect the modular frontend structure
+
+## v0.2.37 - 25 June 2026
+
+Fix - Prevent watched items from being silently dropped from history
+
+- Fix scheduled sync skipping items that had a playstate record but no history row - these were permanently blocked from being logged
+- Add coordinate-based fallback lookup (season + episode + show title) so items imported via Trakt with IMDB keys are found when Emby or Jellyfin returns TVDB keys
+- Switch Plex sync path to use multi-key lookup instead of exact key match, fixing cross-ID misses
+- Remove release date fallback from Emby/Jellyfin watch timestamp logic to prevent bogus historical dates being recorded when no real play date is available
+- Clean up verbose resume sync debug log lines that dumped internal state objects on every tick
+- Expand logs page help panel with plain-English explanations of every log entry type
+- Fix logs terminal auto-scrolling to bottom when user has scrolled up to read earlier entries
+
+## v0.2.36 - 25 June 2026
+
+Fix - Prevent stats leaderboard panel from overflowing viewport on mobile
+
+- Change stats-body-grid column from 1fr to minmax(0, 1fr) so the grid
+
+## v0.2.35 - 25 June 2026
+
+Fix - Contain stats leader card overflow at base level
+
+- Add overflow: hidden to .stats-lb-leader at base (not just in media query)
+- Add min-width: 0 and overflow: hidden to .stats-lb-leader-poster-wrap
+
+## v0.2.34 - 25 June 2026
+
+Fix - Prevent stats leaderboard leader card description from overflowing
+
+- Add min-width: 0 and overflow: hidden to stats-lb-main-copy and stats-lb-leader-copy
+- Remove max-width: 46ch from description paragraph so container constrains it
+- Add word-break: break-word as fallback for long unbroken text
+
+## v0.2.33 - 25 June 2026
+
+Fix - Restore mobile layout for dashboard and stats pages
+
+- Dashboard now scrolls vertically on mobile instead of cramming into fixed-height column splits
+- Now Playing, Part Watched, and Watch History rows each get a natural scrollable height on mobile
+- Stats toolbar and controls stack vertically on narrow screens
+- Stats KPI strip uses 3 columns so 5 cards lay out as 3+2 (no lone orphan card)
+- Stats leaderboard leader card description no longer overflows the card edge on mobile
+- Stats leaderboard podium collapses to single column on small screens
+- Added responsive design guide comment at top of styles.css for future reference
+
+## v0.2.32 - 25 June 2026
+
+Feature - Style Part Watched Mark Watched button to match active nav colour
+
+- Mark Watched button now uses the same light blue wash as the active nav tab background
+- Blue text and border to match the nav tab colour language
+- Hover state deepens the blue tint slightly
+
+## v0.2.31 - 25 June 2026
+
+Feature - Redesign Now Playing card to match Part Watched layout
+
+- Show title on its own line in bold, episode label below in orange
+- Meta rows for Season/Ep, User, Device, and App Used pill
+- App Used source badge moved below Device in meta rows
+- Progress bar and playback clock at bottom of details column
+- Card uses same flex layout, poster sizing, and spacing as Part Watched
+
+## v0.2.30 - 24 June 2026
+
+Fix - Widen dashboard history cards when no active content
+
+- Increase max-width on history row cards from 14rem to 16rem so posters fill the taller row in the idle/no-part-watched dashboard state
+
+## v0.2.29 - 24 June 2026
+
+Fix - Correct Now Playing poster aspect ratio on dashboard
+
+- Remove max-width constraint from now-poster-large-wrapper that was overriding the 2:3 aspect-ratio calculation and making posters appear too narrow
+
+## v0.2.28 - 24 June 2026
+
+Feature - Redesign dashboard with Part Watched section and card-based history
+
+- Moved Part Watched onto the dashboard as a horizontal row between Now Playing and Watch History, and removed the standalone Part Watched page and nav tab
+- Split the dashboard into fixed proportions (Now Playing 30%, Part Watched 20%, Watch History 50%), collapsing to 30/70 when nothing is part-watched
+- Reserved a consistent Now Playing height so the layout no longer jumps when playback stops
+- Turned Watch History into vertical poster cards with a centred title, episode title (TV), season/episode, and watched date
+- Established a poster-size hierarchy that steps down from Now Playing through Part Watched to Watch History
+
+## v0.2.27 - 24 June 2026
+
+Fix - Redesign stats report layout
+
+- Reworked the Stats page into KPI, leaderboard, split, platform, bookend, and activity sections
+- Made the Most Played report use consistent poster cards, rank columns, stat pills, and bottom-aligned progress bars
+- Updated the Stats help topic to match the redesigned report layout
+
+## v0.2.26 - 24 June 2026
+
+Chore - Add AGPL-3.0 license
+
+## v0.2.25 - 24 June 2026
+
+Chore - Remove scratch files and add project hygiene files
+
+- Remove entire scratch/ directory (40 debug scripts, logs, diffs - never belonged in git)
+- Remove dated security audit snapshot (docs/security-audit-2026-06-20.md)
+- Add scratch/ to .gitignore so it stays out permanently
+- Add .editorconfig for consistent indentation and line endings
+- Add .gitattributes to normalise line endings to LF on commit
+
+## v0.2.24 - 24 June 2026
+
+Fix - Apply custom Edit Images poster across the site
+
+- Choosing a poster via Edit Images now updates the dashboard, explorer and detail pages, not just the page you set it on
+- Propagate a chosen poster to every episode of a show / every play of a movie so artwork stays consistent everywhere
+- Resolve the picker's proxy image URLs so the selected poster actually caches instead of silently failing
+- Add a version token to changed posters so a new choice replaces the old image instead of showing a stale cached one
+- Media detail pages now prefer your chosen poster over the default TMDB artwork
+
+## v0.2.23 - 23 June 2026
+
+Fix - Cache TV next airing dates
+
+- Build and maintain a local next-airing cache for TV shows from TMDB.
+- Use cached upcoming episode dates for TV Shows sorting and list display.
+- Keep Next Airing locked to the list view with earliest episodes first.
+- Keep desktop controls inline while preserving the mobile Controls menu.
+- Document the scheduler-managed next-airing cache.
+
+## v0.2.22 - 23 June 2026
+
+Fix - Stop local watches implying availability
+
+- Prevent watched movie records from forcing the Available in 1080p badge
+- Keep Seerr request pills tied to verified app availability status
+
+## v0.2.21 - 23 June 2026
+
+Fix - Verify Seerr availability against apps
+
+- Use configured Plex, Emby, and Jellyfin lookups for availability badges instead of Seerr cached status
+- Preserve Seerr request and pending-state handling on detail pages
+- Document that availability badges come from configured media apps
+
+## v0.2.20 - 23 June 2026
+
+Fix - Refresh sidebar update check
+
+- Refresh GitHub changelog metadata during sidebar version checks so newly published releases are flagged immediately
+- Keep architecture docs aligned with the refreshed update-check behavior
+
+## v0.2.19 - 23 June 2026
+
+Fix - Collapse mobile page controls
+
+- Keep page controls expanded on desktop while collapsing them into a Controls dropdown on mobile
+- Apply the mobile dropdown pattern to explorer, history, search, part watched, stats, settings, and help navigation
+- Keep media detail actions grouped consistently across movie and TV pages
+
+## v0.2.18 - 23 June 2026
+
+Fix - Send TV 4K Seerr seasons
+
+- Send missing season numbers with whole-show TV 4K Seerr requests
+- Keep season-specific Seerr requests using their single selected season
+- Add scratch helpers used while checking local layout and style diagnostics
+
+## v0.2.17 - 23 June 2026
+
+Feature - Inline calendar date+time picker for mark-watched prompt
+
+- Replace plain date input with a full inline calendar picker in the mark-watched dialog
+- Add hour/minute selects so users can set an exact time alongside the date
+- Selected day uses theme colour variable (var(--blue)) for consistent theming
+- Primary button colour now references var(--blue) CSS token instead of hardcoded hex
+- Remove the redundant Now button from the time picker section
+
+## v0.2.16 - 23 June 2026
+
+Feature - Flag available updates on the sidebar version badge
+
+- Dashboard load now runs a quick update check against GitHub
+- When a newer release exists, the bottom-left badge shows "vX.Y.Z - Update available"
+- The update state is accent-highlighted and links to the changelog as before
+
+## v0.2.15 - 23 June 2026
+
+Feature - Show current version and check GitHub for newer releases on the Changelog screen
+
+- Settings → Changelog now shows your running build version with an update banner
+- The app checks GitHub for newer published releases and highlights what's changed since your build
+- Added a Check for updates button to re-poll GitHub on demand
+- Falls back to the bundled changelog if GitHub can't be reached
+
+## v0.2.14 - 23 June 2026
+
+Feature - Instant media detail loads and clickable Part Watched posters
+
+- Remove the blank flash when opening or refreshing a TV show, movie, or person page by rendering the local library data immediately instead of waiting for settings to finish loading
+- Make Part Watched posters clickable so they link through to the show or movie page
+
+## v0.2.13 - 23 June 2026
+
+Fix - Restore correct show names for Plex episode watch history records
+
+- TV episodes from Plex no longer save as "Unknown Show" when the show name was already available
+- Existing "Unknown Show" episodes are now repaired on startup using the show name recorded in their sync telemetry
+- Episode numbers are preserved in episode titles instead of being lost (no more "S10E0?")
+
+## v0.2.12 - 23 June 2026
+
+Fix - Resolve TV show episodes displaying as "Unknown Show" in watch history
+
+- Plex episode webhooks no longer use the episode title as a fallback for the show name when grandparentTitle is missing
+- New episodes arriving with an unresolvable show title now recover the correct name from existing DB records with the same TMDB or TVDB ID
+- On each server startup, existing "Unknown Show" episode records are automatically backfilled with the correct show title if a match can be found in the database
+
+## v0.2.11 - 23 June 2026
+
+Feature - Add IMDb rating badge to TV show pages
+
+- Fetch OMDb rating for TV shows in hydrateImmersiveShowModal when OMDb is configured, same as movies
+- Display as a % rating pill (e.g. IMDb 85%) in the ratings row next to the TMDB badge
+- Fall back to a plain "IMDb View" pill (no OMDb key needed) when only the IMDb ID is known
+- Remove "View on IMDb" action button from the top-bar actions menu for shows
+- Use tmdbData external_ids.imdb_id as an additional IMDb ID source for shows
+
+## v0.2.10 - 23 June 2026
+
+Feature - IMDb ratings via OMDb, collapsible mobile action menus, and movie refresh fix
+
+- Add OMDb integration: configure an API key in Settings → Integrations to display IMDb ratings as a % badge next to TMDB on movie pages, cached 7 days (also via OMDB_API_KEY env var)
+- Move IMDb link from top-bar actions into the ratings row as a styled rating pill
+- Wrap movie and TV show action buttons in a collapsible "Movie/Show actions" menu on mobile (≤640px), keeping IMDb and YouTube links outside the menu
+- Fix mobile top bar layout: title truncates with ellipsis, actions area becomes full-width horizontal scroll row
+- Fix movie page refresh "Content not found" for titles with special characters (e.g. Angels & Demons) - normalize special chars in title search comparison and add first-word fallback search on the client
+- Add omdb_cache SQLite table (id = IMDb tt-id, 7-day TTL)
+
+## v0.2.9 - 21 June 2026
+
+Chore - Trigger CI to test updated workflow configuration
+
+## v0.2.8 - 21 June 2026
+
+Docs - Add Now Playing screenshot and reorder README screenshots
+
+- Added Now Playing dashboard screenshot as the first image
+- Moved Part Watched to second position
+- Removed em dashes from all screenshot captions
+
+## v0.2.7 - 21 June 2026
+
+Docs - Update README intro and add screenshots; fix search dropdown in light mode
+
+- Reworded README intro to lead with personal watch history tracker and playstate sync
+- Removed "styled like Sonarr/Radarr/Jellyseerr" phrasing
+- Added mentions of easy configuration and light/dark theme options
+- Added Screenshots section to README with all 8 app screenshots
+- Fixed global search dropdown using hardcoded dark hex colours - replaced with CSS variables so it renders correctly in light mode
+
+## v0.2.6 - 21 June 2026
+
+Chore - Upgrade dependencies and fix Express 5 wildcard route syntax
+
+- Upgrade express 4 → 5.2.1 (requires named wildcards in route patterns)
+- Fix app.all('/api/*') and app.get('*') to use named params for Express 5 compat
+- Upgrade better-sqlite3 11 → 12.11.1 (drops Node 18, safe on Node 20+)
+- Upgrade sharp 0.34 → 0.35.2
+- Upgrade actions/checkout v4/v6 → v7 across all workflows (v6 did not exist)
+- Upgrade actions/setup-node v4 → v6
+- Upgrade docker/setup-buildx-action v3 → v4
+
+## v0.2.5 - 21 June 2026
+
+Chore - Trigger CI to test updated workflow configuration
+
+## v0.2.4 - 21 June 2026
+
+Chore - Bump CI to Node 24 and CodeQL action v4
+
+- Update node-version from 20 to 24 in npm-audit job (Node 20 deprecated on GitHub Actions)
+- Upgrade github/codeql-action from v3 to v4 (v3 deprecates December 2026)
+
+## v0.2.3 - 21 June 2026
+
+Chore - Remove all legacy cloud-backend references and dead migration scripts
+
+- Deleted all scripts that depended on the legacy cloud SDK (migrate, rebuildPlaystate, repairReleaseDates, localForceSync, check_plex_history, testSessions)
+- Removed the legacy cloud SDK from package.json devDependencies; npm audit now reports 0 vulnerabilities
+- Renamed the auth module's change-listener and current-user helpers to onAuthChange and currentUser
+- Renamed the watch-record normalization helper to normalizeWatchRecordForInsert in the data repository
+- Scrubbed all legacy cloud-backend references from code comments across index.js, scheduled.js, db.js, app.js, tmdbGateway.js, and showProgressCache.js
+- Cleaned CLAUDE.md: removed migrate command, removed the legacy migration section, updated architecture descriptions
+- Cleaned docs/architecture.md, docs/now-playing.md, docs/scheduled-sync.md, docs/sqlite-schema.md of legacy cloud-backend references
+- Removed legacy emulator entries from .gitignore and .dockerignore
+
+## v0.2.2 - 21 June 2026
+
+Security - Harden server, enforce default-password change, add docs
+
+- Add HTTP security headers: Permissions-Policy, HSTS (when COOKIE_SECURE=true), frame-src YouTube in CSP
+- Force redirect to Settings → General with a warning banner when the default admin/admin password is still set; nav is locked until the password is changed
+- Startup security summary warns on default or short passwords and logs which secrets are auto-generated vs pinned
+- Add /health endpoint returning { ok, ts } for Docker HEALTHCHECK and uptime monitors
+- Graceful shutdown on SIGTERM/SIGINT: stops Plex WS listener, drains HTTP, closes SQLite
+- Set SQLite file permissions to 0o600 on open
+- Docker Compose: add no-new-privileges and CPU/memory resource limits
+- Add docker-compose.secure.yml overlay: read-only rootfs, tmpfs /tmp, required env-var enforcement
+- Add .github/workflows/security.yml: npm audit, CodeQL, dependency-review on push/PR/daily cron
+- Add SECURITY.md with supported versions, threat model, and vulnerability reporting
+- Add docs/hardening.md: credentials, HTTPS reverse-proxy (Caddy/NGINX/Traefik/Cloudflare), Docker hardening, webhook setup, backups, secret rotation
+
+## v0.2.1 - 21 June 2026
+
+Fix - Honour manual version bumps and auto-rebase before push
+
+- update-changelog.js now respects package.json version when it is higher than the next patch increment (fixes major/minor bumps being overwritten by CI)
+- pre-push hook now runs git pull --rebase origin main before the build check so pushes never require a manual rebase
+- Reset version to 0.2.0 (CI had overwritten it to 0.1.57)
+
+## v0.2.0 - 21 June 2026
+
+Chore - Bump version to 0.2.0 (rollback checkpoint)
+
+- Version stamp before security hardening work begins
+
+## v0.1.56 - 21 June 2026
+
+Fix - Collapse duplicate daily history rows
+
+- Show one History entry per movie or TV episode per calendar day
+- Preserve later-day rewatches as separate History entries
+- Document the History page daily collapse behavior
+
+## v0.1.55 - 21 June 2026
+
+Feature - Refine history browsing and TV matching
+
+- Add movie and TV filters to the History page
+- Add grid, list, and card view options for watch history
+- Keep History lazy-loading through the full watch log
+- Normalize year-suffixed TV show titles for matching and artwork lookup
+- Ignore local .random scratch files
+
+## v0.1.54 - 21 June 2026
+
+Fix - Recover show metadata from episode ids
+
+- Retry TMDB detail lookups by title or external IDs when a stored ID returns 404
+- Prevent episode-level TMDB IDs from being exposed as TV show IDs
+- Prefer resolved TMDB IDs for Seerr availability checks
+
+## v0.1.53 - 20 June 2026
+
+Feature - Add Cache settings page for image storage management
+
+- New Cache page in Settings showing disk usage for posters, backdrops, and profiles
+- Displays file count and total size on disk for each image type
+- Clear buttons per type and a Clear All button to free disk space
+- Refresh button to reload stats on demand
+- Added GET /api/cache-stats and POST /api/clear-cache backend endpoints
+
+## v0.1.52 - 20 June 2026
+
+Fix - Read Plex child Guid elements for TMDB IDs in live session tracking
+
+- plexGuidIds now parses child <Guid id="tmdb://..."/> elements from the
+- showIsNowPlaying in renderShowModalContent now also matches by show
+
+## v0.1.51 - 20 June 2026
+
+Fix - Suppress Seerr request buttons when show is actively playing
+
+- renderSeerrRequestPill now respects localAvailable for TV shows (was
+- renderShowModalContent passes localAvailable=true when the show's TMDB
+
+## v0.1.50 - 20 June 2026
+
+Fix - Load TV show details for first-watch now-playing sessions
+
+- When a now-playing show has never been watched, its TMDB ID may not
+- In the slug-based show route, if the show is not in the local library,
+
+## v0.1.49 - 20 June 2026
+
+Feature - Edit Images fanart support, bigger dialog, TV show breadcrumb and UI polish
+
+- Edit Images dialog now pulls posters and logos from Fanart.tv alongside TMDB, with source badges (TMDB / Fanart) on each image tile
+- Edit Images dialog widened from 680px to 980px with taller image grid and two-column logo layout
+- New /api/fanart-images endpoint returns all Fanart.tv posters and logos for a given movie or TV show
+- TV show page breadcrumb now shows show name (e.g. "TV Shows - Aussie Gold Hunters")
+- Season accordion sections made virtually transparent
+- Filmography filter and sort controls replaced with pill toggle buttons (Movies / TV Shows, Popularity / Newest / Oldest)
+
+## v0.1.48 - 20 June 2026
+
+Feature - Add Fanart.tv integration and filmography grid overhaul
+
+- Add Fanart.tv as a parallel fallback source for posters, backdrops, and logo art alongside TMDB
+- Query TMDB and Fanart.tv simultaneously to reduce latency and share load
+- Built-in project API key included; optional personal key configurable in Settings → API Keys
+- Add Fanart.tv settings panel in API Keys with attribution links to fanart.tv and TMDB
+- Fix movies and TV shows explorer pagination stopping early due to scroll-arm guard
+- Overhaul cast member filmography: 4-column grid with 150px posters, details to the right, lazy-load on scroll
+- Raise /api/tmdb-poster and /api/tmdb-profile rate limits from 30 to 300 requests/minute
+- Add Thank You section to README crediting TMDB and Fanart.tv
+
+## v0.1.47 - 20 June 2026
+
+Fix - Throttle TMDB poster downloads to prevent rate-limit 429 errors
+
+- Add concurrency semaphore capping simultaneous TMDB image downloads to 8 (was unlimited)
+- Add per-path inflight deduplication so duplicate requests share one download instead of firing separately
+- Stop writing permanent failure records to poster_cache on transient 429/503 responses so the next request retries immediately
+- Remove redundant markPosterMissing calls from handleTmdbPoster and handleTmdbProfile that were overwriting 24h failed status with 7-day missing status
+
+## v0.1.46 - 20 June 2026
+
+Fix - Replace inline event handlers to comply with Content Security Policy
+
+- Remove all onclick/onerror attributes from dynamically-rendered HTML templates
+- Add delegated document click handler for cast cards, trailers, review toggles, and person photos
+- Add delegated document error handler (capture phase) for image fallbacks
+- Replace onerror attributes with data-err values (fav, hide, hide-parent, hide-closest-btn, hide-show-next)
+
+## v0.1.45 - 20 June 2026
+
+Feature - Overhaul Edit Images dialog with tabbed layout and better logo display
+
+- Rename "Edit Image" button to "Edit Images" on movie and TV show pages
+- Split dialog into four tabs: Poster, Logo / Title Art, YouTube Show, Custom Image
+- YouTube URL fetcher and custom image URL are now isolated to their own tabs
+- Logo grid switches to single-column full-width layout with natural aspect ratio (no more forced 16:9)
+- Language badge shown under each logo so users can identify English vs other languages
+- Status message warns when no English logo is found and falls back to other languages
+- Poster tab falls back to showing the current saved poster URL when TMDB has no results
+- Build minimal tmdbData hint from show/movie record when TMDB details cache is cold
+- Bump TMDB details schema version to 4 to force re-fetch of image data on stale cache entries
+
+## v0.1.44 - 20 June 2026
+
+Fix - Remove browser-side direct media server session polling
+
+- Removed direct browser fetch calls to Plex, Emby, and Jellyfin that violated CSP connect-src policy
+- Server scheduler already polls live sessions every minute via fetchLiveSessions, making browser-side probing redundant
+- Eliminates API key exposure in browser network traffic (Plex tokens and Emby/Jellyfin keys were visible in browser requests)
+
+## v0.1.43 - 20 June 2026
+
+Fix - Correct stats plays count and promote Stats to primary nav
+
+- Stats "Plays" card now shows movie-only or episode-only count when filtered, instead of the combined total
+- Moved Stats nav tab from the "More" section into the primary sidebar navigation
+
+## v0.1.42 - 20 June 2026
+
+Feature - Add stats review reports
+
+- Add year, month, and all-time stats review reports with poster-ranked media
+- Add media and period filters for movies, TV shows, and combined watch history
+- Show period-specific first and last plays, platform breakdowns, and watch activity
+- Make stats report media cards open their movie or TV show pages
+- Document the stats review workflow in README, architecture docs, and in-app help
+
+## v0.1.41 - 20 June 2026
+
+Feature - Add settings changelog view
+
+- Make the sidebar version a centered link to Settings Changelog
+- Add a changelog settings tab backed by changelog.json
+- Keep Help focused by hiding topics already covered in Settings guidance
+- Document settings tab routing in the architecture guide
+
+## v0.1.40 - 20 June 2026
+
+Fix - Show x/x watched on TV show grid cards and self-heal missing episode totals
+
+- Move watched count from overlay badge above poster to plain text below title, matching movie card date style
+- Also show last watched date below the watched count on TV show grid cards
+- Always render watched count as x/x format; fall back to x/? when total is not yet known
+- On server startup, queue any shows with total_episodes of 0 for a background TMDB refresh so the cache self-heals without a full rebuild
+
+## v0.1.39 - 20 June 2026
+
+Docs - Remove push-to-git workflow section from README
+
+- Section belongs in CLAUDE.md only; no end-user value in README
+
+## v0.1.38 - 20 June 2026
+
+Docs - Update README backup section and tighten push-to-git README check rule
+
+- Remove stale backup destinations (Local/Synced Folder, S3, WebDAV, OneDrive, Dropbox) from README - only Backblaze B2 remote is supported now
+- Update Key Features blurb to reflect local + Backblaze B2 only
+- Add backup destinations and Key Features rows to the CLAUDE.md doc-sync table
+- Add explicit reminder to always read README sections before assuming they are current
+
+## v0.1.37 - 20 June 2026
+
+Fix - Simplify backup settings UI and fix light-theme input styling
+
+- Fix light-theme: input fields in backup destination card were rendering with dark backgrounds due to a hardcoded .field override; added html.light-mode .field and input[type="number"] rules to counter it
+- Remove all remote backup destination types except Backblaze B2 (dropped folder, WebDAV, S3, OneDrive, Dropbox from UI and JS)
+- Split backup settings into two independent rows: Automatic Local Backups and Automatic Remote Backups, each with its own contextual help panel on the right
+- Move Backblaze B2 setup guide from inline destination card into the right-side help panel
+
+## v0.1.36 - 20 June 2026
+
+Fix - Rename existing node user to plembfin instead of creating new uid 1000
+
+- node:22-slim ships a 'node' user at uid 1000; useradd -u 1000 fails with exit 4
+- Use usermod/groupmod to rename the existing user/group to plembfin instead
+
+## v0.1.35 - 20 June 2026
+
+Fix - Add buildx setup for Docker attestation support and sync CLAUDE.md
+
+- Added docker/setup-buildx-action@v3 before build-push in all three workflow jobs
+- The default docker driver does not support provenance/SBOM attestations; buildx container driver does
+- Also applied npm rebuild native modules fix to docker-publish.yml
+- Updated CLAUDE.md README sync table to include README.md in pre-push checklist
+
+## v0.1.34 - 20 June 2026
+
+Fix - Rebuild native modules after npm ci --ignore-scripts in CI
+
+- npm ci --ignore-scripts skips better-sqlite3 and sharp postinstall steps
+- Added npm rebuild better-sqlite3 sharp after install in both workflow jobs
+
+## v0.1.33 - 19 June 2026
+
+Fix - Align show detail hero layout
+
+## v0.1.32 - 19 June 2026
+
+Feature - Add edit watch date quick choices
+
+## v0.1.31 - 19 June 2026
+
+Fix - Persist duplicate episode watch date edits
+
+## v0.1.30 - 19 June 2026
+
+Fix - Clear resolved part watched rows
+
+## v0.1.29 - 19 June 2026
+
+Fix - Prompt for watch date when marking partly watched items as watched
+
+## v0.1.28 - 19 June 2026
+
+Fix - Resolve clearMissingTelemetryButton, deduplicate progress records, and improve error feedback on progress actions
+
+## v0.1.27 - 19 June 2026
+
+Feature - Add Part Watched section with playstate update actions
+
+## v0.1.26 - 19 June 2026
+
+Fix - Decode HTML entities in active sessions and make Now Playing duplicate detection more robust
+
+## v0.1.25 - 19 June 2026
+
+Fix sync issues sub-category expand-on-open and filter content-not-in-library false positives
+
+## v0.1.24 - 19 June 2026
+
+Fix sync queue infinite retry, episode-level IDs, and Plex GUID lookup performance
+
+## v0.1.23 - 19 June 2026
+
+Add Appearance settings tab with media page section toggles
+
+## v0.1.22 - 19 June 2026
+
+Add media images section to show and movie detail pages
+
+## v0.1.21 - 19 June 2026
+
+Add logo/title art support for shows and movies
+
+## v0.1.20 - 19 June 2026
+
+Improve light mode polish, UI layout, and episode view
+
+## v0.1.19 - 19 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.1.18 - 19 June 2026
+
+Fix - Align media page top bars
+
+## v0.1.17 - 19 June 2026
+
+Fix - Resolve tv metadata by external ids
+
+## v0.1.16 - 19 June 2026
+
+Fix - Preserve tv metadata after status refresh
+
+## v0.1.15 - 19 June 2026
+
+Fix - Use app availability for tv requests
+
+## v0.1.14 - 19 June 2026
+
+Feature - Add dedicated history page
+
+## v0.1.13 - 19 June 2026
+
+Fix - Resolve Seerr status pending display bug and add TV show support
+
+## v0.1.12 - 19 June 2026
+
+Fix - Update active movie and show TMDB IDs when resolved to ensure Seerr status refreshes correctly
+
+## v0.1.11 - 19 June 2026
+
+Fix - Differentiate standard and 4K pending requests from Seerr
+
+## v0.1.10 - 19 June 2026
+
+Fix - Make Seerr media-status path fallback robust to non-404 errors
+
+## v0.1.9 - 19 June 2026
+
+Docs - Refine webhook auth details, remove legacy migration notes, and clean up Seerr description in README
+
+## v0.1.8 - 19 June 2026
+
+Docs - Update README with fresh setup guide and seerr-style layout
+
+## v0.1.7 - 19 June 2026
+
+Improve Seerr availability display and remove sync target pills
+
+## v0.1.6 - 19 June 2026
+
+Fix routing to stay on config-sensitive pages on refresh
+
+## v0.1.5 - 18 June 2026
+
+Fix - Enhance seerr request controls
+
+## v0.1.4 - 18 June 2026
+
+Fix - Load config before media routes
+
+## v0.1.3 - 18 June 2026
+
+Fix - Refine seerr settings integration
+
+## v0.1.2 - 18 June 2026
+
+Chore - Clean up temporary scratch files
+
+## v0.1.1 - 18 June 2026
+
+Chore - Bump version to 0.1.0
+
+## v0.1.0 - 18 June 2026
+
+Feature - Move search filter tabs to middle top inline, center them, and fix show poster fallbacks
+
+## v0.0.72 - 18 June 2026
+
+Feature - Reorder TV show list columns to poster/title/next-airing/episodes/seasons/last-watched/year
+
+## v0.0.71 - 18 June 2026
+
+Feature - Add Hide Fully Watched and Hide Ended filters to TV Show library
+
+## v0.0.70 - 18 June 2026
+
+Prevent browser password managers from autofilling search inputs
+
+## v0.0.69 - 18 June 2026
+
+Fix desktop poster default size, isolate responsive poster size storage, and update watched pill text color
+
+## v0.0.68 - 18 June 2026
+
+Fix mobile navigation hamburger menu toggle and usability on iOS Safari
+
+## v0.0.67 - 18 June 2026
+
+Implement TV show progress caching system and layout styling improvements
+
+## v0.0.66 - 18 June 2026
+
+Fix mobile view display and scroll faults (explorer controls overlay, cast section layout, and season accordion scroll jumps)
+
+## v0.0.65 - 17 June 2026
+
+Fix - Align explorer header and clear search
+
+## v0.0.64 - 17 June 2026
+
+Fix - Refine sidebar layout copy
+
+## v0.0.63 - 17 June 2026
+
+Fix - Update dashboard sidebar and playback copy
+
+## v0.0.62 - 17 June 2026
+
+Fix - Update header logo
+
+## v0.0.61 - 17 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.60 - 17 June 2026
+
+Fix - List all credits on biography page and fix refresh redirect bug
+
+## v0.0.59 - 17 June 2026
+
+Fix navbar search enter key, sticky controls background, and refresh redirects on detail views
+
+## v0.0.58 - 17 June 2026
+
+Feature - Add alphabetical quick-nav strip to Movies and TV Shows pages
+
+## v0.0.57 - 17 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.56 - 17 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.55 - 17 June 2026
+
+Enhancement - Handle local cached storage URLs in cacheArtworkFromUrl
+
+## v0.0.54 - 16 June 2026
+
+Fix - Handle cached storage image URLs in poster processing
+
+## v0.0.53 - 16 June 2026
+
+Fix - Add request deduplication to prevent concurrent poster processing race conditions
+
+## v0.0.52 - 16 June 2026
+
+Feature - Event-driven Plex unwatch detection via notification WebSocket
+
+## v0.0.51 - 16 June 2026
+
+Dedup movies, add media delete, enrich cast pages
+
+## v0.0.50 - 16 June 2026
+
+Fix - Increase restore push concurrency
+
+## v0.0.49 - 16 June 2026
+
+Fix - Stabilize backup restore sync
+
+## v0.0.48 - 16 June 2026
+
+Merge pull request #3 from Lasikiewicz/fix/restore-earlier-date-invariant
+
+## v0.0.47 - 16 June 2026
+
+Merge pull request #2 from Lasikiewicz/fix/authoritative-restore-source-of-truth
+
+## v0.0.46 - 16 June 2026
+
+Fix now playing card height - expand to fit full poster
+
+## v0.0.45 - 16 June 2026
+
+Fix media detail page to 3-column layout (poster | meta | facts)
+
+## v0.0.44 - 16 June 2026
+
+Fix - Remove post-restore cron pause; rely on lastRestoreAt filter instead
+
+## v0.0.43 - 16 June 2026
+
+Fix - Skip cron-imported items played before the last restore date
+
+## v0.0.42 - 16 June 2026
+
+Fix - Pause cron sync after remote backup restore + add manual pause/resume API
+
+## v0.0.41 - 16 June 2026
+
+Feature - Add View on IMDb links to movie and TV show detail pages
+
+## v0.0.40 - 16 June 2026
+
+Fix - Prevent cron sync from creating duplicate records after restore
+
+## v0.0.39 - 16 June 2026
+
+Feature - Complete remote backups on restore tab
+
+## v0.0.38 - 16 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.37 - 16 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.36 - 16 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.35 - 16 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.34 - 16 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.33 - 16 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.32 - 16 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.31 - 16 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.30 - 16 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.29 - 16 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.28 - 16 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.27 - 16 June 2026
+
+Fix - Prevent resume progress sync when item is marked watched
+
+## v0.0.26 - 16 June 2026
+
+Chore - Add comprehensive logging for sync debugging
+
+## v0.0.25 - 16 June 2026
+
+Fix - Allow resume progress sync even when timestamp is missing
+
+## v0.0.24 - 16 June 2026
+
+Chore - Commit pending changes
+
+## v0.0.23 - 16 June 2026
+
+Fix - Ignore stale resume progress polls
+
+## v0.0.22 - 16 June 2026
+
+Fix - Prefer newer playstate over resume progress
+
+## v0.0.21 - 16 June 2026
+
+Fix - Dedupe media cards and sync plex resume state
+
+## v0.0.20 - 16 June 2026
+
+Fix - Sync resume progress and dedupe library cards
+
+## v0.0.19 - 16 June 2026
+
+Fix - Backfill played emby items without dates
+
+## v0.0.18 - 16 June 2026
+
+Fix - Harden emby watch sync
+
+## v0.0.17 - 16 June 2026
+
+Fix - Sync show watch state edits
+
+## v0.0.16 - 15 June 2026
+
+Fix - Filmography watched status now checks all server watched movies/shows instead of only partially-loaded explorer state and limited dashboard preview
+
+## v0.0.15 - 15 June 2026
+
+Fix - Replace intermediate modal re-render with lightweight button state update when marking unwatched movie as watched - eliminates double TMDB fetch and loading flicker during save
+
+## v0.0.14 - 15 June 2026
+
+Redesign settings tab layout into 60/40 splits with contextual guides and compaction
+
+## v0.0.13 - 15 June 2026
+
+Fix filmography details back navigation, watch status contexts, and stale header action state leaks
+
+## v0.0.12 - 15 June 2026
+
+Update filmography to show all credits and display watched status
+
+## v0.0.11 - 15 June 2026
+
+Fix watch history persistence and add UI saving indicators for TV shows and movies
+
+## v0.0.10 - 15 June 2026
+
+Feature - Backblaze B2 backup option + restore from any destination
+
+## v0.0.9 - 15 June 2026
+
+Docs - Clarify OneDrive setup for personal accounts with no Azure directory
+
+## v0.0.8 - 15 June 2026
+
+Feature - Add local/synced-folder backup destination + simpler OneDrive setup
+
+## v0.0.7 - 15 June 2026
+
+Feature - Remote backup destinations + mark non-library movies watched
+
+## v0.0.6 - 15 June 2026
+
+Merge branch 'main' of https://github.com/Lasikiewicz/plembfin
+
+## v0.0.5 - 15 June 2026
+
+Feature - Improve TV watch controls and search results
+
+## v0.0.4 - 15 June 2026
+
+Feature - Improve media navigation and watch status
+
+## v0.0.3 - 15 June 2026
+
+Fix - Restore local artwork and add demo content
+
+## v0.0.2 - 15 June 2026
+
+CI - Validate builds before publishing
+
+## v0.0.1 - 15 June 2026
+
+Feature - Add versioning and local artwork cache

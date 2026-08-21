@@ -14,26 +14,43 @@ Agent instructions for working with this codebase.
 - **No Browser Actions Unless Asked** - Never open web browsers/browser tools unless the user has explicitly requested it. Test commands are part of the normal project checks: run `npm test` or `npm run build` when a change touches code covered by those checks or when the user asks for verification.
 - **Act immediately on simple requests** - If the user describes a clear, specific change, make it directly without preamble, planning steps, or explanation. Save analysis for genuinely complex or ambiguous tasks.
 
-## Branching model: `alpha` → `main`
+## Branching model: `develop` → `alpha` → `main`
 
-Day-to-day work lands on the `alpha` branch, never directly on `main`. `main` only
-moves when the separate "Merge alpha with main" command explicitly promotes `alpha`
-onto it, and each promotion becomes exactly one release (one changelog entry, one
-version bump, one `:latest` + versioned Docker image publish). `alpha` gets the same
-secret-scan and security CI coverage as `main`, so problems surface on every push.
-Every push to `alpha` also builds, verifies, and publishes a rolling pre-release image
-to `ghcr.io/lasikiewicz/plembfin:alpha` (also tagged `alpha-<build>` for a specific
-build) - unlike the `main` release pipeline, this never touches `changelog.json` or the
-package version. It does bump a separate `changelog.alpha.json` build counter and record
-a changelog entry for the push, committed back to `alpha` as `chore: bump alpha build for
-<sha>`; that counter and its entries reset the next time "Merge alpha with main" lands.
-The running alpha build shows this as `v<version>.<build> alpha` (e.g. `v0.8.0.7 alpha`)
-in the sidebar and Settings → About, which also lists the alpha build history separately
-from published releases.
+Day-to-day work lands on the `develop` branch, never directly on `alpha` or `main`.
+`alpha` only moves when the separate "Force to alpha" command explicitly promotes
+`develop` onto it; `main` only moves when "Force to main" explicitly promotes `alpha`
+onto it, and each promotion to `main` becomes exactly one release (one changelog entry,
+one version bump, one `:latest` + versioned Docker image publish).
+
+**`develop` is not covered by `secret-scan.yml` or `security.yml`** - those only trigger
+on `main` and `alpha` - so a leaked secret or vulnerable dependency isn't caught until
+"Force to alpha" promotes it. `develop` builds, verifies, and publishes a rolling image
+to `ghcr.io/lasikiewicz/plembfin:develop` (also tagged `develop-<build>`) on every push,
+via `docker-publish-develop.yml`. It never touches `changelog.json`/`changelog.alpha.json`
+or the package version. It bumps its own standalone `changelog.develop.json` build
+counter, committed back as `chore: bump develop build for <sha>`. This counter is
+deliberately **not** derived from alpha's or main's version - it never compares against
+a parent branch's version string, so it can't appear to regress. It only resets when
+"Force to alpha" explicitly zeroes it as part of that promotion - never inferred. The
+running develop build shows this as `Develop Build <n>` in the sidebar and Settings →
+About.
+
+`alpha` gets the same secret-scan and security CI coverage as `main`, so problems
+surface as soon as something is promoted to it. Every push to `alpha` builds, verifies,
+and publishes a rolling pre-release image to `ghcr.io/lasikiewicz/plembfin:alpha` (also
+tagged `alpha-<build>` for a specific build) - unlike the `main` release pipeline, this
+never touches `changelog.json` or the package version. It does bump a separate
+`changelog.alpha.json` build counter and record a changelog entry for the push,
+committed back to `alpha` as `chore: bump alpha build for <sha>`; that counter
+self-heals to a fresh `baseVersion` and build 1 whenever it detects `main`'s version has
+moved on since the last alpha build, and also resets explicitly the next time "Force to
+main" lands. The running alpha build shows this as `v<version>.<build> alpha` (e.g.
+`v0.8.0.7 alpha`) in the sidebar and Settings → About, which also lists the alpha build
+history separately from published releases.
 
 ## "Push to git" command
 
-When the user says **"Push to git"** (exactly), run this full pre-push workflow before committing to `alpha`:
+When the user says **"Push to git"** (exactly), run this full pre-push workflow before committing to `develop`:
 
 ### 1 - Review all pending changes
 ```bash
@@ -129,82 +146,124 @@ Stage all modified files **except** `data/`, `node_modules/`, and any secrets. C
 
 ### 6 - Push
 ```bash
-git push origin alpha
+git push origin develop
 ```
-This lands the commit on `alpha`, not `main`. Secret-scan and security CI run against
-it, and `docker-publish-alpha.yml` builds, verifies, and publishes a rolling
-pre-release image to `ghcr.io/lasikiewicz/plembfin:alpha`. Nothing touches
-`changelog.json` or the package version, and `:latest` is not updated - that only
-happens when "Merge alpha with main" runs.
+This lands the commit on `develop`, not `alpha` or `main`. `docker-publish-develop.yml`
+builds, verifies, and publishes a rolling image to `ghcr.io/lasikiewicz/plembfin:develop`.
+Nothing touches `changelog.json`/`changelog.alpha.json` or the package version, `:latest`
+is not updated, and - unlike `alpha` - **no secret-scan or security CI runs against this
+push**; that coverage only starts once "Force to alpha" promotes it.
 
-#### Expect `alpha` to occasionally be behind after a merge - this is normal, not a conflict to escalate
+#### Expect `develop` to occasionally be behind after a push - this is normal, not a conflict to escalate
 
-`docker-publish-alpha.yml` also commits its own `chore: bump alpha build for <sha>` back
-to `alpha` after every single push (see the branching model section above), so
-`origin/alpha` is routinely one commit ahead of whatever you just pushed - treat that
-commit as expected, not as unrecognized work. Separately, "Merge alpha with main"
-force-pushes `alpha`'s state onto `main`, and CI then commits its changelog-bump commit
-**directly back to `main`**. That command folds the bump commit back into `alpha` as its
-last step, but if that step was skipped, or another session pushed to `alpha` in the
-meantime, `origin/alpha` can be further ahead of your local branch. A local pre-push hook
-also fetches and merges against the same-named remote branch before pushing, so both
-cases are usually already handled - but if `git status` or a failed push reports
-`alpha` and `origin/alpha` have diverged, treat it as the expected steady-state, not a
-real conflict, and reconcile automatically as part of the same "Push to git" run:
+`docker-publish-develop.yml` also commits its own `chore: bump develop build for <sha>`
+back to `develop` after every single push (see the branching model section above), so
+`origin/develop` is routinely one commit ahead of whatever you just pushed - treat that
+commit as expected, not as unrecognized work. A local pre-push hook also fetches and
+merges against the same-named remote branch before pushing, so this is usually already
+handled - but if `git status` or a failed push reports `develop` and `origin/develop`
+have diverged, treat it as the expected steady-state, not a real conflict, and reconcile
+automatically as part of the same "Push to git" run:
 ```bash
 git fetch origin
-git merge origin/alpha --no-edit   # or: git merge --ff-only origin/alpha if it's a straight fast-forward
-git push origin alpha
+git merge origin/develop --no-edit   # or: git merge --ff-only origin/develop if it's a straight fast-forward
+git push origin develop
 ```
 Only pause and ask the user if the merge actually produces a conflict, or if
-`origin/alpha` contains commits that touch source files you don't recognize - that
-would mean unrelated work landed on `alpha` and needs a real decision, not an
+`origin/develop` contains commits that touch source files you don't recognize - that
+would mean unrelated work landed on `develop` and needs a real decision, not an
 automatic merge.
 
-## "Merge alpha with main" command
+## "Force to alpha" command
 
-When the user says **"Merge alpha with main"** (exactly), promote everything queued on
-`alpha` onto `main` as a single release:
+When the user says **"Force to alpha"** (exactly), promote everything queued on
+`develop` onto `alpha`:
 
-### 1 - Bring alpha up to date with main
+### 1 - Bring develop up to date with main
 ```bash
 git fetch origin
-git checkout alpha
+git checkout develop
+git merge --ff-only origin/develop   # pick up develop's own pending bump commit first
 git merge origin/main --no-edit
 ```
 This folds in any changelog-bump commit CI already pushed to `main` since the last
-merge, so that history isn't lost when `main` is overwritten in the next step. Stop
-and ask the user if this step produces a real conflict - it should only ever touch
-`changelog.json`, `package.json`, and `package-lock.json`.
+promotion, so `develop`'s own copy of `changelog.json` (used by `update-alpha-changelog.js`
+to self-heal alpha's base version) stays current. Stop and ask the user if this step
+produces a real conflict.
 
-### 2 - Force main to match alpha
+### 2 - Force alpha to match develop
 Show the user what is about to land before running this - it is a force push to the
-shared `main` branch:
+shared `alpha` branch:
 ```bash
-git log origin/main..alpha --oneline
+git log origin/alpha..HEAD --oneline
 ```
 Then:
 ```bash
-git push origin alpha:main --force
+git push origin HEAD:alpha --force
 ```
 
-### 3 - Let CI build the combined changelog entry
-This push carries every commit that was queued on `alpha`, all in one push event.
-`update-changelog.yml` triggers on the push to `main`, and `scripts/update-changelog.js`
-already aggregates bullet points from **every** commit in a multi-commit push - not
-just the last one - into a single changelog entry. No extra step is needed to combine
-them; it happens automatically. CI then commits `chore: update changelog for <sha>`
-back onto `main` and builds/publishes the Docker image.
+### 3 - Wait for alpha's build-bump CI, then sync it back into develop
+```bash
+gh run list --branch alpha --limit 3   # wait for "Publish Alpha Image" to complete
+git fetch origin
+git merge origin/alpha --no-edit       # pulls alpha's fresh changelog.alpha.json bump into develop
+```
 
-### 4 - Sync alpha back onto the new main
+### 4 - Reset develop's build counter
+Write `changelog.develop.json` to `{ "build": 0, "updatedAt": "<now>", "entries": [] }`
+(this is what `promoteDevelopToAlpha()` in `scripts/promote-develop-to-alpha.js` does -
+run it directly, or replicate it by hand), commit as
+`chore: reset develop build counter after promotion to alpha`, and push:
+```bash
+git push origin develop
+```
+This is safe to do explicitly and unconditionally here (never as a passive comparison
+elsewhere) - see the branching model section above for why. The next "Push to git" run
+starts back at `Develop Build 1`.
+
+## "Force to main" command
+
+When the user says **"Force to main"** (exactly), promote `alpha`'s actual current tip
+onto `main` as a single release:
+
+### 1 - Force main to match alpha's tip
+Show the user what is about to land before running this - it is a force push to the
+shared `main` branch:
 ```bash
 git fetch origin
-git checkout alpha
+git log origin/main..origin/alpha --oneline
+```
+Then push `origin/alpha`'s tip directly - not a local branch, which may not exactly
+match `origin/alpha`:
+```bash
+git push origin origin/alpha:main --force
+```
+
+### 2 - Let CI build the combined changelog entry
+This push carries every commit that was queued on `alpha` since the last release, all
+in one push event. `update-changelog.yml` triggers on the push to `main`, and
+`scripts/update-changelog.js` already aggregates bullet points from **every** commit in
+a multi-commit push - not just the last one - into a single changelog entry. No extra
+step is needed to combine them; it happens automatically. CI then commits
+`chore: update changelog for <sha>` back onto `main` and builds/publishes the Docker
+image. Wait for it (`gh run list --branch main`) before continuing.
+
+### 3 - Sync main's changelog-bump commit back into alpha and develop
+```bash
+git fetch origin
+git checkout -B alpha origin/alpha
 git merge origin/main --no-edit
 git push origin alpha
+
+git checkout develop
+git merge --ff-only origin/develop
+git merge origin/main --no-edit
+git push origin develop
 ```
-This folds the changelog-bump commit CI just added back into `alpha`, so the next
-"Push to git" run starts from a clean, matching base instead of immediately diverging.
+This folds the changelog-bump commit CI just added into both branches, so the next
+"Push to git" / "Force to alpha" run starts from a clean, matching base instead of
+immediately diverging. Each push may trigger its own routine build-bump commit
+(`chore: bump alpha/develop build for <sha>`) - that's expected, not a conflict.
 
 ## Commands
 

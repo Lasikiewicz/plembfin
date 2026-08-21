@@ -54,32 +54,45 @@ contains a real merge commit folding a changelog-bump commit back in from `main`
 drops merge commits and replays both sides' commits individually instead of leaving the
 already-resolved merge alone.
 
-## Branching model (`alpha` → `main`)
+## Branching model (`develop` → `alpha` → `main`)
 
-Day-to-day work lands on `alpha`, not `main`. `main` only moves when work is
-deliberately promoted, and every promotion becomes exactly one release.
+Day-to-day work lands on `develop`. `alpha` only moves when `develop` is deliberately
+promoted to it, and `main` only moves when `alpha` is deliberately promoted to it -
+each promotion to `main` becomes exactly one release.
 
-- The "Push to git" agent workflow commits and pushes to `alpha`. `alpha` gets the
-  same `secret-scan.yml` and `security.yml` coverage as `main` (see the table below),
-  so a broken dependency or a leaked secret surfaces immediately. `docker-publish-alpha.yml`
-  builds, verifies, and publishes a rolling pre-release image to
-  `ghcr.io/lasikiewicz/plembfin:alpha` (also tagged `alpha-<build>`) on every push - but
-  `alpha` never touches `changelog.json` or the package version, and never updates the
-  `:latest` tag. It does bump a separate `changelog.alpha.json` build counter via
-  `scripts/update-alpha-changelog.js`, committed back to `alpha` as
-  `chore: bump alpha build for <sha>`; that counter resets on the next "Merge alpha with
-  main". See [`architecture.md`](architecture.md#changelog--update-check) for how this
-  surfaces in the UI.
-- The "Merge alpha with main" agent workflow force-pushes `alpha`'s current state onto
-  `main` (`git push origin alpha:main --force`), which triggers the release pipeline
-  below. Every commit that was queued on `alpha` rides in on that one push, so the
-  generated changelog entry combines the bullet points from all of them (see step 2
+- **"Push to git"** commits and pushes to `develop`. `docker-publish-develop.yml`
+  builds, verifies, and publishes a rolling image to `ghcr.io/lasikiewicz/plembfin:develop`
+  (also tagged `develop-<build>`) on every push. `develop` never touches
+  `changelog.json`/`changelog.alpha.json` or the package version. It bumps its own
+  standalone `changelog.develop.json` build counter via `scripts/update-develop-changelog.js`,
+  committed back as `chore: bump develop build for <sha>`. Unlike alpha's counter, this
+  one is never inferred from a comparison against a parent branch's version - it only
+  resets when a "Force to alpha" promotion explicitly zeroes it, so it can never appear
+  to regress. **`develop` is not covered by `secret-scan.yml` or `security.yml`** (see
+  the table below) - those only trigger on `main` and `alpha`, so a leaked secret or
+  vulnerable dependency on `develop` isn't caught until it's promoted.
+- **"Force to alpha"** force-pushes `develop`'s current state onto `alpha`
+  (`git push origin develop:alpha --force`; merge `origin/main` into `develop` first if
+  it has moved on, to avoid clobbering a pending main changelog commit). This is where
+  secret/vulnerability scanning first applies. `docker-publish-alpha.yml` then builds,
+  verifies, and publishes to `ghcr.io/lasikiewicz/plembfin:alpha` (also tagged
+  `alpha-<build>`), bumping `changelog.alpha.json`'s build counter via
+  `scripts/update-alpha-changelog.js` - self-healing to a fresh `baseVersion`/build 1
+  whenever `main`'s version has moved on since the last alpha build. Afterward, sync
+  alpha's fresh changelog back into `develop` and explicitly reset `develop`'s build
+  counter to 0, so the next push to `develop` starts back at build 1. See
+  [`architecture.md`](architecture.md#changelog--update-check) for how both surface in
+  the UI.
+- **"Force to main"** pushes `alpha`'s actual tip (not `develop`) to `main`
+  (`git push origin alpha:main --force`), which triggers the release pipeline below.
+  Every commit queued on `alpha` since the last release rides in on that one push, so
+  the generated changelog entry combines the bullet points from all of them (see step 2
   below) rather than only the most recent commit.
-- After the release pipeline commits its changelog-bump commit back to `main`, `alpha`
-  is fast-forwarded onto the new `main` so the next round of work starts from a
-  matching base instead of immediately diverging.
+- After the release pipeline commits its changelog-bump commit back to `main`, both
+  `alpha` and `develop` merge `origin/main` back in and push, so the next round of work
+  starts from a matching base instead of immediately diverging.
 
-Full step-by-step commands for both workflows live in [`../CLAUDE.md`](../CLAUDE.md).
+Full step-by-step commands for all three workflows live in [`../CLAUDE.md`](../CLAUDE.md).
 
 ## Release pipeline (push to `main`)
 

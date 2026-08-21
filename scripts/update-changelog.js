@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bulletPointsFrom, formatChangelogMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, validateReleaseMessage } from "./changelog-message.js";
 import { changeAreaDetails, changedFilesForCommit, commitsSinceLastEntry } from "./changelog-git-helpers.js";
+import { generateChangelogMarkdown } from "./generate-changelog-md.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const changelogPath = path.join(root, "changelog.json");
@@ -143,4 +144,5 @@ if (packageLock.packages?.[""]) packageLock.packages[""].version = nextVersion;
 fs.writeFileSync(changelogPath, `${JSON.stringify(changelog, null, 2)}\n`);
 fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
 fs.writeFileSync(packageLockPath, `${JSON.stringify(packageLock, null, 2)}\n`);
+generateChangelogMarkdown();
 console.log(`Prepared Plembfin ${nextVersion} for ${sourceCommit.slice(0, 7)}`);

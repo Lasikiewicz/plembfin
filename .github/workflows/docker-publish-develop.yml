@@ -1,7 +1,8 @@
 name: Publish Develop Image
 
 # Publishes a rolling pre-release develop image on every push to develop, tagged :develop
-# and :develop-<build>. Each push bumps changelog.develop.json's build counter (5th digit).
+# and :develop-<build>. Each push bumps changelog.develop.json's standalone build counter,
+# independent of alpha/main's version - see scripts/update-develop-changelog.js.
 
 on:
   push:
@@ -42,7 +43,7 @@ jobs:
           COMMITS_JSON: ${{ toJson(github.event.commits) }}
         run: |
           node scripts/update-develop-changelog.js
-          node -e "const fs=require('fs'); const d=require('./changelog.develop.json'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'build=' + d.build + '\nversion=' + d.version + '\n')"
+          node -e "const fs=require('fs'); const d=require('./changelog.develop.json'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'build=' + d.build + '\n')"
 
       - name: Commit develop build metadata
         env:
@@ -110,7 +111,6 @@ jobs:
           tags: |
             type=raw,value=develop
             type=raw,value=develop-${{ steps.develop.outputs.build }}
-            type=raw,value=${{ steps.develop.outputs.version }}
 
       - name: Build and push develop image
         uses: docker/build-push-action@v7

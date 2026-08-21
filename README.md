@@ -13,13 +13,20 @@
   <img src="https://img.shields.io/badge/Frontend-Vanilla_JS_/_CSS-ff69b4?style=flat-square" alt="Frontend Tech" />
 </p>
 
+<p align="center">
+  <a href="CHANGELOG.md">📋 Changelog</a> ·
+  <a href="#which-version-should-i-run">🚦 Which version should I run?</a> ·
+  <a href="docs/README.md">📚 Full documentation</a>
+</p>
+
 ---
 
-> ## ⚠️ Alpha software - expect bugs
+> ## ⚠️ Pre-1.0 software - expect bugs
 >
-> Plembfin is in **alpha testing**. The core features described below work, but
-> this is not yet a finished product: you should expect bugs, rough edges, and
-> occasional changes that require reconfiguration.
+> Plembfin as a project is still in **early testing**, on every release channel
+> including `:latest`. The core features described below work, but this is not yet a
+> finished product: you should expect bugs, rough edges, and occasional changes that
+> require reconfiguration.
 >
 > It writes watched state to your media servers, so treat your watch history as
 > precious. **Take a backup before you start** (Settings → Backup / restore → Backup settings) and keep
@@ -48,7 +55,7 @@ None of these talk to each other - they all talk to Plembfin.
 
 ---
 
-## Features
+## 🌟 Key Features
 
 | | |
 |---|---|
@@ -147,16 +154,40 @@ for operating guidance.
 
 ---
 
-## Getting Started
+## 🚀 Getting Started
+
+### Which version should I run?
+
+Plembfin publishes three Docker tags, one per release channel. Most people should
+just use `:latest` - the guidance below is for anyone who wants to help test fixes
+before they're officially released.
+
+| Tag | Branch | Stability | Who it's for |
+|---|---|---|---|
+| `ghcr.io/lasikiewicz/plembfin:latest` (**recommended**) | `main` | Tested, tagged releases only | Everyone. This is what the Docker Compose example below uses. |
+| `ghcr.io/lasikiewicz/plembfin:alpha` | `alpha` | Pre-release; queued fixes not yet promoted to a numbered version | Testers who want upcoming fixes early and don't mind occasional rough edges |
+| `ghcr.io/lasikiewicz/plembfin:develop` | `develop` | Bleeding edge; every commit, unreviewed and least tested | Contributors and the most adventurous testers only |
+
+Each channel shows its own version in the sidebar and **Settings → About**, alongside
+the full history of what's in it: a numbered release like `v0.9.7` on `:latest`, or a
+build number like `0.9.7.3 alpha` / `Develop Build 12` on the pre-release channels. See
+[`CHANGELOG.md`](CHANGELOG.md) for the full history of numbered releases, and
+[`docs/development.md`](docs/development.md) if you want the details of how the three
+channels relate to each other.
+
+To run a different channel, swap the `image:` line in the Docker Compose example below
+for the tag you want (e.g. `image: ghcr.io/lasikiewicz/plembfin:alpha`) - everything
+else about setup is identical.
 
 ### Method A: Docker Compose (Recommended)
 
-1. Create a `docker-compose.yml` file:
+1. Create a `docker-compose.yml` file. This pulls the published `:latest` image
+   directly - no local clone needed. Swap the tag for `:alpha` or `:develop` to run a
+   different channel (see [above](#which-version-should-i-run)):
    ```yaml
    services:
      plembfin:
-       image: plembfin:latest
-       build: .
+       image: ghcr.io/lasikiewicz/plembfin:latest
        container_name: plembfin
        ports:
          - "5055:5055"
@@ -172,15 +203,22 @@ for operating guidance.
          # - SESSION_SECRET=your-secure-session-secret
        restart: unless-stopped
    ```
-2. Build and start the container:
+2. Pull and start the container:
    ```bash
-   docker compose up -d --build
+   docker compose up -d
    ```
 3. Open `http://localhost:5055` in your browser and log in with your configured credentials.
 
 > [!TIP]
-> For a hardened production setup (read-only filesystem, required secrets, `COOKIE_SECURE`), use the secure overlay:
+> Building from a local clone instead of pulling the published image (useful if
+> you're contributing changes)? Replace `image: ghcr.io/lasikiewicz/plembfin:latest`
+> with `build: .`, then run `docker compose up -d --build`.
+
+> [!TIP]
+> For a hardened production setup (read-only filesystem, required secrets, `COOKIE_SECURE`), clone
+> this repository and use its bundled secure overlay instead of the standalone file above:
 > ```bash
+> git clone https://github.com/Lasikiewicz/plembfin.git && cd plembfin
 > docker compose -f docker-compose.yml -f docker-compose.secure.yml up -d
 > ```
 > See [`docs/hardening.md`](docs/hardening.md) for the full guide including HTTPS reverse-proxy setup.
@@ -214,7 +252,7 @@ for operating guidance.
 
 ---
 
-## Full Setup & Integration Guide
+## 🔧 Full Setup Guide
 
 ### 1. Sign In & Set Admin Credentials
 Sign in with `admin` and the password you set via `ADMIN_PASSWORD`, or the random password Plembfin generated and printed to the console on first boot. If the configured admin password is the insecure default `admin`, Plembfin redirects to **Settings → General → Account** with a security banner until the password is changed.
@@ -271,7 +309,7 @@ Only one connection mode is active for each media server. Completing account set
 
 ---
 
-## Webhook Setup & Real-time Watch Sync
+## ⚡ Webhook Setup & Real-time Watch Sync
 
 Playback events are sent to Plembfin via webhooks. Plembfin accepts the webhook secret in the `X-Plembfin-Webhook-Secret` header, as `Authorization: Bearer <secret>`, or in the compatibility query-token URL used by Plex/Emby/Jellyfin. Copy the full URL from **Settings → Media servers → Webhooks** after signing in. It will look like:
 
@@ -311,7 +349,7 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 
 ---
 
-## Backup & Restore System
+## 💾 Backup & Restore System
 
 Plembfin runs automated daily backups; each backup type has its own schedule time, retention count, and Back Up Now button.
 
@@ -412,7 +450,7 @@ A commented template of every variable is provided in [`.env.example`](.env.exam
 
 ---
 
-## Architecture & Under the Hood
+## 🛠️ Architecture & Under the Hood
 
 Plembfin runs as a self-hosted Node application. The default `ROLE=all` process contains
 the complete app; larger installations can run separate `web` and `worker` roles against
@@ -427,7 +465,7 @@ For the full technical reference - a complete map of every file in the repositor
 
 ---
 
-## Development Workflow
+## 🧑‍💻 Development Workflow
 
 ### Running locally
 ```bash
@@ -435,20 +473,22 @@ npm install      # install dependencies
 npm run dev      # start with auto-reload on http://localhost:5055
 ```
 
-Day-to-day work lands on an `alpha` branch; `main` only moves when `alpha` is
-explicitly merged into it, and each merge becomes exactly one release. Commits for
-user-visible features, fixes, security changes, enhancements, and docs must use a
-`type: summary` subject plus meaningful `- ` bullet points in the body. The installed
-commit hook and CI changelog generator both reject title-only release messages,
-preventing sparse entries in **Settings → About**. See
-[`docs/development.md`](docs/development.md) for the full branching and release
-workflow.
+Day-to-day work lands on a `develop` branch; `alpha` only moves when `develop` is
+explicitly promoted to it, and `main` only moves when `alpha` is explicitly promoted to
+it, with each promotion to `main` becoming exactly one numbered release. See
+[Which version should I run?](#which-version-should-i-run) above for what that means as
+a user, and [`docs/development.md`](docs/development.md) for the full branching and
+release workflow. Commits for user-visible features, fixes, security changes,
+enhancements, and docs must use a `type: summary` subject plus meaningful `- ` bullet
+points in the body. The installed commit hook and CI changelog generator both reject
+title-only release messages, preventing sparse entries in [`CHANGELOG.md`](CHANGELOG.md)
+and **Settings → About**.
 
-Every push to `alpha` builds, verifies, and publishes a rolling pre-release image to
-`ghcr.io/lasikiewicz/plembfin:alpha` (also tagged `alpha-<build>` for a specific build,
-shown in the app as `v<version>.<build> alpha`); every pull request targeting `main`
-builds and verifies the same way without publishing. Either way, a change that breaks
-the container is caught immediately rather than after a release has been published.
+Every push to `develop` or `alpha` builds, verifies, and publishes a rolling image to
+`ghcr.io/lasikiewicz/plembfin:develop` / `:alpha` (also tagged `develop-<build>` /
+`alpha-<build>` for a specific build); every pull request targeting `main` builds and
+verifies the same way without publishing. Either way, a change that breaks the
+container is caught immediately rather than after a release has been published.
 
 When a change completes an item in [`TODO.md`](TODO.md), remove that item and update
 the corresponding documentation in the same change.
@@ -458,8 +498,8 @@ the corresponding documentation in the same change.
 ## License
 
 Plembfin is licensed under the GNU Affero General Public License v3.0. See
-[LICENSE.md](LICENSE.md). Version history is bundled in [changelog.json](changelog.json)
-and shown in **Settings → About**.
+[LICENSE.md](LICENSE.md). Version history is in [`CHANGELOG.md`](CHANGELOG.md) (also
+bundled as [`changelog.json`](changelog.json) and shown in **Settings → About**).
 
 ---
 
