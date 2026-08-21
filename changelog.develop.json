@@ -1,7 +1,18 @@
 {
-  "build": 2,
-  "updatedAt": "2026-08-21T10:22:59+01:00",
+  "build": 3,
+  "updatedAt": "2026-08-21T10:25:50+01:00",
   "entries": [
+    {
+      "build": 3,
+      "date": "2026-08-21T10:25:50+01:00",
+      "commit": "744442087be78691b7badf2abb1ae1eda4f9f9a7",
+      "message": "Fix - Account for the sticky topbar when scrolling an expanded season into view",
+      "author": "Lasikiewicz",
+      "details": [
+        "The season-scroll fix from the previous commit used scrollIntoView's default alignment, which puts the season header flush with the very top of the viewport - directly underneath the sticky page topbar, hiding it",
+        "Now offsets the scroll target by the topbar's real rendered height so the expanded season lands visible just below it instead of overshooting and disappearing behind it"
+      ]
+    },
     {
       "build": 2,
       "date": "2026-08-21T10:22:59+01:00",
