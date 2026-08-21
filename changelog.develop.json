@@ -1,7 +1,24 @@
 {
-  "build": 5,
-  "updatedAt": "2026-08-21T13:31:07+01:00",
+  "build": 6,
+  "updatedAt": "2026-08-21T14:03:01+01:00",
   "entries": [
+    {
+      "build": 6,
+      "date": "2026-08-21T14:03:01+01:00",
+      "commit": "f403f59b1c3b87292b362e92e1f85194237c67d7",
+      "message": "Fix - Stop unwatching an episode from corrupting a show's identity, sort order, and watched count",
+      "author": "Lasikiewicz",
+      "details": [
+        "Replaced the 20-cell Key Features table (paragraph-length cells, an empty header row causing extra whitespace at the top) with a scannable one-line-per-feature bullet list, linking to docs/architecture.md for depth",
+        "Condensed the densest prose sections (Sync safety, webhook setup, Trakt import/sync, setup guide) to their essential points, moving implementation detail into the existing docs/ pages instead of duplicating it in the README",
+        "Removed the emoji used on every section heading and nav link throughout the file",
+        "Trimmed the file from 512 to under 400 lines while keeping every setup instruction and reference table intact",
+        "Fixed a regression from the earlier fully-unwatched-show visibility fix: unwatching an episode inserts a fresh row timestamped now, and that was being read as the show's most recent watch, bumping it to the top of Watched Newest and inflating its displayed watched-episode count",
+        "Fixed a serious identity bug: a show's TVDB id was being read from any tracked episode row, but Plex/Emby/Jellyfin webhooks tag episodes with their own TVDB id, not the show's - using that id for TVDB series routing could load a completely unrelated show and sync watch state to it. A show's TVDB id is now only trusted once it has actually been resolved as a real series (search result, Fix Match, or a prior correct visit), never from a raw, unverified episode id",
+        "Season and show progress labels now show Removing... while an unwatch is in flight, instead of a stale watched count until the page finishes re-rendering",
+        "Added a regression test covering the TVDB identity fix"
+      ]
+    },
     {
       "build": 5,
       "date": "2026-08-21T13:31:07+01:00",
