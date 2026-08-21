@@ -60,3 +60,69 @@ test("queryWatchHistory does not report a single watch as a duplicate group", as
   assert.ok(row);
   assert.equal(row.playHistory.length, 1);
 });
+
+test("handleDuplicateWatchScan detects TV episode duplicates and normalizes mediaType aliases", async () => {
+  const { handleDuplicateWatchScan, handleDuplicateWatchCleanup } = await import("../server/src/routes/media.js");
+  const { AUTH } = await import("../server/src/appConfig.js");
+
+  const showTitle = "Multi Watch Show";
+  const epTitle = "Multi Watch Show - S01E01 - Pilot";
+  const oldest = await repo.insertWatchRecord({ title: epTitle, show_title: showTitle, media_type: "episode", season: 1, episode: 1, tmdb_id: "multi-ep-1", watched_at: "2024-01-01T20:00:00.000Z", source: "plex" });
+  const middle = await repo.insertWatchRecord({ title: epTitle, show_title: showTitle, media_type: "episode", season: 1, episode: 1, tmdb_id: "multi-ep-1", watched_at: "2024-06-01T20:00:00.000Z", source: "emby" });
+  const newest = await repo.insertWatchRecord({ title: epTitle, show_title: showTitle, media_type: "episode", season: 1, episode: 1, tmdb_id: "multi-ep-1", watched_at: "2024-08-01T20:00:00.000Z", source: "jellyfin" });
+
+  const createReq = (options = {}) => {
+    const headers = { "x-api-key": AUTH.apiKey, ...options.headers };
+    return {
+      headers,
+      get: (name) => headers[name.toLowerCase()] || "",
+      ...options,
+    };
+  };
+
+  const createRes = (onEnd) => {
+    let statusCode = 200;
+    const resObj = {
+      status(code) { statusCode = code; return resObj; },
+      set() { return resObj; },
+      setHeader() { return resObj; },
+      send(body) { onEnd(typeof body === "string" ? JSON.parse(body) : body, statusCode); },
+      json(body) { onEnd(body, statusCode); },
+      end(body) { onEnd(typeof body === "string" ? JSON.parse(body) : body, statusCode); },
+    };
+    return resObj;
+  };
+
+  // Test scan with "tv" alias
+  let scanResult;
+  await handleDuplicateWatchScan(createReq({
+    method: "GET",
+    query: { mediaType: "tv" },
+  }), createRes((body) => { scanResult = body; }));
+
+  assert.ok(scanResult?.ok);
+  assert.equal(scanResult.mediaType, "episode");
+  assert.ok(scanResult.removable >= 2);
+  assert.ok(scanResult.itemsWithDuplicates >= 1);
+
+  // Test cleanup with "episode"
+  let cleanupResult;
+  await handleDuplicateWatchCleanup(createReq({
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: Buffer.from(JSON.stringify({ mediaType: "episode" })),
+  }), createRes((body) => { cleanupResult = body; }));
+
+  assert.ok(cleanupResult?.ok);
+  assert.ok(cleanupResult.removed >= 2);
+
+  // Post-cleanup scan should find 0 duplicates for this show
+  let postScanResult;
+  await handleDuplicateWatchScan(createReq({
+    method: "GET",
+    query: { mediaType: "episode" },
+  }), createRes((body) => { postScanResult = body; }));
+
+  const matchingSample = postScanResult.samples.find((s) => s.showTitle === showTitle);
+  assert.equal(matchingSample, undefined);
+});

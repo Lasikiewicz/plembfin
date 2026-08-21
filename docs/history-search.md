@@ -69,7 +69,7 @@ a time. Separate buttons run it for TV episodes and for movies.
 | --- | --- |
 | `public/modules/tools-duplicates.js` | `runDuplicateWatchCleanup(mediaType)` - scans, confirms, then cleans up |
 | `server/src/routes/media.js` | `handleDuplicateWatchScan` (`GET /api/duplicate-watch-scan?mediaType=`), `handleDuplicateWatchCleanup` (`POST /api/duplicate-watch-cleanup`) |
-| `server/src/utils/dataRepo.js` | `queryWatchHistory` (deduped, with `playHistory`), `deleteWatchDates` |
+| `server/src/utils/dataRepo.js` | `dedupeHistory` (with `playHistory`), `deleteWatchDates` |
 
 Unlike the same-event collapse above, this does not use a time window - it groups by
 `media_key` (or show title/season/episode for episodes) via `queryWatchHistory`'s existing

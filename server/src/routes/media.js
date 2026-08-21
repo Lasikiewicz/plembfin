@@ -29,6 +29,7 @@ import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.j
 import {
   countPlaybackProgressRows,
   countWatchedPlaystateRows,
+  dedupeHistory,
   deletePlaybackProgress,
   deleteWatchRecord,
   deleteWatchRecordById,
@@ -74,6 +75,9 @@ import {
   getCachedShows,
   getCachedMovies,
   getCachedHistory,
+  isPlembfinTrackedEpisodeRow,
+  isPlembfinTrackedWatchRow,
+  normalizeMediaType,
   findExistingWatch,
   findWatchedByAnyMediaKey,
   getPlaystateForMedia,
@@ -870,11 +874,20 @@ export async function handleDeleteWatchDates(req, res) {
 // the oldest is a removable duplicate (a rewatch import, a sync echo, or the
 // kind of wrong-id Trakt overwrite fixed in trackerDispatcher.js). Read-only:
 // used to size the confirmation dialog before handleDuplicateWatchCleanup runs.
-const DUPLICATE_WATCH_MEDIA_TYPES = new Set(["movie", "episode"]);
+const DUPLICATE_WATCH_MEDIA_TYPES = new Set(["movie", "movies", "film", "episode", "episodes", "show", "shows", "tv", "series"]);
 
 async function findDuplicateWatchGroups(mediaType) {
-  const rows = await queryWatchHistory({ mediaType, limit: 25000, offset: 0, dedupe: true });
-  return rows.filter((row) => Array.isArray(row.playHistory) && row.playHistory.length > 1);
+  const normalized = normalizeMediaType(mediaType);
+  const allHistory = await getCachedHistory();
+  if (normalized === "episode") {
+    const episodeRows = allHistory.filter((row) => row.media_type === "episode" && isPlembfinTrackedEpisodeRow(row));
+    return dedupeHistory(episodeRows).filter((row) => Array.isArray(row.playHistory) && row.playHistory.length > 1);
+  }
+  if (normalized === "movie") {
+    const movieRows = allHistory.filter((row) => row.media_type === "movie" && isPlembfinTrackedWatchRow(row));
+    return dedupeHistory(movieRows).filter((row) => Array.isArray(row.playHistory) && row.playHistory.length > 1);
+  }
+  return [];
 }
 
 export async function handleDuplicateWatchScan(req, res) {
@@ -882,8 +895,9 @@ export async function handleDuplicateWatchScan(req, res) {
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
 
-  const mediaType = String(req.query.mediaType || "").toLowerCase();
-  if (!DUPLICATE_WATCH_MEDIA_TYPES.has(mediaType)) return sendJson(res, { error: "mediaType must be 'movie' or 'episode'" }, 400);
+  const rawMediaType = String(req.query.mediaType || req.query.type || "").toLowerCase();
+  const mediaType = normalizeMediaType(rawMediaType);
+  if (!["movie", "episode"].includes(mediaType)) return sendJson(res, { error: "mediaType must be 'movie' or 'episode'" }, 400);
 
   const groups = await findDuplicateWatchGroups(mediaType);
   const removable = groups.reduce((sum, row) => sum + row.playHistory.length - 1, 0);
@@ -915,8 +929,9 @@ export async function handleDuplicateWatchCleanup(req, res) {
   if (!(await requireAdmin(req, res))) return;
 
   const body = await readJson(req);
-  const mediaType = String(body.mediaType || "").toLowerCase();
-  if (!DUPLICATE_WATCH_MEDIA_TYPES.has(mediaType)) return sendJson(res, { error: "mediaType must be 'movie' or 'episode'" }, 400);
+  const rawMediaType = String(body.mediaType || body.type || "").toLowerCase();
+  const mediaType = normalizeMediaType(rawMediaType);
+  if (!["movie", "episode"].includes(mediaType)) return sendJson(res, { error: "mediaType must be 'movie' or 'episode'" }, 400);
 
   const groups = await findDuplicateWatchGroups(mediaType);
   const removableIds = groups.flatMap((row) => row.playHistory.slice(1).map((entry) => entry.id).filter(Boolean));

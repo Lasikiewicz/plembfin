@@ -154,7 +154,7 @@ function firstPresent(...values) {
   return values.find((value) => value != null && value !== "");
 }
 
-function normalizeMediaType(value) {
+export function normalizeMediaType(value) {
   const type = cleanString(value).toLowerCase();
   if (["movie", "movies", "film"].includes(type)) return "movie";
   if (["episode", "episodes", "show", "tv", "series"].includes(type)) return "episode";
@@ -577,7 +577,7 @@ export function isPlembfinTrackedWatchRow(row = {}) {
 // still isn't evidence of anything, watched or not) but without requiring the
 // row's current state to be "watched" - used for grouping a show's episodes
 // so a show doesn't disappear once every episode has been marked unwatched.
-function isPlembfinTrackedEpisodeRow(row = {}) {
+export function isPlembfinTrackedEpisodeRow(row = {}) {
   return !isScheduledLibraryHistoryRow(row) || isTrustedScheduledLibraryHistoryRow(row);
 }
 
@@ -2167,7 +2167,7 @@ function playHistoryEntry(row = {}) {
   return { id: row.id, watched_at: row.watched_at, source: row.source };
 }
 
-function dedupeHistory(rows) {
+export function dedupeHistory(rows) {
   const map = new Map();
   for (const row of filterSameEventDuplicateRows(rows)) {
     const key = historyDedupeKey(row);
