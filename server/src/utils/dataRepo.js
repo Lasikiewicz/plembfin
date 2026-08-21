@@ -2358,7 +2358,14 @@ export async function getWatchStats() {
   const version = getDataVersion();
   if (statsCache.version === version && statsCache.stats) return statsCache.stats;
 
-  const rows = (await loadHistoryRows({ limit: MAX_HISTORY_LIMIT, offset: 0 })).filter(isPlembfinTrackedWatchRow);
+  // Same-event echoes (e.g. a media server firing its "played" webhook several
+  // times for one viewing) must not inflate play counts here - every other
+  // consumer of watch_history already collapses these via
+  // filterSameEventDuplicateRows, so Stats needs to match or it overcounts
+  // titles the dedup tool correctly sees as having nothing left to remove.
+  const rows = filterSameEventDuplicateRows(
+    (await loadHistoryRows({ limit: MAX_HISTORY_LIMIT, offset: 0 })).filter(isPlembfinTrackedWatchRow),
+  );
   const statsMovieKeys = buildStatsMovieKeys(rows);
   const movieKeys = new Set();
   let episodes = 0;
