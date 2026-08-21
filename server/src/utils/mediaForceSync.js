@@ -408,6 +408,26 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
   let cancelled = Boolean(isCancelled());
   let cancellationLogged = false;
 
+  // getCanonicalWatchState matches by provider id/media_key, but an incoming
+  // Plex/Emby/Jellyfin item's ids are episode-scoped (its own imdb/tvdb id,
+  // not the show's) and often don't match whatever identity the playstate
+  // row happens to be keyed under - the lookup then falls through to
+  // findWatchedByAnyMediaKey, which can still find an old dormant watched
+  // row and wrongly report "already watched". For a show-scoped pull, build
+  // a season+episode -> sync_action map from the show's own current detail
+  // instead - the exact same data the display itself groups from - so
+  // "does this episode currently show as watched" can't disagree with what
+  // the page actually renders.
+  let currentEpisodeStateByCoordinate = null;
+  if (requested.mode === "pull" && requested.type === "show") {
+    const currentShow = await queryShowDetail({ title: requested.title }).catch(() => null);
+    if (currentShow) {
+      currentEpisodeStateByCoordinate = new Map(
+        (currentShow.episodes || []).map((row) => [`${row.season}:${row.episode}`, row.sync_action || "watched"]),
+      );
+    }
+  }
+
   await runWithConcurrency(collection.items, async (media) => {
     if (isCancelled()) {
       cancelled = true;
@@ -427,11 +447,14 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
       // recency, silently shadowing that old watched row from every display
       // and count. !record alone can't see that: it only asks "does any
       // watched row exist anywhere", not "is this episode currently showing
-      // as watched". Check the actual canonical pointer (the playstate
-      // table) instead, so a source confirming "still watched" inserts a
-      // fresh, current record and genuinely flips the display back, rather
-      // than being treated as a no-op because *some* watched row is on file.
-      const currentCanonicalState = await getCanonicalWatchState(media).catch(() => null);
+      // as watched". Prefer the season+episode map built from the show's own
+      // current detail (matches the display exactly); fall back to the
+      // canonical playstate pointer for movies and anything that map didn't
+      // cover, so a source confirming "still watched" inserts a fresh,
+      // current record and genuinely flips the display back, rather than
+      // being treated as a no-op because *some* watched row is on file.
+      const coordinateState = currentEpisodeStateByCoordinate?.get(`${media.season}:${media.episode}`);
+      const currentCanonicalState = coordinateState ?? await getCanonicalWatchState(media).catch(() => null);
       if (currentCanonicalState !== "watched") {
         const insertedResult = await insertWatchRecord({
           ...media,

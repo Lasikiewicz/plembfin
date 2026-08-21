@@ -174,7 +174,14 @@ first complete render.
   still displays and counts as unwatched. Checking only "does a watched row
   exist" treated that as already handled and silently did nothing; checking
   the canonical pointer instead inserts a fresh record so the source's
-  confirmed "still watched" genuinely wins the tie-break back. The asynchronous
+  confirmed "still watched" genuinely wins the tie-break back. For a
+  show-scoped pull, that canonical check prefers a season+episode map built
+  once from the show's own current detail (`queryShowDetail`) over the
+  playstate-based canonical lookup - an incoming Plex/Emby/Jellyfin item's
+  ids are episode-scoped (its own imdb/tvdb id, not the show's), so a
+  playstate lookup keyed on them can miss and fall back to the same
+  any-watched-row check the fix exists to avoid; matching against the show's
+  own episode list can't disagree with what the page actually renders. The asynchronous
   `POST /api/force-sync/media` operation is followed through
   `GET /api/force-sync/media/status?id=...`, and the dialog shows its detailed
   live terminal output until completion. Every action asks for confirmation before it
