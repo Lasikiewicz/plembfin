@@ -3603,8 +3603,8 @@ function showGroupKeys(rows = []) {
 
   for (const [, counts] of titleRoots) {
     const roots = [...counts.keys()];
-    const hasMultiEpisodeRoot = roots.some((r) => (counts.get(r) || 0) > 1);
-    if (!hasMultiEpisodeRoot && roots.length > 1) {
+    const multiEpisodeRoots = roots.filter((r) => (counts.get(r) || 0) >= 2);
+    if (multiEpisodeRoots.length <= 1 && roots.length > 1) {
       for (let i = 1; i < roots.length; i += 1) {
         union(roots[0], roots[i]);
       }
@@ -3680,6 +3680,8 @@ function groupShowRows(rows = []) {
       backdrop_url: null,
       tmdb_id: null,
       tvdb_id: null,
+      tmdbIdCounts: new Map(),
+      imdbIdCounts: new Map(),
       tvdbIdCandidates: new Set(),
     };
     group.title = preferredShowTitle(group.title, title);
@@ -3695,8 +3697,13 @@ function groupShowRows(rows = []) {
     if (row.backdrop_url && !group.backdrop_url) {
       group.backdrop_url = row.backdrop_url;
     }
-    if (row.tmdb_id && !group.tmdb_id) {
-      group.tmdb_id = row.tmdb_id;
+    if (row.tmdb_id) {
+      const tmdb = String(row.tmdb_id);
+      group.tmdbIdCounts.set(tmdb, (group.tmdbIdCounts.get(tmdb) || 0) + 1);
+    }
+    if (row.imdb_id) {
+      const imdb = String(row.imdb_id);
+      group.imdbIdCounts.set(imdb, (group.imdbIdCounts.get(imdb) || 0) + 1);
     }
     // Every distinct tvdb_id seen is only a *candidate* show identity here -
     // resolved for real (cachedShowTvdbId) below, since a row's tvdb_id is
@@ -3727,6 +3734,8 @@ function groupShowRows(rows = []) {
     const rewatchedEpisodeCount = watchedEpisodes.filter((episode) => (
       Array.isArray(episode.playHistory) && episode.playHistory.length > 1
     )).length;
+    const topTmdbId = [...group.tmdbIdCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+    const topImdbId = [...group.imdbIdCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
     return {
       ...group,
       season_count: group.seasons.size,
@@ -3736,9 +3745,12 @@ function groupShowRows(rows = []) {
       poster_url: group.poster_url || group.representative_episode?.poster_url || null,
       logo_url: group.logo_url || group.representative_episode?.logo_url || null,
       backdrop_url: group.backdrop_url || group.representative_episode?.backdrop_url || null,
-      tmdb_id: group.tmdb_id || group.representative_episode?.tmdb_id || null,
+      tmdb_id: topTmdbId || group.representative_episode?.tmdb_id || null,
+      imdb_id: topImdbId || group.representative_episode?.imdb_id || null,
       tvdb_id: cachedShowTvdbId(...group.tvdbIdCandidates) || null,
       tvdbIdCandidates: undefined,
+      tmdbIdCounts: undefined,
+      imdbIdCounts: undefined,
       representative_episode: group.representative_episode ? { ...group.representative_episode, show_title: group.title } : null,
       episodes: group.episodes
         .map((episode) => ({ ...episode, show_title: group.title }))

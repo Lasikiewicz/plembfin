@@ -231,12 +231,15 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
       modalPanel.classList.add("modal-panel--immersive");
     }
   }
+  const isAlreadyOpen = Boolean(state.activeShowRenderContext?.tmdbData?.id && String(state.activeShowRenderContext.tmdbData.id) === String(tmdbId));
   const root = mediaDetailRoot();
-  root.innerHTML = `
-    <div class="immersive-container">
-      ${mediaDetailLoaderHtml("Loading TV show details")}
-    </div>
-  `;
+  if (!isAlreadyOpen) {
+    root.innerHTML = `
+      <div class="immersive-container">
+        ${mediaDetailLoaderHtml("Loading TV show details")}
+      </div>
+    `;
+  }
 
   let tmdbData = await fetchTmdbDetails("tv", tmdbId, null, {}, { immediate: true });
   if (currentMediaRenderToken() !== renderToken) return;
@@ -390,12 +393,15 @@ export async function openShowImmersiveModalByTvdbId(tvdbId) {
       modalPanel.classList.add("modal-panel--immersive");
     }
   }
+  const isAlreadyOpen = Boolean(state.activeShowRenderContext?.tmdbData?.external_ids?.tvdb_id && String(state.activeShowRenderContext.tmdbData.external_ids.tvdb_id) === String(tvdbId));
   const root = mediaDetailRoot();
-  root.innerHTML = `
-    <div class="immersive-container">
-      ${mediaDetailLoaderHtml("Loading TV show details")}
-    </div>
-  `;
+  if (!isAlreadyOpen) {
+    root.innerHTML = `
+      <div class="immersive-container">
+        ${mediaDetailLoaderHtml("Loading TV show details")}
+      </div>
+    `;
+  }
 
   const tmdbData = await fetchTmdbDetails("tv", null, null, { tvdbId }, { immediate: true });
   if (currentMediaRenderToken() !== renderToken) return;
@@ -1457,12 +1463,15 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     }
   }
   if (!show) {
-    root.innerHTML = `
-      <div class="modal-backdrop-image"></div>
-      <div class="immersive-container media-detail-page">
-        ${mediaDetailLoaderHtml("Loading show details")}
-      </div>
-    `;
+    const isAlreadyOpen = Boolean(state.activeShowRenderContext?.show && slug(state.activeShowRenderContext.show.title) === showKey);
+    if (!isAlreadyOpen) {
+      root.innerHTML = `
+        <div class="modal-backdrop-image"></div>
+        <div class="immersive-container media-detail-page">
+          ${mediaDetailLoaderHtml("Loading show details")}
+        </div>
+      `;
+    }
     try {
       const response = await fetch(`/api/show?id=${encodeURIComponent(showKey)}`, { headers: authHeaders(), cache: "no-store" });
       const body = await response.json().catch(() => ({}));
