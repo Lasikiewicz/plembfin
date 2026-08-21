@@ -1,7 +1,20 @@
 {
-  "build": 7,
-  "updatedAt": "2026-08-21T14:18:25+01:00",
+  "build": 8,
+  "updatedAt": "2026-08-21T14:38:31+01:00",
   "entries": [
+    {
+      "build": 8,
+      "date": "2026-08-21T14:38:31+01:00",
+      "commit": "dc4ba0fb320cc531f91ca97a2a3ec4de62492e54",
+      "message": "Fix - Stop a single mismatched import from hijacking a show's identity by title",
+      "author": "Lasikiewicz",
+      "details": [
+        "A title lookup with no provider id to disambiguate by (queryShowDetail without an id) picked whichever matching cluster was most recently touched, with no regard for how much real history backed it",
+        "One bad Trakt import row resolving an ambiguous title to a completely unrelated show could outrank dozens of correctly identified episodes just by being newer, sending the whole show's page, Force Sync, and Fix Match to the wrong identity",
+        "Title lookups now prefer the substantially larger, established cluster over a much smaller one even when the smaller one is more recent; comparably-sized clusters still resolve by recency as before",
+        "Added a regression test and documented the tie-break in docs/tv-shows.md"
+      ]
+    },
     {
       "build": 7,
       "date": "2026-08-21T14:18:25+01:00",
