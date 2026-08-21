@@ -181,7 +181,17 @@ first complete render.
   ids are episode-scoped (its own imdb/tvdb id, not the show's), so a
   playstate lookup keyed on them can miss and fall back to the same
   any-watched-row check the fix exists to avoid; matching against the show's
-  own episode list can't disagree with what the page actually renders. The asynchronous
+  own episode list can't disagree with what the page actually renders.
+  A pulled episode's tmdb_id/tvdb_id are always the show being pulled, not
+  whatever id the source item itself carries: Plex/Emby/Jellyfin tag an
+  episode with its own tmdb/tvdb id (both providers assign episodes ids
+  separate from their series), and trusting that would tag the inserted row
+  with the wrong-scope identity and fragment it into its own show cluster
+  instead of the real show's - the same class of episode-vs-series id
+  conflation documented for `tvdb_id` resolution in `tv-shows.md`. Only
+  imdb_id still comes from the item, since it's meaningfully episode-scoped
+  and doesn't affect show grouping (`remoteItemToMedia` in
+  `mediaForceSync.js`). The asynchronous
   `POST /api/force-sync/media` operation is followed through
   `GET /api/force-sync/media/status?id=...`, and the dialog shows its detailed
   live terminal output until completion. Every action asks for confirmation before it

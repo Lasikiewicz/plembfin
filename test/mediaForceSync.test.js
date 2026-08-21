@@ -150,6 +150,38 @@ test("maps a watched Plex episode into a canonical Plembfin record", () => {
   assert.equal(media.watchProvenance.ingest_path, "force_sync");
 });
 
+test("an episode's own tmdb/tvdb ids never override the show's requested ids", () => {
+  // Plex/Emby/Jellyfin tag an episode with its OWN tmdb/tvdb id (TMDB and
+  // TVDB both assign episodes ids separate from their series) - trusting
+  // that over the show this operation was actually requested against tags
+  // the inserted row with the wrong identity and fragments it into its own
+  // show cluster instead of the real show's. imdb stays episode-sourced.
+  const item = {
+    type: "episode",
+    title: "Mean Ghouls",
+    grandparentTitle: "School Spirits",
+    parentIndex: 3,
+    index: 2,
+    ratingKey: "school-spirits-s3e2",
+    lastViewedAt: 1783379340,
+    Guid: [
+      { id: "imdb://tt39125564" },
+      { id: "tmdb://6746320" },
+      { id: "tvdb://11498362" },
+    ],
+  };
+  const requested = {
+    title: "School Spirits (2023)",
+    type: "show",
+    ids: { imdb: "", tmdb: "208397", tvdb: "421636" },
+  };
+
+  const media = remoteItemToMedia(item, "plex", requested);
+  assert.equal(media.ids.tmdb, "208397", "must use the show's requested tmdb id, not the episode's own");
+  assert.equal(media.ids.tvdb, "421636", "must use the show's requested tvdb id, not the episode's own");
+  assert.equal(media.ids.imdb, "tt39125564", "imdb stays episode-scoped");
+});
+
 test("maps an Emby played item and ignores an unplayed remote item", () => {
   const item = {
     Type: "Episode",

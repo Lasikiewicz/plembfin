@@ -163,8 +163,22 @@ export function remoteItemToMedia(item = {}, source = "", requested = {}, now = 
 
   const ids = itemIds(item, source);
   const requestedIds = requested.ids || {};
+  // For an episode, tmdb_id/tvdb_id on the resulting watch record are the
+  // SHOW's identity everywhere else in the app (grouping, routing, Fix
+  // Match) - only imdb_id is meaningfully episode-scoped. But Plex/Emby/
+  // Jellyfin's own per-item GUID/ProviderIds for an episode are the
+  // EPISODE's own tmdb/tvdb ids (TVDB and TMDB both assign episodes their
+  // own ids, separate from the series), so trusting them here tags every
+  // freshly pulled episode with the wrong-scope id and fragments it into
+  // its own show cluster instead of joining the real show's. The show-level
+  // id this operation was explicitly requested against is always the more
+  // trustworthy source for these two fields on an episode; imdb keeps the
+  // item's own value since episode-level imdb ids don't cause this
+  // mis-clustering (grouping unions on tmdb/tvdb, not imdb).
+  const showScopedKeys = type === "episode" ? ["tmdb", "tvdb"] : [];
   for (const key of ["imdb", "tmdb", "tvdb"]) {
-    if (!ids[key] && requestedIds[key]) ids[key] = requestedIds[key];
+    if (showScopedKeys.includes(key) && requestedIds[key]) ids[key] = requestedIds[key];
+    else if (!ids[key] && requestedIds[key]) ids[key] = requestedIds[key];
   }
 
   const showTitle = sourceTitle(item, source) || requested.title;
