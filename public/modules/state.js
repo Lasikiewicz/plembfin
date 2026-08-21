@@ -168,7 +168,7 @@ export const state = {
   personCreditsMovieSort: "date_desc",
   personCreditsTvSort: "date_desc",
   pendingWatchAction: null,
-  savingWatchAction: null,
+  savingWatchActions: new Set(),
   savingUnwatchIds: new Set(),
   activeMovieModalId: null,
   activeMovieTmdbId: null,

@@ -3,7 +3,7 @@ import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils
 import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260803";
-import { renderWatchDatePrompt } from "./watch-action.js?v=20260810";
+import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=20260810";
 import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260810";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
@@ -121,7 +121,7 @@ export async function renderMovieImmersiveModalContent(movie) {
     }
   }
   const root = mediaDetailRoot();
-  const isSaving = state.savingWatchAction;
+  const isSaving = isMovieSavingWatchAction(movie.tmdb_id);
 
   // Phase 1: Render immediately with all available local data - no blank screen.
   _renderWatchedMovieContent(root, movie, { tmdbData: null, loading: true, imdbPillHtml: "", tvRecommendations: [], isSaving });
@@ -548,8 +548,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   const persistedWatched = await fetchWatchedMovieByTmdb(tmdbId, movieTitle);
   if (currentMediaRenderToken() !== renderToken) return;
   if (persistedWatched) return renderMovieImmersiveModalContent(persistedWatched);
-  const isSaving = state.savingWatchAction;
-  const isSavingThisMovie = isSaving && isSaving.scope === "movie" && String(isSaving.movie?.tmdbId || "") === String(tmdbId);
+  const isSaving = isMovieSavingWatchAction(tmdbId);
   const backdropUrl = tmdbData.cached_backdrop_url || (tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "");
   const posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path, tmdbData.id, "movie") || "/favicon.svg";
   const overview = tmdbData.overview || "No synopsis available.";
@@ -601,7 +600,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
                   data-movie-mark-watched="${escapeAttribute(String(tmdbId))}"
                   data-movie-title="${escapeAttribute(movieTitle)}"
                   data-movie-poster="${escapeAttribute(posterUrl)}"
-                  data-movie-release="${escapeAttribute(tmdbData.release_date || "")}">${isSavingThisMovie ? "Saving watched state…" : "Mark watched"}</button>
+                  data-movie-release="${escapeAttribute(tmdbData.release_date || "")}">${isSaving ? "Saving watched state…" : "Mark watched"}</button>
               </div>
             </section>
           </div>

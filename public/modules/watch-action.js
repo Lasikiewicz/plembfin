@@ -200,6 +200,42 @@ export function renderWatchDatePrompt(action) {
   `;
 }
 
+// ── In-flight watch action tracking ────────────────────────────────────────
+// Multiple watch actions can be in flight at once (e.g. marking one episode
+// while another is still syncing to media servers/Trakt), so this is a Set
+// rather than a single value. Buttons are only disabled when their own
+// target overlaps an in-flight action's targets, instead of every "mark
+// watched" button in the app freezing until one sync finishes.
+
+function episodeKeysForAction(action) {
+  const keys = new Set();
+  for (const episode of [...(action?.episodes || []), ...(action?.resyncEpisodes || [])]) {
+    if (episode?.key) keys.add(episode.key);
+  }
+  return keys;
+}
+
+// All episode keys, across every in-flight action, belonging to `showTitle`.
+// A season- or show-scope action's `episodes`/`resyncEpisodes` already covers
+// every episode in its scope, so this single set is enough to answer "is this
+// episode/season/show busy" without tracking scope separately.
+export function savingEpisodeKeysForShow(showTitle) {
+  const keys = new Set();
+  for (const action of state.savingWatchActions) {
+    if (action.showTitle !== showTitle) continue;
+    for (const key of episodeKeysForAction(action)) keys.add(key);
+  }
+  return keys;
+}
+
+export function isMovieSavingWatchAction(tmdbId) {
+  if (!tmdbId) return false;
+  for (const action of state.savingWatchActions) {
+    if (action.scope === "movie" && String(action.movie?.tmdbId || "") === String(tmdbId)) return true;
+  }
+  return false;
+}
+
 // ── Watch date prompt open/close ───────────────────────────────────────────
 
 // Finds the earliest-watched episode within `scopeEpisodes` so a batch mark
@@ -283,7 +319,7 @@ export async function runResyncWatchAction(action) {
   const records = action.resyncEpisodes.map((episode) => watchRecordFromEpisode(episode, episode.watched?.watched_at || new Date().toISOString()));
   const total = records.length;
 
-  state.savingWatchAction = action;
+  state.savingWatchActions.add(action);
   if (state.activeShowModalKey) {
     _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
   } else if (state.activeShowTmdbId) {
@@ -295,7 +331,7 @@ export async function runResyncWatchAction(action) {
 
   try {
     const result = await postManualWatchRecords(records);
-    state.savingWatchAction = null;
+    state.savingWatchActions.delete(action);
     _clearDerivedUiCaches({ resetExplorer: false });
     const syncText = result.syncQueued
       ? `sync queued for ${result.syncQueued} item${result.syncQueued === 1 ? "" : "s"}`
@@ -310,7 +346,7 @@ export async function runResyncWatchAction(action) {
       await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
     }
   } catch (error) {
-    state.savingWatchAction = null;
+    state.savingWatchActions.delete(action);
     if (state.activeShowModalKey) {
       _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
     } else if (state.activeShowTmdbId) {
@@ -651,7 +687,7 @@ async function applyMovieWatchDateChoice(choice) {
     button.disabled = true;
   });
 
-  state.savingWatchAction = action;
+  state.savingWatchActions.add(action);
   closeWatchDatePrompt();
 
   const markWatchedBtn = root.querySelector("[data-movie-mark-watched]");
@@ -664,7 +700,7 @@ async function applyMovieWatchDateChoice(choice) {
 
   try {
     const result = await postManualWatchRecords([record]);
-    state.savingWatchAction = null;
+    state.savingWatchActions.delete(action);
     const savedId = result.results?.[0]?.id || "";
     const watchedMovie = localWatchRowFromMovie(movie, watchedAt, savedId);
     rememberLocalWatchedMovie(watchedMovie);
@@ -680,7 +716,7 @@ async function applyMovieWatchDateChoice(choice) {
       await _openMovieImmersiveModalByTmdbId(movie.tmdbId);
     }
   } catch (error) {
-    state.savingWatchAction = null;
+    state.savingWatchActions.delete(action);
     if (markWatchedBtn) {
       markWatchedBtn.disabled = false;
       markWatchedBtn.textContent = "Mark watched";
@@ -809,11 +845,11 @@ export async function applyWatchDateChoice(choice) {
   });
 
   // Rows in `action.episodes` show a "Syncing..." state (driven by
-  // state.savingWatchAction) instead of flipping to watched right away - the
+  // state.savingWatchActions) instead of flipping to watched right away - the
   // optimistic update only runs below once postManualWatchRecords resolves,
   // i.e. once the live sync to every target has actually finished, not just
   // once the click was registered.
-  state.savingWatchAction = action;
+  state.savingWatchActions.add(action);
   closeWatchDatePrompt();
   if (state.activeShowModalKey) {
     _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
@@ -830,7 +866,7 @@ export async function applyWatchDateChoice(choice) {
     const result = await postManualWatchRecords(allRecords, (done, all) => {
       if (all > 1) _setMessage(`Syncing ${all} episodes to your media apps… ${done}/${all}`, "muted");
     });
-    state.savingWatchAction = null;
+    state.savingWatchActions.delete(action);
     applyOptimisticWatchedEpisodes(action, watchedRows);
     _clearDerivedUiCaches({ resetExplorer: false });
     const totalMarked = result.inserted + result.skipped;
@@ -847,7 +883,7 @@ export async function applyWatchDateChoice(choice) {
       await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
     }
   } catch (error) {
-    state.savingWatchAction = null;
+    state.savingWatchActions.delete(action);
     if (state.activeShowModalKey) {
       _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
     } else if (state.activeShowTmdbId) {
