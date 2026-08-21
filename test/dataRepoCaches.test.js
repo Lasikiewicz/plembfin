@@ -277,3 +277,36 @@ test("a title lookup prefers a well-established show over a fresher single-row m
   const show = await repo.queryShowDetail({ title: "Collision Show" });
   assert.equal(show.tmdb_id, "555555", "the 6-episode established show must win over the 1-episode mismatched duplicate");
 });
+
+test("a title lookup finds every episode regardless of a trailing year on some rows but not others", async () => {
+  // Mirrors a real incident: Plex's own title for a show rarely carries a
+  // year ("Split Show"), while other imports for the same show used a
+  // year-suffixed title ("Split Show (2023)"). An exact show_title match on
+  // either variant alone only ever finds half the show's real episodes.
+  await insert({
+    title: "Split Show - S01E01",
+    show_title: "Split Show",
+    media_type: "episode",
+    watched_at: "2026-06-01T12:00:00.000Z",
+    source: "plex",
+    tvdb_id: "777777",
+    season: 1,
+    episode: 1,
+  });
+  await insert({
+    title: "Split Show (2023) - S01E02",
+    show_title: "Split Show (2023)",
+    media_type: "episode",
+    watched_at: "2026-06-02T12:00:00.000Z",
+    source: "manual",
+    tvdb_id: "777777",
+    season: 1,
+    episode: 2,
+  });
+
+  for (const queryTitle of ["Split Show", "Split Show (2023)"]) {
+    const show = await repo.queryShowDetail({ title: queryTitle });
+    assert.ok(show, `must resolve for query "${queryTitle}"`);
+    assert.equal(show.episode_count, 2, `must find both episodes for query "${queryTitle}"`);
+  }
+});

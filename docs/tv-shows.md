@@ -67,6 +67,18 @@ year while the provider's own name still carries one, breaking a slug-only match
 the tvdb_id fallback, a show in that window would render from an empty placeholder (0
 watched episodes) instead of the real, already-correct data.
 
+`queryShowDetail()` and `rematchShowWatchRecords()` (Fix Match) both look a show up by a
+canonical title key (`canonicalTitleKey(showTitleFrom(title))`), never by an exact
+`show_title_lower` string match. The same real show's episode rows can carry different
+exact show_title text over time - a media server's own title for a show is rarely
+year-suffixed even when Plembfin's preferred display title is, and a Fix Match rename
+only ever touches rows matching whichever exact text its anchor row happened to have - so
+an exact match only ever sees one variant, silently missing the rest of the same show's
+episodes (or, worse, resolving a different variant to an unrelated show that happens to
+share that exact text). `showTitleFrom()` strips the year from both the query and every
+row before comparing, so every episode of the show is found and repaired together
+regardless of which exact text it carries.
+
 A show's `tvdb_id`, by contrast, is never trusted straight from a watch_history row.
 Plex/Emby/Jellyfin webhooks tag an episode with its own TVDB id (TVDB assigns every
 episode a unique id, separate from its series), so a raw row's `tvdb_id` is usually

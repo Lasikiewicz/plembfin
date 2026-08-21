@@ -2901,13 +2901,20 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
       ? cleanNewShowTitle
       : "";
 
-  let rows = selectEpisodesByShowLowerStmt.all(resolvedTitle.toLowerCase());
-  if (!rows.length) {
-    const showKey = canonicalTitleKey(resolvedTitle);
-    rows = selectAllEpisodesStmt.all().filter((row) => (
-      canonicalTitleKey(row.show_title || showTitleFrom(row.title)) === showKey
-    ));
-  }
+  // Not just an exact show_title_lower match, and not only as a fallback
+  // when that finds nothing: this show's own episode rows can carry
+  // different exact show_title text over time (a trailing "(YYYY)" present
+  // on some inserts, absent on others - see the matching comment in
+  // queryShowDetail), so an exact match alone can silently repair only a
+  // subset of the show's real episodes while leaving the rest - including,
+  // confusingly, rows that still look wrong afterward - on their old,
+  // mismatched identity. Scan by the same normalized key every row is
+  // grouped by everywhere else instead, so Fix Match always repairs every
+  // episode of the show in one pass.
+  const showKey = canonicalTitleKey(showTitleFrom(resolvedTitle));
+  const rows = selectAllEpisodesStmt.all().filter((row) => (
+    canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === showKey
+  ));
   if (!rows.length) return { ok: false, error: "No episodes found for show" };
 
   const oldTmdbIds = new Set(rows.map((row) => cleanString(row.tmdb_id)).filter(Boolean));
@@ -2915,7 +2922,6 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
   // onto any row (e.g. resolved from an earlier ambiguous title search), so it
   // wouldn't be caught by oldTmdbIds above - drop it too or queryShowDetail's
   // cachedShowTmdbId() keeps serving it as the "cached" candidate.
-  const showKey = canonicalTitleKey(resolvedTitle) || normalizeKeyPart(resolvedTitle);
   const cachedProgressTmdbId = cleanString(getCachedShowProgress(showKey)?.tmdb_id);
   if (cachedProgressTmdbId) oldTmdbIds.add(cachedProgressTmdbId);
   const mediaKeys = new Set(rows.map((row) => cleanString(row.media_key)).filter(Boolean));
@@ -3797,49 +3803,45 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
     const shows = await getCachedShows();
     resolvedTitle = shows.find((show) => show.id === String(id))?.title || "";
   }
-
-  if (resolvedTitle) {
-    // isPlembfinTrackedEpisodeRow, not isPlembfinTrackedWatchRow: a show whose
-    // every episode is currently unwatched (e.g. right after "Mark unwatched"
-    // on its last watched episode) still needs to resolve here with its real
-    // episode rows (each carrying its own sync_action) - otherwise the show
-    // disappears from lookup entirely instead of rendering as 0 watched. Untrusted
-    // scan rows stay excluded, same as before.
-    const rows = dedupeHistory(selectEpisodesByShowLowerStmt.all(resolvedTitle.toLowerCase()).map(rowToWatch).filter(isPlembfinTrackedEpisodeRow));
-    // An exact show_title match can still resolve to more than one real show
-    // (two distinct shows stored under the identical title text) now that
-    // groupShowRows splits them by provider id instead of blending them -
-    // the most recently active one is the more likely match for a lookup
-    // with no id to disambiguate by.
-    const [show] = mostRecentShowFirst(groupShowRows(rows));
-    if (show) {
-      const showKey = canonicalTitleKey(show.title) || normalizeKeyPart(show.title);
-      const rawShowKey = canonicalTitleKey(show.raw_title) || normalizeKeyPart(show.raw_title);
-      const cachedProgress = getCachedShowProgress(showKey) || (rawShowKey !== showKey ? getCachedShowProgress(rawShowKey) : null);
-      // show.tmdb_id trusted unconditionally - see the matching comment in
-      // getCachedShows above.
-      show.tmdb_id = cleanString(show.tmdb_id) || cachedShowTmdbId(cachedProgress?.tmdb_id, show.representative_episode?.tmdb_id) || null;
-      show.total_episodes = cachedProgress?.total_episodes || 0;
-      return show;
-    }
-  }
-
-  // Some legacy episode rows have no usable show_title and therefore cannot
-  // be found by the exact-title index. Fall back to the derived title from
-  // the complete episode history even when the caller supplied a title.
+  // Some legacy episode rows have no usable show_title; fall back to the
+  // derived title even when the caller supplied a title.
   if (!resolvedTitle && id) resolvedTitle = String(id).replace(/-/g, " ");
-  const key = canonicalTitleKey(resolvedTitle);
-  // Not loadHistoryRowsByType: that helper drops unwatched/unplayed rows (it
-  // backs the watched-history list), which would make a fully-unwatched show
-  // unresolvable here too. Scan the full episode cache instead (still through
-  // isPlembfinTrackedEpisodeRow, so untrusted scan rows stay excluded) so this
-  // fallback finds a show regardless of its current watched state.
+
+  // A show's own episode rows can carry different exact show_title text over
+  // time - Plex/Emby/Jellyfin's own title for a show is rarely year-suffixed
+  // even when Plembfin's preferred display title is (or a Fix Match rename
+  // only touched rows matching whichever text the anchor row happened to
+  // have) - an exact show_title_lower match only ever sees whichever single
+  // variant matches the query, silently missing the rest of the same show's
+  // episodes (and, worse, can resolve a *different* variant to an entirely
+  // unrelated show that happens to share that exact text). Normalize both
+  // the query and every row's title the same way (showTitleFrom strips the
+  // year) and scan by that canonical key instead, so every row for this show
+  // is found regardless of which exact text it happens to carry.
+  const key = canonicalTitleKey(showTitleFrom(resolvedTitle));
+  // Not loadHistoryRowsByType/isPlembfinTrackedWatchRow: a show whose every
+  // episode is currently unwatched (e.g. right after "Mark unwatched" on its
+  // last watched episode) still needs to resolve here with its real episode
+  // rows (each carrying its own sync_action) - otherwise the show disappears
+  // from lookup entirely instead of rendering as 0 watched. Untrusted scan
+  // rows stay excluded via isPlembfinTrackedEpisodeRow.
   const rows = dedupeHistory((await getCachedHistory()).filter((row) => row.media_type === "episode" && isPlembfinTrackedEpisodeRow(row)))
     .filter((row) => canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === key);
-  // Same reasoning as the exact-title branch above: a canonical-title match
-  // can span two real shows sharing a title once they're no longer blended.
+  // A canonical-title match can still span two distinct real shows sharing a
+  // title (a reboot/revival) now that groupShowRows splits them by provider
+  // id instead of blending them - the most substantial (or, failing that,
+  // most recently active) cluster is the more likely match for a lookup with
+  // no id to disambiguate by.
   const [show] = mostRecentShowFirst(groupShowRows(rows));
-  if (show) show.tmdb_id = cleanString(show.tmdb_id) || cachedShowTmdbId(show.representative_episode?.tmdb_id) || null;
+  if (show) {
+    const showKey = canonicalTitleKey(show.title) || normalizeKeyPart(show.title);
+    const rawShowKey = canonicalTitleKey(show.raw_title) || normalizeKeyPart(show.raw_title);
+    const cachedProgress = getCachedShowProgress(showKey) || (rawShowKey !== showKey ? getCachedShowProgress(rawShowKey) : null);
+    // show.tmdb_id trusted unconditionally - see the matching comment in
+    // getCachedShows above.
+    show.tmdb_id = cleanString(show.tmdb_id) || cachedShowTmdbId(cachedProgress?.tmdb_id, show.representative_episode?.tmdb_id) || null;
+    show.total_episodes = cachedProgress?.total_episodes || 0;
+  }
   return show || null;
 }
 
