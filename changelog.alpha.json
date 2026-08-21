@@ -1,22 +1,18 @@
 {
-  "baseVersion": "0.9.3",
+  "baseVersion": "0.9.6",
   "build": 1,
-  "version": "0.9.3.1.0",
-  "shortVersion": "0.9.3.1",
   "entries": [
     {
       "build": 1,
-      "version": "0.9.3.1.0",
-      "shortVersion": "0.9.3.1",
-      "date": "2026-08-20T20:20:00+01:00",
-      "commit": "3bcc775660b05b7278550533121835e9cfa82240",
-      "message": "Fix - Ensure release channel is recognized correctly on main container images",
-      "author": "Lasikiewicz",
+      "version": "0.9.6.1",
+      "date": "2026-08-21T08:57:33Z",
+      "commit": "c7429df20583ccf8ffa08bf65d05ff8e2013b4d2",
+      "message": "Chore - Bump develop build for 7a4aeed",
+      "author": "github-actions[bot]",
       "details": [
-        "Fix: Prioritize explicit BUILD_CHANNEL=release to prevent container identifying as alpha",
-        "Fix: Retain develop file fallback to override stale docker-compose alpha env on develop builds"
+        "Chore - Bump develop build for 7a4aeed"
       ]
     }
   ],
-  "updatedAt": "2026-08-20T20:20:00+01:00"
+  "updatedAt": "2026-08-21T08:57:33Z"
 }
