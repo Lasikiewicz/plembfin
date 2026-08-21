@@ -1,7 +1,19 @@
 {
-  "build": 8,
-  "updatedAt": "2026-08-21T14:38:31+01:00",
+  "build": 9,
+  "updatedAt": "2026-08-21T14:46:49+01:00",
   "entries": [
+    {
+      "build": 9,
+      "date": "2026-08-21T14:46:49+01:00",
+      "commit": "008456e58afc609c841e9fbacd743cbbf34e4a31",
+      "message": "Fix - Stop a repaired show rendering as 0 watched right after Fix Match",
+      "author": "Lasikiewicz",
+      "details": [
+        "After using Fix Match to repair a show's identity, the detail page briefly rendered 0 watched episodes even though the underlying data was already correct - the client's lookup for the show's cached full episode list only matched by tmdb_id or an exact title-slug match, both of which can miss right after a rematch (tmdb_id is cleared and re-backfilled in the background; the display title can legitimately drop a trailing year the provider's own name still carries)",
+        "The lookup now also matches by tvdb_id when the provider supplied one, so a repaired show renders its real watched state immediately instead of falling back to an empty placeholder",
+        "Documented the matching order in docs/tv-shows.md"
+      ]
+    },
     {
       "build": 8,
       "date": "2026-08-21T14:38:31+01:00",
