@@ -1,41 +1,18 @@
 {
-  "baseVersion": "0.9.6",
-  "build": 2,
+  "baseVersion": "0.9.7",
+  "build": 1,
   "entries": [
     {
-      "build": 2,
-      "version": "0.9.6.2",
-      "date": "2026-08-21T09:57:34Z",
-      "commit": "e492f220e43c23bd2917c026ae5f2ebc7eb4ae1c",
-      "message": "Chore - Bump develop build for 75cf34b",
-      "author": "github-actions[bot]",
-      "details": [
-        "promoteDevelopToAlpha() now zeroes develop's build counter (not just its entry list) when develop is promoted to alpha, so the next develop push after a promotion starts back at build 1",
-        "This reset is safe because it happens as a deliberate, explicit step of the promotion itself, not an inferred comparison against a version string that could be stale - the same safe shape as alpha's own reset-on-promotion-to-main",
-        "Documented the distinction in update-develop-changelog.js and docs/architecture.md",
-        "Clicking a season header to expand it now scrolls that season into view, instead of leaving the newly-revealed episode list to open off-screen below where you clicked",
-        "Collapsing a season still preserves the scroll position as before, so the page doesn't jump now that the content above has shrunk",
-        "The season-scroll fix from the previous commit used scrollIntoView's default alignment, which puts the season header flush with the very top of the viewport - directly underneath the sticky page topbar, hiding it",
-        "Now offsets the scroll target by the topbar's real rendered height so the expanded season lands visible just below it instead of overshooting and disappearing behind it",
-        "Clicking a season header to expand it, or loading a URL that names a season directly, now scrolls that season into view instead of leaving it open off-screen below the click or hidden at the very top of the page",
-        "Fixed the actual scroll target: this app's shell keeps window/document fixed and scrolls .page-shell internally, so the first attempt (window.scrollTo) silently did nothing - now walks up to whichever ancestor actually has the overflow",
-        "Reserves space for the sticky topbar via scroll-margin-top so the season header lands visible just below it instead of hidden underneath",
-        "Replaced the browser's native (non-configurable, abrupt) smooth scroll with a hand-rolled eased animation",
-        "A season named in the URL scrolls into view once on that navigation, not on every later re-render of the same modal (e.g. toggling an episode watched)",
-        "Chore - Bump develop build for 75cf34b"
-      ]
-    },
-    {
       "build": 1,
-      "version": "0.9.6.1",
-      "date": "2026-08-21T08:57:33Z",
-      "commit": "c7429df20583ccf8ffa08bf65d05ff8e2013b4d2",
-      "message": "Chore - Bump develop build for 7a4aeed",
+      "version": "0.9.7.1",
+      "date": "2026-08-21T17:21:44Z",
+      "commit": "6a1b19cded05910ba8637bb63f55ba463e06f835",
+      "message": "Chore - Bump develop build for 36ee491",
       "author": "github-actions[bot]",
       "details": [
-        "Chore - Bump develop build for 7a4aeed"
+        "Chore - Bump develop build for 36ee491"
       ]
     }
   ],
-  "updatedAt": "2026-08-21T09:57:34Z"
+  "updatedAt": "2026-08-21T17:21:44Z"
 }
