@@ -1,8 +1,21 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 16,
-  "version": "0.9.3.1.16",
+  "build": 17,
+  "version": "0.9.3.1.17",
   "entries": [
+    {
+      "build": 17,
+      "version": "0.9.3.1.17",
+      "date": "2026-08-21T09:18:52+01:00",
+      "commit": "67556f4c37512058bf4b42aa0e6049367adf1238",
+      "message": "Fix - Stop same-event webhook echoes inflating play counts",
+      "author": "Lasikiewicz",
+      "details": [
+        "Stats page now collapses duplicate rows created when a media server fires its played webhook multiple times for one viewing, matching the logic already used by the movie list and Dedup History tool",
+        "Fixes titles showing an inflated most-watched count (e.g. a movie showing 3 plays for a single viewing) even though the dedup tool correctly reports nothing to clean up",
+        "No watch_history rows are changed; this only affects how Stats counts them"
+      ]
+    },
     {
       "build": 16,
       "version": "0.9.3.1.16",
@@ -204,5 +217,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-21T08:29:46+01:00"
+  "updatedAt": "2026-08-21T09:18:52+01:00"
 }
