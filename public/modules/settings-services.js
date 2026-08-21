@@ -190,6 +190,19 @@ const TUNING_FIELD_DEFS = [
 ];
 const EXTRA_SERVICE_NAMES = { tuning: "Sync Tuning" };
 
+// Opt-in toggle for the outbound pacing governor's "fast" profile
+// (server/src/utils/outboundGovernor.js) - off by default (profile
+// "standard") because the governor's throttling is what keeps bulk sync
+// operations from hammering a media server reached over the internet.
+// "fast" removes almost all of that throttling, so it must be explicitly
+// enabled here rather than assumed safe.
+const PACING_FIELD = {
+  key: "fastLocalPacing",
+  type: "checkbox",
+  label: "Fast Local-Network Sync",
+  help: "Speeds up Force Sync, Full Sync Watchstates, and other bulk sync operations by removing most outbound pacing delays. Only enable this when Plex, Emby, and Jellyfin are all self-hosted on the same trusted local network as Plembfin - it is not safe to enable if any of them is reached over the public internet.",
+};
+
 function tuningBadges(tuning = {}) {
   const overriddenCount = TUNING_FIELD_DEFS.filter((field) => tuning[field.key]?.overridden).length;
   if (!overriddenCount) return [{ label: "Defaults", tone: "muted" }];
@@ -230,7 +243,11 @@ export function renderSyncTuningCard() {
   const form = document.querySelector("#syncTuningForm");
   if (!fieldsContainer || !form) return;
   const tuning = state.savedConfig?.tuning || {};
-  fieldsContainer.innerHTML = syncTuningFieldSpecs(tuning).map((field) => renderFieldRow(field)).join("");
+  const fastPacingEnabled = state.savedConfig?.pacing?.profile === "fast";
+  fieldsContainer.innerHTML = [
+    ...syncTuningFieldSpecs(tuning).map((field) => renderFieldRow(field)),
+    renderFieldRow({ ...PACING_FIELD, value: fastPacingEnabled }),
+  ].join("");
 
   if (form.dataset.bound) return;
   form.dataset.bound = "true";
@@ -247,7 +264,9 @@ export function renderSyncTuningCard() {
     if (saveButton) saveButton.disabled = true;
     setStatus("Saving...", "muted");
     try {
-      await saveServiceConfig("tuning", syncTuningPayload(collectFieldValues(fieldsContainer)));
+      const values = collectFieldValues(fieldsContainer);
+      await saveServiceConfig("tuning", syncTuningPayload(values));
+      await saveServiceConfig("pacing", { profile: values.fastLocalPacing ? "fast" : "standard" });
       setStatus("Saved.", "success");
     } catch (error) {
       setStatus(error?.message || "Save failed.", "error");

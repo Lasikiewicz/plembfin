@@ -1619,7 +1619,7 @@
                         <div class="sync-heading-title">
                           <p style="margin: 0;">Sync Tuning</p>
                         </div>
-                        <span>Watched threshold, resume position, session TTL, and outbound timeout</span>
+                        <span>Watched threshold, resume position, session TTL, outbound timeout, and fast local-network pacing</span>
                       </div>
                       <form id="syncTuningForm" class="sync-tuning-form">
                         <div id="syncTuningFields" class="sync-tuning-fields media-force-sync-options sync-tools-content"></div>
@@ -1656,8 +1656,11 @@
                         <p style="margin-bottom: 4px; line-height: 1.4;">
                           <b>Active Session TTL:</b> how long a "now playing" session is kept without an update before it's considered stale. Default 5 minutes.
                         </p>
-                        <p style="margin: 0; line-height: 1.4;">
+                        <p style="margin-bottom: 4px; line-height: 1.4;">
                           <b>Outbound Request Timeout:</b> how long Plembfin waits for a response from Plex, Emby, or Jellyfin before giving up. Default 10 seconds.
+                        </p>
+                        <p style="margin: 0; line-height: 1.4;">
+                          <b>Fast Local-Network Sync:</b> off by default. When enabled, Force Sync, Full Sync Watchstates, and other bulk sync operations send more concurrent requests with shorter gaps between them, finishing much faster. Only turn this on when Plex, Emby, and Jellyfin are all self-hosted on the same trusted local network as Plembfin.
                         </p>
                       </div>
                     </article>

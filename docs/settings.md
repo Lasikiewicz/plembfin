@@ -49,8 +49,11 @@ Full Sync Watchstates replays Plembfin's canonical watched and resume rows in tw
 Force Sync contains the same two controls and live activity terminal used by media detail
 pages. The controls stay inline in the Force Sync box. Each action asks for confirmation
 before it starts, and the activity header exposes **Cancel operation** while a run is in
-progress. Cancellation stops before the next library item; writes already completed remain
-applied.
+progress. A confirmed plan's actions run with bounded concurrency (independent library
+items in flight together, capped per destination server by the outbound pacing profile so
+it speeds up a large plan without sending more simultaneous requests to any one server).
+Cancellation stops any items that have not yet started; items already in flight finish and
+their writes remain applied.
 **Set Plembfin as Source of Truth** replays Plembfin's watched playstate (and saved resume
 positions) to one destination or all destinations, overwriting whatever they currently
 show - it does not check their current state first.
@@ -115,9 +118,10 @@ switch. Fixed services can be disabled but not deleted because the config API ha
 credential-clear operation.
 
 **Sync Tuning is the one exception**: its four numeric fields (watched threshold,
-minimum resume position, active-session TTL, outbound timeout) render directly inline
-on the Sync page in a plain form with its own Save button - not behind a card + edit
-modal - since there's only ever one instance to edit and no add/remove/test workflow.
+minimum resume position, active-session TTL, outbound timeout) plus the Fast
+Local-Network Sync checkbox render directly inline on the Sync page in a plain form
+with its own Save button - not behind a card + edit modal - since there's only ever
+one instance to edit and no add/remove/test workflow.
 
 Media Servers is rendered as a boxed settings section with a separate boxed Seerr
 subsection and its own left-menu link; its edit modal keeps provider setup help visible
@@ -189,6 +193,16 @@ watched threshold, minimum resume position, active-session TTL, and outbound req
 timeout. Blank fields inherit the matching environment variable or built-in default;
 saved values take precedence. The defaults remain 90%, 60 seconds, 5 minutes, and 10
 seconds respectively.
+
+The same form's **Fast Local-Network Sync** checkbox controls the outbound pacing
+governor's profile (`server/src/utils/outboundGovernor.js`), stored as `pacing.profile`
+("standard" or "fast"; also settable via the `OUTBOUND_PACING_PROFILE` environment
+variable). It is unchecked by default. Checking it raises the per-destination-server
+concurrency limit and removes the delay between requests for Force Sync, Full Sync
+Watchstates, and other bulk sync operations, which finishes them much faster - but it
+is only safe when Plex, Emby, and Jellyfin are all self-hosted on the same trusted
+local network as Plembfin, since it removes most of the throttling that protects a
+server reached over the public internet from being overwhelmed by a large sync.
 
 ## Maintenance disposition
 
