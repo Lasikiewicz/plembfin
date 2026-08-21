@@ -1,7 +1,19 @@
 {
-  "build": 5,
-  "updatedAt": "2026-08-21T22:33:40+01:00",
+  "build": 6,
+  "updatedAt": "2026-08-21T22:44:02+01:00",
   "entries": [
+    {
+      "build": 6,
+      "date": "2026-08-21T22:44:02+01:00",
+      "commit": "fc0faa48212d9c0eb9a07ff159f4d5fb1e873a7d",
+      "message": "Fix - Stop pacing, sync scope, and authority settings from resetting on every save",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fast Local-Network Sync (and any other pacing profile choice) now actually stays saved instead of silently reverting to standard the moment anything reloads config, which happened immediately after clicking Save",
+        "The same silent-reset bug affected Sync Scope and the Authority (source-of-truth/conflict policy) settings, which are fixed by the same change",
+        "Root cause: the settings loader's env-default merge step rebuilt its config object without carrying these three sections through, so they were treated as never-set and reset to their hardcoded defaults on every read"
+      ]
+    },
     {
       "build": 5,
       "date": "2026-08-21T22:33:40+01:00",
