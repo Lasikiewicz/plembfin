@@ -1,7 +1,21 @@
 {
-  "build": 13,
-  "updatedAt": "2026-08-21T15:42:29+01:00",
+  "build": 14,
+  "updatedAt": "2026-08-21T16:14:12+01:00",
   "entries": [
+    {
+      "build": 14,
+      "date": "2026-08-21T16:14:12+01:00",
+      "commit": "94d278edd95b0d4204c9ac31be747febf3d821c6",
+      "message": "Fix - Repaint stale availability badges and show real resolution, not 1080p",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a stuck 6/6 Available badge on shows opened via a tmdb/tvdb detail link: the Seerr background-refresh repaint only checked the plain /tvshow/:key slug, which those routes never set, so a completed correct fetch never re-rendered the page",
+        "Availability pills now show the actual resolution found on the connected server instead of a hardcoded 1080p; a TV season only claims a resolution when every available episode in it shares one, otherwise it drops the claim rather than guessing",
+        "Movies now get a real resolution reading too, pulled the same way TV episodes get theirs",
+        "Fixed the Edit Watch Date dialog under-reporting an episode's play count when its watch rows had differently formatted show titles (missing a trailing year on one row but not another), the same normalization bug already fixed for show lookups and Fix Match",
+        "Added a regression test covering the watch-date dialog fix"
+      ]
+    },
     {
       "build": 13,
       "date": "2026-08-21T15:42:29+01:00",
