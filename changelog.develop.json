@@ -1,7 +1,18 @@
 {
-  "build": 1,
-  "updatedAt": "2026-08-21T10:17:58+01:00",
+  "build": 2,
+  "updatedAt": "2026-08-21T10:22:59+01:00",
   "entries": [
+    {
+      "build": 2,
+      "date": "2026-08-21T10:22:59+01:00",
+      "commit": "29ff2010620b6d8d252e2f5418b97a836167c044",
+      "message": "Fix - Scroll an expanded season into view instead of leaving it below the click",
+      "author": "Lasikiewicz",
+      "details": [
+        "Clicking a season header to expand it now scrolls that season into view, instead of leaving the newly-revealed episode list to open off-screen below where you clicked",
+        "Collapsing a season still preserves the scroll position as before, so the page doesn't jump now that the content above has shrunk"
+      ]
+    },
     {
       "build": 1,
       "date": "2026-08-21T10:17:58+01:00",
