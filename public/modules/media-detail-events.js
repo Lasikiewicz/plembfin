@@ -1061,11 +1061,17 @@ export function attachMediaDetailEvents() {
           // newly-revealed episode list doesn't open off-screen below the
           // click; collapsing just restores the prior scroll position so the
           // page doesn't jump now that the content above has shrunk.
+          // scrollIntoView's default "start" alignment puts the header flush
+          // with the viewport top, which hides it behind the sticky
+          // .page-topbar - offset by that bar's real rendered height instead.
           const trigger = nextSeason != null
             ? document.querySelector(`[data-season-accordion="${nextSeason}"]`)
             : null;
           if (trigger) {
-            trigger.scrollIntoView({ behavior: "smooth", block: "start" });
+            const topbar = document.querySelector(".page-topbar");
+            const offset = (topbar?.getBoundingClientRect().height || 0) + 12;
+            const targetTop = window.scrollY + trigger.getBoundingClientRect().top - offset;
+            window.scrollTo({ top: Math.max(0, targetTop), left: 0, behavior: "smooth" });
           } else {
             window.scrollTo({ top: scrollY, left: 0, behavior: "auto" });
           }
