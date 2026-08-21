@@ -1,7 +1,20 @@
 {
-  "build": 6,
-  "updatedAt": "2026-08-21T22:44:02+01:00",
+  "build": 7,
+  "updatedAt": "2026-08-22T00:13:54+01:00",
   "entries": [
+    {
+      "build": 7,
+      "date": "2026-08-22T00:13:54+01:00",
+      "commit": "caf27e11b6a9cea9459031eda732d7619e69b5c3",
+      "message": "Fix - Stop duplicate-watch cleanup from wrongly unwatching a surviving play",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removing a duplicate watch (per-season, library-wide, or a single watch-date delete) could report an episode or movie as fully unwatched even though a real watch of it still existed, because the check only looked for survivors under the exact same media_key as the row just deleted",
+        "Two watch rows for the same episode can legitimately carry different media_keys (e.g. one recorded via a TMDB id, another via an IMDb id only), so that exact-key check missed the surviving row and wrongly propagated an unwatched state to Plex, Emby, Jellyfin, and Trakt",
+        "The check now reuses the same broader same-episode identity match already used to find which rows belong together, so a surviving watch under a different key is correctly detected and the corrected watched state is propagated instead",
+        "Added a regression test reproducing the exact scenario"
+      ]
+    },
     {
       "build": 6,
       "date": "2026-08-21T22:44:02+01:00",
