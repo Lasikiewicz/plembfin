@@ -599,6 +599,16 @@ async function processCompletedSession(row, config, loopStore) {
   if (knownPlaystate?.state === "watched") {
     return null;
   }
+  // getPlaystateForMedia can still miss an already-recorded watch stored
+  // under a media_key from a different source - see the matching comment on
+  // the webhook handlers. A real session crossing the watched threshold is
+  // trustworthy evidence a play happened, but it still should not create a
+  // second row for an episode already recorded under a different key.
+  const existingByAnyKey = await findWatchedByAnyMediaKey(media).catch(() => null);
+  if (existingByAnyKey) {
+    await upsertPlaystateForMedia(media, "watched", existingByAnyKey.watched_at, { skipInvalidate: true });
+    return null;
+  }
 
   await markLiveTrackingComplete(row.session_id, Date.now());
 

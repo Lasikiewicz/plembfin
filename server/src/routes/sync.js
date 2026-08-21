@@ -1694,6 +1694,15 @@ export async function handleWebhook(req, res) {
               results.push({ episodeId: ep.Id, title: episodeMedia.title, success: true, skipped: true, reason: "Already marked watched" });
               return;
             }
+            // getPlaystateForMedia can still miss an already-recorded watch
+            // stored under a media_key from a different source - see the
+            // matching comment on the main webhook handler above.
+            const existingByAnyKey = await findWatchedByAnyMediaKey(episodeMedia).catch(() => null);
+            if (existingByAnyKey) {
+              await upsertPlaystateForMedia(episodeMedia, "watched", existingByAnyKey.watched_at, { skipInvalidate: true });
+              results.push({ episodeId: ep.Id, title: episodeMedia.title, success: true, skipped: true, reason: "Already recorded under a different media key" });
+              return;
+            }
             if (await shouldSkipPostRestoreCompletedWebhook(episodeMedia)) {
               results.push({ episodeId: ep.Id, title: episodeMedia.title, success: true, skipped: true, reason: "Post-restore completed webhook without active playback evidence" });
               return;
@@ -1904,6 +1913,27 @@ export async function handleWebhook(req, res) {
         skipped: true,
         reason: "Post-restore completed webhook without active playback evidence",
       });
+    }
+
+    // getWatchRecordByMediaKey and getPlaystateForMedia above both key off
+    // this notification's own computed media_key/playstate lookup, which can
+    // still miss an already-recorded watch stored under a different key from
+    // another source (e.g. one keyed by imdb, another by title fallback) -
+    // the exact mismatch behind the Silo/Trying/Cape Fear phantom watches.
+    // findWatchedByAnyMediaKey has the broader coordinate/provider-id
+    // fallback matching every other ingest path relies on for this; treat a
+    // hit there as conclusive too instead of only trusting the exact checks.
+    const existingByAnyKey = await findWatchedByAnyMediaKey(media).catch(() => null);
+    if (existingByAnyKey) {
+      console.log("Webhook: already recorded under a different key; repairing playstate instead of logging a new watch", {
+        source: media.source,
+        title: media.title,
+        existingWatchedAt: existingByAnyKey.watched_at,
+      });
+      await upsertPlaystateForMedia(media, "watched", existingByAnyKey.watched_at, { skipInvalidate: true });
+      await deletePlaybackProgress(media).catch(() => null);
+      await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+      return sendJson(res, { ok: true, inserted: false, id: existingByAnyKey.id, reason: "Watch record already exists under a different media key" });
     }
 
     if (!media.playedFlagOnly) {

@@ -25,6 +25,18 @@ export async function applyWatchedTransition(media, config, loopStore, { trackDi
     if (!trackDispatch) completeDispatchTracking();
     return { inserted: false, alreadyWatched: true, summary: { skipped: true, status: "skipped", details: "Already watched; no change to propagate", targetStates: [] } };
   }
+  // getPlaystateForMedia can still miss an already-recorded watch stored
+  // under a media_key from a different source (e.g. a Trakt-sourced entry
+  // keyed by imdb vs a media-server entry keyed by title fallback for the
+  // same episode) - findWatchedByAnyMediaKey has the broader coordinate/
+  // provider-id fallback matching every other ingest path relies on for
+  // this; a hit there is conclusive too, not just an exact playstate match.
+  const existingByAnyKey = await findWatchedByAnyMediaKey(media).catch(() => null);
+  if (existingByAnyKey) {
+    await upsertPlaystateForMedia(media, "watched", existingByAnyKey.watched_at, { skipInvalidate: true });
+    if (!trackDispatch) completeDispatchTracking();
+    return { inserted: false, alreadyWatched: true, summary: { skipped: true, status: "skipped", details: "Already recorded under a different media key; no change to propagate", targetStates: [] } };
+  }
   const record = mediaToWatchRecord({ ...media, syncAction: "watched" }, media.source);
   record.sync_action = "watched";
   const result = await insertWatchRecord(record, { skipInvalidate: true });

@@ -18,6 +18,7 @@ import { runScheduledPlembfinBackup } from "./utils/plembfinBackups.js";
 import { pruneSyncPlans } from "./utils/syncPlans.js";
 import {
   deletePlaybackProgress,
+  findWatchedByAnyMediaKey,
   getCachedShows,
   getPlaystateForMedia,
   insertWatchRecord,
@@ -248,6 +249,25 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
           watchedAt,
         });
       }
+      await deletePlaybackProgress(media).catch(() => null);
+      return;
+    }
+
+    // The playstate check above can miss an already-recorded watch when the
+    // stored playstate row sits under a different media_key than this
+    // notification resolves to (e.g. one source matched by imdb, another by
+    // title fallback) - the exact mismatch behind today's Silo/Trying/Cape
+    // Fear phantom watches. findWatchedByAnyMediaKey has the same
+    // coordinate/provider-id fallback matching every other ingest path
+    // relies on for this; treat a hit there as conclusive too, not just an
+    // exact playstate match.
+    const existingByAnyKey = await findWatchedByAnyMediaKey(media).catch(() => null);
+    if (existingByAnyKey && !isNewerWatch) {
+      console.log("Plex notifications: already recorded under a different key; repairing playstate instead of logging a new watch", {
+        title: media.title,
+        ratingKey,
+      });
+      await upsertPlaystateForMedia(media, "watched", existingByAnyKey.watched_at, { skipInvalidate: true });
       await deletePlaybackProgress(media).catch(() => null);
       return;
     }
