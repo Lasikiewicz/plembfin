@@ -1,7 +1,20 @@
 {
-  "build": 4,
-  "updatedAt": "2026-08-21T21:53:40+01:00",
+  "build": 5,
+  "updatedAt": "2026-08-21T22:33:40+01:00",
   "entries": [
+    {
+      "build": 5,
+      "date": "2026-08-21T22:33:40+01:00",
+      "commit": "a81e2ea7a6883d2a7444af70a6343fb34d067b58",
+      "message": "Feature - Parallelize Force Sync execution and add opt-in fast local-network pacing",
+      "author": "Lasikiewicz",
+      "details": [
+        "Force Sync and Full Sync Watchstates now process independent library items with bounded concurrency instead of one at a time, dramatically speeding up large plans without exceeding the outbound pacing governor's per-server request limits",
+        "Added a Fast Local-Network Sync checkbox to Settings -> Sync -> Sync Tuning (off by default) that raises those per-server limits further for setups where Plex, Emby, and Jellyfin are all self-hosted on the same trusted local network as Plembfin",
+        "Cancelling a Force Sync now lets already-in-flight items finish instead of stopping after a single item",
+        "Documented the new setting in Settings help, docs/settings.md, and the README configuration reference"
+      ]
+    },
     {
       "build": 4,
       "date": "2026-08-21T21:53:40+01:00",
