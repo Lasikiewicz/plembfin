@@ -107,6 +107,26 @@ test("deleteWatchDate reports no surviving row when the last watch is removed", 
   assert.equal(result.deletedRow?.id, only.id);
 });
 
+// Reproduces a real production bug: two watch rows for the same episode can
+// carry different media_keys (e.g. one inserted with a tmdb id, the other
+// with only an imdb id - the same identity split fixed elsewhere for
+// playstate lookups). Recomputing "does anything remain" by exact media_key
+// alone missed the surviving row and reported it as fully unwatched, even
+// though a perfectly good watched row for the same episode still existed -
+// which then wrongly propagated "unwatched" to every connected platform.
+test("deleteWatchDate finds a surviving row even when it has a different media_key", async () => {
+  const showTitle = "Cross-Key Show";
+  const tmdbRow = await repo.insertWatchRecord({ title: `${showTitle} - S01E01`, media_type: "episode", show_title: showTitle, season: 1, episode: 1, tmdb_id: "crosskey-tmdb", watched_at: "2023-01-01T00:00:00.000Z", source: "jellyfin" });
+  const imdbRow = await repo.insertWatchRecord({ title: `${showTitle} - S01E01`, media_type: "episode", show_title: showTitle, season: 1, episode: 1, imdb_id: "tt-crosskey", watched_at: "2023-06-01T00:00:00.000Z", source: "plex" });
+
+  const result = await repo.deleteWatchDate(imdbRow.id);
+  assert.equal(result.ok, true);
+  assert.equal(result.remainingRow?.id, tmdbRow.id);
+
+  const tmdbMediaKey = repo.mediaKeyFor({ media_type: "episode", season: 1, episode: 1, tmdb_id: "crosskey-tmdb" });
+  assert.equal(await repo.findExistingWatch(tmdbMediaKey, tmdbRow.record.watched_at).then((r) => Boolean(r)), true);
+});
+
 test("deleteWatchDates reports affected media with surviving/deleted rows per media_key", async () => {
   const mediaA = { title: "Bulk A Show - S01E01", type: "episode", season: 1, episode: 1, ids: { tmdb: "bulk-a" }, isValid: true };
   const mediaB = { title: "Bulk B Show - S01E01", type: "episode", season: 1, episode: 1, ids: { tmdb: "bulk-b" }, isValid: true };

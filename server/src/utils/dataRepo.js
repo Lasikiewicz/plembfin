@@ -1495,6 +1495,30 @@ export async function addWatchDate(id, watchedAtInput) {
   return { ok: true, id: newId };
 }
 
+// After deleting a watch row, is there anything left to treat as "still
+// watched"? An exact media_key match alone can miss a surviving row: two
+// watch_history rows for the same real episode/movie can carry different
+// media_keys (one from a provider-ID match, one from an older title-fallback
+// insert - the same identity split fixed elsewhere for playstate lookups).
+// Deleting the row under one key while a perfectly good watched row for the
+// same episode sits under the other key must not report "nothing remains" -
+// that false negative is what makes a duplicate-watch cleanup wrongly mark a
+// still-watched episode unwatched. siblingWatchRowsFor already implements
+// the broader same-show/season/episode (or provider-id/title-cluster for
+// movies) identity match used to find which rows to delete together; reuse
+// it here to find what survives, unioned with the exact-key match.
+function remainingWatchRowFor(deletedRow) {
+  const byExactKey = deletedRow.media_key ? selectByMediaKeyStmt.all(deletedRow.media_key) : [];
+  const bySameIdentity = siblingWatchRowsFor(deletedRow);
+  const byId = new Map();
+  for (const row of [...byExactKey, ...bySameIdentity]) {
+    if (row?.id) byId.set(row.id, row);
+  }
+  const remaining = [...byId.values()].filter(isPlembfinTrackedWatchRow);
+  if (!remaining.length) return null;
+  return remaining.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
+}
+
 // Removes a single watch date (one row) added via addWatchDate/the edit-date
 // dialog, without touching any other watch of the same movie/episode. If the
 // deleted row was the current playstate pointer, playstate is rolled back to
@@ -1536,9 +1560,8 @@ export async function deleteWatchDate(id) {
   const mediaKey = existing.media_key;
   let remainingRow = null;
   if (mediaKey) {
-    const remaining = selectByMediaKeyStmt.all(mediaKey).filter(isPlembfinTrackedWatchRow);
-    if (remaining.length) {
-      remainingRow = remaining.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
+    remainingRow = remainingWatchRowFor(existing);
+    if (remainingRow) {
       updatePlaystateWatchedAtStmt.run(remainingRow.watched_at, Date.now(), mediaKey);
     } else {
       deletePlaystateByKeyStmt.run(mediaKey);
@@ -1608,10 +1631,8 @@ export async function deleteWatchDates(ids = []) {
 
   const affectedMedia = [];
   for (const mediaKey of affectedMediaKeys) {
-    const remaining = selectByMediaKeyStmt.all(mediaKey).filter(isPlembfinTrackedWatchRow);
-    let remainingRow = null;
-    if (remaining.length) {
-      remainingRow = remaining.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
+    const remainingRow = remainingWatchRowFor(representativeRowByMediaKey.get(mediaKey));
+    if (remainingRow) {
       updatePlaystateWatchedAtStmt.run(remainingRow.watched_at, Date.now(), mediaKey);
     } else {
       deletePlaystateByKeyStmt.run(mediaKey);
