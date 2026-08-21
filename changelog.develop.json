@@ -1,8 +1,21 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 15,
-  "version": "0.9.3.1.15",
+  "build": 16,
+  "version": "0.9.3.1.16",
   "entries": [
+    {
+      "build": 16,
+      "version": "0.9.3.1.16",
+      "date": "2026-08-21T08:29:46+01:00",
+      "commit": "4dd043a106436ff84548dbaa3571a78c68f3eafb",
+      "message": "Fix - Audit and harden every watched-ingest path against media-key mismatches",
+      "author": "Lasikiewicz",
+      "details": [
+        "Audited every code path that can insert a new watch_history row and found several still relying on an exact media_key match (or playstate alone) to decide whether an item is already watched, instead of the broader coordinate/provider-id fallback matching used elsewhere - this is the exact mismatch behind today's Silo, Trying, Lioness, and Cape Fear phantom watches",
+        "Hardened the Plex real-time notification handler, the main webhook handler, the per-episode bulk webhook mark path, the shared watched-transition helper (used by Trakt polling and other manual/webhook paths), and the live-session tracker to all consistently check findWatchedByAnyMediaKey before logging a new watch",
+        "A hit under a different key now repairs the local playstate pointer instead of inserting a duplicate row, closing this class of bug at every remaining ingest path rather than one incident at a time"
+      ]
+    },
     {
       "build": 15,
       "version": "0.9.3.1.15",
@@ -191,5 +204,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-21T00:07:14+01:00"
+  "updatedAt": "2026-08-21T08:29:46+01:00"
 }
