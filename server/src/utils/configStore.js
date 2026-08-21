@@ -128,6 +128,16 @@ function mergeEnvDefaults(stored = {}) {
   // env/default fallback happens in applyTuningConfig()'s effective getters.
   merged.tuning = normalized.tuning;
 
+  // syncScope and authority have no env-var defaults; pacing's
+  // OUTBOUND_PACING_PROFILE env default only applies before anything has ever
+  // been saved (see defaultMediaConfig()). All three are carried through
+  // as-is here. Omitting any of them would make normalizeStoredConfig() below
+  // see them as absent and silently reset them to their hardcoded defaults on
+  // every load, wiping a saved value the moment anything reads config again.
+  merged.syncScope = normalized.syncScope;
+  merged.authority = normalized.authority;
+  merged.pacing = normalized.pacing;
+
   for (const section of ["plex", "emby", "jellyfin"]) {
     if (hasConfiguredFields(normalized[section])) {
       merged[section].disabled = normalized[section].disabled;
