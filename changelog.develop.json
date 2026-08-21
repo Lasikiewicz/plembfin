@@ -1,7 +1,21 @@
 {
-  "build": 12,
-  "updatedAt": "2026-08-21T15:30:24+01:00",
+  "build": 13,
+  "updatedAt": "2026-08-21T15:42:29+01:00",
   "entries": [
+    {
+      "build": 13,
+      "date": "2026-08-21T15:42:29+01:00",
+      "commit": "e509e127845554aec0be370dede971d9360f7da3",
+      "message": "Fix - Show title lookup and Fix Match now find every episode regardless of a trailing year mismatch",
+      "author": "Lasikiewicz",
+      "details": [
+        "queryShowDetail and rematchShowWatchRecords (Fix Match) both did an exact show_title_lower match first, only falling back to a broader canonical scan when that found zero rows - never when it found an incomplete subset",
+        "The same real show's episode rows can carry different exact show_title text over time (a media server's own title is rarely year-suffixed even when Plembfin's preferred display title is), so an exact match silently saw only one variant and missed the rest of the show's episodes - or resolved a different variant to an unrelated show sharing that exact text",
+        "This is what was actually blocking School Spirits Season 3 after every earlier fix: a Fix Match run only repaired the rows matching its anchor's exact title text, leaving Season 3's rows on their old identity untouched",
+        "Both functions now always scan by the same normalized canonical key (title with any trailing year stripped) that episodes are grouped by everywhere else, so a lookup or repair can no longer see only part of a show",
+        "Added a regression test with episodes split across a year-suffixed and non-year-suffixed title for the same show"
+      ]
+    },
     {
       "build": 12,
       "date": "2026-08-21T15:30:24+01:00",
