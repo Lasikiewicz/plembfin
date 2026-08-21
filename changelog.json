@@ -1,7 +1,32 @@
 {
-  "version": "0.9.3",
-  "updatedAt": "2026-08-20T20:11:55+01:00",
+  "version": "0.9.5",
+  "updatedAt": "2026-08-20T21:42:56+01:00",
   "entries": [
+    {
+      "version": "0.9.5",
+      "date": "2026-08-20T21:42:56+01:00",
+      "commit": "525730197872456a681173b695a23f30a94a2bd7",
+      "message": "Merge develop into main",
+      "author": "Lasikiewicz",
+      "details": [
+        "Resolve connected provider credentials and server URLs in System Diagnostic tests",
+        "Merge develop into main"
+      ]
+    },
+    {
+      "version": "0.9.4",
+      "date": "2026-08-20T21:35:32+01:00",
+      "commit": "2f8977520d3ef3559a04661b4672f7ba9c96f759",
+      "message": "Fix - Prioritize exact media_key playstate match before fuzzy fallback",
+      "author": "Lasikiewicz",
+      "details": [
+        "Align alpha baseVersion to 0.9.3 (v0.9.3.1)",
+        "Align develop version to v0.9.3.1.1",
+        "Format version badges with clean (Develop) and (Alpha) channel suffixes",
+        "Automatically detects manual Plex watch and unwatch actions within seconds using lightweight adaptive polling",
+        "Ensure exact media_key matches are checked before falling back to fuzzy title matches"
+      ]
+    },
     {
       "version": "0.9.3",
       "date": "2026-08-20T20:11:55+01:00",
