@@ -3600,7 +3600,21 @@ function showGroupKeys(rows = []) {
 // provider id to disambiguate by) - most recently active first, rather than
 // whichever cluster happened to form first.
 function mostRecentShowFirst(shows = []) {
-  return [...shows].sort((a, b) => String(b.latest_watched_at || "").localeCompare(String(a.latest_watched_at || "")));
+  return [...shows].sort((a, b) => {
+    // A cluster with only a handful of watched episodes racing ahead of a far
+    // larger, well-established one purely on recency is far more likely to be
+    // a stray mismatched import (e.g. Trakt resolving an ambiguous title to
+    // an unrelated show for one play) than a genuine distinct show sharing
+    // the same title - prefer the substantially larger cluster in that case
+    // rather than picking whichever was touched most recently.
+    const aCount = Number(a.episode_count || 0);
+    const bCount = Number(b.episode_count || 0);
+    const larger = Math.max(aCount, bCount);
+    const smaller = Math.min(aCount, bCount);
+    const substantiallyLarger = larger >= 5 && larger >= smaller * 5;
+    if (substantiallyLarger && aCount !== bCount) return bCount - aCount;
+    return String(b.latest_watched_at || "").localeCompare(String(a.latest_watched_at || ""));
+  });
 }
 
 function groupShowRows(rows = []) {

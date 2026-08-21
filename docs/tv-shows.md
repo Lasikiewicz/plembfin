@@ -33,6 +33,15 @@ The client applies the same rule when merging a show's `state.history` preview r
 its full episode list (`mergeShowWithLoadedHistory()` in `media-detail-show.js`): a row
 whose own provider id contradicts the show's is excluded even when the title matches.
 
+A title lookup with no id to disambiguate by (`queryShowDetail({ title })`) can still
+resolve more than one real cluster under an exact title match - two distinct shows
+sharing a name, or a single mismatched import (an ambiguous Trakt title resolving to the
+wrong TMDB/TVDB show for one play) sitting alongside the real, well-established one.
+`mostRecentShowFirst()` picks between them by recency, but only after checking size
+first: a cluster with far fewer watched episodes than another loses even if it was
+touched more recently, so one stray recent row can't outrank dozens of correctly
+identified ones. Two comparably-sized clusters still resolve by recency, same as before.
+
 A show stays groupable and visible even once every one of its episodes is marked
 unwatched: `getCachedShows()` and `queryShowDetail()` group episode rows regardless of
 each row's current watched/unwatched `sync_action` (only genuinely untrustworthy rows -

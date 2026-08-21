@@ -246,3 +246,34 @@ test("a show's tvdb_id is never surfaced from an unverified episode-tagged id", 
   const afterMatch = showsAfter.find((show) => show.title === "Untrusted Tvdb Show");
   assert.equal(afterMatch.tvdb_id, "9999999", "a genuinely cached series id must be trusted");
 });
+
+test("a title lookup prefers a well-established show over a fresher single-row mismatch", async () => {
+  // Mirrors a real incident: Trakt import resolved one ambiguous "Collision
+  // Show" play to a completely unrelated TMDB id, inserting a lone row dated
+  // after every real episode of the actual show. A pure most-recent-wins tie
+  // break would let that one bad row hijack the whole title lookup.
+  for (let episode = 1; episode <= 6; episode += 1) {
+    await insert({
+      title: `Collision Show - S01E0${episode}`,
+      media_type: "episode",
+      watched_at: `2026-05-0${episode}T12:00:00.000Z`,
+      source: "manual",
+      tmdb_id: "555555",
+      season: 1,
+      episode,
+    });
+  }
+  await insert({
+    title: "Collision Show - S01E02",
+    media_type: "episode",
+    watched_at: "2026-05-10T12:00:00.000Z",
+    source: "trakt_import",
+    tmdb_id: "999999",
+    imdb_id: "tt-wrong-collision",
+    season: 1,
+    episode: 2,
+  });
+
+  const show = await repo.queryShowDetail({ title: "Collision Show" });
+  assert.equal(show.tmdb_id, "555555", "the 6-episode established show must win over the 1-episode mismatched duplicate");
+});
