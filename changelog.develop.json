@@ -1,7 +1,20 @@
 {
-  "build": 6,
-  "updatedAt": "2026-08-21T14:03:01+01:00",
+  "build": 7,
+  "updatedAt": "2026-08-21T14:18:25+01:00",
   "entries": [
+    {
+      "build": 7,
+      "date": "2026-08-21T14:18:25+01:00",
+      "commit": "4f3d7b290a250f8d0aea741b8695979f356e81a6",
+      "message": "Fix - Import Watched Status no longer skips episodes with no server watched-date",
+      "author": "Lasikiewicz",
+      "details": [
+        "Detail-page Force Sync -> Import Watched Status was silently dropping any episode a server flagged as played but returned no watched timestamp for - common when episodes are bulk-marked watched through a server's own library UI rather than played through",
+        "Those episodes now import using the episode's own release date instead of being skipped, since this action is explicit and scoped to one title (unlike the automatic background sync, which still requires a real watched date to avoid manufacturing phantom watches across an entire library)",
+        "An episode with neither a watched date nor a release date is still skipped rather than given a fabricated date",
+        "Added regression tests for both the fallback and the still-skip case"
+      ]
+    },
     {
       "build": 6,
       "date": "2026-08-21T14:03:01+01:00",
