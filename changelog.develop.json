@@ -1,7 +1,19 @@
 {
-  "build": 10,
-  "updatedAt": "2026-08-21T15:12:06+01:00",
+  "build": 11,
+  "updatedAt": "2026-08-21T15:23:19+01:00",
   "entries": [
+    {
+      "build": 11,
+      "date": "2026-08-21T15:23:19+01:00",
+      "commit": "596524e646ab4fe347dc7d619f7ed95fea509654",
+      "message": "Fix - Match Import Watched Status's watched-check to what the show page actually displays",
+      "author": "Lasikiewicz",
+      "details": [
+        "getCanonicalWatchState matches by provider id/media_key, but an incoming Plex/Emby/Jellyfin item's ids are episode-scoped (its own imdb/tvdb id, not the show's) and often don't match the playstate row's identity - the lookup fell through to the same any-watched-row check the previous fix was meant to replace, still finding a dormant old watched row and wrongly reporting nothing to do",
+        "A show-scoped pull now builds a season+episode -> sync_action map once from the show's own current detail and checks that first - the exact data the display itself groups from, so it can't disagree with what the page renders",
+        "Verified against live production logs: outbound dispatch to Plex/Emby/Jellyfin was already succeeding for every episode, confirming the sync engine and webhook echo protection were healthy - only the local re-import decision was wrong"
+      ]
+    },
     {
       "build": 10,
       "date": "2026-08-21T15:12:06+01:00",
