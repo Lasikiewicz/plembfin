@@ -3,11 +3,16 @@
 // Bumps a standalone rolling develop build counter and records a changelog
 // entry for a push to the develop branch. This counter is intentionally NOT
 // derived from alpha's or main's version - it never "chases" a parent
-// version string, so it can never appear to regress relative to a branch it
-// was promoted from (which is exactly what happened when it borrowed
-// ${mainVersion}.${alphaBuild}.${developBuild}: a force-promotion to alpha/main
-// left this branch's own file stale until its next push). It simply counts
-// up for the lifetime of the branch and is displayed as "Develop Build N".
+// version string via comparison, so it can never appear to regress relative
+// to a branch it was promoted from (which is exactly what happened when it
+// borrowed ${mainVersion}.${alphaBuild}.${developBuild}: a force-promotion to
+// alpha/main left this branch's own file stale until its next push, with no
+// way to tell it had gone stale). It simply counts up for the lifetime of
+// the branch and is displayed as "Develop Build N". The one place it does
+// reset is an explicit, deliberate one: promoteDevelopToAlpha() (run as part
+// of the "Force to alpha" promotion itself) zeroes it directly, the same
+// safe shape as alpha's own reset-on-promotion-to-main - never an inferred
+// reset based on comparing against a value that might be stale.
 
 import fs from "node:fs";
 import path from "node:path";

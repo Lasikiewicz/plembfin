@@ -123,13 +123,14 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   alpha.entries.unshift(alphaEntry);
   alpha.entries = alpha.entries.slice(0, 100);
 
-  // Clear develop's entry list now that it's been consolidated into the alpha
-  // entry above - the build counter itself is never reset (see
-  // update-develop-changelog.js): it counts pushes to develop for the
-  // lifetime of the branch, independent of alpha/main's version, so it can
-  // never appear to regress relative to a branch it was promoted from.
+  // Reset develop's build counter now that its work has been consolidated
+  // into the alpha entry above. Unlike the old ${mainVersion}.${alphaBuild}.${developBuild}
+  // scheme, this reset is safe: it's an explicit, deliberate action taken as
+  // part of this promotion itself, not a passive comparison against a parent
+  // version string that could be stale or wrong. It's the same shape as
+  // alpha's own reset-on-promotion-to-main, which already works safely.
   develop = {
-    build: develop.build || 0,
+    build: 0,
     updatedAt: sourceDate,
     entries: [],
   };
