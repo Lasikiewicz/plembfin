@@ -1,7 +1,19 @@
 {
-  "build": 18,
-  "updatedAt": "2026-08-21T17:22:02+01:00",
+  "build": 19,
+  "updatedAt": "2026-08-21T17:37:58+01:00",
   "entries": [
+    {
+      "build": 19,
+      "date": "2026-08-21T17:37:58+01:00",
+      "commit": "60f6372a2f90ecce7554da2f07a561a0b7b32793",
+      "message": "Fix - Detect and clean up library-wide duplicate TV show watches",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix Remove Duplicate TV Watches scan in Settings to accurately identify episodes with multiple recorded watch dates",
+        "Normalize media type aliases like TV and show in duplicate watch scan and cleanup endpoints",
+        "Keep the oldest watch date and remove subsequent duplicate plays during library-wide cleanup"
+      ]
+    },
     {
       "build": 18,
       "date": "2026-08-21T17:22:02+01:00",
