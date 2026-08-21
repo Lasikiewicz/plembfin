@@ -19,10 +19,19 @@ infinite scroll. Clicking a show opens the show detail page
 ## Data model
 
 A "show" is derived from `watch_history` rows with `media_type = "episode"`, grouped by
-show title (`show_title_lower` / `canonicalTitleKey`). `getCachedShows()` builds one
-summary per show - earliest/latest watch, episode count, inherited artwork (first
-available poster/logo/backdrop from its episode rows) - memoized in-process and
-invalidated on any history change.
+`groupShowRows()` in `dataRepo.js`. Rows are linked (union-find) when they share any
+provider id (imdb/tmdb/tvdb) - the same approach `dedupeMovies()` uses for films - so a
+title-only grouping key can't silently merge two distinct real shows that share an
+exact title (a reboot/revival, e.g. Scrubs 2001 vs Scrubs 2026). A row with no provider
+id at all folds into the one id-cluster matching its canonical title, when there is
+exactly one candidate; otherwise it keeps its own title-only cluster rather than
+guessing. `getCachedShows()` builds one summary per resulting show - earliest/latest
+watch, episode count, inherited artwork (first available poster/logo/backdrop from its
+episode rows) - memoized in-process and invalidated on any history change.
+
+The client applies the same rule when merging a show's `state.history` preview rows into
+its full episode list (`mergeShowWithLoadedHistory()` in `media-detail-show.js`): a row
+whose own provider id contradicts the show's is excluded even when the title matches.
 
 `queryShows({ search, sort, limit, offset, hideWatched, hideEnded })` filters/sorts/
 pages that cache. Sort modes include `title_asc`, `title_desc`, `watched_asc`, recency,

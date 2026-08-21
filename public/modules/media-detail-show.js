@@ -1246,9 +1246,20 @@ export function renderShowModalContent(show, {
   hydrateMediaAppLinks(root);
 }
 
+// Provider ids present on both sides, lowercased, prefixed by type so an
+// imdb id never collides with a numeric tmdb id that happens to match.
+function providerIdTokens(obj = {}) {
+  const ids = [];
+  if (obj.imdb_id) ids.push(`imdb:${String(obj.imdb_id).toLowerCase()}`);
+  if (obj.tmdb_id) ids.push(`tmdb:${String(obj.tmdb_id).toLowerCase()}`);
+  if (obj.tvdb_id) ids.push(`tvdb:${String(obj.tvdb_id).toLowerCase()}`);
+  return ids;
+}
+
 function mergeShowWithLoadedHistory(show = {}) {
   if (!show?.title) return show;
   const showKey = slug(show.title || "");
+  const showIds = providerIdTokens(show);
   const byEpisode = new Map();
   for (const episode of show.episodes || []) {
     if (!isWatchedHistoryAction(episode)) continue;
@@ -1261,6 +1272,12 @@ function mergeShowWithLoadedHistory(show = {}) {
     if (row.season == null || row.episode == null) continue;
     const rowShowTitle = row.show_title || showTitleFrom(row.title);
     if (slug(rowShowTitle) !== showKey) continue;
+    // A title match alone isn't enough when two distinct real shows share a
+    // title (a reboot/revival, e.g. Scrubs 2001 vs Scrubs 2026) - exclude a
+    // row whose own provider id contradicts this show's, even though the
+    // title matched, rather than blending a different show's episodes in.
+    const rowIds = providerIdTokens(row);
+    if (rowIds.length && showIds.length && !rowIds.some((id) => showIds.includes(id))) continue;
     const key = showEpisodeKey(row.season, row.episode);
     const existing = byEpisode.get(key);
     if (!existing || String(row.watched_at || "") >= String(existing.watched_at || "")) {

@@ -3487,12 +3487,77 @@ function dedupeMovies(rows = []) {
   return [...clusters.values()].map(collapseMovieCluster);
 }
 
+// Rows are linked (union-find) when they share ANY external id (imdb/tmdb/tvdb) -
+// the same approach as dedupeMovies above. Id-less rows fold into the unique id
+// cluster sharing their canonical title; when two distinct shows share a title
+// (a reboot/revival, e.g. Scrubs 2001 vs Scrubs 2026), each keeps its own
+// cluster instead of being silently merged into one blended show page with
+// mixed season/episode counts.
+function showGroupKeys(rows = []) {
+  const parent = new Map();
+  const find = (x) => {
+    while (parent.get(x) !== x) {
+      parent.set(x, parent.get(parent.get(x)));
+      x = parent.get(x);
+    }
+    return x;
+  };
+  const union = (a, b) => { parent.set(find(a), find(b)); };
+  const ensure = (x) => { if (!parent.has(x)) parent.set(x, x); };
+  const idNodesFor = (row) => {
+    const nodes = [];
+    const imdb = cleanString(row.imdb_id); if (imdb) nodes.push(`imdb:${imdb}`);
+    const tmdb = cleanString(row.tmdb_id); if (tmdb) nodes.push(`tmdb:${tmdb}`);
+    const tvdb = cleanString(row.tvdb_id); if (tvdb) nodes.push(`tvdb:${tvdb}`);
+    return nodes;
+  };
+
+  for (const row of rows) {
+    const nodes = idNodesFor(row);
+    nodes.forEach(ensure);
+    for (let i = 1; i < nodes.length; i += 1) union(nodes[0], nodes[i]);
+  }
+
+  const titleClusterKeys = new Map();
+  for (const row of rows) {
+    const nodes = idNodesFor(row);
+    if (!nodes.length) continue;
+    const title = showTitleFrom(row.show_title || row.title);
+    const titleKey = canonicalTitleKey(title) || normalizeKeyPart(title);
+    if (!titleClusterKeys.has(titleKey)) titleClusterKeys.set(titleKey, new Set());
+    titleClusterKeys.get(titleKey).add(find(nodes[0]));
+  }
+
+  const keys = new Map();
+  for (const row of rows) {
+    const nodes = idNodesFor(row);
+    if (nodes.length) {
+      keys.set(row, find(nodes[0]));
+      continue;
+    }
+    const title = showTitleFrom(row.show_title || row.title);
+    const titleKey = canonicalTitleKey(title) || normalizeKeyPart(title);
+    const matches = titleClusterKeys.get(titleKey);
+    keys.set(row, matches?.size === 1 ? [...matches][0] : `title:${titleKey || "unknown-show"}`);
+  }
+  return keys;
+}
+
+// Deterministic tie-break for callers that need a single show out of
+// groupShowRows's results (queryShowDetail's title-only lookups have no
+// provider id to disambiguate by) - most recently active first, rather than
+// whichever cluster happened to form first.
+function mostRecentShowFirst(shows = []) {
+  return [...shows].sort((a, b) => String(b.latest_watched_at || "").localeCompare(String(a.latest_watched_at || "")));
+}
+
 function groupShowRows(rows = []) {
+  const groupKeys = showGroupKeys(rows);
   const groups = new Map();
   rows.forEach((row) => {
     const rawTitle = cleanString(row.show_title || showTitleFrom(row.title));
     const title = showTitleFrom(row.show_title || row.title);
-    const key = canonicalTitleKey(title) || normalizeKeyPart(title);
+    const key = groupKeys.get(row);
     const group = groups.get(key) || {
       title,
       raw_title: rawTitle,
@@ -3654,7 +3719,12 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
 
   if (resolvedTitle) {
     const rows = dedupeHistory(selectEpisodesByShowLowerStmt.all(resolvedTitle.toLowerCase()).map(rowToWatch).filter(isPlembfinTrackedWatchRow));
-    const [show] = groupShowRows(rows);
+    // An exact show_title match can still resolve to more than one real show
+    // (two distinct shows stored under the identical title text) now that
+    // groupShowRows splits them by provider id instead of blending them -
+    // the most recently active one is the more likely match for a lookup
+    // with no id to disambiguate by.
+    const [show] = mostRecentShowFirst(groupShowRows(rows));
     if (show) {
       const showKey = canonicalTitleKey(show.title) || normalizeKeyPart(show.title);
       const rawShowKey = canonicalTitleKey(show.raw_title) || normalizeKeyPart(show.raw_title);
@@ -3672,7 +3742,9 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
   const key = canonicalTitleKey(resolvedTitle);
   const rows = dedupeHistory(await loadHistoryRowsByType({ mediaType: "episode", limit: MAX_HISTORY_LIMIT }))
     .filter((row) => canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === key);
-  const [show] = groupShowRows(rows);
+  // Same reasoning as the exact-title branch above: a canonical-title match
+  // can span two real shows sharing a title once they're no longer blended.
+  const [show] = mostRecentShowFirst(groupShowRows(rows));
   if (show) show.tmdb_id = cachedShowTmdbId(show.tmdb_id, show.representative_episode?.tmdb_id) || null;
   return show || null;
 }
