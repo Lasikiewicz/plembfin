@@ -1,7 +1,19 @@
 {
-  "build": 16,
-  "updatedAt": "2026-08-21T16:44:56+01:00",
+  "build": 17,
+  "updatedAt": "2026-08-21T16:56:02+01:00",
   "entries": [
+    {
+      "build": 17,
+      "date": "2026-08-21T16:56:02+01:00",
+      "commit": "b9e9d1554adf1c87c36b09f33dfe43c5965f9bd5",
+      "message": "Fix - Preserve live updates and full episode history across show detail refreshes",
+      "author": "Lasikiewicz",
+      "details": [
+        "Prevent show modal DOM wipe on in-place re-renders and live updates",
+        "Ensure all episode rows belonging to a series are merged into the main show record",
+        "Use majority provider ID frequency across episode records to prevent stray row hijacking"
+      ]
+    },
     {
       "build": 16,
       "date": "2026-08-21T16:44:56+01:00",
