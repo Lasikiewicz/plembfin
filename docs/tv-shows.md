@@ -58,6 +58,15 @@ search that was never written back onto any row (see the matching comment in
 has TMDB metadata cached under it, so without this ordering a wrong-but-cached id could
 keep permanently overriding a correct-but-not-yet-cached one.
 
+On the client, `renderShowDetailFromMetadata()` (`media-detail-show.js`) matches the
+freshly-fetched provider metadata against the show already cached in `state.showsRaw` by
+tmdb_id, tvdb_id, or title slug - trying all three, not just tmdb_id/slug, matters right
+after a Fix Match rematch: the show's tmdb_id is briefly cleared and re-backfilled in the
+background, and `preferredShowTitle()` can legitimately display a title with no trailing
+year while the provider's own name still carries one, breaking a slug-only match. Without
+the tvdb_id fallback, a show in that window would render from an empty placeholder (0
+watched episodes) instead of the real, already-correct data.
+
 A show's `tvdb_id`, by contrast, is never trusted straight from a watch_history row.
 Plex/Emby/Jellyfin webhooks tag an episode with its own TVDB id (TVDB assigns every
 episode a unique id, separate from its series), so a raw row's `tvdb_id` is usually

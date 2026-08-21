@@ -336,8 +336,20 @@ async function renderShowDetailFromMetadata(tmdbData, renderToken) {
   ]);
   if (currentMediaRenderToken() !== renderToken) return;
 
+  // A show's own tmdb_id/tvdb_id can be temporarily unresolved right after a
+  // Fix Match rematch (the identity fields are cleared and re-backfilled in
+  // the background), and its display title can legitimately differ from the
+  // provider's own name (preferredShowTitle() favors a title with no
+  // trailing year, which the provider's name may still carry) - so neither
+  // the tmdb_id nor the slug branch alone is reliable then. Matching on tvdb
+  // id too, when the provider returned one, keeps this from silently falling
+  // back to an empty placeholder (and rendering 0 watched episodes) right
+  // when a repaired show's identity is still catching up.
+  const tvdbIdCandidate = String(tmdbData.external_ids?.tvdb_id || "");
   const existingShow = state.showsRaw.find((show) => (
-    (tmdbData.id && String(show.tmdb_id || "") === String(tmdbData.id)) || slug(show.title) === slug(showTitle)
+    (tmdbData.id && String(show.tmdb_id || "") === String(tmdbData.id))
+    || (tvdbIdCandidate && String(show.tvdb_id || "") === tvdbIdCandidate)
+    || slug(show.title) === slug(showTitle)
   ));
   const show = mergeShowWithLoadedHistory(existingShow || {
     title: showTitle,
