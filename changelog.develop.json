@@ -1,7 +1,20 @@
 {
-  "build": 19,
-  "updatedAt": "2026-08-21T17:37:58+01:00",
+  "build": 20,
+  "updatedAt": "2026-08-21T18:21:03+01:00",
   "entries": [
+    {
+      "build": 20,
+      "date": "2026-08-21T18:21:03+01:00",
+      "commit": "36ee491dd15a2f8d0d2bf9350b585f535d2198b6",
+      "message": "Fix - Stop mark-watched syncs from blocking unrelated watch actions",
+      "author": "Lasikiewicz",
+      "details": [
+        "Marking an episode, season, show, or movie watched/unwatched no longer disables mark watched/unwatched buttons for unrelated episodes, seasons, shows, or movies while its sync to Plex/Emby/Jellyfin/Trakt is still running",
+        "A large season or show sync only blocks further actions on the same episodes it's syncing, not the whole app - you can mark a different show or movie watched right away instead of waiting",
+        "Show-wide controls (mark/resync the whole show, edit show date, edit images, fix match, merge) still wait for every in-flight action on that show to finish, since they would otherwise re-push episodes still mid-sync",
+        "Documented the new scoped syncing behavior in docs/media-detail.md"
+      ]
+    },
     {
       "build": 19,
       "date": "2026-08-21T17:37:58+01:00",
