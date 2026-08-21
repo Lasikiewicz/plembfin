@@ -72,14 +72,16 @@ export function promoteAlphaToMain({ targetVersion = "0.9.0", sourceDate = new D
     entries: [],
   };
 
-  // Reset develop changelog for the new release cycle
-  const develop = {
-    baseVersion: `${newMainVersion}.0`,
-    build: 0,
-    version: `${newMainVersion}.0.0`,
-    updatedAt: sourceDate,
-    entries: [],
-  };
+  // Clear develop's entry list for the new release cycle. The build counter
+  // is never reset (see update-develop-changelog.js): it counts pushes to
+  // develop for the lifetime of the branch, independent of alpha/main's
+  // version, so it can never appear to regress relative to a branch it was
+  // promoted from.
+  let develop = { build: 0, entries: [] };
+  try {
+    develop = JSON.parse(fs.readFileSync(developChangelogPath, "utf8"));
+  } catch { }
+  develop = { build: develop.build || 0, updatedAt: sourceDate, entries: [] };
 
   fs.writeFileSync(changelogPath, `${JSON.stringify(changelog, null, 2)}\n`);
   fs.writeFileSync(alphaChangelogPath, `${JSON.stringify(alpha, null, 2)}\n`);

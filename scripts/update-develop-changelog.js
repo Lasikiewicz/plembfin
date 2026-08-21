@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 
-// Bumps the rolling develop build counter (5th segment) and records a changelog
-// entry for a push to the develop branch.
-// Format: ${mainVersion}.${alphaBuild}.${developBuild} (e.g. "0.8.6.7.1")
+// Bumps a standalone rolling develop build counter and records a changelog
+// entry for a push to the develop branch. This counter is intentionally NOT
+// derived from alpha's or main's version - it never "chases" a parent
+// version string, so it can never appear to regress relative to a branch it
+// was promoted from (which is exactly what happened when it borrowed
+// ${mainVersion}.${alphaBuild}.${developBuild}: a force-promotion to alpha/main
+// left this branch's own file stale until its next push). It simply counts
+// up for the lifetime of the branch and is displayed as "Develop Build N".
 
 import fs from "node:fs";
 import path from "node:path";
@@ -11,8 +16,6 @@ import { bulletPointsFrom, formatChangelogMessage, isNoiseCommitMessage, isRelea
 import { changeAreaDetails, changedFilesForCommit, commitsSinceLastEntry } from "./changelog-git-helpers.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const changelogPath = path.join(root, "changelog.json");
-const alphaChangelogPath = path.join(root, "changelog.alpha.json");
 const developChangelogPath = path.join(root, "changelog.develop.json");
 
 const sourceCommit = String(process.env.SOURCE_COMMIT || "").trim();
@@ -25,34 +28,17 @@ if (!sourceCommit) {
   process.exit(1);
 }
 
-let mainVersion = "0.0.0";
-try {
-  mainVersion = JSON.parse(fs.readFileSync(changelogPath, "utf8")).version || "0.0.0";
-} catch { }
-
-let alpha = { baseVersion: mainVersion, build: 0 };
-try {
-  alpha = JSON.parse(fs.readFileSync(alphaChangelogPath, "utf8"));
-} catch { }
-
-const alphaBaseVersion = `${alpha.baseVersion || mainVersion}.${alpha.build || 0}`;
-
 let develop;
 try {
   develop = JSON.parse(fs.readFileSync(developChangelogPath, "utf8"));
 } catch {
-  develop = { baseVersion: alphaBaseVersion, build: 0, entries: [] };
+  develop = { build: 0, entries: [] };
 }
 if (!Array.isArray(develop.entries)) develop.entries = [];
 
 if (develop.entries.some((entry) => entry.commit === sourceCommit)) {
   console.log(`Develop changelog already contains ${sourceCommit}`);
   process.exit(0);
-}
-
-// If the underlying alpha base version changed, reset develop build counter to 0 for the new cycle
-if (develop.baseVersion !== alphaBaseVersion) {
-  develop = { baseVersion: alphaBaseVersion, build: 0, entries: [] };
 }
 
 let pushedCommits = [];
@@ -117,14 +103,11 @@ if (sourceDetails.length === 0) {
 const allDetails = [...backfilledDetails, ...sourceDetails].filter((v, i, arr) => v && arr.indexOf(v) === i);
 
 const nextBuild = Number(develop.build || 0) + 1;
-const fullVersion = `${develop.baseVersion}.${nextBuild}`;
 develop.build = nextBuild;
-develop.version = fullVersion;
 develop.updatedAt = sourceDate;
 
 const entry = {
   build: nextBuild,
-  version: fullVersion,
   date: sourceDate,
   commit: sourceCommit,
   message: sourceMessage,
@@ -135,4 +118,4 @@ develop.entries.unshift(entry);
 develop.entries = develop.entries.slice(0, 100);
 
 fs.writeFileSync(developChangelogPath, `${JSON.stringify(develop, null, 2)}\n`);
-console.log(`Prepared Plembfin ${fullVersion} develop for ${sourceCommit.slice(0, 7)}`);
+console.log(`Prepared Plembfin develop build ${nextBuild} for ${sourceCommit.slice(0, 7)}`);

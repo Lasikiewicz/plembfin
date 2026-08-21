@@ -484,6 +484,20 @@ since last merge" section (`alphaBuild.entries`, this instance's own already-ins
 build history) whenever either is non-empty, so a newer build's changes are visible without
 updating first.
 
+`developBuild` (populated only on the `develop` channel, read from `changelog.develop.json`
+via `readLocalDevelopChangelog()`) works the same way but is deliberately **not** derived
+from alpha's or main's version at all - it is a standalone rolling counter,
+`{ build, entries }`, bumped by `scripts/update-develop-changelog.js` on every push to
+`develop` and never reset by a promotion (a "promote develop to alpha" only clears the
+entries list, not the counter). Earlier this tracked `${mainVersion}.${alphaBuild}.${developBuild}`,
+which looked like a lower version than its parent branch for as long as `develop` went
+without a push after `alpha`/`main` moved forward (their own build files self-heal
+reactively on their next push, but that push never happens to `develop`, so its borrowed
+version string went stale). Dropping the derivation removes the possibility entirely: with
+nothing to compare against, the counter can never appear to regress. `describePendingDevelopBuild()`
+mirrors `describePendingAlphaBuild()` but compares only `build` numbers. The sidebar/About
+label shows this as `Develop Build <n>` rather than a version string.
+
 ## Data layer (`server/src/db.js` + `schema.sql`)
 
 `better-sqlite3` opens `data/plembfin.db` in WAL mode and applies `schema.sql` on

@@ -874,15 +874,16 @@ function readLocalChangelog() {
 }
 
 // Bundled only on the develop channel build; see docker-publish-develop.yml and
-// scripts/update-develop-changelog.js. Tracks a rolling 5-digit develop build counter.
+// scripts/update-develop-changelog.js. Tracks a standalone rolling develop
+// build counter, deliberately independent of alpha's or main's version - it
+// never borrows a parent version string, so it can never appear to regress
+// relative to a branch it was promoted from.
 function readLocalDevelopChangelog() {
   try {
     const raw = fs.readFileSync(nodePath.resolve(PUBLIC_DIR, "..", "changelog.develop.json"), "utf8");
     const data = JSON.parse(raw);
     return {
       build: Number(data.build) || 0,
-      baseVersion: data.baseVersion || null,
-      version: data.version || null,
       entries: Array.isArray(data.entries) ? data.entries : [],
     };
   } catch {
@@ -892,11 +893,10 @@ function readLocalDevelopChangelog() {
 
 export function describePendingDevelopBuild(localDevelopBuild, remoteDevelop) {
   const remoteBuild = Number(remoteDevelop?.build) || 0;
-  const remoteBaseVersion = remoteDevelop?.baseVersion || localDevelopBuild.baseVersion;
   const remoteEntries = Array.isArray(remoteDevelop?.entries) ? remoteDevelop.entries : [];
-  const newerBuildAvailable = remoteBaseVersion !== localDevelopBuild.baseVersion || remoteBuild > localDevelopBuild.build;
+  const newerBuildAvailable = remoteBuild > localDevelopBuild.build;
   const pendingEntries = newerBuildAvailable
-    ? remoteEntries.filter((entry) => remoteBaseVersion !== localDevelopBuild.baseVersion || Number(entry.build) > localDevelopBuild.build)
+    ? remoteEntries.filter((entry) => Number(entry.build) > localDevelopBuild.build)
     : [];
   return { latestBuild: remoteBuild, newerBuildAvailable, pendingEntries };
 }

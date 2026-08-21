@@ -56,9 +56,8 @@ test("bumpPatchVersion increments only the patch (3rd segment)", () => {
 });
 
 test("describePendingDevelopBuild identifies newer builds", () => {
-  const local = { baseVersion: "0.8.6.7", build: 2 };
+  const local = { build: 2 };
   const remote = {
-    baseVersion: "0.8.6.7",
     build: 4,
     entries: [
       { build: 4, message: "Build 4" },
@@ -75,19 +74,16 @@ test("describePendingDevelopBuild identifies newer builds", () => {
   assert.deepEqual(pending.pendingEntries.map((e) => e.build), [4, 3]);
 });
 
-test("describePendingDevelopBuild treats baseVersion mismatch as full reset", () => {
-  const local = { baseVersion: "0.8.6.7", build: 5 };
-  const remote = {
-    baseVersion: "0.8.6.8",
-    build: 1,
-    entries: [
-      { build: 1, message: "New cycle build 1" },
-    ],
-  };
+test("describePendingDevelopBuild never regresses just because entries were cleared after a promotion", () => {
+  // develop's build counter is standalone and never reset (see
+  // update-develop-changelog.js) - a promotion only clears the entries list,
+  // so a local build higher than or equal to remote must never report pending.
+  const local = { build: 5 };
+  const remote = { build: 1, entries: [{ build: 1, message: "New cycle build 1" }] };
 
   const pending = describePendingDevelopBuild(local, remote);
-  assert.equal(pending.newerBuildAvailable, true);
-  assert.equal(pending.pendingEntries.length, 1);
+  assert.equal(pending.newerBuildAvailable, false);
+  assert.deepEqual(pending.pendingEntries, []);
 });
 
 test("handleChangelog returns channel metadata properly", async () => {
@@ -114,7 +110,7 @@ test("handleChangelog returns channel metadata properly", async () => {
     assert.equal(statusCode, 200);
     assert.equal(jsonBody.channel, "develop");
     if (jsonBody.developBuild) {
-      assert.ok(/^\d+\.\d+\.\d+\.\d+\.\d+$/.test(jsonBody.developBuild.version), `Version should be 5-segment version, got ${jsonBody.developBuild.version}`);
+      assert.equal(typeof jsonBody.developBuild.build, "number");
     }
 
     // 2. Test release

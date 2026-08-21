@@ -95,7 +95,7 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   try {
     develop = JSON.parse(fs.readFileSync(developChangelogPath, "utf8"));
   } catch {
-    develop = { baseVersion: `${alpha.baseVersion}.${alpha.build}`, build: 0, entries: [] };
+    develop = { build: 0, entries: [] };
   }
   if (!Array.isArray(develop.entries)) develop.entries = [];
 
@@ -123,11 +123,13 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   alpha.entries.unshift(alphaEntry);
   alpha.entries = alpha.entries.slice(0, 100);
 
-  // Reset develop changelog for the new alpha cycle
+  // Clear develop's entry list now that it's been consolidated into the alpha
+  // entry above - the build counter itself is never reset (see
+  // update-develop-changelog.js): it counts pushes to develop for the
+  // lifetime of the branch, independent of alpha/main's version, so it can
+  // never appear to regress relative to a branch it was promoted from.
   develop = {
-    baseVersion: alphaVersionShort,
-    build: 0,
-    version: `${alphaVersionShort}.0`,
+    build: develop.build || 0,
     updatedAt: sourceDate,
     entries: [],
   };

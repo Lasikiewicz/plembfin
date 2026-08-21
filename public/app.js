@@ -345,11 +345,13 @@ function authHeaders() {
 }
 
 // Purely cosmetic: appends the build channel (and rolling build counter)
-// to a displayed version string without touching the raw semver.
+// to a displayed version string without touching the raw semver. Develop's
+// build counter is deliberately standalone (not derived from alpha/main's
+// version), so it's shown as "Build N" rather than a borrowed version string -
+// see describePendingDevelopBuild in server/src/routes/maintenance.js.
 function versionDisplayLabel(version, channel, alphaBuild, developBuild) {
   if (channel === "develop") {
-    const full = developBuild?.version || (developBuild?.baseVersion && developBuild?.build != null ? `${developBuild.baseVersion}.${developBuild.build}` : (version ? `${version}.develop` : "develop"));
-    return `${full} (Develop)`;
+    return developBuild?.build != null ? `Develop Build ${developBuild.build}` : "Develop";
   }
   if (channel === "alpha") {
     const full = alphaBuild?.shortVersion || (alphaBuild?.baseVersion && alphaBuild?.build != null ? `${alphaBuild.baseVersion}.${alphaBuild.build}` : (version ? `${version}.${alphaBuild?.build || 1}` : "alpha"));
@@ -369,9 +371,10 @@ function updateVersionBadge(data) {
       ? newerAlphaBuild
       : Boolean(data.updateAvailable);
 
+  const labelPrefix = data.channel === "develop" ? "" : "v";
   elements.appVersion.textContent = showUpdate
-    ? `v${label} - Update available`
-    : `v${label}`;
+    ? `${labelPrefix}${label} - Update available`
+    : `${labelPrefix}${label}`;
   elements.appVersion.classList.toggle("app-version-update", showUpdate);
   elements.appVersion.title = newerDevelopBuild
     ? `Newer develop build available - build ${data.developBuild.latestBuild}. Open changelog`
@@ -461,7 +464,7 @@ async function renderChangelog(force = false) {
     if (!data.remoteAvailable) {
       banner = `
         <div class="changelog-status changelog-status-muted">
-          <b>Current version v${escapeHtml(currentLabel)}</b>
+          <b>Current version ${data.channel === "develop" ? "" : "v"}${escapeHtml(currentLabel)}</b>
           <span>Couldn't reach GitHub to check for newer releases${data.remoteError ? ` (${escapeHtml(data.remoteError)})` : ""}.</span>
         </div>`;
     } else if (data.channel === "develop" && newerDevelopBuild) {
@@ -473,7 +476,7 @@ async function renderChangelog(force = false) {
     } else if (data.channel === "develop") {
       banner = `
         <div class="changelog-status changelog-status-muted">
-          <b>Develop channel - v${escapeHtml(currentLabel)}</b>
+          <b>Develop channel - ${escapeHtml(currentLabel)}</b>
           <span>Develop is an active rolling development build containing the newest unreleased commits.</span>
         </div>`;
     } else if (data.channel === "alpha" && newerAlphaBuild) {
