@@ -1,5 +1,17 @@
 {
-  "build": 0,
-  "updatedAt": "2026-08-21T11:00:00+01:00",
-  "entries": []
+  "build": 1,
+  "updatedAt": "2026-08-21T11:02:28+01:00",
+  "entries": [
+    {
+      "build": 1,
+      "date": "2026-08-21T11:02:28+01:00",
+      "commit": "d3376d8c8dbbdcfb5a7075a9d1c7c16b407e9c2d",
+      "message": "Chore - Reset develop build counter after promotion to alpha",
+      "author": "Lasikiewicz",
+      "details": [
+        "Applies the standard reset step of the Force to alpha procedure now that develop's work has been consolidated into alpha 0.9.6.2",
+        "Next push to develop starts back at Develop Build 1"
+      ]
+    }
+  ]
 }
