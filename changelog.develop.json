@@ -1,7 +1,19 @@
 {
-  "build": 14,
-  "updatedAt": "2026-08-21T16:14:12+01:00",
+  "build": 15,
+  "updatedAt": "2026-08-21T16:23:20+01:00",
   "entries": [
+    {
+      "build": 15,
+      "date": "2026-08-21T16:23:20+01:00",
+      "commit": "3ab785c54769cd8b9a9b891a34cbd9ae3db5bb7a",
+      "message": "Fix - Edit Watch Date dialog now lists a play later marked unwatched",
+      "author": "Lasikiewicz",
+      "details": [
+        "Live-verified the earlier show-title normalization fix on Trying S05E07 and found the dialog still under-counted: a real play whose sync_action was later flipped to unwatched (e.g. an explicit unwatch from a connected server) has a watched_at but no longer looks like a watched row, so it was silently excluded from the list even though the episode card's own N actual watches badge already counted it",
+        "siblingWatchRowsFor() now trusts a sibling row the same way the show page's own history grouping does, instead of requiring its current action to be watched",
+        "Added a regression test covering an episode with one watched play and one later-unwatched play"
+      ]
+    },
     {
       "build": 14,
       "date": "2026-08-21T16:14:12+01:00",
