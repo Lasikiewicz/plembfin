@@ -1,5 +1,20 @@
 {
-  "build": 0,
-  "updatedAt": "2026-08-21T10:15:00+01:00",
-  "entries": []
+  "build": 1,
+  "updatedAt": "2026-08-21T10:17:58+01:00",
+  "entries": [
+    {
+      "build": 1,
+      "date": "2026-08-21T10:17:58+01:00",
+      "commit": "0096aa63bb46c760ef1a3c46c23dce9258a0fca2",
+      "message": "Chore - Reset develop build counter after promotion to alpha",
+      "author": "Lasikiewicz",
+      "details": [
+        "promoteDevelopToAlpha() now zeroes develop's build counter (not just its entry list) when develop is promoted to alpha, so the next develop push after a promotion starts back at build 1",
+        "This reset is safe because it happens as a deliberate, explicit step of the promotion itself, not an inferred comparison against a version string that could be stale - the same safe shape as alpha's own reset-on-promotion-to-main",
+        "Documented the distinction in update-develop-changelog.js and docs/architecture.md",
+        "Applies retroactively for the develop -> alpha promotion already run this session, now that the reset is part of the documented Force to alpha procedure",
+        "Next push to develop starts back at Develop Build 1"
+      ]
+    }
+  ]
 }
