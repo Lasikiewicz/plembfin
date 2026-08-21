@@ -1279,6 +1279,17 @@ function providerIdTokens(obj = {}) {
   return ids;
 }
 
+function showProviderIdTokens(obj = {}) {
+  const ids = [];
+  const imdb = obj.show_imdb_id || (obj.media_type !== "episode" ? obj.imdb_id : "");
+  const tmdb = obj.show_tmdb_id || (obj.media_type !== "episode" ? obj.tmdb_id : "");
+  const tvdb = obj.show_tvdb_id || (obj.media_type !== "episode" ? obj.tvdb_id : "");
+  if (imdb) ids.push(`imdb:${String(imdb).toLowerCase()}`);
+  if (tmdb) ids.push(`tmdb:${String(tmdb).toLowerCase()}`);
+  if (tvdb) ids.push(`tvdb:${String(tvdb).toLowerCase()}`);
+  return ids;
+}
+
 function mergeShowWithLoadedHistory(show = {}) {
   if (!show?.title) return show;
   const showKey = slug(show.title || "");
@@ -1297,10 +1308,16 @@ function mergeShowWithLoadedHistory(show = {}) {
     if (slug(rowShowTitle) !== showKey) continue;
     // A title match alone isn't enough when two distinct real shows share a
     // title (a reboot/revival, e.g. Scrubs 2001 vs Scrubs 2026) - exclude a
-    // row whose own provider id contradicts this show's, even though the
+    // row whose own show provider id contradicts this show's, even though the
     // title matched, rather than blending a different show's episodes in.
+    // Episode-level provider ids on history rows differ from show-level ids,
+    // so only exclude when explicit show-level ids contradict.
     const rowIds = providerIdTokens(row);
-    if (rowIds.length && showIds.length && !rowIds.some((id) => showIds.includes(id))) continue;
+    const hasMatchingId = rowIds.some((id) => showIds.includes(id));
+    if (!hasMatchingId) {
+      const rowShowIds = showProviderIdTokens(row);
+      if (rowShowIds.length && showIds.length && !rowShowIds.some((id) => showIds.includes(id))) continue;
+    }
     const key = showEpisodeKey(row.season, row.episode);
     const existing = byEpisode.get(key);
     if (!existing || String(row.watched_at || "") >= String(existing.watched_at || "")) {

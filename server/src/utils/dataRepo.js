@@ -3560,11 +3560,10 @@ function dedupeMovies(rows = []) {
 }
 
 // Rows are linked (union-find) when they share ANY external id (imdb/tmdb/tvdb) -
-// the same approach as dedupeMovies above. Id-less rows fold into the unique id
-// cluster sharing their canonical title; when two distinct shows share a title
-// (a reboot/revival, e.g. Scrubs 2001 vs Scrubs 2026), each keeps its own
-// cluster instead of being silently merged into one blended show page with
-// mixed season/episode counts.
+// while single-use episode-level provider ids merge into the shared show series.
+// When an established multi-episode show cluster exists, conflicting outlier rows
+// (a single-row Trakt mismatch) and distinct multi-episode reboots keep their own
+// cluster instead of being silently blended.
 function showGroupKeys(rows = []) {
   const parent = new Map();
   const find = (x) => {
@@ -3578,9 +3577,9 @@ function showGroupKeys(rows = []) {
   const ensure = (x) => { if (!parent.has(x)) parent.set(x, x); };
   const idNodesFor = (row) => {
     const nodes = [];
-    const imdb = cleanString(row.imdb_id); if (imdb) nodes.push(`imdb:${imdb}`);
-    const tmdb = cleanString(row.tmdb_id); if (tmdb) nodes.push(`tmdb:${tmdb}`);
-    const tvdb = cleanString(row.tvdb_id); if (tvdb) nodes.push(`tvdb:${tvdb}`);
+    const imdb = cleanString(row.show_imdb_id || row.imdb_id); if (imdb) nodes.push(`imdb:${imdb}`);
+    const tmdb = cleanString(row.show_tmdb_id || row.tmdb_id); if (tmdb) nodes.push(`tmdb:${tmdb}`);
+    const tvdb = cleanString(row.show_tvdb_id || row.tvdb_id); if (tvdb) nodes.push(`tvdb:${tvdb}`);
     return nodes;
   };
 
@@ -3588,6 +3587,28 @@ function showGroupKeys(rows = []) {
     const nodes = idNodesFor(row);
     nodes.forEach(ensure);
     for (let i = 1; i < nodes.length; i += 1) union(nodes[0], nodes[i]);
+  }
+
+  const titleRoots = new Map();
+  for (const row of rows) {
+    const nodes = idNodesFor(row);
+    if (!nodes.length) continue;
+    const title = showTitleFrom(row.show_title || row.title);
+    const titleKey = canonicalTitleKey(title) || normalizeKeyPart(title);
+    if (!titleRoots.has(titleKey)) titleRoots.set(titleKey, new Map());
+    const counts = titleRoots.get(titleKey);
+    const root = find(nodes[0]);
+    counts.set(root, (counts.get(root) || 0) + 1);
+  }
+
+  for (const [, counts] of titleRoots) {
+    const roots = [...counts.keys()];
+    const hasMultiEpisodeRoot = roots.some((r) => (counts.get(r) || 0) > 1);
+    if (!hasMultiEpisodeRoot && roots.length > 1) {
+      for (let i = 1; i < roots.length; i += 1) {
+        union(roots[0], roots[i]);
+      }
+    }
   }
 
   const titleClusterKeys = new Map();

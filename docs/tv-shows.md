@@ -19,19 +19,19 @@ infinite scroll. Clicking a show opens the show detail page
 ## Data model
 
 A "show" is derived from `watch_history` rows with `media_type = "episode"`, grouped by
-`groupShowRows()` in `dataRepo.js`. Rows are linked (union-find) when they share any
-provider id (imdb/tmdb/tvdb) - the same approach `dedupeMovies()` uses for films - so a
-title-only grouping key can't silently merge two distinct real shows that share an
-exact title (a reboot/revival, e.g. Scrubs 2001 vs Scrubs 2026). A row with no provider
-id at all folds into the one id-cluster matching its canonical title, when there is
-exactly one candidate; otherwise it keeps its own title-only cluster rather than
-guessing. `getCachedShows()` builds one summary per resulting show - earliest/latest
+`groupShowRows()` in `dataRepo.js`. Rows are grouped by canonical show title and linked
+(union-find) when they share any show-level provider id (`show_imdb_id`/`show_tmdb_id`/`show_tvdb_id`)
+so a title-only grouping key can't silently merge two distinct real shows that share an
+exact title (a reboot/revival, e.g. Scrubs 2001 vs Scrubs 2026), while episode-level provider ids
+stay scoped to individual episodes. A row with no show provider id folds into the cluster matching
+its canonical title. `getCachedShows()` builds one summary per resulting show - earliest/latest
 watch, episode count, inherited artwork (first available poster/logo/backdrop from its
 episode rows) - memoized in-process and invalidated on any history change.
 
 The client applies the same rule when merging a show's `state.history` preview rows into
 its full episode list (`mergeShowWithLoadedHistory()` in `media-detail-show.js`): a row
-whose own provider id contradicts the show's is excluded even when the title matches.
+whose explicit show provider id contradicts the show's is excluded, while episode-level
+provider ids on history rows are preserved.
 
 A title lookup with no id to disambiguate by (`queryShowDetail({ title })`) can still
 resolve more than one real cluster under an exact title match - two distinct shows
