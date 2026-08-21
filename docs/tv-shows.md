@@ -49,6 +49,19 @@ search that was never written back onto any row (see the matching comment in
 has TMDB metadata cached under it, so without this ordering a wrong-but-cached id could
 keep permanently overriding a correct-but-not-yet-cached one.
 
+A show's `tvdb_id`, by contrast, is never trusted straight from a watch_history row.
+Plex/Emby/Jellyfin webhooks tag an episode with its own TVDB id (TVDB assigns every
+episode a unique id, separate from its series), so a raw row's `tvdb_id` is usually
+episode-scoped, not the show's. Feeding an episode id into a TVDB *series* lookup (the
+`/tvshow/tvdb/:id` route, `openShowImmersiveModalByTvdbId`) can land on a completely
+unrelated show whenever the numbers happen to collide. `cachedShowTvdbId()` in
+`dataRepo.js` only accepts a candidate once it has already been resolved as a real
+series - cached via `getTvdbSeriesExtended()` from a search result, Fix Match, or an
+earlier correct visit to the show - the same trust boundary `cachedShowTmdbId()` applies
+to its own weaker candidates. A show whose only tvdb_id candidates are unverified
+episode-level ids simply has no `tvdb_id` until one is resolved through a trusted path,
+rather than risking a wrong-show redirect.
+
 `queryShows({ search, sort, limit, offset, hideWatched, hideEnded })` filters/sorts/
 pages that cache. Sort modes include `title_asc`, `title_desc`, `watched_asc`, recency,
 and `next_air_asc` (next airing date, powered by the next-airing cache so no metadata

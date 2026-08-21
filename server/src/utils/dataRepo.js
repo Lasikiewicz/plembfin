@@ -109,6 +109,32 @@ function cachedShowTmdbId(...candidates) {
   return "";
 }
 
+const getTvdbSeriesDetailsStmt = db.prepare("SELECT details FROM tvdb_metadata_cache WHERE id = ?");
+
+function cachedTvdbSeriesDetails(tvdbId) {
+  const id = cleanString(tvdbId);
+  if (!id) return null;
+  const row = getTvdbSeriesDetailsStmt.get(`series_${id}`);
+  return row?.details ? parseJson(row.details) : null;
+}
+
+// A watch_history row's tvdb_id is whatever the ingest source tagged it with -
+// for Plex/Emby/Jellyfin webhook rows that's the EPISODE's own TVDB id (TVDB
+// assigns episodes their own numeric ids, separate from the series id), not
+// the show's. Treating that as the show's series id and feeding it straight
+// into a TVDB series lookup can land on a completely unrelated show whenever
+// the numbers happen to collide. Only trust a candidate once it has already
+// been resolved as a real series via getTvdbSeriesExtended (cached here) -
+// from a search result, Fix Match, or a prior correct visit to this show -
+// same tradeoff cachedShowTmdbId already makes for TMDB ids.
+function cachedShowTvdbId(...candidates) {
+  for (const candidate of candidates) {
+    const id = cleanString(candidate);
+    if (id && cachedTvdbSeriesDetails(id)) return id;
+  }
+  return "";
+}
+
 function cleanString(value) {
   return String(value || "").trim();
 }
@@ -794,7 +820,11 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
     // first here - a real, correct id with no cache entry yet still lost to
     // a wrong id that happened to have one.
     const tmdbId = cleanString(group.tmdb_id) || cachedShowTmdbId(cachedProgress?.tmdb_id, group.representative_episode?.tmdb_id);
-    const tvdbId = group.tvdb_id || group.representative_episode?.tvdb_id || "";
+    // group.tvdb_id is already resolved through cachedShowTvdbId inside
+    // groupShowRows - do not fall back to an ungated representative_episode
+    // tvdb_id here, that's exactly the unverified episode-level id it exists
+    // to filter out.
+    const tvdbId = group.tvdb_id || "";
     let posterUrl = group.poster_url || group.representative_episode?.poster_url || "";
     let status = "";
     if (tmdbId) {
@@ -3585,8 +3615,8 @@ function groupShowRows(rows = []) {
       raw_title: rawTitle,
       episode_count: 0,
       season_count: 0,
-      latest_watched_at: row.watched_at,
-      earliest_watched_at: row.watched_at,
+      latest_watched_at: "",
+      earliest_watched_at: "",
       episodes: [],
       seasons: new Set(),
       representative_episode: null,
@@ -3595,16 +3625,12 @@ function groupShowRows(rows = []) {
       backdrop_url: null,
       tmdb_id: null,
       tvdb_id: null,
+      tvdbIdCandidates: new Set(),
     };
     group.title = preferredShowTitle(group.title, title);
-    group.episode_count += 1;
-    if (row.season != null) group.seasons.add(row.season);
-    if (row.watched_at > group.latest_watched_at) group.latest_watched_at = row.watched_at;
-    if (row.watched_at < group.earliest_watched_at) group.earliest_watched_at = row.watched_at;
     group.episodes.push({ ...row, show_title: group.title });
-    if (!group.representative_episode || row.watched_at > group.representative_episode.watched_at) {
-      group.representative_episode = { ...row, show_title: group.title };
-    }
+    // Identity/artwork are watched-state agnostic - pull from any row so a
+    // fully-unwatched show still has a poster and provider id.
     if (row.poster_url && !group.poster_url) {
       group.poster_url = row.poster_url;
     }
@@ -3617,16 +3643,33 @@ function groupShowRows(rows = []) {
     if (row.tmdb_id && !group.tmdb_id) {
       group.tmdb_id = row.tmdb_id;
     }
-    if (row.tvdb_id && !group.tvdb_id) {
-      group.tvdb_id = row.tvdb_id;
+    // Every distinct tvdb_id seen is only a *candidate* show identity here -
+    // resolved for real (cachedShowTvdbId) below, since a row's tvdb_id is
+    // often an episode-level id, not the show's.
+    if (row.tvdb_id) group.tvdbIdCandidates.add(String(row.tvdb_id));
+    // Watched-progress aggregates (count, seasons, recency, representative
+    // episode) only consider rows currently marked watched. Marking an
+    // episode unwatched inserts a fresh row timestamped now - if that row
+    // counted here, the show would look "just watched" (jumping to the top
+    // of a Watched Newest sort) and its watched count would be inflated by
+    // the very episode that was just removed from it.
+    if (isWatchedAction(row)) {
+      group.episode_count += 1;
+      if (row.season != null) group.seasons.add(row.season);
+      if (!group.latest_watched_at || row.watched_at > group.latest_watched_at) group.latest_watched_at = row.watched_at;
+      if (!group.earliest_watched_at || row.watched_at < group.earliest_watched_at) group.earliest_watched_at = row.watched_at;
+      if (!group.representative_episode || row.watched_at > group.representative_episode.watched_at) {
+        group.representative_episode = { ...row, show_title: group.title };
+      }
     }
     groups.set(key, group);
   });
   return [...groups.values()].map((group) => {
-    const totalWatches = group.episodes.reduce((total, episode) => (
+    const watchedEpisodes = group.episodes.filter(isWatchedAction);
+    const totalWatches = watchedEpisodes.reduce((total, episode) => (
       total + (Array.isArray(episode.playHistory) && episode.playHistory.length ? episode.playHistory.length : 1)
     ), 0);
-    const rewatchedEpisodeCount = group.episodes.filter((episode) => (
+    const rewatchedEpisodeCount = watchedEpisodes.filter((episode) => (
       Array.isArray(episode.playHistory) && episode.playHistory.length > 1
     )).length;
     return {
@@ -3639,6 +3682,8 @@ function groupShowRows(rows = []) {
       logo_url: group.logo_url || group.representative_episode?.logo_url || null,
       backdrop_url: group.backdrop_url || group.representative_episode?.backdrop_url || null,
       tmdb_id: group.tmdb_id || group.representative_episode?.tmdb_id || null,
+      tvdb_id: cachedShowTvdbId(...group.tvdbIdCandidates) || null,
+      tvdbIdCandidates: undefined,
       representative_episode: group.representative_episode ? { ...group.representative_episode, show_title: group.title } : null,
       episodes: group.episodes
         .map((episode) => ({ ...episode, show_title: group.title }))

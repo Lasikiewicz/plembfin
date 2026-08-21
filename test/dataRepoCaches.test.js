@@ -200,3 +200,49 @@ test("watch-date editor includes title-only movie rows sharing the canonical med
     "2026-03-02T12:00:00.000Z",
   ]);
 });
+
+test("a show's tvdb_id is never surfaced from an unverified episode-tagged id", async () => {
+  const { db, toJson } = await import("../server/src/db.js");
+
+  // Plex/Emby/Jellyfin webhooks tag an episode with its OWN tvdb id (TVDB
+  // gives every episode a unique id, separate from the series id) - using
+  // that directly as the show's series id can route straight to an unrelated
+  // show once it's fed into a TVDB series lookup. "9999999" here stands in
+  // for such an episode-level id: nothing has ever resolved it as a real
+  // series, so it must not come back as this show's tvdb_id.
+  await insert({
+    title: "Untrusted Tvdb Show - S01E01 - Pilot",
+    media_type: "episode",
+    watched_at: "2026-04-01T12:00:00.000Z",
+    source: "emby",
+    tvdb_id: "9999999",
+    season: 1,
+    episode: 1,
+  });
+
+  const showsBefore = await repo.getCachedShows();
+  const beforeMatch = showsBefore.find((show) => show.title === "Untrusted Tvdb Show");
+  assert.ok(beforeMatch, "show must still be found and visible");
+  assert.ok(!beforeMatch.tvdb_id, "an uncached episode-tagged tvdb_id must not be trusted as the show's identity");
+
+  const detailBefore = await repo.queryShowDetail({ title: "Untrusted Tvdb Show" });
+  assert.equal(detailBefore.tvdb_id, null);
+
+  // Once that same id has actually been resolved as a real TVDB series (a
+  // search result, Fix Match, or a prior correct visit caches it under
+  // series_<id>), it becomes a trustworthy candidate for this show too.
+  db.prepare(
+    `INSERT INTO tvdb_metadata_cache (id, tvdb_id, title, details, updated_at_ms)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run("series_9999999", "9999999", "Untrusted Tvdb Show", toJson({
+    id: 9999999,
+    name: "Untrusted Tvdb Show",
+    episodes: [],
+    seasons: [],
+  }), Date.now());
+  await repo.invalidateHistoryDerivedCaches();
+
+  const showsAfter = await repo.getCachedShows();
+  const afterMatch = showsAfter.find((show) => show.title === "Untrusted Tvdb Show");
+  assert.equal(afterMatch.tvdb_id, "9999999", "a genuinely cached series id must be trusted");
+});

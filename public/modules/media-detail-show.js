@@ -817,10 +817,11 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
   const seasonWatchCount = seasonSummary.totalWatches > seasonSummary.watchedInSeason
     ? ` · ${seasonSummary.totalWatches} actual watches`
     : "";
+  const seasonRemoving = seasonEpisodes.some((episode) => episode.watched && state.savingUnwatchIds.has(episode.watched.id));
   return `
     <section class="show-season-block" id="showSeason${seasonNumber}">
       <div class="show-season-head">
-        <span class="show-season-label">${seasonSummary.watchedInSeason} of ${seasonSummary.seasonTotal || "?"} episodes watched${seasonWatchCount}</span>
+        <span class="show-season-label">${seasonRemoving ? "Removing…" : `${seasonSummary.watchedInSeason} of ${seasonSummary.seasonTotal || "?"} episodes watched${seasonWatchCount}`}</span>
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
           ${seasonSeerrControls}
           ${seasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${seasonNumber}" ${isSaving ? "disabled" : ""}>Edit season date</button>` : ""}
@@ -911,6 +912,8 @@ export function renderShowModalContent(show, {
     ? ` · ${totalWatches} actual watches`
     : "";
   const progressPercent = Math.max(0, Math.min(100, Math.round((watchedCount / totalCount) * 100)));
+  const showRemoving = watchedRows.some((episode) => episode.watched && state.savingUnwatchIds.has(episode.watched.id));
+  const watchProgressLabel = showRemoving ? "Removing…" : `${watchedCount} of ${totalCount} episodes watched${watchHistoryLabel}`;
   const representative = representativeEpisode(seasonsMap);
   const backdropUrl = show.backdrop_url || tmdbData?.cached_backdrop_url || tmdbImage(tmdbData?.backdrop_path, "original");
   const posterUrl = posterUrlFor(representative)
@@ -1140,7 +1143,7 @@ export function renderShowModalContent(show, {
               ${localEvidence}
               <section class="progress-section" style="border: 0; padding: 0; margin-top: 0.5rem; width: 100%;">
                 <div class="progress-label-row">
-                  <span>${watchedCount} of ${totalCount} episodes watched${watchHistoryLabel}</span>
+                  <span>${watchProgressLabel}</span>
                   <span>${progressPercent}% complete</span>
                 </div>
                 <div class="progress-bar-track">
@@ -1187,7 +1190,7 @@ export function renderShowModalContent(show, {
 
               <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
                 <div class="progress-label-row">
-                  <span>${watchedCount} of ${totalCount} episodes watched${watchHistoryLabel}</span>
+                  <span>${watchProgressLabel}</span>
                   <span>${progressPercent}% complete</span>
                 </div>
                 <div class="progress-bar-track">

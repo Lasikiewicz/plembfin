@@ -885,6 +885,15 @@ export async function confirmAndMarkUnwatched(button) {
   const originalText = button.textContent;
   button.textContent = "Removing…";
 
+  // Marks these ids as "being removed" so the season/show progress labels
+  // (which otherwise just recompute from the still-watched rows) show
+  // "Removing…" immediately instead of the stale watched count until the
+  // request resolves and the page re-renders.
+  for (const id of ids) state.savingUnwatchIds.add(id);
+  if ((kind === "episode" || kind === "season" || kind === "show") && state.activeShowModalKey) {
+    _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+  }
+
   try {
     const response = await fetch("/api/manual-unwatch", {
       method: "POST",
@@ -894,6 +903,7 @@ export async function confirmAndMarkUnwatched(button) {
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || `Mark unwatched failed (${response.status})`);
 
+    for (const id of ids) state.savingUnwatchIds.delete(id);
     _clearDerivedUiCaches({ resetExplorer: kind === "movie" });
     _setMessage(
       bulk
@@ -917,8 +927,12 @@ export async function confirmAndMarkUnwatched(button) {
       _renderActiveView();
     }
   } catch (error) {
+    for (const id of ids) state.savingUnwatchIds.delete(id);
     button.disabled = false;
     button.textContent = originalText;
+    if ((kind === "episode" || kind === "season" || kind === "show") && state.activeShowModalKey) {
+      _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+    }
     _setMessage(`Mark unwatched failed: ${error.message}`, "error");
   }
 }
