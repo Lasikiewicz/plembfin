@@ -1,7 +1,20 @@
 {
-  "build": 11,
-  "updatedAt": "2026-08-21T15:23:19+01:00",
+  "build": 12,
+  "updatedAt": "2026-08-21T15:30:24+01:00",
   "entries": [
+    {
+      "build": 12,
+      "date": "2026-08-21T15:30:24+01:00",
+      "commit": "5007922d414784748d97d7b05669a7512087a839",
+      "message": "Fix - Force Sync no longer tags a pulled episode with its own tmdb/tvdb id instead of the show's",
+      "author": "Lasikiewicz",
+      "details": [
+        "remoteItemToMedia only fell back to the show's requested tmdb/tvdb ids when the source item provided none at all - but Plex/Emby/Jellyfin always tag an episode with its own tmdb/tvdb id (both providers assign episodes ids separate from their series), so that fallback never triggered",
+        "Every episode Import Watched Status inserted was tagged with its own episode-level identity instead of the show's, fragmenting it into its own show cluster and reproducing the exact display bug the previous two fixes were meant to resolve",
+        "An episode's tmdb_id/tvdb_id now always come from the show actually being pulled; imdb_id still comes from the item, since it is meaningfully episode-scoped and does not affect show grouping",
+        "Verified live: confirmed via production logs and direct API checks that this is what was actually happening, then added a regression test"
+      ]
+    },
     {
       "build": 11,
       "date": "2026-08-21T15:23:19+01:00",
