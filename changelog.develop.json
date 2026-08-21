@@ -1,56 +1,5 @@
 {
-  "build": 4,
-  "updatedAt": "2026-08-21T10:56:58+01:00",
-  "entries": [
-    {
-      "build": 4,
-      "date": "2026-08-21T10:56:58+01:00",
-      "commit": "75cf34bcf96e16118288ce43293586bfcf69248c",
-      "message": "Fix - Scroll expanded seasons into view below the sticky topbar",
-      "author": "Lasikiewicz",
-      "details": [
-        "Clicking a season header to expand it, or loading a URL that names a season directly, now scrolls that season into view instead of leaving it open off-screen below the click or hidden at the very top of the page",
-        "Fixed the actual scroll target: this app's shell keeps window/document fixed and scrolls .page-shell internally, so the first attempt (window.scrollTo) silently did nothing - now walks up to whichever ancestor actually has the overflow",
-        "Reserves space for the sticky topbar via scroll-margin-top so the season header lands visible just below it instead of hidden underneath",
-        "Replaced the browser's native (non-configurable, abrupt) smooth scroll with a hand-rolled eased animation",
-        "A season named in the URL scrolls into view once on that navigation, not on every later re-render of the same modal (e.g. toggling an episode watched)"
-      ]
-    },
-    {
-      "build": 3,
-      "date": "2026-08-21T10:25:50+01:00",
-      "commit": "744442087be78691b7badf2abb1ae1eda4f9f9a7",
-      "message": "Fix - Account for the sticky topbar when scrolling an expanded season into view",
-      "author": "Lasikiewicz",
-      "details": [
-        "The season-scroll fix from the previous commit used scrollIntoView's default alignment, which puts the season header flush with the very top of the viewport - directly underneath the sticky page topbar, hiding it",
-        "Now offsets the scroll target by the topbar's real rendered height so the expanded season lands visible just below it instead of overshooting and disappearing behind it"
-      ]
-    },
-    {
-      "build": 2,
-      "date": "2026-08-21T10:22:59+01:00",
-      "commit": "29ff2010620b6d8d252e2f5418b97a836167c044",
-      "message": "Fix - Scroll an expanded season into view instead of leaving it below the click",
-      "author": "Lasikiewicz",
-      "details": [
-        "Clicking a season header to expand it now scrolls that season into view, instead of leaving the newly-revealed episode list to open off-screen below where you clicked",
-        "Collapsing a season still preserves the scroll position as before, so the page doesn't jump now that the content above has shrunk"
-      ]
-    },
-    {
-      "build": 1,
-      "date": "2026-08-21T10:17:58+01:00",
-      "commit": "0096aa63bb46c760ef1a3c46c23dce9258a0fca2",
-      "message": "Chore - Reset develop build counter after promotion to alpha",
-      "author": "Lasikiewicz",
-      "details": [
-        "promoteDevelopToAlpha() now zeroes develop's build counter (not just its entry list) when develop is promoted to alpha, so the next develop push after a promotion starts back at build 1",
-        "This reset is safe because it happens as a deliberate, explicit step of the promotion itself, not an inferred comparison against a version string that could be stale - the same safe shape as alpha's own reset-on-promotion-to-main",
-        "Documented the distinction in update-develop-changelog.js and docs/architecture.md",
-        "Applies retroactively for the develop -> alpha promotion already run this session, now that the reset is part of the documented Force to alpha procedure",
-        "Next push to develop starts back at Develop Build 1"
-      ]
-    }
-  ]
+  "build": 0,
+  "updatedAt": "2026-08-21T11:00:00+01:00",
+  "entries": []
 }
