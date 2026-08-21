@@ -1,7 +1,21 @@
 {
-  "build": 3,
-  "updatedAt": "2026-08-21T10:25:50+01:00",
+  "build": 4,
+  "updatedAt": "2026-08-21T10:56:58+01:00",
   "entries": [
+    {
+      "build": 4,
+      "date": "2026-08-21T10:56:58+01:00",
+      "commit": "75cf34bcf96e16118288ce43293586bfcf69248c",
+      "message": "Fix - Scroll expanded seasons into view below the sticky topbar",
+      "author": "Lasikiewicz",
+      "details": [
+        "Clicking a season header to expand it, or loading a URL that names a season directly, now scrolls that season into view instead of leaving it open off-screen below the click or hidden at the very top of the page",
+        "Fixed the actual scroll target: this app's shell keeps window/document fixed and scrolls .page-shell internally, so the first attempt (window.scrollTo) silently did nothing - now walks up to whichever ancestor actually has the overflow",
+        "Reserves space for the sticky topbar via scroll-margin-top so the season header lands visible just below it instead of hidden underneath",
+        "Replaced the browser's native (non-configurable, abrupt) smooth scroll with a hand-rolled eased animation",
+        "A season named in the URL scrolls into view once on that navigation, not on every later re-render of the same modal (e.g. toggling an episode watched)"
+      ]
+    },
     {
       "build": 3,
       "date": "2026-08-21T10:25:50+01:00",
