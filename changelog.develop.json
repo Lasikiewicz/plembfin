@@ -1,7 +1,20 @@
 {
-  "build": 2,
-  "updatedAt": "2026-08-21T11:06:37+01:00",
+  "build": 3,
+  "updatedAt": "2026-08-21T11:22:50+01:00",
   "entries": [
+    {
+      "build": 3,
+      "date": "2026-08-21T11:22:50+01:00",
+      "commit": "eb10fad261f59efdbff0dc167f8057c794eb548d",
+      "message": "Fix - Stop two different real shows sharing a title from being merged into one",
+      "author": "Lasikiewicz",
+      "details": [
+        "groupShowRows now clusters watch_history episode rows by shared provider id (imdb/tmdb/tvdb), the same union-find approach dedupeMovies already uses for films, instead of grouping purely by title",
+        "Fixes shows like a reboot/revival sharing an exact title with an unrelated original (Scrubs 2001 vs Scrubs 2026) silently blending their episode lists, seasons, and counts into one show page - Scrubs (2026) was showing Season 1 as 24 episodes (the 2001 original's count) instead of its real 9",
+        "Fixed the same title-only matching in mergeShowWithLoadedHistory (client-side merge of the dashboard history preview into a show's episode list) and in queryShowDetail's title-lookup fallbacks, which previously grabbed an arbitrary result once shows correctly split apart",
+        "No watch_history rows are changed; this only affects how episodes are grouped into a show for display"
+      ]
+    },
     {
       "build": 2,
       "date": "2026-08-21T11:06:37+01:00",
