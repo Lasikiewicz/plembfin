@@ -10,7 +10,7 @@ import { fetchPlexMetadataItem, fetchPlexSeriesEpisodes, findPlexItem } from "./
 import { fetchEmbySeriesEpisodes, fetchEmbyWatchedItems } from "./embyClient.js";
 import { fetchJellyfinSeriesEpisodes, fetchJellyfinWatchedItems } from "./jellyfinClient.js";
 import { normalizeProviderIds, parsePlexGuids } from "./parsers.js";
-import { isEmbyLikePlayed, watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./watchDates.js";
+import { isEmbyLikePlayed, releaseDateForItem, releaseDateForPlexItem, watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./watchDates.js";
 import { appendSyncHistory, loadMediaConfig } from "./configStore.js";
 import { createLoopStore } from "./loopStore.js";
 import { runWithConcurrency } from "./concurrency.js";
@@ -135,10 +135,16 @@ export function remoteItemIsWatched(item = {}, source = "") {
 
 // A played flag without a reliable played timestamp is historical state, not
 // evidence of a watch happening right now (see the identical rule and
-// rationale in watchDates.js). Force Sync used to fabricate "now" as the
-// watched date for these, which manufactured phantom watch-history rows for
-// items with a stale or server-lost played date. Skip them instead - an item
-// this ambiguous is better left alone than recorded with a fictitious time.
+// rationale in watchDates.js) - background/scheduled sync still skips these
+// entirely rather than invent a date, since fabricating "now" there once
+// manufactured phantom watch-history rows for a whole rebuilt library at
+// once. Detail-page Force Sync is different: it's one explicit, user-
+// triggered action scoped to a single title (commonly hit when episodes were
+// bulk-marked watched through a server's own library UI, which sets the
+// played flag but not a played timestamp), so a missing date here falls back
+// to the episode's own release date instead of discarding real evidence of a
+// watch - anchored to a real, meaningful date rather than a fabricated
+// "just watched" timestamp that would corrupt recency sorting.
 export function remoteItemToMedia(item = {}, source = "", requested = {}, now = Date.now()) {
   const type = itemType(item, source);
   const coordinates = itemCoordinates(item, source);
@@ -146,7 +152,14 @@ export function remoteItemToMedia(item = {}, source = "", requested = {}, now = 
 
   const watchedAtResult = source === "plex" ? watchedAtForPlexItem(item) : watchedAtForEmbyLikeItem(item);
   const isPlayed = remoteItemIsWatched(item, source);
-  if (isPlayed && !watchedAtResult.watchedAt) return null;
+  let watchedAt = watchedAtResult.watchedAt || "";
+  let watchedAtInferredFromRelease = false;
+  if (isPlayed && !watchedAt) {
+    const releaseDate = source === "plex" ? releaseDateForPlexItem(item) : releaseDateForItem(item);
+    if (!releaseDate) return null;
+    watchedAt = releaseDate;
+    watchedAtInferredFromRelease = true;
+  }
 
   const ids = itemIds(item, source);
   const requestedIds = requested.ids || {};
@@ -158,7 +171,6 @@ export function remoteItemToMedia(item = {}, source = "", requested = {}, now = 
   const title = type === "episode"
     ? `${showTitle || "Unknown Show"} - S${String(coordinates.season).padStart(2, "0")}E${String(coordinates.episode).padStart(2, "0")}`
     : itemTitle(item, source) || requested.title;
-  const watchedAt = watchedAtResult.watchedAt || "";
   const itemId = itemNativeId(item, source);
 
   return {
@@ -180,7 +192,9 @@ export function remoteItemToMedia(item = {}, source = "", requested = {}, now = 
       phase: "completed",
       item_id: itemId,
       source_timestamp: watchedAtResult.watchedAt || "",
-      note: "Watched state explicitly imported from a connected media server from the media detail page.",
+      note: watchedAtInferredFromRelease
+        ? "Watched state explicitly imported from a connected media server from the media detail page; the server reported no watched date, so the episode's release date was used instead."
+        : "Watched state explicitly imported from a connected media server from the media detail page.",
     },
   };
 }

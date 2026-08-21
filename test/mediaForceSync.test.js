@@ -170,3 +170,40 @@ test("maps an Emby played item and ignores an unplayed remote item", () => {
   assert.equal(media.itemId, "emby-episode-1");
   assert.equal(remoteItemIsWatched({ Type: "Episode", UserData: { Played: false } }, "emby"), false);
 });
+
+test("a Plex episode marked watched with no viewed date falls back to its release date", () => {
+  // Bulk-marking watched through Plex's own library UI sets viewCount without
+  // lastViewedAt - Force Sync must still import it (the user explicitly asked
+  // for this title), anchored to a real date rather than inventing "now".
+  const item = {
+    type: "episode",
+    title: "Mean Ghouls",
+    grandparentTitle: "School Spirits",
+    parentIndex: 3,
+    index: 2,
+    ratingKey: "school-spirits-s3e2",
+    viewCount: 1,
+    originallyAvailableAt: "2025-11-14",
+  };
+  const requested = { title: "School Spirits", type: "show", ids: {} };
+
+  assert.equal(remoteItemIsWatched(item, "plex"), true);
+  const media = remoteItemToMedia(item, "plex", requested);
+  assert.ok(media, "episode must still be imported, not dropped");
+  assert.equal(media.watched_at, "2025-11-14T00:00:00.000Z");
+  assert.match(media.watchProvenance.note, /release date was used instead/);
+});
+
+test("a played item with neither a viewed date nor a release date is dropped, not fabricated", () => {
+  const item = {
+    Type: "Episode",
+    Name: "Untitled",
+    SeriesName: "No Dates Show",
+    ParentIndexNumber: 1,
+    IndexNumber: 1,
+    Id: "no-date-episode",
+    UserData: { Played: true },
+  };
+  const requested = { title: "No Dates Show", type: "show", ids: {} };
+  assert.equal(remoteItemToMedia(item, "emby", requested), null);
+});

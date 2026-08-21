@@ -156,8 +156,15 @@ first complete render.
   **Import Watched Status** reads watched state from a selected server (or
   all) and adds anything Plembfin doesn't already have, without sending
   anything back out or removing anything. A remote item whose played flag has
-  no reliable played date is skipped rather than imported with a fabricated
-  "just now" date (`remoteItemToMedia`). The asynchronous
+  no reliable played date (common for episodes bulk-marked watched through a
+  server's own library UI, which sets the played flag but never a played
+  timestamp) falls back to the episode's own release date rather than being
+  silently dropped or given a fabricated "just now" date - this operation is
+  explicit and scoped to one title, unlike the background scheduled sync
+  (`scheduled.js`), which still skips these entirely to avoid manufacturing a
+  burst of phantom watches across an entire rebuilt library
+  (`remoteItemToMedia` in `mediaForceSync.js`). If even a release date is
+  unavailable, the item is skipped rather than given a fabricated date. The asynchronous
   `POST /api/force-sync/media` operation is followed through
   `GET /api/force-sync/media/status?id=...`, and the dialog shows its detailed
   live terminal output until completion. Every action asks for confirmation before it
