@@ -14,31 +14,23 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md">📋 Changelog</a> ·
-  <a href="#which-version-should-i-run">🚦 Which version should I run?</a> ·
-  <a href="docs/README.md">📚 Full documentation</a>
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="#which-version-should-i-run">Which version should I run?</a> ·
+  <a href="docs/README.md">Full documentation</a>
 </p>
 
 ---
 
-> ## ⚠️ Pre-1.0 software - expect bugs
->
-> Plembfin as a project is still in **early testing**, on every release channel
-> including `:latest`. The core features described below work, but this is not yet a
-> finished product: you should expect bugs, rough edges, and occasional changes that
-> require reconfiguration.
->
-> It writes watched state to your media servers, so treat your watch history as
-> precious. **Take a backup before you start** (Settings → Backup / restore → Backup settings) and keep
-> your own copy of anything you cannot afford to lose. Please report anything
-> you run into on the [issue tracker](https://github.com/Lasikiewicz/plembfin/issues).
+> **Pre-1.0 software.** Plembfin is still in early testing, on every release channel
+> including `:latest`. The features below work, but expect bugs and occasional
+> breaking changes. It writes watched state to your media servers, so **back up first**
+> (Settings → Backup / restore → Backup settings). Report issues on the
+> [issue tracker](https://github.com/Lasikiewicz/plembfin/issues).
 
 ---
 
 **Plembfin** is the brain in the middle. Your media servers, Trakt, and Seerr don't talk
 to each other - Plembfin remembers what you've watched and keeps everyone in sync.
-
----
 
 ## The hub
 
@@ -48,37 +40,36 @@ to each other - Plembfin remembers what you've watched and keeps everyone in syn
 
 None of these talk to each other - they all talk to Plembfin.
 
-*   🧠 **Remembers** - every watch is stored once, locally, in SQLite
-*   🔄 **Syncs** - watched/unwatched state stays matched across Plex, Emby, Jellyfin, and Trakt
-*   🎨 **Enriches** - posters, cast, episodes, and ratings pulled from TMDB, TheTVDB, Fanart.tv, and OMDb
-*   🎬 **Connects** - requests and availability flow through Overseerr/Jellyseerr
+- **Remembers** every watch, once, locally in SQLite
+- **Syncs** watched/unwatched state across Plex, Emby, Jellyfin, and Trakt
+- **Enriches** with posters, cast, episodes, and ratings from TMDB, TheTVDB, Fanart.tv, and OMDb
+- **Connects** to Overseerr/Jellyseerr for requests and availability
 
 ---
 
-## 🌟 Key Features
+## Key Features
 
-| | |
-|---|---|
-| **Plembfin-canonical sync** | Plembfin's watched/unwatched state is pushed to every connected app that contains the media; platform drift is repaired automatically |
-| **Detail-page Force Sync** | From any movie or show page, choose Set Plembfin as Source of Truth or Import Watched Status for that title; follow detailed live operation output, including duplicate-quality Jellyfin episode copies. For a TV show, optionally check specific seasons to limit the operation instead of running it across the whole show |
-| **Library-wide Force Sync** | From Settings → Sync Tools, use the same Set Plembfin as Source of Truth or Import Watched Status options for the complete library with a live terminal |
-| **New media arrives watched** | Add a film or show whose current Plembfin state is watched and it is marked watched on that server as it appears - no re-watching prompts on a rebuilt library, no manual catch-up. A newer unwatch overrides older watch history |
-| **Resume progress sync** | Pause on one server, pick up exactly where you left off on another |
-| **Rewatch tracking** | Watching a movie or episode again logs a new watch instead of overwriting the old one; detail pages show a full watch history with the date and app for every play. The duplicate-cleanup tool only removes rows recording the same watch event, so rewatches are never collapsed. When a season has unwanted duplicate watches (e.g. from a bulk import), Edit Season Date's **Remove duplicate watches** keeps only the oldest date per episode and removes the rest in one confirmed action. Settings → Tools → Database Repairs → **Remove Duplicate Watches** runs the same keep-the-oldest cleanup across the entire library at once, with separate confirmed actions for TV shows and movies. Clicking Mark Watched on an item that's already watched never creates a duplicate in the first place - the request is checked against the item's actual current watch state, not just the date it happens to be logged under, so a page that's been open for a while can't turn a stale "unwatched" view into a second logged play |
-| **Now Playing dashboard** | Real-time active sessions, weekly charts, and recent watch history |
-| **Stats** | All-time and per-period reports with top shows, platform breakdowns, and watch trends |
-| **Upcoming episodes** | Scrolling month calendar of historical and future TV air dates that opens with the current week on top and scrolls freely into the past or future, plus a mobile agenda layout and a dedicated search results view spanning all cached months. The calendar is served from a persistent server-side cache and refreshed in the background, so it renders immediately on every visit |
-| **Live Trakt sync** | Mark an item watched or unwatched in Trakt, Plex, Emby, Jellyfin, or Plembfin and distribute that state to every connected service; every individual Trakt rewatch is imported as its own history entry, episode writes resolve series IDs automatically, and Sync Now repairs drift against the complete Trakt snapshot. If Trakt explicitly rejects an episode's own stored provider id, the dispatch retries once with the show's own known series id before giving up, recovering from a media server reporting a mismatched id for that one episode without ever second-guessing an id that was actually working. A large batch of episodes disappearing from one show at once is held back and re-checked on the next poll rather than trusted immediately, so a rate-limited or incomplete response from Trakt can't cascade a false unwatch across every connected platform. A single item just marked watched is protected the same way for a short window, so a Trakt poll landing before Trakt's own API catches up to that write can't read it as a missing item and revert it |
-| **Seerr integration** | Request movies and shows from detail pages via Overseerr or Jellyseerr |
-| **Movie collections** | Movie pages show a poster row of other films in the same franchise (sequels, prequels, spin-offs) |
-| **Open-in-app links** | Detail pages and Part Watched cards link straight to the item in Plex, Emby, or Jellyfin when it exists in that server's library |
-| **Automated backups** | Daily local backups plus independently scheduled remote backups to Backblaze B2 |
-| **Self-hosted & private** | SQLite on your own hardware - no cloud accounts required |
-| **Security hardening** | Strict CSP headers, scrypt hashing, rate-limited login, HMAC-signed sessions |
-| **Artwork pipeline** | Posters and logos fetched from TMDB, TheTVDB, and Fanart.tv, resized and cached locally, so the browser only ever loads artwork from Plembfin itself; library grids show a loading placeholder until each image appears, and the per-title artwork picker includes a manual search for titles that fail to match automatically |
-| **Accurate TV episode data** | TV show names, seasons, episode numbering, titles, and air dates are sourced from TheTVDB; cast, trailers, reviews, and recommendations are sourced from TMDB |
-| **Search across catalogues and people** | Search spans your library, TMDB and TheTVDB at once, while people use TMDB's dedicated paged search so broad names can be expanded beyond the mixed-result limit. Results from the three sources are merged, so nothing appears twice |
-| **Installable on phones** | Add Plembfin to an iOS or Android Home Screen and it launches standalone with the Plembfin icon |
+- **Canonical sync** - Plembfin's watched state is pushed to every connected app; drift is repaired automatically
+- **Force Sync** - per-title (with season scoping) or library-wide, from Settings → Sync Tools. Import what your servers already have, or push Plembfin's state out to them, with a live log either way
+- **New media arrives watched** - a title Plembfin already has as watched is marked watched the moment it appears on a server, no re-watching prompts after a library rebuild
+- **Resume progress sync** - pause on one server, pick up where you left off on another
+- **Rewatch tracking** - watching something again logs a new play instead of overwriting the old one; detail pages show full watch history, and duplicate-cleanup tools keep rewatches intact while removing accidental repeats
+- **Now Playing dashboard** - live sessions, weekly charts, recent history
+- **Stats** - all-time and per-period reports, top shows, platform breakdowns
+- **Upcoming episodes** - a scrolling calendar of past and future air dates, cached server-side for instant loads
+- **Live Trakt sync** - two-way sync with built-in device authorization, per-play rewatch import, and protection against a slow Trakt response cascading into a false mass-unwatch
+- **Seerr integration** - request titles straight from their detail pages via Overseerr or Jellyseerr
+- **Movie collections** - see sequels, prequels, and spin-offs from a movie's page
+- **Open-in-app links** - jump straight to a title in Plex, Emby, or Jellyfin from its detail page
+- **Automated backups** - daily local backups, plus optional scheduled remote backups to Backblaze B2
+- **Self-hosted & private** - SQLite on your own hardware, no cloud account required
+- **Security hardening** - strict CSP, scrypt password hashing, rate-limited login, HMAC-signed sessions
+- **Artwork pipeline** - posters and logos cached locally from TMDB, TheTVDB, and Fanart.tv
+- **Accurate TV data** - episode titles/numbering/air dates from TheTVDB; cast, trailers, and reviews from TMDB
+- **Unified search** - your library, TMDB, and TheTVDB in one set of results, with no duplicates
+- **Installable on phones** - add to an iOS or Android home screen as a standalone app
+
+See [`docs/architecture.md`](docs/architecture.md) for how each feature is actually built.
 
 ---
 
@@ -131,30 +122,19 @@ None of these talk to each other - they all talk to Plembfin.
 
 ---
 
-## Sync safety and operations
+## Sync safety
 
-The Settings Force Sync box and detail-page Force Sync dialog each offer two explicit
-operations with live activity output: Import Watched Status scans connected Plex, Emby, and
-Jellyfin for watched items and adds anything Plembfin doesn't already have, without any
-outbound writes; Set Plembfin as Source of Truth replays Plembfin's canonical watched state
-to the selected destination(s), overwriting whatever they show without checking first. Each
-action is confirmed before it starts, and a running operation can be cancelled from its
-activity header. The separate planner endpoint still provides
-scoped, typed actions with stale-plan protection and verified pre-run snapshots for
-automation and compatibility. Server roles can be bidirectional, source-only,
-destination-only, or monitor-only. Failed server scans are reported in the terminal rather
-than treated as empty libraries, and inbound callbacks are handled through the existing
-sync echo protections.
-Outbound unplayed writes have their own echo ledger.
-Outbound requests use shared per-destination pacing and cooldown telemetry, while
-**Settings → Advanced → System integrity check** reports current history scale, matching
-failures, and upstream pressure. See
-[`docs/scheduled-sync.md`](docs/scheduled-sync.md) and [`docs/capacity.md`](docs/capacity.md)
-for operating guidance.
+Force Sync always asks before it runs, shows a live log while it's working, and can be
+cancelled mid-operation. **Import Watched Status** only reads from your media servers and
+never writes; **Set Plembfin as Source of Truth** overwrites the destination with
+Plembfin's own record. Server roles (bidirectional, source-only, destination-only,
+monitor-only) and echo-loop protection stop a sync from bouncing back and forth between
+servers. See [`docs/scheduled-sync.md`](docs/scheduled-sync.md) and
+[`docs/capacity.md`](docs/capacity.md) for the operating details.
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Which version should I run?
 
@@ -164,26 +144,21 @@ before they're officially released.
 
 | Tag | Branch | Stability | Who it's for |
 |---|---|---|---|
-| `ghcr.io/lasikiewicz/plembfin:latest` (**recommended**) | `main` | Tested, tagged releases only | Everyone. This is what the Docker Compose example below uses. |
-| `ghcr.io/lasikiewicz/plembfin:alpha` | `alpha` | Pre-release; queued fixes not yet promoted to a numbered version | Testers who want upcoming fixes early and don't mind occasional rough edges |
-| `ghcr.io/lasikiewicz/plembfin:develop` | `develop` | Bleeding edge; every commit, unreviewed and least tested | Contributors and the most adventurous testers only |
+| `ghcr.io/lasikiewicz/plembfin:latest` (**recommended**) | `main` | Tested, tagged releases only | Everyone. Used by the Docker Compose example below. |
+| `ghcr.io/lasikiewicz/plembfin:alpha` | `alpha` | Pre-release; queued fixes not yet a numbered version | Testers who want fixes early and don't mind rough edges |
+| `ghcr.io/lasikiewicz/plembfin:develop` | `develop` | Bleeding edge; every commit, least tested | Contributors and the most adventurous testers |
 
-Each channel shows its own version in the sidebar and **Settings → About**, alongside
-the full history of what's in it: a numbered release like `v0.9.7` on `:latest`, or a
-build number like `0.9.7.3 alpha` / `Develop Build 12` on the pre-release channels. See
-[`CHANGELOG.md`](CHANGELOG.md) for the full history of numbered releases, and
-[`docs/development.md`](docs/development.md) if you want the details of how the three
-channels relate to each other.
+Each channel shows its own version in the sidebar and **Settings → About**. See
+[`CHANGELOG.md`](CHANGELOG.md) for numbered releases, and
+[`docs/development.md`](docs/development.md) for how the three channels relate.
 
-To run a different channel, swap the `image:` line in the Docker Compose example below
-for the tag you want (e.g. `image: ghcr.io/lasikiewicz/plembfin:alpha`) - everything
-else about setup is identical.
+To run a different channel, swap the `image:` tag in the Docker Compose example below -
+everything else about setup is identical.
 
-### Method A: Docker Compose (Recommended)
+### Method A: Docker Compose (recommended)
 
-1. Create a `docker-compose.yml` file. This pulls the published `:latest` image
-   directly - no local clone needed. Swap the tag for `:alpha` or `:develop` to run a
-   different channel (see [above](#which-version-should-i-run)):
+1. Create a `docker-compose.yml`. This pulls the published `:latest` image directly -
+   no local clone needed:
    ```yaml
    services:
      plembfin:
@@ -192,306 +167,215 @@ else about setup is identical.
        ports:
          - "5055:5055"
        volumes:
-         # Database, configuration, and cached posters are persisted here
          - ./data:/data
        environment:
          - ADMIN_USERNAME=admin
          - ADMIN_PASSWORD=changeme # Change this before starting the container
-         # Optional: Pin a specific API key (otherwise auto-generated)
-         # - API_KEY=your-secure-webhook-api-key
-         # Optional: Pin a session cookie signing secret
-         # - SESSION_SECRET=your-secure-session-secret
        restart: unless-stopped
    ```
-2. Pull and start the container:
-   ```bash
-   docker compose up -d
-   ```
-3. Open `http://localhost:5055` in your browser and log in with your configured credentials.
+2. Start it: `docker compose up -d`
+3. Open `http://localhost:5055` and log in.
 
 > [!TIP]
-> Building from a local clone instead of pulling the published image (useful if
-> you're contributing changes)? Replace `image: ghcr.io/lasikiewicz/plembfin:latest`
-> with `build: .`, then run `docker compose up -d --build`.
+> Building from a local clone instead (for contributing changes)? Swap the `image:`
+> line for `build: .`, then run `docker compose up -d --build`.
 
 > [!TIP]
-> For a hardened production setup (read-only filesystem, required secrets, `COOKIE_SECURE`), clone
-> this repository and use its bundled secure overlay instead of the standalone file above:
+> Want a hardened production setup (read-only filesystem, required secrets,
+> `COOKIE_SECURE`)? Clone the repo and use the bundled secure overlay:
 > ```bash
 > git clone https://github.com/Lasikiewicz/plembfin.git && cd plembfin
 > docker compose -f docker-compose.yml -f docker-compose.secure.yml up -d
 > ```
-> See [`docs/hardening.md`](docs/hardening.md) for the full guide including HTTPS reverse-proxy setup.
+> See [`docs/hardening.md`](docs/hardening.md) for the full guide.
 
----
+### Method B: Bare metal (Node.js)
 
-### Method B: Bare Metal (Node.js)
+Requires Node.js 20+, and native build tools if prebuilt binaries for
+`better-sqlite3`/`sharp` fail to install (VS Build Tools on Windows, `gcc`/`g++`/`make`
+on Linux/macOS).
 
-#### Prerequisites
-*   Node.js 20+
-*   Native build tools (required for compiling `better-sqlite3` and `sharp` if prebuilt binaries fail).
-    *   **Windows**: Install [VS Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) if needed.
-    *   **Linux/macOS**: Install standard build tools (`gcc`/`g++` / `make`).
+```bash
+npm install
+npm start        # or: npm run dev, for auto-reload
+```
 
-#### Steps
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Start the server:
-   ```bash
-   npm start
-   ```
-   *For live reloading during development, run `npm run dev` instead.*
-3. Access the dashboard at `http://localhost:5055`. On a fresh boot the username defaults to `admin`; if you didn't set `ADMIN_PASSWORD`, check the server console/logs for the randomly generated initial password.
+Open `http://localhost:5055`. The default username is `admin`; if you didn't set
+`ADMIN_PASSWORD`, check the server console for the generated password.
 
 > [!TIP]
-> If port `5055` is occupied, change it using the `PORT` environment variable:
-> *   **Bash**: `PORT=5056 npm start`
-> *   **PowerShell**: `$env:PORT=5056; npm start`
+> Port `5055` taken? `PORT=5056 npm start` (bash) or `$env:PORT=5056; npm start` (PowerShell).
 
 ---
 
-## 🔧 Full Setup Guide
+## Full Setup Guide
 
-### 1. Sign In & Set Admin Credentials
-Sign in with `admin` and the password you set via `ADMIN_PASSWORD`, or the random password Plembfin generated and printed to the console on first boot. If the configured admin password is the insecure default `admin`, Plembfin redirects to **Settings → General → Account** with a security banner until the password is changed.
+**1. Sign in.** Use `admin` and your `ADMIN_PASSWORD`, or the generated password from
+the console. If it's still the default `admin`, you'll be sent to Settings to change it.
 
-### 2. Connect Your Media Apps
-Go to **Settings → Media Servers**. Select an existing card to edit it, or use the
-**+** card to add Plex, Emby, Jellyfin, or Seerr. Each media-server dialog has its own
-Save and Test actions:
+**2. Connect your media apps.** Settings → Media Servers → **+** to add Plex, Emby,
+Jellyfin, or Seerr.
 
-#### Plex Integration
-*   Choose **Connect Plex account**, approve the Plex sign-in, then select the server Plembfin should synchronize.
-*   Plembfin verifies the account and server, encrypts the managed tokens at rest, and refreshes them when required.
-*   **Manual setup** is optional for installations that need to enter a server URL, token, and username directly.
+- **Plex** - Connect Plex account and pick your server (recommended), or enter a URL/token/username manually.
+- **Emby** - Enter server URL, username, and password once to obtain a token (the password itself isn't stored), or use a manual API key + user ID.
+- **Jellyfin** - Use Quick Connect to authorize from a signed-in client, or username/password, or a manual API key + user ID.
 
-#### Emby Integration
-*   Enter the Emby server URL, username, and password under **Account setup**. The password is used only to obtain a user-scoped access token and is never stored.
-*   Plembfin verifies the selected identity and encrypts the resulting token at rest.
-*   **Manual setup** is optional and accepts an API key plus user ID.
+Only one connection mode is active per server at a time.
 
-#### Jellyfin Integration
-*   Enter the Jellyfin server URL and use **Quick Connect** to authorize the displayed code from a signed-in Jellyfin client.
-*   Username/password account setup is available when Quick Connect is disabled; the password is used only during sign-in and is never stored.
-*   **Manual setup** is optional and accepts an API key plus user ID.
+**3. Add metadata providers** (Settings → Metadata):
 
-Only one connection mode is active for each media server. Completing account setup disables and removes that provider's stored manual credential; saving manual setup switches the provider back to manual mode.
+| Provider | Setup | Provides |
+|---|---|---|
+| TMDB | Free key from [themoviedb.org](https://www.themoviedb.org/documentation/api) - **required** | Movies, cast, trailers, recommendations |
+| TheTVDB | Built-in key works out of the box; personal key optional for your own quota | TV episode titles/numbers/air dates |
+| Fanart.tv | Built-in key works out of the box; personal key optional for higher limits | Poster/backdrop/logo fallback art |
+| OMDb | Free key from [omdbapi.com](https://www.omdbapi.com/apikey.aspx), optional | IMDb rating badges |
+| Seerr | Overseerr/Jellyseerr URL + API key, optional | Request buttons on detail pages |
 
-#### TMDB (Metadata & Posters)
-*   **TMDB API Key**: Obtain a free API key from [TheMovieDB](https://www.themoviedb.org/documentation/api) and paste it here. This enables search capability on the dashboard, rich cast lists, trailers, recommendations, and poster fallbacks. Movies are sourced entirely from TMDB.
-
-#### TheTVDB (TV Show Episode Data)
-*   Plembfin includes a built-in project key for [TheTVDB](https://thetvdb.com) - no setup is required. TV show names, seasons, episode numbering, titles, and air dates are sourced from TheTVDB, since it is often more accurate for TV episode ordering. Cast, trailers, reviews, and recommendations are sourced from TMDB.
-*   **Personal API Key (optional)**: Register at thetvdb.com (Dashboard → API Keys) and enter your personal key under **Settings → Metadata → Metadata Providers → TheTVDB** for your own request quota.
-
-#### Fanart.tv (Artwork Fallback)
-*   Plembfin includes a built-in project key for [Fanart.tv](https://fanart.tv) - no setup is required. Fanart.tv is queried after TMDB as a fallback/additional source for posters, backdrops, and transparent logo art.
-*   **Personal API Key (optional)**: Register at fanart.tv and enter your personal key under **Settings → Metadata → Metadata Providers → Fanart.tv** to get higher rate limits and access to your own uploaded artwork.
-
-#### OMDb (IMDb Ratings)
-*   **Optional**: Register for a free API key at [omdbapi.com](https://www.omdbapi.com/apikey.aspx) (1,000 req/day free tier) and paste it under **Settings → Metadata → Metadata Providers → OMDb**.
-*   When configured, IMDb ratings appear as a rating badge (e.g. **IMDb 85%**) next to the TMDB score on media detail pages. If no OMDb key is configured, IMDb rating badges are hidden. Ratings are cached locally for 7 days. Can also be set via the `OMDB_API_KEY` environment variable.
-
-#### Seerr (Request Manager)
-*   **Seerr Server URL**: Your Overseerr or Jellyseerr server URL (e.g., `http://192.168.1.100:5055`).
-*   **Seerr API Key**: Copy the API key from your Seerr Settings → General.
-*   Availability badges are based on Plembfin's configured Plex, Emby, and Jellyfin apps, not Seerr's cached availability state.
-*   Each episode row on a TV show's detail page shows its resolution (e.g. 720p, 1080p, 4K) when the episode is available in one of the configured apps.
-*   Requesting a TV show opens a season picker listing every season (with current availability), so you can choose exactly which seasons to send to Seerr instead of requesting the whole series.
-*   The browser also remembers the last known availability and open-in-app links for each title, so detail pages show availability badges and app buttons instantly on open and refresh them silently in the background when anything changed.
-
-#### Sync Tuning and Match Diagnostics
-*   **Settings → Sync → Sync Tuning** (or `/settings/sync#sync-tuning`) controls the watched threshold, minimum resume position, active-session TTL, and default outbound timeout. Blank fields inherit their environment variable or built-in default.
-*   **Settings → Sync → Sync Issues** (or `/settings/sync#sync-issues`) includes a Cross-Platform Match Report listing media Plembfin could not identify, so you can pick the right title for it. Media that is identified and simply absent from a library is left out - the watch is recorded correctly and there is nothing to fix. **Rescan** re-runs the sync for the list and rebuilds it; **Fix All Matches** does the same and then walks you through each item.
-*   **Newly added media is caught up automatically.** When a server announces new content whose current Plembfin state is watched, Plembfin marks it watched there as it arrives - so restoring or re-adding a file does not leave it looking unplayed. Adding a whole show catches up its episodes too, skipping any the server already has as played. A newer unwatch overrides older watch history, so an item currently marked unwatched is left alone. This needs the library-add notification enabled in each server's webhook setup (`library.new` on Plex and Emby, `Item Added` on Jellyfin) - see [webhooks.md](docs/webhooks.md#catching-up-newly-added-media).
+**4. Tune sync behavior** (Settings → Sync): thresholds and timeouts under **Sync
+Tuning**; a match report for anything Plembfin couldn't identify under **Sync Issues**.
+New media that arrives already-watched in Plembfin is marked watched on the server
+automatically - this needs the library-add webhook enabled per server (see
+[webhooks.md](docs/webhooks.md#catching-up-newly-added-media)).
 
 ---
 
-## ⚡ Webhook Setup & Real-time Watch Sync
+## Webhook Setup
 
-Playback events are sent to Plembfin via webhooks. Plembfin accepts the webhook secret in the `X-Plembfin-Webhook-Secret` header, as `Authorization: Bearer <secret>`, or in the compatibility query-token URL used by Plex/Emby/Jellyfin. Copy the full URL from **Settings → Media servers → Webhooks** after signing in. It will look like:
+Playback events reach Plembfin via webhooks. Copy your webhook URL from
+**Settings → Media servers → Webhooks** - it looks like:
 
 ```
 http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 ```
 
 > [!IMPORTANT]
-> Use the full URL including the `?token=` parameter for media servers that cannot set custom headers. If you rotate the secret via the **Rotate Secret** button, update the URL or header value in every sender.
+> Use the full URL with `?token=` for servers that can't set custom headers. Rotating
+> the secret means updating it everywhere it's used.
 
-### Media Server Settings
+**Plex** - Account Settings → Webhooks → Add Webhook → paste the URL → enable `media.play`,
+`media.resume`, `media.pause`, `media.stop`, `media.scrobble`.
+Plex doesn't reliably send webhooks for library-UI watch changes, so Plembfin also
+listens over WebSocket for those directly, and polls every 60 seconds as a backstop.
 
-#### 1. Plex Webhook Setup
-1.  Navigate to Plex Web → **Account Settings → Webhooks**.
-2.  Click **Add Webhook**.
-3.  Paste the full webhook URL (with `?token=`) from **Settings → Media servers → Webhooks**.
-4.  Enable events: `media.play`, `media.resume`, `media.pause`, `media.stop`, `media.scrobble`.
-5.  Save changes.
+**Emby** - Server Settings → Webhooks → add one, paste the URL, enable **Playback**:
+`Start`/`Pause`/`Unpause`/`Stop` and **Users**: `Mark Played`/`Mark Unplayed`. Leave
+everything else unticked, and enable **Send All Properties**.
 
-> **Plex library watch-state sync:** Plex does not reliably send native webhooks for watch-state changes made from its library UI. Plembfin includes a built-in notification listener that connects automatically via WebSocket using your configured Plex URL and token, records watched and unwatched changes, and expands bulk show or season changes into their episodes before propagating them to the other eligible servers. In addition, the per-minute background scheduler worker polls connected servers every 60 seconds to catch any missing watched updates or offline changes.
-
-#### 2. Emby Webhook Setup
-1.  Go to Emby Server Settings → **Webhooks** and add a new webhook.
-2.  Set the URL to the full webhook URL (with `?token=`) from **Settings → Media servers → Webhooks**.
-3.  Under **Events → Playback**, check: `Start`, `Pause`, `Unpause`, `Stop`.
-4.  Under **Events → Users**, check: `Mark Played`, `Mark Unplayed`.
-5.  Leave every other event category unticked - Plembfin ignores library, system, and activity events, and they only add rejected entries to Sync History.
-6.  Enable **Send All Properties** so payloads include position data for resume sync.
-
-#### 3. Jellyfin Webhook Setup
-1.  Install the **Webhooks** plugin from the Jellyfin Plugin Catalog.
-2.  Add a new **Generic Webhook** named `plembfin`.
-3.  Set the URL to the full webhook URL (with `?token=`) from **Settings → Media servers → Webhooks**.
-4.  Under **Notification Type**, check: `Playback Start`, `Playback Progress`, `Playback Stop`, `User Data Saved`.
-5.  Under **Item Type**, select: `Movies`, `Episodes`. Leave the other notification and item types unticked.
-6.  Check **Send All Properties (ignores template)** and save. The body must be JSON, but the content type does not matter - Jellyfin labels its payloads `text/plain` and Plembfin reads them anyway.
+**Jellyfin** - Install the **Webhooks** plugin → add a **Generic Webhook** named
+`plembfin` → paste the URL → enable `Playback Start/Progress/Stop` and `User Data
+Saved` under Notification Type, `Movies`/`Episodes` under Item Type → check **Send All
+Properties**.
 
 ---
 
-## 💾 Backup & Restore System
+## Backup & Restore
 
-Plembfin runs automated daily backups; each backup type has its own schedule time, retention count, and Back Up Now button.
+Plembfin runs automated daily backups; each type has its own schedule, retention, and
+manual Back Up Now button.
 
-### Supported Backup Types
-
-*   **Local Watch History Backups**: Capture watch history snapshots, playstates, and resume markers. Saved to `data/backups/watch-history`.
-*   **Local Plembfin Backups**: Create full, AES-256-GCM encrypted database backups (including settings, API keys, credentials, and play history, excluding cache). Manual backups can use a one-time passphrase; scheduled backups require a remembered passphrase. Saved to `data/backups/plembfin`.
-*   **Remote Backups**: Upload watch-history and full encrypted Plembfin backups to one or more private Backblaze B2 destinations under **Settings → Backup / restore → Backup settings → Remote** (`/settings/backup-restore#backup-settings-remote`). Remote watch-history backups run on their own daily schedule with their own retention count on the remote, independent of the local schedule; remote Plembfin backups run with the daily Plembfin backup when remote mirroring is enabled. Select a destination card to edit/test it, or use **+** to add one.
-
----
-
-## Backfills & Imports
-
-### Trakt Watch History Import
-1. Download a JSON watch history export of your Trakt profile.
-2. Go to **Settings → Import** (`/settings/import`), upload the JSON, and start the import.
-3. Imported watches are queued and propagated automatically. Use **Settings → Sync → Sync Tools → Full Sync Watchstates** (`/settings/sync#full-sync-watchstates`) to replay the complete Plembfin archive immediately, for example after connecting a new server or rebuilding a library. If a browser or server restart leaves a restore lock behind, use **Reset Restore Lock** in the same tool after confirming no other restore should continue.
-
-### Live Trakt Sync
-
-Plembfin includes its official Trakt device application, so users can choose **Connect
-Trakt** under **Settings → Import**, enter the displayed device code, and authorize
-their account without Trakt VIP or personal API credentials. OAuth access and refresh
-tokens are encrypted at rest. `TRAKT_CLIENT_ID` and `TRAKT_CLIENT_SECRET` can replace
-the bundled application when a maintainer needs to rotate it. At connection time, choose
-whether to record the current Trakt state as a baseline or import all existing watched
-items. Plembfin then checks Trakt each minute and distributes watched and unwatched
-changes in both directions. Trakt records every individual play of an item, and Plembfin
-imports each rewatch it doesn't already have as its own history entry - not just the most
-recent play - the first poll after connecting backfills the full play history and later
-polls only fetch new plays. **Sync Now** additionally compares the complete Trakt
-snapshot with Plembfin's current canonical state, repairing mismatches that existed before
-the connection baseline. The connection card shows progress while **Sync Now** runs and
-reports the items checked and watched or unwatched changes applied. Disable Emby and
-Jellyfin Trakt plugins so Plembfin
-is the only Trakt writer and cannot compete with a second authority loop. Open Plembfin
-pages refresh automatically as imported watch-state changes are processed. Editing,
-adding, or bulk-editing a watched date from a media detail page also pushes that
-corrected date to Trakt immediately, alongside every connected Plex/Emby/Jellyfin
-server, rather than waiting for the next minute's poll.
+- **Watch history backups** - snapshots of history, playstates, and resume markers (`data/backups/watch-history`)
+- **Full Plembfin backups** - AES-256-GCM encrypted, includes settings/keys/credentials/history (`data/backups/plembfin`)
+- **Remote backups** - optional mirror of either type to Backblaze B2, on its own schedule (Settings → Backup / restore → Backup settings → Remote)
 
 ---
 
-## System Diagnostics & Logs
+## Importing Watch History
 
-Plembfin includes a real-time, screen-filling diagnostic log viewer under **Settings → Logs** (`/settings/logs`).
-- **Category Filtering**: Filter the telemetry log stream by **All Logs**, **Plex WebSockets**, **Outbound Sync**, **Scheduled Polls**, or **System Logs**.
-- **Local Timestamp Parsing**: Timestamps are parsed in the client browser to render in your local system timezone.
-- **Download Logs**: Click **Download Logs** to export a complete `.log` file containing full backend and frontend diagnostic history for debugging.
-- **Merged across processes**: Log entries are stored in the database, so the viewer shows web and worker output together and stays fast however long the server has been running.
-- **High signal by default**: A background sync tick that changed nothing writes nothing, and repeated per-item outcomes are condensed into a single line with a count. Set `LOG_VERBOSE=true` when you need the full per-request trace.
+**From Trakt (one-time):** export your Trakt watch history as JSON, then upload it under
+**Settings → Import**. Imported watches propagate automatically; use **Full Sync
+Watchstates** afterward to replay everything to a newly connected server.
 
-**Sync Health** (**Settings → Sync → Sync Issues**; `/settings/sync#sync-issues`) reports watch-history data quality alongside the match report: rows that duplicate an existing watch event, items with several distinct watch dates (rewatches, which are kept as-is), episode rows missing a season number, and rows storing a provider URI instead of a show title. Each one comes with a plain-language recommendation.
+**Live Trakt sync (ongoing):** Settings → Import → **Connect Trakt**, authorize with the
+displayed device code - no Trakt VIP or personal API credentials needed. Once connected,
+watched/unwatched state flows both ways every minute, including individual rewatches.
+Disable any Emby/Jellyfin Trakt plugins so Plembfin is the only Trakt writer. See
+[`docs/webhooks.md`](docs/webhooks.md) for how this interacts with other sync sources.
+
+---
+
+## Diagnostics & Logs
+
+**Settings → Logs** has a real-time log viewer: filter by category, download a full
+`.log` file, and see web/worker output merged together. Set `LOG_VERBOSE=true` for full
+per-request tracing when chasing a specific issue.
+
+**Settings → Sync → Sync Issues** reports data-quality problems (duplicate watches,
+episodes missing a season number, etc.) with a plain-language fix for each.
 
 ---
 
 ## Configuration Reference
 
-The following environment variables can be set in your system or defined in `docker-compose.yml`:
+Set these in your system environment or `docker-compose.yml`. A full commented template
+is in [`.env.example`](.env.example).
 
 | Environment Variable | Default | Purpose |
 | :--- | :--- | :--- |
-| `PORT` | `5055` | The network port the web interface and API will listen on. |
-| `DATA_DIR` | `./data` | Directory for the SQLite database (`plembfin.db`), configs, and cached posters. |
-| `ADMIN_USERNAME` | `admin` | Default administrator username for fresh setups. |
-| `ADMIN_PASSWORD` | _generated_ | Admin password. If unset on a brand-new install, a random password is generated and printed once to the server console/logs. This env var controls login until credentials are changed in Settings or sessions are revoked; then `authManagedInApp` in `data/config.json` takes precedence. |
-| `API_KEY` | _generated_ | Security token used to authorize incoming webhooks and API calls. |
-| `WEBHOOK_SECRET` | _generated_ | Secret used by webhook header/Bearer auth and the compatibility `?token=` URL. Rotatable independently of the API key. |
-| `SESSION_SECRET` | _generated_ | Signing secret for the dashboard session cookie. |
-| `PLEMBFIN_CREDENTIAL_KEY` | _generated file_ | Optional external AES-256 credential-vault key (64 hex characters or base64url). Keep it with disaster-recovery material; the generated `data/credential.key` is intentionally excluded from backups. |
-| `PLEMBFIN_PUBLIC_URL` | _none_ | Fixed public origin used for provider return links. It must be an `http` or `https` origin without a path. |
-| `PLEMBFIN_MEDIA_AUTH_ENABLED` | `true` | Account setup for Plex, Emby, and Jellyfin. Set to `false` only to expose manual setup exclusively. |
-| `COOKIE_SECURE` | `false` | Set to `true` when the app is served behind an HTTPS reverse proxy - enables `Secure` cookie flag and `Strict-Transport-Security` header. |
-| `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` | _built-in_ | Optional replacement for Plembfin's bundled Trakt device application, for credential rotation or private deployments. Both values must be set together. |
-| `LOG_VERBOSE` | `false` | Set to `true` to add per-request tracing (Plex ID lookups, search fallbacks, per-phase scheduled-sync steps) to Settings → Logs. Useful when diagnosing a specific match failure. Errors and warnings are logged either way. |
-| `FANART_API_KEY` | _none_ | Optional personal Fanart.tv API key for higher rate limits. A built-in project key is used when this is unset. |
-| `TVDB_API_KEY` | _none_ | Optional personal TheTVDB API key for a higher personal rate limit. A built-in project key is used when this is unset. |
-| `TVDB_PROJECT_KEY` | _built-in_ | Advanced: replaces the built-in shared TheTVDB project key. Only needed if the built-in key is revoked or exhausted. |
-| `FANART_PROJECT_KEY` | _built-in_ | Advanced: replaces the built-in shared Fanart.tv project key. Only needed if the built-in key is revoked or exhausted. |
-| `TMDB_API_KEY` | _none_ | Default TMDB API key (Settings → Metadata → Metadata Providers takes precedence). |
-| `YOUTUBE_API_KEY` | _none_ | Optional YouTube Data API key for trailer metadata (Settings takes precedence). |
-| `OMDB_API_KEY` | _none_ | Optional OMDb API key. When set, IMDb ratings are fetched and displayed as a rating badge on media detail pages. Free tier: 1,000 req/day. |
-| `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` / `PLEX_ENABLED` | _none_ | Default Plex connection values. Anything saved in Settings → Media Servers takes precedence. |
-| `EMBY_SERVER_URL` / `EMBY_API_KEY` / `EMBY_USER_ID` / `EMBY_ENABLED` | _none_ | Default Emby connection values (Settings takes precedence). |
-| `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` | _none_ | Default Jellyfin connection values (Settings takes precedence). |
-| `WATCHED_PLAYED_SYNC_ENABLED` | `true` | Set to `false` to disable all watched/played propagation between platforms (watch recording still happens). |
-| `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | The frequency (in milliseconds) of database-heavy catch-up library scans on Plex/Emby/Jellyfin. |
-| `PLEX_UNWATCHED_POLL_INTERVAL_MS` | `60000` (1m) | Cadence of Plex's unwatched-reconciliation fallback poll - the only unwatch-detection path its webhook cannot cover. |
-| `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED` | `true` | Set to `false` to disable Emby's/Jellyfin's equivalent of the Plex unwatched-reconciliation backstop poll. Checks a small batch (5 items) sequentially every 5 minutes per platform. |
-| `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` | `300000` (5m) each | Cadence of that poll when enabled, checked in a smaller batch than Plex's. |
-| `WATCHED_THRESHOLD_PERCENT` | `90` | Playback percentage that counts as watched (50-100). Settings → Sync takes precedence. |
-| `MIN_RESUME_POSITION_SEC` | `60` | Minimum stopped-play position saved and propagated as resume progress (0-3600 seconds). Settings takes precedence. |
-| `ACTIVE_SESSION_TTL_MIN` | `5` | Time without a webhook update before an active session is stale (1-120 minutes). Settings takes precedence. |
-| `OUTBOUND_TIMEOUT_SEC` | `10` | Default timeout for media-server outbound requests (2-120 seconds). Explicit per-call timeouts still take precedence. |
-| `PLEMBFIN_DEBUG_OUTBOUND` | _off_ | Set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs) - useful for measuring how much traffic each metadata service and media server receives. |
-
-A commented template of every variable is provided in [`.env.example`](.env.example) - copy it to `.env` for bare-metal installs.
+| `PORT` | `5055` | Port the web interface and API listen on. |
+| `DATA_DIR` | `./data` | Directory for the database, configs, and cached posters. |
+| `ADMIN_USERNAME` | `admin` | Default administrator username. |
+| `ADMIN_PASSWORD` | _generated_ | Admin password; a random one is generated and logged if unset. Settings-changed credentials take precedence once set. |
+| `API_KEY` | _generated_ | Token authorizing incoming webhooks and API calls. |
+| `WEBHOOK_SECRET` | _generated_ | Secret for webhook auth; rotatable independently of `API_KEY`. |
+| `SESSION_SECRET` | _generated_ | Signing secret for the session cookie. |
+| `PLEMBFIN_CREDENTIAL_KEY` | _generated file_ | Optional external credential-vault key (64 hex chars or base64url). Keep with disaster-recovery material. |
+| `PLEMBFIN_PUBLIC_URL` | _none_ | Fixed public origin for provider return links (`http(s)://host`, no path). |
+| `PLEMBFIN_MEDIA_AUTH_ENABLED` | `true` | Set `false` to expose manual server setup only. |
+| `COOKIE_SECURE` | `false` | Set `true` behind HTTPS to enable the `Secure` cookie flag and HSTS. |
+| `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` | _built-in_ | Optional replacement for the bundled Trakt app. Both required together. |
+| `LOG_VERBOSE` | `false` | Set `true` for full per-request tracing in Settings → Logs. |
+| `FANART_API_KEY` | _none_ | Personal Fanart.tv key for higher rate limits. |
+| `TVDB_API_KEY` | _none_ | Personal TheTVDB key for a higher personal quota. |
+| `TVDB_PROJECT_KEY` / `FANART_PROJECT_KEY` | _built-in_ | Advanced: replaces the built-in shared project key if revoked. |
+| `TMDB_API_KEY` | _none_ | Default TMDB key (Settings takes precedence). |
+| `YOUTUBE_API_KEY` | _none_ | Optional key for trailer metadata (Settings takes precedence). |
+| `OMDB_API_KEY` | _none_ | Optional key for IMDb rating badges. Free tier: 1,000 req/day. |
+| `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` / `PLEX_ENABLED` | _none_ | Default Plex values (Settings takes precedence). |
+| `EMBY_SERVER_URL` / `EMBY_API_KEY` / `EMBY_USER_ID` / `EMBY_ENABLED` | _none_ | Default Emby values (Settings takes precedence). |
+| `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` | _none_ | Default Jellyfin values (Settings takes precedence). |
+| `WATCHED_PLAYED_SYNC_ENABLED` | `true` | Set `false` to disable watched/played propagation (recording still happens). |
+| `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | Frequency of catch-up library scans. |
+| `PLEX_UNWATCHED_POLL_INTERVAL_MS` | `60000` (1m) | Cadence of the Plex unwatched-reconciliation backstop poll. |
+| `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED` | `true` | Set `false` to disable the equivalent Emby/Jellyfin backstop poll. |
+| `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` | `300000` (5m) each | Cadence of that poll when enabled. |
+| `WATCHED_THRESHOLD_PERCENT` | `90` | Playback % counted as watched (50-100). Settings takes precedence. |
+| `MIN_RESUME_POSITION_SEC` | `60` | Minimum position saved as resume progress (0-3600s). Settings takes precedence. |
+| `ACTIVE_SESSION_TTL_MIN` | `5` | Time before an active session goes stale (1-120 min). Settings takes precedence. |
+| `OUTBOUND_TIMEOUT_SEC` | `10` | Default outbound request timeout (2-120s). |
+| `PLEMBFIN_DEBUG_OUTBOUND` | _off_ | Set `1` to log per-host outbound request counts once a minute. |
 
 ---
 
-## 🛠️ Architecture & Under the Hood
+## Architecture
 
-Plembfin runs as a self-hosted Node application. The default `ROLE=all` process contains
-the complete app; larger installations can run separate `web` and `worker` roles against
-the same local SQLite data volume:
-*   **Web Server**: Powered by Express (`server/server.js`), static-serving the SPA interface (`public/`) and poster binaries (`data/media`).
-*   **Manual Router**: A lightweight dispatcher routing API endpoints to specific controllers.
-*   **Database**: Uses `better-sqlite3` in WAL mode for rapid reading/writing and locks safety.
-*   **Scheduler**: Runs in the elected `all` or `worker` process on a per-minute timer (no crontab required). A SQLite lease prevents duplicate workers. It reconciles active play states, checks media servers and Trakt, maintains caches, and performs nightly backups. Failed sync dispatches use exponential backoff (up to 10 attempts), so an offline service is not hammered.
-*   **Pre-push build check**: Before code is deployed or pushed, `npm run build` is run automatically. This checks JavaScript syntax and boots the server temporarily in a clean directory on port 0 to verify startup health.
+Plembfin runs as a self-hosted Node app (Express + `better-sqlite3` in WAL mode). The
+default `ROLE=all` process runs everything; larger installs can split `web` and `worker`
+roles against the same SQLite volume. A per-minute scheduler (leased in SQLite, no
+crontab needed) handles sync reconciliation, cache maintenance, and nightly backups, with
+exponential backoff for offline targets. Every push runs `npm run build` - a syntax
+check plus a clean-directory boot test - before it ships.
 
-For the full technical reference - a complete map of every file in the repository, a task router, and per-feature deep dives (Plex/Emby/Jellyfin integrations, dashboard, libraries, upcoming episodes, media detail, backups, metadata, posters, auth) - start at [`docs/architecture.md`](docs/architecture.md) and the [docs index](docs/README.md).
+For the full picture - file map, task router, and per-feature deep dives - start at
+[`docs/architecture.md`](docs/architecture.md) and the [docs index](docs/README.md).
 
 ---
 
-## 🧑‍💻 Development Workflow
+## Development Workflow
 
-### Running locally
 ```bash
-npm install      # install dependencies
-npm run dev      # start with auto-reload on http://localhost:5055
+npm install
+npm run dev      # auto-reload on http://localhost:5055
 ```
 
-Day-to-day work lands on a `develop` branch; `alpha` only moves when `develop` is
-explicitly promoted to it, and `main` only moves when `alpha` is explicitly promoted to
-it, with each promotion to `main` becoming exactly one numbered release. See
-[Which version should I run?](#which-version-should-i-run) above for what that means as
-a user, and [`docs/development.md`](docs/development.md) for the full branching and
-release workflow. Commits for user-visible features, fixes, security changes,
-enhancements, and docs must use a `type: summary` subject plus meaningful `- ` bullet
-points in the body. The installed commit hook and CI changelog generator both reject
-title-only release messages, preventing sparse entries in [`CHANGELOG.md`](CHANGELOG.md)
-and **Settings → About**.
+Work lands on `develop`; `alpha` and `main` only move on an explicit promotion, with
+each promotion to `main` becoming one numbered release. See
+[Which version should I run?](#which-version-should-i-run) for what that means as a
+user, and [`docs/development.md`](docs/development.md) for the full workflow.
 
-Every push to `develop` or `alpha` builds, verifies, and publishes a rolling image to
-`ghcr.io/lasikiewicz/plembfin:develop` / `:alpha` (also tagged `develop-<build>` /
-`alpha-<build>` for a specific build); every pull request targeting `main` builds and
-verifies the same way without publishing. Either way, a change that breaks the
-container is caught immediately rather than after a release has been published.
-
-When a change completes an item in [`TODO.md`](TODO.md), remove that item and update
-the corresponding documentation in the same change.
+Every push to `develop`/`alpha` builds and publishes a rolling image
+(`:develop`/`:alpha`, plus a build-numbered tag); PRs to `main` build and verify without
+publishing - a breaking change is caught before release, not after.
 
 ---
 
@@ -499,14 +383,14 @@ the corresponding documentation in the same change.
 
 Plembfin is licensed under the GNU Affero General Public License v3.0. See
 [LICENSE.md](LICENSE.md). Version history is in [`CHANGELOG.md`](CHANGELOG.md) (also
-bundled as [`changelog.json`](changelog.json) and shown in **Settings → About**).
+shown in **Settings → About**).
 
 ---
 
 ## Thank You
 
-Plembfin uses the following third-party services for artwork and metadata - thank you to the people and communities that make them possible:
+Plembfin relies on these third-party services for artwork and metadata:
 
-*   **[The Movie Database (TMDB)](https://www.themoviedb.org)** - The primary source for movie metadata, posters, backdrops, cast information, and logo art, and the source of cast/trailers/recommendations for TV shows. This product uses the TMDB API but is not endorsed or certified by TMDB.
-*   **[TheTVDB](https://thetvdb.com)** - The source of TV show names, seasons, episode numbering/titles/air dates, and artwork. Metadata provided by TheTVDB. Please consider adding missing information or subscribing.
-*   **[Fanart.tv](https://fanart.tv)** - Community-driven source of high-quality poster art, backdrop images, and transparent logo art used as a fallback when TMDB images are unavailable. Thank you to all the fanart.tv contributors who upload and curate artwork.
+- **[TMDB](https://www.themoviedb.org)** - movie metadata, posters, backdrops, cast, and TV cast/trailers/recommendations. This product uses the TMDB API but is not endorsed or certified by TMDB.
+- **[TheTVDB](https://thetvdb.com)** - TV show names, seasons, episode numbering/titles/air dates, and artwork. Please consider adding missing information or subscribing.
+- **[Fanart.tv](https://fanart.tv)** - community-curated poster, backdrop, and logo art used as a fallback. Thank you to everyone who uploads and curates there.
