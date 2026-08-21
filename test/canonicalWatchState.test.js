@@ -146,6 +146,13 @@ test("an explicit Plembfin unwatch remains canonical over an older watched recor
   await repo.upsertPlaystateForMedia(media, "unwatched", "2026-07-18T12:00:00.000Z");
 
   assert.equal(await repo.getCanonicalWatchState(media), "unwatched");
+  // This is the exact gap that let detail-page Force Sync -> Import Watched
+  // Status silently no-op on a show whose display was stuck unwatched behind
+  // a later (possibly stale/erroneous) unwatch: findWatchedByAnyMediaKey
+  // still finds the dormant older watched row, so a check of "!record" alone
+  // wrongly concludes there's nothing to do. forceSyncMediaState now checks
+  // getCanonicalWatchState instead, specifically to see through this gap.
+  assert.ok(await repo.findWatchedByAnyMediaKey(media), "the old watched row is still on file and would satisfy a naive !record check");
 });
 
 test("a delayed library-added event cannot revive older watched history after an unwatch", async () => {

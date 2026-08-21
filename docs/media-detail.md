@@ -164,7 +164,17 @@ first complete render.
   (`scheduled.js`), which still skips these entirely to avoid manufacturing a
   burst of phantom watches across an entire rebuilt library
   (`remoteItemToMedia` in `mediaForceSync.js`). If even a release date is
-  unavailable, the item is skipped rather than given a fabricated date. The asynchronous
+  unavailable, the item is skipped rather than given a fabricated date.
+  Whether an item needs inserting is decided from its actual current
+  canonical state (`getCanonicalWatchState`), not merely whether *any*
+  watched row exists for it anywhere in history
+  (`findWatchedByAnyMediaKey`) - a later unwatch (even a stale one recorded
+  while a show's identity was mismatched) always wins the display's dedup
+  tie-break by recency, so an old watched row can sit on file while the show
+  still displays and counts as unwatched. Checking only "does a watched row
+  exist" treated that as already handled and silently did nothing; checking
+  the canonical pointer instead inserts a fresh record so the source's
+  confirmed "still watched" genuinely wins the tie-break back. The asynchronous
   `POST /api/force-sync/media` operation is followed through
   `GET /api/force-sync/media/status?id=...`, and the dialog shows its detailed
   live terminal output until completion. Every action asks for confirmation before it

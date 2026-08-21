@@ -420,16 +420,29 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
     const canonicalState = media.canonicalState || "watched";
     let record = await findWatchedByAnyMediaKey(media).catch(() => null);
     let inserted = false;
-    if (requested.mode !== "push" && canonicalState !== "unwatched" && !record) {
-      const insertedResult = await insertWatchRecord({
-        ...media,
-        sync_action: "watched",
-        sync_dispatch_telemetry: pendingTelemetry(media, requested),
-      }, { skipInvalidate: true });
-      record = insertedResult.record;
-      record.id = insertedResult.id;
-      inserted = true;
-      await insertedResult.assetPrefetch?.catch(() => null);
+    if (requested.mode !== "push" && canonicalState !== "unwatched") {
+      // A watched row can exist in history yet no longer be the episode's
+      // current state - a later unwatch (even a stale one recorded while a
+      // show's identity was mismatched) always wins the dedup tie-break by
+      // recency, silently shadowing that old watched row from every display
+      // and count. !record alone can't see that: it only asks "does any
+      // watched row exist anywhere", not "is this episode currently showing
+      // as watched". Check the actual canonical pointer (the playstate
+      // table) instead, so a source confirming "still watched" inserts a
+      // fresh, current record and genuinely flips the display back, rather
+      // than being treated as a no-op because *some* watched row is on file.
+      const currentCanonicalState = await getCanonicalWatchState(media).catch(() => null);
+      if (currentCanonicalState !== "watched") {
+        const insertedResult = await insertWatchRecord({
+          ...media,
+          sync_action: "watched",
+          sync_dispatch_telemetry: pendingTelemetry(media, requested),
+        }, { skipInvalidate: true });
+        record = insertedResult.record;
+        record.id = insertedResult.id;
+        inserted = true;
+        await insertedResult.assetPrefetch?.catch(() => null);
+      }
     }
 
     await upsertPlaystateForMedia(media, canonicalState, media.watched_at, { skipInvalidate: true });
