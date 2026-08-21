@@ -1056,7 +1056,20 @@ export function attachMediaDetailEvents() {
           activeSeasonNum: nextSeason,
           activeEpisodeNum: null,
         });
-        requestAnimationFrame(() => window.scrollTo({ top: scrollY, left: 0, behavior: "auto" }));
+        requestAnimationFrame(() => {
+          // Expanding scrolls the clicked season's header into view so the
+          // newly-revealed episode list doesn't open off-screen below the
+          // click; collapsing just restores the prior scroll position so the
+          // page doesn't jump now that the content above has shrunk.
+          const trigger = nextSeason != null
+            ? document.querySelector(`[data-season-accordion="${nextSeason}"]`)
+            : null;
+          if (trigger) {
+            trigger.scrollIntoView({ behavior: "smooth", block: "start" });
+          } else {
+            window.scrollTo({ top: scrollY, left: 0, behavior: "auto" });
+          }
+        });
       }
       const nextUrl = state.activeShowModalKey
         ? (nextSeason != null ? `/tvshow/${state.activeShowModalKey}#season${nextSeason}` : `/tvshow/${state.activeShowModalKey}`)
