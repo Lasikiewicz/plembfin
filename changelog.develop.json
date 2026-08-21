@@ -1,7 +1,19 @@
 {
-  "build": 15,
-  "updatedAt": "2026-08-21T16:23:20+01:00",
+  "build": 16,
+  "updatedAt": "2026-08-21T16:44:56+01:00",
   "entries": [
+    {
+      "build": 16,
+      "date": "2026-08-21T16:44:56+01:00",
+      "commit": "3b20ba0c4c69eb81e74f94a1f72b3b043485f021",
+      "message": "Fix - Prevent episode watched status from reverting on show detail refresh",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix TV show detail page to correctly merge episode-level watch history records",
+        "Scope show grouping union-find to show-level provider IDs so episode-level IDs do not partition series episodes",
+        "Update documentation for show grouping and client-side history merging"
+      ]
+    },
     {
       "build": 15,
       "date": "2026-08-21T16:23:20+01:00",
