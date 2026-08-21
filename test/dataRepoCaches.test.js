@@ -339,3 +339,35 @@ test("the watch-date editor finds every play of an episode despite a year-suffix
   const dateEditorRows = await repo.getWatchDatesForRecord(firstPlayId);
   assert.equal(dateEditorRows.rows.length, 2, "must find both plays despite the show_title mismatch");
 });
+
+test("the watch-date editor still lists a play that was later marked unwatched", async () => {
+  // Mirrors a second real report on the same episode: one play stayed
+  // watched, a second was later flipped to sync_action "unwatched" (e.g. an
+  // explicit unwatch from a media server) while keeping its own watched_at.
+  // The episode card's own "N actual watches" badge counts both (it groups
+  // by isPlembfinTrackedEpisodeRow, which doesn't require the current action
+  // to be "watched"), but the editor only found the still-watched one
+  // because it required isPlembfinTrackedWatchRow instead.
+  const firstPlayId = await insert({
+    title: "Unwatch Marker Show - S05E07",
+    show_title: "Unwatch Marker Show",
+    media_type: "episode",
+    watched_at: "2026-08-20T17:06:00.000Z",
+    source: "trakt_import",
+    season: 5,
+    episode: 7,
+  });
+  await insert({
+    title: "Unwatch Marker Show - S05E07",
+    show_title: "Unwatch Marker Show",
+    media_type: "episode",
+    watched_at: "2026-08-19T01:49:10.381Z",
+    source: "plex",
+    season: 5,
+    episode: 7,
+    sync_action: "unwatched",
+  });
+
+  const dateEditorRows = await repo.getWatchDatesForRecord(firstPlayId);
+  assert.equal(dateEditorRows.rows.length, 2, "must find the play later marked unwatched too");
+});

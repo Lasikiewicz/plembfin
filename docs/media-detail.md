@@ -265,7 +265,14 @@ first complete render.
   it does in `queryShowDetail` (see `tv-shows.md`): two of an episode's own
   watch rows can carry differently-formatted show_title text, and comparing
   one normalized side against one raw side silently missed a real duplicate
-  play instead of listing it. Deleting a watch
+  play instead of listing it. `siblingWatchRowsFor()` also trusts a sibling row
+  by `isPlembfinTrackedEpisodeRow` rather than `isPlembfinTrackedWatchRow` -
+  the same check `queryShowDetail`'s grouping uses to build the "N actual
+  watches" badge - since a real past play whose `sync_action` was later
+  flipped to "unwatched" (e.g. an explicit unwatch from a connected server)
+  is still a play that belongs in the list; requiring the row's *current*
+  action to be "watched" silently dropped it from the editor while the
+  episode card's own history count still included it. Deleting a watch
   date also replays the resulting canonical state - the rolled-back date if a
   watch remains, or "unwatched" if that was the only one - to every connected
   Plex/Emby/Jellyfin/Trakt server (`propagateWatchDateRemoval` in

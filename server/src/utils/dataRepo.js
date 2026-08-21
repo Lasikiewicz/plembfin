@@ -1396,8 +1396,15 @@ function siblingWatchRowsFor(existing = {}) {
   const episode = existing.episode == null ? null : Number(existing.episode);
   if (!showKey || season == null || episode == null) return [];
 
+  // isPlembfinTrackedEpisodeRow, not isPlembfinTrackedWatchRow: a play later
+  // marked unwatched (sync_action flips to "unwatched"/"unplayed") is still a
+  // real past watch event and must stay listed here - the same trust check
+  // queryShowDetail's dedupeHistory uses to build the "N actual watches"
+  // count and playHistory list this dialog is meant to match. Requiring the
+  // row's *current* action to be "watched" silently dropped that play from
+  // the editor while the episode card's own history badge still counted it.
   return selectAllEpisodesStmt.all().filter((row) => {
-    if (row.id === existing.id || !isPlembfinTrackedWatchRow(row)) return false;
+    if (row.id === existing.id || !isPlembfinTrackedEpisodeRow(row)) return false;
     if (Number(row.season) !== season || Number(row.episode) !== episode) return false;
     return canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === showKey;
   });
