@@ -14,7 +14,11 @@ export function appendDebugLog(logs, message, details, storage = localStorage) {
   const timestamp = new Date().toISOString();
   const suffix = details === undefined ? "" : ` ${typeof details === "string" ? details : JSON.stringify(details)}`;
   const nextLogs = [...logs, `[${timestamp}] ${message}${suffix}`].slice(-MAX_DEBUG_LOGS);
-  storage.setItem(DEBUG_LOGS_KEY, JSON.stringify(nextLogs));
+  try {
+    storage.setItem(DEBUG_LOGS_KEY, JSON.stringify(nextLogs));
+  } catch (error) {
+    // Ignore storage quota errors
+  }
   return nextLogs;
 }
 

@@ -2176,7 +2176,23 @@ function dedupeHistory(rows) {
       if (!existing.playHistory) existing.playHistory = [playHistoryEntry(existing)];
       existing.playHistory.push(playHistoryEntry(row));
       if (!existing.poster_url && row.poster_url) existing.poster_url = row.poster_url;
-      if (row.watched_at > existing.watched_at) {
+
+      const existingWatched = isWatchedAction(existing);
+      const rowWatched = isWatchedAction(row);
+
+      // If one row is watched and the other is an unwatched bookkeeping row, the
+      // more recently created/updated transition represents the user's latest intent
+      // (a historical watch date like 'Day of release' shouldn't lose to an older unwatch).
+      let useRow = false;
+      if (existingWatched !== rowWatched) {
+        const existingTime = Math.max(Number(existing.updated_at || 0), Number(existing.created_at || 0));
+        const rowTime = Math.max(Number(row.updated_at || 0), Number(row.created_at || 0));
+        useRow = rowTime >= existingTime ? rowWatched : !existingWatched;
+      } else {
+        useRow = String(row.watched_at || "") > String(existing.watched_at || "");
+      }
+
+      if (useRow) {
         const playHistory = existing.playHistory;
         map.set(key, { ...row, playHistory });
       }

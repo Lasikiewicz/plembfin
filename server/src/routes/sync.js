@@ -844,46 +844,19 @@ export async function handleManualWatch(req, res) {
       const { data, record } = normalizeWatchRecordForInsert(pending, "manual");
       const existing = await findExistingWatch(data.mediaKey || mediaKeyFor(record), data.watchedAt);
       const media = manualWatchMediaFromRecord(record);
-      // A manual "mark watched" is a request that this item show watched, not a
-      // live playback event - it should never silently log a second play just
-      // because the exact timestamp doesn't collide with an existing row. A
-      // page left open for a while (or a season/show batch built from a
-      // "which episodes are unwatched" list computed before something else
-      // changed) can submit this for an item the server already canonically
-      // has as watched; check that directly instead of only the one exact
-      // (mediaKey, watchedAt) row findExistingWatch happens to match.
-      // getCanonicalWatchState checks playstate first, which can itself be
-      // keyed off an older/looser identity than the request just supplied
-      // (e.g. a row from before provider ids were tracked, still holding a
-      // title-only key) - its own fallback matching doesn't always bridge
-      // that gap, even when the equivalent watch_history lookup would.
-      // findWatchedByAnyMediaKey has an independent, more thorough fallback
-      // chain (provider ids, then season+episode+title, then a normalized
-      // show-title compare that tolerates a "(YYYY)" only one side carries),
-      // so check it directly rather than only when playstate already agrees.
-      const canonicalState = await getCanonicalWatchState(media).catch(() => null);
-      const canonicalExisting = await findWatchedByAnyMediaKey(media).catch(() => null);
-      // findExistingWatch matches on (mediaKey, watchedAt) alone, so it can also
-      // find a stale non-watched bookkeeping row left behind at this exact
-      // timestamp (e.g. the marker row an unwatch transition inserts to track
-      // its own resolution) - treating that as "already recorded" would
-      // silently skip writing the watched state while still reporting/
-      // dispatching success. Only a row already marked watched is a genuine
-      // duplicate worth skipping.
-      const alreadyWatched = Boolean(canonicalExisting) || canonicalState === "watched" || existing?.sync_action === "watched";
 
+      const exactExistingWatched = existing?.sync_action === "watched";
       let id = "";
-      if (!alreadyWatched) {
-        // insertWatchRecord requires an id that isn't already in use, so a stale
-        // row occupying this slot has to be cleared before reusing its id.
+      if (exactExistingWatched) {
+        id = existing.id;
+        skipped += 1;
+      } else {
+        // Clear any prior row (e.g. an unwatched placeholder) at this slot before inserting
         if (existing) await deleteWatchRecordById(existing.id, { skipInvalidate: true }).catch(() => null);
         const insertResult = await insertWatchRecord(record, { skipInvalidate: true, id: existing?.id || "" });
         id = insertResult.id;
         await insertResult.assetPrefetch?.catch(() => null);
         inserted += 1;
-      } else {
-        id = canonicalExisting?.id || existing?.id || "";
-        skipped += 1;
       }
 
       await upsertPlaystateForMedia(media, "watched", record.watched_at, { skipInvalidate: true });
@@ -993,25 +966,15 @@ export async function handlePlaybackProgressWatch(req, res) {
     const { data, record: normalizedRecord } = normalizeWatchRecordForInsert(record, "manual");
     const existing = await findExistingWatch(data.mediaKey || mediaKeyFor(normalizedRecord), data.watchedAt);
     const media = manualWatchMediaFromRecord(normalizedRecord);
-    // See the matching comment in handleManualWatch - a stale non-watched marker
-    // row at this exact (mediaKey, watchedAt) must not be treated as "already
-    // recorded", or the watched state never actually gets written. Conversely,
-    // findWatchedByAnyMediaKey is checked independently of getCanonicalWatchState
-    // (not only when playstate already agrees) since its fallback matching is
-    // more thorough - see the matching comment in handleManualWatch - so
-    // resolving progress on an already-watched item never logs a duplicate play.
-    const canonicalState = await getCanonicalWatchState(media).catch(() => null);
-    const canonicalExisting = await findWatchedByAnyMediaKey(media).catch(() => null);
-    const alreadyWatched = Boolean(canonicalExisting) || canonicalState === "watched" || existing?.sync_action === "watched";
-
+    const exactExistingWatched = existing?.sync_action === "watched";
     let id = "";
-    if (!alreadyWatched) {
+    if (exactExistingWatched) {
+      id = existing.id;
+    } else {
       if (existing) await deleteWatchRecordById(existing.id, { skipInvalidate: true }).catch(() => null);
       const insertResult = await insertWatchRecord(normalizedRecord, { skipInvalidate: true, id: existing?.id || "" });
       id = insertResult.id;
       await insertResult.assetPrefetch?.catch(() => null);
-    } else {
-      id = canonicalExisting?.id || existing?.id || "";
     }
 
     await upsertPlaystateForMedia(media, "watched", record.watched_at, { skipInvalidate: true });
