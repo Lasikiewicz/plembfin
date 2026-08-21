@@ -11,6 +11,7 @@ let _setMessage = () => {};
 let _clearDerivedUiCaches = () => {};
 let _renderImmersiveShowModal = async () => {};
 let _openShowImmersiveModalByTmdbId = async () => {};
+let _openShowImmersiveModalByTvdbId = async () => {};
 let _navigateTo = () => {};
 let _openConfirmDialog = async () => false;
 let _loadHistory = async () => {};
@@ -21,6 +22,7 @@ export function initEditDialogs(callbacks) {
   if (callbacks.clearDerivedUiCaches) _clearDerivedUiCaches = callbacks.clearDerivedUiCaches;
   if (callbacks.renderImmersiveShowModal) _renderImmersiveShowModal = callbacks.renderImmersiveShowModal;
   if (callbacks.openShowImmersiveModalByTmdbId) _openShowImmersiveModalByTmdbId = callbacks.openShowImmersiveModalByTmdbId;
+  if (callbacks.openShowImmersiveModalByTvdbId) _openShowImmersiveModalByTvdbId = callbacks.openShowImmersiveModalByTvdbId;
   if (callbacks.navigateTo) _navigateTo = callbacks.navigateTo;
   if (callbacks.openConfirmDialog) _openConfirmDialog = callbacks.openConfirmDialog;
   if (callbacks.loadHistory) _loadHistory = callbacks.loadHistory;
@@ -556,6 +558,8 @@ export function openEditShowDateDialog(showTitle, watchedRows = []) {
         _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
       } else if (state.activeShowTmdbId) {
         await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+      } else if (state.activeShowTvdbId) {
+        await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
       }
       overlay.remove();
       _setMessage(`Updated ${updates.length} watched episode date${updates.length === 1 ? "" : "s"} across ${seasons.length} season${seasons.length === 1 ? "" : "s"}.`, "success");
@@ -671,6 +675,8 @@ export function openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes =
       _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
     } else if (state.activeShowTmdbId) {
       await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+    } else if (state.activeShowTvdbId) {
+      await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
     }
   };
 

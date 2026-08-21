@@ -33,6 +33,14 @@ The client applies the same rule when merging a show's `state.history` preview r
 its full episode list (`mergeShowWithLoadedHistory()` in `media-detail-show.js`): a row
 whose own provider id contradicts the show's is excluded even when the title matches.
 
+A show's displayed `tmdb_id` (`getCachedShows()`, `queryShowDetail()`) always trusts the
+id already recorded on its own watch_history rows over `getCachedShowProgress()`'s
+cached one. The progress cache can hold an id resolved from an earlier ambiguous title
+search that was never written back onto any row (see the matching comment in
+`rematchShowWatchRecords()`); `cachedShowTmdbId()` only returns a candidate that already
+has TMDB metadata cached under it, so without this ordering a wrong-but-cached id could
+keep permanently overriding a correct-but-not-yet-cached one.
+
 `queryShows({ search, sort, limit, offset, hideWatched, hideEnded })` filters/sorts/
 pages that cache. Sort modes include `title_asc`, `title_desc`, `watched_asc`, recency,
 and `next_air_asc` (next airing date, powered by the next-airing cache so no metadata

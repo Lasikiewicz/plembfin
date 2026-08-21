@@ -1,5 +1,5 @@
 import { state } from "./state.js";
-import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref } from "./utils.js";
+import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js";
 import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js";
 import {
   openEditDateDialog,
@@ -1072,11 +1072,14 @@ export function attachMediaDetailEvents() {
           }
         });
       }
-      const nextUrl = state.activeShowModalKey
-        ? (nextSeason != null ? `/tvshow/${state.activeShowModalKey}#season${nextSeason}` : `/tvshow/${state.activeShowModalKey}`)
+      const nextUrlBase = state.activeShowModalKey
+        ? `/tvshow/${state.activeShowModalKey}`
         : state.activeShowTmdbId
-          ? (nextSeason != null ? `/tvshow/tmdb/${state.activeShowTmdbId}#season${nextSeason}` : `/tvshow/tmdb/${state.activeShowTmdbId}`)
-          : "";
+          ? tvShowTmdbHref(state.activeShowTmdbId, state.activeShowModalTitle)
+          : state.activeShowTvdbId
+            ? tvShowTvdbHref(state.activeShowTvdbId, state.activeShowModalTitle)
+            : "";
+      const nextUrl = nextUrlBase ? (nextSeason != null ? `${nextUrlBase}#season${nextSeason}` : nextUrlBase) : "";
       if (nextUrl) {
         window.history.replaceState({}, "", nextUrl);
       }
@@ -1135,8 +1138,10 @@ export function attachMediaDetailEvents() {
       const baseUrl = state.activeShowModalKey
         ? `/tvshow/${state.activeShowModalKey}`
         : state.activeShowTmdbId
-          ? `/tvshow/tmdb/${state.activeShowTmdbId}`
-          : "";
+          ? tvShowTmdbHref(state.activeShowTmdbId, state.activeShowModalTitle)
+          : state.activeShowTvdbId
+            ? tvShowTvdbHref(state.activeShowTvdbId, state.activeShowModalTitle)
+            : "";
       if (baseUrl) {
         const hash = state.activeShowModalEpisode == null ? `#season${seasonNum}` : `#season${seasonNum}ep${episodeNum}`;
         window.history.replaceState({}, "", `${baseUrl}${hash}`);
@@ -1147,14 +1152,14 @@ export function attachMediaDetailEvents() {
     const recMovieCard = event.target.closest("[data-immersive-movie-id]");
     if (recMovieCard && event.button === 0 && !event.ctrlKey && !event.metaKey) {
       event.preventDefault();
-      navigateTo(`/movie/tmdb/${recMovieCard.dataset.immersiveMovieId}`);
+      navigateTo(recMovieCard.getAttribute("href") || movieTmdbHref(recMovieCard.dataset.immersiveMovieId));
       return;
     }
 
     const relatedShowCard = event.target.closest("[data-immersive-related-tmdb]");
     if (relatedShowCard && event.button === 0 && !event.ctrlKey && !event.metaKey) {
       event.preventDefault();
-      navigateTo(`/tvshow/tmdb/${relatedShowCard.dataset.immersiveRelatedTmdb}`);
+      navigateTo(relatedShowCard.getAttribute("href") || tvShowTmdbHref(relatedShowCard.dataset.immersiveRelatedTmdb));
       return;
     }
 

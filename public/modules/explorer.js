@@ -9,7 +9,7 @@ import {
 } from "./state.js";
 import {
   escapeHtml, escapeAttribute, slug, showTitleFrom, showName,
-  movieHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
+  movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
   computeProgress, sanitizeTitle, episodeTitle, episodeCode,
 } from "./utils.js";
 import { posterMarkup, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js";
@@ -124,7 +124,7 @@ function normalizeTmdbSearchResult(item = {}, mediaTypeOverride = "") {
     poster: mediaType === "person"
       ? (tmdbProfile(item.profile_path) || tmdbPoster(item.profile_path))
       : tmdbPoster(item.poster_path, item.id, mediaType),
-    href: mediaType === "person" ? `/person/${item.id}` : (mediaType === "movie" ? `/movie/tmdb/${item.id}` : `/tvshow/tmdb/${item.id}`),
+    href: mediaType === "person" ? `/person/${item.id}` : (mediaType === "movie" ? movieTmdbHref(item.id, title) : tvShowTmdbHref(item.id, title)),
     sub: mediaType === "person" ? "Cast Member" : `${mediaType === "movie" ? "Movie" : "TV Show"}${year ? ` (${year})` : ""} - TMDB`,
     overview,
     isLocal: false,
@@ -244,7 +244,7 @@ export function triggerSearchPage(query) {
           _type: "show",
           title,
           poster: proxiedArtworkUrl(item.image_url, "poster"),
-          href: `/tvshow/tvdb/${item.tvdb_id}`,
+          href: tvShowTvdbHref(item.tvdb_id, title),
           sub: `TV Show${item.year ? ` · ${item.year}` : ""} · TVDB`,
           overview: "",
           isLocal: false,
@@ -1065,7 +1065,7 @@ function historyEntryDisplay(entry) {
     const showKeySlug = slug(canonicalShowName);
     href = `/tvshow/${showKeySlug}`;
   } else {
-    href = entry.tmdb_id ? `/movie/tmdb/${entry.tmdb_id}` : movieHref(entry);
+    href = entry.tmdb_id ? movieTmdbHref(entry.tmdb_id, entry.title) : movieHref(entry);
   }
   const sourceBadge = entry.source ? sourceBadgeHtml(entry.source) : "None";
   const mediaLabel = isEpisode ? "TV Show" : "Movie";

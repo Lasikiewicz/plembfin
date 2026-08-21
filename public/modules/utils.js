@@ -48,6 +48,30 @@ export function movieHref(movie = {}) {
   return `/movie/${movieSlug(movie)}`;
 }
 
+// Appends a decorative, ignored slug after a numeric tmdb/tvdb route id (e.g.
+// tmdb/202555-daredevil-born-again) so an id-based link - the entry point for
+// anything with no local watch history yet, like a search result or a
+// recommendation card - is still readable in the address bar immediately.
+// The id alone resolves the route (see the tmdb/tvdb regexes in app.js); the
+// slug is never treated as identity on its own, unlike the local-key route,
+// so two different real titles that happen to share a name can't collide.
+function idSlugSuffix(title) {
+  const value = slug(title);
+  return value && value !== "unknown" ? `-${value}` : "";
+}
+
+export function tvShowTmdbHref(id, title) {
+  return `/tvshow/tmdb/${id}${idSlugSuffix(title)}`;
+}
+
+export function tvShowTvdbHref(id, title) {
+  return `/tvshow/tvdb/${id}${idSlugSuffix(title)}`;
+}
+
+export function movieTmdbHref(id, title) {
+  return `/movie/tmdb/${id}${idSlugSuffix(title)}`;
+}
+
 export function showName(title) {
   const text = String(title || "Unknown Show").trim();
   const seasonMatch = text.match(/^(.*?)(?:\s+-\s+S\d{1,2}E\d{1,2})(?:\s+-\s+.*)?$/i);

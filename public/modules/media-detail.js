@@ -1,5 +1,5 @@
 import { state, elements } from "./state.js";
-import { slug, movieSlug, movieHref, showName, showTitleFrom } from "./utils.js";
+import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js";
 import { dedupeMediaRecords } from "./dashboard.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import {
@@ -99,11 +99,11 @@ export function nowPlayingHref(session = {}) {
   const mediaType = session.mediaType || (session.season != null || session.episode != null ? "tv" : "movie");
   const tmdbId = session.ids?.tmdb || session.tmdb_id || session.tmdbId || "";
   if (mediaType === "tv" || mediaType === "tvshow" || mediaType === "show" || mediaType === "episode") {
-    if (tmdbId) return `/tvshow/tmdb/${tmdbId}`;
     const title = showName(session.showTitle || session.show_title || session.title || "");
+    if (tmdbId) return tvShowTmdbHref(tmdbId, title);
     return `/tvshow/${slug(title)}`;
   }
-  if (tmdbId) return `/movie/tmdb/${tmdbId}`;
+  if (tmdbId) return movieTmdbHref(tmdbId, session.title || session.movieTitle || "");
   const movie = movieBySlugOrId(session.id || session.key || session.title || "") || {
     id: session.id || session.key || session.title || "",
     title: session.title || session.movieTitle || "Movie",

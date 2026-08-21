@@ -19,6 +19,7 @@ let _fetchSeerrMediaStatus = async () => null;
 let _refreshActiveMediaDetailAfterSeerrStatus = () => {};
 let _renderImmersiveShowModal = async () => {};
 let _openShowImmersiveModalByTmdbId = async () => {};
+let _openShowImmersiveModalByTvdbId = async () => {};
 let _openMovieImmersiveModalByTmdbId = async () => {};
 let _patchMovieWatchedState = () => false;
 
@@ -34,6 +35,7 @@ export function initWatchAction(callbacks) {
   if (callbacks.refreshActiveMediaDetailAfterSeerrStatus) _refreshActiveMediaDetailAfterSeerrStatus = callbacks.refreshActiveMediaDetailAfterSeerrStatus;
   if (callbacks.renderImmersiveShowModal) _renderImmersiveShowModal = callbacks.renderImmersiveShowModal;
   if (callbacks.openShowImmersiveModalByTmdbId) _openShowImmersiveModalByTmdbId = callbacks.openShowImmersiveModalByTmdbId;
+  if (callbacks.openShowImmersiveModalByTvdbId) _openShowImmersiveModalByTvdbId = callbacks.openShowImmersiveModalByTvdbId;
   if (callbacks.openMovieImmersiveModalByTmdbId) _openMovieImmersiveModalByTmdbId = callbacks.openMovieImmersiveModalByTmdbId;
   if (callbacks.patchMovieWatchedState) _patchMovieWatchedState = callbacks.patchMovieWatchedState;
 }
@@ -286,6 +288,8 @@ export async function runResyncWatchAction(action) {
     _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
   } else if (state.activeShowTmdbId) {
     await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+  } else if (state.activeShowTvdbId) {
+    await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
   }
   _setMessage(total > 1 ? `Resyncing ${total} episodes to your media apps…` : "Resyncing to your media apps…", "muted");
 
@@ -302,6 +306,8 @@ export async function runResyncWatchAction(action) {
       _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
     } else if (state.activeShowTmdbId) {
       await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+    } else if (state.activeShowTvdbId) {
+      await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
     }
   } catch (error) {
     state.savingWatchAction = null;
@@ -309,6 +315,8 @@ export async function runResyncWatchAction(action) {
       _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
     } else if (state.activeShowTmdbId) {
       await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+    } else if (state.activeShowTvdbId) {
+      await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
     }
     _setMessage(`Resync failed: ${error.message}`, "error");
   }
@@ -811,6 +819,8 @@ export async function applyWatchDateChoice(choice) {
     _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
   } else if (state.activeShowTmdbId) {
     await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+  } else if (state.activeShowTvdbId) {
+    await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
   }
 
   const total = allRecords.length;
@@ -833,6 +843,8 @@ export async function applyWatchDateChoice(choice) {
       _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
     } else if (state.activeShowTmdbId) {
       await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+    } else if (state.activeShowTvdbId) {
+      await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
     }
   } catch (error) {
     state.savingWatchAction = null;
@@ -840,6 +852,8 @@ export async function applyWatchDateChoice(choice) {
       _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
     } else if (state.activeShowTmdbId) {
       await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+    } else if (state.activeShowTvdbId) {
+      await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
     }
     _setMessage(`Manual watch update failed: ${error.message}`, "error");
     throw error;
@@ -889,12 +903,14 @@ export async function confirmAndMarkUnwatched(button) {
     );
     await _loadHistory({ force: true }).catch(() => null);
 
-    if ((kind === "episode" || kind === "season" || kind === "show") && (state.activeShowModalKey || state.activeShowTmdbId)) {
+    if ((kind === "episode" || kind === "season" || kind === "show") && (state.activeShowModalKey || state.activeShowTmdbId || state.activeShowTvdbId)) {
       if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
       if (state.activeShowModalKey) {
         _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-      } else {
+      } else if (state.activeShowTmdbId) {
         await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+      } else {
+        await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
       }
     } else {
       _closeMediaDetail();

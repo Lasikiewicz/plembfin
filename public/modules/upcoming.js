@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute } from "./utils.js";
+import { escapeHtml, escapeAttribute, tvShowTmdbHref } from "./utils.js";
 import { posterMarkup, hydratePosters } from "./images.js";
 
 let _cb = {};
@@ -53,7 +53,7 @@ export function initUpcoming(callbacks) {
     if (!entry) return;
     const tmdbId = entry.dataset.upcomingTmdb || "";
     const showId = entry.dataset.upcomingShow || "";
-    if (tmdbId) _cb.navigateTo?.(`/tvshow/tmdb/${tmdbId}`);
+    if (tmdbId) _cb.navigateTo?.(tvShowTmdbHref(tmdbId, entry.dataset.upcomingTitle));
     else if (showId) _cb.navigateTo?.(`/tvshow/${encodeURIComponent(showId)}`);
   });
   // The page-shell is the app's scroll container - body itself never scrolls.
@@ -485,6 +485,7 @@ function entryMarkup(episode) {
     <button class="upcoming-entry" type="button"
       data-upcoming-tmdb="${escapeAttribute(episode.tmdbId || "")}"
       data-upcoming-show="${escapeAttribute(episode.showId || "")}"
+      data-upcoming-title="${escapeAttribute(episode.showTitle || "")}"
       title="${escapeAttribute(tooltipParts.join(" - "))}">
       ${posterMarkup(posterItem, "upcoming-entry-poster")}
       <span class="upcoming-entry-text">

@@ -771,7 +771,17 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
     const showKey = canonicalTitleKey(group.title) || normalizeKeyPart(group.title);
     const rawShowKey = canonicalTitleKey(group.raw_title) || normalizeKeyPart(group.raw_title);
     const cachedProgress = getCachedShowProgress(showKey) || (rawShowKey !== showKey ? getCachedShowProgress(rawShowKey) : null);
-    const tmdbId = cachedShowTmdbId(cachedProgress?.tmdb_id, group.tmdb_id, group.representative_episode?.tmdb_id);
+    // group.tmdb_id, trusted unconditionally, comes from an actual recorded
+    // watch_history row - Plembfin's own ground truth. cachedShowTmdbId's
+    // gate (only return a candidate that already has cached metadata) exists
+    // to protect the *weaker* fallback candidates below: the progress cache
+    // can hold an id resolved from an earlier ambiguous title search that was
+    // never written back onto any row (see the matching comment in
+    // rematchShowWatchRecords below), and that gate is precisely what let a
+    // bad cached resolution keep winning even after group.tmdb_id was put
+    // first here - a real, correct id with no cache entry yet still lost to
+    // a wrong id that happened to have one.
+    const tmdbId = cleanString(group.tmdb_id) || cachedShowTmdbId(cachedProgress?.tmdb_id, group.representative_episode?.tmdb_id);
     const tvdbId = group.tvdb_id || group.representative_episode?.tvdb_id || "";
     let posterUrl = group.poster_url || group.representative_episode?.poster_url || "";
     let status = "";
@@ -3729,7 +3739,9 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
       const showKey = canonicalTitleKey(show.title) || normalizeKeyPart(show.title);
       const rawShowKey = canonicalTitleKey(show.raw_title) || normalizeKeyPart(show.raw_title);
       const cachedProgress = getCachedShowProgress(showKey) || (rawShowKey !== showKey ? getCachedShowProgress(rawShowKey) : null);
-      show.tmdb_id = cachedShowTmdbId(cachedProgress?.tmdb_id, show.tmdb_id, show.representative_episode?.tmdb_id) || null;
+      // show.tmdb_id trusted unconditionally - see the matching comment in
+      // getCachedShows above.
+      show.tmdb_id = cleanString(show.tmdb_id) || cachedShowTmdbId(cachedProgress?.tmdb_id, show.representative_episode?.tmdb_id) || null;
       show.total_episodes = cachedProgress?.total_episodes || 0;
       return show;
     }
@@ -3745,7 +3757,7 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
   // Same reasoning as the exact-title branch above: a canonical-title match
   // can span two real shows sharing a title once they're no longer blended.
   const [show] = mostRecentShowFirst(groupShowRows(rows));
-  if (show) show.tmdb_id = cachedShowTmdbId(show.tmdb_id, show.representative_episode?.tmdb_id) || null;
+  if (show) show.tmdb_id = cleanString(show.tmdb_id) || cachedShowTmdbId(show.representative_episode?.tmdb_id) || null;
   return show || null;
 }
 

@@ -1449,6 +1449,27 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     }
   }
 
+  // One real metadata path regardless of which URL got you here: once a show
+  // has a known provider id, delegate to the same full TMDB/TVDB fetch +
+  // render pipeline the tmdb/tvdb routes use (season-by-season episode
+  // details, cast, images, trailers, IMDb rating) instead of the lighter
+  // local-only render below, which never fetched season-level metadata at
+  // all. state.activeShowModalKey stays set to this slug (neither delegate
+  // touches it), so the address bar keeps the nicer /tvshow/<key> form even
+  // though the data now comes from the same place the id-based routes use.
+  // Skipped for an orphan history shell or the unknown-show placeholder -
+  // neither has a real id to delegate with.
+  if (show && !orphanShell && showKey !== "unknown-show") {
+    if (show.tmdb_id) {
+      await openShowImmersiveModalByTmdbId(show.tmdb_id);
+      return;
+    }
+    if (show.tvdb_id) {
+      await openShowImmersiveModalByTvdbId(show.tvdb_id);
+      return;
+    }
+  }
+
   // Never send the placeholder title through a broad TMDB search. It can
   // resolve to an unrelated result or fail before the user gets any repair
   // controls. Keep a local shell instead; Fix Match can rematch by show title

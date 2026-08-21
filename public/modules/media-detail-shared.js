@@ -1,6 +1,6 @@
 import { state } from "./state.js";
 import { buildAuthHeaders } from "./auth.js";
-import { escapeHtml, escapeAttribute, slug, formatTmdbDate } from "./utils.js";
+import { escapeHtml, escapeAttribute, slug, formatTmdbDate, tvShowTmdbHref, movieTmdbHref } from "./utils.js";
 import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260803";
 
@@ -161,7 +161,7 @@ export function renderRelatedShowsSection(tmdbData) {
     const poster = tmdbPoster(item.poster_path) || "/favicon.svg";
     const year = (item.first_air_date || "").slice(0, 4);
     return `
-            <a class="season-poster-card related-show-card" data-immersive-related-tmdb="${item.id}" href="/tvshow/tmdb/${item.id}">
+            <a class="season-poster-card related-show-card" data-immersive-related-tmdb="${item.id}" href="${escapeAttribute(tvShowTmdbHref(item.id, item.name))}">
               <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(item.name || "")}" data-err="fav" />
               <span class="season-poster-name">${escapeHtml(item.name || "")}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
             </a>
@@ -259,7 +259,7 @@ export function renderRecommendationSection({ title, items = [], mediaType = "mo
     const year = recommendationDate(item, mediaType).slice(0, 4);
     const poster = item.poster_path ? tmdbPoster(item.poster_path, item.id, mediaType) : "/favicon.svg";
     return `
-                  <a class="season-poster-card" ${isTv ? `data-immersive-related-tmdb="${escapeAttribute(String(item.id))}" href="/tvshow/tmdb/${escapeAttribute(String(item.id))}"` : `data-immersive-movie-id="${escapeAttribute(String(item.id))}" href="/movie/tmdb/${escapeAttribute(String(item.id))}"`}>
+                  <a class="season-poster-card" ${isTv ? `data-immersive-related-tmdb="${escapeAttribute(String(item.id))}" href="${escapeAttribute(tvShowTmdbHref(item.id, itemTitle))}"` : `data-immersive-movie-id="${escapeAttribute(String(item.id))}" href="${escapeAttribute(movieTmdbHref(item.id, itemTitle))}"`}>
                     <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(itemTitle)}" data-err="fav" />
                     <span class="season-poster-name">${escapeHtml(itemTitle)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
                   </a>
@@ -317,7 +317,7 @@ export function renderCollectionSection(tmdbData) {
     const year = (movie.release_date || "").slice(0, 4);
     const title = movie.title || movie.original_title || "";
     return `
-            <a class="season-poster-card collection-movie" data-immersive-movie-id="${escapeAttribute(String(movie.id))}" href="/movie/tmdb/${escapeAttribute(String(movie.id))}">
+            <a class="season-poster-card collection-movie" data-immersive-movie-id="${escapeAttribute(String(movie.id))}" href="${escapeAttribute(movieTmdbHref(movie.id, title))}">
               <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(title)}" data-err="fav" />
               <span class="season-poster-name">${escapeHtml(title)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
             </a>

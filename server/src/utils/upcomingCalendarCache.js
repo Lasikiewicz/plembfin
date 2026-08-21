@@ -161,7 +161,12 @@ async function collectMonth(month, { shows: suppliedShows = null, prefilterFutur
             airDate,
             showTitle: show.title,
             showId: show.id,
-            tmdbId: String(details?.id || show.tmdb_id || ""),
+            // Prefer the id Plembfin already has recorded for this show over a
+            // freshly re-resolved one: getTmdbDetails falls back to a title
+            // search when the direct fetch fails, which can land on a
+            // different (wrong) show entirely for an ambiguous or generic
+            // title - the already-confirmed local id doesn't have that risk.
+            tmdbId: String(show.tmdb_id || details?.id || ""),
             tvdbId,
             posterUrl: show.poster_url || "",
             posterRecordId: show.representative_episode?.id || "",

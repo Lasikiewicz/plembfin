@@ -1,5 +1,5 @@
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, movieHref, showTitleFrom, showEpisodeKey } from "./utils.js";
+import { escapeHtml, escapeAttribute, slug, movieHref, movieTmdbHref, tvShowTmdbHref, showTitleFrom, showEpisodeKey } from "./utils.js";
 import { tmdbProfile, tmdbPoster, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260803";
@@ -412,7 +412,7 @@ export async function loadCastMemberDetails(personId, personName = null) {
             </a>
           `;
         } else {
-          const href = isTv ? `/tvshow/tmdb/${credit.id}` : `/movie/tmdb/${credit.id}`;
+          const href = isTv ? tvShowTmdbHref(credit.id, title) : movieTmdbHref(credit.id, title);
           return `
             <a class="person-credit-card" href="${escapeAttribute(href)}" data-tmdb-id="${credit.id}" data-tmdb-media-type="${credit.media_type}" data-tmdb-title="${escapeAttribute(title)}">
               <span class="person-credit-poster-wrap">
@@ -630,9 +630,9 @@ window.openLibraryItem = function (mediaType, idOrKey, title, isLibraryItem = tr
     }
   } else {
     if (mediaType === "show" || mediaType === "tv") {
-      navigateTo(`/tvshow/tmdb/${tmdbId}`);
+      navigateTo(tvShowTmdbHref(tmdbId, title));
     } else if (mediaType === "movie") {
-      navigateTo(`/movie/tmdb/${tmdbId}`);
+      navigateTo(movieTmdbHref(tmdbId, title));
     }
   }
 
