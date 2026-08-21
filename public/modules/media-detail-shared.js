@@ -328,9 +328,8 @@ export function renderCollectionSection(tmdbData) {
   `;
 }
 
-// The Plex/Emby/Jellyfin app-link pills, as a standalone hydratable container -
-// callers place this wherever it belongs (e.g. inline in the ratings row)
-// rather than it always living inside the "Media facts" panel.
+// The Plex/Emby/Jellyfin app-link pills, as a standalone hydratable container
+// for the "Watch Now" row of the media facts panel.
 export function mediaAppLinksHtml(tmdbData, mediaType = "movie") {
   if (!tmdbData) return "";
   const tmdbId = tmdbData.id || tmdbData.tmdb_id || "";
@@ -338,7 +337,7 @@ export function mediaAppLinksHtml(tmdbData, mediaType = "movie") {
   const tvdbId = tmdbData.external_ids?.tvdb_id || "";
   const title = mediaType === "tv" ? (tmdbData.name || tmdbData.original_name || "") : (tmdbData.title || tmdbData.original_title || "");
   return `
-    <div class="media-app-links media-app-links--inline" data-media-app-links
+    <div class="media-app-links" data-media-app-links
       data-media-type="${escapeAttribute(mediaType)}"
       data-tmdb-id="${escapeAttribute(String(tmdbId))}"
       data-imdb-id="${escapeAttribute(String(imdbId))}"
@@ -347,34 +346,99 @@ export function mediaAppLinksHtml(tmdbData, mediaType = "movie") {
   `;
 }
 
-export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inline") {
+// Network/streaming provider chips - a small logo (when TMDB has one) next
+// to the name, rather than a bare comma-joined list of text. Each chip links
+// to TMDB's own "where to watch" page for this title (the JustWatch-powered
+// link TMDB's terms require when displaying watch/provider data) when one is
+// available, since TMDB doesn't give us a per-provider deep link to use instead.
+function providerChipsHtml(items = [], watchLink = "") {
+  if (!items.length) return "";
+  return `
+    <div class="media-fact-chip-row">
+      ${items.map(({ name, logoPath }) => {
+        const inner = `
+          ${logoPath ? `<img class="media-fact-chip-icon" src="${escapeAttribute(tmdbImage(logoPath, "w92"))}" alt="" loading="lazy" />` : ""}
+          <span>${escapeHtml(name)}</span>
+        `;
+        return watchLink
+          ? `<a class="media-fact-chip" href="${escapeAttribute(watchLink)}" target="_blank" rel="noopener noreferrer" title="Where to watch ${escapeAttribute(name)}">${inner}</a>`
+          : `<span class="media-fact-chip">${inner}</span>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+// A network (e.g. "Prime Video") frequently has no logo of its own, but the
+// exact same service often appears with one in the watch/providers list
+// under a slightly different name (e.g. "Amazon Prime Video") - match
+// loosely (either name containing the other) rather than requiring an exact
+// match, so that still counts as the same service.
+function findProviderLogoForNetwork(networkName, providers) {
+  const normalized = String(networkName || "").trim().toLowerCase();
+  if (!normalized) return "";
+  const match = providers.find((provider) => {
+    const providerName = String(provider.provider_name || "").trim().toLowerCase();
+    return providerName === normalized || providerName.includes(normalized) || normalized.includes(providerName);
+  });
+  return match?.logo_path || "";
+}
+
+export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inline", { ratingsHtml = "", appLinksHtml = "" } = {}) {
   if (!tmdbData) return "";
-  const providers = tmdbData["watch/providers"]?.results?.GB?.flatrate || tmdbData["watch/providers"]?.results?.US?.flatrate || [];
+  const watchProviders = tmdbData["watch/providers"]?.results?.GB || tmdbData["watch/providers"]?.results?.US;
+  const providers = watchProviders?.flatrate || [];
+  const watchLink = watchProviders?.link || "";
+  const networks = tmdbData.networks || [];
   const runtime = mediaType === "movie"
     ? (tmdbData.runtime ? `${tmdbData.runtime} min` : "")
     : (tmdbData.episode_run_time?.[0] ? `${tmdbData.episode_run_time[0]} min episodes` : "");
+  // Status/First aired/Language share the top line; Runtime and Genres share
+  // the next line below it (Runtime first); Network sits directly left of
+  // Ratings; Available on and Watch Now each get their own full-width row,
+  // with Watch Now anchoring the very bottom.
   const facts = [
-    ["Status", tmdbData.status],
-    [mediaType === "movie" ? "Release" : "First aired", formatTmdbDate(tmdbData.release_date || tmdbData.first_air_date)],
-    ["Runtime", runtime],
-    ["Language", String(tmdbData.original_language || "").toUpperCase()],
-    ["Genres", (tmdbData.genres || []).map((genre) => genre.name).join(", ")],
-    ["Network", (tmdbData.networks || []).map((network) => network.name).join(", ")],
-    ["Streaming", providers.map((provider) => provider.provider_name).join(", ")],
-  ].filter(([, value]) => value);
+    { label: "Status", text: tmdbData.status },
+    { label: mediaType === "movie" ? "Release" : "First aired", text: formatTmdbDate(tmdbData.release_date || tmdbData.first_air_date) },
+    { label: "Language", text: String(tmdbData.original_language || "").toUpperCase() },
+    { label: "Runtime", text: runtime },
+    { label: "Genres", text: (tmdbData.genres || []).map((genre) => genre.name).join(", ") },
+    {
+      label: "Network",
+      text: networks.map((network) => network.name).join(", "),
+      // TMDB's "networks" entries frequently have no logo of their own even
+      // when the very same service also appears with one in "watch/providers"
+      // (e.g. Apple TV) - borrow that logo by name rather than showing a
+      // bare text chip next to the Available on row's icon version of it.
+      html: providerChipsHtml(networks.map((network) => ({
+        name: network.name,
+        logoPath: network.logo_path || findProviderLogoForNetwork(network.name, providers),
+      })), watchLink),
+    },
+    { label: "Ratings", html: ratingsHtml ? `<div class="media-fact-chip-row">${ratingsHtml}</div>` : "" },
+    {
+      label: "Available on",
+      text: providers.map((provider) => provider.provider_name).join(", "),
+      html: providerChipsHtml(providers.map((provider) => ({ name: provider.provider_name, logoPath: provider.logo_path })), watchLink),
+      full: true,
+    },
+    { label: "Watch Now", html: appLinksHtml ? `<div class="media-fact-chip-row">${appLinksHtml}</div>` : "", full: true },
+  ].filter((fact) => fact.html || fact.text);
   if (!facts.length) return "";
-  const wideLabels = new Set(["Streaming", "Network", "Genres"]);
+  const wideLabels = new Set(["Network"]);
 
-  // First 2 facts are always visible
-  const visibleFacts = facts.slice(0, 2);
-  const hiddenFacts = facts.slice(2);
+  // Status, First aired/Release, and Language always share the top line.
+  const visibleFacts = facts.slice(0, 3);
+  const hiddenFacts = facts.slice(3);
 
-  const visibleHtml = visibleFacts.map(([label, value]) => `
-    <div class="media-fact"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>
+  const factValueHtml = (fact) => fact.html || `<b>${escapeHtml(fact.text)}</b>`;
+  const factClass = (fact) => [fact.full ? "media-fact--full" : "", wideLabels.has(fact.label) ? "media-fact--wide" : ""].filter(Boolean).join(" ");
+
+  const visibleHtml = visibleFacts.map((fact) => `
+    <div class="media-fact${fact.full ? " media-fact--full" : ""}"><span>${escapeHtml(fact.label)}</span>${factValueHtml(fact)}</div>
   `).join("");
 
-  const hiddenHtml = hiddenFacts.map(([label, value]) => `
-    <div class="media-fact${wideLabels.has(label) ? " media-fact--wide" : ""}"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>
+  const hiddenHtml = hiddenFacts.map((fact) => `
+    <div class="media-fact ${factClass(fact)}"><span>${escapeHtml(fact.label)}</span>${factValueHtml(fact)}</div>
   `).join("");
 
   const openAttr = window.innerWidth <= 640 ? "" : " open";
@@ -499,11 +563,14 @@ export function tvdbSeriesUrl(tvdbId) {
   return `https://thetvdb.com/dereferrer/series/${encodeURIComponent(id)}`;
 }
 
+const RATING_SOURCE_ICONS = { TMDB: "/icons/tmdb.svg", TVDB: "/icons/tvdb.svg", IMDb: "/icons/imdb.svg" };
+
 export function ratingPillHtml({ label, value = "View", href = "", title = "" } = {}) {
   if (!label || !href) return "";
+  const iconUrl = RATING_SOURCE_ICONS[label] || "";
   return `
-    <a class="rating-pill rating-pill-link" href="${escapeAttribute(href)}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(title || `${label} rating`)}">
-      <span>${escapeHtml(label)}</span>
+    <a class="rating-pill rating-pill-link${iconUrl ? " rating-pill--brand" : ""}" href="${escapeAttribute(href)}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(title || `${label} rating`)}">
+      ${iconUrl ? `<img class="rating-pill-icon rating-pill-icon--${escapeAttribute(label.toLowerCase())}" src="${escapeAttribute(iconUrl)}" alt="${escapeAttribute(label)}" loading="lazy" />` : `<span>${escapeHtml(label)}</span>`}
       ${value ? `<span>${escapeHtml(value)}</span>` : ""}
     </a>
   `;

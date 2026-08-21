@@ -213,7 +213,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `styles.css` | All styling for the app, including responsive/mobile rules (mobile ≤ 760px must be verified for any layout change). |
 | `favicon.png`, `favicon.svg`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `plembfin_header_logo_dark.png`, `plembfin_header_logo_light.png` | `favicon.png` is the browser tab icon; `favicon.svg` is the placeholder art used wherever a poster or profile image is missing. `apple-touch-icon.png` is the 180x180 icon iOS uses on a white background when the app is added to the Home Screen, and the `icon-*.png` files are the Android/Chrome install icons named by the web manifest. The two header logos are swapped by the theme toggle. |
 | `manifest.webmanifest` | Web app manifest: app name, standalone display mode, theme/background colour, and the install icons above. Linked from `index.html`, which also sets `apple-touch-icon`, `apple-mobile-web-app-title` and `theme-color`. |
-| `icons/plex.svg`, `icons/emby.svg`, `icons/jellyfin.svg` | Platform badge icons used on cards and pills. |
+| `icons/plex.svg`, `icons/emby.svg`, `icons/jellyfin.svg`, `icons/tmdb.svg`, `icons/tvdb.svg`, `icons/imdb.svg` | Media-server and metadata-source badge icons used on cards and pills (the media detail page's Ratings/Watch Now rows). |
 
 ### `public/modules/`
 

@@ -68,13 +68,20 @@ function initializeTheme() {
   updateThemeIcon();
 }
 
+let themeTransitionTimeout = null;
+
 function toggleTheme() {
-  const isLightMode = document.documentElement.classList.contains("light-mode");
+  const root = document.documentElement;
+  root.classList.add("theme-transition");
+  clearTimeout(themeTransitionTimeout);
+  themeTransitionTimeout = setTimeout(() => root.classList.remove("theme-transition"), 180);
+
+  const isLightMode = root.classList.contains("light-mode");
   if (isLightMode) {
-    document.documentElement.classList.remove("light-mode");
+    root.classList.remove("light-mode");
     localStorage.setItem(THEME_KEY, "dark");
   } else {
-    document.documentElement.classList.add("light-mode");
+    root.classList.add("light-mode");
     localStorage.setItem(THEME_KEY, "light");
   }
   updateThemeIcon();

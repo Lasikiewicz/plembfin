@@ -89,7 +89,9 @@ first complete render.
   episodes, air dates) comes from TVDB, extras (cast, trailers, recommendations,
   watch providers) from TMDB - see [metadata.md](metadata.md).
 - **External ratings** - IMDb rating pill via `GET /api/omdb-rating` when an OMDb key
-  is configured.
+  is configured. TMDB, TheTVDB, and IMDb each render as a pill with that service's real
+  logo (`public/icons/tmdb.svg`, `tvdb.svg`, `imdb.svg`) in a "Ratings" row inside the
+  Media facts panel - see below.
 - **Trailers** - YouTube keys from TMDB, metadata enriched via `GET /api/youtube-meta`,
   played in the lightbox.
 - **Cast** - profile images proxied/cached via `GET /api/tmdb-profile`; clicking opens
@@ -249,9 +251,27 @@ first complete render.
   `GET /api/media-app-links`. The last known links per title are persisted in
   localStorage (`plembfin:appLinksCache:v1`) and rendered instantly; a background
   refresh (at most once per 5 minutes per title) updates the buttons only on change.
-  The pills render inline in the ratings row next to the TMDB/TVDB/IMDb pills,
-  right-aligned via `mediaAppLinksHtml` (`media-detail-shared.js`), rather than inside
-  the "Media facts" panel.
+  The pills render (`mediaAppLinksHtml` in `media-detail-shared.js`) as their own
+  "Watch Now" row inside the Media facts panel, the last row on the page.
+- **Media facts panel** (`renderMediaFacts` in `media-detail-shared.js`) - a
+  transparent, borderless panel next to the poster listing Status/First aired/
+  Language on one line, then Runtime/Genres, then Network paired with the Ratings
+  row, then Available on, then Watch Now anchoring the bottom (each of Ratings/
+  Available on/Watch Now spans its own full-width row). Network and Available on
+  render as icon chips (`providerChipsHtml`) using TMDB's `logo_path` for each
+  network/provider; a network's own `logo_path` is frequently empty even when the
+  same service also has one under `watch/providers` (e.g. Apple TV), so a network
+  without its own logo borrows one from a provider whose name loosely matches
+  (`findProviderLogoForNetwork` - either name containing the other, not just an
+  exact match). A show resolved primarily via TheTVDB only carries a network name
+  with no logo at all (TVDB's company data has no logo field), so those still show
+  as text-only. Each Network/Available on chip links to TMDB's own "where to watch"
+  page for the title (the `watch/providers.results.<region>.link` TMDB's terms
+  require attributing when that data is shown), since TMDB doesn't expose a
+  per-provider deep link. All the pill/chip icons in this panel and the ratings row
+  are theme-agnostic (no background fill), and the "STATUS"/"NETWORK"/etc. labels
+  use the same orange-in-dark/blue-in-light accent as the active "TV Shows" sidebar
+  tab (`.nav-tab.active`).
 - **Poster lightbox** - clicking the poster image opens it in the same photo lightbox
   used for the media images gallery (`window.openPhotoLightbox`, `media-lightbox.js`),
   via a `data-lightbox-src` attribute on `.immersive-poster-img`.

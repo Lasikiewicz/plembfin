@@ -187,3 +187,9 @@ different suffixes is loaded and instantiated twice, so any module-level state e
 twice over. When bumping a suffix, change every import of that file **and** its
 `modulepreload` link in `index.html` together, so the whole app keeps referring to one
 URL per module.
+
+`styles.css` carries the same kind of `?v=<date>` suffix on its `<link rel="stylesheet">`
+in `index.html`. Bump it whenever `styles.css` changes - without a bump, a browser that
+already loaded the page can keep serving its cached copy of the old stylesheet across
+reloads, which reads as the edit "not taking effect" even though the file on disk is
+correct.

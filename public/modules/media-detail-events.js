@@ -37,7 +37,7 @@ import {
   openHistoryDebugModal,
   openMediaInfoModal,
 } from "./media-detail.js?v=20260810";
-import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=20260810";
+import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=20260821";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};

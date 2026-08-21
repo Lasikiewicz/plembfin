@@ -11,10 +11,10 @@ import {
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent, scrollSeasonAccordionIntoView,
-} from "./media-detail-show.js?v=20260810";
+} from "./media-detail-show.js?v=20260821";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
-} from "./media-detail-movie.js?v=20260810";
+} from "./media-detail-movie.js?v=20260821";
 import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js";
 
 export {

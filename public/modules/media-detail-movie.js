@@ -225,6 +225,8 @@ function _renderWatchedMovieContent(root, movie, {
   const movieTitle = movie.title;
   const logoUrl = proxiedArtworkUrl(movie.logo_url || bestTmdbLogo(tmdbData), "logo");
   const ratingBadgeHtml = rating ? renderExternalRatingPills("movie", tmdbData, movieTitle, rating) : "";
+  const ratingsFactHtml = `${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}${imdbPillHtml}`;
+  const appLinksFactHtml = tmdbData ? mediaAppLinksHtml(tmdbData, "movie") : "";
   const syncStatusDotHtml = renderSyncStatusDot(movie);
   const visibleSyncStatuses = getMediaTargetSyncStatus(movie).filter((s) => !s.hidden);
   const allSynced = !visibleSyncStatuses.length || visibleSyncStatuses.every((s) => s.status === "success" || s.status === "skipped");
@@ -313,10 +315,7 @@ function _renderWatchedMovieContent(root, movie, {
               ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
               <p class="immersive-subtitle">${escapeHtml(released)}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
               <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                ${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}
-                ${imdbPillHtml}
                 ${syncStatusBlockHtml}
-                ${tmdbData ? mediaAppLinksHtml(tmdbData, "movie") : ""}
               </div>
               ${renderSeerrRequestPill("movie", tmdbData?.id || movie.tmdb_id, true)}
               <section class="progress-section" style="border: 0; padding: 0; margin-top: 0.5rem; width: 100%;">
@@ -332,7 +331,7 @@ function _renderWatchedMovieContent(root, movie, {
               </section>
             </div>
             <div class="media-detail-facts-wrap">
-              ${renderMediaFacts(tmdbData, "movie", "sidebar")}
+              ${renderMediaFacts(tmdbData, "movie", "sidebar", { ratingsHtml: ratingsFactHtml, appLinksHtml: appLinksFactHtml })}
             </div>
           </div>
 
@@ -358,10 +357,7 @@ function _renderWatchedMovieContent(root, movie, {
             <p class="immersive-subtitle">${escapeHtml(released)}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
             <div class="media-detail-bottom-stack">
               <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                ${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}
-                ${imdbPillHtml}
                 ${syncStatusBlockHtml}
-                ${tmdbData ? mediaAppLinksHtml(tmdbData, "movie") : ""}
               </div>
               ${renderSeerrRequestPill("movie", tmdbData?.id || movie.tmdb_id, true)}
               <p class="immersive-overview">${escapeHtml(overview)}</p>
@@ -378,7 +374,7 @@ function _renderWatchedMovieContent(root, movie, {
               </section>
             </div>
           </div>
-          ${renderMediaFacts(tmdbData, "movie", "sidebar")}
+          ${renderMediaFacts(tmdbData, "movie", "sidebar", { ratingsHtml: ratingsFactHtml, appLinksHtml: appLinksFactHtml })}
         </header>
         ${tmdbData ? renderCastSection(tmdbData) : ""}
         ${tmdbData ? renderMediaImagesSection(tmdbData) : ""}
@@ -583,9 +579,6 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
           ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
           <p class="immersive-subtitle">${escapeHtml(released)}</p>
           <div class="media-detail-bottom-stack">
-            <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-              ${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}
-            </div>
             ${renderSeerrRequestPill("movie", tmdbId, false)}
             <p class="immersive-overview">${escapeHtml(overview)}</p>
             <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
@@ -607,7 +600,10 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
             </section>
           </div>
         </div>
-        ${renderMediaFacts(tmdbData, "movie", "sidebar")}
+        ${renderMediaFacts(tmdbData, "movie", "sidebar", {
+          ratingsHtml: ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle),
+          appLinksHtml: mediaAppLinksHtml(tmdbData, "movie"),
+        })}
       </header>
       ${renderCastSection(tmdbData)}
       ${renderMediaImagesSection(tmdbData)}

@@ -30,18 +30,18 @@
   --text: #f8fafc;
   --soft: #e2e8f0;
   --muted: #94a3b8;
-  --blue: #3b82f6;
+  --blue: #e5a00d;
   --green: #10b981;
   --yellow: #eab308;
   --red: #f43f5e;
   --field: #0d1115;
-  --accent: #3b82f6;
+  --accent: #e5a00d;
   --surface: #141b22;
   --surface-hover: #1e2936;
   --text-primary: #f1f5f9;
-  --nav-active-border: #315b86;
-  --nav-active-bg: #172232;
-  --nav-active-text: #d9ecff;
+  --nav-active-border: #8a5c12;
+  --nav-active-bg: #2a2013;
+  --nav-active-text: #ffe4b0;
   --radius: 8px;
   --poster-radius: 8px;
   --library-poster-radius: var(--poster-radius);
@@ -58,6 +58,17 @@
   --right-topbar-height: calc((var(--top-control-padding) * 2) + var(--sidebar-logo-height));
   --right-topbar-content-offset: 0.7rem;
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Theme switch transition ------------------------------------------------- *
+ * Applied only for the brief window around a light/dark toggle (see
+ * toggleTheme() in app.js, which adds/removes this class), so every element's
+ * color/background/border fades smoothly between themes instead of the
+ * instant flash a plain class toggle gives - without slowing down every
+ * other hover/focus transition in the app the rest of the time. */
+html.theme-transition,
+html.theme-transition * {
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, fill 140ms ease, stroke 140ms ease, box-shadow 140ms ease, outline-color 140ms ease !important;
 }
 
 /* Settings task shell ----------------------------------------------------- */
@@ -566,23 +577,95 @@ h2 {
 
 .media-fact {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.3rem;
   min-width: 0;
   align-content: start;
 }
 
-.media-fact span {
-  color: var(--muted);
-  font-size: 0.7rem;
+/* Direct child only - a descendant selector here would also catch the
+   provider-name text nested inside a chip row's pills (.media-fact-chip
+   span), recoloring "Apple TV" etc. to the accent color along with the
+   actual STATUS/NETWORK/... label. */
+.media-fact > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--accent);
+  font-size: 0.64rem;
   font-weight: 800;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
 .media-fact b {
   overflow-wrap: anywhere;
-  font-size: 0.85rem;
+  font-size: 0.92rem;
+  font-weight: 700;
   line-height: 1.35;
+  color: var(--text);
+}
+
+.media-fact-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* The "Watch Now" row's app-links container defaults to full-width/centered
+   for its old home in the collapsible facts aside - left-align it like every
+   other chip row here instead. */
+.media-fact-chip-row .media-app-links {
+  width: auto;
+  justify-content: flex-start;
+}
+
+/* Ratings, Available on, and Watch Now each get a dedicated full-width row -
+   unlike .media-fact--wide, this isn't neutralized for the non-bio layout,
+   since these three are meant to stand alone rather than pair up. */
+.media-fact--full {
+  grid-column: 1 / -1;
+}
+
+/* Same pill style as the Plex/Emby/Jellyfin app-link chips (.media-app-link) -
+   no background fill, just the icon and label. */
+.media-fact-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.6rem;
+  padding: 0.35rem 0.9rem 0.35rem 0.55rem;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--text);
+  text-decoration: none;
+}
+
+a.media-fact-chip:hover {
+  color: var(--accent);
+}
+
+.media-fact-chip-icon {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  border-radius: 4px;
+  flex: 0 0 auto;
+}
+
+/* Transparent facts panel that sits alongside the poster on a movie/show
+   detail page - no card boundary, just label/value text with a divider
+   between rows; it fills the full width and height of its grid column
+   instead of being pinned to the top with dead space below (see
+   immersive-sidebar align-self/justify-content below). */
+.immersive-sidebar .media-facts-details {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .media-detail-page .immersive-header:has(.immersive-sidebar) {
@@ -596,20 +679,20 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  align-self: center;
-  justify-self: center;
+  align-self: stretch;
+  justify-self: stretch;
   width: 100%;
-  max-width: 620px;
+  height: 100%;
 }
 
 .media-detail-page .media-facts-rail--sidebar {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3) var(--space-3);
-  align-self: center;
-  justify-self: center;
+  gap: var(--space-3) var(--space-4);
+  align-self: start;
+  justify-self: stretch;
   margin-top: 0;
   padding-top: 0;
-  width: min(100%, 620px);
+  width: 100%;
 }
 
 .media-facts-rail--sidebar {
@@ -628,6 +711,17 @@ h2 {
 
 .media-facts-rail--sidebar .media-fact--wide {
   grid-column: 1 / -1;
+}
+
+/* Unlike the wider desktop facts rail, this card is only two columns, so
+   forcing Genres/Network/Streaming onto their own full-width row (as the
+   rules above do) wasted the whole second column on short values and threw
+   off the row-divider alignment below. Let every fact flow naturally in the
+   default (non-bio) detail layout instead - long values still wrap fine.
+   The bio layout's centered variant keeps the full-span behavior above. */
+.media-detail-page .immersive-header > .immersive-sidebar .media-facts-rail--sidebar .media-fact--wide,
+.media-detail-page .immersive-header > .immersive-sidebar .media-facts-rail--sidebar .media-fact:last-child:nth-child(odd) {
+  grid-column: auto;
 }
 
 .media-facts-details {
@@ -650,7 +744,7 @@ h2 {
 
 .media-facts-visible-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3) var(--space-3);
   width: 100%;
 }
@@ -717,12 +811,12 @@ h2 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
-  min-height: 1.8rem;
-  padding: 0.25rem 0.7rem 0.25rem 0.45rem;
+  gap: 0.5rem;
+  min-height: 2.6rem;
+  padding: 0.35rem 0.9rem 0.35rem 0.55rem;
   border: 1px solid color-mix(in srgb, var(--border), transparent 20%);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--panel-2), transparent 20%);
+  background: transparent;
   color: var(--text);
   font-size: 0.78rem;
   font-weight: 800;
@@ -730,8 +824,8 @@ h2 {
 }
 
 .media-app-link-logo {
-  width: 1.05rem;
-  height: 1.05rem;
+  width: 2rem;
+  height: 2rem;
   object-fit: contain;
   flex: 0 0 auto;
 }
@@ -1206,8 +1300,8 @@ h2 {
 }
 
 .button-primary {
-  background: rgba(37, 99, 235, 0.12);
-  border-color: rgba(37, 99, 235, 0.4);
+  background: color-mix(in srgb, var(--blue), transparent 88%);
+  border-color: color-mix(in srgb, var(--blue), transparent 60%);
   color: var(--blue);
 }
 
@@ -1257,8 +1351,8 @@ h2 {
 }
 
 .button-primary:hover {
-  background: rgba(37, 99, 235, 0.2);
-  border-color: rgba(37, 99, 235, 0.6);
+  background: color-mix(in srgb, var(--blue), transparent 80%);
+  border-color: color-mix(in srgb, var(--blue), transparent 40%);
   color: var(--blue);
 }
 
@@ -1639,6 +1733,10 @@ h2 {
   font-size: 0.68rem;
   font-weight: 850;
   white-space: nowrap;
+}
+
+.source-badge {
+  border: 0;
 }
 
 .source-badge--icon {
@@ -6668,15 +6766,15 @@ details.sync-tool-details[open] > summary {
 
 @keyframes sectionTargetHighlightPulse {
   0% {
-    box-shadow: 0 0 0 2px var(--blue), 0 0 20px rgba(37, 99, 235, 0.35);
+    box-shadow: 0 0 0 2px var(--blue), 0 0 20px color-mix(in srgb, var(--blue), transparent 65%);
     border-color: var(--blue) !important;
   }
   50% {
-    box-shadow: 0 0 0 3px var(--blue), 0 0 28px rgba(37, 99, 235, 0.5);
+    box-shadow: 0 0 0 3px var(--blue), 0 0 28px color-mix(in srgb, var(--blue), transparent 50%);
     border-color: var(--blue) !important;
   }
   100% {
-    box-shadow: 0 0 0 2px var(--blue), 0 0 20px rgba(37, 99, 235, 0.35);
+    box-shadow: 0 0 0 2px var(--blue), 0 0 20px color-mix(in srgb, var(--blue), transparent 65%);
     border-color: var(--blue) !important;
   }
 }
@@ -6711,8 +6809,8 @@ details.sync-tool-details[open] > summary {
 }
 
 .changelog-status-update {
-  background: rgba(37, 99, 235, 0.06);
-  border-color: rgba(37, 99, 235, 0.3);
+  background: color-mix(in srgb, var(--blue), transparent 94%);
+  border-color: color-mix(in srgb, var(--blue), transparent 70%);
 }
 
 .changelog-status-ok {
@@ -6739,7 +6837,7 @@ details.sync-tool-details[open] > summary {
 }
 
 .changelog-entry-new {
-  border-color: rgba(37, 99, 235, 0.4);
+  border-color: color-mix(in srgb, var(--blue), transparent 60%);
 }
 
 .changelog-section-heading {
@@ -7615,7 +7713,7 @@ html.light-mode .logs-category-filter {
   background: var(--blue);
   border-color: var(--blue);
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--blue), transparent 75%);
 }
 
 html.light-mode .logs-cat-btn {
@@ -8349,9 +8447,31 @@ html.light-mode .log-msg {
   color: #ffffff;
 }
 
-.rating-pill img {
-  height: 14px;
+.rating-pill-icon {
+  height: 2rem;
   width: auto;
+  max-width: 4.4rem;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+
+/* Match the Plex/Emby/Jellyfin app-link pill style (.media-app-link) exactly,
+   for the TMDB/TVDB/IMDb pills that also carry a brand icon - no background
+   fill, just the icon and label. */
+.rating-pill--brand {
+  min-height: 3.1rem;
+  padding: 0.35rem 0.9rem 0.35rem 0.55rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+}
+
+.rating-pill--brand:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
 }
 
 @media (max-width: 640px) {
@@ -8369,8 +8489,8 @@ html.light-mode .log-msg {
 }
 
 .action-pill {
-  background: rgba(37, 99, 235, 0.12);
-  border: 1px solid rgba(37, 99, 235, 0.4);
+  background: color-mix(in srgb, var(--blue), transparent 88%);
+  border: 1px solid color-mix(in srgb, var(--blue), transparent 60%);
   color: var(--blue);
   padding: 0.35rem 0.75rem;
   border-radius: 6px;
@@ -8385,8 +8505,8 @@ html.light-mode .log-msg {
 }
 
 .action-pill:hover {
-  background: rgba(37, 99, 235, 0.2);
-  border-color: rgba(37, 99, 235, 0.6);
+  background: color-mix(in srgb, var(--blue), transparent 80%);
+  border-color: color-mix(in srgb, var(--blue), transparent 40%);
   color: var(--blue);
 }
 
@@ -8453,6 +8573,10 @@ html.light-mode .log-msg {
   background: #f59e0b;
   border-radius: inherit;
   transition: width 300ms ease;
+}
+
+html.light-mode .progress-bar-fill {
+  background: var(--blue);
 }
 
 .episodes-section {
@@ -10662,7 +10786,7 @@ h1 {
 
 /* Episode title accent (matches the Part Watched section). */
 .page-shell[data-active-view="dashboard"] #tvHistoryRow .history-card-episode-title {
-  color: #e5a00d;
+  color: var(--accent);
   font-weight: 700;
 }
 
@@ -12509,7 +12633,7 @@ html.light-mode #explorerPanel .media-detail-page {
 }
 
 .explorer-size-slider input[type="range"] {
-  accent-color: var(--yellow);
+  accent-color: var(--accent);
   height: 6px;
   border-radius: var(--radius);
   background: var(--line);
@@ -13479,8 +13603,8 @@ html.light-mode #explorerPanel .media-detail-page {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  width: 96vw;
-  height: calc(96vh - 60px);
+  width: 86vw;
+  height: calc(86vh - 60px);
   cursor: pointer;
   content-visibility: auto;
 }
@@ -13493,7 +13617,10 @@ html.light-mode #explorerPanel .media-detail-page {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  border-radius: 4px;
+  /* var(--poster-radius) is 8px, sized for poster thumbnails - at this
+     image's much larger on-screen scale that reads as barely-rounded, so
+     scale it up to actually look rounded like a poster does. */
+  border-radius: calc(var(--poster-radius) * 2);
   transform-origin: center center;
   transition: transform 150ms ease;
   user-select: none;
@@ -13925,7 +14052,7 @@ html.light-mode .pill-toggle.active {
 }
 
 .person-credit-card:not(.in-library):hover .person-credit-poster-wrap {
-  border-color: rgba(59, 130, 246, 0.5);
+  border-color: color-mix(in srgb, var(--blue), transparent 50%);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
 }
 
@@ -15163,7 +15290,7 @@ details[open] > .tool-section-summary::before {
 .history-card-episode {
   font-size: 0.88rem;
   font-weight: 700;
-  color: #e5a00d;
+  color: var(--accent);
   white-space: normal;
   word-break: break-word;
   overflow: hidden;
@@ -15324,6 +15451,9 @@ html.light-mode {
   --surface: #f1f5f9;
   --surface-hover: #e2e8f0;
   --text-primary: #0f172a;
+  --nav-active-border: #315b86;
+  --nav-active-bg: #172232;
+  --nav-active-text: #d9ecff;
 }
 
 html.light-mode,
@@ -15579,6 +15709,17 @@ html.light-mode .rating-pill {
 
 html.light-mode .rating-pill-link:hover {
   background: var(--panel-3);
+}
+
+/* Keep the TMDB/TVDB/IMDb pills backgroundless in light mode too, winning
+   over the plain .rating-pill light background above - including on hover,
+   which otherwise still picked up the plain pill's hover fill. */
+html.light-mode .rating-pill--brand {
+  background: transparent;
+}
+
+html.light-mode .rating-pill--brand:hover {
+  background: transparent;
 }
 
 html.light-mode .sidebar-sub-menu .settings-tab.active,
@@ -16153,14 +16294,14 @@ html.light-mode .review-card {
 }
 
 .part-watched-action-btn[data-action-watch] {
-  background: rgba(37, 99, 235, 0.12);
-  border-color: rgba(37, 99, 235, 0.4);
-  color: #2563eb;
+  background: color-mix(in srgb, var(--blue), transparent 88%);
+  border-color: color-mix(in srgb, var(--blue), transparent 60%);
+  color: var(--blue);
 }
 
 .part-watched-action-btn[data-action-watch]:hover {
-  background: rgba(37, 99, 235, 0.2);
-  border-color: rgba(37, 99, 235, 0.6);
+  background: color-mix(in srgb, var(--blue), transparent 80%);
+  border-color: color-mix(in srgb, var(--blue), transparent 40%);
 }
 
 html.light-mode .part-watched-action-btn[data-action-watch] {
@@ -16497,7 +16638,7 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 
 .settings-pane .field:focus {
   border-color: var(--blue) !important;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2), inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue), transparent 80%), inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
 }
 
 .settings-pane .button-primary,
@@ -16515,9 +16656,9 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 }
 
 .settings-pane .button-primary {
-  border: 1px solid rgba(37, 99, 235, 0.4) !important;
-  background: rgba(37, 99, 235, 0.12) !important;
-  color: #2563eb !important;
+  border: 1px solid color-mix(in srgb, var(--blue), transparent 60%) !important;
+  background: color-mix(in srgb, var(--blue), transparent 88%) !important;
+  color: var(--blue) !important;
 }
 
 .backup-settings-inline .field {
@@ -16526,9 +16667,9 @@ html.light-mode .settings-segmented-control .sidebar-segmented-btn:hover {
 }
 
 .settings-pane .button-primary:hover:not(:disabled) {
-  border-color: rgba(37, 99, 235, 0.6) !important;
-  background: rgba(37, 99, 235, 0.2) !important;
-  color: #2563eb !important;
+  border-color: color-mix(in srgb, var(--blue), transparent 40%) !important;
+  background: color-mix(in srgb, var(--blue), transparent 80%) !important;
+  color: var(--blue) !important;
   transform: none !important;
 }
 
@@ -17048,8 +17189,8 @@ html.light-mode .cache-gauge-card {
 
 .settings-pane .drop-zone:hover {
   border-color: var(--blue) !important;
-  background: rgba(59, 130, 246, 0.03) !important;
-  box-shadow: 0 0 15px rgba(59, 130, 246, 0.05);
+  background: color-mix(in srgb, var(--blue), transparent 97%) !important;
+  box-shadow: 0 0 15px color-mix(in srgb, var(--blue), transparent 95%);
 }
 
 html.light-mode .settings-pane .drop-zone {
@@ -18320,7 +18461,7 @@ html.light-mode .settings-modal-field-control .field {
 
 .settings-modal-field-control .field:focus {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue), transparent 75%);
   outline: none;
 }
 

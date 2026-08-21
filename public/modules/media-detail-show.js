@@ -975,6 +975,8 @@ export function renderShowModalContent(show, {
   const premiered = tmdbData?.first_air_date ? `Premiered ${formatTmdbDate(tmdbData.first_air_date)}` : "Release date unknown";
   const rating = tmdbData?.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "";
   const ratingPillsHtml = renderExternalRatingPills("tv", tmdbData, showTitle, rating);
+  const ratingsFactHtml = `${ratingPillsHtml}${imdbPillHtml}`;
+  const appLinksFactHtml = tmdbData ? mediaAppLinksHtml(tmdbData, "tv") : "";
   const tvSeerrTmdbId = tmdbData?.id || show.tmdb_id || "";
   const tvSeerrCacheKey = `tv:${tvSeerrTmdbId}`;
   const hasTvSeerrStatus = Boolean(tvSeerrTmdbId && state.seerrMediaStatusCache.has(tvSeerrCacheKey));
@@ -1160,10 +1162,7 @@ export function renderShowModalContent(show, {
             <div class="media-detail-logo-wrap">
               ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(showTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(showTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(showTitle)}</h2>`}
               <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                ${ratingPillsHtml}
-                ${imdbPillHtml}
                 ${showModalStatus(loading, Boolean(tmdbData))}
-                ${tmdbData ? mediaAppLinksHtml(tmdbData, "tv") : ""}
               </div>
               ${localEvidence}
               <section class="progress-section" style="border: 0; padding: 0; margin-top: 0.5rem; width: 100%;">
@@ -1177,7 +1176,7 @@ export function renderShowModalContent(show, {
               </section>
             </div>
             <div class="media-detail-facts-wrap">
-              ${renderMediaFacts(tmdbData, "tv", "sidebar")}
+              ${renderMediaFacts(tmdbData, "tv", "sidebar", { ratingsHtml: ratingsFactHtml, appLinksHtml: appLinksFactHtml })}
             </div>
           </div>
 
@@ -1202,10 +1201,7 @@ export function renderShowModalContent(show, {
             ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(showTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(showTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(showTitle)}</h2>`}
             <div class="media-detail-bottom-stack">
               <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                ${ratingPillsHtml}
-                ${imdbPillHtml}
                 ${showModalStatus(loading, Boolean(tmdbData))}
-                ${tmdbData ? mediaAppLinksHtml(tmdbData, "tv") : ""}
               </div>
 
               <p class="immersive-overview">${escapeHtml(overview)}</p>
@@ -1224,7 +1220,7 @@ export function renderShowModalContent(show, {
             </div>
 
            </div>
-          ${renderMediaFacts(tmdbData, "tv", "sidebar")}
+          ${renderMediaFacts(tmdbData, "tv", "sidebar", { ratingsHtml: ratingsFactHtml, appLinksHtml: appLinksFactHtml })}
         </header>
 
         ${seasonsSectionHtml}
