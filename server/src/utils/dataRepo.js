@@ -547,6 +547,14 @@ export function isPlembfinTrackedWatchRow(row = {}) {
     && (!isScheduledLibraryHistoryRow(row) || isTrustedScheduledLibraryHistoryRow(row));
 }
 
+// Same trust check as isPlembfinTrackedWatchRow (an unscoped library scan row
+// still isn't evidence of anything, watched or not) but without requiring the
+// row's current state to be "watched" - used for grouping a show's episodes
+// so a show doesn't disappear once every episode has been marked unwatched.
+function isPlembfinTrackedEpisodeRow(row = {}) {
+  return !isScheduledLibraryHistoryRow(row) || isTrustedScheduledLibraryHistoryRow(row);
+}
+
 function createStatsPeriod(period, label) {
   return {
     period,
@@ -754,8 +762,12 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
   const version = getDataVersion();
   const memo = includeScheduledLibraryHistory ? scheduledShowCache : showCache;
   if (memo.version === version && memo.shows.length > 0) return memo.shows;
+  // The default (non-scheduled) branch is not watched-state filtered: a show
+  // whose every episode has been marked unwatched still needs its own group
+  // here (with 0 watched) so it stays visible in the TV Shows grid/dashboard
+  // instead of disappearing entirely.
   const episodeRows = (await getCachedHistory()).filter((r) => r.media_type === "episode"
-    && (includeScheduledLibraryHistory ? isWatchedAction(r) : isPlembfinTrackedWatchRow(r)));
+    && (includeScheduledLibraryHistory ? isWatchedAction(r) : isPlembfinTrackedEpisodeRow(r)));
   const groups = groupShowRows(dedupeHistory(episodeRows));
   // Each show needs its own SQLite lookup + JSON parse for cached TMDB details;
   // at library scale that's enough synchronous work in one pass to block the
@@ -3728,7 +3740,13 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
   }
 
   if (resolvedTitle) {
-    const rows = dedupeHistory(selectEpisodesByShowLowerStmt.all(resolvedTitle.toLowerCase()).map(rowToWatch).filter(isPlembfinTrackedWatchRow));
+    // isPlembfinTrackedEpisodeRow, not isPlembfinTrackedWatchRow: a show whose
+    // every episode is currently unwatched (e.g. right after "Mark unwatched"
+    // on its last watched episode) still needs to resolve here with its real
+    // episode rows (each carrying its own sync_action) - otherwise the show
+    // disappears from lookup entirely instead of rendering as 0 watched. Untrusted
+    // scan rows stay excluded, same as before.
+    const rows = dedupeHistory(selectEpisodesByShowLowerStmt.all(resolvedTitle.toLowerCase()).map(rowToWatch).filter(isPlembfinTrackedEpisodeRow));
     // An exact show_title match can still resolve to more than one real show
     // (two distinct shows stored under the identical title text) now that
     // groupShowRows splits them by provider id instead of blending them -
@@ -3752,7 +3770,12 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
   // the complete episode history even when the caller supplied a title.
   if (!resolvedTitle && id) resolvedTitle = String(id).replace(/-/g, " ");
   const key = canonicalTitleKey(resolvedTitle);
-  const rows = dedupeHistory(await loadHistoryRowsByType({ mediaType: "episode", limit: MAX_HISTORY_LIMIT }))
+  // Not loadHistoryRowsByType: that helper drops unwatched/unplayed rows (it
+  // backs the watched-history list), which would make a fully-unwatched show
+  // unresolvable here too. Scan the full episode cache instead (still through
+  // isPlembfinTrackedEpisodeRow, so untrusted scan rows stay excluded) so this
+  // fallback finds a show regardless of its current watched state.
+  const rows = dedupeHistory((await getCachedHistory()).filter((row) => row.media_type === "episode" && isPlembfinTrackedEpisodeRow(row)))
     .filter((row) => canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === key);
   // Same reasoning as the exact-title branch above: a canonical-title match
   // can span two real shows sharing a title once they're no longer blended.

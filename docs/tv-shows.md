@@ -33,6 +33,14 @@ The client applies the same rule when merging a show's `state.history` preview r
 its full episode list (`mergeShowWithLoadedHistory()` in `media-detail-show.js`): a row
 whose own provider id contradicts the show's is excluded even when the title matches.
 
+A show stays groupable and visible even once every one of its episodes is marked
+unwatched: `getCachedShows()` and `queryShowDetail()` group episode rows regardless of
+each row's current watched/unwatched `sync_action` (only genuinely untrustworthy rows -
+an unscoped library-scan row with no confirming user/timestamp - are excluded). Only the
+watched-episode *count* is state-sensitive, not whether the show exists at all; a show
+with 0 watched episodes still renders as "0 of N watched" rather than disappearing from
+the library grid, dashboard, or its own detail page.
+
 A show's displayed `tmdb_id` (`getCachedShows()`, `queryShowDetail()`) always trusts the
 id already recorded on its own watch_history rows over `getCachedShowProgress()`'s
 cached one. The progress cache can hold an id resolved from an earlier ambiguous title
