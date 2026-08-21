@@ -1,6 +1,19 @@
 {
-  "build": 19,
+  "build": 20,
   "entries": [
+    {
+      "build": 20,
+      "date": "2026-08-21T09:56:52+01:00",
+      "commit": "7a4aeed35eb45740c03745829b9dc7fb794e512d",
+      "message": "Fix - Make develop's build counter standalone instead of borrowing alpha/main's version",
+      "author": "Lasikiewicz",
+      "details": [
+        "develop's displayed version no longer derives from alpha's or main's current version (${mainVersion}.${alphaBuild}.${developBuild}) - it is now a plain incrementing build counter shown as \"Develop Build N\"",
+        "Fixes the sidebar/Settings-About version looking lower than its parent branch right after a promotion to alpha or main, since the borrowed version string only self-healed on develop's own next push and had no way to update itself when a promotion happened elsewhere",
+        "The build counter never resets on a promotion (only the entry list is cleared), so it can never appear to regress relative to a branch it was promoted from",
+        "Updated the pending-build comparison, changelog rendering, and the (previously unwired) promotion scripts to match; added test coverage for the new comparison logic"
+      ]
+    },
     {
       "build": 19,
       "version": "0.9.3.1.19",
@@ -237,5 +250,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-21T09:34:40+01:00"
+  "updatedAt": "2026-08-21T09:56:52+01:00"
 }
