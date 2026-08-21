@@ -1,7 +1,20 @@
 {
-  "build": 4,
-  "updatedAt": "2026-08-21T12:27:00+01:00",
+  "build": 5,
+  "updatedAt": "2026-08-21T13:31:07+01:00",
   "entries": [
+    {
+      "build": 5,
+      "date": "2026-08-21T13:31:07+01:00",
+      "commit": "3321848508f018b696504173672573dff5caf688",
+      "message": "Fix - Stop a fully-unwatched show from disappearing from the app",
+      "author": "Lasikiewicz",
+      "details": [
+        "A show whose every episode was marked unwatched became completely unreachable: gone from the TV Shows grid and dashboard, and its own detail page returned Not Found by both title and ID",
+        "Caused a stale-looking detail page after marking a show's last watched episode unwatched - the unwatch succeeded and synced correctly to Plex/Emby/Jellyfin/Trakt, but the page's live in-place refresh failed to re-fetch the now-invisible show and kept showing the old watched state until a manual reload",
+        "Shows now group and display correctly regardless of watched/unwatched state, rendering as \"0 of N episodes watched\" instead of vanishing; only genuinely untrustworthy library-scan rows are still excluded",
+        "Documented the corrected behavior in docs/tv-shows.md"
+      ]
+    },
     {
       "build": 4,
       "date": "2026-08-21T12:27:00+01:00",
