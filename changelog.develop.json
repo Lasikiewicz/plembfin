@@ -1,7 +1,23 @@
 {
-  "build": 2,
-  "updatedAt": "2026-08-21T18:31:40+01:00",
+  "build": 3,
+  "updatedAt": "2026-08-21T18:57:19+01:00",
   "entries": [
+    {
+      "build": 3,
+      "date": "2026-08-21T18:57:19+01:00",
+      "commit": "9f1130c86e4a7c2c360b83597a9f7e413c6fc121",
+      "message": "Feature - Media detail redesign - watch-date platform icons, control bar cleanup, poster lightbox",
+      "author": "Lasikiewicz",
+      "details": [
+        "Edit Watch Date dialog now shows each watch's platform badge (Plex/Emby/Jellyfin)",
+        "TV show control bar: Info moved to the end, the redundant Resync Watched button removed once a show is fully watched, and the top-bar Edit Date button removed",
+        "Expand All/Collapse All moved inline next to the Seasons heading, right-aligned",
+        "Availability pills (e.g. 15/40 Available, 7/40 Available in 4K) moved next to the season count in the Seasons heading",
+        "Plex/Emby/Jellyfin app-link pills moved inline into the ratings row, right-aligned, instead of inside the Media facts panel",
+        "Clicking the poster on a movie or show page now opens it in the photo lightbox",
+        "Cast photo thumbnails now use the same rounded corners as posters"
+      ]
+    },
     {
       "build": 2,
       "date": "2026-08-21T18:31:40+01:00",
