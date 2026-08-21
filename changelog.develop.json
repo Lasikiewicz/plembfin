@@ -1,7 +1,23 @@
 {
-  "build": 3,
-  "updatedAt": "2026-08-21T18:57:19+01:00",
+  "build": 4,
+  "updatedAt": "2026-08-21T21:53:40+01:00",
   "entries": [
+    {
+      "build": 4,
+      "date": "2026-08-21T21:53:40+01:00",
+      "commit": "ea6cc56009d22835162866bcdb4dac2d2ab1876f",
+      "message": "Feature - Media detail facts panel redesign and dark theme accent swap",
+      "author": "Lasikiewicz",
+      "details": [
+        "Media facts panel redesigned: transparent card, real TMDB/TheTVDB/IMDb brand icons in a Ratings row, Plex/Emby/Jellyfin moved into a Watch Now row, Network and Available on show provider icons and link out to TMDB's where-to-watch page for the title",
+        "Network icons now match even when TMDB's network name differs from its watch-provider name (e.g. Prime Video vs Amazon Prime Video); shows resolved via TheTVDB still show network name as text only since TVDB has no logo data",
+        "Poster click now opens the photo lightbox, which renders with rounded corners to match posters",
+        "Dark mode's accent color changed from blue to orange (matching the active TV Shows sidebar tab) across buttons, links, and highlights app-wide; light mode keeps blue",
+        "Theme toggle now fades colors smoothly instead of switching instantly",
+        "Fixed several legacy CSS rules that were silently overriding new sizing/color rules with stale hardcoded values",
+        "Bumped cache-busting version strings for styles.css and the media detail modules so browsers pick up today's changes instead of serving stale cached copies"
+      ]
+    },
     {
       "build": 3,
       "date": "2026-08-21T18:57:19+01:00",
