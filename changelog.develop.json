@@ -1,7 +1,24 @@
 {
-  "build": 3,
-  "updatedAt": "2026-08-21T11:22:50+01:00",
+  "build": 4,
+  "updatedAt": "2026-08-21T12:27:00+01:00",
   "entries": [
+    {
+      "build": 4,
+      "date": "2026-08-21T12:27:00+01:00",
+      "commit": "5e831b0b9b4a59ecd27bce413e4f466ade132671",
+      "message": "Fix - Unify show/movie routing so every entry point loads identical data",
+      "author": "Lasikiewicz",
+      "details": [
+        "README overhaul: fixed the Docker Compose quick-start to pull the published :latest image instead of requiring a local clone and build, added a Which version should I run? section explaining the :latest/:alpha/:develop channels, and replaced the stale alpha-to-main branch description with the real develop -> alpha -> main model",
+        "Added CHANGELOG.md, generated from changelog.json by scripts/generate-changelog-md.js and regenerated automatically on every release, so release history is readable on GitHub without logging into a running instance",
+        "Updated CLAUDE.md and docs/development.md's branching sections, which still only documented the old two-branch alpha -> main flow despite this session's develop-branch work; renamed the Merge alpha with main command to the two-step Force to alpha / Force to main it actually is now",
+        "Fixed docker-publish-develop.yml reading a version field from changelog.develop.json that no longer exists (removed in the earlier develop build-counter change), which was silently publishing a bogus :undefined tag alongside the real develop images",
+        "A show reached via /tvshow/:key now delegates into the same TMDB/TVDB fetch-and-render pipeline the /tvshow/tmdb/:id and /tvshow/tvdb/:id routes already use, instead of a separate lighter render that never fetched season-level episode metadata - all three routes now show the same seasons, cast, images, and trailers for the same show",
+        "Fixed watched/unwatched/edit-date actions leaving the page stale or blank when viewing a show reached via its TVDB id: five places across watch-action.js and edit-dialogs.js only knew how to refresh a page by local key or TMDB id, never TVDB, so the post-action reload silently failed on that route",
+        "tmdb/tvdb-id links (search results, recommendations, cast filmography, the upcoming calendar, dashboard cards) now include a readable slug after the id - e.g. tmdb/202555-daredevil-born-again - so they're legible in the address bar immediately, even for a title with no watch history yet; the id alone still resolves the route and old links without a slug keep working",
+        "Fixed a show's displayed tmdb_id preferring a cached-but-possibly-wrong id (resolved by an earlier ambiguous title search and never written back onto any watch_history row) over the id already recorded on the show's own rows, which could permanently override correct data once a bad id got cached - affected the show list, show detail page, and the upcoming episodes calendar"
+      ]
+    },
     {
       "build": 3,
       "date": "2026-08-21T11:22:50+01:00",
