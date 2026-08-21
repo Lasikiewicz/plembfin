@@ -506,13 +506,28 @@ export function ratingPillHtml({ label, value = "View", href = "", title = "" } 
     </a>
   `;
 }
+const KNOWN_RESOLUTIONS = new Set(["SD", "480p", "576p", "720p", "1080p", "4K"]);
+// The per-episode resolution pills (episodeResolutionPillHtml) already show
+// the exact truth for each episode - this aggregate only needs to avoid
+// stating a resolution that isn't actually true for every available
+// episode. A uniform season/show can say so; a mixed one drops the claim
+// rather than quoting the best (overstating what's really there) or worst
+// (understating it) resolution present.
+function uniformEpisodeResolution(status = {}) {
+  const resolutions = [...new Set(Object.values(status.episodeResolutions || {}).filter((r) => KNOWN_RESOLUTIONS.has(r)))];
+  return resolutions.length === 1 ? resolutions[0] : "";
+}
 export function tvAvailabilityLabel(status = {}) {
   const total = Number(status.totalEpisodes || 0);
   const available = Number(status.availableEpisodes || 0);
   if (!total) return status.available ? "Available" : "";
-  if (available >= total) return `${available}/${total} Available in 1080p`;
-  if (available > 0) return `${available}/${total} Available in 1080p`;
-  return "";
+  if (available <= 0) return "";
+  const resolution = uniformEpisodeResolution(status);
+  return `${available}/${total} Available${resolution ? ` in ${resolution}` : ""}`;
+}
+export function movieAvailabilityLabel(status = {}) {
+  const resolution = KNOWN_RESOLUTIONS.has(status.resolution) ? status.resolution : "";
+  return resolution ? `Available in ${resolution}` : "Available";
 }
 export function tvAvailability4kLabel(status = {}) {
   const total = Number(status.totalEpisodes || 0);
@@ -597,7 +612,7 @@ export function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false
   const tv4kLabel = isTv ? tvAvailability4kLabel(status) : "";
   return `
     <span id="seerrRequestContainer" style="display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;" data-media-type="${escapeAttribute(mediaType)}" data-tmdb-id="${escapeAttribute(String(tmdbId))}" data-local-available="${localAvailable}">
-      ${isAvailable ? `<span class="rating-pill seerr-owned-pill">${escapeHtml(isTv ? tvAvailableLabel || "Available" : "Available in 1080p")}</span>` : tvAvailableLabel ? `<span class="rating-pill seerr-owned-pill seerr-owned-pill-partial">${escapeHtml(tvAvailableLabel)}</span>` : `
+      ${isAvailable ? `<span class="rating-pill seerr-owned-pill">${escapeHtml(isTv ? tvAvailableLabel || "Available" : movieAvailabilityLabel(status))}</span>` : tvAvailableLabel ? `<span class="rating-pill seerr-owned-pill seerr-owned-pill-partial">${escapeHtml(tvAvailableLabel)}</span>` : `
         <button class="rating-pill seerr-request-btn" type="button"
           data-seerr-media-type="${escapeAttribute(mediaType)}"
           data-seerr-media-id="${escapeAttribute(String(tmdbId))}">

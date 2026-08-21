@@ -223,7 +223,19 @@ first complete render.
   title is persisted in localStorage (`plembfin:seerrStatusCache:v1`), so availability
   pills render instantly on page open; a silent background refresh re-renders the page
   only when the status actually changed (`fetchSeerrMediaStatus` resolves `null` when
-  the fresh result matches the persisted one).
+  the fresh result matches the persisted one). That repaint only fires when the browser
+  still considers itself "on" the same title - a TV show opened via `/tvshow/tmdb/:id`
+  or `/tvshow/tvdb/:id` never sets `state.activeShowModalKey` (only the plain
+  `/tvshow/:key` route does), so a slug-only check there always failed for those two
+  routes and left a stale availability badge on screen indefinitely even once the
+  background fetch had already resolved correct data - fixed by also matching on
+  `state.activeShowTmdbId`/`activeShowTvdbId`. The "Available in <resolution>" wording
+  reflects the actual resolution found on the connected server(s): a TV show/season only
+  states a resolution when every one of its available episodes shares it (the per-episode
+  resolution pills already show a mixed season's real breakdown); a movie states whatever
+  resolution `mediaItemResolutionLabel` found for it, walking the same Plex/Emby/Jellyfin
+  media-item shapes TV episodes use (`fetchConfiguredAppAvailability` in
+  `server/src/routes/admin.js`) rather than a hardcoded "1080p".
 - **App links** - "open in Plex/Emby/Jellyfin" deep links via
   `GET /api/media-app-links`. The last known links per title are persisted in
   localStorage (`plembfin:appLinksCache:v1`) and rendered instantly; a background
@@ -246,7 +258,14 @@ first complete render.
   than one `watch_history` row within the same short window
   (`SAME_EVENT_WINDOW_MS` in `dataRepo.js`); deleting that row also deletes any
   echo chained to it (`sameEventChainIdsFor` in `dataRepo.js`), so a hidden
-  duplicate can't resurface as a "new" watch date afterward. Deleting a watch
+  duplicate can't resurface as a "new" watch date afterward. An episode's other
+  plays are found by `siblingWatchRowsFor()` matching season, episode, and a
+  canonical (year-stripped) show title - normalizing the full show_title-or-
+  title expression, not just the title fallback, matters for the same reason
+  it does in `queryShowDetail` (see `tv-shows.md`): two of an episode's own
+  watch rows can carry differently-formatted show_title text, and comparing
+  one normalized side against one raw side silently missed a real duplicate
+  play instead of listing it. Deleting a watch
   date also replays the resulting canonical state - the rolled-back date if a
   watch remains, or "unwatched" if that was the only one - to every connected
   Plex/Emby/Jellyfin/Trakt server (`propagateWatchDateRemoval` in

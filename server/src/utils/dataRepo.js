@@ -1384,7 +1384,14 @@ function siblingWatchRowsFor(existing = {}) {
     });
   }
 
-  const showKey = canonicalTitleKey(existing.show_title || showTitleFrom(existing.title));
+  // showTitleFrom must wrap the whole show_title-or-title expression, not
+  // just the title fallback - the same show's episode rows can carry
+  // different exact show_title text over time (a trailing year present on
+  // some inserts, absent on others; see the matching comment in
+  // queryShowDetail), so normalizing only when show_title happens to be
+  // missing silently split an episode's own watch dates into two groups
+  // here whenever a duplicate play used a differently-formatted title.
+  const showKey = canonicalTitleKey(showTitleFrom(existing.show_title || existing.title));
   const season = existing.season == null ? null : Number(existing.season);
   const episode = existing.episode == null ? null : Number(existing.episode);
   if (!showKey || season == null || episode == null) return [];
@@ -1392,7 +1399,7 @@ function siblingWatchRowsFor(existing = {}) {
   return selectAllEpisodesStmt.all().filter((row) => {
     if (row.id === existing.id || !isPlembfinTrackedWatchRow(row)) return false;
     if (Number(row.season) !== season || Number(row.episode) !== episode) return false;
-    return canonicalTitleKey(row.show_title || showTitleFrom(row.title)) === showKey;
+    return canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === showKey;
   });
 }
 

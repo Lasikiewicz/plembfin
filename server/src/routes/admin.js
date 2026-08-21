@@ -720,24 +720,32 @@ async function fetchConfiguredAppAvailability(config = {}, media = {}) {
     return summarizeTvAvailability(media.details || {}, sources);
   }
 
+  // Best resolution across a target's matched item(s), same walk TV episodes
+  // use - a movie is a single item on Plex but findEmbyItems/findJellyfinItems
+  // can return more than one (duplicate library copies), so keep the highest.
+  const bestResolution = (items = []) => items.reduce((best, item) => {
+    const label = mediaItemResolutionLabel(item);
+    return label && (!best || RESOLUTION_RANK[label] > RESOLUTION_RANK[best]) ? label : best;
+  }, null);
+
   const jobs = targets.map(async (target) => {
     try {
       if (target === "plex") {
         const item = await findPlexItem(config.plex, media);
-        return { target, available: Boolean(item?.ratingKey), available4k: mediaItemLooks4k(item) };
+        return { target, available: Boolean(item?.ratingKey), available4k: mediaItemLooks4k(item), resolution: item ? mediaItemResolutionLabel(item) : null };
       }
       if (target === "emby") {
         const items = await findEmbyItems(config.emby, media);
-        return { target, available: items.length > 0, available4k: items.some(mediaItemLooks4k) };
+        return { target, available: items.length > 0, available4k: items.some(mediaItemLooks4k), resolution: bestResolution(items) };
       }
       if (target === "jellyfin") {
         const items = await findJellyfinItems(config.jellyfin, media);
-        return { target, available: items.length > 0, available4k: items.some(mediaItemLooks4k) };
+        return { target, available: items.length > 0, available4k: items.some(mediaItemLooks4k), resolution: bestResolution(items) };
       }
     } catch (error) {
-      return { target, available: false, available4k: false, error: error.message || "Lookup failed" };
+      return { target, available: false, available4k: false, resolution: null, error: error.message || "Lookup failed" };
     }
-    return { target, available: false, available4k: false };
+    return { target, available: false, available4k: false, resolution: null };
   });
 
   const sources = await Promise.all(jobs);
@@ -745,6 +753,11 @@ async function fetchConfiguredAppAvailability(config = {}, media = {}) {
     checked: true,
     available: sources.some((source) => source.available),
     available4k: sources.some((source) => source.available4k),
+    // The best resolution found among sources that actually have this movie -
+    // an unavailable target's null shouldn't drag this down.
+    resolution: sources.filter((source) => source.available).reduce((best, source) => (
+      source.resolution && (!best || RESOLUTION_RANK[source.resolution] > RESOLUTION_RANK[best]) ? source.resolution : best
+    ), null),
     sources,
   };
 }

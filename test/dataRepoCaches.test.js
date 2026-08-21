@@ -310,3 +310,32 @@ test("a title lookup finds every episode regardless of a trailing year on some r
     assert.equal(show.episode_count, 2, `must find both episodes for query "${queryTitle}"`);
   }
 });
+
+test("the watch-date editor finds every play of an episode despite a year-suffix mismatch", async () => {
+  // Mirrors a real report: the same episode's two watch events were inserted
+  // with differently-formatted show_title text, so the page correctly showed
+  // 2 plays (its grouping is already normalized) but Edit Watch Date only
+  // showed 1 - siblingWatchRowsFor normalized the title fallback but not
+  // show_title itself.
+  const firstPlayId = await insert({
+    title: "Mismatched Title Show - S05E07",
+    show_title: "Mismatched Title Show",
+    media_type: "episode",
+    watched_at: "2026-08-19T12:00:00.000Z",
+    source: "plex",
+    season: 5,
+    episode: 7,
+  });
+  await insert({
+    title: "Mismatched Title Show (2026) - S05E07",
+    show_title: "Mismatched Title Show (2026)",
+    media_type: "episode",
+    watched_at: "2026-08-20T17:06:00.000Z",
+    source: "manual",
+    season: 5,
+    episode: 7,
+  });
+
+  const dateEditorRows = await repo.getWatchDatesForRecord(firstPlayId);
+  assert.equal(dateEditorRows.rows.length, 2, "must find both plays despite the show_title mismatch");
+});

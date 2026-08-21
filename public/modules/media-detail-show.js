@@ -1242,7 +1242,15 @@ export function renderShowModalContent(show, {
   if (tvSeerrTmdbId && (!hasTvSeerrStatus || tvSeerrStatus.stale)) {
     fetchSeerrMediaStatus("tv", tvSeerrTmdbId)
       .then((status) => {
-        if (!status || state.activeShowModalKey !== slug(show.title)) return;
+        // A show reached via /tvshow/tmdb/:id or /tvshow/tvdb/:id never sets
+        // activeShowModalKey (only the plain /tvshow/:key route does) - a
+        // slug-only check here always fails for those, so a background
+        // Seerr refresh could never repaint the availability badge on them
+        // even once the fetch resolved fresh, correct data.
+        const stillOnThisShow = state.activeShowModalKey === slug(show.title)
+          || (show.tmdb_id && String(state.activeShowTmdbId || "") === String(show.tmdb_id))
+          || (show.tvdb_id && String(state.activeShowTvdbId || "") === String(show.tvdb_id));
+        if (!status || !stillOnThisShow) return;
         const current = state.activeShowRenderContext;
         if (current?.tmdbData && !current.loading) {
           renderShowModalContent(current.show, {
