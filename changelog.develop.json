@@ -1,7 +1,21 @@
 {
-  "build": 9,
-  "updatedAt": "2026-08-21T14:46:49+01:00",
+  "build": 10,
+  "updatedAt": "2026-08-21T15:12:06+01:00",
   "entries": [
+    {
+      "build": 10,
+      "date": "2026-08-21T15:12:06+01:00",
+      "commit": "05b59665e08d02e73ce5e6e897280ba7c44cadd6",
+      "message": "Fix - Import Watched Status no longer no-ops on a show stuck unwatched behind a stale unwatch",
+      "author": "Lasikiewicz",
+      "details": [
+        "Force Sync -> Import Watched Status decided whether to insert a watched record by checking findWatchedByAnyMediaKey (does any watched row exist anywhere in history), not the episode's actual current state",
+        "A later unwatch always wins the display's dedup tie-break by recency, so an old watched row can sit dormant on file while the show still displays and counts as unwatched - the old check treated that dormant row as proof there was nothing to do and silently skipped it",
+        "Now checks the actual canonical pointer (getCanonicalWatchState) instead, so a source confirming an episode is still watched inserts a fresh record and genuinely restores the correct watched state",
+        "Added a regression test documenting the exact gap between the two checks",
+        "Documented the fix in docs/media-detail.md"
+      ]
+    },
     {
       "build": 9,
       "date": "2026-08-21T14:46:49+01:00",
