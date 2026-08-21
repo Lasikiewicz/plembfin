@@ -1,8 +1,19 @@
 {
   "baseVersion": "0.9.3.1",
-  "build": 17,
-  "version": "0.9.3.1.17",
+  "build": 18,
+  "version": "0.9.3.1.18",
   "entries": [
+    {
+      "build": 18,
+      "version": "0.9.3.1.18",
+      "date": "2026-08-21T09:30:21+01:00",
+      "commit": "ead2ff98bf109a7bc8b547363b590edaa6f3dc38",
+      "message": "Merge remote-tracking branch 'origin/main' into develop",
+      "author": "Lasikiewicz",
+      "details": [
+        "Merge remote-tracking branch 'origin/main' into develop"
+      ]
+    },
     {
       "build": 17,
       "version": "0.9.3.1.17",
@@ -217,5 +228,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-21T09:18:52+01:00"
+  "updatedAt": "2026-08-21T09:30:21+01:00"
 }
