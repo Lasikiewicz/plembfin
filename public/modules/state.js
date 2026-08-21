@@ -144,6 +144,11 @@ export const state = {
   activeShowModalTitle: null,
   activeShowModalSeason: null,
   activeShowModalEpisode: null,
+  // Set only by a real navigation to a URL naming a season (path segment or
+  // #seasonN hash), consumed and cleared by the very next render so a season
+  // already expanded on page load scrolls into view once - not on every
+  // later re-render of the same modal (e.g. toggling an episode watched).
+  pendingSeasonScrollTarget: null,
   showModalAllSeasonsExpanded: false,
   showModalRequestToken: 0,
   showModalEpisodes: [],

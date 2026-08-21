@@ -19,6 +19,63 @@ let _playbackProgressLoaded = false;
 let _playbackProgressLoadPromise = null;
 const _seasonDetailsInflight = new Set();
 
+// The page's actual scrollable element is <main class="page-shell">
+// (window/document never scroll - the app shell layout keeps the sidebar
+// fixed and only page-shell has overflow). Walks up from the trigger to find
+// whichever ancestor actually has the overflow, rather than assuming it's
+// page-shell specifically.
+function nearestScrollableAncestor(el) {
+  let node = el.parentElement;
+  while (node && node !== document.body) {
+    if (/(auto|scroll)/.test(getComputedStyle(node).overflowY) && node.scrollHeight > node.clientHeight) return node;
+    node = node.parentElement;
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
+const SCROLL_ANIMATION_MS = 700;
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
+}
+
+// A hand-rolled eased scroll instead of scrollIntoView's native
+// behavior:"smooth": the browser's own smooth scroll duration isn't
+// configurable and reads as an abrupt snap over this kind of distance.
+function animateScrollTop(container, targetTop, duration) {
+  const isWindowLevel = container === document.scrollingElement || container === document.documentElement;
+  const startTop = isWindowLevel ? window.scrollY : container.scrollTop;
+  const distance = targetTop - startTop;
+  if (Math.abs(distance) < 1) return;
+  const startTime = performance.now();
+  function step(now) {
+    const progress = Math.min((now - startTime) / duration, 1);
+    const nextTop = startTop + distance * easeInOutCubic(progress);
+    if (isWindowLevel) window.scrollTo(0, nextTop);
+    else container.scrollTop = nextTop;
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// Scrolls the given season's accordion header into view, eased over
+// SCROLL_ANIMATION_MS. The scroll-margin-top on .season-accordion-trigger
+// (styles.css) reserves space for the sticky .page-topbar, so the header
+// lands visible just below it instead of hidden underneath. Shared by the
+// season-click handler in media-detail-events.js and the initial-render
+// scroll below, so both stay in sync.
+export function scrollSeasonAccordionIntoView(seasonNum, { duration = SCROLL_ANIMATION_MS } = {}) {
+  const trigger = document.querySelector(`[data-season-accordion="${seasonNum}"]`);
+  if (!trigger) return;
+  const container = nearestScrollableAncestor(trigger);
+  const isWindowLevel = container === document.scrollingElement || container === document.documentElement;
+  const containerTop = isWindowLevel ? 0 : container.getBoundingClientRect().top;
+  const currentTop = isWindowLevel ? window.scrollY : container.scrollTop;
+  const scrollMarginTop = parseFloat(getComputedStyle(trigger).scrollMarginTop) || 0;
+  const targetTop = currentTop + (trigger.getBoundingClientRect().top - containerTop) - scrollMarginTop;
+  animateScrollTop(container, Math.max(0, targetTop), duration);
+}
+
 // Season episode lists are keyed by TMDB id for the shows TMDB knows about, and
 // by `tvdb:<id>` for series that only exist on TVDB. Both forms are accepted by
 // fetchTmdbSeasonDetails, so one identity string covers the caching, the
@@ -1153,6 +1210,16 @@ export function renderShowModalContent(show, {
       </div>
       ${renderWatchDatePrompt(state.pendingWatchAction)}
     `;
+  }
+  // A season named in the URL on navigation (path segment or #seasonN hash)
+  // scrolls into view once, here - not via the click handler, since no click
+  // happened. The flag is consumed and cleared immediately so a later
+  // re-render of this same modal (e.g. toggling an episode watched) doesn't
+  // scroll again.
+  if (state.pendingSeasonScrollTarget != null && Number(state.pendingSeasonScrollTarget) === selectedSeason) {
+    const targetSeason = state.pendingSeasonScrollTarget;
+    state.pendingSeasonScrollTarget = null;
+    requestAnimationFrame(() => scrollSeasonAccordionIntoView(targetSeason));
   }
   // Refresh when there's no status yet, or when the rendered status came from
   // the persisted cache (`stale`) - the fetch resolves null if nothing

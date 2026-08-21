@@ -14308,6 +14308,10 @@ html.light-mode .history-mini-card-title {
   padding: var(--space-3) var(--space-4);
   text-align: left;
   cursor: pointer;
+  /* Reserves space for the sticky .page-topbar so scrollIntoView() (see
+     scrollSeasonAccordionIntoView in media-detail-show.js) lands this header
+     visible just below the bar instead of hidden underneath it. */
+  scroll-margin-top: calc(var(--right-topbar-height) + 12px);
 }
 
 .season-accordion-trigger:hover {

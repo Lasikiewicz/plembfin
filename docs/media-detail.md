@@ -52,6 +52,16 @@ Direct URL loads work identically - routing hydrates the same UI without needing
 in-app navigation state. TV URLs support deep links:
 `/tvshow/<key>/season/2/episode/5` (and a legacy `#season2ep5` hash form).
 
+Expanding a season - by clicking its header, or by loading a URL that names one -
+scrolls it into view with an eased custom animation (`scrollSeasonAccordionIntoView`
+in `media-detail-show.js`), landing just below the sticky topbar (via `scroll-margin-top`
+on `.season-accordion-trigger`). The app shell keeps `window`/`document` fixed and
+scrolls `<main class="page-shell">` internally instead, so this walks up from the
+clicked/targeted season's trigger to find whichever ancestor actually has the overflow
+rather than assuming it's page-shell specifically. A URL-named season scrolls into view
+exactly once on that navigation (`state.pendingSeasonScrollTarget`, consumed by the
+first render), not on every later re-render of the same modal.
+
 Series that TMDB has no record of are addressed by `/tvshow/tvdb/:id` instead of
 `/tvshow/tmdb/:id`. Show metadata is TVDB-backed either way, so the page renders the
 same, with two differences: season episode lists are fetched by TVDB id, and the Seerr

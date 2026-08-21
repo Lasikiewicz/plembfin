@@ -1244,6 +1244,7 @@ function handleRouting(path) {
     state.activeShowTmdbId = String(tmdbId);
     state.activeShowModalSeason = seasonNum;
     state.activeShowModalEpisode = episodeNum;
+    state.pendingSeasonScrollTarget = seasonNum;
     openShowImmersiveModalByTmdbId(tmdbId).catch((error) => setMessage(error.message, "error"));
   } else if (tvshowTvdbMatch) {
     const tvdbId = tvshowTvdbMatch[1];
@@ -1272,6 +1273,7 @@ function handleRouting(path) {
     state.activeShowTvdbId = String(tvdbId);
     state.activeShowModalSeason = seasonNum;
     state.activeShowModalEpisode = episodeNum;
+    state.pendingSeasonScrollTarget = seasonNum;
     openShowImmersiveModalByTvdbId(tvdbId).catch((error) => setMessage(error.message, "error"));
   } else if (movieMatch) {
     const movieKey = decodeURIComponent(movieMatch[1]);
@@ -1324,6 +1326,7 @@ function handleRouting(path) {
     state.activeShowModalKey = showKey;
     state.activeShowModalSeason = seasonNum;
     state.activeShowModalEpisode = episodeNum;
+    state.pendingSeasonScrollTarget = seasonNum;
     openShowInlineDetail(showKey, seasonNum, episodeNum, historyId).catch((error) => {
       console.error("Failed to open show detail", error);
       setMessage(error.message, "error");
