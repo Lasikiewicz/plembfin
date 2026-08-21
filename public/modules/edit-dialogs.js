@@ -1,5 +1,5 @@
 import { state } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory } from "./utils.js";
+import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js";
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js";
@@ -201,10 +201,11 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
     const date = new Date(value || Date.now());
     return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
   };
-  const renderRow = (index, watchedAt, rowId) => `
+  const renderRow = (index, watchedAt, rowId, source) => `
     <div class="watch-date-list-row" data-row-id="${escapeAttribute(rowId || "")}" data-row-new="${rowId ? "" : "1"}">
       <div class="watch-date-row-main">
         <span class="watch-date-row-label">${rowLabel(index)}</span>
+        ${source ? sourceBadgeHtml(source) : ""}
         <button type="button" class="watch-date-value-btn" data-watched-iso="${escapeAttribute(toIso(watchedAt))}">
           ${escapeHtml(formatDate(toIso(watchedAt)))}
         </button>
@@ -223,7 +224,7 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
     panel.innerHTML = `
       <h3>Edit Watch Date</h3>
       <div class="watch-date-list">
-        ${rows.map((row, index) => renderRow(index, row.watched_at, row.id)).join("")}
+        ${rows.map((row, index) => renderRow(index, row.watched_at, row.id, row.source)).join("")}
       </div>
       <button class="button-ghost watch-date-add-btn" type="button">+ Add another watch date</button>
       <div class="watch-date-section-label">Quick choices <span class="muted-copy">(applies to the last row)</span></div>

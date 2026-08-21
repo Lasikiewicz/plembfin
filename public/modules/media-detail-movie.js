@@ -9,7 +9,7 @@ import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
-  renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection,
+  renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection, mediaAppLinksHtml,
 } from "./media-detail-shared.js";
 
 // Watch history list - playHistory (every { id, watched_at, source } entry for
@@ -301,7 +301,7 @@ function _renderWatchedMovieContent(root, movie, {
       <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || localPoster)}');"></div>
       <div class="immersive-container media-detail-page bio-layout${loading ? " is-loading-metadata" : ""}">
         <div class="media-detail-bio-left">
-          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || localPoster)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
+          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || localPoster)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" data-lightbox-src="${escapeAttribute(posterUrl || localPoster)}" />
           <div class="media-detail-meta-below-poster">
             <p class="immersive-overview">${escapeHtml(overview)}</p>
           </div>
@@ -316,6 +316,7 @@ function _renderWatchedMovieContent(root, movie, {
                 ${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}
                 ${imdbPillHtml}
                 ${syncStatusBlockHtml}
+                ${tmdbData ? mediaAppLinksHtml(tmdbData, "movie") : ""}
               </div>
               ${renderSeerrRequestPill("movie", tmdbData?.id || movie.tmdb_id, true)}
               <section class="progress-section" style="border: 0; padding: 0; margin-top: 0.5rem; width: 100%;">
@@ -351,7 +352,7 @@ function _renderWatchedMovieContent(root, movie, {
       <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || localPoster)}');"></div>
       <div class="immersive-container media-detail-page${loading ? " is-loading-metadata" : ""}">
         <header class="immersive-header">
-          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || localPoster)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
+          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || localPoster)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" data-lightbox-src="${escapeAttribute(posterUrl || localPoster)}" />
           <div class="immersive-meta">
             ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
             <p class="immersive-subtitle">${escapeHtml(released)}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
@@ -360,6 +361,7 @@ function _renderWatchedMovieContent(root, movie, {
                 ${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}
                 ${imdbPillHtml}
                 ${syncStatusBlockHtml}
+                ${tmdbData ? mediaAppLinksHtml(tmdbData, "movie") : ""}
               </div>
               ${renderSeerrRequestPill("movie", tmdbData?.id || movie.tmdb_id, true)}
               <p class="immersive-overview">${escapeHtml(overview)}</p>
@@ -576,7 +578,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
     <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl)}');"></div>
     <div class="immersive-container media-detail-page">
       <header class="immersive-header">
-        <img class="immersive-poster-img" src="${escapeAttribute(posterUrl)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" />
+        <img class="immersive-poster-img" src="${escapeAttribute(posterUrl)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" data-lightbox-src="${escapeAttribute(posterUrl)}" />
         <div class="immersive-meta">
           ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
           <p class="immersive-subtitle">${escapeHtml(released)}</p>

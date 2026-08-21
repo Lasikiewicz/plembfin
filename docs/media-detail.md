@@ -18,7 +18,7 @@ The detail system is split across eight modules; respect this split when adding 
 | `media-detail-shared.js` | Rendering fragments shared by movie + show pages: rating pills, external ratings (IMDb via OMDb), Seerr availability labels and request pills, app deep-links (`hydrateMediaAppLinks`) |
 | `media-detail-movie.js` | Movie page rendering (`renderMovieImmersiveModalContent`), watched-state patching, TMDB-id open path |
 | `media-detail-show.js` | Show page rendering: header, season accordion, episode rows with watch state, season/episode deep-linking (`renderImmersiveShowModal`, `renderShowModalContent`) |
-| `media-detail-events.js` | One delegated click handler for everything inside the detail root: cast → person page, trailer → lightbox, poster → edit-image dialog, watch buttons, recommendation cards |
+| `media-detail-events.js` | One delegated click handler for everything inside the detail root: cast → person page, trailer → lightbox, poster → photo lightbox, watch buttons, recommendation cards |
 | `media-person.js` | Person pages: bio, filmography grid with watch badges (`loadCastMemberDetails`, `hydratePersonFilmographyWatchStatuses`) |
 | `media-lightbox.js` | Trailer playback (YouTube embed) and photo lightbox |
 
@@ -242,11 +242,19 @@ first complete render.
   resolution pills already show a mixed season's real breakdown); a movie states whatever
   resolution `mediaItemResolutionLabel` found for it, walking the same Plex/Emby/Jellyfin
   media-item shapes TV episodes use (`fetchConfiguredAppAvailability` in
-  `server/src/routes/admin.js`) rather than a hardcoded "1080p".
+  `server/src/routes/admin.js`) rather than a hardcoded "1080p". For a TV show, the
+  pills (e.g. "15/40 Available", "7/40 Available in 4K") render in the Seasons
+  section header, to the right of the season count, instead of under the ratings row.
 - **App links** - "open in Plex/Emby/Jellyfin" deep links via
   `GET /api/media-app-links`. The last known links per title are persisted in
   localStorage (`plembfin:appLinksCache:v1`) and rendered instantly; a background
   refresh (at most once per 5 minutes per title) updates the buttons only on change.
+  The pills render inline in the ratings row next to the TMDB/TVDB/IMDb pills,
+  right-aligned via `mediaAppLinksHtml` (`media-detail-shared.js`), rather than inside
+  the "Media facts" panel.
+- **Poster lightbox** - clicking the poster image opens it in the same photo lightbox
+  used for the media images gallery (`window.openPhotoLightbox`, `media-lightbox.js`),
+  via a `data-lightbox-src` attribute on `.immersive-poster-img`.
 - **Edit tools** - edit watched date (single, per-season, per-show), edit artwork
   (poster/logo/backdrop picker fed by `GET /api/tmdb-images`, `/api/tvdb-images`,
   `/api/fanart-images`, with tiles previewed through the caching artwork proxy so a
@@ -295,11 +303,12 @@ first complete render.
   `dataRepo.js`, same echo-chain handling and canonical-state replay per
   affected episode as the single-row delete), rolling each affected
   `playstate.watched_at` back to the surviving (oldest) date the same way the
-  single-row delete does. The show-level "Edit Date"
-  control (top action bar, `openEditShowDateDialog`) shows one row per season
-  instead of a single date for the whole show - each season defaults to its
-  own latest watched date and can be changed independently before saving, so
-  Season 1 and Season 2 don't have to share one timestamp. Editing, adding, or
+  single-row delete does. The show-level date editor (`openEditShowDateDialog`
+  in `edit-dialogs.js`) shows one row per season instead of a single date for
+  the whole show - each season defaults to its own latest watched date and can
+  be changed independently before saving, so Season 1 and Season 2 don't have
+  to share one timestamp; it is not currently exposed on the show detail
+  page's control bar. Editing, adding, or
   bulk-editing (`POST /api/update-watch-dates`) a watched date replays the
   corrected date to Trakt and every connected Plex/Emby/Jellyfin server as a
   canonical "watched" state in the background (`propagateCorrectedWatchDate` in

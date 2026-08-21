@@ -546,6 +546,12 @@ export function attachMediaDetailEvents() {
       }
     }
 
+    const posterLightbox = event.target.closest(".immersive-poster-img[data-lightbox-src]");
+    if (posterLightbox) {
+      window.openPhotoLightbox([posterLightbox.dataset.lightboxSrc], 0);
+      return;
+    }
+
     const mediaImageCard = event.target.closest(".media-image-card[data-lightbox-src]");
     if (mediaImageCard) {
       const row = mediaImageCard.closest(".media-images-scroll-row");

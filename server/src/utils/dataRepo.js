@@ -1430,7 +1430,7 @@ export async function getWatchDatesForRecord(id) {
   const existing = selectByIdStmt.get(String(id));
   if (!existing) return null;
   const rows = filterSameEventDuplicateRows([existing, ...siblingWatchRowsFor(existing)])
-    .map((row) => ({ id: row.id, watched_at: row.watched_at }))
+    .map((row) => ({ id: row.id, watched_at: row.watched_at, source: row.source }))
     .sort((a, b) => String(a.watched_at || "").localeCompare(String(b.watched_at || "")));
   return {
     title: existing.title,

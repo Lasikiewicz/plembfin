@@ -11,7 +11,7 @@ import {
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
   renderSeasonSeerrControls, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml, episodeResolutionPillHtml,
-  hydrateMediaAppLinks,
+  hydrateMediaAppLinks, mediaAppLinksHtml,
 } from "./media-detail-shared.js";
 
 let _playbackProgressRows = [];
@@ -1063,18 +1063,7 @@ export function renderShowModalContent(show, {
     `;
   }).join("");
 
-  const seasonsSectionHtml = seasonsList.length ? `
-    <section class="seasons-section season-accordions">
-      <div class="show-section-title">
-        <h3>Seasons</h3>
-        <span>${regularSeasonsList.length} season${regularSeasonsList.length === 1 ? "" : "s"}</span>
-      </div>
-      <div class="season-accordion-list">${seasonsAccordionHtml}</div>
-    </section>
-  ` : "";
-
   const checkIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425z"/></svg>`;
-  const calendarIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/></svg>`;
   const imageIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/><path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12z"/></svg>`;
   const searchIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>`;
   const mergeIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M6.5 3a.5.5 0 0 1 .5.5V6h4a2.5 2.5 0 0 1 2.5 2.5v3.793a1.5 1.5 0 1 1-1 0V8.5A1.5 1.5 0 0 0 11 7H7v2.5a.5.5 0 0 1-1 0v-6a.5.5 0 0 1 .5-.5zM2 13.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0zm10 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0z"/></svg>`;
@@ -1088,8 +1077,19 @@ export function renderShowModalContent(show, {
     </button>
   ` : "";
 
+  const seasonsSectionHtml = seasonsList.length ? `
+    <section class="seasons-section season-accordions">
+      <div class="show-section-title">
+        <h3>Seasons</h3>
+        <span>${regularSeasonsList.length} season${regularSeasonsList.length === 1 ? "" : "s"}</span>
+        ${renderSeerrRequestPill("tv", tvSeerrTmdbId, showIsNowPlaying)}
+        ${expandAllSeasonsBtn}
+      </div>
+      <div class="season-accordion-list">${seasonsAccordionHtml}</div>
+    </section>
+  ` : "";
+
   setMediaDetailActions(`
-    ${mediaInfoActionHtml()}
     ${mediaForceSyncActionHtml({
       type: "show",
       title: showTitle,
@@ -1101,17 +1101,12 @@ export function renderShowModalContent(show, {
         .sort((a, b) => Number(a.season_number) - Number(b.season_number))
         .map((season) => ({ number: Number(season.season_number), episodeCount: Number(season.episode_count || 0) })),
     })}
-    <button class="action-pill" type="button" data-watch-scope="show" ${(episodeRows.length && !isShowBusy) ? "" : "disabled"}
-      title="${unwatchedRows.length ? "" : "Re-push this show's watched state to Plex, Emby, Jellyfin & Trakt"}">
-      ${checkIcon}
-      <span>${isShowBusy ? "Syncing..." : unwatchedRows.length ? "Mark <br>Watched" : "Resync <br>Watched"}</span>
-    </button>
-    ${showUnwatchButtonHtml(watchedRows.map((episode) => episode.watched.id), showTitle, isShowBusy)}
-    ${watchedRows.length ? `
-      <button class="action-pill media-edit-show-date-btn" type="button" ${isShowBusy ? "disabled" : ""} data-show-title="${escapeAttribute(showTitle)}">
-        ${calendarIcon}
-        <span>Edit <br>Date</span>
+    ${unwatchedRows.length ? `
+      <button class="action-pill" type="button" data-watch-scope="show" ${(episodeRows.length && !isShowBusy) ? "" : "disabled"}>
+        ${checkIcon}
+        <span>${isShowBusy ? "Syncing..." : "Mark <br>Watched"}</span>
       </button>` : ""}
+    ${showUnwatchButtonHtml(watchedRows.map((episode) => episode.watched.id), showTitle, isShowBusy)}
     ${tmdbOnly ? "" : `
       <button class="action-pill media-edit-image-btn" type="button" ${isShowBusy ? "disabled" : ""} data-edit-id="${escapeAttribute(representativeEpisode(seasonsMap)?.id || show.id || "")}" data-title="${escapeAttribute(showTitle)}" data-poster-url="${escapeAttribute(show.poster_url || "")}" data-logo-url="${escapeAttribute(show.logo_url || "")}" data-backdrop-url="${escapeAttribute(show.backdrop_url || "")}">
         ${imageIcon}
@@ -1144,7 +1139,7 @@ export function renderShowModalContent(show, {
         </div>
       </details>
     `}
-    ${expandAllSeasonsBtn}
+    ${mediaInfoActionHtml()}
   `);
 
   const isBioLayout = document.body.classList.contains("bio-media-layout") || localStorage.getItem("plembfin_bio_media_layout") === "1";
@@ -1154,7 +1149,7 @@ export function renderShowModalContent(show, {
       <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || "")}');"></div>
       <div class="immersive-container media-detail-page bio-layout">
         <div class="media-detail-bio-left">
-          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" data-err="fav" loading="eager" fetchpriority="high" decoding="async" />
+          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" data-err="fav" loading="eager" fetchpriority="high" decoding="async" ${posterUrl ? `data-lightbox-src="${escapeAttribute(posterUrl)}"` : ""} />
           <div class="media-detail-meta-below-poster">
             <p class="immersive-overview">${escapeHtml(overview)}</p>
           </div>
@@ -1168,8 +1163,8 @@ export function renderShowModalContent(show, {
                 ${ratingPillsHtml}
                 ${imdbPillHtml}
                 ${showModalStatus(loading, Boolean(tmdbData))}
+                ${tmdbData ? mediaAppLinksHtml(tmdbData, "tv") : ""}
               </div>
-              ${renderSeerrRequestPill("tv", tvSeerrTmdbId, showIsNowPlaying)}
               ${localEvidence}
               <section class="progress-section" style="border: 0; padding: 0; margin-top: 0.5rem; width: 100%;">
                 <div class="progress-label-row">
@@ -1202,7 +1197,7 @@ export function renderShowModalContent(show, {
       <div class="immersive-container media-detail-page">
 
         <header class="immersive-header">
-          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" data-err="fav" loading="eager" fetchpriority="high" decoding="async" />
+          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" data-err="fav" loading="eager" fetchpriority="high" decoding="async" ${posterUrl ? `data-lightbox-src="${escapeAttribute(posterUrl)}"` : ""} />
           <div class="immersive-meta">
             ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(showTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(showTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(showTitle)}</h2>`}
             <div class="media-detail-bottom-stack">
@@ -1210,9 +1205,8 @@ export function renderShowModalContent(show, {
                 ${ratingPillsHtml}
                 ${imdbPillHtml}
                 ${showModalStatus(loading, Boolean(tmdbData))}
+                ${tmdbData ? mediaAppLinksHtml(tmdbData, "tv") : ""}
               </div>
-
-              ${renderSeerrRequestPill("tv", tvSeerrTmdbId, showIsNowPlaying)}
 
               <p class="immersive-overview">${escapeHtml(overview)}</p>
 

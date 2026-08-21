@@ -697,6 +697,15 @@ h2 {
   width: 100%;
 }
 
+.media-app-links--inline {
+  width: auto;
+  margin-left: auto;
+}
+
+.media-app-links--inline .media-app-link-row {
+  justify-content: flex-end;
+}
+
 .media-app-link-row {
   display: flex;
   flex-wrap: wrap;
@@ -8266,6 +8275,10 @@ html.light-mode .log-msg {
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5);
 }
 
+.immersive-poster-img[data-lightbox-src] {
+  cursor: zoom-in;
+}
+
 .immersive-meta {
   display: flex;
   flex-direction: column;
@@ -12868,7 +12881,7 @@ html.light-mode #explorerPanel .media-detail-page {
   width: 100px;
   aspect-ratio: 2 / 3;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: var(--poster-radius);
   border: 1px solid var(--line);
   transition: transform 150ms ease, border-color 150ms ease;
 }
@@ -14277,6 +14290,10 @@ html.light-mode .history-mini-card-title {
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 700;
+}
+
+.season-accordions .show-section-title .media-toggle-all-seasons-btn {
+  margin-left: auto;
 }
 
 .season-accordion-list {

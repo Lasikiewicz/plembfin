@@ -328,6 +328,25 @@ export function renderCollectionSection(tmdbData) {
   `;
 }
 
+// The Plex/Emby/Jellyfin app-link pills, as a standalone hydratable container -
+// callers place this wherever it belongs (e.g. inline in the ratings row)
+// rather than it always living inside the "Media facts" panel.
+export function mediaAppLinksHtml(tmdbData, mediaType = "movie") {
+  if (!tmdbData) return "";
+  const tmdbId = tmdbData.id || tmdbData.tmdb_id || "";
+  const imdbId = tmdbData.imdb_id || tmdbData.external_ids?.imdb_id || "";
+  const tvdbId = tmdbData.external_ids?.tvdb_id || "";
+  const title = mediaType === "tv" ? (tmdbData.name || tmdbData.original_name || "") : (tmdbData.title || tmdbData.original_title || "");
+  return `
+    <div class="media-app-links media-app-links--inline" data-media-app-links
+      data-media-type="${escapeAttribute(mediaType)}"
+      data-tmdb-id="${escapeAttribute(String(tmdbId))}"
+      data-imdb-id="${escapeAttribute(String(imdbId))}"
+      data-tvdb-id="${escapeAttribute(String(tvdbId))}"
+      data-title="${escapeAttribute(title)}"></div>
+  `;
+}
+
 export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inline") {
   if (!tmdbData) return "";
   const providers = tmdbData["watch/providers"]?.results?.GB?.flatrate || tmdbData["watch/providers"]?.results?.US?.flatrate || [];
@@ -345,12 +364,6 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
   ].filter(([, value]) => value);
   if (!facts.length) return "";
   const wideLabels = new Set(["Streaming", "Network", "Genres"]);
-  const tmdbId = tmdbData.id || tmdbData.tmdb_id || "";
-  const imdbId = tmdbData.imdb_id || tmdbData.external_ids?.imdb_id || "";
-  const tvdbId = tmdbData.external_ids?.tvdb_id || "";
-  const title = mediaType === "tv" ? (tmdbData.name || tmdbData.original_name || "") : (tmdbData.title || tmdbData.original_title || "");
-
-
 
   // First 2 facts are always visible
   const visibleFacts = facts.slice(0, 2);
@@ -363,15 +376,6 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
   const hiddenHtml = hiddenFacts.map(([label, value]) => `
     <div class="media-fact${wideLabels.has(label) ? " media-fact--wide" : ""}"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>
   `).join("");
-
-  const appsHtml = `
-    <div class="media-fact media-fact--wide media-app-links" data-media-app-links
-      data-media-type="${escapeAttribute(mediaType)}"
-      data-tmdb-id="${escapeAttribute(String(tmdbId))}"
-      data-imdb-id="${escapeAttribute(String(imdbId))}"
-      data-tvdb-id="${escapeAttribute(String(tvdbId))}"
-      data-title="${escapeAttribute(title)}"></div>
-  `;
 
   const openAttr = window.innerWidth <= 640 ? "" : " open";
 
@@ -389,7 +393,6 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
             ${hiddenHtml}
           </aside>
         </details>
-        ${appsHtml}
       </div>
     `;
   }
@@ -404,7 +407,6 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
       </summary>
       <aside class="media-facts-rail" aria-label="Media facts">
         ${hiddenHtml}
-        ${appsHtml}
       </aside>
     </details>
   `;
