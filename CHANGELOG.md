@@ -4,6 +4,93 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.10.0 - 22 August 2026
+
+Fix - Resolve CodeQL alerts and update undici and CodeQL action dependencies
+
+- Edit Watch Date dialog now shows each watch's platform badge (Plex/Emby/Jellyfin)
+- TV show control bar: Info moved to the end, the redundant Resync Watched button removed once a show is fully watched, and the top-bar Edit Date button removed
+- Expand All/Collapse All moved inline next to the Seasons heading, right-aligned
+- Availability pills (e.g. 15/40 Available, 7/40 Available in 4K) moved next to the season count in the Seasons heading
+- Plex/Emby/Jellyfin app-link pills moved inline into the ratings row, right-aligned, instead of inside the Media facts panel
+- Clicking the poster on a movie or show page now opens it in the photo lightbox
+- Cast photo thumbnails now use the same rounded corners as posters
+- Media facts panel redesigned: transparent card, real TMDB/TheTVDB/IMDb brand icons in a Ratings row, Plex/Emby/Jellyfin moved into a Watch Now row, Network and Available on show provider icons and link out to TMDB's where-to-watch page for the title
+- Network icons now match even when TMDB's network name differs from its watch-provider name (e.g. Prime Video vs Amazon Prime Video); shows resolved via TheTVDB still show network name as text only since TVDB has no logo data
+- Poster click now opens the photo lightbox, which renders with rounded corners to match posters
+- Dark mode's accent color changed from blue to orange (matching the active TV Shows sidebar tab) across buttons, links, and highlights app-wide; light mode keeps blue
+- Theme toggle now fades colors smoothly instead of switching instantly
+- Fixed several legacy CSS rules that were silently overriding new sizing/color rules with stale hardcoded values
+- Bumped cache-busting version strings for styles.css and the media detail modules so browsers pick up today's changes instead of serving stale cached copies
+- Force Sync and Full Sync Watchstates now process independent library items with bounded concurrency instead of one at a time, dramatically speeding up large plans without exceeding the outbound pacing governor's per-server request limits
+- Added a Fast Local-Network Sync checkbox to Settings -> Sync -> Sync Tuning (off by default) that raises those per-server limits further for setups where Plex, Emby, and Jellyfin are all self-hosted on the same trusted local network as Plembfin
+- Cancelling a Force Sync now lets already-in-flight items finish instead of stopping after a single item
+- Documented the new setting in Settings help, docs/settings.md, and the README configuration reference
+- Fast Local-Network Sync (and any other pacing profile choice) now actually stays saved instead of silently reverting to standard the moment anything reloads config, which happened immediately after clicking Save
+- The same silent-reset bug affected Sync Scope and the Authority (source-of-truth/conflict policy) settings, which are fixed by the same change
+- Root cause: the settings loader's env-default merge step rebuilt its config object without carrying these three sections through, so they were treated as never-set and reset to their hardcoded defaults on every read
+- Removing a duplicate watch (per-season, library-wide, or a single watch-date delete) could report an episode or movie as fully unwatched even though a real watch of it still existed, because the check only looked for survivors under the exact same media_key as the row just deleted
+- Two watch rows for the same episode can legitimately carry different media_keys (e.g. one recorded via a TMDB id, another via an IMDb id only), so that exact-key check missed the surviving row and wrongly propagated an unwatched state to Plex, Emby, Jellyfin, and Trakt
+- The check now reuses the same broader same-episode identity match already used to find which rows belong together, so a surviving watch under a different key is correctly detected and the corrected watched state is propagated instead
+- Added a regression test reproducing the exact scenario
+- Added GET /api/stale-pending-watch-audit and POST /api/stale-pending-watch-repair, generalizing the earlier Trakt play-history incident fix to any watch_history row left with no telemetry or an exhausted retry count from any source, not just the Trakt importer
+- The repair only resets retry bookkeeping so the existing scheduler backlog sweep performs a real dispatch and records what actually happened, rather than fabricating a settled telemetry
+- Added GET /api/split-identity-unwatch-audit (read-only) to find episodes where a genuine earlier watch is being shadowed by a later unwatched row recorded under a different identity key for the same episode - the aftermath of the deleteWatchDates media_key-split bug pushing a real unplayed mark to media servers, which Plembfin's own unwatched-fallback polls then correctly recorded back in as canonical
+- No automatic repair for the split-identity case yet - reverting an unwatch that was genuinely intentional would itself be a phantom watch, so candidates need manual review first
+- Documented both tools in docs/scheduled-sync.md alongside the existing Trakt-import repair
+- Fixed a real incident: a single Jellyfin burst (a library rescan, metadata refresh, or rate-limited response) falsely unwatched 264+ episodes across dozens of unrelated shows within about seven minutes, propagating the false unwatch on to Plex and Emby before anyone noticed
+- applyUnwatchedTransition now tracks a shared, database-backed count of automatic (non-manual) unwatches across Plex, Emby, Jellyfin, and Trakt, and holds back any single one once too many have been recorded in a short window instead of propagating it - this is the one place every automatic unwatch path already funnels through, so it protects all three media servers plus Trakt at once
+- Manual actions (marking something unwatched in Plembfin itself, Force Sync, Set Plembfin as Source of Truth, Trakt import) are never affected - only automatic, inbound-from-a-server decisions are rate-limited, and a person can still unwatch as much as they want in one sitting
+- Works correctly in a split web/worker deployment since the counter lives in the shared database, not in one process's memory
+- Added POST /api/split-identity-unwatch-repair: an explicit admin action that restores episodes already affected by this failure mode (found by the read-only audit added earlier) and re-pushes the corrected watched state to every connected platform
+- Documented both the prevention and the repair tool in docs/scheduled-sync.md
+- Removing duplicate watches (per-season or library-wide) could wrongly delete a genuinely watched episode and leave it unwatched, if the same episode also had an older, unrelated row that had been explicitly marked unwatched at some earlier point
+- The stale unwatched row isn't a countable duplicate watch at all, but duplicate-detection was treating it as one - and since it could sort ahead of the real watch (same or earlier timestamp), it got 'kept' as the supposed oldest copy while the actual watch was deleted as the 'duplicate', wrongly unwatching an item that was never actually duplicated
+- Library-wide scan/cleanup and the per-season 'Remove duplicate watches' control both now only ever compare rows that currently read as watched; a later explicit unwatch still shows in the play-history list, it's just never treated as a removable duplicate
+- Some episodes affected by the mass false-unwatch incident lost the shadowed watched row entirely rather than just having it shadowed (real cases: The 'Burbs S01E01, Silo S03E02) - every remaining row reads unwatched, so the existing split-identity audit never finds them
+- Added GET /api/likely-false-unwatch-audit (read-only): flags an episode where no row currently reads watched but at least one unwatched row came from an automatic source (plex/emby/jellyfin, never manual) with no surviving watched sibling anywhere - the same cascade signature as the split-identity case, just missing its watched half
+- Added POST /api/likely-false-unwatch-repair: consolidates every stale row for the episode into one fresh watched record using the oldest row's own date as the best evidence of a genuine watch, then re-pushes it to every connected platform
+- This fingerprint is less certain than the split-identity one (an automatic source is also what a genuine unwatch performed directly on a media server looks like), so it stays audit-only until real candidates are reviewed
+- Added regression tests for both the audit and the repair
+- Removing duplicate watches from a season or the whole library no longer wrongly deletes a watch you meant to keep just because it shares a similar timestamp with the one being removed (e.g. marking an episode watched using the same time as another episode, then cleaning up duplicates) - the episode no longer gets left fully unwatched as a side effect
+- Manually marking something watched inside Plembfin (not reported by Plex, Emby, or Jellyfin) now shows a Plembfin badge and logo instead of being mislabeled as a Plex watch
+- Deleting a watch date no longer falls back to fully unwatched just because the only row left over happens to carry an old unwatched marker - leaving that row standing (instead of deleting it too) is now treated as confirmation it should count as watched, and it gets pushed out to Plex, Emby, Jellyfin, and Trakt accordingly
+- A genuine, more recent deliberate unwatch is never overridden by this - an older row that is still genuinely marked watched always takes priority, so an intentional unwatch is never silently resurrected
+- A watch that gets re-dispatched later instead of right when it happened (e.g. the last watch date you leave standing after removing a duplicate) now reaches Trakt with its real recorded date and time, not the current moment - the scheduler's background retry queue was building its outbound payload without that date at all
+- Removing or correcting a watch date now records the real outcome of that sync (including which platforms it actually reached) on the affected record, instead of leaving it stuck showing a pending sync forever
+- The sidebar sync line is now always visible, reading "Sync - Idle" when nothing is running and "Sync - x of x" while a sync is in flight
+- Clicking the sync line opens a new Sync Activity page listing every synced media item in its own row, newest first
+- Each row shows where the sync request came from and which apps it was dispatched to, plus each target's result and any failure detail
+- Each row has a Download log button that saves that single item's full sync record as a plain-text log
+- The Sync Activity page refreshes itself while a sync is running so rows appear as they are dispatched
+- Target results are now the app's icon followed by its status instead of pills, coloured by outcome with the failure detail on hover
+- Trakt dispatches are named and shown as Trakt with their own icon rather than being labelled Plex, alongside Plex, Emby, Jellyfin, and Plembfin's own manual actions
+- The Download log button sits on the same line as the target results
+- Clicking a media title opens that title's page, using your library first and the recorded TMDB/TVDB ids otherwise
+- Clicking anywhere else on a row expands it to show that item's full log inline, and a background refresh keeps opened rows open
+- Mark-unwatched buttons (episode, season, and show) now show "Unwatching..." while removal is in flight instead of the mark-watched "Syncing..." label, and are properly disabled during that time
+- Removing a single watch date from the edit-date dialog now marks that specific row as unwatching, so it is not mislabeled if an unrelated sync re-renders the page underneath
+- The full search page and the topbar search dropdown now list what is on a connected media server ahead of TMDB/TheTVDB-only matches, instead of relying on incidental result ordering
+- Updated docs/media-detail.md and docs/history-search.md to describe the new busy-state tracking and search ordering
+- Removed the completed "Unwatching" label and "local results first" backlog items from TODO.md
+- Manual unwatch actions (Sync Activity Mark Unwatched, and the Continue Watching clear-progress unwatch) now log their origin as Manual instead of echoing whatever platform the original watch record happened to be sourced from
+- Fixes a misleading Sync Activity entry where marking an item unwatched in Plembfin showed "Request came from: Trakt" purely because that item's original watch had legacy provenance pointing at Trakt
+- Dispatch behavior is unchanged - this only corrects the recorded origin shown in Sync Activity and the per-record sync telemetry
+- Manual watched marks now use the release date when no threshold-reaching playback was detected, while explicit actions can proceed through the interactive sync lane.
+- Movies without provider IDs receive TMDB lookup before tracker dispatch.
+- Keep queued sync items visible, enrich movie provider IDs, and improve Trakt matching.
+- Preserves local watch history rows for TV seasons when upstream providers only index a partial episode list
+- Formats season headers to always include the season number alongside any custom season subtitle
+- Standardizes rating, network, and app icon dimensions to match the Plex baseline
+- Aligns genres across full-width rows when runtime is absent so network and ratings pair cleanly
+- Verify administrator username using constant-time comparison to prevent timing-based user enumeration
+- Extend TruffleHog secret scanning in CI to run on develop branch pushes and pull requests
+- Add automated unit tests for authentication verification edge cases
+- Sanitize 500 error responses in HTTP utility to prevent potential stack trace or file path exposure
+- Pass console error log arguments separately to prevent tainted format string warnings
+- Bump undici to 8.10.0 for upstream stream encoding and socket DNS origin fixes
+- Bump GitHub CodeQL action to v4.37.4
+
 ## v0.9.8 - 21 August 2026
 
 Fix - Stop mark-watched syncs from blocking unrelated watch actions
