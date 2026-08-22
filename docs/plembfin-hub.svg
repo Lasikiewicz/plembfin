@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1200 640" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1200 540" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
   <defs>
     <!-- Card Gradients & Fills -->
     <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -17,7 +17,7 @@
       <stop offset="100%" stop-color="#10B981"/>
     </linearGradient>
 
-    <!-- Brand Gradients (No heavy purple) -->
+    <!-- Brand Gradients -->
     <linearGradient id="jellyfinGrad" x1="0%" y1="100%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#2563EB"/>
       <stop offset="100%" stop-color="#00A4DC"/>
@@ -39,7 +39,7 @@
       <stop offset="100%" stop-color="#0284C7"/>
     </linearGradient>
 
-    <!-- Connector Line Gradients (Cyan, Emerald, Amber, Blue, Slate) -->
+    <!-- Connector Line Gradients -->
     <linearGradient id="linePlex" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#E5A00D"/>
       <stop offset="100%" stop-color="#38BDF8"/>
@@ -87,11 +87,11 @@
 
     <!-- Clip Paths & Filters -->
     <clipPath id="plembfinLogoClip">
-      <circle cx="40" cy="40" r="38"/>
+      <circle cx="28" cy="28" r="27"/>
     </clipPath>
 
     <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.45"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.45"/>
     </filter>
 
     <!-- Arrow Markers -->
@@ -106,120 +106,64 @@
     </marker>
   </defs>
 
-  <!-- ================= SECTION HEADER BADGES ================= -->
-  <!-- Top Category: Two-Way Watch State -->
-  <g transform="translate(600, 26)">
-    <rect x="-190" y="-13" width="380" height="26" rx="13" fill="#0B132B" stroke="#1E293B" stroke-width="1.2"/>
-    <circle cx="-168" cy="0" r="3.5" fill="#38BDF8"/>
-    <circle cx="168" cy="0" r="3.5" fill="#38BDF8"/>
-    <text x="0" y="4" text-anchor="middle" font-size="10.5" font-weight="700" fill="#94A3B8" letter-spacing="1.5">TWO-WAY WATCH STATE &amp; PLAYBACK SYNC ( ⇄ )</text>
-  </g>
-
-  <!-- Bottom Left Category: Metadata & Ratings -->
-  <g transform="translate(435, 608)">
-    <rect x="-210" y="-13" width="420" height="26" rx="13" fill="#0B132B" stroke="#1E293B" stroke-width="1.2"/>
-    <circle cx="-190" cy="0" r="3.5" fill="#10B981"/>
-    <text x="0" y="4" text-anchor="middle" font-size="10.5" font-weight="700" fill="#94A3B8" letter-spacing="1.2">METADATA, ARTWORK &amp; RATINGS ( → INGESTION )</text>
-  </g>
-
-  <!-- Bottom Right Category: Requests -->
-  <g transform="translate(1045, 608)">
-    <rect x="-95" y="-13" width="190" height="26" rx="13" fill="#0B132B" stroke="#1E293B" stroke-width="1.2"/>
-    <circle cx="-78" cy="0" r="3.5" fill="#38BDF8"/>
-    <text x="5" y="4" text-anchor="middle" font-size="10.5" font-weight="700" fill="#94A3B8" letter-spacing="1.2">REQUESTS ( ⇄ )</text>
-  </g>
-
-
   <!-- ================= CONNECTOR PATHS ================= -->
-  <!-- Top Connectors (Bidirectional Watch State ⇄) -->
-  <!-- Plex -> Hub -->
-  <path d="M 150 152 C 150 205, 460 235, 470 270" fill="none" stroke="url(#linePlex)" stroke-width="2.5" stroke-dasharray="7,4" marker-start="url(#arrSyncCyan)" marker-end="url(#arrSyncCyan)"/>
-  
-  <!-- Emby -> Hub -->
-  <path d="M 450 152 C 450 195, 525 215, 545 250" fill="none" stroke="url(#lineEmby)" stroke-width="2.5" stroke-dasharray="7,4" marker-start="url(#arrSyncCyan)" marker-end="url(#arrSyncCyan)"/>
-  
-  <!-- Jellyfin -> Hub -->
-  <path d="M 750 152 C 750 195, 675 215, 655 250" fill="none" stroke="url(#lineJelly)" stroke-width="2.5" stroke-dasharray="7,4" marker-start="url(#arrSyncCyan)" marker-end="url(#arrSyncCyan)"/>
-  
-  <!-- Trakt -> Hub -->
-  <path d="M 1050 152 C 1050 205, 740 235, 730 270" fill="none" stroke="url(#lineTrakt)" stroke-width="2.5" stroke-dasharray="7,4" marker-start="url(#arrSyncCyan)" marker-end="url(#arrSyncCyan)"/>
+  <!-- Top Connectors (⇄) -->
+  <path d="M 145 114 C 145 160, 480 195, 500 230" fill="none" stroke="url(#linePlex)" stroke-width="2.5" stroke-dasharray="7,4" marker-start="url(#arrSyncCyan)" marker-end="url(#arrSyncCyan)"/>
+  <path d="M 445 114 C 445 155, 535 180, 550 230" fill="none" stroke="url(#lineEmby)" stroke-width="2.5" stroke-dasharray="7,4" marker-start="url(#arrSyncCyan)" marker-end="url(#arrSyncCyan)"/>
+  <path d="M 745 114 C 745 155, 655 180, 640 230" fill="none" stroke="url(#lineJelly)" stroke-width="2.5" stroke-dasharray="7,4" marker-start="url(#arrSyncCyan)" marker-end="url(#arrSyncCyan)"/>
+  <path d="M 1045 114 C 1045 160, 710 195, 690 230" fill="none" stroke="url(#lineTrakt)" stroke-width="2.5" stroke-dasharray="7,4" marker-start="url(#arrSyncCyan)" marker-end="url(#arrSyncCyan)"/>
 
-  <!-- Bottom Connectors (Metadata Inbound → / Requests ⇄) -->
-  <!-- TMDB -> Hub -->
-  <path d="M 125 486 C 125 425, 460 400, 475 365" fill="none" stroke="url(#lineTMDB)" stroke-width="2" marker-end="url(#arrInGreen)"/>
-  
-  <!-- TheTVDB -> Hub -->
-  <path d="M 335 486 C 335 430, 520 410, 540 380" fill="none" stroke="url(#lineTVDB)" stroke-width="2" marker-end="url(#arrInGreen)"/>
-  
-  <!-- Fanart.tv -> Hub -->
-  <path d="M 545 486 C 545 435, 585 420, 595 385" fill="none" stroke="url(#lineFanart)" stroke-width="2" marker-end="url(#arrInCyan)"/>
-  
-  <!-- OMDb -> Hub -->
-  <path d="M 755 486 C 755 435, 635 420, 615 385" fill="none" stroke="url(#lineOMDb)" stroke-width="2" marker-end="url(#arrInCyan)"/>
-  
-  <!-- Overseerr/Jellyseerr -> Hub (Bidirectional Requests ⇄) -->
-  <path d="M 1045 486 C 1045 425, 740 400, 725 365" fill="none" stroke="url(#lineSeerr)" stroke-width="2.5" stroke-dasharray="7,4" marker-start="url(#arrSyncCyan)" marker-end="url(#arrSyncCyan)"/>
+  <!-- Bottom Connectors (→ & ⇄) -->
+  <path d="M 120 430 C 120 375, 480 345, 500 310" fill="none" stroke="url(#lineTMDB)" stroke-width="2" marker-end="url(#arrInGreen)"/>
+  <path d="M 345 430 C 345 375, 535 345, 550 310" fill="none" stroke="url(#lineTVDB)" stroke-width="2" marker-end="url(#arrInGreen)"/>
+  <path d="M 575 430 C 575 375, 595 350, 595 310" fill="none" stroke="url(#lineFanart)" stroke-width="2" marker-end="url(#arrInCyan)"/>
+  <path d="M 800 430 C 800 375, 655 345, 640 310" fill="none" stroke="url(#lineOMDb)" stroke-width="2" marker-end="url(#arrInCyan)"/>
+  <path d="M 1050 430 C 1050 375, 710 345, 690 310" fill="none" stroke="url(#lineSeerr)" stroke-width="2.5" stroke-dasharray="7,4" marker-start="url(#arrSyncCyan)" marker-end="url(#arrSyncCyan)"/>
 
 
-  <!-- ================= TOP ROW CARDS (MEDIA PLATFORMS) ================= -->
+  <!-- ================= TOP ROW: MEDIA PLATFORMS ================= -->
   <!-- 1. PLEX -->
-  <g transform="translate(60, 58)" filter="url(#cardShadow)">
-    <rect width="180" height="94" rx="12" fill="url(#cardGrad)" stroke="#E5A00D" stroke-opacity="0.45" stroke-width="1.5"/>
-    <!-- Logo Badge -->
-    <g transform="translate(18, 22)">
-      <rect width="50" height="50" rx="10" fill="#1B1C1E"/>
-      <path fill="#E5A00D" d="M25 7H14.5l10.5 18-10.5 18H25l10.5-18z"/>
+  <g transform="translate(60, 60)" filter="url(#cardShadow)">
+    <rect width="170" height="54" rx="14" fill="url(#cardGrad)" stroke="#E5A00D" stroke-opacity="0.4" stroke-width="1.5"/>
+    <g transform="translate(10, 8)">
+      <rect width="38" height="38" rx="8" fill="#1B1C1E"/>
+      <path fill="#E5A00D" d="M19 6H11l8 13-8 13h8l8-13z"/>
     </g>
-    <!-- Text Info -->
-    <text x="80" y="38" font-size="17" font-weight="700" fill="#F8FAFC">Plex</text>
-    <rect x="80" y="46" width="82" height="18" rx="4" fill="#E5A00D" fill-opacity="0.15"/>
-    <text x="85" y="59" font-size="10" font-weight="600" fill="#FBBF24">2-Way Sync</text>
-    <text x="80" y="77" font-size="10.5" fill="#94A3B8">Webhooks &amp; WS</text>
+    <text x="60" y="34" font-size="16" font-weight="700" fill="#F8FAFC">Plex</text>
   </g>
 
   <!-- 2. EMBY -->
-  <g transform="translate(360, 58)" filter="url(#cardShadow)">
-    <rect width="180" height="94" rx="12" fill="url(#cardGrad)" stroke="#52B54B" stroke-opacity="0.45" stroke-width="1.5"/>
-    <!-- Logo Badge -->
-    <g transform="translate(18, 22)">
-      <rect width="50" height="50" rx="10" fill="#142416"/>
-      <g transform="translate(9, 9) scale(0.0625)">
+  <g transform="translate(360, 60)" filter="url(#cardShadow)">
+    <rect width="170" height="54" rx="14" fill="url(#cardGrad)" stroke="#52B54B" stroke-opacity="0.4" stroke-width="1.5"/>
+    <g transform="translate(10, 8)">
+      <rect width="38" height="38" rx="8" fill="#142416"/>
+      <g transform="translate(7, 7) scale(0.047)">
         <path d="m97.1 229.4 26.5 26.5L0 379.5l132.4 132.4 26.5-26.5L282.5 609l141.2-141.2-26.5-26.5L512 326.5 379.6 194.1l-26.5 26.5L229.5 97z" fill="#52B54B" transform="translate(0 -97)"/>
         <path d="M196.8 351.2v-193L366 254.7 281.4 303z" fill="#FFFFFF"/>
       </g>
     </g>
-    <!-- Text Info -->
-    <text x="80" y="38" font-size="17" font-weight="700" fill="#F8FAFC">Emby</text>
-    <rect x="80" y="46" width="82" height="18" rx="4" fill="#52B54B" fill-opacity="0.15"/>
-    <text x="85" y="59" font-size="10" font-weight="600" fill="#4ADE80">2-Way Sync</text>
-    <text x="80" y="77" font-size="10.5" fill="#94A3B8">Webhooks &amp; Poll</text>
+    <text x="60" y="34" font-size="16" font-weight="700" fill="#F8FAFC">Emby</text>
   </g>
 
   <!-- 3. JELLYFIN -->
-  <g transform="translate(660, 58)" filter="url(#cardShadow)">
-    <rect width="180" height="94" rx="12" fill="url(#cardGrad)" stroke="#00A4DC" stroke-opacity="0.45" stroke-width="1.5"/>
-    <!-- Logo Badge -->
-    <g transform="translate(18, 22)">
-      <rect width="50" height="50" rx="10" fill="#101C2B"/>
-      <g transform="translate(9, 9) scale(0.0625)">
+  <g transform="translate(660, 60)" filter="url(#cardShadow)">
+    <rect width="170" height="54" rx="14" fill="url(#cardGrad)" stroke="#00A4DC" stroke-opacity="0.4" stroke-width="1.5"/>
+    <g transform="translate(10, 8)">
+      <rect width="38" height="38" rx="8" fill="#101C2B"/>
+      <g transform="translate(7, 7) scale(0.047)">
         <path d="M256 196.2c-22.4 0-94.8 131.3-83.8 153.4s156.8 21.9 167.7 0-61.3-153.4-83.9-153.4" fill="url(#jellyfinGrad)"/>
         <path d="M256 0C188.3 0-29.8 395.4 3.4 462.2s472.3 66 505.2 0S323.8 0 256 0m165.6 404.3c-21.6 43.2-309.3 43.8-331.1 0S211.7 101.4 256 101.4 443.2 361 421.6 404.3" fill="url(#jellyfinGrad)"/>
       </g>
     </g>
-    <!-- Text Info -->
-    <text x="80" y="38" font-size="17" font-weight="700" fill="#F8FAFC">Jellyfin</text>
-    <rect x="80" y="46" width="82" height="18" rx="4" fill="#00A4DC" fill-opacity="0.15"/>
-    <text x="85" y="59" font-size="10" font-weight="600" fill="#38BDF8">2-Way Sync</text>
-    <text x="80" y="77" font-size="10.5" fill="#94A3B8">Webhooks &amp; Poll</text>
+    <text x="60" y="34" font-size="16" font-weight="700" fill="#F8FAFC">Jellyfin</text>
   </g>
 
   <!-- 4. TRAKT -->
-  <g transform="translate(960, 58)" filter="url(#cardShadow)">
-    <rect width="180" height="94" rx="12" fill="url(#cardGrad)" stroke="#EF4444" stroke-opacity="0.45" stroke-width="1.5"/>
-    <!-- Logo Badge -->
-    <g transform="translate(18, 22)">
-      <rect width="50" height="50" rx="10" fill="#241316"/>
-      <g transform="translate(9, 9) scale(0.0625)">
+  <g transform="translate(960, 60)" filter="url(#cardShadow)">
+    <rect width="170" height="54" rx="14" fill="url(#cardGrad)" stroke="#EF4444" stroke-opacity="0.4" stroke-width="1.5"/>
+    <g transform="translate(10, 8)">
+      <rect width="38" height="38" rx="8" fill="#241316"/>
+      <g transform="translate(7, 7) scale(0.047)">
         <circle cx="256" cy="256" r="248" fill="#ED2224"/>
         <g fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="256" cy="256" r="216"/>
@@ -228,111 +172,74 @@
         </g>
       </g>
     </g>
-    <!-- Text Info -->
-    <text x="80" y="38" font-size="17" font-weight="700" fill="#F8FAFC">Trakt</text>
-    <rect x="80" y="46" width="82" height="18" rx="4" fill="#EF4444" fill-opacity="0.15"/>
-    <text x="85" y="59" font-size="10" font-weight="600" fill="#F87171">2-Way Sync</text>
-    <text x="80" y="77" font-size="10.5" fill="#94A3B8">Scrobbles &amp; History</text>
+    <text x="60" y="34" font-size="16" font-weight="700" fill="#F8FAFC">Trakt</text>
   </g>
 
 
-  <!-- ================= CENTRAL HUB (PLEMBFIN) ================= -->
-  <g transform="translate(425, 245)" filter="url(#cardShadow)">
-    <!-- Main Hub Card Frame -->
-    <rect width="350" height="145" rx="18" fill="url(#hubCardGrad)"/>
-    <rect width="350" height="145" rx="18" fill="none" stroke="url(#hubBorderGrad)" stroke-width="2.5"/>
+  <!-- ================= CENTRAL HUB: PLEMBFIN ================= -->
+  <g transform="translate(470, 230)" filter="url(#cardShadow)">
+    <rect width="260" height="80" rx="18" fill="url(#hubCardGrad)"/>
+    <rect width="260" height="80" rx="18" fill="none" stroke="url(#hubBorderGrad)" stroke-width="2.5"/>
     
-    <!-- Top Pill Status -->
-    <g transform="translate(175, 20)">
-      <rect x="-85" y="-10" width="170" height="20" rx="10" fill="#0B132B" stroke="#38BDF8" stroke-opacity="0.4" stroke-width="1"/>
-      <circle cx="-68" cy="0" r="3.5" fill="#10B981"/>
-      <text x="4" y="3.5" text-anchor="middle" font-size="9.5" font-weight="700" fill="#38BDF8" letter-spacing="1">CANONICAL HUB</text>
+    <!-- Logo Badge -->
+    <g transform="translate(16, 12)">
+      <circle cx="28" cy="28" r="28" fill="#0A0E17" stroke="#38BDF8" stroke-width="2"/>
+      <image x="1" y="1" width="54" height="54" clip-path="url(#plembfinLogoClip)" href="data:image/png;base64,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" xlink:href="data:image/png;base64,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"/>
     </g>
 
-    <!-- Authentic Plembfin Logo -->
-    <g transform="translate(22, 44)">
-      <!-- Outer border circle for logo -->
-      <circle cx="40" cy="40" r="39" fill="#0A0E17" stroke="#38BDF8" stroke-width="2"/>
-      <image x="2" y="2" width="76" height="76" clip-path="url(#plembfinLogoClip)" href="data:image/png;base64,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" xlink:href="data:image/png;base64,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"/>
-    </g>
-
-    <!-- Plembfin Title & Description -->
-    <text x="114" y="74" font-size="24" font-weight="800" fill="#FFFFFF" letter-spacing="0.5">Plembfin</text>
-    <text x="114" y="93" font-size="12" font-weight="600" fill="#38BDF8">Canonical State &amp; Sync Engine</text>
-    
-    <!-- Feature Pill Badges inside Hub -->
-    <g transform="translate(114, 104)">
-      <rect width="100" height="18" rx="4" fill="#0B132B" stroke="#1E293B" stroke-width="1"/>
-      <text x="50" y="12.5" text-anchor="middle" font-size="9" font-weight="600" fill="#E2E8F0">SQLite Storage</text>
-    </g>
-    <g transform="translate(220, 104)">
-      <rect width="100" height="18" rx="4" fill="#0B132B" stroke="#1E293B" stroke-width="1"/>
-      <text x="50" y="12.5" text-anchor="middle" font-size="9" font-weight="600" fill="#34D399">Drift Repair</text>
-    </g>
+    <!-- Title -->
+    <text x="82" y="47" font-size="22" font-weight="800" fill="#FFFFFF" letter-spacing="0.5">Plembfin</text>
   </g>
 
 
-  <!-- ================= BOTTOM ROW CARDS (METADATA & REQUESTS) ================= -->
+  <!-- ================= BOTTOM ROW: METADATA & REQUESTS ================= -->
   <!-- 1. TMDB -->
-  <g transform="translate(40, 488)" filter="url(#cardShadow)">
-    <rect width="170" height="88" rx="12" fill="url(#cardGrad)" stroke="#01B4E4" stroke-opacity="0.35" stroke-width="1.5"/>
-    <g transform="translate(16, 18)">
-      <rect width="44" height="44" rx="9" fill="#0C1B24"/>
-      <!-- TMDB Vector Mark -->
-      <g transform="translate(4, 11) scale(0.19)">
+  <g transform="translate(40, 430)" filter="url(#cardShadow)">
+    <rect width="160" height="54" rx="14" fill="url(#cardGrad)" stroke="#01B4E4" stroke-opacity="0.35" stroke-width="1.5"/>
+    <g transform="translate(10, 8)">
+      <rect width="38" height="38" rx="8" fill="#0C1B24"/>
+      <g transform="translate(3, 10) scale(0.17)">
         <path fill="url(#tmdbGrad)" d="M51.06,66.7h0A17.67,17.67,0,0,1,68.73,49h-.1A17.67,17.67,0,0,1,86.3,66.7h0A17.67,17.67,0,0,1,68.63,84.37h.1A17.67,17.67,0,0,1,51.06,66.7Zm82.67-31.33h32.9A17.67,17.67,0,0,0,184.3,17.7h0A17.67,17.67,0,0,0,166.63,0h-32.9A17.67,17.67,0,0,0,116.06,17.7h0A17.67,17.67,0,0,0,133.73,35.37Zm-113,98h63.9A17.67,17.67,0,0,0,102.3,115.7h0A17.67,17.67,0,0,0,84.63,98H20.73A17.67,17.67,0,0,0,3.06,115.7h0A17.67,17.67,0,0,0,20.73,133.37Z"/>
       </g>
     </g>
-    <text x="68" y="34" font-size="15" font-weight="700" fill="#F8FAFC">TMDB</text>
-    <rect x="68" y="41" width="90" height="16" rx="3" fill="#01B4E4" fill-opacity="0.15"/>
-    <text x="72" y="52.5" font-size="9" font-weight="600" fill="#38BDF8">Metadata &amp; Cast</text>
-    <text x="68" y="71" font-size="9.5" fill="#94A3B8">Posters &amp; Trailers</text>
+    <text x="58" y="34" font-size="15" font-weight="700" fill="#F8FAFC">TMDB</text>
   </g>
 
   <!-- 2. TheTVDB -->
-  <g transform="translate(250, 488)" filter="url(#cardShadow)">
-    <rect width="170" height="88" rx="12" fill="url(#cardGrad)" stroke="#6CD591" stroke-opacity="0.35" stroke-width="1.5"/>
-    <g transform="translate(16, 18)">
-      <rect width="44" height="44" rx="9" fill="#0E2319"/>
-      <!-- TheTVDB Mark -->
-      <g transform="translate(5, 11) scale(0.34)">
+  <g transform="translate(260, 430)" filter="url(#cardShadow)">
+    <rect width="170" height="54" rx="14" fill="url(#cardGrad)" stroke="#6CD591" stroke-opacity="0.35" stroke-width="1.5"/>
+    <g transform="translate(10, 8)">
+      <rect width="38" height="38" rx="8" fill="#0E2319"/>
+      <g transform="translate(4, 9) scale(0.3)">
         <path d="M0,5 C0,1.8 3,-0.4 6.5,0.1 L52,6 C54.2,6.3 55.8,8.5 55.8,11 L55.8,17.2 C52,19.8 49.4,24.1 49.4,29 C49.4,33.9 51.9,38.2 55.8,40.7 L55.8,43.5 C55.8,45.9 54.2,48.1 52,48.4 L11.6,54 C8.1,54.4 5.1,52.2 5.1,49 Z" fill="#6CD591"/>
         <path d="M19.7,10.8 L13.7,10.8 L13.7,18.7 L9.8,18.7 L9.8,23.3 L13.7,23.3 L13.7,32 C13.5,37.5 15.6,40 20.6,40 L25.3,40 L25.3,35.5 L22.9,35.5 C20.2,35.4 19.6,34.6 19.7,31 L19.7,23.3 L27.1,23.3 L33.9,40 L40.4,40 L49.8,18.7 L43.5,18.7 L37.3,33.4 L31.8,18.7 L19.7,18.7 Z" fill="#FFFFFF"/>
         <path d="M88.6,18.3 C92.5,18.3 95.1,19.2 97.1,21.4 C98.7,23.2 99.6,25.8 99.6,28.7 C99.6,32.9 97.9,36.1 94.8,38 C92.7,39.3 91,39.6 87,39.6 L77.2,39.6 L77.2,10.4 L83.3,10.4 L83.3,18.3 Z M83.3,35.1 L87.7,35.1 C91.3,35.1 93.4,32.7 93.4,28.8 C93.4,24.8 91.5,22.8 87.7,22.8 L83.3,22.8 Z" fill="#FFFFFF"/>
         <path d="M68,10.4 L74,10.4 L74,39.6 L63.7,39.6 C59.4,39.6 57.4,39 55.3,37.1 C53.1,35.1 51.9,32.3 51.9,28.8 C51.9,25.1 53.1,22.3 55.7,20.2 C57.3,18.9 59.5,18.3 62.4,18.3 L68,18.3 Z M68,22.8 L63.7,22.8 C60.2,22.8 58,25.1 58,28.8 C58,32.7 60.2,35.1 63.7,35.1 L68,35.1 Z" fill="#FFFFFF"/>
       </g>
     </g>
-    <text x="68" y="34" font-size="15" font-weight="700" fill="#F8FAFC">TheTVDB</text>
-    <rect x="68" y="41" width="90" height="16" rx="3" fill="#6CD591" fill-opacity="0.15"/>
-    <text x="72" y="52.5" font-size="9" font-weight="600" fill="#4ADE80">Episodes &amp; Airs</text>
-    <text x="68" y="71" font-size="9.5" fill="#94A3B8">Seasons &amp; Numbers</text>
+    <text x="58" y="34" font-size="15" font-weight="700" fill="#F8FAFC">TheTVDB</text>
   </g>
 
   <!-- 3. Fanart.tv -->
-  <g transform="translate(460, 488)" filter="url(#cardShadow)">
-    <rect width="170" height="88" rx="12" fill="url(#cardGrad)" stroke="#38BDF8" stroke-opacity="0.35" stroke-width="1.5"/>
-    <g transform="translate(16, 18)">
-      <rect width="44" height="44" rx="9" fill="#0C1F2E"/>
-      <!-- Fanart Icon -->
-      <g transform="translate(7, 7)">
-        <circle cx="15" cy="15" r="14" fill="none" stroke="url(#fanartGrad)" stroke-width="2.5"/>
-        <circle cx="15" cy="15" r="6" fill="url(#fanartGrad)"/>
-        <path d="M 15 1 A 14 14 0 0 1 29 15" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+  <g transform="translate(490, 430)" filter="url(#cardShadow)">
+    <rect width="170" height="54" rx="14" fill="url(#cardGrad)" stroke="#38BDF8" stroke-opacity="0.35" stroke-width="1.5"/>
+    <g transform="translate(10, 8)">
+      <rect width="38" height="38" rx="8" fill="#0C1F2E"/>
+      <g transform="translate(6, 6)">
+        <circle cx="13" cy="13" r="12" fill="none" stroke="url(#fanartGrad)" stroke-width="2.5"/>
+        <circle cx="13" cy="13" r="5" fill="url(#fanartGrad)"/>
+        <path d="M 13 1 A 12 12 0 0 1 25 13" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
       </g>
     </g>
-    <text x="68" y="34" font-size="15" font-weight="700" fill="#F8FAFC">Fanart.tv</text>
-    <rect x="68" y="41" width="90" height="16" rx="3" fill="#38BDF8" fill-opacity="0.15"/>
-    <text x="72" y="52.5" font-size="9" font-weight="600" fill="#38BDF8">Artwork Fallback</text>
-    <text x="68" y="71" font-size="9.5" fill="#94A3B8">HD Logos &amp; Art</text>
+    <text x="58" y="34" font-size="15" font-weight="700" fill="#F8FAFC">Fanart.tv</text>
   </g>
 
-  <!-- 4. OMDb / IMDb -->
-  <g transform="translate(670, 488)" filter="url(#cardShadow)">
-    <rect width="170" height="88" rx="12" fill="url(#cardGrad)" stroke="#F5C518" stroke-opacity="0.35" stroke-width="1.5"/>
-    <g transform="translate(16, 18)">
-      <rect width="44" height="44" rx="9" fill="#251E09"/>
-      <!-- IMDb Gold Badge -->
-      <g transform="translate(4, 11) scale(0.062)">
+  <!-- 4. OMDb -->
+  <g transform="translate(720, 430)" filter="url(#cardShadow)">
+    <rect width="160" height="54" rx="14" fill="url(#cardGrad)" stroke="#F5C518" stroke-opacity="0.35" stroke-width="1.5"/>
+    <g transform="translate(10, 8)">
+      <rect width="38" height="38" rx="8" fill="#251E09"/>
+      <g transform="translate(3, 10) scale(0.055)">
         <path d="M575 24.91C573.44 12.15 563.97 1.98 551.91 0C499.05 0 76.18 0 23.32 0C10.11 2.17 0 14.16 0 28.61C0 51.84 0 237.64 0 260.86C0 276.86 12.37 289.83 27.64 289.83C79.63 289.83 495.6 289.83 547.59 289.83C561.65 289.83 573.26 278.82 575 264.57C575 216.64 575 48.87 575 24.91Z" fill="#F5C518"/>
         <path d="M69.35 58.24L114.98 58.24L114.98 233.89L69.35 233.89L69.35 58.24Z" fill="#000000"/>
         <path d="M201.2 139.15C197.28 112.38 195.1 97.5 194.67 94.53C192.76 80.2 190.94 67.73 189.2 57.09C185.25 57.09 165.54 57.09 130.04 57.09L130.04 232.74L170.01 232.74L170.15 116.76L186.97 232.74L215.44 232.74L231.39 114.18L231.54 232.74L271.38 232.74L271.38 57.09L211.77 57.09L201.2 139.15Z" fill="#000000"/>
@@ -340,25 +247,18 @@
         <path d="M464.76 204.7C463.92 206.93 460.24 208.06 457.46 208.06C454.74 208.06 452.93 206.98 452.01 204.81C451.09 202.65 450.64 197.72 450.64 190C450.64 185.36 450.64 148.22 450.64 143.58C450.64 135.58 451.04 130.59 451.85 128.6C452.65 126.63 454.41 125.63 457.13 125.63C459.91 125.63 463.64 126.76 464.6 129.03C465.55 131.3 466.03 136.15 466.03 143.58C466.03 146.58 466.03 161.58 466.03 188.59C465.74 197.84 465.32 203.21 464.76 204.7ZM406.68 231.21L447.76 231.21C449.47 224.5 450.41 220.77 450.6 220.02C454.32 224.52 458.41 227.9 462.9 230.14C467.37 232.39 474.06 233.51 479.24 233.51C486.45 233.51 492.67 231.62 497.92 227.83C503.16 224.05 506.5 219.57 507.92 214.42C509.34 209.26 510.05 201.42 510.05 190.88C510.05 185.95 510.05 146.53 510.05 141.6C510.05 131 509.81 124.08 509.34 120.83C508.87 117.58 507.47 114.27 505.14 110.88C502.81 107.49 499.42 104.86 494.98 102.98C490.54 101.1 485.3 100.16 479.26 100.16C474.01 100.16 467.29 101.21 462.81 103.28C458.34 105.35 454.28 108.49 450.64 112.7C450.64 108.89 450.64 89.85 450.64 55.56L406.68 55.56L406.68 231.21Z" fill="#000000"/>
       </g>
     </g>
-    <text x="68" y="34" font-size="15" font-weight="700" fill="#F8FAFC">OMDb</text>
-    <rect x="68" y="41" width="90" height="16" rx="3" fill="#F5C518" fill-opacity="0.15"/>
-    <text x="72" y="52.5" font-size="9" font-weight="600" fill="#FBBF24">IMDb Ratings</text>
-    <text x="68" y="71" font-size="9.5" fill="#94A3B8">Votes &amp; Scores</text>
+    <text x="58" y="34" font-size="15" font-weight="700" fill="#F8FAFC">OMDb</text>
   </g>
 
   <!-- 5. Overseerr / Jellyseerr -->
-  <g transform="translate(945, 488)" filter="url(#cardShadow)">
-    <rect width="215" height="88" rx="12" fill="url(#cardGrad)" stroke="#3B82F6" stroke-opacity="0.4" stroke-width="1.5"/>
-    <g transform="translate(16, 18)">
-      <rect width="44" height="44" rx="9" fill="#111F36"/>
-      <!-- Overseerr/Jellyseerr Vortex Icon (Blue tone) -->
-      <g transform="translate(7, 7) scale(0.058)">
+  <g transform="translate(940, 430)" filter="url(#cardShadow)">
+    <rect width="220" height="54" rx="14" fill="url(#cardGrad)" stroke="#3B82F6" stroke-opacity="0.4" stroke-width="1.5"/>
+    <g transform="translate(10, 8)">
+      <rect width="38" height="38" rx="8" fill="#111F36"/>
+      <g transform="translate(6, 6) scale(0.05)">
         <path d="M256 512c141.4 0 256-114.6 256-256S397.4 0 256 0 0 114.6 0 256s114.6 256 256 256m170.7-234.7c0 82.5-66.9 149.3-149.3 149.3S128 359.8 128 277.3c0-15.3 2.3-30.1 6.6-44 11.7 25.9 37.8 44 68.1 44 41.2 0 74.7-33.4 74.7-74.7 0-30.3-18-56.4-44-68.1 13.9-4.3 28.7-6.6 44-6.6 82.4.1 149.3 67 149.3 149.4" fill="url(#seerrGrad)"/>
       </g>
     </g>
-    <text x="68" y="34" font-size="14.5" font-weight="700" fill="#F8FAFC">Overseerr / Jellyseerr</text>
-    <rect x="68" y="41" width="135" height="16" rx="3" fill="#3B82F6" fill-opacity="0.15"/>
-    <text x="72" y="52.5" font-size="9" font-weight="600" fill="#60A5FA">Requests &amp; Availability</text>
-    <text x="68" y="71" font-size="9.5" fill="#94A3B8">Seamless Detail Integration</text>
+    <text x="58" y="34" font-size="14.5" font-weight="700" fill="#F8FAFC">Overseerr / Jellyseerr</text>
   </g>
 </svg>
