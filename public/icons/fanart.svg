@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <clipPath id="circleClip">
+      <circle cx="50" cy="50" r="46"/>
+    </clipPath>
+  </defs>
+  <!-- Outer Cyan Border -->
+  <circle cx="50" cy="50" r="49" fill="#1EB0E9"/>
+  
+  <!-- Inner Faceted Area clipped to circle -->
+  <g clip-path="url(#circleClip)">
+    <!-- Base Cyan Fill -->
+    <rect width="100" height="100" fill="#1EB0E9"/>
+    
+    <!-- Shaded Color Facets -->
+    <!-- Top-Right Darker Blue Sector -->
+    <path d="M 45 0 L 100 0 L 100 50 L 58 31 Z" fill="#1D87B1"/>
+    <path d="M 58 31 L 100 50 L 70 75 Z" fill="#1D87B1"/>
+    <!-- Central Triangle -->
+    <path d="M 28 49 L 70 75 L 58 31 Z" fill="#2995BF"/>
+    <!-- Lower Left Facet -->
+    <path d="M 0 36 L 28 49 L 9 65 L 0 65 Z" fill="#2291BD"/>
+
+    <!-- Dark Connecting Geometric Lines -->
+    <!-- Thin Internal Facet Edges -->
+    <line x1="58" y1="31" x2="100" y2="50" stroke="#15222E" stroke-width="3"/>
+    <line x1="0" y1="65" x2="100" y2="50" stroke="#15222E" stroke-width="3"/>
+
+    <!-- Thick Stylized 'V' Fold Line -->
+    <polyline points="0 36, 28 49, 70 75, 45 0" fill="none" stroke="#15222E" stroke-width="7.5" stroke-linecap="square" stroke-linejoin="miter"/>
+  </g>
+
+  <!-- Outer Dark Ring Border -->
+  <circle cx="50" cy="50" r="46" fill="none" stroke="#15222E" stroke-width="5.5"/>
+</svg>

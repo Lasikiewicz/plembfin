@@ -49,26 +49,26 @@ None of these talk to each other - they all talk to Plembfin.
 
 ## Key Features
 
-- **Canonical sync** - Plembfin's watched state is pushed to every connected app; drift is repaired automatically
-- **Force Sync** - per-title (with season scoping) or library-wide, from Settings → Sync Tools. Import what your servers already have, or push Plembfin's state out to them, with a live log either way
-- **New media arrives watched** - a title Plembfin already has as watched is marked watched the moment it appears on a server, no re-watching prompts after a library rebuild
-- **Resume progress sync** - pause on one server, pick up where you left off on another
-- **Rewatch tracking** - watching something again logs a new play instead of overwriting the old one; detail pages show full watch history, and duplicate-cleanup tools keep rewatches intact while removing accidental repeats
-- **Now Playing dashboard** - live sessions, weekly charts, recent history
-- **Sync Activity page** - a permanent sidebar indicator showing Idle or how far a running sync has got, opening a page that lists every synced item newest first with where the request came from, where it was sent, each target's result, and a downloadable per-item log
-- **Stats** - all-time and per-period reports, top shows, platform breakdowns
-- **Upcoming episodes** - a scrolling calendar of past and future air dates, cached server-side for instant loads
-- **Live Trakt sync** - two-way sync with built-in device authorization, per-play rewatch import, and protection against a slow Trakt response cascading into a false mass-unwatch
-- **Seerr integration** - request titles straight from their detail pages via Overseerr or Jellyseerr
-- **Movie collections** - see sequels, prequels, and spin-offs from a movie's page
-- **Open-in-app links** - jump straight to a title in Plex, Emby, or Jellyfin from its detail page
-- **Automated backups** - daily local backups, plus optional scheduled remote backups to Backblaze B2
-- **Self-hosted & private** - SQLite on your own hardware, no cloud account required
-- **Security hardening** - strict CSP, scrypt password hashing, rate-limited login, HMAC-signed sessions
-- **Artwork pipeline** - posters and logos cached locally from TMDB, TheTVDB, and Fanart.tv
-- **Accurate TV data** - episode titles/numbering/air dates from TheTVDB; cast, trailers, and reviews from TMDB
-- **Unified search** - your library, TMDB, and TheTVDB in one set of results, with no duplicates and what's already on your media servers listed first
-- **Installable on phones** - add to an iOS or Android home screen as a standalone app
+- **Canonical sync** - Seamless two-way sync keeps watched state aligned across every connected app with intelligent auto-reconciliation
+- **Force Sync** - Flexible on-demand sync per-title (with season scoping) or library-wide with comprehensive live progress logging
+- **Instant state restoration** - Automatically synchronizes watch history to newly added media and rebuilt server libraries
+- **Cross-platform resume** - Pause playback on one server and pick up right where you left off on another
+- **Rewatch tracking** - Full multi-watch history logging with smart deduplication that preserves authentic repeat viewings
+- **Now Playing dashboard** - Real-time playback monitoring, weekly watch activity trends, and recent history
+- **Sync Activity hub** - Live status indicator and dedicated activity stream detailing sync origins, destinations, delivery results, and downloadable logs
+- **Rich analytics & stats** - In-depth all-time and period reports, top shows, and platform playback distribution
+- **Upcoming episodes calendar** - Air date schedule for upcoming and past releases, pre-cached for instant loading
+- **Live Trakt sync** - Two-way Trakt integration with seamless device authorization, per-play history import, and resilient sync protection
+- **Seerr integration** - Discover and request movies and TV shows directly from detail pages via Overseerr or Jellyseerr
+- **Movie collections** - Explore related franchise entries, sequels, prequels, and spin-offs directly from movie detail pages
+- **Direct server deep links** - Quick one-click links to jump directly to any title in Plex, Emby, or Jellyfin
+- **Automated backups** - Built-in daily local backups with optional scheduled offsite backups to Backblaze B2
+- **Self-hosted & private** - Runs entirely on your own hardware with dedicated SQLite storage and full data ownership
+- **Enterprise-grade security** - Hardened with strict Content Security Policy (CSP), scrypt password hashing, rate limiting, and HMAC session signing
+- **High-performance artwork cache** - Fast local caching for high-resolution posters, backdrops, and logos from TMDB, TheTVDB, and Fanart.tv
+- **Comprehensive metadata** - Precision episode titles, season numbering, and air dates from TheTVDB paired with rich cast, trailers, and reviews from TMDB
+- **Unified multi-source search** - Blazingly fast search across your local libraries, TMDB, and TheTVDB with local media prioritized
+- **Progressive Web App (PWA)** - Installable directly on iOS, Android, macOS, and Windows with a native app experience
 
 See [`docs/architecture.md`](docs/architecture.md) for how each feature is actually built.
 
@@ -120,18 +120,6 @@ See [`docs/architecture.md`](docs/architecture.md) for how each feature is actua
   <img src="docs/screenshots/search.png" alt="Global search" width="100%" />
   <em>Instant search results across movies, TV shows, and people</em>
 </p>
-
----
-
-## Sync safety
-
-Force Sync always asks before it runs, shows a live log while it's working, and can be
-cancelled mid-operation. **Import Watched Status** only reads from your media servers and
-never writes; **Set Plembfin as Source of Truth** overwrites the destination with
-Plembfin's own record. Server roles (bidirectional, source-only, destination-only,
-monitor-only) and echo-loop protection stop a sync from bouncing back and forth between
-servers. See [`docs/scheduled-sync.md`](docs/scheduled-sync.md) and
-[`docs/capacity.md`](docs/capacity.md) for the operating details.
 
 ---
 
