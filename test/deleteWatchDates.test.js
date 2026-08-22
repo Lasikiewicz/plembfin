@@ -172,3 +172,66 @@ test("deleteWatchDates does not sweep away a kept row sharing the same-event win
   assert.equal(state?.state, "watched");
   assert.equal(state?.watched_at, keep.record.watched_at);
 });
+
+// Real user-reported scenario: mark an episode watched, see it listed
+// alongside an older row that reads unwatched (e.g. a genuine past unwatch),
+// then delete the just-added watch. The surviving row is the only one left -
+// the user's own choice to leave it standing rather than delete it too is
+// itself the statement that it should count as watched, even though its own
+// sync_action still says otherwise. Silently falling back to fully unwatched
+// here contradicts what the user just did ("Plembfin source of truth").
+test("deleteWatchDate promotes the sole surviving row to watched when it was the only one left", async () => {
+  const showTitle = "Promoted Show";
+  const oldUnwatched = await repo.insertWatchRecord({
+    title: `${showTitle} - S01E01`, media_type: "episode", show_title: showTitle, season: 1, episode: 1,
+    tmdb_id: "promote-1", watched_at: "2026-07-17T07:38:26.000Z", source: "plex", sync_action: "unwatched",
+  });
+  const newWatch = await repo.insertWatchRecord({
+    title: `${showTitle} - S01E01`, media_type: "episode", show_title: showTitle, season: 1, episode: 1,
+    tmdb_id: "promote-1", watched_at: "2026-08-22T03:17:11.000Z", source: "manual", sync_action: "watched",
+  });
+  const media = { title: `${showTitle} - S01E01`, type: "episode", season: 1, episode: 1, ids: { tmdb: "promote-1" }, isValid: true };
+  await repo.upsertPlaystateForMedia(media, "watched", newWatch.record.watched_at);
+
+  const result = await repo.deleteWatchDate(newWatch.id);
+  assert.equal(result.ok, true);
+  assert.equal(result.remainingRow?.id, oldUnwatched.id, "the older row must be reported as the survivor");
+  assert.equal(result.remainingRow?.sync_action, "watched", "the survivor must be promoted to watched");
+
+  const state = await repo.getPlaystateForMedia(media);
+  assert.equal(state?.state, "watched");
+  assert.equal(state?.watched_at, oldUnwatched.record.watched_at);
+
+  const persisted = await repo.getWatchRecordByIdLight(oldUnwatched.id);
+  assert.equal(persisted.sync_action, "watched", "the promotion must be persisted, not just returned in memory");
+});
+
+// A genuine, deliberate unwatch that happened AFTER a real watch must not be
+// resurrected just because it is the newest row - only promote when every
+// surviving row is unwatched. Here an older real watch still exists, so it
+// must win over the newer deliberate unwatch, and that newer row must be left
+// alone (not promoted) since it was never the one the user chose to keep.
+test("deleteWatchDate prefers an older genuinely-watched sibling over a newer deliberate unwatch", async () => {
+  const showTitle = "Shadowed Show";
+  const oldWatched = await repo.insertWatchRecord({
+    title: `${showTitle} - S01E01`, media_type: "episode", show_title: showTitle, season: 1, episode: 1,
+    tmdb_id: "shadow-1", watched_at: "2026-01-01T00:00:00.000Z", source: "plex", sync_action: "watched",
+  });
+  const deliberateUnwatch = await repo.insertWatchRecord({
+    title: `${showTitle} - S01E01`, media_type: "episode", show_title: showTitle, season: 1, episode: 1,
+    tmdb_id: "shadow-1", watched_at: "2026-06-01T00:00:00.000Z", source: "jellyfin", sync_action: "unwatched",
+  });
+  const extraWatch = await repo.insertWatchRecord({
+    title: `${showTitle} - S01E01`, media_type: "episode", show_title: showTitle, season: 1, episode: 1,
+    tmdb_id: "shadow-1", watched_at: "2026-08-01T00:00:00.000Z", source: "manual", sync_action: "watched",
+  });
+  const media = { title: `${showTitle} - S01E01`, type: "episode", season: 1, episode: 1, ids: { tmdb: "shadow-1" }, isValid: true };
+  await repo.upsertPlaystateForMedia(media, "watched", extraWatch.record.watched_at);
+
+  const result = await repo.deleteWatchDate(extraWatch.id);
+  assert.equal(result.ok, true);
+  assert.equal(result.remainingRow?.id, oldWatched.id);
+
+  const persistedUnwatch = await repo.getWatchRecordByIdLight(deliberateUnwatch.id);
+  assert.equal(persistedUnwatch.sync_action, "unwatched", "the deliberate unwatch must not be promoted");
+});

@@ -1340,6 +1340,11 @@ export async function batchInsertWatchRecords(records) {
 const updateTelemetryStmt = db.prepare("UPDATE watch_history SET sync_dispatch_telemetry = ?, updated_at = ? WHERE id = ?");
 const updatePlaystateWatchedAtStmt = db.prepare("UPDATE playstate SET watched_at = ?, updated_at = ? WHERE media_key = ?");
 const updateWatchRowWatchedAtStmt = db.prepare("UPDATE watch_history SET watched_at = ?, updated_at = ? WHERE id = ?");
+const promoteRowToWatchedStmt = db.prepare(
+  `UPDATE watch_history
+   SET sync_action = 'watched', sync_dispatch_telemetry = ?, sync_retry_count = 0, sync_next_retry_at = 0, updated_at = ?
+   WHERE id = ?`,
+);
 
 // All other tracked watch_history rows describing the same movie (by media_key)
 // or the same episode (by show+season+episode), regardless of date. Used both
@@ -1507,6 +1512,19 @@ export async function addWatchDate(id, watchedAtInput) {
 // the broader same-show/season/episode (or provider-id/title-cluster for
 // movies) identity match used to find which rows to delete together; reuse
 // it here to find what survives, unioned with the exact-key match.
+//
+// Plembfin is the source of truth for what a user deliberately leaves behind:
+// if a genuinely watched sibling still exists, it wins exactly as before (a
+// real watch that predates a later, deliberate unwatch must not be revived by
+// the unwatch marker sorting newer). But if every surviving row reads
+// unwatched, the user's own action of deleting down to it - rather than that
+// row too - is itself the statement "this is the watch I want kept", even
+// though its own sync_action still says otherwise (e.g. a genuine watch whose
+// unwatch marker predates today, or a stray marker from a past sync issue).
+// Deleting the last real watched row and silently falling back to fully
+// unwatched would contradict what the user just did. The survivor is promoted
+// to 'watched' in place so it stops looking unwatched on the next read and
+// so later duplicate/false-unwatch audits don't re-flag it.
 function remainingWatchRowFor(deletedRow) {
   const byExactKey = deletedRow.media_key ? selectByMediaKeyStmt.all(deletedRow.media_key) : [];
   const bySameIdentity = siblingWatchRowsFor(deletedRow);
@@ -1514,9 +1532,23 @@ function remainingWatchRowFor(deletedRow) {
   for (const row of [...byExactKey, ...bySameIdentity]) {
     if (row?.id) byId.set(row.id, row);
   }
-  const remaining = [...byId.values()].filter(isPlembfinTrackedWatchRow);
-  if (!remaining.length) return null;
-  return remaining.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
+  const trusted = [...byId.values()].filter(isPlembfinTrackedEpisodeRow);
+  if (!trusted.length) return null;
+  const watched = trusted.filter(isPlembfinTrackedWatchRow);
+  const pool = watched.length ? watched : trusted;
+  const newest = pool.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
+  if (!watched.length) {
+    const now = Date.now();
+    const telemetry = [
+      "Origin: manual",
+      "Loop-check: Passed",
+      "Dispatch status: pending",
+      "Details: Promoted to watched - the last recorded watch left standing after a duplicate-watch removal.",
+    ].join("\n");
+    promoteRowToWatchedStmt.run(telemetry, now, newest.id);
+    newest.sync_action = "watched";
+  }
+  return newest;
 }
 
 // Removes a single watch date (one row) added via addWatchDate/the edit-date

@@ -307,10 +307,21 @@ first complete render.
   flipped to "unwatched" (e.g. an explicit unwatch from a connected server)
   is still a play that belongs in the list; requiring the row's *current*
   action to be "watched" silently dropped it from the editor while the
-  episode card's own history count still included it. Deleting a watch
-  date also replays the resulting canonical state - the rolled-back date if a
-  watch remains, or "unwatched" if that was the only one - to every connected
-  Plex/Emby/Jellyfin/Trakt server (`propagateWatchDateRemoval` in
+  episode card's own history count still included it. If every surviving
+  sibling reads "unwatched" - no genuinely watched row is left at all -
+  `remainingWatchRowFor()` promotes the newest of them to "watched" in place
+  (flipping its own `sync_action`, not just `playstate`) rather than falling
+  back to fully unwatched: deleting the other watch date down to that row
+  and leaving it standing is itself the user's statement that it should
+  count, regardless of what its own `sync_action` said going in (e.g. a
+  genuine past watch whose unwatch marker predates today, or a stray marker
+  left by an earlier sync issue). This only fires when *no* sibling currently
+  reads "watched" - an older genuinely watched row still wins over a newer,
+  deliberate unwatch, so a real unwatch performed on purpose is never
+  resurrected just because it happens to be the most recent row. Deleting a
+  watch date also replays the resulting canonical state - the rolled-back
+  (or promoted) date if a watch remains, or "unwatched" if none do - to every
+  connected Plex/Emby/Jellyfin/Trakt server (`propagateWatchDateRemoval` in
   `routes/media.js`, reusing the same `syncCanonicalPlaystate` replay as an
   edited date), so a platform that already received the deleted watch as
   "watched" gets corrected instead of continuing to disagree with Plembfin;
