@@ -1,7 +1,22 @@
 {
-  "build": 8,
-  "updatedAt": "2026-08-22T01:46:34+01:00",
+  "build": 9,
+  "updatedAt": "2026-08-22T02:02:56+01:00",
   "entries": [
+    {
+      "build": 9,
+      "date": "2026-08-22T02:02:56+01:00",
+      "commit": "3343ac3afb68cea632b7dff884fefdc810839adb",
+      "message": "Security - Stop mass false-unwatch bursts from any media server, add restore tool",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a real incident: a single Jellyfin burst (a library rescan, metadata refresh, or rate-limited response) falsely unwatched 264+ episodes across dozens of unrelated shows within about seven minutes, propagating the false unwatch on to Plex and Emby before anyone noticed",
+        "applyUnwatchedTransition now tracks a shared, database-backed count of automatic (non-manual) unwatches across Plex, Emby, Jellyfin, and Trakt, and holds back any single one once too many have been recorded in a short window instead of propagating it - this is the one place every automatic unwatch path already funnels through, so it protects all three media servers plus Trakt at once",
+        "Manual actions (marking something unwatched in Plembfin itself, Force Sync, Set Plembfin as Source of Truth, Trakt import) are never affected - only automatic, inbound-from-a-server decisions are rate-limited, and a person can still unwatch as much as they want in one sitting",
+        "Works correctly in a split web/worker deployment since the counter lives in the shared database, not in one process's memory",
+        "Added POST /api/split-identity-unwatch-repair: an explicit admin action that restores episodes already affected by this failure mode (found by the read-only audit added earlier) and re-pushes the corrected watched state to every connected platform",
+        "Documented both the prevention and the repair tool in docs/scheduled-sync.md"
+      ]
+    },
     {
       "build": 8,
       "date": "2026-08-22T01:46:34+01:00",
