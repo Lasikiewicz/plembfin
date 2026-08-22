@@ -1,7 +1,20 @@
 {
-  "build": 20,
-  "updatedAt": "2026-08-22T18:00:48+01:00",
+  "build": 21,
+  "updatedAt": "2026-08-22T18:24:17+01:00",
   "entries": [
+    {
+      "build": 21,
+      "date": "2026-08-22T18:24:17+01:00",
+      "commit": "47d5d3b635c2ed181504b56d380321a7d9999fd3",
+      "message": "Fix - Preserve unindexed season watch rows, format season numbers, and standardize icon sizes",
+      "author": "Lasikiewicz",
+      "details": [
+        "Preserves local watch history rows for TV seasons when upstream providers only index a partial episode list",
+        "Formats season headers to always include the season number alongside any custom season subtitle",
+        "Standardizes rating, network, and app icon dimensions to match the Plex baseline",
+        "Aligns genres across full-width rows when runtime is absent so network and ratings pair cleanly"
+      ]
+    },
     {
       "build": 20,
       "date": "2026-08-22T18:00:48+01:00",
