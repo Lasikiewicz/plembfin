@@ -126,3 +126,68 @@ test("handleDuplicateWatchScan detects TV episode duplicates and normalizes medi
   const matchingSample = postScanResult.samples.find((s) => s.showTitle === showTitle);
   assert.equal(matchingSample, undefined);
 });
+
+// Real incident: an episode with exactly one genuine watch, plus an older,
+// stale sync_action='unwatched' row for the same episode (the aftermath of
+// an earlier unrelated unwatch event) must never be treated as "2 duplicate
+// watches to consolidate" - the unwatched row isn't a countable watch at
+// all. Before this fix, findDuplicateWatchGroups used the looser
+// isPlembfinTrackedEpisodeRow filter (which intentionally keeps a later-
+// unwatched play visible for history-count display purposes elsewhere), so
+// it could sort ahead of the real watched row and get "kept" as the
+// supposed oldest duplicate - deleting the actual watch and leaving only
+// the unwatched marker, wrongly unwatching an item that was never a
+// duplicate in the first place.
+test("handleDuplicateWatchScan never treats a stale unwatched row as a duplicate watch", async () => {
+  const { handleDuplicateWatchScan, handleDuplicateWatchCleanup } = await import("../server/src/routes/media.js");
+  const { AUTH } = await import("../server/src/appConfig.js");
+
+  const showTitle = "Shadowed Watch Show";
+  const epTitle = "Shadowed Watch Show - S01E01";
+  const watched = await repo.insertWatchRecord({
+    title: epTitle, show_title: showTitle, media_type: "episode", season: 1, episode: 1,
+    tmdb_id: "shadowed-ep-1", watched_at: "2024-01-01T20:00:00.000Z", source: "manual", sync_action: "watched",
+  });
+  await repo.upsertPlaystateForMedia(
+    { title: epTitle, type: "episode", show_title: showTitle, season: 1, episode: 1, ids: { tmdb: "shadowed-ep-1" }, isValid: true },
+    "watched", watched.record.watched_at,
+  );
+  const unwatchedMarker = await repo.insertWatchRecord({
+    title: epTitle, show_title: showTitle, media_type: "episode", season: 1, episode: 1,
+    imdb_id: "tt-shadowed-1", watched_at: "2023-01-01T20:00:00.000Z", source: "jellyfin", sync_action: "unwatched",
+  });
+
+  const createReq = (options = {}) => {
+    const headers = { "x-api-key": AUTH.apiKey, ...options.headers };
+    return { headers, get: (name) => headers[name.toLowerCase()] || "", ...options };
+  };
+  const createRes = (onEnd) => {
+    let statusCode = 200;
+    const resObj = {
+      status(code) { statusCode = code; return resObj; },
+      set() { return resObj; },
+      setHeader() { return resObj; },
+      send(body) { onEnd(typeof body === "string" ? JSON.parse(body) : body, statusCode); },
+      json(body) { onEnd(body, statusCode); },
+      end(body) { onEnd(typeof body === "string" ? JSON.parse(body) : body, statusCode); },
+    };
+    return resObj;
+  };
+
+  let scanResult;
+  await handleDuplicateWatchScan(createReq({ method: "GET", query: { mediaType: "episode" } }), createRes((body) => { scanResult = body; }));
+  assert.ok(!scanResult.samples.some((s) => s.showTitle === showTitle), "the shadowed episode must not be reported as having duplicates");
+
+  let cleanupResult;
+  await handleDuplicateWatchCleanup(createReq({
+    method: "POST", headers: { "content-type": "application/json" }, body: Buffer.from(JSON.stringify({ mediaType: "episode" })),
+  }), createRes((body) => { cleanupResult = body; }));
+  assert.ok(cleanupResult?.ok);
+
+  // The real watch must survive cleanup untouched; only the stale unwatched
+  // marker (never a candidate in the first place) may still exist alongside it.
+  assert.ok(await repo.getWatchRecordByIdLight(watched.id), "the genuine watched row must not be deleted");
+  assert.ok(await repo.getWatchRecordByIdLight(unwatchedMarker.id), "the pre-existing unwatched marker was never a cleanup candidate and is left alone");
+  const state = await repo.getPlaystateForMedia({ title: epTitle, type: "episode", show_title: showTitle, season: 1, episode: 1, ids: { tmdb: "shadowed-ep-1" }, isValid: true });
+  assert.equal(state?.state, "watched");
+});

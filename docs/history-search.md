@@ -76,7 +76,12 @@ Unlike the same-event collapse above, this does not use a time window - it group
 dedupe path, and for every movie or episode with more than one recorded watch
 (`playHistory.length > 1`), every watch after the oldest is treated as removable. That covers
 duplicates a time window would miss: rewatch-import floods, or the kind of wrong-provider-id
-Trakt overwrite described in [media-detail.md](media-detail.md).
+Trakt overwrite described in [media-detail.md](media-detail.md). A "recorded watch" here means
+a row whose current state actually reads as watched - a row that was itself later explicitly
+unwatched is never counted as one of the duplicates to compare or remove, even though it still
+appears in the show detail page's play-history list. Conflating the two let a stale unwatched
+row sort ahead of a genuine watch and get "kept" while the real watch was deleted as the
+supposed duplicate, wrongly unwatching an item that never had a duplicate to begin with.
 
 The button always scans first and shows the real count of duplicate watches and affected
 items before asking for confirmation - nothing is deleted until that confirmation is

@@ -588,9 +588,16 @@ export function openEditSeasonDateDialog(showTitle, seasonNum, watchedEpisodes =
   // Duplicate watches (rewatch imports, sync echoes, etc.): for each episode,
   // every recorded watch after the earliest is removable. Entries with no id
   // (older cached rows with only a bare watched_at) can't be targeted by the
-  // bulk-delete endpoint, so they're left out of the plan entirely.
+  // bulk-delete endpoint, so they're left out of the plan entirely. A play
+  // history entry whose own row was later explicitly unwatched is excluded
+  // entirely (not just protected from removal) - it's not a countable watch
+  // to consolidate, and treating it as one can make it sort ahead of a real
+  // watched entry and get "kept" while the actual watch is deleted as the
+  // supposed duplicate.
   const dedupePlan = rows.map((row) => {
-    const history = [...actualWatchHistory(row)].sort((a, b) => String(a.watched_at || "").localeCompare(String(b.watched_at || "")));
+    const history = [...actualWatchHistory(row)]
+      .filter((entry) => entry.syncAction !== "unwatched" && entry.syncAction !== "unplayed")
+      .sort((a, b) => String(a.watched_at || "").localeCompare(String(b.watched_at || "")));
     const removableIds = history.slice(1).map((entry) => entry.id).filter(Boolean);
     return { row, removableIds };
   }).filter((plan) => plan.removableIds.length > 0);

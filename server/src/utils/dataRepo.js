@@ -2185,7 +2185,7 @@ function titleContainsSearch(title, search) {
 }
 
 function playHistoryEntry(row = {}) {
-  return { id: row.id, watched_at: row.watched_at, source: row.source };
+  return { id: row.id, watched_at: row.watched_at, source: row.source, syncAction: row.sync_action || "watched" };
 }
 
 export function dedupeHistory(rows) {

@@ -75,7 +75,6 @@ import {
   getCachedShows,
   getCachedMovies,
   getCachedHistory,
-  isPlembfinTrackedEpisodeRow,
   isPlembfinTrackedWatchRow,
   normalizeMediaType,
   findExistingWatch,
@@ -880,7 +879,15 @@ async function findDuplicateWatchGroups(mediaType) {
   const normalized = normalizeMediaType(mediaType);
   const allHistory = await getCachedHistory();
   if (normalized === "episode") {
-    const episodeRows = allHistory.filter((row) => row.media_type === "episode" && isPlembfinTrackedEpisodeRow(row));
+    // isPlembfinTrackedWatchRow, not isPlembfinTrackedEpisodeRow: this feeds
+    // "keep the oldest, delete the rest" duplicate-watch cleanup, which must
+    // only ever compare rows that currently read as watched. The looser
+    // episode-row filter (used elsewhere so a later explicit unwatch still
+    // shows in play-history counts) let a stale sync_action='unwatched' row
+    // count as a "duplicate" alongside a real watched row - and since it can
+    // sort first (same or earlier timestamp), the cleanup deleted the actual
+    // watched row and kept the unwatched marker, wrongly unwatching the item.
+    const episodeRows = allHistory.filter((row) => row.media_type === "episode" && isPlembfinTrackedWatchRow(row));
     return dedupeHistory(episodeRows).filter((row) => Array.isArray(row.playHistory) && row.playHistory.length > 1);
   }
   if (normalized === "movie") {
