@@ -1,7 +1,21 @@
 {
-  "build": 6,
-  "updatedAt": "2026-08-22T21:48:21+01:00",
+  "build": 7,
+  "updatedAt": "2026-08-22T21:57:14+01:00",
   "entries": [
+    {
+      "build": 7,
+      "date": "2026-08-22T21:57:14+01:00",
+      "commit": "99fa6d49fde062dfe0542be34e28b15655bd7ac7",
+      "message": "Docs - Modernize hub architecture diagram and refine feature documentation",
+      "author": "Lasikiewicz",
+      "details": [
+        "Redesign architecture hub diagram with native vector graphics and official logos",
+        "Add official Fanart.tv faceted vector emblem and full TMDB vector mark",
+        "Embed official Plembfin dark header logo in central hub card",
+        "Reframe Key Features section in README with positive, capability-focused copy",
+        "Streamline README flow by removing standalone sync safety section"
+      ]
+    },
     {
       "build": 6,
       "date": "2026-08-22T21:48:21+01:00",
