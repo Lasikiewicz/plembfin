@@ -1,7 +1,19 @@
 {
-  "build": 21,
-  "updatedAt": "2026-08-22T18:24:17+01:00",
+  "build": 22,
+  "updatedAt": "2026-08-22T21:24:14+01:00",
   "entries": [
+    {
+      "build": 22,
+      "date": "2026-08-22T21:24:14+01:00",
+      "commit": "5428e37858e67c2d7d39bd0b252275ea3bb9bdc6",
+      "message": "Security - Harden username verification timing safety and extend CI secret scanning to develop",
+      "author": "Lasikiewicz",
+      "details": [
+        "Verify administrator username using constant-time comparison to prevent timing-based user enumeration",
+        "Extend TruffleHog secret scanning in CI to run on develop branch pushes and pull requests",
+        "Add automated unit tests for authentication verification edge cases"
+      ]
+    },
     {
       "build": 21,
       "date": "2026-08-22T18:24:17+01:00",
