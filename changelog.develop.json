@@ -1,7 +1,21 @@
 {
-  "build": 7,
-  "updatedAt": "2026-08-22T00:13:54+01:00",
+  "build": 8,
+  "updatedAt": "2026-08-22T01:46:34+01:00",
   "entries": [
+    {
+      "build": 8,
+      "date": "2026-08-22T01:46:34+01:00",
+      "commit": "8c0ea92e516726a99009404a124e8efaa998d8cf",
+      "message": "Feature - Add stale watch-history repair and split-identity unwatch audit tools",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added GET /api/stale-pending-watch-audit and POST /api/stale-pending-watch-repair, generalizing the earlier Trakt play-history incident fix to any watch_history row left with no telemetry or an exhausted retry count from any source, not just the Trakt importer",
+        "The repair only resets retry bookkeeping so the existing scheduler backlog sweep performs a real dispatch and records what actually happened, rather than fabricating a settled telemetry",
+        "Added GET /api/split-identity-unwatch-audit (read-only) to find episodes where a genuine earlier watch is being shadowed by a later unwatched row recorded under a different identity key for the same episode - the aftermath of the deleteWatchDates media_key-split bug pushing a real unplayed mark to media servers, which Plembfin's own unwatched-fallback polls then correctly recorded back in as canonical",
+        "No automatic repair for the split-identity case yet - reverting an unwatch that was genuinely intentional would itself be a phantom watch, so candidates need manual review first",
+        "Documented both tools in docs/scheduled-sync.md alongside the existing Trakt-import repair"
+      ]
+    },
     {
       "build": 7,
       "date": "2026-08-22T00:13:54+01:00",
