@@ -78,16 +78,28 @@ one row per media item, newest first, backed by `GET /api/sync-history`. The sam
 Idle / N of M status appears at the top of the page, and the page reloads itself every
 15 seconds while it is the visible view so a running sync fills in as it goes.
 
-Each row shows the title, media type, source badge, action (Marked Watched, Marked
-Unwatched, or Resume Progress), timestamp, a "From <source> -> To <targets>" route line
-naming the app that reported the play and the apps it was dispatched to, per-target
-result pills with each target's status and failure detail, and the overall status.
-Failed rows carry a red edge and pending ones a yellow edge.
+Each row shows the title, media type, source, action (Marked Watched, Marked Unwatched,
+or Resume Progress), timestamp, a "From <source> -> To <targets>" route line naming the
+app that reported the play and the apps it was dispatched to, one result per target as
+that app's icon followed by its status (hover for the failure detail), and the overall
+status. Failed rows carry a red edge and pending ones a yellow edge.
 
-A "Download log" button on each row saves that single item's record as a plain-text
-`.log` file: title, media type, action, status, local and ISO timestamps, record id,
-the source it came from, the targets it went to, the details string, every target
-result with its detail, and the raw payload debug JSON when the record has one.
+Sync Activity resolves platform names itself (`activityPlatform`) rather than through
+`normalizePlatformSource`, which knows only the three media servers and folds anything
+else into Plex. That is what lets a Trakt dispatch appear as Trakt, with its own icon,
+alongside Plex, Emby, Jellyfin, and Plembfin's own manual actions.
+
+Clicking a title opens that media's page: its local page when the record matches
+something in the library, the TMDB or TVDB route when the dispatch carried those ids,
+and a search for the title when it carried neither. Clicking anywhere else on a row
+expands it to show that item's full log inline; a background refresh reopens rows that
+were already expanded.
+
+The "Download log" button sits on the same line as the target results and saves that
+single item's record as a plain-text `.log` file: title, media type, action, status,
+local and ISO timestamps, record id, the source it came from, the targets it went to,
+the details string, every target result with its detail, and the raw payload debug JSON
+when the record has one.
 
 ## Posters
 

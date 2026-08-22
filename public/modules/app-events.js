@@ -455,10 +455,21 @@ function attachEvents() {
   });
 
   elements.syncActivityRows?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-sync-activity-download]");
-    if (!button) return;
-    const downloaded = _cb.downloadSyncActivityLog?.(button.dataset.syncActivityDownload);
-    if (!downloaded) setMessage("That sync log is no longer available - refresh the page.", "error");
+    const download = event.target.closest("[data-sync-activity-download]");
+    if (download) {
+      const downloaded = _cb.downloadSyncActivityLog?.(download.dataset.syncActivityDownload);
+      if (!downloaded) setMessage("That sync log is no longer available - refresh the page.", "error");
+      return;
+    }
+
+    const titleLink = event.target.closest("[data-media-href]");
+    if (titleLink?.dataset.mediaHref) {
+      navigateTo(titleLink.dataset.mediaHref);
+      return;
+    }
+
+    const row = event.target.closest(".sync-activity-row");
+    if (row) _cb.toggleSyncActivityRowLog?.(row);
   });
 
   elements.appVersion?.addEventListener("click", () => {
