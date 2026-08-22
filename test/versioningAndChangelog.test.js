@@ -118,6 +118,18 @@ test("handleChangelog returns channel metadata properly", async () => {
     await handleChangelog(req, res);
     assert.equal(statusCode, 200);
     assert.equal(jsonBody.channel, "release");
+
+    // 3. Test latest
+    process.env.BUILD_CHANNEL = "latest";
+    await handleChangelog(req, res);
+    assert.equal(statusCode, 200);
+    assert.equal(jsonBody.channel, "release");
+
+    // 4. Test stable
+    process.env.BUILD_CHANNEL = "stable";
+    await handleChangelog(req, res);
+    assert.equal(statusCode, 200);
+    assert.equal(jsonBody.channel, "release");
   } finally {
     process.env.BUILD_CHANNEL = prevChannel;
   }
