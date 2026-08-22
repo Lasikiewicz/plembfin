@@ -1,7 +1,19 @@
 {
-  "build": 17,
-  "updatedAt": "2026-08-22T08:54:48+01:00",
+  "build": 18,
+  "updatedAt": "2026-08-22T09:09:26+01:00",
   "entries": [
+    {
+      "build": 18,
+      "date": "2026-08-22T09:09:26+01:00",
+      "commit": "0dfd0332ea8a76c67d92283ef6262b0c0383d8da",
+      "message": "Fix - Attribute manual unwatch sync log entries to Plembfin, not the original watch's source",
+      "author": "Lasikiewicz",
+      "details": [
+        "Manual unwatch actions (Sync Activity Mark Unwatched, and the Continue Watching clear-progress unwatch) now log their origin as Manual instead of echoing whatever platform the original watch record happened to be sourced from",
+        "Fixes a misleading Sync Activity entry where marking an item unwatched in Plembfin showed \"Request came from: Trakt\" purely because that item's original watch had legacy provenance pointing at Trakt",
+        "Dispatch behavior is unchanged - this only corrects the recorded origin shown in Sync Activity and the per-record sync telemetry"
+      ]
+    },
     {
       "build": 17,
       "date": "2026-08-22T08:54:48+01:00",
