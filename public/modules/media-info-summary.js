@@ -1,4 +1,4 @@
-import { escapeHtml, escapeAttribute, platformName, formatDate } from "./utils.js";
+import { escapeHtml, escapeAttribute, platformName, formatDate, formatSeasonTitle } from "./utils.js";
 import { normalizeTargetStatus, syncStatus, telemetryTargetStates } from "./sync.js";
 
 function infoValue(value, fallback = "Not recorded") {
@@ -196,7 +196,8 @@ export function renderInfoWatchSync(records, context, auditEvents, getProvenance
     return Number(a) - Number(b);
   });
   return `<div class="media-info-season-list">${sortedSeasons.map(([season, seasonRecords]) => {
-    const seasonLabel = season === "unknown" ? "Season not recorded" : `Season ${season}`;
+    const seasonName = context.tmdbData?.seasons?.find((s) => Number(s.season_number) === Number(season))?.name || "";
+    const seasonLabel = season === "unknown" ? "Season not recorded" : formatSeasonTitle(season, seasonName);
     const sortedEpisodes = [...seasonRecords].sort((a, b) => Number(a.episode ?? 0) - Number(b.episode ?? 0));
     return `
       <details class="media-info-season-group">

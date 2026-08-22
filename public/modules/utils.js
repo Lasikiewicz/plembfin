@@ -376,6 +376,26 @@ export function seasonLabel(seasonNumber) {
   return `Season ${seasonNumber}`;
 }
 
+export function formatSeasonTitle(seasonNumber, rawName = "") {
+  const num = Number(seasonNumber);
+  const name = String(rawName || "").trim();
+  if (num === 0) {
+    if (!name || name.toLowerCase() === "specials") return "Specials";
+    if (/^specials?\b/i.test(name)) return name;
+    return `Specials - ${name}`;
+  }
+  const defaultLabel = `Season ${num}`;
+  if (!name || name === defaultLabel || name === String(num)) {
+    return defaultLabel;
+  }
+  const prefixRegex = new RegExp(`^(?:Season\\s+0*${num}|S0*${num})\\b[:\\s–—\\-]*`, "i");
+  if (prefixRegex.test(name)) {
+    const subtitle = name.replace(prefixRegex, "").trim();
+    return subtitle ? `${defaultLabel} - ${subtitle}` : defaultLabel;
+  }
+  return `${defaultLabel} - ${name}`;
+}
+
 // The server removes same-event propagation echoes before it builds
 // playHistory. Keep the UI defensive for older cached rows, and always count a
 // missing history array as one watch rather than zero.

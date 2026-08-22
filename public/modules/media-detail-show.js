@@ -1,5 +1,5 @@
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, sourceBadgeHtml, actualWatchHistory } from "./utils.js";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, actualWatchHistory } from "./utils.js";
 import { posterUrlFor, isCachedStorageImageUrl, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
@@ -645,9 +645,9 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
     const tmdbSeason = seasonDetailsByNumber.get(seasonNumber);
     const tmdbEpisodes = Array.isArray(tmdbSeason?.episodes) ? tmdbSeason.episodes : [];
     const fallbackPosterUrl = (/^https?:\/\//i.test(season.poster_path || "") ? season.poster_path : tmdbPoster(season.poster_path)) || posterUrlFor(representativeEpisode(localSeasons));
+    const knownEpNums = new Set();
 
     if (tmdbEpisodes.length) {
-      const knownEpNums = new Set();
       for (const episode of tmdbEpisodes) {
         const episodeNumber = Number(episode.episode_number);
         knownEpNums.add(episodeNumber);
@@ -672,30 +672,32 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
       const totalEpCount = Number(season.episode_count || 0);
       for (let epNum = 1; epNum <= totalEpCount; epNum++) {
         if (knownEpNums.has(epNum)) continue;
+        knownEpNums.add(epNum);
         const key = showEpisodeKey(seasonNumber, epNum);
         const hint = knownNextEpisodes.get(key);
+        const watched = watchedEpisodeFor(watchedMap, seasonNumber, epNum);
         rows.push({
           key,
           showTitle: show.title,
           showTmdbId: resolvedTmdbId || show.tmdb_id || "",
           seasonNumber,
           episodeNumber: epNum,
-          title: hint?.name || episodeTitle(null, epNum),
+          title: hint?.name || episodeTitle(watched?.title, epNum),
           overview: hint?.overview || "No synopsis available.",
           airDate: hint?.air_date || "",
           airTime: hint?.air_time || hint?.airTime || hint?.airtime || "",
           stillUrl: hint ? tmdbImage(hint.still_path, "w300") : "",
           posterUrl: fallbackPosterUrl,
-          watched: null,
+          watched,
           progress: progressMap.get(key) || null,
         });
       }
-
-      continue;
     }
 
     for (const watched of localSeasons.get(seasonNumber) || []) {
       const episodeNumber = Number(watched.episode);
+      if (knownEpNums.has(episodeNumber)) continue;
+      knownEpNums.add(episodeNumber);
       rows.push({
         key: showEpisodeKey(seasonNumber, episodeNumber),
         showTitle: show.title,
@@ -703,7 +705,7 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
         seasonNumber,
         episodeNumber,
         title: episodeTitle(watched.title, episodeNumber),
-        overview: "TMDB metadata is still loading.",
+        overview: tmdbEpisodes.length ? "Episode synopsis unavailable." : "TMDB metadata is still loading.",
         airDate: "",
         airTime: "",
         stillUrl: "",
@@ -929,7 +931,19 @@ export function renderShowModalContent(show, {
   // Specials (season 0) are kept in the list so they're still browsable, but
   // are excluded from the progress totals below - a "100 of 100" show isn't
   // meant to imply specials don't exist, just that they don't count toward it.
-  const seasonsList = [...(tmdbData?.seasons?.length ? tmdbData.seasons : fallbackSeasonList(seasonsMap))]
+  const knownSeasonNums = new Set((tmdbData?.seasons || []).map((s) => Number(s.season_number)));
+  const extraSeasons = [];
+  for (const [seasonNum, epList] of seasonsMap.entries()) {
+    if (!knownSeasonNums.has(seasonNum)) {
+      extraSeasons.push({
+        season_number: seasonNum,
+        name: seasonLabel(seasonNum),
+        episode_count: epList?.length || 0,
+        poster_path: null,
+      });
+    }
+  }
+  const seasonsList = [...(tmdbData?.seasons?.length ? [...tmdbData.seasons, ...extraSeasons] : fallbackSeasonList(seasonsMap))]
     .sort((a, b) => Number(b.season_number) - Number(a.season_number));
   const regularSeasonsList = seasonsList.filter((season) => Number(season.season_number) > 0);
   const selectedSeason = activeSeasonNum == null ? null : Number(activeSeasonNum);
@@ -1054,7 +1068,7 @@ export function renderShowModalContent(show, {
     return `
       <article class="season-accordion ${isActive ? "is-open" : ""}">
         <button class="season-accordion-trigger" type="button" data-season-accordion="${seasonNumber}" aria-expanded="${isActive}" aria-controls="${panelId}">
-          <span class="season-row-title"><strong>${escapeHtml(season.name || seasonLabel(seasonNumber))}</strong></span>
+          <span class="season-row-title"><strong>${escapeHtml(formatSeasonTitle(seasonNumber, season.name))}</strong></span>
           <span class="season-row-col season-row-episodes">${escapeHtml(episodeCountText)}</span>
           <span class="season-row-col season-row-watched">${escapeHtml(watchedText)}</span>
           <span class="season-row-col season-row-availability">${seasonAvailabilityHtml}</span>

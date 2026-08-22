@@ -401,7 +401,7 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
     { label: mediaType === "movie" ? "Release" : "First aired", text: formatTmdbDate(tmdbData.release_date || tmdbData.first_air_date) },
     { label: "Language", text: String(tmdbData.original_language || "").toUpperCase() },
     { label: "Runtime", text: runtime },
-    { label: "Genres", text: (tmdbData.genres || []).map((genre) => genre.name).join(", ") },
+    { label: "Genres", text: (tmdbData.genres || []).map((genre) => genre.name).join(", "), full: !runtime },
     {
       label: "Network",
       text: networks.map((network) => network.name).join(", "),

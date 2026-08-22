@@ -11,6 +11,8 @@ import {
   platformName,
   showName,
   episodeCode,
+  seasonLabel,
+  formatSeasonTitle,
 } from "../public/modules/utils.js";
 
 test("frontend escaping utilities encode markup and attribute delimiters", () => {
@@ -33,4 +35,18 @@ test("frontend platform and title helpers normalize user-facing labels", () => {
   assert.equal(platformName("jellyfin_webhook"), "Jellyfin");
   assert.equal(showName("Harbor Nine - S02E03 - Low Tide"), "Harbor Nine");
   assert.equal(episodeCode(2, 3), "S02E03");
+  assert.equal(seasonLabel(1), "Season 1");
+});
+
+test("formatSeasonTitle preserves season numbers even when custom season titles exist", () => {
+  assert.equal(formatSeasonTitle(1, "Fantasy High"), "Season 1 - Fantasy High");
+  assert.equal(formatSeasonTitle(2, "Escape from the Bloodkeep"), "Season 2 - Escape from the Bloodkeep");
+  assert.equal(formatSeasonTitle(7, "Fantasy High 2: Sophomore Year"), "Season 7 - Fantasy High 2: Sophomore Year");
+  assert.equal(formatSeasonTitle(28, "City Council of Darkness"), "Season 28 - City Council of Darkness");
+  assert.equal(formatSeasonTitle(29, "Season 29"), "Season 29");
+  assert.equal(formatSeasonTitle(1, "Season 1"), "Season 1");
+  assert.equal(formatSeasonTitle(1, ""), "Season 1");
+  assert.equal(formatSeasonTitle(0, "Specials"), "Specials");
+  assert.equal(formatSeasonTitle(0, "Trailers & Extras"), "Specials - Trailers & Extras");
+  assert.equal(formatSeasonTitle(3, "Season 3: The Unsleeping City"), "Season 3 - The Unsleeping City");
 });

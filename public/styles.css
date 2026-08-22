@@ -8457,10 +8457,10 @@ html.light-mode .log-msg {
 }
 
 .rating-pill-icon {
+  width: 2rem;
   height: 2rem;
-  width: auto;
-  max-width: 4.4rem;
   object-fit: contain;
+  border-radius: 4px;
   flex: 0 0 auto;
 }
 
@@ -8469,7 +8469,7 @@ html.light-mode .log-msg {
    for the TMDB/TVDB/IMDb pills that also carry a brand icon - no background
    fill, just the icon and label. */
 .rating-pill--brand {
-  min-height: 3.1rem;
+  min-height: 2.6rem;
   padding: 0.35rem 0.9rem 0.35rem 0.55rem;
   border: 0;
   border-radius: 999px;

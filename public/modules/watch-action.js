@@ -1,5 +1,5 @@
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatTmdbDate, showEpisodeKey } from "./utils.js";
+import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js";
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { mergeShowDetail } from "./explorer.js";
@@ -573,11 +573,10 @@ export function openSeerrSeasonRequestDialog(mediaType, mediaId, { is4k = false 
     const availabilityLabel = released
       ? (isFullyAvailable ? `All ${released} available${is4k ? " in 4K" : ""}` : `${availableForKind}/${released} available${is4k ? " in 4K" : ""}`)
       : "Episode count unknown";
-    const seasonName = season.name && season.name !== `Season ${seasonNumber}` ? ` - ${escapeHtml(season.name)}` : "";
     return `
       <label class="seerr-season-row">
         <input type="checkbox" class="seerr-season-checkbox" value="${seasonNumber}" ${isDefaultChecked ? "checked" : ""} ${isFullyAvailable ? "disabled" : ""} />
-        <span class="seerr-season-row-label">Season ${seasonNumber}${seasonName}</span>
+        <span class="seerr-season-row-label">${escapeHtml(formatSeasonTitle(seasonNumber, season.name))}</span>
         <span class="seerr-season-row-status">${escapeHtml(availabilityLabel)}</span>
       </label>
     `;
