@@ -1,12 +1,12 @@
 {
-  "baseVersion": "0.10.0",
+  "baseVersion": "0.10.1",
   "build": 1,
   "entries": [
     {
       "build": 1,
-      "version": "0.10.0.1",
-      "date": "2026-08-22T21:57:14+01:00",
-      "commit": "99fa6d49fde062dfe0542be34e28b15655bd7ac7",
+      "version": "0.10.1.1",
+      "date": "2026-08-22T22:12:16+01:00",
+      "commit": "c9b27bd03319963756404a13caca987f4e5c2c98",
       "message": "Merge remote-tracking branch 'origin/develop' into develop",
       "author": "Lasikiewicz",
       "details": [
@@ -14,5 +14,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-22T21:57:14+01:00"
+  "updatedAt": "2026-08-22T22:12:16+01:00"
 }
