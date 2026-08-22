@@ -1,7 +1,21 @@
 {
-  "build": 14,
-  "updatedAt": "2026-08-22T04:52:32+01:00",
+  "build": 15,
+  "updatedAt": "2026-08-22T05:12:56+01:00",
   "entries": [
+    {
+      "build": 15,
+      "date": "2026-08-22T05:12:56+01:00",
+      "commit": "2f6108045455751497b7c6647c8682ebe72d9e64",
+      "message": "Feature - Add a permanent sync indicator and a Sync Activity page",
+      "author": "Lasikiewicz",
+      "details": [
+        "The sidebar sync line is now always visible, reading \"Sync - Idle\" when nothing is running and \"Sync - x of x\" while a sync is in flight",
+        "Clicking the sync line opens a new Sync Activity page listing every synced media item in its own row, newest first",
+        "Each row shows where the sync request came from and which apps it was dispatched to, plus each target's result and any failure detail",
+        "Each row has a Download log button that saves that single item's full sync record as a plain-text log",
+        "The Sync Activity page refreshes itself while a sync is running so rows appear as they are dispatched"
+      ]
+    },
     {
       "build": 14,
       "date": "2026-08-22T04:52:32+01:00",
