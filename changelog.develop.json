@@ -1,7 +1,18 @@
 {
-  "build": 11,
-  "updatedAt": "2026-08-22T02:54:13+01:00",
+  "build": 12,
+  "updatedAt": "2026-08-22T04:09:35+01:00",
   "entries": [
+    {
+      "build": 12,
+      "date": "2026-08-22T04:09:35+01:00",
+      "commit": "f363742c3ecf01336b49c4bf727e577855eb0b7c",
+      "message": "Fix - Stop bulk duplicate-watch removal from also deleting a kept watch",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removing duplicate watches from a season or the whole library no longer wrongly deletes a watch you meant to keep just because it shares a similar timestamp with the one being removed (e.g. marking an episode watched using the same time as another episode, then cleaning up duplicates) - the episode no longer gets left fully unwatched as a side effect",
+        "Manually marking something watched inside Plembfin (not reported by Plex, Emby, or Jellyfin) now shows a Plembfin badge and logo instead of being mislabeled as a Plex watch"
+      ]
+    },
     {
       "build": 11,
       "date": "2026-08-22T02:54:13+01:00",
