@@ -1,7 +1,18 @@
 {
-  "build": 12,
-  "updatedAt": "2026-08-22T04:09:35+01:00",
+  "build": 13,
+  "updatedAt": "2026-08-22T04:30:10+01:00",
   "entries": [
+    {
+      "build": 13,
+      "date": "2026-08-22T04:30:10+01:00",
+      "commit": "788a35eaa06f0c04e10577a124219b25459a2a32",
+      "message": "Fix - Keep the last watch date you leave standing marked as watched",
+      "author": "Lasikiewicz",
+      "details": [
+        "Deleting a watch date no longer falls back to fully unwatched just because the only row left over happens to carry an old unwatched marker - leaving that row standing (instead of deleting it too) is now treated as confirmation it should count as watched, and it gets pushed out to Plex, Emby, Jellyfin, and Trakt accordingly",
+        "A genuine, more recent deliberate unwatch is never overridden by this - an older row that is still genuinely marked watched always takes priority, so an intentional unwatch is never silently resurrected"
+      ]
+    },
     {
       "build": 12,
       "date": "2026-08-22T04:09:35+01:00",
