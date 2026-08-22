@@ -1,7 +1,18 @@
 {
-  "build": 5,
-  "updatedAt": "2026-08-22T21:47:24+01:00",
+  "build": 6,
+  "updatedAt": "2026-08-22T21:48:21+01:00",
   "entries": [
+    {
+      "build": 6,
+      "date": "2026-08-22T21:48:21+01:00",
+      "commit": "434f9f2c4a40c629242505c25736dd364667306d",
+      "message": "Fix - Replace raster logo with crisp native SVG vector logo",
+      "author": "Lasikiewicz",
+      "details": [
+        "Convert central Plembfin logo badge to pure SVG vector paths",
+        "Eliminate raster data URIs so the center hub logo reliably renders across all browsers and GitHub markdown"
+      ]
+    },
     {
       "build": 5,
       "date": "2026-08-22T21:47:24+01:00",
