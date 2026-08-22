@@ -1,7 +1,19 @@
 {
-  "build": 2,
-  "updatedAt": "2026-08-22T21:36:38+01:00",
+  "build": 3,
+  "updatedAt": "2026-08-22T21:43:07+01:00",
   "entries": [
+    {
+      "build": 3,
+      "date": "2026-08-22T21:43:07+01:00",
+      "commit": "52cc7a4bffdfbdfd9f4c087e1949574d1bcb0b31",
+      "message": "Docs - Modernize plembfin architecture hub diagram",
+      "author": "Lasikiewicz",
+      "details": [
+        "Redesign architecture hub diagram with transparent background and clean vector styling",
+        "Embed official high-resolution Plembfin logo badge in central hub",
+        "Tune palette to crisp cyan, emerald, amber, and blue accents"
+      ]
+    },
     {
       "build": 2,
       "date": "2026-08-22T21:36:38+01:00",
