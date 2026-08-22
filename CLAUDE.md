@@ -22,9 +22,7 @@ Day-to-day work lands on the `develop` branch, never directly on `alpha` or `mai
 onto it, and each promotion to `main` becomes exactly one release (one changelog entry,
 one version bump, one `:latest` + versioned Docker image publish).
 
-**`develop` is not covered by `secret-scan.yml` or `security.yml`** - those only trigger
-on `main` and `alpha` - so a leaked secret or vulnerable dependency isn't caught until
-"Force to alpha" promotes it. `develop` builds, verifies, and publishes a rolling image
+**`develop` is covered by `secret-scan.yml`** (while `security.yml` runs on `main` and `alpha` alongside scheduled scans). `develop` builds, verifies, and publishes a rolling image
 to `ghcr.io/lasikiewicz/plembfin:develop` (also tagged `develop-<build>`) on every push,
 via `docker-publish-develop.yml`. It never touches `changelog.json`/`changelog.alpha.json`
 or the package version. It bumps its own standalone `changelog.develop.json` build

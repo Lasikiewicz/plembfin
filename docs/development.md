@@ -68,9 +68,8 @@ each promotion to `main` becomes exactly one release.
   committed back as `chore: bump develop build for <sha>`. Unlike alpha's counter, this
   one is never inferred from a comparison against a parent branch's version - it only
   resets when a "Force to alpha" promotion explicitly zeroes it, so it can never appear
-  to regress. **`develop` is not covered by `secret-scan.yml` or `security.yml`** (see
-  the table below) - those only trigger on `main` and `alpha`, so a leaked secret or
-  vulnerable dependency on `develop` isn't caught until it's promoted.
+  to regress. **`develop` is covered by `secret-scan.yml`** (while `security.yml` runs on
+  `main` and `alpha` alongside scheduled scans).
 - **"Force to alpha"** force-pushes `develop`'s current state onto `alpha`
   (`git push origin develop:alpha --force`; merge `origin/main` into `develop` first if
   it has moved on, to avoid clobbering a pending main changelog commit). This is where
@@ -148,7 +147,7 @@ on GitHub - see the changelog section of [architecture.md](architecture.md).
 | Workflow | What it does |
 | --- | --- |
 | `security.yml` | `npm audit --audit-level=high` + CodeQL, on push to `main`/`alpha`, PRs targeting `main`, and daily. CodeQL loads `.github/codeql/codeql-config.yml`, which excludes the `js/request-forgery` query repo-wide - every outbound request funnels through the centralized, validated fetch guard in `server/src/utils/outbound.js`, and admin-configured LAN media server URLs make that query permanently false-positive for this app |
-| `secret-scan.yml` | TruffleHog verified-secret scan on push to `main`/`alpha` and PRs targeting `main` |
+| `secret-scan.yml` | TruffleHog verified-secret scan on push to `main`/`alpha`/`develop` and PRs targeting `main`/`develop` |
 | `docker-build-check.yml` | Builds the image on every PR targeting `main`, without pushing anything, then runs `better-sqlite3` and `sharp` inside it, so a broken Dockerfile or dependency install is caught before a PR merges. The runtime probe matters because production dependencies install with `--ignore-scripts`: a native module with no usable binary for the platform still builds cleanly and would fail on first database open |
 | `docker-publish-alpha.yml` | On every push to `alpha`: bumps `changelog.alpha.json`'s build counter and commits it back to `alpha`, builds the image, runs the same native-module probe as `docker-build-check.yml`, then pushes it to `ghcr.io/lasikiewicz/plembfin:alpha` and `ghcr.io/lasikiewicz/plembfin:alpha-<build>`. Never touches `changelog.json`, the package version, or the `:latest` tag |
 | `dependabot.yml` | Dependency update PRs |

@@ -169,7 +169,14 @@ export function verifyPassword(plain) {
 }
 
 export function verifyUsername(name) {
-  return String(name || "") === config.username;
+  if (!name || !config.username) return false;
+  const a = Buffer.from(String(name));
+  const b = Buffer.from(config.username);
+  try {
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
 
 export function updateAdminCredentials({ username, password = "" }) {
