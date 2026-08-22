@@ -272,7 +272,7 @@ export async function handleDeleteHistoryRecord(req, res) {
     return sendJson(res, { ok: true, id }, 200, { "Cache-Control": "no-store" });
   } catch (error) {
     console.error("Failed to delete history record", error);
-    return sendJson(res, { error: error.message || "Failed to delete history record" }, 500);
+    return sendJson(res, { error: "Failed to delete history record" }, 500);
   }
 }
 
@@ -325,7 +325,7 @@ export async function handleDeleteMedia(req, res) {
     return sendJson(res, { ok: true, deleted: result.deleted, title: result.title }, 200, { "Cache-Control": "no-store" });
   } catch (error) {
     console.error("Failed to delete media item", error);
-    return sendJson(res, { error: error.message || "Failed to delete media item" }, 500);
+    return sendJson(res, { error: "Failed to delete media item" }, 500);
   }
 }
 

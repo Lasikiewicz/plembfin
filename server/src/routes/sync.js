@@ -917,7 +917,7 @@ export async function handleManualUnwatch(req, res) {
 
   if (ids.length === 1) {
     const only = results[0];
-    if (only.error) return sendJson(res, { error: "Manual unwatch failed", details: only.error }, 500);
+    if (only.error) return sendJson(res, { error: "Manual unwatch failed" }, 500);
     return sendJson(res, { ok: true, id: only.unwatchedId, status: only.status, targetStates: only.targetStates });
   }
   return sendJson(res, { ok: true, succeeded, failed, results });
@@ -1047,7 +1047,7 @@ export async function handlePlaybackProgressList(req, res) {
     return sendJson(res, { progress: decoratedRows, total });
   } catch (error) {
     console.error("Failed to list playback progress", error);
-    return sendJson(res, { error: "Failed to list playback progress", details: error.message }, 500);
+    return sendJson(res, { error: "Failed to list playback progress" }, 500);
   }
 }
 
@@ -1128,7 +1128,7 @@ export async function handlePlaybackProgressWatch(req, res) {
     return sendJson(res, { ok: true, id });
   } catch (error) {
     console.error("Mark watch from progress failed", error);
-    return sendJson(res, { error: "Mark watch from progress failed", details: error.message }, 500);
+    return sendJson(res, { error: "Mark watch from progress failed" }, 500);
   }
 }
 
@@ -1166,7 +1166,7 @@ export async function handlePlaybackProgressUnwatch(req, res) {
     return sendJson(res, { ok: true, id: unwatchedId, status: summary.status, targetStates: summary.targetStates || [] });
   } catch (error) {
     console.error("Playback progress unwatch failed", error);
-    return sendJson(res, { error: "Playback progress unwatch failed", details: error.message }, 500);
+    return sendJson(res, { error: "Playback progress unwatch failed" }, 500);
   } finally {
     await invalidateHistoryDerivedCaches().catch(() => null);
   }
@@ -1438,7 +1438,8 @@ export async function handleForceSyncPlan(req, res) {
     return sendJson(res, { ok: true, jobId: job.id, status: job.status, message: "Force Sync preview queued." }, 202);
   } catch (error) {
     if (error?.code === "JOB_ACTIVE") return sendJson(res, { ok: false, error: error.message }, 409);
-    return sendJson(res, { ok: false, error: error.message }, 500);
+    console.error("Force Sync preview enqueue failed", error);
+    return sendJson(res, { ok: false, error: "Force Sync preview failed" }, 500);
   }
 }
 
@@ -1519,7 +1520,8 @@ export async function handleStopForceSync(req, res) {
     }
     return sendJson(res, { ok: true, active: false, reset, message });
   } catch (error) {
-    return sendJson(res, { ok: false, error: error.message }, 500);
+    console.error("Force sync stop failed", error);
+    return sendJson(res, { ok: false, error: "Force sync stop failed" }, 500);
   }
 }
 
@@ -1731,7 +1733,7 @@ export async function handleWebhook(req, res) {
       }
     } catch (error) {
       console.error("Failed to fetch child episodes for %s %s", media.type, media.itemId, error);
-      return sendJson(res, { error: `Failed to fetch episodes for ${media.type}`, details: error.message }, 500);
+      return sendJson(res, { error: `Failed to fetch episodes for ${media.type}` }, 500);
     }
 
     console.log("Found %d episodes under %s %s", episodes.length, media.type, media.itemId);
@@ -2109,6 +2111,6 @@ export async function handleWebhook(req, res) {
   } catch (error) {
     console.error("Webhook insert failed", error);
     await invalidateHistoryDerivedCaches().catch(() => null);
-    return sendJson(res, { error: "Webhook insert failed", details: error.message }, 500);
+    return sendJson(res, { error: "Webhook insert failed" }, 500);
   }
 }

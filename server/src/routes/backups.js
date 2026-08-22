@@ -132,7 +132,8 @@ export async function handlePlembfinBackups(req, res) {
     }
     return sendJson(res, { error: `Unsupported action: ${action}` }, 400);
   } catch (error) {
-    return sendJson(res, { error: error.message }, 500);
+    console.error("Backup action failed", error);
+    return sendJson(res, { error: "Backup action failed" }, 500);
   }
 }
 

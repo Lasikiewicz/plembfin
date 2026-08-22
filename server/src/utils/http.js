@@ -4,10 +4,8 @@
 // CORS headers are needed either.
 function sanitizeResponseBody(body, status) {
   if (!body || typeof body !== "object") return body;
-  if (status >= 500 && body.error) {
-    const raw = typeof body.error === "string" ? body.error : (body.error?.message || "Internal server error");
-    const sanitized = String(raw).split(/\r?\n/)[0].replace(/(\/|[A-Za-z]:\\)[^\s:]+/g, "[path]").trim();
-    return { ...body, error: sanitized || "Internal server error" };
+  if (status >= 500) {
+    return { ...(body.ok !== undefined ? { ok: false } : {}), error: "Internal server error" };
   }
   return body;
 }

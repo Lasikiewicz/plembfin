@@ -176,7 +176,7 @@ export async function handleBackfillStatus(req, res) {
     return sendJson(res, { remaining: count, missing: count });
   } catch (error) {
     console.error("Failed to get backfill status", error);
-    return sendJson(res, { error: "Failed to get backfill status", details: error.message }, 500);
+    return sendJson(res, { error: "Failed to get backfill status" }, 500);
   }
 }
 
@@ -229,7 +229,7 @@ export async function handleBackfillTrakt(req, res) {
     return sendJson(res, { ok: true, tried, backfilled });
   } catch (error) {
     console.error("Trakt backfill execution failed", error);
-    return sendJson(res, { error: "Trakt backfill execution failed", details: error.message }, 500);
+    return sendJson(res, { error: "Trakt backfill execution failed" }, 500);
   }
 }
 
@@ -355,7 +355,7 @@ export async function handleAdminFixHistory(req, res) {
     });
   } catch (error) {
     console.error("History repair pass failed", error);
-    return sendJson(res, { error: "Repair failed", details: error.message }, 500);
+    return sendJson(res, { error: "Repair failed" }, 500);
   }
 }
 
@@ -397,7 +397,8 @@ export async function handlePhantomWatchRepair(req, res) {
     });
     return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
   } catch (error) {
-    return sendJson(res, { error: error.message || "Phantom watch repair failed" }, 500);
+    console.error("Phantom watch repair failed", error);
+    return sendJson(res, { error: "Phantom watch repair failed" }, 500);
   }
 }
 
@@ -424,7 +425,8 @@ export async function handleStaleTraktImportRepair(req, res) {
     });
     return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
   } catch (error) {
-    return sendJson(res, { error: error.message || "Stale Trakt import repair failed" }, 500);
+    console.error("Stale Trakt import repair failed", error);
+    return sendJson(res, { error: "Stale Trakt import repair failed" }, 500);
   }
 }
 
@@ -454,7 +456,8 @@ export async function handleStalePendingWatchRepair(req, res) {
     });
     return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
   } catch (error) {
-    return sendJson(res, { error: error.message || "Stale pending watch repair failed" }, 500);
+    console.error("Stale pending watch repair failed", error);
+    return sendJson(res, { error: "Stale pending watch repair failed" }, 500);
   }
 }
 
@@ -502,7 +505,8 @@ export async function handleSplitIdentityUnwatchRepair(req, res) {
     });
     return sendJson(res, { ok: true, repaired: result.repaired, propagationErrors }, 200, { "Cache-Control": "no-store" });
   } catch (error) {
-    return sendJson(res, { error: error.message || "Split identity unwatch repair failed" }, 500);
+    console.error("Split identity unwatch repair failed", error);
+    return sendJson(res, { error: "Split identity unwatch repair failed" }, 500);
   }
 }
 
@@ -548,7 +552,8 @@ export async function handleLikelyFalseUnwatchRepair(req, res) {
     });
     return sendJson(res, { ok: true, repaired: result.repaired, propagationErrors }, 200, { "Cache-Control": "no-store" });
   } catch (error) {
-    return sendJson(res, { error: error.message || "Likely false unwatch repair failed" }, 500);
+    console.error("Likely false unwatch repair failed", error);
+    return sendJson(res, { error: "Likely false unwatch repair failed" }, 500);
   }
 }
 
@@ -663,7 +668,8 @@ export async function handleDebugPlexMatch(req, res) {
   try {
     item = await findPlexItem(config.plex, media);
   } catch (error) {
-    matchError = error.message || String(error);
+    console.error("Debug Plex match lookup failed", error);
+    matchError = "Plex item search failed";
   } finally {
     setVerboseLogging(wasVerbose);
   }

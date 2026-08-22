@@ -759,7 +759,8 @@ export async function handleFanartImages(req, res) {
     }
     return sendJson(res, result || { posters: [], logos: [], backdrops: [] });
   } catch (error) {
-    return sendJson(res, { error: error.message }, 500);
+    console.error("Failed to load Fanart images", error);
+    return sendJson(res, { error: "Failed to load Fanart images" }, 500);
   }
 }
 
@@ -1007,7 +1008,8 @@ export async function handleOmdbRating(req, res) {
     const rating = await getOmdbRating(imdbId, config.omdb.apiKey);
     return sendJson(res, rating || {});
   } catch (err) {
-    return sendJson(res, { error: err.message }, 500);
+    console.error("Failed to fetch OMDb rating", err);
+    return sendJson(res, { error: "Failed to fetch OMDb rating" }, 500);
   }
 }
 
@@ -1026,6 +1028,11 @@ export async function handleUpcoming(req, res) {
     const payload = await getUpcomingCalendarMonth(month, { refresh, revalidate });
     return sendJson(res, payload);
   } catch (error) {
-    return sendJson(res, { error: error.message }, error.status || 500);
+    console.error("Upcoming calendar request failed", error);
+    const status = Number(error?.status);
+    if (Number.isInteger(status) && status >= 400 && status < 500) {
+      return sendJson(res, { error: error.message || "Upcoming calendar request failed" }, status);
+    }
+    return sendJson(res, { error: "Upcoming calendar request failed" }, 500);
   }
 }
