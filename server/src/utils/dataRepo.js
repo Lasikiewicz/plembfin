@@ -1576,56 +1576,58 @@ export async function deleteWatchDate(id) {
 // watches" cleanup, which can delete dozens of rows across many episodes in
 // one action. Recomputes each affected media_key's playstate once at the end
 // instead of once per deleted row.
+//
+// Deliberately does NOT chain-expand via sameEventChainIdsFor the way the
+// singular deleteWatchDate does. That expansion exists so deleting one visible
+// echo-chain representative also removes its hidden echo siblings - correct
+// for "remove this watch date", where every row in the chain really is the
+// same viewing event. It is wrong here: the caller (findDuplicateWatchGroups)
+// has already decided exactly which ids are extras to remove and which one to
+// keep, and the kept row can easily fall within the same chain window as one
+// being removed (e.g. two genuinely separate watches recorded with the same
+// or a nearby timestamp - "mark watched using the same time as the other").
+// Expanding the delete set there silently swept the row meant to survive into
+// the deletion too, leaving nothing behind and wrongly marking the item
+// unwatched - real incident: removing a duplicate right after adding a watch
+// date at another episode's exact time. Deleting exactly the given ids, no
+// more, is the only behavior that matches what the caller actually decided.
 export async function deleteWatchDates(ids = []) {
   const uniqueIds = [...new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean))];
   const deleted = [];
   const notFound = [];
   const affectedMediaKeys = new Set();
   const representativeRowByMediaKey = new Map();
-  const handled = new Set();
 
   for (const id of uniqueIds) {
-    if (handled.has(id)) continue;
     const existing = selectByIdStmt.get(id);
     if (!existing) {
       notFound.push(id);
       continue;
     }
 
-    const candidateRows = [existing, ...siblingWatchRowsFor(existing)];
-    const chainIds = sameEventChainIdsFor([id], candidateRows).filter((chainId) => !handled.has(chainId));
-    const rowsToDelete = chainIds
-      .map((chainId) => (chainId === existing.id ? existing : candidateRows.find((row) => row.id === chainId)))
-      .filter(Boolean);
-
-    for (const row of rowsToDelete) {
-      handled.add(row.id);
-      queueProgressUpdateForRecord(row);
-      deleteByIdStmt.run(row.id);
-      recordWatchAuditEvent({
-        eventType: "history_deleted",
-        timestamp: Date.now(),
-        action: row.sync_action || "watched",
-        watchRecordId: row.id,
-        mediaKey: row.media_key,
-        mediaType: row.media_type,
-        title: row.title,
-        showTitle: row.show_title,
-        source: row.source,
-        ids: { imdb: row.imdb_id, tmdb: row.tmdb_id, tvdb: row.tvdb_id },
-        season: row.season,
-        episode: row.episode,
-        status: "deleted",
-        details: row.id === existing.id
-          ? "A watch date was removed as part of a bulk duplicate-watch cleanup."
-          : "An echoed duplicate row chained to a bulk-cleanup watch date was removed with it.",
-        payload: { record: row, operation: "bulk_delete_watch_dates" },
-      });
-      deleted.push(row.id);
-      if (row.media_key) {
-        affectedMediaKeys.add(row.media_key);
-        if (!representativeRowByMediaKey.has(row.media_key)) representativeRowByMediaKey.set(row.media_key, row);
-      }
+    queueProgressUpdateForRecord(existing);
+    deleteByIdStmt.run(existing.id);
+    recordWatchAuditEvent({
+      eventType: "history_deleted",
+      timestamp: Date.now(),
+      action: existing.sync_action || "watched",
+      watchRecordId: existing.id,
+      mediaKey: existing.media_key,
+      mediaType: existing.media_type,
+      title: existing.title,
+      showTitle: existing.show_title,
+      source: existing.source,
+      ids: { imdb: existing.imdb_id, tmdb: existing.tmdb_id, tvdb: existing.tvdb_id },
+      season: existing.season,
+      episode: existing.episode,
+      status: "deleted",
+      details: "A watch date was removed as part of a bulk duplicate-watch cleanup.",
+      payload: { record: existing, operation: "bulk_delete_watch_dates" },
+    });
+    deleted.push(existing.id);
+    if (existing.media_key) {
+      affectedMediaKeys.add(existing.media_key);
+      if (!representativeRowByMediaKey.has(existing.media_key)) representativeRowByMediaKey.set(existing.media_key, existing);
     }
   }
 

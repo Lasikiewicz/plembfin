@@ -210,11 +210,13 @@ export function normalizePlatformSource(value) {
   const source = String(value || "").trim().toLowerCase();
   if (source.startsWith("emby")) return "emby";
   if (source.startsWith("jellyfin")) return "jellyfin";
+  if (source.startsWith("manual")) return "plembfin";
   return "plex";
 }
 
 export function platformName(value) {
   const normalized = normalizePlatformSource(value);
+  if (normalized === "plembfin") return "Plembfin";
   const text = normalized.replace(/_/g, " ");
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -228,7 +230,9 @@ export function sourceClass(value) {
 }
 
 export function platformIconUrl(value) {
-  return `/icons/${normalizePlatformSource(value)}.svg`;
+  const normalized = normalizePlatformSource(value);
+  const extension = normalized === "plembfin" ? "png" : "svg";
+  return `/icons/${normalized}.${extension}`;
 }
 
 export function sourceBadgeHtml(value) {

@@ -145,3 +145,30 @@ test("deleteWatchDates reports affected media with surviving/deleted rows per me
   const bEntry = result.affectedMedia.find((entry) => entry.deletedRow.id === bOnly.id);
   assert.equal(bEntry.remainingRow, null);
 });
+
+// Real production bug: marking an episode watched at the same time as another
+// episode, then using the duplicate-watch cleanup to remove a genuine extra
+// duplicate, wrongly deleted the just-added watched row too. deleteWatchDate
+// (singular) intentionally chain-expands within SAME_EVENT_WINDOW_MS to catch
+// hidden echo siblings of the one row it's asked to delete, but deleteWatchDates
+// (bulk, used by the duplicate-watch cleanup) must not do that - the caller
+// has already decided exactly which ids to remove and which to keep, and two
+// unrelated watched rows for the SAME episode can legitimately land within
+// that 10-minute window of each other.
+test("deleteWatchDates does not sweep away a kept row sharing the same-event window with a removed one", async () => {
+  const media = { title: "Same Time Show - S01E01", type: "episode", season: 1, episode: 1, ids: { tmdb: "same-time-1" }, isValid: true };
+  const keep = await repo.insertWatchRecord({ title: media.title, media_type: "episode", season: 1, episode: 1, tmdb_id: "same-time-1", watched_at: "2026-08-21T20:00:00.000Z", source: "manual" });
+  const remove = await repo.insertWatchRecord({ title: media.title, media_type: "episode", season: 1, episode: 1, tmdb_id: "same-time-1", watched_at: "2026-08-21T20:03:00.000Z", source: "manual" });
+  await repo.upsertPlaystateForMedia(media, "watched", remove.record.watched_at);
+
+  const result = await repo.deleteWatchDates([remove.id]);
+  assert.deepEqual(result.deleted, [remove.id]);
+
+  const mediaKey = repo.mediaKeyFor(media);
+  assert.equal(await repo.findExistingWatch(mediaKey, keep.record.watched_at).then((r) => Boolean(r)), true, "the kept row must survive");
+  assert.equal(await repo.findExistingWatch(mediaKey, remove.record.watched_at).then((r) => Boolean(r)), false);
+
+  const state = await repo.getPlaystateForMedia(media);
+  assert.equal(state?.state, "watched");
+  assert.equal(state?.watched_at, keep.record.watched_at);
+});

@@ -2095,6 +2095,10 @@ a.media-fact-chip:hover {
   border-color: rgba(75, 150, 230, 0.55);
 }
 
+.source-plembfin {
+  border-color: rgba(59, 130, 246, 0.55);
+}
+
 .source-meter .source-plex,
 .timeline-event.source-plex::before {
   background: #eab308;
@@ -2108,6 +2112,11 @@ a.media-fact-chip:hover {
 .source-meter .source-jellyfin,
 .timeline-event.source-jellyfin::before {
   background: #4b96e6;
+}
+
+.source-meter .source-plembfin,
+.timeline-event.source-plembfin::before {
+  background: #3b82f6;
 }
 
 .now-playing-grid {
